@@ -13,7 +13,7 @@ use typed_trees::expression::{
 
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, Strict, ValueType};
-use crate::{SourceNode, SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved, refuse};
 
 impl<'t> Program<'t> {
     pub(super) fn slot_of(
@@ -30,13 +30,17 @@ impl<'t> Program<'t> {
                 Unserved::Expression("reserved result outside a contract term"),
             ));
         }
-        if !path.symbol.is_valid() {
-            return Err(refuse(
+        let symbol = path.resolved_symbol().ok_or_else(|| {
+            refuse(
                 id,
                 Construct::Machine,
-                Unserved::Spelling("name without a symbol"),
-            ));
-        }
+                if path.static_application.is_valid() {
+                    Unserved::Expression("applied name used as a plain value binding")
+                } else {
+                    Unserved::Spelling("name without a symbol")
+                },
+            )
+        })?;
         if typed.expression_table.name_path_members(path.members).len() != 1 {
             return Err(refuse(
                 id,
@@ -48,9 +52,9 @@ impl<'t> Program<'t> {
         // handful of locals.
         slots
             .iter()
-            .rposition(|slot| slot.symbol == path.symbol)
+            .rposition(|slot| slot.symbol == symbol)
             .ok_or_else(|| {
-                let kind = typed.symbols.get(path.symbol).kind;
+                let kind = typed.symbols.get(symbol).kind;
                 refuse(
                     id,
                     Construct::Machine,
@@ -88,11 +92,7 @@ impl<'t> Program<'t> {
         expected: Option<ScalarType>,
     ) -> Checked<Expression> {
         let node = self.node(id, handle)?;
-        let source = self.source_origin(
-            id,
-            SourceNode::Expression(handle),
-            self.typed.expression_table.source_span(handle),
-        )?;
+        let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let (kind, result) = match node {
             ExpressionNode::MachineValue(_) => {
@@ -130,35 +130,25 @@ impl<'t> Program<'t> {
         })
     }
 
-    /// Reads one expression. `expected` is the type its context expects; only
-    /// an anonymous integer literal uses it, and every other node's type is
-    /// checked against its context by the caller.
+    /// Reads one expression with its complete contextual type. A literal
+    /// needs that context for its integer carrier or its array element and
+    /// extent; the caller still checks the resulting type exactly.
     pub(super) fn expression(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         handle: ExpressionHandle,
-        expected: Option<ScalarType>,
+        expected: Option<ValueType>,
     ) -> Checked<Expression> {
-        if let Some((_, value)) = self
-            .source_expression_values
-            .iter()
-            .find(|(source, _)| *source == handle)
-        {
-            return Ok(value.clone());
-        }
         let typed = self.typed;
         let node = self.node(id, handle)?;
-        let source = self.source_origin(
-            id,
-            SourceNode::Expression(handle),
-            typed.expression_table.source_span(handle),
-        )?;
+        let source = SourceOrigin::of(typed.expression_table.source_span(handle));
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let expected_scalar = expected.and_then(ValueType::scalar);
         let (kind, result) = match node {
             ExpressionNode::MachineValue(value) => return self.machine_value(id, value, source),
             ExpressionNode::Integer(literal) => {
-                let (value, integer) = self.literal(id, literal, expected)?;
+                let (value, integer) = self.literal(id, literal, expected_scalar)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
             }
             ExpressionNode::Boolean(value) => {
@@ -203,7 +193,7 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Boolean(truth), ScalarType::Boolean)
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(handle) => {
-                let (value, integer) = self.anonymous_value(id, handle, expected)?;
+                let (value, integer) = self.anonymous_value(id, handle, expected_scalar)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
             }
             ExpressionNode::Binary(binary) => {
@@ -232,7 +222,7 @@ impl<'t> Program<'t> {
                     | BinaryOperator::BitwiseOr
                     | BinaryOperator::BitwiseXor
                     | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight => expected,
+                    | BinaryOperator::ShiftRight => expected_scalar,
                     BinaryOperator::Equal
                     | BinaryOperator::NotEqual
                     | BinaryOperator::Less
@@ -255,14 +245,26 @@ impl<'t> Program<'t> {
                     return self.case_test(id, slots, binary.left, case, source);
                 }
                 let (left, right) = if self.wholly_anonymous(binary.left) {
-                    let right = self.expression(id, slots, binary.right, hint)?;
+                    let right =
+                        self.expression(id, slots, binary.right, hint.map(ValueType::Scalar))?;
                     let partner = right.result.and_then(ValueType::scalar);
-                    let left = self.expression(id, slots, binary.left, hint.or(partner))?;
+                    let left = self.expression(
+                        id,
+                        slots,
+                        binary.left,
+                        hint.or(partner).map(ValueType::Scalar),
+                    )?;
                     (left, right)
                 } else {
-                    let left = self.expression(id, slots, binary.left, hint)?;
+                    let left =
+                        self.expression(id, slots, binary.left, hint.map(ValueType::Scalar))?;
                     let partner = left.result.and_then(ValueType::scalar);
-                    let right = self.expression(id, slots, binary.right, hint.or(partner))?;
+                    let right = self.expression(
+                        id,
+                        slots,
+                        binary.right,
+                        hint.or(partner).map(ValueType::Scalar),
+                    )?;
                     (left, right)
                 };
                 let anonymous = (
@@ -271,10 +273,18 @@ impl<'t> Program<'t> {
                 );
                 return binary_expression(id, binary.operator, left, right, anonymous, source);
             }
-            ExpressionNode::Call(call) => return self.call_expression(id, slots, call, source),
+            ExpressionNode::Call(call) => {
+                let read = self.call_expression(id, slots, call, source)?;
+                return self.retain_build_call(
+                    id,
+                    call.target_symbol,
+                    crate::BuildCallOccurrence::Expression(handle),
+                    read,
+                );
+            }
             ExpressionNode::TypeExpression(_) => return unserved("type expression"),
             ExpressionNode::Match(matched) => {
-                return self.match_expression(id, slots, matched, expected, source);
+                return self.match_expression(id, slots, matched, expected_scalar, source);
             }
             // The subject of the enclosing `match`, named by the capture
             // identity stage 03 gave both; any other saved subject is
@@ -292,23 +302,29 @@ impl<'t> Program<'t> {
                     .rev()
                     .find(|(capture, _)| *capture == saved.capture)
                 {
-                    Some((_, subject)) => Ok(subject.clone()),
+                    Some((_, subject)) => Ok(Expression {
+                        kind: ExpressionKind::SavedSubject(saved.capture),
+                        result: subject.result,
+                        source,
+                    }),
                     None => unserved("saved subject"),
                 };
             }
-            ExpressionNode::ArrayLiteral(_) => return unserved("array literal"),
+            ExpressionNode::ArrayLiteral(elements) => {
+                return self.array_literal(id, slots, *elements, expected, source);
+            }
             ExpressionNode::Atomic(_) => return unserved("atomic"),
             ExpressionNode::Cast(cast) => return self.cast(id, slots, cast, source),
             ExpressionNode::Float(_) => return unserved("float literal"),
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
-            ExpressionNode::Indexed(_) => return unserved("index"),
+            ExpressionNode::Indexed(indexed) => return self.indexed(id, slots, indexed, source),
             ExpressionNode::Member(member) => return self.member(id, slots, member, source),
             ExpressionNode::Borrow(_) => return unserved("borrow"),
             ExpressionNode::Range(_) => return unserved("range"),
             ExpressionNode::StructLiteral(literal) => {
-                return self.record_literal(id, slots, literal, source);
+                return self.record_literal(id, slots, handle, literal, source);
             }
-            ExpressionNode::String(_) => return unserved("string literal"),
+            ExpressionNode::String(bytes) => return self.byte_literal(id, bytes, expected, source),
             ExpressionNode::ZeroValue(_) => return unserved("zero value"),
         };
         Ok(Expression {
@@ -342,12 +358,40 @@ impl<'t> Program<'t> {
         if !names_storage(&subject) {
             return Err(unserved("match on a subject that is not a place"));
         }
+        if !self
+            .typed
+            .expression_table
+            .contains_value_capture(matched.capture)
+            || !matches!(
+                self.typed
+                    .expression_table
+                    .value_capture(matched.capture)
+                    .owner,
+                typed_trees::expression::ValueCaptureOwner::Match
+            )
+            || self
+                .typed
+                .expression_table
+                .value_capture(matched.capture)
+                .subject
+                != matched.subject
+        {
+            return Err(unserved(
+                "match without its exact completed subject capture",
+            ));
+        }
         self.captures.push((matched.capture, subject.clone()));
-        let read = self.match_arms(id, slots, matched, record, &subject, expected);
+        let saved = Expression {
+            kind: ExpressionKind::SavedSubject(matched.capture),
+            result: subject.result,
+            source: subject.source,
+        };
+        let read = self.match_arms(id, slots, matched, record, &saved, expected);
         self.captures.pop();
         let (arms, default, result) = read?;
         Ok(Expression {
             kind: ExpressionKind::Match {
+                capture: Some(matched.capture),
                 subject: Box::new(subject),
                 arms,
                 default,
@@ -388,8 +432,12 @@ impl<'t> Program<'t> {
                     // Stage 03 keeps the arm's test as the pattern's
                     // condition, `subject in case && true`; it must read to
                     // exactly that, or the arm tests something else.
-                    let condition =
-                        self.expression(id, slots, pattern.condition, Some(ScalarType::Boolean))?;
+                    let condition = self.expression(
+                        id,
+                        slots,
+                        pattern.condition,
+                        Some(ValueType::Scalar(ScalarType::Boolean)),
+                    )?;
                     if !same_computation(&condition, &case_condition(subject, case)) {
                         return Err(unserved("match arm whose condition is not its case test"));
                     }
@@ -399,7 +447,7 @@ impl<'t> Program<'t> {
                     Some(case)
                 }
             };
-            let value = self.expression(id, slots, arm.value, result)?;
+            let value = self.expression(id, slots, arm.value, result.map(ValueType::Scalar))?;
             let value_type = match value.result {
                 Some(ValueType::Scalar(scalar_type)) => scalar_type,
                 Some(ValueType::Record(_)) => return Err(unserved("match with a data result")),
@@ -434,14 +482,16 @@ impl<'t> Program<'t> {
 /// names the same place and evaluates nothing.
 pub(super) fn names_storage(expression: &Expression) -> bool {
     match &expression.kind {
-        ExpressionKind::Slot(_) => true,
-        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
-            names_storage(base)
-        }
+        ExpressionKind::Slot(_) | ExpressionKind::SavedSubject(_) => true,
+        ExpressionKind::Field { base, .. }
+        | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::Index { base, .. } => names_storage(base),
         ExpressionKind::Borrow { .. }
         | ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Array { .. }
         | ExpressionKind::Record { .. }
         | ExpressionKind::Case { .. }
         | ExpressionKind::IsCase { .. }
@@ -678,7 +728,9 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 ExpressionKind::MachineValue { contract: a, descriptor: a_selected },
                 ExpressionKind::MachineValue { contract: b, descriptor: b_selected },
             ) => a == b && a_selected == b_selected,
+            (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
+            (ExpressionKind::SavedSubject(a), ExpressionKind::SavedSubject(b)) => a == b,
             (
                 ExpressionKind::Strict {
                     operation: a,
@@ -719,13 +771,17 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             ) => {
                 (match (a, b) {
                     (crate::body::CallTarget::Machine(a), crate::body::CallTarget::Machine(b)) => a == b,
-                    (crate::body::CallTarget::Boundary(a), crate::body::CallTarget::Boundary(b)) => a == b,
+                    (crate::body::CallTarget::Boundary { boundary: a, build: aa }, crate::body::CallTarget::Boundary { boundary: b, build: bb }) => a == b && aa == bb,
                     (crate::body::CallTarget::Selected { callable: a, contract: ac }, crate::body::CallTarget::Selected { callable: b, contract: bc }) => ac == bc && both(a, b),
                     _ => false,
                 })
                     && a_arguments.len() == b_arguments.len()
                     && a_arguments.iter().zip(b_arguments).all(|(a, b)| both(a, b))
             }
+            (ExpressionKind::Array { elements: a }, ExpressionKind::Array { elements: b }) => {
+                a.len() == b.len() && a.iter().zip(b).all(|(a, b)| both(a, b))
+            }
+            (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
                     && a.iter()
@@ -782,17 +838,19 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             ) => a_case == b_case && both(a, b),
             (
                 ExpressionKind::Match {
+                    capture: a_capture,
                     subject: a,
                     arms: a_arms,
                     default: a_default,
                 },
                 ExpressionKind::Match {
+                    capture: b_capture,
                     subject: b,
                     arms: b_arms,
                     default: b_default,
                 },
             ) => {
-                both(a, b)
+                a_capture == b_capture && both(a, b)
                     && a_arms.len() == b_arms.len()
                     && a_arms
                         .iter()
@@ -805,10 +863,14 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     }
             }
             (
-                ExpressionKind::Integer(_)
+                ExpressionKind::SavedSubject(_)
+                | ExpressionKind::Integer(_)
+            | ExpressionKind::ByteLiteral(_)
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::MachineValue { .. }
                 | ExpressionKind::Slot(_)
+                | ExpressionKind::Array { .. }
+                | ExpressionKind::Index { .. }
                 | ExpressionKind::Record { .. }
                 | ExpressionKind::Case { .. }
                 | ExpressionKind::Payload { .. }

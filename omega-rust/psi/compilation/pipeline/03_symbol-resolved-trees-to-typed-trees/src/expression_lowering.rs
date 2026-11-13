@@ -1648,19 +1648,38 @@ pub(crate) mod expression {
                                 && path.symbol == symbol
                                 && path.head_symbol == symbol
                                 && path.members.count() == 1
+                                && !path.static_application.is_valid()
                                 && self.source.name_path_member_symbols(path.member_symbols)
                                     == [symbol]
                             {
                                 return Ok(substitution);
                             }
-                            let path = lower_table_name_path_node_into_table(
+                            let mut lowered = lower_table_name_path_node_into_table(
                                 self.source,
                                 self.target(),
                                 path,
                             );
+                            if path.static_application.is_valid() {
+                                let selected = self
+                                    .source
+                                    .static_member(path.static_application)
+                                    .ok_or_else(|| {
+                                    Diagnostic::error(
+                                        "declaration path lost its owned static application",
+                                    )
+                                })?;
+                                let selected = lower_static_machine_argument(
+                                    self.program,
+                                    self.target_trees,
+                                    self.source.authored_expression_exposure(expression),
+                                    selected,
+                                )?;
+                                lowered.static_application =
+                                    self.target().insert_static_member(selected);
+                            }
                             Ok(self
                                 .target()
-                                .insert(typed::expression::ExpressionNode::Name(path)))
+                                .insert(typed::expression::ExpressionNode::Name(lowered)))
                         }
                         resolved::expression::ExpressionNode::Range(range) => {
                             let start = self.lower_optional(range.start)?;
@@ -3989,16 +4008,6 @@ pub(crate) mod expression {
             typed_trees,
             expression,
             equality_scope.as_ref(),
-        )
-    }
-
-    pub(crate) fn lower_expression_handle_from_table(
-        source: &resolved::expression::ExpressionTable,
-        target: &mut typed::TypedTrees,
-        expression: resolved::expression::ExpressionHandle,
-    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-        lower_expression_handle_from_table_with_symbol_substitution(
-            None, source, target, expression, None,
         )
     }
 

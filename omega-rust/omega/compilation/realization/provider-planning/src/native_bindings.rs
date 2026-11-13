@@ -8,7 +8,7 @@
 pub use package_compilation::NativeBuildEvaluation;
 
 mod plans;
-pub use plans::{NativeBuildRowOrigin, PreparedNativeBuildBindings};
+pub use plans::{NativeBuildRowOrigin, normalize_native_binding};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBuildSupply {

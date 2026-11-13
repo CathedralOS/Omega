@@ -21,7 +21,7 @@ use semantic_vocabulary::{
     ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, InvocationRow};
-use terminal_check_tables::obligations::{CrashSite, Lender, ObligationKind};
+use terminal_check_tables::obligations::{CrashSite, ExecutionSite, Lender, ObligationKind};
 use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, ProgramPoint, Refusal, RefusalReason,
 };
@@ -41,7 +41,7 @@ pub(super) struct Arguments {
     pub(super) scalars: Vec<ValueId>,
     /// The structural lane in formal order: each record argument's root,
     /// whole and owned, and each loan's place with the loan's access.
-    pub(super) structural: Vec<StructuralArgument>,
+    pub(super) structural: Vec<(PlaceId, Vec<super::places::Step>, StructuralAccess)>,
     /// The roots the call consumes, the record arguments' own: their homes
     /// are retired after it.
     pub(super) consumed: Vec<PlaceId>,
@@ -62,7 +62,10 @@ pub(super) enum EvaluatedCallTarget {
         callable: ValueId,
         contract: CallableContractId,
     },
-    Boundary(semantic_vocabulary::BoundaryMachineId),
+    Boundary {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        build: Option<crate::BuildCallSource>,
+    },
 }
 
 impl Lowering<'_> {
@@ -78,14 +81,17 @@ impl Lowering<'_> {
                 .get(*contract)
                 .map(|contract| contract.signature.clone())
                 .ok_or_else(|| self.internal("selected call has no retained public contract")),
-            CallTarget::Boundary(boundary) => self.boundary_signature(*boundary),
+            CallTarget::Boundary { boundary, .. } => self.boundary_signature(*boundary),
         }
     }
 
     fn evaluated_target(&mut self, target: &CallTarget) -> Checked<EvaluatedCallTarget> {
         match target {
             CallTarget::Machine(machine) => Ok(EvaluatedCallTarget::Machine(*machine)),
-            CallTarget::Boundary(boundary) => Ok(EvaluatedCallTarget::Boundary(*boundary)),
+            CallTarget::Boundary { boundary, build } => Ok(EvaluatedCallTarget::Boundary {
+                boundary: *boundary,
+                build: *build,
+            }),
             CallTarget::Selected { callable, contract } => {
                 if callable.result
                     != Some(ValueType::Scalar(
@@ -108,7 +114,7 @@ impl Lowering<'_> {
     fn target_outcome(&self, target: &CallTarget) -> Checked<Outcome> {
         match target {
             CallTarget::Machine(machine) => self.outcome(*machine).cloned(),
-            CallTarget::Boundary(boundary) => self.boundary_outcome(*boundary),
+            CallTarget::Boundary { boundary, .. } => self.boundary_outcome(*boundary),
             CallTarget::Selected { .. } => {
                 let signature = self.target_signature(target)?;
                 let crash_routes = match signature.crashes {
@@ -156,7 +162,7 @@ impl Lowering<'_> {
                 if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
                     return Err(self.internal("a loan for a formal that is not borrowed alike"));
                 }
-                let (lent, exact, lender) = self.lend(place, *access, home.is_some())?;
+                let (lent, exact, lender) = self.lend(place, *access, home.as_deref())?;
                 evaluated.actuals.push(Actual::Place(exact));
                 evaluated.structural.push(lent);
                 evaluated.loans.push((exact, *access, lender));
@@ -170,7 +176,7 @@ impl Lowering<'_> {
                         .push(Actual::Place(self.exact_root(root)?));
                     evaluated
                         .structural
-                        .push(StructuralArgument::whole(root, StructuralAccess::Owned));
+                        .push((root, Vec::new(), StructuralAccess::Owned));
                     evaluated.consumed.push(root);
                 }
                 Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_))
@@ -182,6 +188,24 @@ impl Lowering<'_> {
             }
         }
         Ok(evaluated)
+    }
+
+    pub(super) fn structural_arguments(
+        &mut self,
+        captured: Vec<(PlaceId, Vec<super::places::Step>, StructuralAccess)>,
+        site: ExecutionSite,
+        source: SourceOrigin,
+    ) -> Checked<Vec<StructuralArgument>> {
+        captured
+            .into_iter()
+            .map(|(place, steps, access)| {
+                Ok(StructuralArgument {
+                    place,
+                    path: self.storage_path(&steps, site, source)?,
+                    access,
+                })
+            })
+            .collect()
     }
 
     /// Mints one `Loan` per loan of a call, at the point before it, in
@@ -265,10 +289,14 @@ impl Lowering<'_> {
                 Ok(Some((callee, arguments)))
             }
             ExpressionKind::Call { .. }
+            | ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
+            | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::MachineValue { .. }
             | ExpressionKind::Slot(_)
+            | ExpressionKind::Array { .. }
+            | ExpressionKind::Index { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Case { .. }
             | ExpressionKind::Payload { .. }
@@ -298,7 +326,7 @@ impl Lowering<'_> {
         let signature = self.target_signature(callee)?;
         let target = self.evaluated_target(callee)?;
         let arguments = self.arguments(&signature, arguments)?;
-        if let EvaluatedCallTarget::Boundary(boundary) = target {
+        if let EvaluatedCallTarget::Boundary { boundary, .. } = target {
             return self.invoke_boundary_no_normal(boundary, arguments, source);
         }
         let EvaluatedCallTarget::Machine(machine) = target else {
@@ -340,11 +368,13 @@ impl Lowering<'_> {
                 source,
             );
         }
+        let structural_arguments =
+            self.structural_arguments(arguments.structural, ExecutionSite::Block(site), source)?;
         self.terminate(Terminator::InvokeNoNormal {
             edge,
             static_reach_binding: None,
             callee: machine,
-            structural_arguments: arguments.structural,
+            structural_arguments,
             arguments: arguments.scalars,
             erased_arguments: arguments.erased,
             erased_proof_arguments: Vec::new(),
@@ -370,7 +400,7 @@ impl Lowering<'_> {
             callee: match callee {
                 EvaluatedCallTarget::Machine(machine) => Callee::Machine(machine),
                 EvaluatedCallTarget::Selected { callable, .. } => Callee::Selected { callable },
-                EvaluatedCallTarget::Boundary(boundary) => Callee::Boundary { boundary },
+                EvaluatedCallTarget::Boundary { boundary, .. } => Callee::Boundary { boundary },
             },
             actuals: actuals.to_vec(),
             requirements: Vec::new(),
@@ -451,6 +481,11 @@ impl Lowering<'_> {
                 source,
             );
         }
+        let structural_arguments = self.structural_arguments(
+            std::mem::take(&mut arguments.structural),
+            ExecutionSite::Operation(operation),
+            source,
+        )?;
         let value = match target {
             EvaluatedCallTarget::Selected { callable, contract } => {
                 let kind = OperationKind::CallMachine {
@@ -459,7 +494,7 @@ impl Lowering<'_> {
                     arguments: std::mem::take(&mut arguments.scalars),
                     erased_arguments: std::mem::take(&mut arguments.erased),
                     erased_proof_arguments: Vec::new(),
-                    structural_arguments: std::mem::take(&mut arguments.structural),
+                    structural_arguments,
                     claim_transfers: Vec::new(),
                     requirement_obligations: requirements,
                     crash_continuations,
@@ -479,16 +514,16 @@ impl Lowering<'_> {
                     }
                 }
             }
-            EvaluatedCallTarget::Boundary(boundary) => self.emit_boundary_call(
+            EvaluatedCallTarget::Boundary { boundary, .. } => self.emit_boundary_call(
                 boundary,
                 &arguments,
+                structural_arguments,
                 result,
                 operation,
                 requirements,
                 crash_continuations,
             )?,
             EvaluatedCallTarget::Machine(callee) => {
-                let structural_arguments = std::mem::take(&mut arguments.structural);
                 let erased_arguments = std::mem::take(&mut arguments.erased);
                 let scalars = std::mem::take(&mut arguments.scalars);
                 // Terminal Psi has one call operation per result lane, and the
@@ -559,6 +594,20 @@ impl Lowering<'_> {
                 }
             }
         };
+        if let EvaluatedCallTarget::Boundary {
+            boundary,
+            build: Some(build),
+        } = target
+        {
+            self.build_calls.push(crate::EmittedBuildCall {
+                machine: self.id,
+                operation,
+                boundary,
+                owner: build.owner,
+                declaration: build.declaration,
+                occurrence: build.occurrence,
+            });
+        }
         self.returned_loans(&arguments.loans, operation)?;
         if !arguments.consumed.is_empty() {
             self.retire_homes(&arguments.consumed, source)?;

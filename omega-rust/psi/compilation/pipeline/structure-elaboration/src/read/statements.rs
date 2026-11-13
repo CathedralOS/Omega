@@ -49,14 +49,17 @@ impl Program<'_> {
                     return Err(unserved("whole assignment through a reference"));
                 }
                 let value_type = slots[slot].value_type;
-                let value = self.expression(id, slots, assignment.value, value_type.scalar())?;
+                let value = self.expression(id, slots, assignment.value, Some(value_type))?;
                 if value.result != Some(value_type) {
                     return Err(typing());
                 }
                 Ok(if slots[slot].homed {
                     Statement::Store {
-                        slot,
-                        path: Vec::new(),
+                        destination: crate::Expression {
+                            kind: ExpressionKind::Slot(slot),
+                            result: Some(value_type),
+                            source,
+                        },
                         value,
                         source,
                     }
@@ -64,21 +67,21 @@ impl Program<'_> {
                     Statement::Bind { slot, value }
                 })
             }
-            ExpressionNode::Member(member) => {
-                // The destination is read as the member path it is, then
-                // taken apart into its slot and field positions: a store
-                // names storage, so its base must be a local, never a value
-                // an operation just produced.
-                let place = self.member(id, slots, member, source)?;
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                // A destination names existing local storage. Retain its
+                // expression intact after checking the root's authority;
+                // lowering captures its selectors before the replacement.
+                let place = self.expression(id, slots, assignment.target, None)?;
                 let Some(stored) = place.result else {
                     return Err(typing());
                 };
-                let mut path = Vec::new();
                 let mut at = &place;
                 let slot = loop {
                     match &at.kind {
-                        ExpressionKind::Field { base, field } => {
-                            path.push(*field);
+                        ExpressionKind::Field { base, .. } => {
+                            at = base;
+                        }
+                        ExpressionKind::Index { base, .. } => {
                             at = base;
                         }
                         ExpressionKind::Slot(slot) => break *slot,
@@ -88,13 +91,16 @@ impl Program<'_> {
                         ExpressionKind::Payload { .. } => {
                             return Err(unserved("store into a case payload"));
                         }
-                        ExpressionKind::Integer(_)
+                        ExpressionKind::SavedSubject(_)
+                        | ExpressionKind::Integer(_)
+                        | ExpressionKind::ByteLiteral(_)
                         | ExpressionKind::Boolean(_)
                         | ExpressionKind::MachineValue { .. }
                         | ExpressionKind::Case { .. }
                         | ExpressionKind::IsCase { .. }
                         | ExpressionKind::Match { .. }
                         | ExpressionKind::Record { .. }
+                        | ExpressionKind::Array { .. }
                         | ExpressionKind::Strict { .. }
                         | ExpressionKind::Not(_)
                         | ExpressionKind::BitwiseNot(_)
@@ -107,23 +113,20 @@ impl Program<'_> {
                         }
                     }
                 };
-                path.reverse();
                 if !slots[slot].assignable {
                     return Err(unserved("store into an immutable binding"));
                 }
-                let value = self.expression(id, slots, assignment.value, stored.scalar())?;
+                let value = self.expression(id, slots, assignment.value, Some(stored))?;
                 if value.result != Some(stored) {
                     return Err(typing());
                 }
                 Ok(Statement::Store {
-                    slot,
-                    path,
+                    destination: place,
                     value,
                     source,
                 })
             }
-            ExpressionNode::Indexed(_)
-            | ExpressionNode::MachineValue(_)
+            ExpressionNode::MachineValue(_)
             | ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::SavedSubject(_)
@@ -235,12 +238,7 @@ impl Program<'_> {
         } else {
             None
         };
-        let value = self.expression(
-            id,
-            slots,
-            local.initial_value,
-            declared.and_then(ValueType::scalar),
-        )?;
+        let value = self.expression(id, slots, local.initial_value, declared)?;
         let Some(value_type) = value.result else {
             return Err(refuse(
                 id,

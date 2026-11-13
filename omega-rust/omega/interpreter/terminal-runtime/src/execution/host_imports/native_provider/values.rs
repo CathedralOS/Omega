@@ -220,7 +220,7 @@ impl StorageCodec {
             let TerminalStorageContents::Scalar {
                 value,
                 stored_scalar,
-            } = value.contents
+            } = value.contents.clone()
             else {
                 return Err(rejection("native record field is not scalar"));
             };
@@ -280,7 +280,7 @@ impl StorageCodec {
             .decode_fields(bytes)?
             .into_iter()
             .map(|field| {
-                let TerminalStorageContents::Scalar { value, .. } = field.contents else {
+                let TerminalStorageContents::Scalar { value, .. } = field.contents.clone() else {
                     return Err(rejection("native result lost its scalar payload"));
                 };
                 Ok((field.path, value))

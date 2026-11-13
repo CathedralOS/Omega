@@ -306,17 +306,6 @@ fn contribution<'a>(
                     "boundary invocation lost its owning service",
                 ));
             }
-            if declaration.owning_service.is_some_and(|owner| {
-                declaration
-                    .published_service_ceiling
-                    .binary_search(&owner)
-                    .is_err()
-            }) {
-                return Err(fault(
-                    caller.id,
-                    "boundary invocation omits its owning service",
-                ));
-            }
             &declaration.published_service_ceiling
         }
     };

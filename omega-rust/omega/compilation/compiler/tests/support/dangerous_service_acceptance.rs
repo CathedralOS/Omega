@@ -1,19 +1,10 @@
-//! Which dangerous package-owned services a checked fixture requires.
+//! Test policy cannot infer dangerous-service permission from retired facts.
 //!
-//! Acceptance is this repository's test policy: every fixture whose program
-//! requires a selected dangerous service is accepted for the canary
-//! run. The requirement is read from the preliminary checked graph — the
-//! provider plans the program selected and the boundary calls it resolved
-//! against them — never from the fixture's spelling. A service imported under
-//! a package alias or the bundled `omega::language::std` path, or mentioned
-//! only in a comment, therefore cannot change what is accepted. This is not
-//! evidence that an audit occurred and is not production accepted-lock
-//! recovery; every admitted row is still derived from and replayed against
-//! the exact preliminary checked graph by the binding constructors.
+//! Retain the consent request vocabulary. Discovery explicitly refuses until
+//! the lowered route publishes the required exact call and service custody.
 
 use compiler::CheckedCompilation;
 use semantic_vocabulary::PackageKeyIdentity;
-use symbols::SymbolHandle;
 
 /// The `Console` operations a program resolves against the selected package's
 /// provider. Each flag admits the terminal-authority class
@@ -55,127 +46,12 @@ pub struct RequiredDangerousServices {
     pub process_exit: bool,
 }
 
-/// Project the dangerous services `checked` requires from the package
-/// bound under `owner`.
-///
-/// `Console` counts through a selected provider plan whose schema the
-/// nominated package owns, and `ProcessExit`, which is toolchain-owned,
-/// through the selected provider type instead, exactly as the binding
-/// constructors attribute it.
-///
-/// Identify filesystem and clock APIs from the services the entry function
-/// requires. Identifying such an API does not implement it or grant permission
-/// to execute it: the program must still declare and select an implementation.
-///
-/// Console and ProcessExit operations are the trait signatures the program's
-/// resolved calls select — a `Binding<R>` receiver resolves its call
-/// target to `R`'s signature whatever the receiver's shape — so a fixture that imports a service and never calls
-/// it accepts nothing.
+/// Refuse service discovery until the new route supplies its actual call roster.
 pub fn required_dangerous_services(
-    checked: &CheckedCompilation,
-    owner: PackageKeyIdentity,
-) -> RequiredDangerousServices {
-    let program = checked;
-    let owned_by_package =
-        |symbol: SymbolHandle| program.symbols.symbol_package_identity(symbol) == Some(owner);
-    let mut services = RequiredDangerousServices::default();
-    let mut console = ConsoleUse::default();
-    for (plan, provenance) in checked
-        .execution()
-        .plans()
-        .plans()
-        .iter()
-        .zip(checked.execution().selected_provider_provenance.as_slice())
-    {
-        let schema = provenance.provider.schema.symbol();
-        // The checked completion producer retains original external leaves
-        // for both direct rows and authored adapters. Match package review's
-        // nomination: an ordinary body alone grants no host authority.
-        let host_exit = plan.rows.iter().enumerate().any(|(position, row)| {
-            plan.schema
-                .method_for_row(row, &plan.identities)
-                .is_some_and(|method| method.name == "exit_process")
-                && provenance
-                    .row_external_completion_leaves
-                    .get(position)
-                    .is_some_and(|leaves| !leaves.is_empty())
-        });
-        match plan
-            .schema
-            .identity_text(plan.schema.declaration.trait_name)
-        {
-            "Console"
-                if super::provider_acceptance::schema_symbol_owner(checked, provenance, owner)
-                    && host_exit =>
-            {
-                for method in resolved_boundary_call_names(checked, schema) {
-                    match method {
-                        "exit_process" => console.exit = true,
-                        "write" | "write_byte" | "write_line" => console.output = true,
-                        "read_byte" | "read_line" => console.input = true,
-                        _ => {}
-                    }
-                }
-            }
-            "ProcessExit"
-                if super::provider_acceptance::provider_type_owner(checked, provenance, owner) =>
-            {
-                services.process_exit |= host_exit
-                    && resolved_boundary_call_names(checked, schema).contains(&"exit_process");
-            }
-            _ => {}
-        }
-    }
-    for requirement in checked.execution().program_entry_service_requirements() {
-        let Some(definition) = program
-            .traits()
-            .iter()
-            .find(|definition| definition.is_boundary && definition.symbol == requirement)
-        else {
-            continue;
-        };
-        if !owned_by_package(definition.symbol) {
-            continue;
-        }
-        match program
-            .symbols
-            .display_path(definition.symbol, "::")
-            .as_str()
-        {
-            "FilesystemHost" => services.filesystem = true,
-            "TimeHost" => services.time = true,
-            _ => {}
-        }
-    }
-    if !console.is_empty() {
-        services.console = Some(console);
-    }
-    services
-}
-
-/// The names of the boundary trait `requirement`'s signatures selected by
-/// resolved calls. The checked occurrence roster covers statements,
-/// expressions and transition targets through the same exact target identity.
-fn resolved_boundary_call_names(
-    checked: &CheckedCompilation,
-    requirement: SymbolHandle,
-) -> Vec<&str> {
-    let program = checked;
-    let Some(definition) = program.trait_definition_by_symbol(requirement) else {
-        return Vec::new();
-    };
-    let signatures = program.trait_machine_signatures(definition);
-    checked
-        .facts
-        .flow
-        .control
-        .calls
-        .iter()
-        .filter_map(|(_, call)| {
-            signatures
-                .iter()
-                .find(|signature| signature.symbol == call.target_symbol)
-                .map(|signature| signature.name.as_str())
-        })
-        .collect()
+    _checked: &CheckedCompilation,
+    _owner: PackageKeyIdentity,
+) -> Result<RequiredDangerousServices, Vec<diagnostics::Diagnostic>> {
+    Err(vec![diagnostics::Diagnostic::error(
+        "no product route yet: fixture dangerous-service discovery requires lowered-route call custody",
+    )])
 }

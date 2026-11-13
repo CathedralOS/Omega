@@ -3,7 +3,7 @@
 // `BuildSourceCustody` tracks the frontend's source file count, admitted build
 // execution profile, dependency-generated source custody, and base source-consumption
 // commitment across pre-build admission and `admit_generated_extension`. Once the
-// program passes semantic checking (`CheckedTrees`), `BuildSourceCustody::seal`
+// immutable typed source is retained, `BuildSourceCustody::seal`
 // derives the final `PackageCompilationSubject` and `exact_toolchain_sources`
 // without reopening the host filesystem. `package_build_handoff` exports only the
 // activation's own generated sources (`own_generated_sources`) bound to the
@@ -15,7 +15,8 @@ use super::{
 };
 use crate::{PackageBuildHandoff, PackageCompilationInputs};
 use diagnostics::Diagnostic;
-use typed_trees::TypedTrees;
+use std::sync::Arc;
+use typed_trees::{FrozenTypedTrees, ProductSourceIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSourceCustody {
@@ -27,6 +28,7 @@ pub struct BuildSourceCustody {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedSourceCustody {
+    owner: ProductSourceIdentity,
     build: BuildSourceCustody,
     package_purpose: Option<build_declarations::DependencyPurpose>,
     package_subject: Option<PackageCompilationSubject>,
@@ -104,7 +106,7 @@ impl BuildSourceCustody {
 
     pub fn seal(
         self,
-        program: &TypedTrees,
+        program: &Arc<FrozenTypedTrees>,
         package_inputs: Option<&PackageCompilationInputs>,
     ) -> Result<CheckedSourceCustody, Vec<Diagnostic>> {
         let package_subject = package_inputs
@@ -118,6 +120,7 @@ impl BuildSourceCustody {
             .transpose()?;
         let exact_toolchain_sources = toolchain_source_identities(program.symbols.source_files())?;
         Ok(CheckedSourceCustody {
+            owner: ProductSourceIdentity::new(program),
             build: self,
             package_purpose: package_inputs.map(PackageCompilationInputs::compilation_purpose),
             package_subject,
@@ -127,6 +130,21 @@ impl BuildSourceCustody {
 }
 
 impl CheckedSourceCustody {
+    /// Source consumption records do not certify semantic acceptance. Their
+    /// exact owner must still match the source the route independently judged.
+    pub fn require_owner(&self, program: &Arc<FrozenTypedTrees>) -> Result<(), Diagnostic> {
+        if !self.owner.is_for(program) {
+            return Err(Diagnostic::error(
+                "source consumption custody belongs to another typed source owner",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn source_identity(&self) -> &ProductSourceIdentity {
+        &self.owner
+    }
+
     pub const fn source_file_count(&self) -> usize {
         self.build.source_file_count
     }
@@ -189,5 +207,32 @@ impl CheckedSourceCustody {
             subject.source_consumption_commitment(),
             own_generated_sources,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build() -> BuildSourceCustody {
+        BuildSourceCustody {
+            source_file_count: 0,
+            build_execution_profile: None,
+            generated_source_custody: Vec::new(),
+            base_source_consumption_commitment: None,
+        }
+    }
+
+    #[test]
+    fn source_seal_binds_the_exact_frozen_owner_without_claiming_a_verdict() {
+        let program = Arc::new(FrozenTypedTrees::from(typed_trees::TypedTrees::default()));
+        let other = Arc::new(program.as_ref().clone());
+        let seal = build().seal(&program, None).unwrap();
+        assert!(seal.require_owner(&program).is_ok());
+        assert!(seal.require_owner(&other).is_err());
+        assert_eq!(seal, seal.clone());
+        assert_ne!(seal, build().seal(&other, None).unwrap());
+        assert!(seal.package_subject().is_none());
+        assert!(seal.exact_toolchain_sources().is_empty());
     }
 }

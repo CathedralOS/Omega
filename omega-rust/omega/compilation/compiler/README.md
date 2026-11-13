@@ -9,11 +9,11 @@ not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
 [Terminal production](../../../psi/compilation/psi-compiler/terminal-production/README.md)
-is the Psi 06–08 sequence called directly by ordinary, package and
-inspection consumers. This driver supplies its product exclusion policy and
-timing observer, not a second production entrance. Permission-ledger validation
-belongs to Psi 06; entry eligibility, source receipt joins and publication
-belong to Psi 08. Their language rules do not live in the coordinator.
+publishes an accepted lowered-form module with the same evidence and retained
+source owner. This driver supplies product policy and timing observations;
+[entry receipts](../../../psi/compilation/representations/terminal-psi/codec/src/entry_receipt.rs)
+belong to the codec. A missing product capability refuses with
+`no product route yet`; no old checked-tree lowering sequence is called.
 
 The independent [native compiler](../native-compiler/README.md) owns the
 Terminal-to-image sequence behind a source-free dependency boundary. This

@@ -23,7 +23,3 @@ pub(crate) struct PackagePolicyCallingOpaqueUse {
     pub(crate) copy_disposition: PackageReviewOpaqueRepresentationCopyDisposition,
     pub(crate) occurrences: Vec<PackageReviewOpaqueRepresentationOccurrence>,
 }
-
-impl PackagePolicyCallingOpaqueUse {
-    crate::record::accessors::opaque_representation_selection_accessors!();
-}

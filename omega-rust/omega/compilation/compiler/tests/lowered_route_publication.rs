@@ -16,9 +16,9 @@
 //!
 //! The default compile takes this path for the application: when the route
 //! accepts a compilation and its module publishes, the Terminal product is
-//! that artifact and its seals stay beside it for Omega 00. Calling and
-//! provider preparation retain that same accepted program and its exact
-//! source correspondence.
+//! that artifact and its seals stay beside it for Omega 00. Everything else
+//! a product reads (provider selection, calling policies, the Build's
+//! companions) still comes from the current checker's program.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -78,7 +78,7 @@ fn accepted(
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -198,8 +198,12 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     );
 }
 
-/// Default compilation retains the exact artifact and evidence published by
-/// source checking, so native lowering receives the program the kernel judged.
+/// The default compile builds the application of a program the route accepts
+/// from the route's own module: the Terminal product holds exactly the
+/// artifact `AcceptedClosure::publish` produces, not the current checker's
+/// program, and the evidence seals bound to that artifact's identity are
+/// retained beside it, so native production hands Omega 00 the module the
+/// kernel judged with the certificates that judged it.
 #[test]
 fn the_default_compile_builds_the_application_from_the_routes_module() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -267,9 +271,15 @@ fn default_product(fixture: &str) -> terminal_psi_to_abstract_operations::Retain
     .unwrap_or_else(|diagnostics| panic!("{fixture} must reach Terminal Psi: {diagnostics:#?}"))
 }
 
-/// Calling policies and applications retain the same accepted declarations,
-/// including their contract commitments. The selected entry therefore resolves
-/// exactly once in that publication with the result its entry receipt requires.
+/// The route states, for every machine of the module it publishes, the
+/// declaration identity the current checker's program states for the same
+/// source machine: the exact-owner machine and state, the semantic
+/// declaration, the parameter and result types, the callable and the
+/// published suspension and blocking. Only the contract commitment differs,
+/// because each checker commits to the contract in its own form. The
+/// Build's selected entry, named as the current program names it, is
+/// therefore found on the published module exactly once, with a Unit
+/// result, which is what the program-entry receipt requires of it.
 #[test]
 fn the_published_module_states_each_machines_declaration_identity() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -277,7 +287,8 @@ fn the_published_module_states_each_machines_declaration_identity() {
     let (closure, _, _, checked) = accepted(fixture);
     let publication = closure.publish().expect("the accepted module publishes");
     let published = publication.artifact.semantic_module();
-    // Calling preparation retains the program accepted by source checking.
+    // The current checker's program is the code published for the
+    // compilation's other readers; the calling program shares its artifact.
     let current = std::sync::Arc::clone(&checked.providers().calling_program.artifact);
     let current = current.semantic_module();
 
@@ -329,7 +340,7 @@ fn the_published_module_states_each_machines_declaration_identity() {
             .unwrap_or_else(|| panic!("the current program has no machine {}", ours.0));
         assert_eq!(ours, stated(current, theirs));
         assert_ne!(declaration.contract, [0; 32]);
-        assert_eq!(declaration.contract, theirs.contract);
+        assert_ne!(declaration.contract, theirs.contract);
     }
 
     let Some(terminal_psi::TargetMachineCallable::Machine(current_entry)) = current.entry else {

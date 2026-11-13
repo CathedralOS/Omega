@@ -54,7 +54,6 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 mod arrivals;
 mod call_contracts;
 mod callable_formations;
-mod compilation;
 mod crashes;
 mod describe;
 mod entry_inputs;
@@ -71,27 +70,20 @@ mod reuse;
 mod service_reach;
 mod static_contracts;
 mod verdict;
-mod zero_values;
-pub use zero_values::{prove_data_zero, prove_domain_zero};
 
 pub use callable_formations::{
     CallableFormationCause, CallableFormationDefect, CallableFormationFailure,
     check_bound_callable_shapes,
 };
-pub use compilation::{
-    CompilationJudgment, NO_PRODUCT_ROUTE, NOT_SUPPORTED_YET, judge_and_publish,
-};
 pub use places::{ConflictingLoan, LoanConflict};
 pub use prove::ProofSearchActivity;
-pub use refinement::{
-    finalize_callable_refinements, prove_callable_refinement, prove_published_callable_refinement,
-    prove_source_expression,
-};
+pub use refinement::{finalize_callable_refinements, prove_callable_refinement};
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use service_reach::ExceededReach;
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, PublicationError,
     RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge, judge_compilation,
+    judge_compilation_for,
 };
 
 #[cfg(test)]
@@ -1570,37 +1562,7 @@ fn stated_goal(
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     match *kind {
-        ObligationKind::OperationSafety { operation } => {
-            let found = lowered
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .find(|candidate| candidate.id == operation)
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::ForeignIdentity,
-                        id,
-                        concerns,
-                        "operation is not in this machine",
-                    )
-                })?;
-            let semantics = terminal_semantics::proof_bearing_scalar_leaf_semantics(found, types)
-                .map_err(semantics_refusal(id, operation))?
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::Unsupported,
-                        id,
-                        concerns,
-                        "operation has no safety goal",
-                    )
-                })?;
-            // That this row is the one the operation names is `minted`'s
-            // check, made before any goal is stated.
-            semantics
-                .canonical_goal()
-                .kernel_proposition()
-                .map_err(semantics_refusal(id, operation))
-        }
+        ObligationKind::OperationSafety { site } => storage.safety_goal(site, obligation, types),
         ObligationKind::CallRequirement { invocation, clause } => {
             let row = terminal_check_tables::row(
                 &tables.invocations,

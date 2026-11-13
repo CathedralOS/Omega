@@ -426,12 +426,7 @@ pub mod boundary_values {
     }
 }
 pub mod callable_lifetimes;
-pub mod source_carry;
-pub mod source_claims;
 pub mod source_names;
-pub mod source_numeric;
-pub mod source_type_formation;
-pub mod source_wire;
 pub(crate) mod source_review {
     use crate::{PlanLaidTargetLayout, types::TypeReferenceHandle};
     use arena::Handle;
@@ -802,9 +797,6 @@ pub mod references;
 pub mod runtime_callable_identity;
 pub mod service_declarations;
 pub mod source_call_occurrences;
-pub mod source_expression_types;
-pub mod source_operation_meaning;
-pub mod source_operator_types;
 pub use service_declarations::provider_declarations;
 mod access_views_and_commitments;
 pub use access_views_and_commitments::constant_recipes;
@@ -812,12 +804,14 @@ pub(crate) use access_views_and_commitments::{access_views, commitments};
 pub(crate) mod callable_applications;
 mod calls_and_control_flow;
 pub use calls_and_control_flow::{calls, control_flow, names};
+mod data_applications;
 mod declaration_tables_and_index;
 pub use declaration_tables_and_index::declaration_index;
 pub(crate) use declaration_tables_and_index::{
     data_definitions, declaration_tables, machine_declarations, machine_parameter_signatures,
     spelled_declarations, type_parameters, type_reference_queries,
 };
+pub mod declaration_authority;
 mod declaration_reflection;
 pub mod declarations;
 pub use declaration_reflection::reflection;
@@ -826,6 +820,7 @@ mod evidence_and_inspection;
 mod operator_declarations;
 mod product_and_trait_declarations;
 pub use evidence_and_inspection::{evidence, inspection};
+pub mod opaque_representations;
 pub mod type_identity;
 pub mod type_system;
 pub mod values;
@@ -992,6 +987,33 @@ pub(crate) mod frozen {
     use crate::service_declarations::signatures::PreparedBoundarySignatures;
     use std::sync::{Arc, OnceLock};
 
+    /// Exact invocation-local custody of one immutable typed source owner.
+    /// This is an association, never a checking verdict or a content identity.
+    #[derive(Clone, Debug)]
+    pub struct ProductSourceIdentity(std::sync::Weak<FrozenTypedTrees>);
+
+    impl ProductSourceIdentity {
+        pub fn new(program: &Arc<FrozenTypedTrees>) -> Self {
+            Self(Arc::downgrade(program))
+        }
+
+        pub fn same_source(&self, other: &Self) -> bool {
+            std::sync::Weak::ptr_eq(&self.0, &other.0)
+        }
+
+        pub fn is_for(&self, program: &Arc<FrozenTypedTrees>) -> bool {
+            self.same_source(&Self::new(program))
+        }
+    }
+
+    impl PartialEq for ProductSourceIdentity {
+        fn eq(&self, other: &Self) -> bool {
+            self.same_source(other)
+        }
+    }
+
+    impl Eq for ProductSourceIdentity {}
+
     #[derive(Clone, Default)]
     pub struct FrozenTypedTrees(TypedTrees, OnceLock<Arc<PreparedBoundarySignatures>>);
 
@@ -1064,6 +1086,27 @@ pub(crate) mod frozen {
         use super::*;
 
         #[test]
+        fn source_identity_rejects_equal_content_in_another_allocation() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let other = Arc::new(owner.as_ref().clone());
+            let identity = ProductSourceIdentity::new(&owner);
+            assert!(identity.is_for(&owner));
+            assert!(!identity.is_for(&other));
+            assert_ne!(identity, ProductSourceIdentity::new(&other));
+        }
+
+        #[test]
+        fn source_identity_does_not_keep_the_source_alive() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let weak = Arc::downgrade(&owner);
+            let identity = ProductSourceIdentity::new(&owner);
+            let retained = identity.clone();
+            drop(owner);
+            assert!(weak.upgrade().is_none());
+            assert_eq!(identity, retained);
+        }
+
+        #[test]
         fn immutable_clones_share_census_but_reopened_source_does_not() {
             let frozen = FrozenTypedTrees::from(TypedTrees::default());
             let census = Arc::clone(frozen.boundary_signatures());
@@ -1083,7 +1126,7 @@ pub(crate) mod frozen {
     }
 }
 pub use data_definitions::DataDefinitionTable;
-pub use frozen::FrozenTypedTrees;
+pub use frozen::{FrozenTypedTrees, ProductSourceIdentity};
 pub use machine_declarations::MachineDeclarationTable;
 pub use machine_parameter_signatures::MachineParameterSignatureQueries;
 pub use spelled_declarations::SpelledDeclarationTable;
@@ -1932,12 +1975,6 @@ pub mod typed_trees {
     pub use crate::*;
 }
 
-pub mod source_borrow_contracts;
-pub mod source_borrow_shapes;
-pub mod source_properties;
 
-pub mod source_content;
 
 pub mod source_index_algebra;
-
-pub mod source_scalar_operands;

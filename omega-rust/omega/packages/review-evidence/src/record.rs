@@ -41,7 +41,6 @@ pub use package_review::{PackageReviewEvidence, PackageReviewSourceFacts};
 mod public_policy;
 mod representation;
 mod restricted_build;
-mod rows;
 pub use policy_rows::{
     PACKAGE_POLICY_ROW_VERSION, PackagePolicyRow, PackagePolicyRowKind, PackagePolicyRowLimits,
     PackagePolicyRowUsage,
@@ -60,15 +59,13 @@ pub(crate) use target_context::PackagePolicyTargetContext;
 pub use authority::PackageReviewDangerousAuthorityClass;
 pub(crate) use authority::{
     PackageReviewBooleanExpression, PackageReviewCrashCause, PackageReviewCrashInterface,
-    PackageReviewCrashPredicate, PackageReviewCrashRoute, PackageReviewCrashRouteGuard,
     PackageReviewDangerousAuthority, PackageReviewDangerousAuthoritySlack,
     PackageReviewIeeeFloatComparisonKind, PackageReviewInstallationReach,
     PackageReviewIntegerBinaryKind, PackageReviewIntegerComparisonKind,
     PackageReviewIntegerLiteral, PackageReviewIntegerLiteralLanding, PackageReviewIntegerRange,
-    PackageReviewPrimitiveType, PackageReviewProgressPremise, PackageReviewProgressSubject,
-    PackageReviewRuntimeIndex, PackageReviewScalarExpression,
-    PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
-    PackageReviewTermination, PackageReviewWriteFrameCompleteness,
+    PackageReviewPrimitiveType, PackageReviewProgressSubject, PackageReviewRuntimeIndex,
+    PackageReviewScalarExpression, PackageReviewStructuralParameterField,
+    PackageReviewStructuralPredicatePathSegment, PackageReviewWriteFrameCompleteness,
 };
 pub(crate) use calling::{
     PackagePolicyCallbackBinder, PackagePolicyCallbackDemand, PackagePolicyCallbackDestination,
@@ -86,33 +83,31 @@ pub(crate) use conformances::{
 };
 pub(crate) use contracts::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
-    PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCallableSupply,
-    PackageReviewCastForm, PackageReviewConstMeaning, PackageReviewConstShape,
-    PackageReviewConstructorField, PackageReviewContractBinaryOperator,
-    PackageReviewContractCallTarget, PackageReviewContractEvidenceArgument,
-    PackageReviewContractEvidenceOwner, PackageReviewContractEvidenceTerm,
+    PackageReviewByteSequencePredicate, PackageReviewCallableSupply, PackageReviewCastForm,
+    PackageReviewConstMeaning, PackageReviewConstShape, PackageReviewConstructorField,
+    PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
+    PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
     PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
     PackageReviewContractUnaryOperator, PackageReviewEvidenceInterface,
     PackageReviewEvidenceRequirement, PackageReviewFloatLiteral, PackageReviewLayoutQueryKind,
     PackageReviewMatchArm, PackageReviewOperatorCoordinate, PackageReviewOperatorRealization,
-    PackageReviewOperatorShape, PackageReviewPropositionApplication,
-    PackageReviewPropositionBinder, PackageReviewPropositionBinderArgument,
-    PackageReviewPropositionBinderArgumentKind, PackageReviewPropositionBinderKind,
-    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
-    PackageReviewPropositionParameterApplication, PackageReviewPropositionShape,
-    PackageReviewPublicPropositionBody, PackageReviewReferenceAccess,
-    PackageReviewResultCaseIdentity,
+    PackageReviewPropositionApplication, PackageReviewPropositionBinder,
+    PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderArgumentKind,
+    PackageReviewPropositionBinderKind, PackageReviewPropositionBinderValue,
+    PackageReviewPropositionEvidence, PackageReviewPropositionParameterApplication,
+    PackageReviewPropositionShape, PackageReviewPublicPropositionBody,
+    PackageReviewReferenceAccess, PackageReviewResultCaseIdentity,
 };
 pub use contracts::{PackageReviewCallableContract, PackageReviewSynchronousInvocation};
 pub(crate) use data::{
     PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember,
-    PackageReviewDataProperties, PackageReviewDataShape,
+    PackageReviewDataProperties,
 };
 pub(crate) use domains::{
     PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
-    PackageReviewDomainSemanticRole, PackageReviewDomainShape,
+    PackageReviewDomainSemanticRole,
 };
 pub use identity::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
 pub(crate) use identity::{
@@ -120,19 +115,19 @@ pub(crate) use identity::{
     PackageReviewToolchainSourceIdentity,
 };
 pub(crate) use package::{
-    CheckedPackageBoundaryApplicationRealizationReview, PackagePolicyBoundaryApplicationDemand,
-    PackagePolicyBoundaryApplicationRealization, PackagePolicyBoundaryApplications,
-    PackagePolicyBoundaryRealization, PackagePolicyCallableConformance, PackagePolicyCallableRole,
-    PackagePolicyCallables, PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall,
+    PackagePolicyBoundaryApplicationDemand, PackagePolicyBoundaryApplicationRealization,
+    PackagePolicyBoundaryApplications, PackagePolicyBoundaryRealization,
+    PackagePolicyCallableConformance, PackagePolicyCallableRole, PackagePolicyCallables,
+    PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall,
     PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,
     PackagePolicyProviderRow, PackagePolicyServiceAuthority, PackagePolicyServiceProgressPremise,
     PackagePolicyServiceProgressRoute, PackagePolicyServiceReachDependency,
     PackagePolicyServiceSignature, PackagePolicyTerminalPermission, PackagePolicyTerminalService,
     PackageReviewBoundaryApplication, PackageReviewBoundaryApplicationArgument,
-    PackageReviewBoundaryApplicationRealization, PackageReviewCheckedServiceReach,
-    PackageReviewCompilerIntrinsicExecution, PackageReviewProviderFamilyCoverage,
-    PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
-    PackageReviewSelectedInstallationReach, PackageReviewSymbolicBoundaryApplicationArgument,
+    PackageReviewCheckedServiceReach, PackageReviewCompilerIntrinsicExecution,
+    PackageReviewProviderFamilyCoverage, PackageReviewProviderGrantSelectorKind,
+    PackageReviewProviderSelectionAuthority, PackageReviewSelectedInstallationReach,
+    PackageReviewSymbolicBoundaryApplicationArgument,
 };
 pub use package::{
     PackagePolicyCallable, PackagePolicySelectedProviders, PackagePolicyServiceMethod,
@@ -160,21 +155,15 @@ pub(crate) use restricted_build::{
     PackagePolicyRestrictedBuildGrantRoot, PackagePolicyRestrictedBuildOperation,
     PackagePolicyRestrictedBuildRequest,
 };
-pub(crate) use rows::{
-    PackageReviewSourceLocation, PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
-};
+
 pub(crate) use signatures::{
     PackagePolicyEvaluatedBindingProducer, PackagePolicyExternalBinding,
     PackagePolicyExternalCallableSignature, PackagePolicyExternalExecutableSupply,
-    PackagePolicyExternalRequirement, PackageReviewConformanceBound, PackageReviewConformanceShape,
-    PackageReviewEvaluatedImport, PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
+    PackagePolicyExternalRequirement, PackageReviewConformanceBound,
     PackageReviewExternalCallableParameter, PackageReviewForeignLocator,
-    PackageReviewMachineParameterContract, PackageReviewMachineParameterSignature,
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
     PackageReviewRequirementRealization, PackageReviewSignatureParameter,
-    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTraitRequirement,
-    PackageReviewTraitShape, PackageReviewTypeIdentity, PackageReviewTypeParameter,
-    PackageReviewTypeParameterKind,
+    PackageReviewTraitCompositionKind, PackageReviewTraitParent, PackageReviewTypeIdentity,
 };
 pub use signatures::{
     PackageReviewBorrowOrigin, PackageReviewParameterQualification,

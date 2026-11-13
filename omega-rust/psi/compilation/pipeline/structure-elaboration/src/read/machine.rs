@@ -22,7 +22,7 @@ use crate::body::{
     ValueType,
 };
 use crate::canonical::{self, Repeated};
-use crate::{Binder, MachineNames, SourceNode, SourceOrigin, Unserved, refuse};
+use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
 
 impl<'t> Program<'t> {
@@ -296,6 +296,27 @@ impl<'t> Program<'t> {
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(Vec::new());
+        Ok(id)
+    }
+
+    /// Allocate the supplied contract independently of the witness entry, even
+    /// when both views name the same declaration. Reusing the entry would turn
+    /// the proof obligation into a recursive call to itself.
+    pub fn callable_contract(
+        &mut self,
+        supplied: crate::CallableDeclaration<'t>,
+    ) -> Checked<MachineId> {
+        let id = match supplied {
+            crate::CallableDeclaration::Signature(signature) => {
+                self.witnessed_signature(signature, &[])?
+            }
+            crate::CallableDeclaration::Machine(symbol) => {
+                let id = self.next_identity()?;
+                self.read_machine(id, symbol, Reading::Closed)?;
+                id
+            }
+        };
+        self.requirements.push(id);
         Ok(id)
     }
 
@@ -1271,7 +1292,7 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         formal: &StateParameter,
-        abstract_borrows: Option<
+        _abstract_borrows: Option<
             &mut Vec<(
                 typed_trees::type_identity::NormalizedTypeIdentity,
                 terminal_check_tables::values::RigidType,
@@ -1355,34 +1376,11 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = if let Some(abstract_borrows) = abstract_borrows
-            && matches!(
-                self.typed.type_reference_table.type_reference(referee),
-                TypeReferenceNode::Slice { .. }
-            ) {
-            let identity = self.typed.package_qualified_type_identity(referee);
-            if !identity.is_valid() {
-                return unserved("abstract borrowed type without a complete identity");
-            }
-            let ordinal = if let Some((_, rigid)) = abstract_borrows
-                .iter()
-                .find(|(previous, _)| *previous == identity)
-            {
-                *rigid
-            } else {
-                let ordinal =
-                    u32::try_from(self.scope.len() + abstract_borrows.len()).map_err(|_| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Parameter("abstract borrowed type ordinal"),
-                        )
-                    })?;
-                let rigid = terminal_check_tables::values::RigidType(ordinal);
-                abstract_borrows.push((identity, rigid));
-                rigid
-            };
-            ValueType::Rigid(ordinal)
+        let value_type = if matches!(
+            self.typed.type_reference_table.type_reference(referee),
+            TypeReferenceNode::Slice { .. }
+        ) {
+            self.value_type(id, formal.type_reference)?
         } else {
             self.value_type(id, referee)?
         };
@@ -1435,10 +1433,13 @@ impl<'t> Program<'t> {
             if !data.requires.is_empty() {
                 return true;
             }
+            if let crate::StorageShape::FixedArray { element, .. } = data.shape {
+                pending.push(element);
+            }
             for field in data
-                .fields
+                .fields()
                 .iter()
-                .chain(data.cases.iter().flat_map(|case| &case.fields))
+                .chain(data.cases().iter().flat_map(|case| &case.fields))
             {
                 if let ValueType::Record(nested) = field.value_type {
                     pending.push(nested);
@@ -1583,23 +1584,23 @@ impl<'t> Program<'t> {
                             Unserved::Machine("statement ordinal exceeds its typed span"),
                         )
                     })?;
-                    let source = self.source_origin(
-                        id,
-                        SourceNode::Statement(state.statement_nodes.handle_at(ordinal)),
-                        call.source_span,
-                    )?;
+                    let source = SourceOrigin::of(call.source_span);
                     let called = self.call_statement(id, &slots, call, source)?;
+                    let called = self.retain_build_call(
+                        id,
+                        call.target_symbol,
+                        crate::BuildCallOccurrence::Statement(
+                            state.statement_nodes.handle_at(ordinal),
+                        ),
+                        called,
+                    )?;
                     if !call.discards_result {
                         undiscarded(id, &called)?;
                     }
                     Statement::Evaluate(called)
                 }
                 StatementNode::Expression(expression) => {
-                    let expected = if last {
-                        signature.result.and_then(ValueType::scalar)
-                    } else {
-                        None
-                    };
+                    let expected = if last { signature.result } else { None };
                     let expression = self.expression(id, &slots, *expression, expected)?;
                     match (last, signature.result) {
                         (true, Some(result)) => {
@@ -1944,10 +1945,21 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
-        ExpressionKind::Integer(_)
-        | ExpressionKind::Boolean(_)
+        ExpressionKind::SavedSubject(_)
+        | ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
+        ExpressionKind::Array { elements } => {
+            for element in elements {
+                spans(element, binder, out);
+            }
+        }
+        ExpressionKind::Index { base, index } => {
+            spans(base, binder, out);
+            spans(index, binder, out);
+        }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, field) in fields {
                 spans(field, binder, out);
@@ -1962,6 +1974,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
             subject,
             arms,
             default,
+            ..
         } => {
             spans(subject, binder, out);
             for (_, arm) in arms {
@@ -2051,7 +2064,11 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
         };
     };
     match statement {
-        Statement::Bind { value, .. } | Statement::Store { value, .. } => {
+        Statement::Bind { value, .. } => expression_slot_uses(value, uses),
+        Statement::Store {
+            destination, value, ..
+        } => {
+            expression_slot_uses(destination, uses);
             expression_slot_uses(value, uses);
         }
         Statement::Evaluate(value) => expression_slot_uses(value, uses),
@@ -2085,9 +2102,20 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 *count += 1;
             }
         }
-        ExpressionKind::Integer(_)
-        | ExpressionKind::Boolean(_)
-        | ExpressionKind::MachineValue { .. } => {}
+        ExpressionKind::SavedSubject(_)
+        | ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Boolean(_) => {}
+        ExpressionKind::Array { elements } => {
+            for element in elements {
+                expression_slot_uses(element, uses);
+            }
+        }
+        ExpressionKind::Index { base, index } => {
+            expression_slot_uses(base, uses);
+            expression_slot_uses(index, uses);
+        }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, field) in fields {
                 expression_slot_uses(field, uses);
@@ -2102,6 +2130,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
             subject,
             arms,
             default,
+            ..
         } => {
             expression_slot_uses(subject, uses);
             for (_, arm) in arms {

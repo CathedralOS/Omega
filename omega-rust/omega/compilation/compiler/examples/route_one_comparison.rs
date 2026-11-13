@@ -32,8 +32,8 @@
 //! (one `diagnostic` line per unproved obligation and one `use` line per use
 //! of storage that is not established, the compile errors the program gets on
 //! this route), `incomplete` (the prover has no rule for some
-//! goal's form), `fallback` (the legacy report label for an unsupported form
-//! that refuses the compilation) or `defect`.
+//! goal's form), `fallback` (an unsupported obligation hands the closure to
+//! the current checker) or `defect`.
 //!
 //! The route is given everything the check claims: the Build's entries and
 //! every declaration of the fixture's package, used or not. A program the
@@ -313,7 +313,7 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
     if !frontier.entries.is_empty() {
         let compilation = structure_elaboration::Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         };
@@ -388,7 +388,7 @@ fn judge_elaboration(
     let mut intervals_only = elaboration.clone();
     let mut consumer = elaboration.clone();
     let discharge_started = Instant::now();
-    let discharged = discharge_with(&mut elaboration, Knowledge::All, &mut Default::default());
+    let discharged = discharge_with(&mut elaboration, Knowledge::All);
     let discharge_us = discharge_started.elapsed().as_micros();
     let route_us = started.elapsed().as_micros();
     let discharged = match discharged {
@@ -401,18 +401,8 @@ fn judge_elaboration(
             );
         }
     };
-    let without = discharge_with(
-        &mut without_branches,
-        Knowledge::WithoutBranchConditions,
-        &mut Default::default(),
-    )
-    .ok();
-    let intervals = discharge_with(
-        &mut intervals_only,
-        Knowledge::LiteralIntervals,
-        &mut Default::default(),
-    )
-    .ok();
+    let without = discharge_with(&mut without_branches, Knowledge::WithoutBranchConditions).ok();
+    let intervals = discharge_with(&mut intervals_only, Knowledge::LiteralIntervals).ok();
     // Re-verifying the saved certificates in a consumer elaborated from the
     // same typed trees: goal and hypotheses recomputed, no search.
     let reverify_started = Instant::now();
@@ -425,7 +415,6 @@ fn judge_elaboration(
                     machine,
                     obligation,
                     &evidence.certificate,
-                    &mut Default::default(),
                 )
                 .is_ok()
             {
@@ -580,8 +569,10 @@ fn judge_elaboration(
                 None => {
                     // The operands of a refused operation, or the actuals of
                     // a refused call requirement.
-                    if let Some(ObligationKind::OperationSafety { operation }) =
-                        tables.obligations.get(obligation).map(|row| row.kind)
+                    if let Some(ObligationKind::OperationSafety {
+                        site:
+                            terminal_check_tables::obligations::ExecutionSite::Operation(operation),
+                    }) = tables.obligations.get(obligation).map(|row| row.kind)
                         && let Some(found) = lowered
                             .blocks
                             .iter()
@@ -617,8 +608,9 @@ fn judge_elaboration(
         .values()
         .map(|machine| machine.weakened_joins.len())
         .sum();
-    // An unproved obligation rejects the program with its diagnostic. An
-    // unsupported form refuses the compilation without a source verdict.
+    // The route's own verdict, the one a router takes: an unproved obligation
+    // rejects the program with a diagnostic, an unsupported one hands the
+    // closure back to the current checker.
     let route = match judge(Ok(for_verdict)) {
         Ok(RouteVerdict::Accepted(_)) => "accepted",
         Ok(RouteVerdict::Rejected {
@@ -626,7 +618,6 @@ fn judge_elaboration(
             unproved,
             unestablished,
             conflicts,
-            exceeded,
         }) => {
             debug_assert!(
                 formations.is_empty(),
@@ -660,22 +651,12 @@ fn judge_elaboration(
                 ));
                 best = Some(best.map_or(class, |best| best.min(class)));
             }
-            for entry in &exceeded {
-                lines.push(format!(
-                    "reach\t{}\t{}\t{:?}\t{}",
-                    main.display(),
-                    entry.machine.get(),
-                    entry.at,
-                    one_line(entry.message()),
-                ));
-            }
             if current == "rejected" {
                 let messages: Vec<String> = unproved
                     .iter()
                     .map(UnprovedObligation::message)
                     .chain(unestablished.iter().map(|entry| entry.message()))
                     .chain(conflicts.iter().map(|entry| entry.message()))
-                    .chain(exceeded.iter().map(|entry| entry.message()))
                     .collect();
                 let (fragment, expected) = pinned_fragments(main, &messages);
                 lines.push(format!(
@@ -836,25 +817,19 @@ impl<'a> CurrentSites<'a> {
     }
 
     fn describe_route(&self, site: Option<SourceOrigin>) -> String {
-        let Some(site) = site else {
-            return "no-correspondence".to_owned();
-        };
-        match site.span() {
-            Some(span) => self.describe_span(span),
-            None => match site {
-                SourceOrigin::Unpositioned(why) => format!("Unpositioned({why:?})"),
-                _ => "no-span".to_owned(),
-            },
+        match site {
+            Some(SourceOrigin::Authored(span)) => self.describe_span(span),
+            Some(SourceOrigin::Unpositioned(why)) => format!("Unpositioned({why:?})"),
+            None => "no-correspondence".to_owned(),
         }
     }
 
     /// The best match between one route site and any current diagnostic.
     fn class(&self, site: Option<SourceOrigin>) -> SiteClass {
-        if let Some(SourceOrigin::Unpositioned(why)) = site {
-            return SiteClass::Unpositioned(Some(why));
-        }
-        let Some(span) = site.and_then(SourceOrigin::span) else {
-            return SiteClass::Unpositioned(None);
+        let span = match site {
+            Some(SourceOrigin::Authored(span)) => span,
+            Some(SourceOrigin::Unpositioned(why)) => return SiteClass::Unpositioned(Some(why)),
+            None => return SiteClass::Unpositioned(None),
         };
         self.spans
             .iter()

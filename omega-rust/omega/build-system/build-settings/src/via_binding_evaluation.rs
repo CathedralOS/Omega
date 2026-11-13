@@ -1,182 +1,114 @@
-/*
-Run every ordinary source `via` binding producer once and hand its result to
-provider planning. Build and product requests share this source-side operation.
+//! Retain the actual absence of ordinary source `via` producers, or refuse
+//! their execution until the producing module and its accepted invocation
+//! custody exist. A declaration roster is not an admitted executable closure.
 
-A `via` leaf names a machine whose build-time result says which foreign import
-or syscall realizes a requirement. Running that machine is source-side
-build-time evaluation, so it happens here, where Build evaluation already
-drives Psi's evaluator. Provider planning receives only what the run produced:
-the value, its measured usage, the admitted producer closure, the Binding
-coordinate widths and the evaluator's semantics marker. It decodes, digests and
-retains those as an `EvaluatedViaBindingTable` without evaluating anything
-itself.
-
-Evaluation discloses all authored members under their own targets; a member
-without an authored target runs under the selected profile, and its absence is
-reported at the `via` expression.
-*/
-
-use build_time_evaluation::{
-    BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeProgram,
-    BuildTimeSelectionAuthority, CURRENT_EVALUATION_SEMANTICS, InvocationTarget,
-};
 use diagnostics::Diagnostic;
-use package_compilation::PackageCompilationInputs;
-use provider_planning::ProviderPlanningContext;
-use provider_planning::evaluated_via_bindings::{
-    BindingVocabulary, EvaluatedViaBindingRows, EvaluatedViaBindingTable, ViaBindingEvaluation,
-    ViaProducer,
-};
-use std::sync::Arc;
+use provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable;
 use target::TargetProfile;
+use typed_trees::TypedTrees;
 
-pub fn evaluate_via_bindings(
-    context: ProviderPlanningContext<'_>,
+pub fn prepare_source_via_bindings(
+    typed: &TypedTrees,
+    scope: source::DependencyScope,
     selected_target: Option<TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
-    let typed = context.typed;
-    let pending = typed
-        .machines()
-        .iter()
-        .filter(|machine| context.contains(machine.symbol))
-        .flat_map(|machine| {
-            typed
-                .machine_trait_conformances(machine)
-                .iter()
-                .filter(|conformance| conformance.via_expression.is_valid())
-                .map(move |conformance| (machine, conformance))
-        })
-        .collect::<Vec<_>>();
-    if pending.is_empty() {
-        return Ok(EvaluatedViaBindingTable::without_bindings(
-            context.scope,
-            selected_target,
-        ));
-    }
-    let vocabulary = build_time_evaluation::native_locators::vocabulary(typed, |symbol| {
-        context.contains(symbol)
-    })?;
-    let vocabulary = BindingVocabulary::retain(typed, vocabulary.binding)?;
-    let selection_authority = package_inputs
-        .cloned()
-        .map(|inputs| Arc::new(inputs) as Arc<dyn BuildTimeSelectionAuthority>);
-    let admission = BuildTimeAdmissionPlan::infer(typed, selection_authority)?;
-    let mut rows = EvaluatedViaBindingRows::with_capacity(pending.len());
+    let machines = typed.tables.machines.span(typed.roots.machines).ok_or_else(|| vec![Diagnostic::error(
+        "no product route yet: ordinary source via inventory has an unresolved machine roster",
+    )])?;
     let mut diagnostics = Vec::new();
-
-    for (machine, conformance) in pending {
-        let target = match typed.authored_machine_target(machine.symbol) {
-            Ok(Some(authored)) => TargetProfile::from_canonical_target_name(authored),
-            Ok(None) => selected_target.ok_or_else(|| {
-                Diagnostic::error(
-                    "ordinary external `via` evaluation requires one selected target profile",
-                )
-            }),
-            Err(reason) => Err(Diagnostic::error(reason)),
-        };
-        let target = match target {
-            Ok(target) => target,
-            Err(diagnostic) => {
-                diagnostics.push(
-                    diagnostic.with_source_span(
-                        typed
-                            .expression_table
-                            .source_span(conformance.via_expression),
-                    ),
-                );
-                continue;
+    for machine in machines.iter().filter(|machine| {
+        typed
+            .symbols
+            .symbol_is_in_dependency_scope(machine.symbol, scope)
+    }) {
+        let conformances = typed.machine_trait_conformances.span(machine.satisfies).ok_or_else(|| vec![Diagnostic::error(
+            "no product route yet: ordinary source via inventory has an unresolved conformance roster",
+        )])?;
+        for conformance in conformances {
+            if conformance.via_expression.is_valid() {
+                diagnostics.push(Diagnostic::error(
+                    "no product route yet: ordinary source via producer has no accepted executable and invocation custody",
+                ).with_source_span(typed.expression_table.source_span(conformance.via_expression)));
             }
-        };
-        if let Err(diagnostic) = evaluate_one(
-            typed,
-            &admission,
-            &vocabulary,
-            target,
-            machine,
-            conformance,
-            &mut rows,
-        ) {
-            diagnostics.push(diagnostic);
         }
     }
-    rows.finish(context.scope, selected_target, diagnostics)
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
+    // Every actual conformance in this scope was inspected. This is the
+    // genuine no-producer case, not an unavailable evaluation called empty.
+    Ok(EvaluatedViaBindingTable::without_bindings(
+        scope,
+        selected_target,
+    ))
 }
 
-// Target-scoped producers resolve to their family head and run the member body
-// authored for `target` under `ConstEvaluable`, with the `via` span retained
-// as invocation custody.
-fn evaluate_one(
-    typed: &typed_trees::TypedTrees,
-    admission: &BuildTimeAdmissionPlan,
-    vocabulary: &BindingVocabulary,
-    target: TargetProfile,
-    machine: &typed_trees::machine::Machine,
-    conformance: &typed_trees::machine::TraitConformance,
-    rows: &mut EvaluatedViaBindingRows,
-) -> Result<(), Diagnostic> {
-    let program = BuildTimeProgram::Typed(typed);
-    let producer = ViaProducer::resolve(typed, target, conformance)?;
-    let source_span = producer.via_source_span();
-    let at = |message: String| Diagnostic::error(message).with_source_span(source_span);
-    let widths = build_time_evaluation::native_locators::binding_widths(
-        typed,
-        vocabulary.binding(),
-        producer.return_type(),
-    )
-    .map_err(at)?;
-    let custody = BuildTimeInvocationCustody::Source(source_span);
-    // The producer may retain scalar conditions whose values depend on this
-    // target; the invocation discharges them from these target facts.
-    let layout_target = target.layout_target_facts();
-    let address_model = target::TargetSemantics::close_address_model(target).map(|model| {
-        terminal_installation::ScalarAddressModel {
-            target: target.target_name().to_owned(),
-            carrier: model.carrier(),
-            semantics_version: model.semantics_version(),
-            commitment: model.commitment(),
-        }
-    });
-    let measured = admission
-        .evaluate_const_evaluable_program_machine_symbol_for_invocation_measured(
-            program,
-            producer.machine(),
-            Vec::new(),
-            custody,
-            Some(InvocationTarget {
-                name: target.target_name(),
-                layout_target: layout_target.as_ref(),
-                carrier_layout: target
-                    .native_realization()
-                    .map(runtime_abi::target_carrier_layout),
-                address_model: address_model.as_ref(),
-            }),
-        )
-        .map_err(|message| {
-            at(format!(
-                "ordinary external `via` evaluation failed: {message}"
-            ))
-        })?;
-    let closure = admission
-        .admitted_program_machine_closure_symbols(program, producer.machine(), custody)
-        .map_err(|message| {
-            at(format!(
-                "ordinary external `via` closure admission failed: {message}"
-            ))
-        })?;
-    let (value, usage) = measured.into_parts();
-    rows.retain(
-        typed,
-        vocabulary,
-        target,
-        machine.symbol,
-        producer,
-        ViaBindingEvaluation {
-            value: &value,
-            usage,
-            closure: &closure,
-            widths,
-            evaluation_semantics_marker: CURRENT_EVALUATION_SEMANTICS.marker(),
-        },
-    )
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::machine::{Machine, TraitConformance};
+
+    fn source(with_via: bool) -> TypedTrees {
+        let mut symbols = SymbolTableBuilder::new();
+        let symbol = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("producer"));
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let via_expression = if with_via {
+            typed.expression_table.insert(ExpressionNode::Boolean(true))
+        } else {
+            Default::default()
+        };
+        let satisfies = typed
+            .machine_trait_conformances
+            .insert_many([TraitConformance {
+                via_expression,
+                ..Default::default()
+            }]);
+        typed.roots.machines = typed.tables.machines.insert_many([Machine {
+            symbol,
+            satisfies,
+            ..Default::default()
+        }]);
+        typed
+    }
+
+    #[test]
+    fn only_an_actual_empty_via_roster_yields_an_empty_table() {
+        let none =
+            prepare_source_via_bindings(&source(false), source::DependencyScope::Product, None)
+                .unwrap();
+        assert!(none.rows().is_empty());
+        let authored =
+            prepare_source_via_bindings(&source(true), source::DependencyScope::Product, None)
+                .unwrap_err();
+        assert!(
+            authored
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("no accepted executable"))
+        );
+    }
+
+    #[test]
+    fn missing_roster_storage_cannot_be_called_no_via() {
+        let mut missing_conformances = source(true);
+        missing_conformances.machine_trait_conformances = Default::default();
+        assert!(
+            prepare_source_via_bindings(
+                &missing_conformances,
+                source::DependencyScope::Product,
+                None
+            )
+            .is_err()
+        );
+        let mut missing_machines = source(true);
+        missing_machines.tables.machines = Default::default();
+        assert!(
+            prepare_source_via_bindings(&missing_machines, source::DependencyScope::Product, None)
+                .is_err()
+        );
+    }
 }

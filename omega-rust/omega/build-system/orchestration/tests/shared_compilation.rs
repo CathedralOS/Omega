@@ -1,9 +1,4 @@
-/*
-Checks that a shared compilation session cannot carry a source judgment across
-changed dependency contracts or a different dependency context. The retired
-checked-tree body cache is no longer a publication authority; its reuse and
-page-copy counters are not part of this source contract.
-*/
+//! A shared session must refuse a changed dependency contract or proof context.
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::Path;

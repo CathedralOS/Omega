@@ -46,25 +46,21 @@ Architecture & Ownership Boundaries:
 Start at `build_evaluation.rs`: `prepare_build_evaluation` selects the
 source-owned `build` entry before semantic admission, filesystem preparation, and
 restricted-request consent. Its private admitted checkpoint (`AdmittedBuildProgram`)
-binds the exact checked program and entry before any host effects occur. The
+binds the exact accepted invocation source and entry before any host effects occur. The
 caller (`orchestration`) then starts and steps one retained `TerminalBuildActivation`
 and rejoins its normal return (`ReturnedBuild`) with `PreparedBuildEvaluation::complete`
 to produce `EvaluatedBuild`.
 
 The crate is organized along that lifecycle:
-- `admission/` checks the `Build` program and its target helpers before any
-  effect occurs (`checking.rs`, `target_helpers.rs`), pre-evaluates selected
-  scalar constants and provider demands (`selected_constants.rs`,
-  `provider_execution.rs`), answers their layout queries with the selected
-  target's geometry (`target_layout_queries.rs`), and seals the private
-  checkpoint (`program.rs`).
+- `admission/` prepares and judges Build source before effects (`checking.rs`).
+  Unsupported source constructs refuse before a host opens.
+  `provider_execution.rs` admits selected runtime supplies, while `program.rs`
+  binds the accepted source to its selected entry and filesystem scope.
 - `activation.rs` and `activation/` own the step-by-step `TerminalBuildActivation`
   that `orchestration` drives (`preparation.rs`, `project.rs`,
   `provider_installation.rs`, `scalar_completion.rs`, `source_join.rs`,
-  `source_result.rs`), plus invocation-local `Pure` build value reuse
-  (`completed_pure_build.rs`), which charges each reused evaluation to the
-  current work sponsor without fabricating interpreter execution or live-resource
-  peaks.
+  `source_result.rs`). Each execution has its own host admission and account.
+  The compatibility handle in `completed_pure_build.rs` grants no cache reuse.
 - `host/` implements the host imports callable from `build(build: &mut Build)`:
   root bindings and product entry queries (`bindings.rs`, `native_bindings.rs`,
   `product_queries.rs`), scoped filesystem staging (`filesystem.rs`), and
@@ -73,9 +69,9 @@ The crate is organized along that lifecycle:
   interpreter's root structural parameter after normal return.
 - `calling_policy_execution.rs` executes retained Terminal calling-policy
   machines on canonical ABI signatures without re-entering the source compiler.
-- `via_binding_evaluation.rs` runs each ordinary source `via` producer once, for
-  Build admission and for the compiler's Product preparation, and hands the
-  result to provider planning to retain.
+- `via_binding_evaluation.rs` retains genuine no-producer source rosters and refuses
+  ordinary `via` execution without accepted invocation custody, before Product
+  provider preparation can use a binding table.
 */
 
 mod activation;
@@ -122,9 +118,9 @@ pub use package_compilation::build_execution::{
     RestrictedBuildRequest, prepare_filesystem_scope,
 };
 pub use provider_planning::program_entry::{
-    PreparedCompilerProgramEntry, RootBinding, SelectedCompilerProgramEntry, SelectedProgramEntry,
-    SelectedProgramEntryCallingPlans, prepare_compiler_program_entry,
-    program_entry_semantic_binding_role, selected_program_entry_machine,
+    RootBinding, SelectedCompilerProgramEntry, SelectedProgramEntry,
+    SelectedProgramEntryCallingPlans, program_entry_semantic_binding_role,
+    selected_program_entry_machine,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
-pub use via_binding_evaluation::evaluate_via_bindings;
+pub use via_binding_evaluation::prepare_source_via_bindings;

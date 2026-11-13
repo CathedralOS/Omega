@@ -156,9 +156,13 @@ pub(crate) fn components(
 fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
     for statement in statements {
         match statement {
-            Statement::Bind { value, .. }
-            | Statement::Evaluate(value)
-            | Statement::Store { value, .. } => expression(value, sites),
+            Statement::Bind { value, .. } | Statement::Evaluate(value) => expression(value, sites),
+            Statement::Store {
+                destination, value, ..
+            } => {
+                expression(destination, sites);
+                expression(value, sites);
+            }
             // An erased term is a literal or a binding: it calls nothing.
             Statement::Declare { .. } | Statement::Witness { .. } => {}
             Statement::Dispatch {
@@ -223,9 +227,11 @@ fn call(callee: &CallTarget, arguments: &[Expression], terminal: bool, sites: &m
 
 fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
     match &value.kind {
-        ExpressionKind::Integer(_)
-        | ExpressionKind::Boolean(_)
+        ExpressionKind::SavedSubject(_)
+        | ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
@@ -237,6 +243,15 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
             subject: operand, ..
         }
         | ExpressionKind::Borrow { place: operand, .. } => expression(operand, sites),
+        ExpressionKind::Array { elements } => {
+            for element in elements {
+                expression(element, sites);
+            }
+        }
+        ExpressionKind::Index { base, index } => {
+            expression(base, sites);
+            expression(index, sites);
+        }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, operand) in fields {
                 expression(operand, sites);
@@ -246,6 +261,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
             subject,
             arms,
             default,
+            ..
         } => {
             expression(subject, sites);
             for (_, arm) in arms {
@@ -276,11 +292,15 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             return true;
         }
         match &value.kind {
-            ExpressionKind::Integer(_)
-            | ExpressionKind::Boolean(_)
+            ExpressionKind::SavedSubject(_)
+            | ExpressionKind::Integer(_)
+            | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::MachineValue { .. }
+            | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_) => false,
-            ExpressionKind::Record { .. }
+            ExpressionKind::Array { .. }
+            | ExpressionKind::Index { .. }
+            | ExpressionKind::Record { .. }
             | ExpressionKind::Field { .. }
             | ExpressionKind::Case { .. }
             | ExpressionKind::Payload { .. }

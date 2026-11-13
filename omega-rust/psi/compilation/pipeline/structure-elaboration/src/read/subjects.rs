@@ -22,8 +22,9 @@ its symbol was declared in, never from a path or a name:
   Its declarations are judged only when a subject declaration reaches them.
 - A file read under the Build's dependency scope belongs to the Build
   program, which its own activation checks before it runs.
-- Any other file is the subject's. A file with no package identity is a
-  standalone source, which is its own subject.
+- A user file is a subject only when its package identity is requested.
+  An explicit `None` subject selects standalone user source. An empty request
+  selects no full-package or standalone subject.
 - A declaration with no source file cannot be placed, so it is refused.
 */
 
@@ -48,7 +49,7 @@ impl Program<'_> {
         &self,
         entry: MachineId,
         symbol: SymbolHandle,
-        subject: Option<PackageKeyIdentity>,
+        subjects: &[Option<PackageKeyIdentity>],
     ) -> Checked<Owner> {
         let symbols = &self.typed.symbols;
         let file = symbol
@@ -65,9 +66,7 @@ impl Program<'_> {
             })?;
         let dependency = file.origin.is_toolchain()
             || file.dependency_scope == DependencyScope::Build
-            || file
-                .package_identity
-                .is_some_and(|package| Some(package) != subject);
+            || !subjects.contains(&file.package_identity);
         Ok(if dependency {
             Owner::Dependency
         } else {
@@ -119,11 +118,16 @@ impl Program<'_> {
     pub fn subject_declarations(
         &mut self,
         entry: MachineId,
-        subject: Option<PackageKeyIdentity>,
+        subjects: &[Option<PackageKeyIdentity>],
     ) -> Checked<()> {
+        // A concrete evaluation asks for its existing entry and call closure,
+        // not a full check of the source files retained for name resolution.
+        if subjects.is_empty() {
+            return Ok(());
+        }
         let typed = self.typed;
         for machine in typed.machines() {
-            if self.owner(entry, machine.symbol, subject)? != Owner::Subject {
+            if self.owner(entry, machine.symbol, subjects)? != Owner::Subject {
                 continue;
             }
             if self.select_native_provider(entry, machine.symbol)? {
@@ -139,7 +143,7 @@ impl Program<'_> {
             }
         }
         for data in typed.data_definitions() {
-            if self.owner(entry, data.symbol, subject)? == Owner::Subject && !names_only(data) {
+            if self.owner(entry, data.symbol, subjects)? == Owner::Subject && !names_only(data) {
                 self.record(entry, data.symbol)?;
             }
         }
@@ -190,7 +194,7 @@ impl Program<'_> {
         ];
         for (declared, kind) in unjudged {
             for symbol in declared {
-                if self.owner(entry, symbol, subject)? == Owner::Subject {
+                if self.owner(entry, symbol, subjects)? == Owner::Subject {
                     return Err(refuse(
                         entry,
                         Construct::Machine,

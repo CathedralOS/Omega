@@ -1339,16 +1339,18 @@ pub(crate) mod tests {
         let target_name = file
             .expressions
             .append_identifier_path_member(Identifier::generated("xp"));
-        let target = file
-            .expressions
-            .insert(ExpressionNode::Name(HandleSpan::from_parts(target_name, 1)));
+        let target = file.expressions.insert(ExpressionNode::Name {
+            members: HandleSpan::from_parts(target_name, 1),
+            application: None,
+        });
 
         let player_name = file
             .expressions
             .append_identifier_path_member(Identifier::generated("player"));
-        let player = file
-            .expressions
-            .insert(ExpressionNode::Name(HandleSpan::from_parts(player_name, 1)));
+        let player = file.expressions.insert(ExpressionNode::Name {
+            members: HandleSpan::from_parts(player_name, 1),
+            application: None,
+        });
         let player_level = file
             .expressions
             .insert(ExpressionNode::Member(TableMemberExpression {
@@ -1431,13 +1433,10 @@ pub(crate) mod tests {
         let original_name = original
             .expressions
             .append_identifier_path_member(first.clone());
-        let original_expression =
-            original
-                .expressions
-                .insert(ExpressionNode::Name(HandleSpan::from_parts(
-                    original_name,
-                    1,
-                )));
+        let original_expression = original.expressions.insert(ExpressionNode::Name {
+            members: HandleSpan::from_parts(original_name, 1),
+            application: None,
+        });
         let checkpoint = original.clone();
         assert_eq!(
             Arc::strong_count(&source),
@@ -1718,7 +1717,7 @@ impl SyntaxTrees {
 
     pub fn const_expression_contains_name(&self, expression: ExpressionHandle) -> bool {
         match self.expressions.expression(expression) {
-            ExpressionNode::Name(_) => true,
+            ExpressionNode::Name { .. } => true,
             ExpressionNode::Binary(binary) => {
                 self.const_expression_contains_name(binary.left)
                     || self.const_expression_contains_name(binary.right)

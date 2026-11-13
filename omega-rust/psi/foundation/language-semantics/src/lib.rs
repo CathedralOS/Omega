@@ -317,6 +317,30 @@ mod boundary_bodies {
     }
 }
 pub mod build_requests {
+    // A Build request names the operation structural lowering actually emits.
+    // These rows carry source meaning, not host authority; publication binds
+    // them to one artifact before an activation may install its adapters.
+    use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum TerminalBuildRequestOperation {
+        Package,
+        Application,
+        Member,
+        ArtifactOnly,
+        PathDependency,
+        GitDependency,
+        LogLine,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct TerminalBuildRequestCall {
+        pub machine: MachineId,
+        pub operation: OperationId,
+        pub boundary: BoundaryMachineId,
+        pub action: TerminalBuildRequestOperation,
+    }
+
     pub fn is_project_request_protocol(
         symbols: &symbols::SymbolTable,
         declaration: symbols::SymbolHandle,

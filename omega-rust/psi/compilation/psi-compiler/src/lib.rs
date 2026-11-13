@@ -1,12 +1,25 @@
-//! Parse and type admitted source frontiers across Build continuations, then
-//! settle their source inputs for the lowered-form checker. Product consumers
-//! retain the program that checker accepted; this facade has no body verdict or
-//! checked-tree lowering route.
-//!
-//! Start at `source_parsing` for source pages, `source_compilation` for resolver
-//! and typing continuations, and `prepare_product_typed_frontier` for the final
-//! typed source preparation. `psi-terminal-production` retains the accepted
-//! artifact, source-issued companions and application attachments.
+/*
+    Target-neutral source parsing, resolution, typing, and preparation. This
+    facade supplies frozen typed input to the lowered-form checker; it produces
+    no source-checker judgment, checked-tree cache, or selected checked product.
+*/
+
+/*
+    Separating target-neutral Psi stage sequencing from Omega package discovery,
+    Build host execution, and native code generation ensures every compile-time
+    and product consumer traverses the exact same lexical, typing, checking, and
+    portable Terminal production rules without circular coordinator dependencies.
+*/
+
+/*
+    Start at `source_parsing` (below) for admitted source frontiers and snippet
+    parsing, `source_compilation` (`SourceCompilationRequest`,
+    `SourceContinuation`, and `CompletedSource`) for the resolver/typing
+    continuation and Product policy admission, `source_checking`
+    (`SourcePreparationRequest` and `FrozenSource`) before lowered-form
+    checking. Accepted source publication and artifact retention belong to
+    `psi-terminal-production`; no checked-tree cache remains in this facade.
+*/
 
 #![forbid(unsafe_code)]
 
@@ -316,7 +329,7 @@ pub(crate) mod source_parsing {
 }
 
 pub use source_checking::{
-    ProductRepresentationInput, SourceAdmission, prepare_product_typed_frontier,
+    FrozenSource, ProductRepresentationInput, SourceAdmission, SourcePreparationRequest,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
@@ -328,11 +341,10 @@ pub use source_compilation::{
 };
 
 pub use psi_terminal_production::{
-    BuildProviderProductionRequest, CheckedInvocationSource, PortableTerminalProgram,
-    PreparedExternalProviderDeclarations, PreparedProviderInventory, PreparedTerminalRoots,
-    ProducedBuildProvider, ProducedTerminalApplication, ProducedTerminalProgram,
-    ProgramEntryTerminalReceiptError, PsiCompilationObserver, PsiCompilationStage,
-    SourceCompilation, TerminalAdmissionRoot, TerminalApplicationCustody,
+    AcceptedTerminalSource, PortableTerminalProgram, PreparedExternalProviderDeclarations,
+    PreparedTerminalRoots, ProducedBuildProvider, ProducedTerminalApplication,
+    ProducedTerminalProgram, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
+    PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
     TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
     TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
     TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,
@@ -340,6 +352,5 @@ pub use psi_terminal_production::{
     TerminalBuildRequestOperation, TerminalBuildRequests, TerminalBuildSelectionRequest,
     TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
     TerminalCompositionRoots, TerminalMachineSelection, TerminalProductionCustody,
-    TerminalProductionRequest, TerminalProgramRoots, UnmeasuredProduction,
-    prepare_build_provider_requirements,
+    TerminalProgramRoots, TerminalSourceCompilation, UnmeasuredProduction,
 };

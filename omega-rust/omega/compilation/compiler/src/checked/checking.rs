@@ -17,6 +17,7 @@ active compiler worker run inline without spawning additional threads.
 */
 
 pub(crate) mod build_continuation;
+mod entry_shapes;
 mod lowered_route;
 mod product_queries;
 mod product_selections;
@@ -30,13 +31,12 @@ pub use compilation_products::{
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
     PreparedPackageBuild,
 };
-pub(crate) use lowered_route::publish_selected_roots;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 pub use product_queries::ProductQueries;
 pub(crate) use source_checking::check_product_source;
 
 use crate::execution_settlement::SelectedCompileOutcome;
-use artifacts::compile_timings::{CompileTimings, StageMeta, counters};
+use artifacts::compile_timings::{CompileTimings, counters};
 use compilation_products::{
     CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedProductSource,
     PreparedSourceFrontier, TypedCompilationFrontier,
@@ -572,15 +572,4 @@ pub(crate) fn attribute_diagnostics(
             column: position.column as u32,
         });
     }
-}
-
-pub(crate) fn timed<T>(
-    timings: &mut CompileTimings,
-    stage: StageMeta,
-    step: impl FnOnce(&mut CompileTimings) -> T,
-) -> T {
-    let started = std::time::Instant::now();
-    let result = step(timings);
-    timings.add_completed(stage, started.elapsed().as_micros());
-    result
 }

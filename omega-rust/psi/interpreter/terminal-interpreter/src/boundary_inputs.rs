@@ -2269,12 +2269,18 @@ pub(crate) mod contents {
                     ));
                 }
                 let leaves = description.leaves;
-                if leaves.iter().any(|leaf| {
-                    matches!(
-                        leaf.kind,
-                        StorageLeafKind::Opaque { .. } | StorageLeafKind::ByteField { .. }
-                    )
-                }) {
+                let has_bytes = argument
+                    .values
+                    .iter()
+                    .any(|value| matches!(&value.contents, TerminalStorageContents::Bytes(_)));
+                if !has_bytes
+                    && leaves.iter().any(|leaf| {
+                        matches!(
+                            leaf.kind,
+                            StorageLeafKind::Opaque { .. } | StorageLeafKind::ByteField { .. }
+                        )
+                    })
+                {
                     return Err(invalid(
                         "scalar/case contents cannot establish opaque or reference backing",
                     ));
@@ -2284,7 +2290,10 @@ pub(crate) mod contents {
                     .filter(|leaf| {
                         matches!(
                             leaf.kind,
-                            StorageLeafKind::Scalar { .. } | StorageLeafKind::Case { .. }
+                            StorageLeafKind::Scalar { .. }
+                                | StorageLeafKind::Case { .. }
+                                | StorageLeafKind::ByteField { .. }
+                                | StorageLeafKind::Opaque { .. }
                         )
                     })
                     .collect::<Vec<_>>();
@@ -2299,8 +2308,20 @@ pub(crate) mod contents {
                     ));
                 }
                 for (leaf, value) in visible.into_iter().zip(&argument.values) {
+                    if let TerminalStorageContents::Bytes(bytes) = &value.contents {
+                        if leaf.path != value.path {
+                            return Err(invalid(
+                                "byte contents do not name the complete active path",
+                            ));
+                        }
+                        self.stage_immutable_contents(&root, leaf, bytes, &mut staged)
+                            .map_err(|error| {
+                                error.in_argument_preparation("bind immutable byte contents")
+                            })?;
+                        continue;
+                    }
                     leaf.validate_value(value).map_err(invalid)?;
-                    match (&leaf.kind, value.contents) {
+                    match (&leaf.kind, value.contents.clone()) {
                         (
                             StorageLeafKind::Scalar { destination, .. },
                             TerminalStorageContents::Scalar { value, .. },
@@ -2341,7 +2362,7 @@ pub(crate) mod contents {
                                         .partition_point(|value| value.path < leaf.path),
                                 )
                                 .take_while(|value| value.path.starts_with(&leaf.path))
-                                .map(|value| match value.contents {
+                                .map(|value| match value.contents.clone() {
                                     TerminalStorageContents::Scalar { value, .. } => Ok(value),
                                     _ => Err(invalid("byte array element is not a scalar")),
                                 })
@@ -2359,6 +2380,88 @@ pub(crate) mod contents {
                 }
             }
             staged.publish(self)
+        }
+
+        fn stage_immutable_contents(
+            &self,
+            root: &crate::TerminalStructuralValue,
+            leaf: &crate::storage::structural_storage::contents::StorageLeaf,
+            bytes: &[u8],
+            staged: &mut ConstructorStorage,
+        ) -> Result<(), TerminalInterpretError> {
+            use crate::boundary::errors::malformed;
+            use crate::boundary::values::{
+                StructuralByteSequenceRuntimeField, StructuralFieldNamespace,
+            };
+            use crate::storage::byte_sequences::{
+                ByteSequenceView, binding::ByteSequenceBinding, storage::ByteSequenceStorage,
+            };
+            if !root.qualifications.is_empty() || !root.projected_qualifications.is_empty() {
+                return Err(malformed()
+                    .in_argument_preparation("byte contents cannot establish qualifications"));
+            }
+            match &leaf.kind {
+                StorageLeafKind::Opaque {
+                    destination,
+                    declaration,
+                } => {
+                    let declaration = self.structural_declaration(*declaration)?;
+                    if !declaration.shape.is_shared_readable_byte_view()
+                        || declaration.owns_linear_claim
+                    {
+                        return Err(malformed().in_argument_preparation(
+                            "byte contents require an immutable byte declaration",
+                        ));
+                    }
+                    let mut home = root.clone();
+                    home.path = destination.path.clone();
+                    home.structural_type = declaration.id;
+                    let view = ByteSequenceView::new(ByteSequenceStorage::copy(
+                        bytes,
+                        self.account.as_ref(),
+                    )?)
+                    .with_descriptor_home(home);
+                    staged.stage_byte_descriptor(
+                        destination.clone(),
+                        ByteSequenceBinding::Immutable(view),
+                    )
+                }
+                StorageLeafKind::ByteField {
+                    parent,
+                    field,
+                    declaration,
+                } => {
+                    if !declaration
+                        .byte_sequence_carrier()
+                        .is_some_and(|carrier| carrier.is_shared_readable_view())
+                        || !declaration.byte_predicates().holds_for(bytes)
+                    {
+                        return Err(malformed().in_argument_preparation(
+                            "byte field contents differ from their access or predicates",
+                        ));
+                    }
+                    let namespace = if matches!(
+                        leaf.path.iter().rev().nth(1),
+                        Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_))
+                    ) {
+                        StructuralFieldNamespace::CasePayload
+                    } else {
+                        StructuralFieldNamespace::Member
+                    };
+                    staged.stage_byte_field(
+                        StructuralByteSequenceRuntimeField {
+                            parent: parent.clone(),
+                            namespace,
+                            field: *field,
+                        },
+                        ByteSequenceBinding::Immutable(ByteSequenceView::new(
+                            ByteSequenceStorage::copy(bytes, self.account.as_ref())?,
+                        )),
+                    )
+                }
+                _ => Err(malformed()
+                    .in_argument_preparation("byte contents name scalar or non-byte storage")),
+            }
         }
     }
 }

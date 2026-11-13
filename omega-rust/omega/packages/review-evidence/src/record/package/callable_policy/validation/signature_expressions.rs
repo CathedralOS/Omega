@@ -9,24 +9,6 @@ use crate::record::{
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
 };
 
-fn runtime_callee(
-    value: &PackageReviewContractExpression,
-    scope: &Scope<'_>,
-    nesting: usize,
-) -> Result {
-    depth(nesting)?;
-    match value {
-        PackageReviewContractExpression::MachineSelection {
-            contract,
-            selection,
-        } => {
-            value_type(contract)?;
-            text(selection)
-        }
-        _ => expression(value, scope, nesting),
-    }
-}
-
 pub(in crate::record) fn expression(
     value: &PackageReviewContractExpression,
     scope: &Scope<'_>,
@@ -35,9 +17,6 @@ pub(in crate::record) fn expression(
     depth(nesting)?;
     use PackageReviewContractExpression as Expression;
     match value {
-        Expression::MachineSelection { .. } => {
-            return Err("machine selection is an opaque callable operand, not a mathematical value");
-        }
         Expression::Boolean(_)
         | Expression::Float(_)
         | Expression::ByteSequence(_)
@@ -153,18 +132,8 @@ pub(in crate::record) fn expression(
             if let Some(receiver) = receiver {
                 expression(receiver, scope, nesting + 1)?;
             }
-            match target {
-                PackageReviewContractCallTarget::Nominal(target) => target.validate_resolved()?,
-                PackageReviewContractCallTarget::Runtime { contract, callee } => {
-                    value_type(contract)?;
-                    runtime_callee(callee, scope, nesting + 1)?;
-                    if receiver.is_some() || !static_arguments.is_empty() {
-                        return Err(
-                            "runtime callable contract call retains a receiver or static arguments",
-                        );
-                    }
-                }
-                _ => {}
+            if let PackageReviewContractCallTarget::Nominal(target) = target {
+                target.validate_resolved()?;
             }
             for argument in static_arguments {
                 static_argument(argument, scope, nesting + 1)?;
@@ -173,16 +142,8 @@ pub(in crate::record) fn expression(
                 expression(argument, scope, nesting + 1)?;
             }
             for evidence in evidence_arguments {
-                for owner in [&evidence.source.owner, &evidence.parameter.owner] {
-                    match owner {
-                        crate::record::PackageReviewContractEvidenceOwner::Nominal(owner) => {
-                            owner.validate_resolved()?
-                        }
-                        crate::record::PackageReviewContractEvidenceOwner::Runtime { contract } => {
-                            value_type(contract)?
-                        }
-                    }
-                }
+                evidence.source.owner.validate_resolved()?;
+                evidence.parameter.owner.validate_resolved()?;
             }
         }
         Expression::Binary {

@@ -81,6 +81,7 @@ pub(crate) struct Lowered {
     /// The block invariant of each loop head whose member has a `requires`,
     /// in head order: rows of the module's `scalar_block_invariants`.
     pub invariants: Vec<ScalarBlockInvariant>,
+    pub build_calls: Vec<crate::EmittedBuildCall>,
 }
 
 /// One member of the call component being lowered as a loop: its head block
@@ -253,6 +254,7 @@ fn begin<'a>(
         path: Vec::new(),
         tables: MachineTables::default(),
         sources: MachineSources::default(),
+        build_calls: Vec::new(),
         blocks: IdTable::default(),
         current: None,
         point: None,
@@ -279,9 +281,10 @@ fn begin<'a>(
         if let Some(borrowed) = signature.borrowed(position) {
             let (referent, scalar) = match *value_type {
                 ValueType::Record(record) => (record, false),
-                ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
-                    (records.primitive(scalar_type, id)?, true)
-                }
+                ValueType::Scalar(_) | ValueType::Qualified(..) => (
+                    records.primitive(*value_type, borrowed.home.as_deref(), id)?,
+                    true,
+                ),
                 ValueType::Rigid(_) => {
                     return Err(lowering.internal("a borrowed formal of a rigid type"));
                 }
@@ -470,6 +473,7 @@ struct Lowering<'a> {
     path: Vec<Proposition>,
     tables: MachineTables,
     sources: MachineSources,
+    build_calls: Vec<crate::EmittedBuildCall>,
     blocks: IdTable<BlockId, Draft>,
     /// The open block, `None` once it is terminated and no block is entered.
     current: Option<BlockId>,
@@ -880,6 +884,7 @@ impl<'a> Lowering<'a> {
             tables: self.tables,
             sources: self.sources,
             invariants: self.invariants,
+            build_calls: self.build_calls,
         })
     }
 }

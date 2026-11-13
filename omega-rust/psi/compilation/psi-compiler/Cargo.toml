@@ -15,9 +15,7 @@ syntax-trees-to-symbol-resolved-trees = { path = "../pipeline/02_syntax-trees-to
 symbol-resolved-trees-to-typed-trees = { path = "../pipeline/03_symbol-resolved-trees-to-typed-trees" }
 build-time-evaluation = { path = "../build-time-evaluation" }
 typed-trees-to-typed-trees = { path = "../pipeline/04_typed-trees-to-typed-trees" }
-validation = { path = "../validation" }
-representation-selections = { path = "../validation/representation-planning/selections" }
-representation-planning = { path = "../validation/representation-planning" }
+language-core = { path = "../../foundation/language-core" }
 language-semantics = { path = "../../foundation/language-semantics" }
 source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }

@@ -248,8 +248,7 @@ impl CompilationSession {
         invocation: super::checking::PreparedPackageInvocation,
         returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
-        let settled = invocation.settle(returned)?;
-        Ok(settled)
+        invocation.settle(returned)
     }
 
     fn prepare_source(

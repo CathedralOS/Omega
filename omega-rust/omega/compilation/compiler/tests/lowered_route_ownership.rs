@@ -52,7 +52,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -122,7 +122,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -193,12 +193,11 @@ fn whole_owned_transfers_consume_their_homes_once() {
     records.push(RecordType {
         copyable: false,
         identity: "Owned".into(),
-        fields: vec![RecordField {
+        shape: structure_elaboration::StorageShape::Record(vec![RecordField {
             id: id(1),
             identity: "number".into(),
             value_type: scalar,
-        }],
-        cases: Vec::new(),
+        }]),
         requires: Vec::new(),
     });
     let mut bodies = IdTable::default();

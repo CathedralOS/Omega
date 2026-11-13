@@ -1,6 +1,6 @@
 // Completed Build and Product source continuations (`SettledBuildSource`,
 // `SettledPackageBuild`, `BuiltTypedProgram`, `PreparedBuild`,
-// `PreparedProductSource`, `CheckedProductSource`, and `ProductSourceIdentity`).
+// `PreparedProductSource` and `CheckedProductSource`).
 // Build executes once for an invocation and Product completion consumes its
 // pending bodies and generated sources once before target settlement starts.
 
@@ -84,20 +84,9 @@ pub struct PreparedProductSource {
 #[derive(Clone)]
 pub struct CheckedProductSource {
     pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
-    pub program: Arc<provider_planning::PublishedProviderSource>,
-    pub provider_inventory: Arc<provider_planning::PreparedProviderInventory>,
-    pub native_bindings: Arc<provider_planning::native_bindings::PreparedNativeBuildBindings>,
+    pub program: Arc<typed_trees::FrozenTypedTrees>,
+    pub provider_inventory: Arc<typed_trees::provider_declarations::PreparedProviderInventory>,
     pub terminal_publication: Arc<crate::ProductTerminalPublication>,
-    pub calling_program: Arc<
-        std::sync::OnceLock<
-            Result<
-                Arc<provider_planning::calling_policy_plans::CallingProgram>,
-                Vec<diagnostics::Diagnostic>,
-            >,
-        >,
-    >,
-    pub binding_declarations:
-        Arc<std::sync::OnceLock<Arc<selected_dispatch::PreparedBindingDeclarations>>>,
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
@@ -124,20 +113,5 @@ impl CheckedProductSource {
     pub fn adopt_derived_code(&mut self, canonical: &Self) {
         debug_assert!(canonical.shares_terminal_publication(self));
         self.terminal_publication = Arc::clone(&canonical.terminal_publication);
-        self.calling_program = Arc::clone(&canonical.calling_program);
-        self.binding_declarations = Arc::clone(&canonical.binding_declarations);
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ProductSourceIdentity(std::sync::Weak<provider_planning::PublishedProviderSource>);
-
-impl ProductSourceIdentity {
-    pub fn new(program: &Arc<provider_planning::PublishedProviderSource>) -> Self {
-        Self(Arc::downgrade(program))
-    }
-
-    pub fn same_source(&self, other: &Self) -> bool {
-        std::sync::Weak::ptr_eq(&self.0, &other.0)
     }
 }

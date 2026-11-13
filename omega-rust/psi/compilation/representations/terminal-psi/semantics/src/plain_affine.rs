@@ -422,6 +422,9 @@ fn analyze(
             }
             | StructuralPlaceKind::TrivialAffineLocal {
                 structural_type, ..
+            }
+            | StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type, ..
             } => (structural_type, true, false),
             StructuralPlaceKind::Result => {
                 let TerminalMachineResult::Structural(result) = &machine.result else {
@@ -430,9 +433,8 @@ fn analyze(
                 (result.structural_type, false, false)
             }
             StructuralPlaceKind::BlockParameter { .. }
-            | StructuralPlaceKind::ByteSequenceLiteral { .. }
             | StructuralPlaceKind::ProviderAttachment { .. } => {
-                return Err(Error::Unsupported("affine block, byte or provider storage"));
+                return Err(Error::Unsupported("affine block or provider storage"));
             }
         };
         let declaration = types
@@ -441,6 +443,15 @@ fn analyze(
             .ok_or(Error::Malformed(
                 "structural type is outside its identity table",
             ))?;
+        if matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
+            && (!declaration.shape.is_shared_readable_byte_view()
+                || !declaration.copyable
+                || declaration.owns_linear_claim)
+        {
+            return Err(Error::Malformed(
+                "literal backing requires a claim-free shared byte declaration",
+            ));
+        }
         if matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
             && contracts[roots.len()].is_none()
         {

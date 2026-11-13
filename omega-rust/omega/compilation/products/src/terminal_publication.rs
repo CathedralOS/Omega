@@ -1,7 +1,8 @@
-//! Retain the accepted program and its publication result for product consumers.
-//! Reports share one portable wrapper with fixed Psi optimization choices. A
-//! failed publication remains a failure; target selection never tries another
-//! source producer to replace it.
+// One invocation's portable Terminal code, shared by policy and Product
+// consumers. `ProductTerminalPublication` fixes Psi optimization choices before
+// targets settle and memoizes the produced `PortableTerminalProgram` (or its
+// refusal) in a `OnceLock` without retrying or permitting a different Psi
+// optimization projection to replace it.
 
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
@@ -11,15 +12,8 @@ use std::sync::{Arc, OnceLock};
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
-    checked_application: Result<Arc<CheckedApplicationProgram>, Vec<Diagnostic>>,
+    accepted: Option<Arc<psi_compiler::AcceptedTerminalSource>>,
 }
-
-// Product and provider preparation share one authenticated source owner;
-// neither creates a second declaration packet or rechecks a source body.
-pub use provider_planning::{
-    PublishedProviderDeclarations as ProductSourceDeclarations,
-    PublishedProviderSource as CheckedApplicationProgram,
-};
 
 impl std::fmt::Debug for ProductTerminalPublication {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -27,7 +21,7 @@ impl std::fmt::Debug for ProductTerminalPublication {
             .debug_struct("ProductTerminalPublication")
             .field("optimizations", &self.optimizations)
             .field("published", &self.program.get().map(Result::is_ok))
-            .field("checked_application", &self.checked_application.is_ok())
+            .field("accepted", &self.accepted.is_some())
             .finish()
     }
 }
@@ -37,29 +31,47 @@ impl ProductTerminalPublication {
         Self {
             optimizations,
             program: OnceLock::new(),
-            checked_application: Err(vec![Diagnostic::error(
-                "no checked application program was retained for product production",
-            )]),
+            accepted: None,
         }
     }
 
-    /// Keep publication failures beside accepted source checking. A consumer
-    /// needing executable code must report this result, never produce another
-    /// program from the old checker's output after a failure.
-    pub fn with_checked_application(
-        mut self,
-        program: Result<Arc<CheckedApplicationProgram>, Vec<Diagnostic>>,
-    ) -> Self {
-        self.checked_application = program;
+    pub fn with_accepted(mut self, source: Arc<psi_compiler::AcceptedTerminalSource>) -> Self {
+        self.accepted = Some(source);
         self
     }
 
-    pub fn checked_application(&self) -> Result<&Arc<CheckedApplicationProgram>, Vec<Diagnostic>> {
-        self.checked_application.as_ref().map_err(Clone::clone)
+    pub fn require_source_owner(
+        &self,
+        source: &Arc<typed_trees::FrozenTypedTrees>,
+    ) -> Result<(), Diagnostic> {
+        let accepted = self.accepted.as_ref().ok_or_else(|| {
+            Diagnostic::error("no product route yet: the source has no retained accepted judgment")
+        })?;
+        if !Arc::ptr_eq(source, accepted.source()) {
+            return Err(Diagnostic::error(
+                "no product route yet: product publication retains a different frozen source owner",
+            ));
+        }
+        Ok(())
     }
 
-    // A different root selection gets its own publication result. Its closure
-    // and evidence cannot reuse the application's retained program.
+    pub fn accepted(&self) -> Result<&psi_compiler::AcceptedTerminalSource, Vec<Diagnostic>> {
+        // The factory seals the judged module with the empty Psi execution
+        // record. A requested transform needs its own evidence transport.
+        if !self.optimizations.project_psi().selections().is_empty() {
+            return Err(vec![Diagnostic::error(
+                "no product route yet: selected Psi optimizations have no accepted evidence transport",
+            )]);
+        }
+        self.accepted.as_deref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "no product route yet: this root selection has no accepted source",
+            )]
+        })
+    }
+
+    // A separately selected test root needs its own structural judgment. It
+    // cannot reuse the application's closure or a cached old production.
     pub fn for_other_roots(&self) -> Self {
         Self::new(self.optimizations.clone())
     }
@@ -136,6 +148,16 @@ mod tests {
         assert_eq!(
             attempts, 1,
             "a different projection cannot replace published code or its refusal"
+        );
+    }
+    #[test]
+    fn accepted_publication_refuses_unexecuted_psi_optimizations() {
+        let selected = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let publication = ProductTerminalPublication::new(selected);
+        assert!(
+            publication.accepted().unwrap_err()[0]
+                .message
+                .contains("Psi optimizations")
         );
     }
 }

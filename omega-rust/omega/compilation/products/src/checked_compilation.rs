@@ -1,17 +1,17 @@
 /*
-Checked compilation and the source custody sealed against it.
+Accepted compilation and the immutable source custody sealed against it.
 
-The sealed `CheckedCompilation` record retains each stage product as the unit
-its producer returned: selected execution, the shared evaluated Build, this
-compilation's Build admission, provider settlement, accepted source publication,
-and source custody. Consumers borrow the unit they read; the methods
+The sealed `CheckedCompilation` record retains selected execution, the shared
+evaluated Build, this compilation's Build admission, provider settlement, and
+source custody. Its source inspection and accepted Terminal publication must
+name the same frozen source owner. Consumers borrow the unit they read; the methods
 here expose those units, reconstruct explicit root trust obligations, project
 package build handoffs, and assemble the `TerminalNativeProposalRequest` that
 Omega 00 joins against provider selection.
 */
 
 /*
-Measurements and invocation-local derived code are not a
+Measurements, a retained judgment, and invocation-local derived code are not a
 separate checked semantic identity: `PartialEq` compares only `execution` and
 `sources` so populating lazy Terminal publication cannot alter equality.
 */
@@ -26,6 +26,7 @@ use std::sync::Arc;
 use terminal_psi_to_abstract_operations::{
     BoundaryApplicationSettlement, TerminalNativeProposalRequest,
 };
+use typed_trees::FrozenTypedTrees;
 
 mod report;
 
@@ -36,7 +37,7 @@ pub use report::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilationInputs {
     pub settled: SelectedExecution,
-    pub source_inspection: Arc<provider_planning::SelectedProviderSource>, // retained only for explicit inspection and reference interpretation
+    pub source_inspection: Arc<crate::SelectedProviderSource>, // retained only for explicit inspection and reference interpretation
     pub build: Arc<ComputedBuildConfig>,
     pub build_admission: BuildAdmission,
     pub provider_defaults:
@@ -73,17 +74,23 @@ impl CheckedCompilation {
         sources: Arc<CheckedSourceCustody>,
         timings: CompileTimings,
         terminal_publication: Arc<crate::ProductTerminalPublication>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, Vec<Diagnostic>> {
+        sources
+            .require_owner(execution.source_inspection.program())
+            .map_err(|error| vec![error])?;
+        terminal_publication
+            .require_source_owner(execution.source_inspection.program())
+            .map_err(|error| vec![error])?;
+        Ok(Self {
             source_completion_accounting: Default::default(),
             execution,
             sources,
             timings,
             terminal_publication,
-        }
+        })
     }
 
-    pub fn source_inspection(&self) -> &provider_planning::SelectedProviderSource {
+    pub fn source_inspection(&self) -> &crate::SelectedProviderSource {
         &self.execution.source_inspection
     }
 
@@ -168,13 +175,13 @@ impl CheckedCompilation {
             )
             .map_err(str::to_owned)?
             .with_checked_provider_selections(
-                &self.typed,
+                self,
                 &self.build().config.provider_selections,
                 self.build().observation_summary.as_ref(),
             )?;
         let (declarations, intents) =
             build_time_evaluation::native_bindings::capture_package_intents(
-                &self.typed,
+                self,
                 handoff.package(),
                 &self.build().native_formations,
                 &self.build().native_binding_requests,
@@ -280,7 +287,7 @@ impl CheckedCompilation {
 }
 
 impl std::ops::Deref for CheckedCompilation {
-    type Target = provider_planning::PublishedProviderSource;
+    type Target = FrozenTypedTrees;
 
     fn deref(&self) -> &Self::Target {
         self.source_inspection().program()

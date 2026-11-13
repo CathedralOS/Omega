@@ -67,15 +67,16 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
-### External provider declarations have two retention rules
+### "Does every selected external realization have a declaration" is checked two ways, and they disagree on unused ones
 - Category: one idea, several implementations
-- Where: `provider-admission/src/provider_admission/compiler_builtins/retained.rs` and `verified-input/src/native_proposal.rs`.
-- Saw: one admission demands a declaration for every selected realization, while another checks only requirements retained in the actual module.
-- Cost: an otherwise unrelated selected float provider can refuse the smaller published application; the two receiving paths need one retention rule.
+- Where: `omega-rust/omega/compilation/realization/provider-admission/src/provider_admission/compiler_builtins/retained.rs:287` (`validate_external_provider_owners`) and `:295` (`validate_retained_external_provider_owners`); caller `omega-rust/omega/compilation/representations/abstract-operations/verified-input/src/native_proposal.rs:338`
+- Saw: the first demands an `ExternalProviderConformance` row for every selected realization, the second only for requirements the module retains as a boundary; a six-machine scalar program with no float rows builds natively from the default compile, yet the same module is refused ("`NativeFloats` has no retained external implementation for `Float::add`") when a harness hands the proposal the provider declarations prepared for the old program.
+- Cost: proposal validation has two different retained-demand contracts. The Check-mode trial requires the 146 float-table rows while the earlier default scalar compile did not read them; treating the former as the default demand can force unrelated metadata into the product path. The all-catalog investigation is parked while the actual default consumer is reconciled.
+- Reported: 2026-11-13, Claude Code, while carrying the lowered-form checker's published module into Terminal production
 
 ### Empty service rows lose whether a ceiling was written
 - Category: a verdict with nothing behind it
-- Where: `typed-trees` machine service rows and `authored_service_reach_rows_for`, consumed by `structure-elaboration/src/reach.rs`.
+- Where: `typed-trees` authored service rows and `structure-elaboration` signature and envelope publication.
 - Saw: omission and authored `reaches none` can both normalize to the empty row; generated applications also need their exact template's authored ceiling.
 - Cost: reading only the normalized row can infer permission where the source promised none, so the surviving owner must retain writtenness explicitly.
 

@@ -693,6 +693,9 @@ mod declaration_values {
     ) -> Option<(SourceSpan, symbols::SymbolHandle)> {
         let table = &program.tables.bodies.expressions;
         let path = table.name_path_node(expression)?;
+        if path.static_application.is_valid() {
+            return None;
+        }
         if matches!(
             program.symbols.get(path.head_symbol).kind,
             SymbolKind::Local
@@ -750,8 +753,13 @@ mod declaration_values {
                 }
                 Ok(())
             }
-            ExpressionNode::Name(path) => {
-                let members = syntax_trees.expressions.identifier_path_members(*path);
+            ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } if path_application.is_none() => {
+                let members = syntax_trees
+                    .expressions
+                    .identifier_path_members(path.to_owned());
                 let [type_name, case_name] = members else {
                     return invalid_literal_initializer(syntax_trees, definition, value);
                 };
@@ -2702,7 +2710,7 @@ mod initializer_leaves {
                         return Ok(());
                     }
                     return if matches!(syntax.expressions.expression(expression),
-                        ExpressionNode::Name(_) | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::String(_)) {
+                        ExpressionNode::Name { .. } | ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::Float(_) | ExpressionNode::String(_)) {
                         Ok(())
                     } else {
                         Err("computed constant leaf requires an exact builtin integer or Boolean carrier".to_owned())
@@ -2763,7 +2771,7 @@ mod initializer_leaves {
                         "computed constant call carrier is not a closed generic application"
                             .to_owned(),
                     ),
-                    ExpressionNode::Name(_)
+                    ExpressionNode::Name { .. }
                     | ExpressionNode::Integer(_)
                     | ExpressionNode::Boolean(_)
                     | ExpressionNode::Float(_)
@@ -2806,7 +2814,13 @@ mod initializer_leaves {
                 ExpressionNode::Call(_) | ExpressionNode::Match(_) | ExpressionNode::Cast(_) => {
                     true
                 }
-                ExpressionNode::Name(path) => name_selects_const(syntax, selection, *path),
+                ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } => {
+                    path_application.is_none()
+                        && name_selects_const(syntax, selection, path.to_owned())
+                }
                 _ => false,
             }
         }
@@ -3967,8 +3981,11 @@ pub(crate) mod initializer_normalization {
                 | ExpressionNode::Boolean(_)
                 | ExpressionNode::Float(_)
                 | ExpressionNode::String(_) => {}
-                ExpressionNode::Name(path) => {
-                    let members = syntax.expressions.identifier_path_members(*path);
+                ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } if path_application.is_none() => {
+                    let members = syntax.expressions.identifier_path_members(path.to_owned());
                     let (Some(first), Some(last)) = (members.first(), members.last()) else {
                         return Err(error(reference, "authored dependency lost its name"));
                     };
@@ -5450,7 +5467,7 @@ pub(crate) fn direct_selector_literal(syntax: &SyntaxTrees, expression: Expressi
         )
         && matches!(
             syntax.expressions.expression(cast.value),
-            ExpressionNode::Name(_)
+            ExpressionNode::Name { .. }
         )
 }
 

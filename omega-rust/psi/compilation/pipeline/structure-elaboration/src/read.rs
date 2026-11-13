@@ -23,21 +23,20 @@ subset is refused with `Unsupported` and its name. A field the subset does not
 serve is refused when it is set, never ignored.
 */
 
+mod arrays;
 mod boundaries;
+mod bytes;
 mod callables;
 mod calls;
 mod casts;
 mod contracts;
-mod correspondence;
-mod expression_formation;
 mod expressions;
-mod source_zero;
-pub use source_zero::{source_zero_projection_bindings, source_zero_scalar};
 mod machine;
 mod places;
 mod providers;
-mod refinement;
+mod reflection;
 pub(crate) mod services;
+mod source_records;
 mod statements;
 mod subjects;
 mod traits;
@@ -53,20 +52,8 @@ use typed_trees::TypedTrees;
 use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
-impl Program<'_> {
-    pub(super) fn source_origin(
-        &self,
-        machine: MachineId,
-        node: crate::SourceNode,
-        span: source::SourceSpan,
-    ) -> Checked<crate::SourceOrigin> {
-        let owner =
-            terminal_check_tables::row(&self.symbols, machine, machine, Construct::Machine)?;
-        Ok(crate::SourceOrigin::typed(*owner, node, span))
-    }
-}
-
 pub(crate) struct Program<'t> {
+    pub publication: terminal_codec::TerminalPublication,
     pub(super) typed: &'t TypedTrees,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
@@ -115,12 +102,6 @@ pub(crate) struct Program<'t> {
     /// The locals of the body being read whose value is decided statically
     /// by closed type equations (`static_truth`), by the local's symbol.
     static_truths: Vec<(SymbolHandle, bool)>,
-    /// Exact raw-subject projections authenticated by the source-zero owner.
-    /// Present only while reading a logical source witness.
-    source_expression_values: Vec<(
-        typed_trees::expression::ExpressionHandle,
-        crate::body::Expression,
-    )>,
     /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
@@ -132,7 +113,7 @@ pub(crate) struct Program<'t> {
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
-    resolving: Vec<SymbolHandle>,
+    resolving: Vec<(SymbolHandle, Option<typed_trees::SourceTypeApplication>)>,
     /// The data declaration whose members are being read, which is the
     /// lexical owner of the lifetimes their types name. Invalid while a
     /// machine is read: a machine that declares lifetime parameters is
@@ -194,6 +175,7 @@ fn span<'a, T: Default>(
 impl<'t> Program<'t> {
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
         Self {
+            publication: terminal_codec::TerminalPublication::Portable,
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
@@ -213,7 +195,6 @@ impl<'t> Program<'t> {
             applied: Vec::new(),
             alternative: None,
             static_truths: Vec::new(),
-            source_expression_values: Vec::new(),
             value_parameters: IdTable::default(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
@@ -422,7 +403,7 @@ mod tests {
         let remainder = binary(&mut typed, seven, BinaryOperator::Modulo, two);
         let mut program = Program::new(&typed, false);
         let read = |program: &mut Program<'_>, handle| {
-            program.expression(machine(), &[], handle, Some(i32_type))
+            program.expression(machine(), &[], handle, Some(ValueType::Scalar(i32_type)))
         };
         let landed = read(&mut program, exact).unwrap();
         assert!(matches!(
@@ -967,6 +948,7 @@ mod tests {
         let mut program = Program::new(&typed, false);
         program.record_sources.push(places::RecordSource {
             declaration: point,
+            application: None,
             fields: vec![a, b],
             cases: Vec::new(),
         });

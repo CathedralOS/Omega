@@ -138,9 +138,14 @@ fn declaration(
         .machine_callable_identity_text(declared)
         .filter(|callable| !callable.is_empty())
         .ok_or("the machine has no callable identity")?;
-    let semantic = typed
-        .normalized_hermetic_symbol_identity(symbol)
-        .map_err(|_| "the machine has no hermetic declaration identity")?;
+    let semantic = match invocation_local(typed, symbol, identities)? {
+        Some(identity) => identity,
+        None => identities.intern(
+            &typed
+                .normalized_hermetic_symbol_identity(symbol)
+                .map_err(|_| "the machine has no hermetic declaration identity")?,
+        ),
+    };
     let type_text = |type_reference| {
         typed
             .type_identity_text(typed.package_qualified_type_identity(type_reference))
@@ -152,8 +157,8 @@ fn declaration(
         .map(|formal| type_text(formal.type_reference))
         .collect::<Result<Vec<_>, _>>()?;
     let result_type = type_text(state.return_type)?;
-    let machine_identity = nominal(typed, sources, symbol)?;
-    let state_identity = nominal(typed, sources, state.symbol)?;
+    let machine_identity = nominal(typed, sources, symbol, identities)?;
+    let state_identity = nominal(typed, sources, state.symbol, identities)?;
 
     let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
     callable.hash(&mut commitment);
@@ -195,9 +200,9 @@ fn declaration(
     }
 
     Ok(CheckedMachineDeclaration {
-        machine: NominalDeclarationIdentity::new(identities.intern(&machine_identity)),
-        state: NominalDeclarationIdentity::new(identities.intern(&state_identity)),
-        semantic_declaration: identities.intern(&semantic),
+        machine: NominalDeclarationIdentity::new(machine_identity),
+        state: NominalDeclarationIdentity::new(state_identity),
+        semantic_declaration: semantic,
         parameter_types: parameter_types
             .iter()
             .map(|text| identities.intern(text))
@@ -220,12 +225,94 @@ pub(crate) fn nominal(
     typed: &TypedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     symbol: SymbolHandle,
-) -> Result<String, &'static str> {
-    typed
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
+    if let Some(identity) = invocation_local(typed, symbol, identities)? {
+        return Ok(identity);
+    }
+    let text = typed
         .exact_owner_nominal_identity(symbol, sources)
         .and_then(|identity| typed.type_identity_text(identity))
         .filter(|text| !text.is_empty())
-        .ok_or("the declaration has no exact package or toolchain owner")
+        .ok_or("the declaration has no exact package or toolchain owner")?;
+    Ok(identities.intern(&text))
+}
+
+/// Anonymous source and generated invocation declarations belong to this one
+/// activation. A generated call over concrete arguments must not acquire a
+/// portable identity from its temporary name. Its exact retained derivation
+/// must still end at a captured source token before local identity is minted.
+fn invocation_local(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<Option<terminal_psi::TerminalIdentityIndex>, &'static str> {
+    if !symbol.is_valid() || !identities.is_invocation_scoped() {
+        return Ok(None);
+    }
+    if !typed.symbols.symbols().nodes().is_valid(symbol) {
+        return Err("an invocation declaration is foreign to its retained symbols");
+    }
+    // An implicit source entry has no name token of its own. Its lexical
+    // owner's retained source still gives it an ordinary nominal identity;
+    // only an actual generated declaration requires a derivation chain.
+    if typed.symbols.get(symbol).generated_from.is_valid() {
+        let mut origin = symbol;
+        loop {
+            let previous = typed.symbols.get(origin).generated_from;
+            if !previous.is_valid() {
+                return Err("a generated invocation declaration has no derivation origin");
+            }
+            if !typed.symbols.symbols().nodes().is_valid(previous) {
+                return Err("a generated invocation declaration has a foreign derivation origin");
+            }
+            if previous.arena_index() >= origin.arena_index() {
+                return Err(
+                    "a generated invocation declaration has a nonpreceding derivation origin",
+                );
+            }
+            origin = previous;
+            let Some(span) = typed.symbols.symbol_source_span(origin) else {
+                continue;
+            };
+            let source = typed
+                .symbols
+                .source_file(span)
+                .ok_or("a generated invocation declaration names a foreign source")?;
+            if span.span.start >= span.span.end
+                || source.source.get(span.span.start..span.span.end).is_none()
+            {
+                return Err("a generated invocation declaration has an invalid source token");
+            }
+            break;
+        }
+    } else {
+        let span = typed
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .ok_or("an invocation declaration has no retained source provenance")?;
+        let source = typed
+            .symbols
+            .source_file(span)
+            .ok_or("an invocation declaration names a foreign source")?;
+        if span.span.start >= span.span.end
+            || source.source.get(span.span.start..span.span.end).is_none()
+        {
+            return Err("an invocation declaration has an invalid source token");
+        }
+        if typed.symbols.symbol_package_identity(symbol).is_some()
+            || typed.symbols.symbol_source_origin(symbol) != Some(source::SourceOrigin::User)
+        {
+            return Ok(None);
+        }
+    }
+    identities
+        .intern_invocation_local(&format!(
+            "invocation-declaration({}:{})",
+            symbol.arena_index(),
+            symbol.generation()
+        ))
+        .map(Some)
 }
 
 /// A bodyless requirement keeps the declaration identities and formal types the
@@ -267,11 +354,18 @@ pub(crate) fn boundary_source(
             .filter(|text| !text.is_empty())
             .ok_or("a boundary signature type has no exact identity")
     };
+    let nominal_text = |symbol| {
+        typed
+            .exact_owner_nominal_identity(symbol, &sources)
+            .and_then(|identity| typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or("the boundary declaration has no exact package or toolchain authority")
+    };
     Ok(BoundaryDeclarationSource {
         callable,
-        owner: nominal(typed, &sources, owner)?,
-        machine: nominal(typed, &sources, source)?,
-        state: nominal(typed, &sources, signature.symbol)?,
+        owner: nominal_text(owner)?,
+        machine: nominal_text(source)?,
+        state: nominal_text(signature.symbol)?,
         semantic: typed
             .normalized_hermetic_symbol_identity(source)
             .map_err(|_| "the boundary has no hermetic declaration identity")?,

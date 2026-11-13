@@ -1,123 +1,30 @@
 /*
-Saved source declaration identities and assumed-binding contracts for runtime
-permission comparison (`PreparedRuntimePolicy`).
-
-`PreparedRuntimePolicy::capture` snapshots nominal service and requirement
-identities plus `PreparedAssumedContracts` from the published Product source, retaining only a
-`Weak<PublishedProviderSource>` pointer beside the exact source custody. The
-accepted Terminal artifact remains the authority for checked behavior. During `rows`, we verify that the weak owner
-pointer and `CheckedSourceCustody` match `RuntimePermissionInput`, rejoin
-accepted semantic bindings to their saved service schemas and requirement
-identities, render assumed-binding contracts, and emit canonical
-`PackagePolicyRow` items without reopening source.
+Runtime permission snapshots retain source association and public Build metadata.
+The retired checker's contract plans cannot supply route-owned permission proof.
+Until the accepted route publishes that custody, a request for policy rows refuses
+rather than emitting an empty permission baseline or borrowing old checked facts.
 */
 
-use super::assumed_bindings::PreparedAssumedContracts;
-use super::nominal::nominal_identity_from_symbols;
-use super::published_input::rejected;
-use crate::record::{
-    PackagePolicyTerminalPermission, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-};
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
-use provider_planning::service_declarations::ServiceDeclarations;
-use std::sync::{Arc, Weak};
-use symbols::SymbolHandle;
-use typed_trees::service_declarations::PreparedServiceCatalog;
-
-struct ServiceIdentities {
-    symbol: SymbolHandle,
-    service: Result<PackageReviewNominalIdentity, Vec<Diagnostic>>,
-    requirements: Result<
-        Vec<(
-            SymbolHandle,
-            Result<PackageReviewNominalIdentity, Vec<Diagnostic>>,
-        )>,
-        Vec<Diagnostic>,
-    >,
-}
+use std::sync::Arc;
+use typed_trees::ProductSourceIdentity;
 
 pub struct PreparedRuntimePolicy {
-    owner: Weak<provider_planning::PublishedProviderSource>,
+    owner: Result<ProductSourceIdentity, Diagnostic>,
     sources: Arc<package_compilation::CheckedSourceCustody>,
-    catalog: Arc<PreparedServiceCatalog>,
-    identities: Vec<ServiceIdentities>,
-    contracts: PreparedAssumedContracts,
     evaluated_assumptions: usize,
 }
 
 impl PreparedRuntimePolicy {
     pub fn capture(source: &CheckedProductSource) -> Self {
-        let nominal = |symbol| {
-            nominal_identity_from_symbols(
-                &source.program.typed.symbols,
-                symbol,
-                source.sources.exact_toolchain_sources(),
-            )
-        };
-        let requirement_identity = |requirement| {
-            let requirement_nominal = nominal(requirement)?;
-            let (owner, signature) = source
-                .program
-                .typed
-                .trait_machine_signature(requirement)
-                .ok_or_else(|| {
-                    rejected("service requirement lost its exact declaring signature")
-                })?;
-            if nominal(owner.symbol)?.owner != requirement_nominal.owner {
-                return Err(rejected(
-                    "service and requirement have different declaration custody",
-                ));
-            }
-            Ok(PackageReviewNominalIdentity {
-                owner: requirement_nominal.owner,
-                path: source
-                    .program
-                    .typed
-                    .trait_requirement_callable_identity_text(owner, signature),
-            })
-        };
-        let catalog = source.provider_inventory.retained_service_catalog();
-        let identities = catalog
-            .declared_traits()
-            .map(|declaration| {
-                let symbol = declaration.schema.symbol();
-                ServiceIdentities {
-                    symbol,
-                    service: nominal(symbol),
-                    requirements: declaration
-                        .surface
-                        .as_ref()
-                        .map(|surface| {
-                            surface
-                                .requirements
-                                .iter()
-                                .map(|requirement| {
-                                    let requirement = requirement.source.symbol;
-                                    (requirement, requirement_identity(requirement))
-                                })
-                                .collect()
-                        })
-                        .ok_or_else(|| {
-                            rejected("saved service has no complete prepared requirement surface")
-                        }),
-                }
-            })
-            .collect();
-        let requirements = source
-            .computed_build_config
-            .config
-            .assumed_bindings
-            .iter()
-            .flat_map(|row| [row.required, row.supplied])
-            .collect::<Vec<_>>();
         Self {
-            evaluated_assumptions: source.computed_build_config.config.assumed_bindings.len(),
-            owner: Arc::downgrade(&source.program),
+            owner: source
+                .sources
+                .require_owner(&source.program)
+                .map(|()| ProductSourceIdentity::new(&source.program)),
             sources: Arc::clone(&source.sources),
-            catalog,
-            identities,
-            contracts: PreparedAssumedContracts::capture_published(&source.program, &requirements),
+            evaluated_assumptions: source.computed_build_config.config.assumed_bindings.len(),
         }
     }
 
@@ -131,122 +38,24 @@ impl PreparedRuntimePolicy {
         target: target::TargetProfile,
         package: semantic_vocabulary::PackageKeyIdentity,
     ) -> Result<Vec<crate::record::PackagePolicyRow>, Vec<Diagnostic>> {
-        if !Weak::ptr_eq(&self.owner, &input.providers.calling_program.source_owner)
+        let owner = self.owner.as_ref().map_err(|error| vec![error.clone()])?;
+        if !owner.same_source(input.sources.source_identity())
             || self.sources.as_ref() != input.sources
         {
-            return Err(rejected(
-                "saved permission declarations belong to another checked program",
-            ));
+            return Err(vec![Diagnostic::error(
+                "saved permission declarations belong to another typed source owner",
+            )]);
         }
         if input.sources.package_identity() != Some(package)
             || input.execution.selected_target_profile != Some(target)
             || input.execution.selected_native_target() != Some(target.native_target())
         {
-            return Err(rejected(
-                "policy package or target differs from the checked root activation",
-            ));
+            return Err(vec![Diagnostic::error(
+                "policy package or target differs from the exact root activation",
+            )]);
         }
-        let services = ServiceDeclarations::prepare(
-            self.catalog.declared_traits(),
-            &input.providers.boundary_calling_plan_realizations,
-        );
-        let mut permissions = Vec::new();
-        for accepted in input.execution.accepted_semantic_bindings() {
-            let resolved = input
-                .execution
-                .resolved_semantic_binding(accepted.role())
-                .ok_or_else(|| rejected("accepted binding lost its exact checked declaration"))?;
-            if resolved.accepted() != accepted {
-                return Err(rejected(
-                    "accepted binding differs from its retained policy",
-                ));
-            }
-            let declaration = services
-                .rejoin(resolved.declaration())
-                .map_err(|error| vec![error])?;
-            let schema = &declaration.declaration.schema;
-            let digest =
-                package_compilation::accepted_service_schema_digest(accepted.role(), schema);
-            if digest != accepted.normalized_schema_digest() {
-                return Err(rejected(
-                    "accepted binding changed its normalized service schema",
-                ));
-            }
-            let saved = self
-                .identities
-                .iter()
-                .find(|saved| saved.symbol == declaration.symbol)
-                .ok_or_else(|| {
-                    rejected("accepted service lost its saved declaration identities")
-                })?;
-            let service = saved.service.as_ref().map_err(Clone::clone)?;
-            let expected_owner = match accepted.role() {
-                package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => {
-                    matches!(
-                        service.owner(),
-                        PackageReviewNominalOwner::ToolchainSource(_)
-                    )
-                }
-                _ => service.owner() == PackageReviewNominalOwner::Package(accepted.package()),
-            };
-            if !expected_owner {
-                return Err(rejected("accepted service changed its exact package owner"));
-            }
-            for supplied in accepted.terminal_authority_permissions() {
-                if supplied.service_schema() != digest {
-                    return Err(rejected(
-                        "permission names a different accepted service schema",
-                    ));
-                }
-                let matching = schema
-                    .declaration
-                    .methods
-                    .iter()
-                    .zip(declaration.requirements)
-                    .filter(|(method, _)| {
-                        accepted
-                            .terminal_authority_permission_identities()
-                            .text(supplied.requirement_identity())
-                            == Some(schema.identity_text(method.requirement_identity))
-                    })
-                    .collect::<Vec<_>>();
-                let [(_, symbol)] = matching.as_slice() else {
-                    return Err(rejected(
-                        "permission does not name one exact service requirement",
-                    ));
-                };
-                let requirement = saved
-                    .requirements
-                    .as_ref()
-                    .map_err(Clone::clone)?
-                    .iter()
-                    .find(|(candidate, _)| candidate == *symbol)
-                    .ok_or_else(|| rejected("permission lost its saved requirement identity"))?
-                    .1
-                    .as_ref()
-                    .map_err(Clone::clone)?;
-                permissions.push((
-                    service.clone(),
-                    PackagePolicyTerminalPermission {
-                        requirement: requirement.clone(),
-                        permitted: supplied.permitted().clone(),
-                    },
-                ));
-            }
-        }
-        let assumed = self.contracts.render(
-            input.execution.plans(),
-            input.sources,
-            input.execution.selected_target_profile,
-        )?;
-        let components = crate::record::PackagePolicyComponentAssumption::project(input.providers);
-        crate::encoding::runtime_permission_rows(
-            package,
-            target,
-            &permissions,
-            &assumed,
-            &components,
-        )
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])
+        Err(vec![Diagnostic::error(
+            "no product route yet: runtime permission and assumed-binding policy require route-owned contract custody",
+        )])
     }
 }

@@ -20,6 +20,28 @@ use terminal_codec::entry_receipt::rejoin_program_entry_receipt;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
+// Build call records now include their machine because operation IDs are local
+// to it. Reject older persisted rows before reading their shifted fields.
+const PRODUCED_PROGRAM_SCHEMA: u64 = u64::from_le_bytes(*b"OMGBLD02");
+
+#[cfg(test)]
+mod schema_tests {
+    #[test]
+    fn old_companion_rows_refuse_before_artifact_decoding() {
+        let old_first_field = b"PSITERM\0".to_vec();
+        let bytes = compiler_storage::encode(&old_first_field, Default::default()).unwrap();
+        let error =
+            compiler_storage::decode::<super::ProducedTerminalProgram>(&bytes, Default::default())
+                .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("unsupported produced program record schema"),
+            "{error}"
+        );
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProducedTerminalApplication {
     pub receipt: Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<Diagnostic>>,
@@ -30,17 +52,19 @@ pub struct ProducedTerminalApplication {
 #[must_use = "Terminal production retains independent application judgments"]
 pub struct ProducedTerminalProgram {
     pub(crate) program: terminal_codec::TerminalProgramProduct,
+    pub(crate) evidence: Option<Arc<terminal_codec::EvidenceSeals>>,
     pub(crate) build_bindings: TerminalBuildBindings,
     pub(crate) build_requests: TerminalBuildRequests,
     pub(crate) build_filesystem: TerminalBuildFilesystem,
     pub(crate) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     pub(crate) provenance: terminal_psi::TerminalMachineProvenance,
-    pub(crate) source_records: Vec<checked_trees::typed_trees::SourceRecordCorrespondence>,
+    pub(crate) source_records: Vec<typed_trees::SourceRecordCorrespondence>,
 }
 
 impl compiler_storage::Record for ProducedTerminalProgram {
     fn write(&self, output: &mut RecordWriter) -> Result<(), compiler_storage::RecordError> {
         output.record(|output| {
+            PRODUCED_PROGRAM_SCHEMA.write(output)?;
             self.artifact()
                 .map_err(|error| output.error(error.to_string()))?
                 .to_bytes()
@@ -70,6 +94,9 @@ impl compiler_storage::Record for ProducedTerminalProgram {
     ) -> Result<Self, compiler_storage::RecordError> {
         use compiler_storage::Record;
         input.record(|input| {
+            if u64::read(input)? != PRODUCED_PROGRAM_SCHEMA {
+                return Err(input.error("unsupported produced program record schema"));
+            }
             let bytes = Vec::<u8>::read(input)?;
             let artifact = CanonicalTerminalArtifact::from_bytes(&bytes)
                 .map_err(|error| input.error(error.to_string()))?;
@@ -105,6 +132,7 @@ impl compiler_storage::Record for ProducedTerminalProgram {
             let build_filesystem = TerminalBuildFilesystem::new(view, filesystem);
             Ok(Self {
                 program: terminal_codec::TerminalProgramProduct::Portable(artifact),
+                evidence: None,
                 build_bindings,
                 build_requests,
                 build_filesystem,
@@ -117,62 +145,21 @@ impl compiler_storage::Record for ProducedTerminalProgram {
 }
 
 impl ProducedTerminalProgram {
-    pub(crate) fn from_accepted_source(
-        source: &crate::CheckedInvocationSource,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let publication = source.publication();
-        let module = publication.artifact.semantic_module();
-        let companions = crate::invocation_companions::InvocationCompanions::capture(source)
-            .map_err(|diagnostic| vec![diagnostic])?;
-        let mut provenance = terminal_psi::TerminalMachineProvenance::default();
-        for machine in &module.machines {
-            let symbol = *publication.machines.get(machine.id).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "invocation lost a checked machine's source declaration",
-                )]
-            })?;
-            provenance.name(
-                machine.id,
-                source.typed().symbols.display_path(symbol, "::"),
-                source.typed().symbols.symbol_source_span(symbol),
-            );
-        }
-        if let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry {
-            provenance = provenance.for_root(module, entry, None);
-        }
-        let code = terminal_codec::InvocationTerminalCode::from_artifact(&publication.artifact);
-        let view = code.view();
-        let build_bindings = TerminalBuildBindings::new(
-            view,
-            companions.bindings,
-            companions.declarations,
-            companions.queries,
-            companions.native_formations,
-        );
-        let build_requests = TerminalBuildRequests::new(view, companions.requests);
-        let build_filesystem = TerminalBuildFilesystem::new(view, companions.filesystem);
-        Ok(Self {
-            program: terminal_codec::TerminalProgramProduct::Invocation(code),
-            build_bindings,
-            build_requests,
-            build_filesystem,
-            applications: Vec::new(),
-            provenance,
-            source_records: publication.source_records.clone(),
-        })
+    pub const fn evidence(&self) -> Option<&Arc<terminal_codec::EvidenceSeals>> {
+        self.evidence.as_ref()
     }
-
     pub fn into_shared_portable(
         self,
     ) -> Result<PortableTerminalProgram, CanonicalTerminalArtifactError> {
         Ok(PortableTerminalProgram {
             artifact: Arc::new(self.program.into_portable()?),
+            evidence: self.evidence,
             build_bindings: self.build_bindings,
             build_requests: self.build_requests,
             build_filesystem: self.build_filesystem,
             applications: self.applications,
             provenance: self.provenance,
-            source_records: self.source_records.into(),
+            source_records: self.source_records,
         })
     }
     pub const fn build_filesystem(&self) -> &TerminalBuildFilesystem {
@@ -218,69 +205,20 @@ impl ProducedTerminalProgram {
 #[derive(Debug)]
 pub struct PortableTerminalProgram {
     artifact: Arc<CanonicalTerminalArtifact>,
+    evidence: Option<Arc<terminal_codec::EvidenceSeals>>,
     build_bindings: TerminalBuildBindings,
     build_requests: TerminalBuildRequests,
     build_filesystem: TerminalBuildFilesystem,
     applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     provenance: terminal_psi::TerminalMachineProvenance,
-    source_records: Arc<[typed_trees::SourceRecordCorrespondence]>,
+    source_records: Vec<typed_trees::SourceRecordCorrespondence>,
 }
 
 impl PortableTerminalProgram {
-    /// Retain an already checked program for inspection without invoking a
-    /// source producer again. Build operations need their own source-request
-    /// correspondence; absence is checked against every actual boundary call
-    /// before creating empty companions for an ordinary program.
-    pub fn from_checked_artifact(
-        artifact: Arc<CanonicalTerminalArtifact>,
-        typed: &typed_trees::FrozenTypedTrees,
-        boundaries: &semantic_vocabulary::IdTable<
-            semantic_vocabulary::BoundaryMachineId,
-            symbols::SymbolHandle,
-        >,
-        provenance: terminal_psi::TerminalMachineProvenance,
-        source_records: Arc<[typed_trees::SourceRecordCorrespondence]>,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        for machine in &artifact.semantic_module().machines {
-            for invocation in machine.boundary_invocations() {
-                let source = *boundaries.get(invocation.boundary).ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "inspection lost an invoked boundary's exact source declaration",
-                    )]
-                })?;
-                if needs_build_companions(typed, source)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?
-                {
-                    return Err(vec![Diagnostic::error(
-                        "inspection of Build operations requires their retained source-request correspondence",
-                    )]);
-                }
-            }
-        }
-        let view: terminal_codec::TerminalExecutionView<'_> = artifact.view().into();
-        let build_bindings = TerminalBuildBindings::new(
-            view,
-            Vec::<crate::TerminalBuildBindingCall>::new(),
-            Vec::<Arc<ProductDeclarationRequest>>::new(),
-            Vec::<crate::TerminalBuildQueryCall>::new(),
-            Vec::<NativeBindingFormation>::new(),
-        );
-        let build_requests =
-            TerminalBuildRequests::new(view, Vec::<crate::TerminalBuildRequestCall>::new());
-        let build_filesystem =
-            TerminalBuildFilesystem::new(view, Vec::<TerminalBuildFilesystemCall>::new());
-        Ok(Self {
-            artifact,
-            build_bindings,
-            build_requests,
-            build_filesystem,
-            applications: Vec::new(),
-            provenance,
-            source_records,
-        })
+    pub const fn evidence(&self) -> Option<&Arc<terminal_codec::EvidenceSeals>> {
+        self.evidence.as_ref()
     }
-
-    pub fn source_records(&self) -> &[checked_trees::typed_trees::SourceRecordCorrespondence] {
+    pub fn source_records(&self) -> &[typed_trees::SourceRecordCorrespondence] {
         &self.source_records
     }
     pub fn attach_application(
@@ -311,62 +249,6 @@ impl PortableTerminalProgram {
     pub fn applications(&self) -> &[Result<ProducedTerminalApplication, Vec<Diagnostic>>] {
         &self.applications
     }
-}
-
-fn needs_build_companions(
-    typed: &typed_trees::TypedTrees,
-    declaration: symbols::SymbolHandle,
-) -> Result<bool, &'static str> {
-    let mut pending = vec![declaration];
-    let mut visited = Vec::new();
-    while let Some(declaration) = pending.pop() {
-        if !typed.symbols.symbols().nodes().is_valid(declaration) {
-            return Err("inspection boundary names a stale source declaration");
-        }
-        if visited.contains(&declaration) {
-            continue;
-        }
-        visited.push(declaration);
-        let source = typed
-            .symbols
-            .symbol_source_span(declaration)
-            .and_then(|span| typed.symbols.source_file(span))
-            .ok_or("inspection boundary declaration has no source custody")?;
-        // The compiler installs Build protocols in this exact toolchain
-        // source. A same-named user declaration grants no Build meaning.
-        if source.origin == source::SourceOrigin::Toolchain
-            && source.path == std::path::Path::new("<build-prelude>")
-        {
-            return Ok(true);
-        }
-        if let Some((owner, _)) = typed.trait_machine_signature(declaration) {
-            let source = typed
-                .symbols
-                .symbol_source_span(owner.symbol)
-                .and_then(|span| typed.symbols.source_file(span))
-                .ok_or("inspection boundary schema has no source custody")?;
-            if source.origin == source::SourceOrigin::Toolchain
-                && source.path == std::path::Path::new("<build-prelude>")
-            {
-                return Ok(true);
-            }
-            continue;
-        }
-        let owner = match typed.symbols.get(declaration).kind {
-            symbols::SymbolKind::State => typed.symbols.get(declaration).parent,
-            _ => declaration,
-        };
-        let machine = typed
-            .machine_by_symbol(owner)
-            .ok_or("inspection boundary has no exact source machine or requirement")?;
-        pending.extend(
-            typed
-                .machine_trait_conformances(machine)
-                .iter()
-                .map(|conformance| conformance.requirement_symbol),
-        );
-    }
-    Ok(false)
 }
 
 #[derive(Clone, Copy, Default)]

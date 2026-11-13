@@ -31,7 +31,7 @@ use crate::grammar::expressions::parse_postfix::{
 };
 use crate::grammar::expressions::primary::{
     spanned, starts_fixed_array_type, starts_lifetime_reference_type, try_applied_requirement_head,
-    try_generic_type_operand,
+    try_generic_type_operand, try_uninvoked_application,
 };
 use crate::grammar::patterns::DestructureFields;
 use crate::grammar::patterns::bindings::{
@@ -853,7 +853,10 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     .append_identifier_path_member(Identifier::new("self", source_span));
                 let expression = spanned(
                     syntax_trees,
-                    ExpressionNode::Name(HandleSpan::from_parts(member, 1)),
+                    ExpressionNode::Name {
+                        members: HandleSpan::from_parts(member, 1),
+                        application: None,
+                    },
                     source_span,
                 );
                 return Ok(Step::Value(expression, input));
@@ -1000,6 +1003,13 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
 
         if input.at_name_like() {
             let start = input;
+            if let Some((path, rest)) =
+                try_uninvoked_application(syntax_trees, start, context.allows_type_expression())
+            {
+                let expression = exprs(syntax_trees).insert(path);
+                exprs(syntax_trees).set_source_span(expression, start.source_span_until(rest));
+                return Ok(Step::Value(expression, rest));
+            }
             if let Some((application, rest)) = try_applied_requirement_head(syntax_trees, start) {
                 let receiver = syntax_trees
                     .expressions
@@ -1067,7 +1077,10 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 );
             }
 
-            let expression = exprs(syntax_trees).insert(ExpressionNode::Name(path));
+            let expression = exprs(syntax_trees).insert(ExpressionNode::Name {
+                members: path,
+                application: None,
+            });
             exprs(syntax_trees).set_source_span(expression, start.source_span_until(input));
             return Ok(Step::Value(expression, input));
         }
@@ -1136,7 +1149,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 if !input.at_punctuation(PunctuationKind::LeftBrace)
                     || !matches!(
                         exprs_of(syntax_trees).expression(head),
-                        ExpressionNode::Name(_)
+                        ExpressionNode::Name { .. }
                     )
                 {
                     return self.match_after_pattern(state, MatchPattern::Value(head), input);

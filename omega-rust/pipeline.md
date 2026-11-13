@@ -4,8 +4,9 @@ Psi owns source processing and target-neutral judgments through immutable
 [Terminal Psi](../wiki/spec/terminal-psi/product.md). Omega consumes that product
 under separately supplied realization authority. Unsupported vocabulary rejects
 at its owning boundary; there is no source-shaped or assigned-program backend
-fallback. Checked-tree interpretation remains a Psi reference/build-time service,
-not another route to native publication.
+fallback. The old checked-tree checker, interpreter and lowering chain are
+removed. Source preparation and Build work without a served producer stop with
+`no product route yet`.
 
 Cathedral (the downstream OS) owns OS data structures, policies, protocols, and
 lifecycle. Do not model page tables, schedulers, or drivers as compiler-owned
@@ -88,8 +89,8 @@ actual operation safety even for trusted inputs. General untrusted artifact
 execution remains gated on a containment audit of the interpreter, host bindings
 and teardown; inspection remains available under bounded structural decoding.
 
-The corpus and tests exercise independent validators where those validators
-exist. The default compile path does not run these stage-output validators on
+Focused tests exercise independent validators where those validators exist.
+The default compile path does not run these stage-output validators on
 results it just produced. Explicit [validator selection](../wiki/spec/build/command_line.md#independent-stage-validators)
 runs requested applicable validators and reports actual coverage through the
 ordinary compiler driver. A stage that emits an invalid plan has a compiler
@@ -98,8 +99,8 @@ optimization infallible.
 
 | Boundary | Checks and evidence | What remains trusted |
 | --- | --- | --- |
-| Source to checked trees | Parsing, typing, ownership and [source contract automation](psi/compilation/validation/README.md#source-proof-automation), including admitted mathematical proofs; positive and rejection tests exercise these judgments. | The source checker, proof kernel and explicitly admitted premises. Contract automation remains trusted wherever it accepts an obligation without kernel-checked evidence. Not every source obligation passes through the proof kernel. |
-| Checked trees to Terminal Psi | Lowering and selected Psi transformations; focused tests and independent validators exercise their contracts. | Preservation of the checked source's meaning and obligations through these transformations. |
+| Source to typed structure | Parsing, resolution and typing in Psi 00–03 retain source identities and declarations. The 04 boundary currently refuses nonempty preparation. | Frontend preservation of source meaning and exact source custody; typed structure is no acceptance certificate. |
+| Unsealed Terminal Psi to accepted publication | Structural elaboration builds the module; the lowered-form checker reconstructs supported obligations on that module and retains their evidence. Unsupported, incomplete or missing verdicts refuse. | Correct obligation reconstruction, the independent proof-admission kernel and explicitly admitted premises. Publication must preserve the exact judged module and evidence. |
 | Terminal Psi to native execution | Target realization and publication checks; `omega run --both` compares native execution with the Terminal interpreter. | Backend correctness beyond the executions and observations compared, plus the interpreter and shared semantics. |
 | Received artifacts and installed providers | Bounded canonical/structural decoding; explicit host authorization of the exact artifact and producer; preparation and installation checks; concrete interpreter operation and host-access checks. | Authorized producer judgments, admitted assumptions, faithful lowering, the interpreter and installed adapters. Future untrusted interpretation requires audited containment and does not certify source claims. |
 | Foreign packages and build execution | Package review, exact acceptance and confined build services. | Accepted external claims and the enforcing review/execution machinery. |
@@ -130,8 +131,11 @@ the compiler independently.
 
 ## Connected program route
 
-Each link below enters an actual transform owner. Private analyses and target
-setup are not additional public program stages.
+Each link names an owner and its required hand-off. Private analyses and target
+setup are not additional public program stages. This map does not establish
+end-to-end availability: nonempty 04 preparation, unserved source evaluation and
+product-authority requests currently refuse with `no product route yet`. Default
+Build and native completion remain work on [TASKS.md](../TASKS.md).
 
 | Input → output | Owner |
 | --- | --- |
@@ -139,9 +143,10 @@ setup are not additional public program stages.
 | Tokens → syntax trees | [tokens-to-syntax-trees](psi/compilation/pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
-| Typed → typed trees | [typed-trees-to-typed-trees](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
-| Frozen typed trees → unsealed Terminal Psi and checking tables | [structure-elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) |
-| Unsealed Terminal Psi and tables → checked portable Terminal Psi | [lowered-discharge](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
+| Typed input → preparation result (nonempty work unserved) | [04 preparation boundary](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
+| Typed structure → unsealed Terminal Psi | [structure-elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) |
+| Unsealed Terminal Psi → accepted closure | [lowered-discharge](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
+| Accepted closure → sealed Terminal artifact | [accepted source factory](psi/compilation/psi-compiler/terminal-production/src/accepted.rs) and [codec](psi/compilation/representations/terminal-psi/codec/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
 | Abstract → target operations | [abstract-operations-to-target-operations](omega/compilation/pipeline/02_abstract-operations-to-target-operations/README.md) |
@@ -159,16 +164,23 @@ setup are not additional public program stages.
 
 ## Two drivers, one pass, per-target realization
 
-Independent stage crates remain directly testable, but production consumers do
-not assemble them. The Psi driver feeds Psi 00 through 08 once per
-compilation and never observes a realization target: every supplied ordinary
-implementation is checked, and the Build evaluates once into provider and entry
-rows keyed by target
-([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).
-It returns one Terminal Psi artifact. The Omega driver realizes each target in
-the realization set from that artifact and the target's Build rows: provider
-selection and installation in Omega 00, then Omega 01 through 09 and image
-emission.
+Independent stage crates remain directly testable; production consumers use
+compiler facades. Source loading, parsing, resolution and typing belong to Psi
+00–03. The retained 04 interface accepts only an actual empty no-work semantic
+input with no deferred layout, opaque-selection or wire work; it preserves that
+input as frozen typed data without establishing a judgment. Nonempty preparation
+needs a structural producer and currently refuses.
+
+The served checking route is `structure-elaboration` → `lowered-discharge` → the
+accepted-source factory. The factory retains the exact frozen typed owner before
+judgment and publishes the same module and evidence afterward. There is no
+checked-tree or legacy optimization/publication fallback. Psi's published product
+is target-neutral; separate target-keyed Build authority supplies realization
+inputs ([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).
+Where those inputs and a published product exist, Omega owns each target
+realization through provider selection and installation, Omega 00–09, and image
+emission. A required unserved Build, provider or entry producer stops that
+sequence. Default Build completion requires serving those producers.
 
 Native binding intent belongs to package-local Build rows:
 `Build::bind<Requirement>(builder, target, locator)` names an exact designated
@@ -397,16 +409,16 @@ recorded judgment is used.
 | --- | --- |
 | Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/psi-compiler/src/lib.rs); [package source preparation](omega/packages/package-compilation/src/source/source_assembly.rs) owns import discovery and custody between frontiers |
 | Assembled syntax → completed typing | [Psi source continuation](psi/compilation/psi-compiler/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
-| Completed typing → checked program | [Psi source checking](psi/compilation/psi-compiler/src/source_checking.rs); the product coordinator supplies source admission and seals package custody afterward |
-| Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compilation/compiler/src/terminal/terminal_artifact.rs) |
+| Completed typing → source-preparation result | [Psi preparation facade](psi/compilation/psi-compiler/src/source_checking.rs), with the [04 no-work boundary](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md); nonempty work refuses |
+| Typed structure → accepted closure | [Structural elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) and [lowered-form checking](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
+| Accepted closure → Terminal artifact and evidence | [Accepted-source factory](psi/compilation/psi-compiler/terminal-production/src/accepted.rs); the [product coordinator](omega/compilation/compiler/src/terminal/terminal_artifact.rs) consumes this shared product |
 
-Package-owned source preparation feeds the Psi source-parsing facade;
-Build evaluation does not own source discovery or assembly.
-The [pipeline route items](../TASKS.md#pipeline-route) finish convergence: source
-preparation supplies one source set, the Psi-owned work between stages
-moves inside Psi 02 through 05, and provider settlement moves behind
-Terminal Psi. Source preparation remains package-owned input composition,
-not a new language stage.
+Package-owned source preparation composes source sets, imports and custody;
+Build evaluation does not own discovery or assembly. The Psi facade retains
+source continuation across admitted generated-source returns. Structural lowering,
+judgment and publication own the source-to-Terminal hand-off. Unserved producers
+refuse instead of reconstructing a removed source-checker result. The remaining
+product and default-Build requirements stay on [TASKS.md](../TASKS.md).
 
 ## Build and compiler ownership migration
 
@@ -526,7 +538,7 @@ owner outside the language transformation stages.
 
 The router depends on the command owners' entrances, never compiler stages or
 source/intermediate IRs. Package management
-does not produce checked trees or native images. Psi does not acquire packages
+does not produce program judgments or native images. Psi does not acquire packages
 or permissions or invoke native compilation. Omega cannot depend on source IRs,
 source checkers or interpreters. Stages cannot call the coordinator or adjacent
 stages to reconstruct missing input facts. Enforce production dependency edges;
@@ -552,61 +564,40 @@ source continuation across Build/generated-source admission, exposing only the
 operation needed to resume with admitted inputs. Sessions retain storage and
 reusable judgments, not alternate compilation paths.
 
-After Product sources join, Psi's source continuation admits provider requests
-as one operation: recover original lexical owners, form every authored recipe,
-prepare reached applications with their captured static arguments, then admit
-the executed selections. The Product coordinator authenticates dependency
-selections before this call and publishes its result; it does not drive typing
-one operand at a time. Whole-provider choice remains Omega-owned. Provider
-admission completes before opaque-representation admission, so an invalid
-provider request may report first when both independent request kinds are
-invalid; both still reject when reached.
+Source-issued provider choices, representation selections, native intent,
+grants, declarations and exclusions retain their exact authored operands,
+activation, executed roster and dependency custody. Those records are inputs,
+not judgments. The retired source-checker admission sequence is gone; a missing
+route-owned producer for nonempty source authority or Product policy returns
+`no product route yet`. The Product coordinator does not resolve one source
+operand at a time or manufacture acceptance from recorded choices.
+A served producer must recover original lexical authors and static environments,
+authenticate dependency selections, and retain exact application identities.
+Assumed relationships require the consuming root's authority; neither a historical
+Build return nor a dependency's records transfer that authority. Package review
+owns audit projection, the Psi checker owns wire-compatibility obligations, and
+Omega owns runtime provider compatibility.
 
-ProgramEntry descriptions and final source compatibility are Psi judgments.
-The target catalog supplies only source-visible slot requirements; it never
-receives typed trees through a compatibility callback. Psi retains lexical
-lookup, exact declared-owner recovery and executed root-binding rejoin, including
-the original description's slot identity. Final entry settlement repeats the
-source check against the completed declaration before Omega derives physical
-layout and calling plans. Semantic arrival resolves inside the exact core
-Product owner; physical arrival resolves inside its selected schema. Shared
-source-signature extraction preserves normalized identities without combining
-those distinct authority paths. Hosted source checks are not evidence of
-physical arrival execution.
-
-Psi also admits source-issued audit registrations, runtime assumed-binding
-relationships and wire demands as one declaration operation after Product join.
-It forms every authored request before admitting executed selections, resolves
-their exact operands and authors, and enforces consuming-root authority for
-assumed relationships. The Product coordinator installs those returned records;
-it does not resolve their source operands or mutate admission policy. Package
-review owns audit projection, Psi checking owns wire compatibility, and Omega
-owns runtime provider compatibility. Uncalled legacy checked-expression
-collectors are not alternative admission routes.
-
-The post-join source continuation admits the complete root Product policy
-in one ordered operation: provider applications, representation choices, native
-intent, root grants, audit/assumption/wire declarations, then exclusions.
-The Product coordinator authenticates package providers first, invokes that
-operation, resolves captured dependency native intent through Psi, attaches
-evaluation receipts and publishes the returned choices. It never borrows typed
-trees to drive individual source judgments. Source formation finishes before
-native receipt attachment and dependency-intent resolution; when both fail, the
-root source error reports first. Neither independent failure becomes admissible.
+ProgramEntry descriptions and source compatibility remain Psi responsibilities.
+The target catalog supplies source-visible slot requirements without receiving
+typed trees through a compatibility callback. A served producer must preserve
+lexical ownership, the original slot identity and exact core Product identity;
+physical arrival belongs to the selected target schema. Until the corresponding
+route producer exists, description, binding and settlement requests refuse.
+Hosted source descriptions alone establish no physical arrival execution.
 
 Authored grant and exclusion records belong to language semantics. Shared crash
 causes and physical-class vocabulary retain their canonical encoding; naming a
-restriction establishes no behavioral absence. Omega still resolves service
-identities against Terminal catalogs, resolves grants against selected plans,
-classifies physical mechanisms and checks the selected executable closure.
+restriction establishes no behavioral absence. Runtime provider compatibility,
+selected executable closure and physical mechanism checks remain Omega-owned
+and consume published declarations and admitted plans without a source-IR
+backend exception.
 
-Final representation admission belongs to Psi checking, not the Product
-coordinator. Build's selected applications carry their activation, source-issued
-requests and executed roster into `CheckRequest`; Psi recloses them against the
-completed authored/generated graph before source-completion preparation or
-retained-check matching. Only that admission derives semantic-copy property
-receipts. A caller cannot supply copy facts or bypass final application custody
-through a cached language judgment.
+Retained opaque selections live in the typed-tree data owner. They carry no
+semantic-copy receipt or checking authority. Nonempty representation admission
+currently refuses; a future producer must establish the required obligations on
+the lowered form and preserve exact application custody. Cached source data or a
+historical source judgment cannot substitute for that evidence.
 
 Both interpreter and native realization consume a common Terminal view: borrow
 same-session storage, or admit external bytes once and borrow that owned storage.
@@ -1048,7 +1039,7 @@ library APIs; they do not introduce another compiler driver.
 | Responsibility | Owner |
 | --- | --- |
 | Current program forms and their attached records/codecs | Each half's `compilation/representations/`, grouped by program family |
-| Source-program judgments | Psi `compilation/validation/`; source proof planning/search in `compilation/proof/`, independent mathematical checking in `compilation/proof/admission/` |
+| Program judgments | Psi `compilation/pipeline/lowered-discharge/` over structurally elaborated Terminal Psi; independent mathematical checking in `compilation/proof/admission/` |
 | Terminal encoding, semantic reconstruction and work | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
 | Transformation, rewrite, private scratch and analyses | Each half's `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
@@ -1056,21 +1047,23 @@ library APIs; they do not introduce another compiler driver.
 | Shared host primitives, native function identities and optimization vocabulary | Omega `foundation/` |
 | Application workflows and presentation | Omega `application/`, depending only on product facades and shared request/result contracts |
 | Source/package custody, lock updates and review decisions | Omega `packages/package-manager/`; no checking or product production |
-| Source → Terminal product sequencing | Psi compiler facade over Psi 00–08 |
+| Source → Terminal product sequencing | Psi 00–03, the explicit 04 preparation boundary, structural elaboration, lowered-form judgment and accepted-source publication |
 | Terminal + target/Build inputs → realized product sequencing | Omega compiler facade over Omega 00–09 and emission |
 | Requested outputs, configuration admission, retained outcomes and publication | Omega `compilation/products/` |
 | Source acquisition and package storage primitives | Omega `packages/` behind package-manager requests |
 | Terminal Psi loading, supplied-binding installation and execution | Psi interpreter facade under `interpreter/` |
 | Target-aware interpreter host adapters | Omega-owned host integration outside Psi, reusing independent backend ABI/mechanism libraries; not a compiler driver |
-| Compile-time interpretation and result elaboration | Psi `compilation/build-time-evaluation/` |
-| Checked program → published Terminal artifact | `psi/compilation/psi-compiler/terminal-production/`, called directly with consumer-owned policy and observation |
+| Build-time execution inputs and accounting | Psi `compilation/build-time-evaluation/`; actual canonical artifacts use Terminal execution, while unsupported source jobs refuse |
+| Accepted lowered-form closure → published Terminal artifact | `psi/compilation/psi-compiler/terminal-production/`, retaining the same source owner, module and evidence |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
 ### Program families and support packages
 
-Psi exposes seven successive program forms: tokens, syntax trees, resolved
-trees, typed trees, checked trees, Lowered Psi and Terminal Psi. Checked fact
-contexts have their own package at `psi/compilation/representations/checked-trees/facts/`.
+Psi retains tokens, syntax trees, resolved trees, typed trees and Terminal Psi.
+Structural elaboration and the lowered-form checker use the same Terminal module;
+accepted publication seals that module with its evidence. The retired checked-tree,
+facts and intermediate Lowered Psi packages are absent. Checker tables belong to
+`psi/compilation/representations/terminal-psi/check-tables/`.
 Shared effect-summary records and pass-selection vocabulary live in
 `psi/foundation/flow-effects/` and `psi/foundation/optimization/`.
 
@@ -1093,9 +1086,9 @@ make folder counts match.
 Target descriptions, calling conventions and register models belong to backend;
 installation/task evidence belongs to backend runtime; boundary-application
 companions belong to backend artifacts; provider authority evidence belongs to
-backend plans. Target-independent opaque representation-selection records remain
-an independent package beside their Psi admission owner at
-`psi/compilation/validation/representation-planning/`. None of these is a pipeline program IR.
+backend plans. Target-independent opaque representation-selection records belong to the
+`typed-trees::opaque_representations` data owner. They retain source choices,
+not a checking verdict. None of these is a pipeline program IR.
 
 ### Subsystem entrances and supporting packages
 
@@ -1335,24 +1328,25 @@ projections consume compilation products, not compiler orchestration; the
 compiler uses their exact permission-consent comparison before production.
 Shared process and filesystem utilities remain under `omega/foundation/`.
 
-`psi/interpreter/` contains the `terminal-interpreter` engine. `psi/compilation/build-time-evaluation/` admits execution
-and elaborates results into source and typed trees. Checked fixed-array-length
-jobs use the Terminal program/instance lifecycle. Build activations use the
-Terminal Build host in `omega/build-system/build-settings/`; there is no
-checked-tree Build execution entrypoint.
-`psi/compilation/psi-compiler/terminal-production/` owns the one checked-program
-lowering, optimization and publication sequence, below the source facade so
-early jobs do not depend back on their source coordinator. Product consumers
-call this operation directly with their policy and reporting observer; there
-is no Omega production wrapper. Psi 06 owns input-ledger validation;
-Psi 08 owns entry receipts and source-correspondence judgments. This shared
-operation is neither another Psi stage nor a second complete compiler driver.
+`psi/interpreter/` contains the `terminal-interpreter` engine.
+`psi/compilation/build-time-evaluation/` retains Build-time request data,
+accounting and actual canonical-artifact execution inputs. The old source and
+checked-program evaluators are removed. Unsupported source execution and result
+elaboration refuse before effects or result materialization; the retained API
+does not establish that an ordinary Build program can run.
+`psi/compilation/psi-compiler/terminal-production/` owns accepted-source
+publication and source companions below the source facade. It retains the exact
+frozen source owner before judgment, publishes the same lowered-form module and
+its evidence, and attaches per-application roots. Entry receipts belong to
+`terminal-codec::entry_receipt`. Missing product capabilities refuse with
+`no product route yet`; no checked-tree lowering or intermediate Lowered Psi
+carrier remains in this sequence.
 Exact consumed-source and toolchain identities belong to the shared
 `psi/foundation/source/src/source_identity.rs` owner; package review and early
 Psi use the same byte protocol without importing each other's orchestration.
 
-`psi/compilation/validation/` owns reusable judgments for source-program checking.
-Terminal receiving-boundary admission is separate: the independent
+The lowered-form checker owns program judgments. Terminal receiving-boundary
+admission is separate: the independent
 [`terminal-installation`](psi/compilation/terminal-installation/src/lib.rs)
 package admits provider selections and assumed links against an exact Terminal
 artifact and owns shared structural-entry backing descriptions. It consumes no
@@ -1361,15 +1355,15 @@ and product records retain that sealed selection evidence; only interpretation
 constructs host-import dispatch from it. This semantic library is not a source
 checker or an additional transform stage.
 
-Its independent
-[`representation-planning`](psi/compilation/validation/representation-planning/README.md)
-package admits source-level opaque representation relationships and checks their
-transitive cleanup and copy properties. The caller supplies build authority;
-backend layout derives target shape from the admitted carrier. Its independent
-`selections/` package keeps consumers free of a dependency on admission.
-`psi/compilation/proof/` constructs and solves source proof obligations; its
-independent `admission/` package owns the mathematical kernel and
-supplied-certificate checking. Terminal-specific codec, semantic reconstruction
+The old opaque representation planner is deleted. Source preparation and
+product policy refuse nonempty representation inputs until the lowered-form
+route can supply their obligations. Retained application records live in
+[`typed-trees::opaque_representations`](psi/compilation/representations/typed-trees/src/opaque_representations.rs);
+retention itself supplies no checking or layout authority.
+`psi/compilation/proof/` retains syntax-only proof surface and static
+boundary/lemma descriptions; these establish no source judgment or accepted
+certificate. Its independent `admission/` package retains the mathematical kernel
+and supplied-certificate checking. Terminal-specific codec, semantic reconstruction
 and work schedule packages live beside Terminal Psi under
 `psi/compilation/representations/terminal-psi/`. Each keeps its own manifest and
 dependency direction. Nesting gives these companions a subject; it adds no
@@ -1572,9 +1566,9 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   (`source-files-to-tokens` → `tokens-to-syntax-trees` →
   `syntax-trees-to-symbol-resolved-trees` →
   `symbol-resolved-trees-to-typed-trees` →
-  `typed-trees-to-typed-trees`, then `structure-elaboration` and
-  `lowered-discharge` publish checked Terminal Psi. Omega continues through
-  `terminal-psi-to-abstract-operations` →
+  `typed-trees-to-typed-trees`). Structural elaboration, lowered-form judgment
+  and accepted-source publication produce the Terminal artifact. Native
+  transforms then continue with `terminal-psi-to-abstract-operations` →
   `abstract-operations-to-target-operations` →
   `target-operations-to-selected-instructions` →
   `selected-instructions-to-selected-instructions` →
@@ -1584,22 +1578,23 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- Psi `compilation/validation/` — surviving source queries, being moved to their
-  owning preparation layers as the retired body checker is removed.
-- Psi `compilation/proof/` — mathematical declaration elaboration and source proof
-  descriptions; independent `compilation/proof/admission/` owns the shared
-  mathematical checker. Executable body checking lives in `lowered-discharge`.
+- Psi `compilation/pipeline/structure-elaboration/` — typed structure to unsealed Terminal Psi.
+- Psi `compilation/pipeline/lowered-discharge/` — the compilation's only program verdict.
+- Psi `compilation/pipeline/04_typed-trees-to-typed-trees/` — retained preparation
+  metadata and an empty no-work boundary; nonempty work refuses.
+- Psi `compilation/proof/` — syntax-only proof surface descriptions; independent
+  `compilation/proof/admission/` retains the mathematical checker.
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
   `codec/`, `semantics/` and `work/`.
   Representation data and candidate production remain independent of checking.
-- Psi `compilation/psi-compiler/terminal-production/` — sequences Psi 06–08 through
-  publication. Omega consumers supply product policy and reporting directly;
-  they do not assemble the stages or wrap this production entrance. Psi returns
-  ordered composition roots and diagnostic payloads as data. Omega checks
-  exclusions after publication against retained pre-optimization semantic
-  operations, without exporting or cloning checked-source lowering.
-- Psi `compilation/build-time-evaluation/` — evaluation admission and result elaboration.
-- Psi `interpreter/` — checked and Terminal execution engines.
+- Psi `compilation/psi-compiler/terminal-production/` — retains the exact frozen
+  source before judgment and publishes the accepted module, evidence and genuine
+  companions. Omega consumers supply product policy and observation, consume the
+  same artifact and check exclusions against retained behavior. Missing producers
+  refuse; they do not export or reconstruct deleted source-checker results.
+- Psi `compilation/build-time-evaluation/` — request/accounting data and canonical
+  artifact execution inputs; unsupported source work refuses.
+- Psi `interpreter/` — Terminal execution.
 - `compiler/` — compilation coordination.
 - Omega `package-manager/` — package operations and independent acquisition,
   resolver execution, and review packages.

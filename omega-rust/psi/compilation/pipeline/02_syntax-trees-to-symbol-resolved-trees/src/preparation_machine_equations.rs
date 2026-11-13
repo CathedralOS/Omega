@@ -449,8 +449,10 @@ mod argument_types {
         pending_diagnostics: &mut Vec<Diagnostic>,
     ) -> Option<Vec<(TypeReferenceHandle, &'trees TypeReference)>> {
         match trees.tables.bodies.expressions.expression(expression) {
-            ExpressionNode::Name(name) => declared_type(syntax, trees, sources, name.symbol, false)
-                .map(|reference| vec![reference]),
+            ExpressionNode::Name(name) if !name.static_application.is_valid() => {
+                declared_type(syntax, trees, sources, name.symbol, false)
+                    .map(|reference| vec![reference])
+            }
             ExpressionNode::Borrow(borrow) => {
                 let targets = expression_types(
                     syntax,

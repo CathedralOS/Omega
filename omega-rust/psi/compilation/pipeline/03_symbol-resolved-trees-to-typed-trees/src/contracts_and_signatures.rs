@@ -60,7 +60,63 @@ pub(crate) mod contracts {
         use symbol_resolved_trees as resolved;
         use typed_trees as typed;
 
-        pub(crate) use validation::parameter_domain_constraints as domain_constraints;
+        fn domain_constraints(
+            program: &typed::TypedTrees,
+            mut reference: typed::types::TypeReferenceHandle,
+        ) -> Vec<(
+            symbols::SymbolHandle,
+            String,
+            Vec<typed::types::TypeReferenceHandle>,
+            language_semantics::SemanticDomainId,
+        )> {
+            use typed::types::{TypeConstraintNode, TypeReferenceNode};
+            let mut domains = Vec::new();
+            loop {
+                match program.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                    TypeReferenceNode::Constrained {
+                        base_type,
+                        constraints,
+                    } => {
+                        for constraint in program.type_reference_table.constraints(*constraints) {
+                            let TypeConstraintNode::Domain(domain) = constraint else {
+                                continue;
+                            };
+                            if domain.symbol.is_valid() {
+                                if let Some(definition) = program.domain_definition(domain.symbol) {
+                                    domains.push((
+                                        domain.symbol,
+                                        definition.name.as_str().to_owned(),
+                                        domain.arguments.clone(),
+                                        domain.semantic_id,
+                                    ));
+                                }
+                            } else if language_semantics::CarryPermission::from_name(
+                                domain.name.as_str(),
+                            )
+                            .is_some()
+                            {
+                                domains.push((
+                                    symbols::SymbolHandle::invalid(),
+                                    domain.name.as_str().to_owned(),
+                                    Vec::new(),
+                                    language_semantics::SemanticDomainId::NULL,
+                                ));
+                            }
+                        }
+                        reference = *base_type;
+                    }
+                    _ => {
+                        if let Some(storage) = program.layout_storage_arguments(reference) {
+                            reference = storage.semantic_type;
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+            domains
+        }
 
         pub(crate) type DomainConstrainedParameter = (
             symbols::SymbolHandle,
@@ -80,7 +136,7 @@ pub(crate) mod contracts {
             for parameter in lowerer.source_trees.state_parameters(parameters) {
                 let parameter = lower_state_parameter(lowerer, parameter)?;
                 for (domain_symbol, domain_full_name, domain_arguments, semantic_domain) in
-                    domain_constraints(&lowerer.typed_trees, parameter.type_reference, &[])
+                    domain_constraints(&lowerer.typed_trees, parameter.type_reference)
                 {
                     domain_constrained_parameters.push((
                         parameter.symbol,
@@ -125,153 +181,25 @@ pub(crate) mod contracts {
     pub(crate) mod proof_facts {
         pub(crate) mod domain_selections {
             use diagnostics::Diagnostic;
-            use language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding;
-            use symbols::{JoinedPath, SymbolHandle};
-            use typed_trees::domain::ProofFact;
-            use typed_trees::{
-                TypedTrees,
-                signature::{SignatureContract, StateParameter},
-            };
+            use typed_trees::{TypedTrees, domain::ProofFact};
 
             pub(crate) fn normalize(
-                source: &symbol_resolved_trees::SymbolResolvedTrees,
+                _source: &symbol_resolved_trees::SymbolResolvedTrees,
                 program: &mut TypedTrees,
             ) -> Result<(), Diagnostic> {
-                let mut updates = Vec::new();
-                let mut collect = |owner: SymbolHandle,
-                                   parameters: &[StateParameter],
-                                   contracts: &[SignatureContract]|
-                 -> Result<(), Diagnostic> {
-                    for contract in contracts {
-                        for handle in contract.facts.handles() {
-                            let ProofFact::Membership(membership) = program.proof_facts.get(handle)
-                            else {
-                                continue;
-                            };
-                            if membership.domain_symbol.is_valid() {
-                                continue;
-                            }
-                            let Some(carrier) =
-                                validation::parameter_expression_result_type_reference(
-                                    program,
-                                    owner,
-                                    parameters,
-                                    membership.value,
-                                )
-                            else {
-                                continue;
-                            };
-                            let carrier =
-                                program.type_reference_table.peeled_type_reference(carrier);
-                            let Some(occurrence) = membership.authored_domain_selection else {
-                                continue;
-                            };
-                            let selection = program
-                    .authored_declaration_selections()
-                    .get(occurrence)
-                    .ok_or_else(|| {
-                        Diagnostic::error(
-                            "contract membership lost its authored declaration occurrence",
-                        )
-                    })?;
-                            let name = program
-                                .domain_path_members
-                                .span_or_empty(membership.domain)
-                                .joined_path();
-                            let candidates =
-                                crate::type_reference::domain_constraints::select_domain_candidates(
-                                    source,
-                                    program,
-                                    carrier,
-                                    &name,
-                                    Some(selection.source_span()),
-                                    SymbolHandle::invalid(),
-                                    program
-                                        .type_reference_table
-                                        .type_reference_handles(membership.domain_arguments),
-                                );
-                            let [domain] = candidates.as_slice() else {
-                                continue;
-                            };
-                            if domain.alias.is_some() {
-                                continue;
-                            }
-                            super::check_membership_argument_count(
-                                program,
-                                domain,
-                                membership.domain_arguments.len(),
-                            )?;
-                            updates.push((handle, occurrence, domain.symbol));
-                        }
-                    }
-                    Ok(())
-                };
-                for machine in program.machines() {
-                    if let Some(entry) = program.machine_states(machine).first() {
-                        collect(
-                            machine.symbol,
-                            program.state_parameters(entry),
-                            program.machine_contracts(machine),
-                        )?;
-                    }
-                    for state in program.machine_states(machine) {
-                        collect(
-                            state.symbol,
-                            program.state_parameters(state),
-                            program.state_contracts(state),
-                        )?;
-                    }
-                }
-                for definition in program.traits() {
-                    for signature in program.trait_machine_signatures(definition).iter().chain(
-                        definition
-                            .refinement_clauses
-                            .iter()
-                            .map(|clause| &clause.signature),
-                    ) {
-                        collect(
-                            signature.symbol,
-                            program.state_signature_parameters(signature),
-                            program.state_signature_contracts(signature),
-                        )?;
-                    }
-                }
-                for operator in program.operators() {
-                    collect(
-                        operator.symbol,
-                        program.operator_parameters(operator),
-                        program.operator_contracts(operator),
-                    )?;
-                }
-                let mut selections = program.authored_declaration_selections().clone();
-                for (position, (_, occurrence, symbol)) in updates.iter().enumerate() {
-                    if let Some((_, _, previous)) = updates[..position]
-                        .iter()
-                        .find(|(_, prior, _)| prior == occurrence)
+                // A retained authored occurrence must acquire one exact domain
+                // identity upstream. The old expression checker cannot supply
+                // that missing selection during declaration lowering.
+                for (handle, fact) in program.proof_facts.iter() {
+                    if let ProofFact::Membership(membership) = fact
+                        && !membership.domain_symbol.is_valid()
+                        && membership.authored_domain_selection.is_some()
                     {
-                        if previous != symbol {
-                            return Err(Diagnostic::error(
-                                "one contract membership occurrence selects conflicting declarations",
-                            ));
-                        }
-                        continue;
-                    }
-                    selections
-            .finalize_late_bound(
-                *occurrence,
-                AuthoredDeclarationSelectionLateBinding::CheckedDomainMembership,
-                *symbol,
-            )
-            .map_err(|error| {
-                Diagnostic::error(format!(
-                    "failed to finalize contract membership declaration custody: {error:?}"
-                ))
-            })?;
-                }
-                program.retain_authored_declaration_selections(selections);
-                for (handle, _, symbol) in updates {
-                    if let ProofFact::Membership(membership) = program.proof_facts.get_mut(handle) {
-                        membership.domain_symbol = symbol;
+                        let error =
+                            crate::unavailable_judgment("contract membership carrier selection");
+                        return Err(program
+                            .proof_fact_source_span(handle)
+                            .map_or(error.clone(), |span| error.with_source_span(span)));
                     }
                 }
                 Ok(())

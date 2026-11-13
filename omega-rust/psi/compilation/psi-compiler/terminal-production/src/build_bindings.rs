@@ -3,9 +3,9 @@
     Build bindings, native locators and formations, Build requests, product
     queries, filesystem protocol calls, and standalone Build providers.
 
-    Each companion is bound to the exact custody identity of its Terminal
-    program. The captures that filled them read checked trees beside the
-    removed checked-tree lowering; these are the retained record shapes.
+    Each companion is bound to its exact program and invocation. The accepted
+    source owner joins real source requests to their emitted machine, operation
+    and boundary before any host can consume these records.
 */
 
 mod native_locator {
@@ -192,6 +192,40 @@ pub(crate) mod build_filesystem {
     }
 }
 
+pub(crate) mod build_provider {
+    pub struct ProducedBuildProvider {
+        code: Option<std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>>,
+        path: String,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        declaration: String,
+        requirement: String,
+        application: String,
+    }
+
+    impl ProducedBuildProvider {
+        pub fn artifact(
+            &self,
+        ) -> Option<&std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>> {
+            self.code.as_ref()
+        }
+        pub fn path(&self) -> &str {
+            &self.path
+        }
+        pub fn package(&self) -> semantic_vocabulary::PackageKeyIdentity {
+            self.package
+        }
+        pub fn declaration(&self) -> &str {
+            &self.declaration
+        }
+        pub fn requirement(&self) -> &str {
+            &self.requirement
+        }
+        pub fn application(&self) -> &str {
+            &self.application
+        }
+    }
+}
+
 pub(crate) mod build_queries {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub enum TerminalBuildQueryOperation {
@@ -213,26 +247,10 @@ pub(crate) mod build_queries {
 }
 
 pub(crate) mod build_requests {
-    use semantic_vocabulary::{BoundaryMachineId, OperationId};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-    pub enum TerminalBuildRequestOperation {
-        Package,
-        Application,
-        Member,
-        ArtifactOnly,
-        PathDependency,
-        GitDependency,
-        LogLine,
-    }
-
-    #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
-    pub struct TerminalBuildRequestCall {
-        pub machine: semantic_vocabulary::MachineId,
-        pub operation: OperationId,
-        pub boundary: BoundaryMachineId,
-        pub action: TerminalBuildRequestOperation,
-    }
+    pub use language_semantics::build_requests::{
+        TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    };
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct TerminalBuildRequests {

@@ -1,20 +1,11 @@
 /*
-Bind the admitted `Build` entry, operational reach, and host filesystem scope
-into an activation-local `AdmittedBuildProgram` checkpoint before any authored
-code runs (`admit_build_program`).
-
-`AdmittedBuildProgram` is the sole capability token accepted by
-`PreparedBuildExecution::prepare`:
-- `restricted_build_requests` projects the normalized `RestrictedBuildRequest`
-  list in issue order (using package vocabulary rather than host paths or live
-  handles) so `prepare_build_evaluation` can enforce caller consent before
-  execution.
-- `pure_consumption_inputs` constructs the immutable `CompletedPureBuildInputs`
-  lookup key only when the `Build` machine is `Pure`, has no reachable
-  filesystem operations, and projects no restricted host requests.
+Bind the exact accepted invocation source and selected Build entry to the actual
+host filesystem scope before authored code runs. The source-owned selection,
+structural protocol rows and independently admitted host grants each retain
+separate authority; an old checked result cannot replace any of them.
 */
 
-use build_time_evaluation::{BuildEvaluationSponsor, PreparedBuildMachineProgram};
+use build_time_evaluation::BuildEvaluationSponsor;
 use diagnostics::Diagnostic;
 use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
@@ -23,7 +14,7 @@ use symbols::SymbolHandle;
 
 #[must_use = "an admitted build program must prepare its execution"]
 pub(crate) struct AdmittedBuildProgram {
-    pub(crate) prepared: PreparedBuildMachineProgram,
+    pub(crate) prepared: std::sync::Arc<psi_compiler::AcceptedTerminalSource>,
     pub(crate) providers: super::provider_execution::BuildProviderPlans,
     pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
@@ -43,37 +34,10 @@ impl AdmittedBuildProgram {
             &self.machine.execution_mode,
         )
     }
-
-    pub(crate) fn pure_consumption_inputs(
-        &self,
-        packages: Option<&package_compilation::PackageCompilationInputs>,
-        snapshot: Option<&package_compilation::BuildSnapshotRequest>,
-    ) -> Option<crate::activation::completed_pure_build::CompletedPureBuildInputs> {
-        if self.machine.filesystem_reachable
-            || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
-            || !self.restricted_build_requests().is_empty()
-        {
-            return None;
-        }
-        let checked = self.prepared.checked_program()?;
-        crate::activation::completed_pure_build::CompletedPureBuildInputs::from_admitted(
-            checked,
-            self.providers.clone(),
-            self.machine.symbol,
-            self.machine.initial_build.clone(),
-            packages,
-            snapshot,
-            &self.filesystem_scope,
-            self.artifact_only,
-            self.default_source,
-            crate::activation::measurement(),
-            self.evaluation_sponsor.as_ref(),
-        )
-    }
 }
 
 pub(crate) fn admit_build_program(
-    prepared: PreparedBuildMachineProgram,
+    prepared: std::sync::Arc<psi_compiler::AcceptedTerminalSource>,
     providers: super::provider_execution::BuildProviderPlans,
     machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
@@ -83,7 +47,7 @@ pub(crate) fn admit_build_program(
     source: package_compilation::BuildSourceSelection,
     package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
-    let typed = prepared.typed();
+    let typed = prepared.source();
     if !typed
         .symbols
         .symbol_source_span(machine_symbol)

@@ -263,7 +263,7 @@ impl Program<'_> {
                                 })?
                                 .envelope
                         }
-                        CallTarget::Boundary(boundary) => {
+                        CallTarget::Boundary { boundary, .. } => {
                             &self
                                 .boundaries
                                 .row(*boundary)
@@ -466,12 +466,14 @@ fn call_terminates(
                     TerminalCallableTermination::Terminates { .. }
                 )
             }),
-        CallTarget::Boundary(boundary) => program.boundaries.row(*boundary).is_some_and(|row| {
-            matches!(
-                row.envelope.termination,
-                TerminalCallableTermination::Terminates { .. }
-            )
-        }),
+        CallTarget::Boundary { boundary, .. } => {
+            program.boundaries.row(*boundary).is_some_and(|row| {
+                matches!(
+                    row.envelope.termination,
+                    TerminalCallableTermination::Terminates { .. }
+                )
+            })
+        }
     }
 }
 
@@ -550,9 +552,15 @@ struct Use<'a> {
 }
 fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
     match statement {
-        Statement::Bind { value, .. }
-        | Statement::Store { value, .. }
-        | Statement::Evaluate(value) => collect_expression(value, calls),
+        Statement::Bind { value, .. } | Statement::Evaluate(value) => {
+            collect_expression(value, calls)
+        }
+        Statement::Store {
+            destination, value, ..
+        } => {
+            collect_expression(destination, calls);
+            collect_expression(value, calls);
+        }
         Statement::Witness { .. } | Statement::Declare { .. } => {}
         Statement::Dispatch {
             subject,
@@ -612,6 +620,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             subject,
             arms,
             default,
+            ..
         } => {
             collect_expression(subject, calls);
             for (_, arm) in arms {
@@ -625,7 +634,21 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             collect_expression(left, calls);
             collect_expression(right, calls);
         }
-        E::Integer(_) | E::Boolean(_) | E::Slot(_) | E::MachineValue { .. } => {}
+        E::Array { elements } => {
+            for element in elements {
+                collect_expression(element, calls);
+            }
+        }
+        E::Index { base, index } => {
+            collect_expression(base, calls);
+            collect_expression(index, calls);
+        }
+        E::SavedSubject(_)
+        | E::ByteLiteral(_)
+        | E::Integer(_)
+        | E::Boolean(_)
+        | E::Slot(_)
+        | E::MachineValue { .. } => {}
     }
 }
 

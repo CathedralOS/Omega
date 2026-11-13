@@ -28,6 +28,7 @@ impl Lowering<'_> {
         &mut self,
         boundary: BoundaryMachineId,
         arguments: &Arguments,
+        structural_arguments: Vec<terminal_psi::StructuralArgument>,
         result: Option<ValueType>,
         operation: OperationId,
         requirements: Vec<ObligationId>,
@@ -45,7 +46,7 @@ impl Lowering<'_> {
         let kind = OperationKind::BoundaryCall {
             boundary,
             arguments: arguments.scalars.clone(),
-            structural_arguments: arguments.structural.clone(),
+            structural_arguments,
             completion_receipts: Vec::new(),
             requirement_obligations: requirements,
         };
@@ -95,7 +96,10 @@ impl Lowering<'_> {
         )?;
         let requirements = self.invocation(
             InvocationSite::ExternalCompletion(edge),
-            EvaluatedCallTarget::Boundary(boundary),
+            EvaluatedCallTarget::Boundary {
+                boundary,
+                build: None,
+            },
             signature.requires.len(),
             &arguments.actuals,
             before,
@@ -111,12 +115,17 @@ impl Lowering<'_> {
                 source,
             );
         }
+        let structural_arguments = self.structural_arguments(
+            arguments.structural,
+            terminal_check_tables::obligations::ExecutionSite::Block(block),
+            source,
+        )?;
         self.terminate(Terminator::ExternalCompletion {
             edge,
             boundary,
             kind,
             arguments: arguments.scalars,
-            structural_arguments: arguments.structural,
+            structural_arguments,
             requirement_obligations: requirements,
             frontier_lower_bound: Vec::new(),
         })

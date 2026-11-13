@@ -24,13 +24,6 @@ use symbols::BuiltinFunction;
 mod operator_policy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewCallableRole {
-    Boundary,
-    Public,
-    Build,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewCallableSupply {
     CheckedBody,
     Requirement,
@@ -147,30 +140,18 @@ pub enum PackageReviewContractCallTarget {
     Nominal(PackageReviewNominalIdentity),
     BuiltinFunction(BuiltinFunction),
     ByteSequencePredicate(PackageReviewByteSequencePredicate),
-    ProofView {
-        name: String,
-    },
-    Runtime {
-        contract: PackageReviewTypeIdentity,
-        callee: Box<PackageReviewContractExpression>,
-    },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewContractEvidenceOwner {
-    Nominal(PackageReviewNominalIdentity),
-    Runtime { contract: PackageReviewTypeIdentity },
+    ProofView { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewContractEvidenceTerm {
-    pub(crate) owner: PackageReviewContractEvidenceOwner,
+    pub(crate) owner: PackageReviewNominalIdentity,
     pub(crate) kind: PackageReviewContractKind,
     pub(crate) lane_position: u32,
 }
 
 impl PackageReviewContractEvidenceTerm {
-    field_projection_accessors!(borrowed owner: &PackageReviewContractEvidenceOwner);
+    field_projection_accessors!(borrowed owner: &PackageReviewNominalIdentity);
     field_projection_accessors!(copied kind: PackageReviewContractKind, lane_position: u32);
 }
 
@@ -225,10 +206,6 @@ impl PackageReviewContractCallTarget {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractExpression {
-    MachineSelection {
-        contract: PackageReviewTypeIdentity,
-        selection: String,
-    },
     LayoutQuery {
         kind: PackageReviewLayoutQueryKind,
         operand: PackageReviewTypeIdentity,

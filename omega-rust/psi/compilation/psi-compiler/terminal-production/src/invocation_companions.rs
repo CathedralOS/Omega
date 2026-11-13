@@ -6,11 +6,12 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
 use semantic_vocabulary::{BoundaryMachineId, InvocationSite};
 use std::sync::Arc;
+use structure_elaboration::BuildCallOccurrence as SourceNode;
 use terminal_psi::{OperationKind, TerminalModule};
-use typed_trees::{SourceNode, TypedTrees};
+use typed_trees::TypedTrees;
 
 use crate::{
-    CheckedInvocationSource, TerminalBuildBindingCall, TerminalBuildBindingOperation,
+    AcceptedTerminalSource, TerminalBuildBindingCall, TerminalBuildBindingOperation,
     TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation, TerminalBuildNativeLocator,
     TerminalBuildProviderRequirement, TerminalBuildQueryCall, TerminalBuildQueryOperation,
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildValueCase,
@@ -36,20 +37,25 @@ pub(crate) struct InvocationCompanions {
 }
 
 impl InvocationCompanions {
-    pub fn capture(source: &CheckedInvocationSource) -> Result<Self, Diagnostic> {
-        let typed = source.typed();
-        let publication = source.publication();
-        let module = publication.artifact.semantic_module();
+    pub fn capture(
+        source: &AcceptedTerminalSource,
+        module: &TerminalModule,
+    ) -> Result<Self, Diagnostic> {
+        let typed = source.source().as_ref();
+        let publication = &source.closure().elaboration;
         let mut result = Self::default();
-        result.capture_declared_inputs(source)?;
+        result.capture_declared_inputs(source, module)?;
         let mut captured = Vec::new();
         let mut shapes = std::collections::BTreeMap::new();
-        for occurrence in &publication.calls {
-            let (target, selection, span) = match occurrence.source {
+        for occurrence in &publication.build_calls {
+            let (target, selection, span) = match occurrence.occurrence {
                 SourceNode::Expression(expression) => {
-                    let Some(call) = typed.expression_table.call_node(expression) else {
-                        continue;
-                    };
+                    let call = typed
+                        .expression_table
+                        .call_node(expression)
+                        .ok_or_else(|| {
+                            error("emitted Build call lost its retained source expression")
+                        })?;
                     (
                         call.target_symbol,
                         typed
@@ -62,24 +68,26 @@ impl InvocationCompanions {
                     let typed_trees::statement::StatementNode::Call(call) =
                         typed.statement_table.statement(statement)
                     else {
-                        continue;
+                        return Err(error(
+                            "emitted Build call lost its retained source statement",
+                        ));
                     };
                     (call.target_symbol, None, call.source_span)
                 }
             };
-            let Some((protocol, action)) = protocol_operation(typed, target) else {
-                if selection.is_some() {
-                    return Err(error(
-                        "Build selection does not name a compiler-owned binding operation",
-                    ));
-                }
-                continue;
-            };
-            let InvocationSite::Operation(operation) = occurrence.site else {
+            let (protocol, action) = protocol_operation(typed, target).ok_or_else(|| {
+                error("emitted Build call does not name its compiler-owned protocol declaration")
+            })?;
+            let operation = occurrence.operation;
+            if target != occurrence.declaration
+                && typed
+                    .closed_requirement_application(occurrence.declaration)
+                    .is_none_or(|closed| closed.template != target)
+            {
                 return Err(error(
-                    "Build host request has no ordinary boundary operation",
+                    "Build host request changed its retained source declaration",
                 ));
-            };
+            }
             let machine = module
                 .machine(occurrence.machine)
                 .ok_or_else(|| error("Build call lost its published machine"))?;
@@ -90,7 +98,9 @@ impl InvocationCompanions {
                 return Err(error("Build host request no longer names a boundary call"));
             };
             let boundary = *boundary;
-            if publication.boundaries.get(boundary) != Some(&target) {
+            if boundary != occurrence.boundary
+                || publication.boundary_declarations.get(boundary) != Some(&occurrence.declaration)
+            {
                 return Err(error(
                     "Build host request differs from its published boundary declaration",
                 ));
@@ -130,12 +140,12 @@ impl InvocationCompanions {
                         None
                     };
                     let native_locator = if action == TerminalBuildBindingOperation::BindNative {
-                        Some(native_locator(source, boundary, &mut shapes)?)
+                        Some(native_locator(source, boundary, module, &mut shapes)?)
                     } else {
                         None
                     };
                     let request = request.clone().map_requirement(|reference| {
-                        provider_requirement(source, owner, reference)
+                        provider_requirement(source, owner, reference, module)
                     })?;
                     result.bindings.push(TerminalBuildBindingCall {
                         machine: occurrence.machine,
@@ -173,7 +183,7 @@ impl InvocationCompanions {
         for machine in &module.machines {
             for invocation in machine.boundary_invocations() {
                 let target = *publication
-                    .boundaries
+                    .boundary_declarations
                     .get(invocation.boundary)
                     .ok_or_else(|| error("invoked boundary lost its source declaration"))?;
                 if protocol_operation(typed, target).is_some() {
@@ -193,20 +203,17 @@ impl InvocationCompanions {
 
     fn capture_declared_inputs(
         &mut self,
-        source: &CheckedInvocationSource,
+        source: &AcceptedTerminalSource,
+        module: &TerminalModule,
     ) -> Result<(), Diagnostic> {
-        let typed = source.typed();
-        let publication = source.publication();
-        let root = publication
-            .artifact
-            .semantic_module()
-            .entry
-            .and_then(|entry| match entry {
-                terminal_psi::TargetMachineCallable::Machine(id) => {
-                    publication.machines.get(id).copied()
-                }
-                _ => None,
-            });
+        let typed = source.source().as_ref();
+        let publication = &source.closure().elaboration;
+        let root = module.entry.and_then(|entry| match entry {
+            terminal_psi::TargetMachineCallable::Machine(id) => {
+                publication.machines.get(id).copied()
+            }
+            _ => None,
+        });
         // Formation belongs to authored source even when a branch never issues
         // its request. Call records below remain tied to emitted operations.
         for occurrence in typed_trees::product_operand::collect_product_selection_occurrences(typed)
@@ -330,13 +337,13 @@ fn error(reason: impl Into<String>) -> Diagnostic {
 }
 
 fn provider_requirement(
-    source: &CheckedInvocationSource,
+    source: &AcceptedTerminalSource,
     owner: symbols::SymbolHandle,
     reference: typed_trees::types::TypeReferenceHandle,
+    module: &TerminalModule,
 ) -> Result<TerminalBuildProviderRequirement, Diagnostic> {
-    let typed = source.typed();
-    let publication = source.publication();
-    let module = publication.artifact.semantic_module();
+    let typed = source.source().as_ref();
+    let publication = &source.closure().elaboration;
     let scope = typed
         .build_provider_requirement_scope(reference, owner)
         .map_err(error)?;
@@ -365,7 +372,7 @@ fn provider_requirement(
             .and_then(|identity| typed.type_identity_text(identity));
         for signature in typed.trait_machine_signatures(declaring.declaration) {
             let mut matching = module.boundary_machines.iter().filter(|boundary| {
-                let Some(symbol) = publication.boundaries.get(boundary.id).copied() else { return false; };
+                let Some(symbol) = publication.boundary_declarations.get(boundary.id).copied() else { return false; };
                 if let Some(closed) = typed.closed_requirement_application(symbol) {
                     closed.template == signature.symbol
                         && typed.type_identity_text(closed.portable_trait_application_identity) == expected
@@ -392,15 +399,15 @@ fn provider_requirement(
 }
 
 fn native_locator(
-    source: &CheckedInvocationSource,
+    source: &AcceptedTerminalSource,
     boundary: BoundaryMachineId,
+    module: &TerminalModule,
     cache: &mut std::collections::BTreeMap<
         semantic_vocabulary::StructuralTypeId,
         Arc<TerminalBuildValueShape>,
     >,
 ) -> Result<TerminalBuildNativeLocator, Diagnostic> {
-    let publication = source.publication();
-    let module = publication.artifact.semantic_module();
+    let publication = &source.closure().elaboration;
     let declaration = module
         .boundary_machines
         .iter()
@@ -429,7 +436,7 @@ fn native_locator(
         ));
     }
     let widths = typed_trees::native_locators::application_widths(
-        source.typed(),
+        source.source().as_ref(),
         record.application.reference,
     )
     .map_err(|diagnostics| error(diagnostics::join_messages(&diagnostics)))?;

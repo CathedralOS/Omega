@@ -1572,3 +1572,224 @@ mod projection_tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod projection_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        ContractId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueId,
+    };
+    use terminal_psi::{
+        Operation, OperationKind, OperationResult, TerminalModule, ValueDeclaration,
+    };
+
+    fn machine_id(value: u64) -> MachineId {
+        MachineId::new(value).unwrap()
+    }
+
+    fn module_and_seals() -> (TerminalModule, EvidenceSeals) {
+        let mut module = TerminalModule::for_entry(machine_id(1));
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let mut seals = Vec::new();
+        for number in 1..=2 {
+            let machine = machine_id(number);
+            let mut body = crate::semantic_module::target_family_tests::unit_machine(machine);
+            body.declaration = None;
+            body.contract.id = ContractId::new(number).unwrap();
+            let value = |offset| ValueDeclaration {
+                id: ValueId::new(number * 10 + offset).unwrap(),
+                scalar_type,
+                qualifications: Default::default(),
+            };
+            let operation = |offset| OperationId::new(number * 10 + offset).unwrap();
+            body.blocks[0].operations = vec![
+                Operation::unsuspended(
+                    operation(1),
+                    OperationResult::Scalar(value(1)),
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(1),
+                    },
+                ),
+                Operation::unsuspended(
+                    operation(2),
+                    OperationResult::Scalar(value(2)),
+                    OperationKind::IntegerConstant {
+                        value: IntegerValue::Unsigned(2),
+                    },
+                ),
+                Operation::unsuspended(
+                    operation(3),
+                    OperationResult::Scalar(value(3)),
+                    OperationKind::ExactIntegerAdd {
+                        left: value(1).id,
+                        right: value(2).id,
+                        obligation: ObligationId::new(number).unwrap(),
+                    },
+                ),
+            ];
+            let goals = MachineEvidenceGoals::new(&body);
+            let (obligation, goal) = goals.operation(operation(3)).unwrap().goal.clone().unwrap();
+            // Correspondence tests borrow the exact goal as an assumption.
+            // No proof search or kernel replay belongs to this API.
+            seals.push(
+                ObligationEvidenceSeal::seal(
+                    machine,
+                    obligation,
+                    goal.clone(),
+                    vec![goal.clone()],
+                    Vec::new(),
+                    CertificateEnvelope {
+                        identity: EvidenceIdentity::new(number).unwrap(),
+                        proof_system_marker: terminal_psi::ProofSystemMarker::CURRENT,
+                        proof: ProofNode {
+                            conclusion: goal,
+                            rule: ProofRule::Assumption { index: 0 },
+                        },
+                    },
+                )
+                .unwrap(),
+            );
+            module.machines.push(body);
+        }
+        let evidence = EvidenceSeals::for_module(&module, seals).unwrap();
+        (module, evidence)
+    }
+
+    #[test]
+    fn projection_preserves_original_identity_coordinates_and_fingerprints() {
+        let (module, evidence) = module_and_seals();
+        let projected = evidence
+            .project_for_machines(&module, &[machine_id(2)])
+            .unwrap();
+        assert_eq!(projected.module, evidence.module);
+        assert_eq!(projected.seals, vec![evidence.seals[1].clone()]);
+        let validator = EvidenceSealValidator::new(&module, &projected.seals);
+        assert_eq!(
+            validator
+                .fingerprint(
+                    machine_id(2),
+                    OperationId::new(23).unwrap(),
+                    ObligationId::new(2).unwrap()
+                )
+                .unwrap(),
+            Some((0, evidence.seals[1].fingerprint)),
+        );
+        assert_eq!(
+            validator
+                .fingerprint(
+                    machine_id(1),
+                    OperationId::new(13).unwrap(),
+                    ObligationId::new(1).unwrap()
+                )
+                .unwrap(),
+            None,
+        );
+    }
+
+    #[test]
+    fn invalid_dormant_fingerprint_and_intact_wrong_goal_are_refused() {
+        let (module, evidence) = module_and_seals();
+        let mut damaged = evidence.clone();
+        damaged.seals[1].fingerprint[0] ^= 1;
+        assert!(
+            matches!(damaged.project_for_machines(&module, &[machine_id(1)]),
+            Err(EvidenceSealValidationError::SealMismatch { machine, .. }) if machine == machine_id(2))
+        );
+        let mut wrong_goal = evidence;
+        let seal = &mut wrong_goal.seals[1];
+        seal.goal = Proposition::Truth;
+        seal.fingerprint = seal.recompute().unwrap();
+        assert!(seal.intact().unwrap());
+        assert!(
+            matches!(wrong_goal.project_for_machines(&module, &[machine_id(1)]),
+            Err(EvidenceSealValidationError::SealMismatch { machine, .. }) if machine == machine_id(2))
+        );
+    }
+
+    #[test]
+    fn duplicate_and_unowned_dormant_seals_are_refused() {
+        let (module, evidence) = module_and_seals();
+        let mut duplicate = evidence.clone();
+        duplicate.seals.push(duplicate.seals[1].clone());
+        assert!(
+            matches!(duplicate.project_for_machines(&module, &[machine_id(1)]),
+            Err(EvidenceSealValidationError::DuplicateSeal { machine, .. }) if machine == machine_id(2))
+        );
+        let mut unowned = evidence;
+        unowned.seals[1].obligation = ObligationId::new(99).unwrap();
+        unowned.seals[1].fingerprint = unowned.seals[1].recompute().unwrap();
+        assert!(
+            matches!(unowned.project_for_machines(&module, &[machine_id(1)]),
+            Err(EvidenceSealValidationError::UnownedSeal { machine, .. }) if machine == machine_id(2))
+        );
+    }
+
+    #[test]
+    fn unknown_selected_machine_is_refused_even_without_seals() {
+        let (module, mut evidence) = module_and_seals();
+        for empty in [false, true] {
+            if empty {
+                evidence.seals.clear();
+            }
+            assert_eq!(
+                evidence.project_for_machines(&module, &[machine_id(99)]),
+                Err(EvidenceSealValidationError::UnknownSelectedMachine(
+                    machine_id(99)
+                )),
+            );
+        }
+    }
+
+    #[test]
+    fn same_machine_ids_cannot_rebind_a_bundle_to_another_module() {
+        let (module, evidence) = module_and_seals();
+        let mut another = module.clone();
+        another.machines[0].blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(7),
+        };
+        let another_bundle = EvidenceSeals::for_module(&another, evidence.seals.clone()).unwrap();
+        assert_ne!(evidence.module, another_bundle.module);
+        assert_eq!(
+            evidence.project_for_machines(&another, &[machine_id(1)]),
+            Err(EvidenceSealValidationError::ModuleIdentityMismatch)
+        );
+        assert_eq!(
+            another_bundle.project_for_machines(&module, &[machine_id(1)]),
+            Err(EvidenceSealValidationError::ModuleIdentityMismatch)
+        );
+    }
+
+    #[test]
+    fn receiving_a_seal_requires_one_unique_operation_owner() {
+        let (mut module, evidence) = module_and_seals();
+        let mut duplicate = module.machines[0].blocks[0].operations[2].clone();
+        duplicate.id = OperationId::new(14).unwrap();
+        if let OperationResult::Scalar(result) = &mut duplicate.result {
+            result.id = ValueId::new(14).unwrap();
+        }
+        module.machines[0].blocks[0].operations.push(duplicate);
+        let validator = EvidenceSealValidator::new(&module, &evidence.seals);
+        assert!(matches!(
+            validator.fingerprint(
+                machine_id(1),
+                OperationId::new(13).unwrap(),
+                ObligationId::new(1).unwrap()
+            ),
+            Err(EvidenceSealValidationError::SealMismatch { .. })
+        ));
+    }
+
+    #[test]
+    fn receiving_a_seal_for_a_different_actual_operation_is_refused() {
+        let (module, evidence) = module_and_seals();
+        let validator = EvidenceSealValidator::new(&module, &evidence.seals);
+        assert!(matches!(
+            validator.fingerprint(
+                machine_id(1),
+                OperationId::new(11).unwrap(),
+                ObligationId::new(1).unwrap()
+            ),
+            Err(EvidenceSealValidationError::SealMismatch { .. })
+        ));
+    }
+}

@@ -132,6 +132,31 @@ impl Program<'_> {
                 "boundary call needs its complete declaring trait application",
             ));
         }
+        if !crate::reach::has_authored_ceiling(typed, context, declared.symbol)? {
+            return Err(services::unavailable(
+                context,
+                "boundary requirement has an open service ceiling; write reaches",
+            ));
+        }
+        let clauses = typed
+            .signature_contracts
+            .span(declared.contracts)
+            .ok_or_else(|| {
+                services::unavailable(context, "boundary requirement has a stale clause span")
+            })?;
+        if !declared.declares_no_crash_route
+            && !clauses.iter().any(|clause| {
+                matches!(
+                    clause.kind,
+                    typed_trees::signature::SignatureContractKind::Crashes { .. }
+                )
+            })
+        {
+            return Err(services::unavailable(
+                context,
+                "boundary requirement has an open crash ceiling; write crashes",
+            ));
+        }
         let envelope = self.signature_envelope(context, declared)?;
         let service = self
             .typed
@@ -156,14 +181,6 @@ impl Program<'_> {
         let completion =
             typed_trees::boundary_completions::boundary_requirement_completion(self.typed, target);
         let (signature, _) = self.boundary_signature(context, declared)?;
-        let mut envelope = envelope;
-        // Invoking a trait requirement reaches its owner independently of the
-        // provider eventually selected for it.
-        envelope
-            .service_reach
-            .extend(services::service_closure(self.typed, context, &[service])?);
-        envelope.service_reach.sort_by_key(|service| service.0);
-        envelope.service_reach.dedup();
         let id = self.boundaries.rows.push(BoundarySource {
             source: target,
             kind: semantic_vocabulary::BoundaryRequirementKind::Trait,

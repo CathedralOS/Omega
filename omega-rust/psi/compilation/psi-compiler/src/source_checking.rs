@@ -1,13 +1,14 @@
-//! Settle source inputs before the lowered-form checker judges them. This
-//! preparation retains declarations and Build selections, never a checked body
-//! or a reusable verdict from the retired checker.
+//! Prepare source for the lowered-form checker without producing an old judgment.
+//!
+//! Frozen typed source is an input to structural lowering, never an acceptance
+//! certificate. Only the lowered-form checker can publish an executable product.
 
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     ExecutedProductSelection, ProductDeclarationRequest,
 };
-use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
+use typed_trees::opaque_representations::OpaqueRepresentationSelection;
 
 mod constant_entries {
     pub(super) fn retain_evaluation_entries(
@@ -38,7 +39,6 @@ mod constant_entries {
         Ok(())
     }
 }
-
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
     pub external_roots: &'request [symbols::SymbolHandle],
@@ -47,9 +47,11 @@ pub struct SourceAdmission<'request> {
     pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
     pub layout_selection_authority:
         Option<Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>>,
-    pub asm_authority: Option<validation::AsmAuthorityAdmission>,
+    pub asm_authority: Option<language_core::inline_assembly::AsmAuthorityAdmission>,
     pub wire_demands: &'request [language_semantics::wire::WireCompatibilityDemand],
-    pub declarations: Option<&'request dyn validation::DeclarationSelectionAuthority>,
+    pub declarations: Option<
+        &'request dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority,
+    >,
 }
 
 #[derive(Default)]
@@ -60,76 +62,182 @@ pub struct ProductRepresentationInput<'request> {
     pub retained: &'request [OpaqueRepresentationSelection],
 }
 
-struct AdmittedRepresentations {
-    selections: Vec<OpaqueRepresentationSelection>,
-    copy_properties: Vec<validation::OpaqueDataPropertyReceipt>,
+impl ProductRepresentationInput<'_> {
+    pub(crate) fn require_absent(&self) -> Result<(), Vec<Diagnostic>> {
+        // The removed planner cannot supply authority for an authored activation,
+        // an unused request, an executed event, or a retained application. None
+        // may be dropped and presented to the lowered route as an empty choice.
+        if self.activation.is_some()
+            || !self.declared.is_empty()
+            || !self.executed.is_empty()
+            || !self.retained.is_empty()
+        {
+            return Err(vec![Diagnostic::error(
+                "no product route yet: opaque representation admission",
+            )]);
+        }
+        Ok(())
+    }
 }
 
-impl ProductRepresentationInput<'_> {
-    fn admit(
-        &self,
-        program: &typed_trees::TypedTrees,
-    ) -> Result<AdmittedRepresentations, Vec<Diagnostic>> {
-        let selections = representation_planning::rederive_opaque_representation_selections(
-            program,
-            self.activation,
-            self.declared,
-            self.executed,
-            self.retained,
+/// Accepts the pre-Psi04 typed frontier. Preparing an already specialized
+/// frontier again is not part of this boundary.
+pub struct SourcePreparationRequest<'request> {
+    pub program: typed_trees::TypedTrees,
+    pub admission: SourceAdmission<'request>,
+}
+
+pub struct FrozenSource {
+    pub program: Arc<typed_trees::FrozenTypedTrees>,
+}
+
+impl SourcePreparationRequest<'_> {
+    pub fn prepare(self) -> Result<FrozenSource, Vec<Diagnostic>> {
+        // Opaque property receipts came from the deleted checker. Supplying one
+        // cannot stand in for evidence from the new route.
+        if !self.admission.external_roots.is_empty() || self.admission.declarations.is_some() {
+            return Err(vec![Diagnostic::error(
+                "no product route yet: source selection authority admission",
+            )]);
+        }
+        self.admission.representations.require_absent()?;
+        let mut program = self.program;
+        typed_trees::boundary_completions::prepare_source_completion(
+            &mut program,
+            self.admission.completion,
         )?;
-        let copy_properties = selections
-            .iter()
-            .filter(|selection| {
-                selection.copy_disposition()
-                    == representation_selections::OpaqueRepresentationCopyDisposition::CheckedSemanticCopy
-            })
-            .map(|selection| validation::OpaqueDataPropertyReceipt::copy(selection.opaque()))
-            .collect();
-        Ok(AdmittedRepresentations {
-            selections,
-            copy_properties,
+        build_time_evaluation::evaluate_fixed_layout_applications(
+            &mut program,
+            self.admission.layout_scopes,
+            self.admission.layout_selection_authority,
+        )?;
+        constant_entries::retain_evaluation_entries(&mut program)?;
+        let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
+            .with_wire_compatibility_demands(self.admission.wire_demands);
+        if let Some(authority) = self.admission.asm_authority {
+            preparation = preparation.with_asm_authority(authority);
+        }
+        let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
+        Ok(FrozenSource {
+            program: Arc::new(program),
         })
     }
 }
 
-/// Finish source preparation without asking the retired checker for a verdict.
-/// These operations settle explicit Build selections and produce the exact typed
-/// frontier the lowered-form checker owns. They never create a checked body.
-pub fn prepare_product_typed_frontier(
-    mut program: typed_trees::TypedTrees,
-    admission: &SourceAdmission<'_>,
-) -> Result<typed_trees::FrozenTypedTrees, Vec<Diagnostic>> {
-    let representations = admission.representations.admit(&program)?;
-    typed_trees::boundary_completions::prepare_source_completion(
-        &mut program,
-        admission.completion,
-    )?;
-    build_time_evaluation::evaluate_fixed_layout_applications(
-        &mut program,
-        admission.layout_scopes,
-        admission.layout_selection_authority.clone(),
-    )?;
-    constant_entries::retain_evaluation_entries(&mut program)?;
-    let preparation = typed_preparation(admission, &representations);
-    crate::prepare_build_provider_requirements(&mut program)?;
-    let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
-    build_time_evaluation::retain_access_lifecycle_plans(
-        program,
-        admission.declarations,
-        admission.layout_scopes,
-    )
-}
+#[cfg(test)]
+mod tests {
+    use super::{SourceAdmission, SourcePreparationRequest};
 
-fn typed_preparation<'a>(
-    admission: &'a SourceAdmission<'_>,
-    representations: &'a AdmittedRepresentations,
-) -> typed_trees_to_typed_trees::PreparationRequest<'a> {
-    let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
-        .with_opaque_property_receipts(&representations.copy_properties)
-        .with_opaque_representation_selections(&representations.selections)
-        .with_wire_compatibility_demands(admission.wire_demands);
-    if let Some(authority) = admission.asm_authority {
-        preparation = preparation.with_asm_authority(authority);
+    #[test]
+    fn preparation_returns_source_without_a_checked_product() {
+        let prepared = SourcePreparationRequest {
+            program: typed_trees::TypedTrees::default(),
+            admission: SourceAdmission::default(),
+        }
+        .prepare()
+        .expect("empty typed source requires no legacy evidence");
+        assert!(prepared.program.machines().is_empty());
     }
-    preparation
+
+    #[test]
+    fn an_old_external_root_request_is_not_silently_discarded() {
+        let roots = [symbols::SymbolHandle::invalid()];
+        let result = SourcePreparationRequest {
+            program: typed_trees::TypedTrees::default(),
+            admission: SourceAdmission {
+                external_roots: &roots,
+                ..SourceAdmission::default()
+            },
+        }
+        .prepare();
+        let Err(diagnostics) = result else {
+            panic!("legacy authority must not become a prepared product");
+        };
+        assert!(diagnostics[0].message.contains("no product route yet"));
+    }
+
+    #[test]
+    fn unserved_representation_inputs_are_never_silently_discarded() {
+        use super::ProductRepresentationInput;
+        use language_semantics::declaration_selection::{
+            BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+        };
+        use typed_trees::opaque_representations::{
+            OpaqueRepresentationApplicationOrigin, OpaqueRepresentationCopyDisposition,
+            OpaqueRepresentationLifecycleDisposition, OpaqueRepresentationSelection,
+        };
+
+        // These records deliberately carry no accepted semantic evidence. Their
+        // presence alone must refuse before preparation can erase their request.
+        let request = std::sync::Arc::new(ProductDeclarationRequest {
+            source_span: source::SourceSpan::default(),
+            operation: BuildOperation::RepresentationSelection,
+            operands: Box::new([]),
+        });
+        let declared = [std::sync::Arc::clone(&request)];
+        let executed = [ExecutedProductSelection {
+            static_environment: None,
+            target: None,
+            request,
+            selecting_machine: None,
+            composition: None,
+        }];
+        let retained = [OpaqueRepresentationSelection::from_validated_application(
+            symbols::SymbolHandle::invalid(),
+            symbols::SymbolHandle::invalid(),
+            Default::default(),
+            typed_trees::typed_trees::ClosedConformanceApplication::default(),
+            OpaqueRepresentationLifecycleDisposition::Inert,
+            OpaqueRepresentationCopyDisposition::PlacementOnly,
+            OpaqueRepresentationApplicationOrigin::NamedConformance,
+            symbols::SymbolHandle::invalid(),
+            source::SourceSpan::default(),
+        )];
+        for (dimension, representations) in [
+            (
+                "activation",
+                ProductRepresentationInput {
+                    activation: Some(symbols::SymbolHandle::invalid()),
+                    ..ProductRepresentationInput::default()
+                },
+            ),
+            (
+                "declared",
+                ProductRepresentationInput {
+                    declared: &declared,
+                    ..ProductRepresentationInput::default()
+                },
+            ),
+            (
+                "executed",
+                ProductRepresentationInput {
+                    executed: &executed,
+                    ..ProductRepresentationInput::default()
+                },
+            ),
+            (
+                "retained",
+                ProductRepresentationInput {
+                    retained: &retained,
+                    ..ProductRepresentationInput::default()
+                },
+            ),
+        ] {
+            let result = SourcePreparationRequest {
+                program: typed_trees::TypedTrees::default(),
+                admission: SourceAdmission {
+                    representations,
+                    ..SourceAdmission::default()
+                },
+            }
+            .prepare();
+            let Err(diagnostics) = result else {
+                panic!("{dimension} input was silently discarded");
+            };
+            assert_eq!(
+                diagnostics[0].message, "no product route yet: opaque representation admission",
+                "{dimension} must reach the missing admission obligation",
+            );
+        }
+    }
 }

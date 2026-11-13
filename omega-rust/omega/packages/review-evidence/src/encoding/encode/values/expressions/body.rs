@@ -26,16 +26,6 @@ pub(super) fn encode_contract_expression_body(
     expression: &PackageReviewContractExpression,
 ) -> Result<(), PackageReviewEncodingError> {
     match expression {
-        PackageReviewContractExpression::MachineSelection {
-            contract,
-            selection,
-        } => {
-            encoder.tag("machine_selection", 28);
-            encoder.field("contract", |encoder| {
-                encode_type_identity(encoder, contract)
-            })?;
-            encoder.field("selection", |encoder| encoder.string(selection))?;
-        }
         PackageReviewContractExpression::LayoutQuery { kind, operand } => {
             encoder.tag("layout_query", 27);
             encoder.field("kind", |encoder| {
@@ -276,15 +266,6 @@ pub(super) fn encode_contract_expression_body(
                                 }
                             };
                             Ok(())
-                        })?;
-                    }
-                    PackageReviewContractCallTarget::Runtime { contract, callee } => {
-                        encoder.tag("runtime_callable", 5);
-                        encoder.field("contract", |encoder| {
-                            encode_type_identity(encoder, contract)
-                        })?;
-                        encoder.field("callee", |encoder| {
-                            encode_contract_expression(encoder, callee)
                         })?;
                     }
                     PackageReviewContractCallTarget::ProofView { name } => {

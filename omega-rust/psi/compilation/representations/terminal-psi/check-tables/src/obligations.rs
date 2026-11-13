@@ -87,7 +87,7 @@ pub enum ObligationKind {
     /// The safety of a partial operation, proved before it executes.
     /// `wiki/spec/terminal-psi/control_flow.md`: "Each partial operation still
     /// proves its own safety from facts available before it executes".
-    OperationSafety { operation: OperationId },
+    OperationSafety { site: ExecutionSite },
     /// One clause of a data type's `requires`, owed by one operation that
     /// forms or changes a value of that type: a record or case construction,
     /// a zero establishment, or a store into a field of a place of that type
@@ -146,25 +146,16 @@ pub enum ObligationKind {
     },
 }
 
-/// Where a machine may leave by crashing. Closed: Terminal Psi has no other
-/// construct that carries a crash cause.
+/// The instruction or terminator whose execution consumes an obligation.
+/// A terminator is identified by its block; an operation has its own identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CrashSite {
-    /// A block whose terminator has no successor: a `Crash`, or an
-    /// `InvokeNoNormal` whose callee publishes crash routes.
-    /// calls_and_outcomes.md, "Crash": "`Trap` and `Abort` are closed causes
-    /// on distinct no-successor terminators." and "An unconditional
-    /// no-return callee crash needs no extra caller branch or fabricated
-    /// crash event."
+pub enum ExecutionSite {
     Block(BlockId),
-    /// A call operation whose callee may return and also publishes crash
-    /// routes: the block continues after it, so the site is the operation.
-    /// calls_and_outcomes.md, "Call contracts": "Surviving crash routes are
-    /// derived from the pinned callee contract using exact actuals. ... Empty
-    /// or untranslated continuation rows cannot erase a crash." and "Crash":
-    /// "Call composition substitutes arguments and caller path facts."
     Operation(OperationId),
 }
+
+/// Crash coverage uses the same instruction and terminator coordinates.
+pub type CrashSite = ExecutionSite;
 
 /// Where a loan's authority comes from. loans.md: "A direct reborrow names
 /// its immediate parent resource, exact formation event, and projection. A

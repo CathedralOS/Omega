@@ -1,24 +1,24 @@
 /*
-    Lowered programs keep their published artifact when entering product
-    compilation. PortableTerminalProgram::from_checked_artifact retains its
-    source correspondence and Build companions; application attachment resolves
-    entries and composition roots against that same artifact.
+Terminal production retains the new checker's actual accepted closure, its frozen
+typed owner and the exact artifact/evidence pair. AcceptedTerminalSource is the
+production entrance; invocation identity is fixed before lowering and judgment.
 
-    Legacy checked-tree production requests refuse because their producer has
-    been removed. Retained declaration data does not restore that route.
+Retained Build companions, external declaration records and application receipts
+describe the data a producer must provide; none manufactures checking authority.
+The obsolete checked-source production request interfaces have been removed.
 */
 
 #![forbid(unsafe_code)]
 
+mod accepted;
+mod invocation_companions;
+pub use accepted::AcceptedTerminalSource;
+pub use structure_elaboration::Compilation as TerminalSourceCompilation;
+
 mod build_bindings;
-mod build_provider;
-pub(crate) use build_bindings::{build_filesystem, build_queries, build_requests};
+pub(crate) use build_bindings::{build_filesystem, build_provider, build_queries, build_requests};
 mod custody;
 mod external_providers;
-mod invocation_companions;
-mod invocation_source;
-pub use invocation_source::CheckedInvocationSource;
-pub use structure_elaboration::Compilation as SourceCompilation;
 pub(crate) mod production_selection {
     #[derive(Debug, Clone, Copy)]
     pub enum TerminalMachineSelection<'a> {
@@ -104,57 +104,10 @@ pub(crate) mod observation {
         }
     }
 }
-pub use checked_trees::PreparedProviderInventory;
 pub(crate) mod terminal_production {
-    use checked_trees::CheckedTrees;
     use diagnostics::Diagnostic;
 
-    use crate::custody::{ProducedTerminalProgram, TerminalProductionCustody};
-    use crate::observation::PsiCompilationObserver;
-    use crate::{TerminalMachineSelection, TerminalProgramRoots};
-
     pub use terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError;
-
-    pub struct TerminalProductionRequest<'a> {
-        pub publication: terminal_codec::TerminalPublication,
-        pub checked: &'a CheckedTrees,
-        pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
-        pub external_declarations: Option<&'a crate::PreparedExternalProviderDeclarations>,
-        pub provider_inventory: Option<&'a checked_trees::PreparedProviderInventory>,
-        pub machine: TerminalMachineSelection<'a>,
-        pub roots: TerminalProgramRoots<'a>,
-        pub optimization_selections: optimization::PsiOptimizationSelections,
-    }
-
-    impl<'a> TerminalProductionRequest<'a> {
-        pub fn new(
-            checked: &'a CheckedTrees,
-            machine: TerminalMachineSelection<'a>,
-            exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
-        ) -> Self {
-            Self {
-                publication: terminal_codec::TerminalPublication::Portable,
-                checked,
-                exact_toolchain_sources,
-                external_declarations: None,
-                provider_inventory: None,
-                machine,
-                roots: TerminalProgramRoots::default(),
-                optimization_selections: optimization::PsiOptimizationSelections::default(),
-            }
-        }
-
-        /// The retired checked-tree producer cannot replace the module that
-        /// the lowered-form checker accepted. New invocations use that accepted
-        /// publication through `CheckedInvocationSource`.
-        pub fn produce(
-            self,
-            _custody: TerminalProductionCustody<'_>,
-            _observer: &mut impl PsiCompilationObserver,
-        ) -> Result<ProducedTerminalProgram, TerminalArtifactProductionError> {
-            Err(TerminalArtifactProductionError::NoProductRoute)
-        }
-    }
 
     #[derive(Debug)]
     pub enum TerminalArtifactProductionError {
@@ -173,7 +126,7 @@ pub(crate) mod terminal_production {
             match self {
                 Self::BuildContext(error) => Some(error.clone()),
                 Self::NoProductRoute => Some(Diagnostic::error(
-                    "no product route yet: the checked program has no Terminal program producer",
+                    "no product route yet: the source has no accepted Terminal program producer",
                 )),
                 _ => None,
             }
@@ -196,9 +149,7 @@ pub use build_bindings::{
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
 };
-pub use build_provider::{
-    BuildProviderProductionRequest, ProducedBuildProvider, prepare_build_provider_requirements,
-};
+pub use build_provider::ProducedBuildProvider;
 pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
@@ -216,9 +167,7 @@ pub use external_providers::{
 };
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use production_selection::{TerminalMachineSelection, TerminalProgramRoots};
-pub use terminal_production::{
-    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
-};
+pub use terminal_production::{ProgramEntryTerminalReceiptError, TerminalArtifactProductionError};
 pub use terminal_psi::PreparedTerminalRoots;
 
 pub(crate) mod composition_roots {
@@ -273,25 +222,6 @@ pub(crate) mod composition_roots {
                 entry_identity,
                 composition,
             }
-        }
-
-        /// Attaches this application to a canonical artifact published
-        /// without this crate's production: the lowered-form route's own
-        /// module (`lowered_discharge::AcceptedClosure::publish`). The entry
-        /// receipt and the composition roots are resolved on that artifact
-        /// exactly as on a produced program; it carries no machine
-        /// provenance, so a root is named by its declaration alone.
-        pub fn attach_published(
-            &self,
-            artifact: &terminal_codec::CanonicalTerminalArtifact,
-            observer: &mut impl PsiCompilationObserver,
-        ) -> Result<ProducedTerminalApplication, Vec<Diagnostic>> {
-            self.attach(
-                artifact.view().into(),
-                Ok(artifact),
-                &TerminalMachineProvenance::default(),
-                observer,
-            )
         }
 
         pub(crate) fn attach(

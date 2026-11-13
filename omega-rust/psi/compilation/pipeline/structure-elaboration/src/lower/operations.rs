@@ -24,7 +24,9 @@ impl Lowering<'_> {
     fn safety(&mut self, operation: OperationId, source: SourceOrigin) -> Checked<ObligationId> {
         let before = self.here()?;
         Ok(self.obligation(
-            ObligationKind::OperationSafety { operation },
+            ObligationKind::OperationSafety {
+                site: terminal_check_tables::obligations::ExecutionSite::Operation(operation),
+            },
             before,
             source,
         ))
@@ -176,6 +178,10 @@ impl Lowering<'_> {
                     None => Err(self.internal("a slot is read before it is bound")),
                 }
             }
+            ExpressionKind::Index { base, index } => {
+                let scalar_type = self.result_type(expression)?;
+                self.read_index(base, index, scalar_type, source)
+            }
             ExpressionKind::Field { base, field } => {
                 let scalar_type = self.result_type(expression)?;
                 self.read_field(base, *field, scalar_type, source)
@@ -188,16 +194,26 @@ impl Lowering<'_> {
                 self.case_membership(subject, *case, source)
             }
             ExpressionKind::Match {
+                capture,
                 subject,
                 arms,
                 default,
             } => {
                 let scalar_type = self.result_type(expression)?;
-                self.match_value(subject, arms, default.as_deref(), scalar_type, source)
+                self.match_value(
+                    subject,
+                    arms,
+                    default.as_deref(),
+                    scalar_type,
+                    source,
+                    *capture,
+                )
             }
-            ExpressionKind::Record { .. } | ExpressionKind::Case { .. } => {
-                Err(self.internal("a data literal has a scalar type"))
-            }
+            ExpressionKind::SavedSubject(_)
+            | ExpressionKind::ByteLiteral(_)
+            | ExpressionKind::Array { .. }
+            | ExpressionKind::Record { .. }
+            | ExpressionKind::Case { .. } => Err(self.internal("a data literal has a scalar type")),
             ExpressionKind::Borrow { .. } => {
                 Err(self.internal("a loan outside a call's arguments"))
             }

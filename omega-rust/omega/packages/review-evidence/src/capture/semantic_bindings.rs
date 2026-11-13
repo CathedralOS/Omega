@@ -120,11 +120,7 @@ pub fn candidate_service_bindings(
             let [definition] = definitions.as_slice() else {
                 continue;
             };
-            if let Some(package) = checked
-                .typed
-                .symbols
-                .symbol_package_identity(definition.symbol)
-            {
+            if let Some(package) = checked.symbols.symbol_package_identity(definition.symbol) {
                 candidate_packages.insert(package);
             }
         }
@@ -169,11 +165,7 @@ pub fn candidate_target_entry_binding(
     let mut definitions = checked.traits().iter().filter(|definition| {
         definition.is_boundary
             && definition.name.as_str() == schema_name
-            && checked
-                .typed
-                .symbols
-                .symbol_package_identity(definition.symbol)
-                == Some(owner)
+            && checked.symbols.symbol_package_identity(definition.symbol) == Some(owner)
     });
     let Some(definition) = definitions.next() else {
         return Ok(None);
@@ -204,47 +196,14 @@ pub fn candidate_target_entry_binding(
 }
 
 fn checked_callable_service_references(
-    checked: &CheckedCompilation,
-    consumer: PackageKeyIdentity,
+    _checked: &CheckedCompilation,
+    _consumer: PackageKeyIdentity,
 ) -> Result<Vec<SymbolHandle>, SemanticBindingProjectionError> {
-    let source = checked.source_inspection().program();
-    let mut services = Vec::new();
-    for machine in source.typed.machines().iter().filter(|machine| {
-        source.typed.symbols.symbol_package_identity(machine.symbol) == Some(consumer)
-            && (machine.is_public
-                || machine.supply_mode.is_boundary_declaration()
-                || Some(machine.symbol) == checked.build().selected_build_machine_symbol)
-    }) {
-        // A declaration that has no accepted executable or boundary header
-        // cannot acquire behavior from a historical checker summary.
-        let reach = if machine.supply_mode.is_boundary_declaration() {
-            let boundary = source.accepted_boundary(machine.symbol).map_err(|reason| {
-                SemanticBindingProjectionError::MissingCallableFacts {
-                    diagnostics: vec![Diagnostic::error(reason)],
-                }
-            })?;
-            &boundary.published_service_ceiling
-        } else {
-            &source
-                .accepted_machine(machine.symbol)
-                .map_err(
-                    |reason| SemanticBindingProjectionError::MissingCallableFacts {
-                        diagnostics: vec![Diagnostic::error(reason)],
-                    },
-                )?
-                .published_service_ceiling
-        };
-        for &service in reach {
-            services.push(source.service_symbol(service).map_err(|reason| {
-                SemanticBindingProjectionError::MissingCallableFacts {
-                    diagnostics: vec![Diagnostic::error(reason)],
-                }
-            })?);
-        }
-    }
-    services.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-    services.dedup();
-    Ok(services)
+    Err(SemanticBindingProjectionError::MissingCallableFacts {
+        diagnostics: vec![Diagnostic::error(
+            "no product route yet: semantic binding review requires route-owned reach and invocation contracts",
+        )],
+    })
 }
 
 pub fn candidate_hosted_exit_bindings(
@@ -280,7 +239,6 @@ pub fn candidate_hosted_exit_bindings(
             role,
             package,
             checked
-                .typed
                 .symbols
                 .display_path(retained.provider.schema.symbol(), "::"),
             provider.schema.identity_digest(),

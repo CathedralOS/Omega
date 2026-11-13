@@ -4,14 +4,14 @@
 //! closure is known. Only ServiceMap converts them to hermetically ordered
 //! Terminal identities. The receiving checker independently judges every call.
 
-use language_semantics::{ServiceReachId, ServiceReachRowId, ServiceReachRowTable};
+use language_semantics::ServiceReachId;
 use semantic_vocabulary::{IdTable, MachineId, ServiceId};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
     ServiceDeclaration, TerminalCallableEnvelope, TerminalCallableInvocation,
     TerminalCallableTermination, TerminalModule,
 };
-use typed_trees::{SourceServiceCorrespondence, TypedTrees};
+use typed_trees::TypedTrees;
 
 use crate::{Elaboration, Unserved, refuse};
 
@@ -117,21 +117,6 @@ impl ServiceMap {
         self.sources
             .get(position)
             .map(|source| source.identity.as_str())
-    }
-    pub(crate) fn correspondence(
-        &self,
-        context: MachineId,
-    ) -> Checked<Vec<SourceServiceCorrespondence>> {
-        self.sources
-            .iter()
-            .map(|source| {
-                Ok(SourceServiceCorrespondence {
-                    service: self.service(context, source.source)?,
-                    source: source.source,
-                    declaration: source.declaration,
-                })
-            })
-            .collect()
     }
     pub(crate) fn row(
         &self,
@@ -244,6 +229,48 @@ pub(crate) fn source_closure(
     Ok(completed)
 }
 
+/// Writtenness comes from the exact source declaration, including a closed
+/// requirement's retained template. A normalized empty row cannot supply it.
+pub(crate) fn has_authored_ceiling(
+    typed: &TypedTrees,
+    context: MachineId,
+    symbol: symbols::SymbolHandle,
+) -> Checked<bool> {
+    let mut current = symbol;
+    let mut visited = Vec::new();
+    loop {
+        if !typed.symbols.symbols().nodes().is_valid(current) || visited.contains(&current) {
+            return Err(unavailable(
+                context,
+                "service ceiling has stale or cyclic declaration provenance",
+            ));
+        }
+        visited.push(current);
+        if typed
+            .authored_service_reach_rows_for(current)
+            .next()
+            .is_some()
+        {
+            return Ok(true);
+        }
+        if let Some(application) = typed.closed_requirement_application(current) {
+            current = application.template;
+            continue;
+        }
+        if let Some(machine) = typed.machine_by_own_or_state_symbol(current) {
+            if machine.symbol != current {
+                current = machine.symbol;
+                continue;
+            }
+            if let Some(template) = crate::template_of(typed, current) {
+                current = template;
+                continue;
+            }
+        }
+        return Ok(false);
+    }
+}
+
 /// An interned empty row also represents an omitted clause. Only authored
 /// provenance (including a generated machine's template) establishes a promise.
 pub(crate) fn written_ceiling(
@@ -254,18 +281,7 @@ pub(crate) fn written_ceiling(
     let machine = typed
         .machine_by_symbol(symbol)
         .ok_or_else(|| unavailable(context, "reach header has no exact machine declaration"))?;
-    let authored = |owner| {
-        typed
-            .authored_service_reach_rows_for(owner)
-            .next()
-            .is_some()
-    };
-    let written = authored(symbol)
-        || crate::template_of(typed, symbol).is_some_and(authored)
-        || !matches!(
-            machine.service_reach_row,
-            ServiceReachRowId::NULL | ServiceReachRowTable::EMPTY_ROW
-        );
+    let written = has_authored_ceiling(typed, context, symbol)?;
     if !written {
         return Ok(None);
     }

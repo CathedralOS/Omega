@@ -2007,7 +2007,8 @@ pub(crate) mod component_contents {
             let (path, source_type, destination_type) =
                 self.rehome_path(source_type, destination_type, &contents.path)?;
             let contents = match contents.contents {
-                TerminalStorageContents::Scalar { .. } => contents.contents,
+                value @ (TerminalStorageContents::Scalar { .. }
+                | TerminalStorageContents::Bytes(_)) => value,
                 TerminalStorageContents::Case(case) => {
                     let source = self.source_types.declaration(&source_type)?;
                     let source = terminal_psi::find_structural_case(

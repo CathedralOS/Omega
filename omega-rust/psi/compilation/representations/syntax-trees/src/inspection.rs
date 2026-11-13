@@ -242,6 +242,8 @@ pub mod snapshot {
             },
             Name {
                 path: Vec<IdentifierSnapshot>,
+                #[serde(skip_serializing_if = "Option::is_none")]
+                application: Option<Box<StaticArgumentSnapshot>>,
             },
             Range {
                 start: Option<Box<ExpressionSnapshot>>,
@@ -424,7 +426,10 @@ pub mod snapshot {
             handle: crate::expression::ExpressionHandle,
         ) -> ExpressionSnapshot {
             if !handle.is_valid() {
-                return ExpressionSnapshot::Name { path: Vec::new() };
+                return ExpressionSnapshot::Name {
+                    path: Vec::new(),
+                    application: None,
+                };
             }
 
             match syntax_trees.expressions.expression(handle) {
@@ -548,11 +553,30 @@ pub mod snapshot {
                     access: value.access.name(),
                     value: Box::new(snapshot_expression_handle(syntax_trees, value.target)),
                 },
-                ExpressionNode::Name(path) => ExpressionSnapshot::Name {
+                ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } => ExpressionSnapshot::Name {
                     path: snapshot_identifier_slice(
                         syntax_trees,
-                        syntax_trees.expressions.identifier_path_members(*path),
+                        syntax_trees
+                            .expressions
+                            .identifier_path_members(path.to_owned()),
                     ),
+                    application: path_application.as_ref().map(|application| {
+                        Box::new(snapshot_static_argument(
+                            syntax_trees,
+                            &crate::expression::StaticMachineArgument {
+                                path: syntax_trees
+                                    .expressions
+                                    .identifier_path_members(path.to_owned())
+                                    .to_vec()
+                                    .into_boxed_slice(),
+                                application: Some(application.clone()),
+                                ..Default::default()
+                            },
+                        ))
+                    }),
                 },
                 ExpressionNode::Range(range) => ExpressionSnapshot::Range {
                     start: range

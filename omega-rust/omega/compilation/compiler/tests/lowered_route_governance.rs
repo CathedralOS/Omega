@@ -16,7 +16,7 @@ use fixture_package_inputs::{
 use lowered_discharge::{RouteVerdict, judge_compilation};
 use structure_elaboration::Compilation;
 
-/// Kept in step with `lowered_discharge::NO_PRODUCT_ROUTE`.
+/// Kept in step with `compiler`'s `lowered_route::NO_PRODUCT_ROUTE`.
 const NO_PRODUCT_ROUTE: &str = "no product route yet";
 
 // Fixture compilation shares process-wide counters; run one at a time.
@@ -47,7 +47,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },

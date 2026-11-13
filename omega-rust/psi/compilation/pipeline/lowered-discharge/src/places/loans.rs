@@ -300,6 +300,16 @@ impl Storage<'_> {
                 match self.root_kind(argument.place, concerns)? {
                     StructuralPlaceKind::Parameter { .. }
                     | StructuralPlaceKind::OperationResult { .. } => Lender::Owner,
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type, ..
+                    } if access == ReferenceAccess::Shared
+                        && self
+                            .declaration(structural_type, concerns)?
+                            .shape
+                            .is_shared_readable_byte_view() =>
+                    {
+                        Lender::Owner
+                    }
                     _ => {
                         return Err(self.unsupported(
                             concerns,

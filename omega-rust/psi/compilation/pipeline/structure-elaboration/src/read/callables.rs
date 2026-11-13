@@ -58,6 +58,12 @@ impl<'t> Program<'t> {
                 "runtime callable has open static parameters",
             ));
         }
+        if !crate::reach::has_authored_ceiling(typed, machine, declared.symbol)? {
+            return Err(unavailable(
+                machine,
+                "runtime callable has an open service ceiling; write reaches",
+            ));
+        }
         let envelope = self.signature_envelope(machine, declared)?;
         let clauses = typed
             .signature_contracts

@@ -67,11 +67,4 @@ pub enum PackageReviewSemanticDependencyExposure {
     PublicInterface,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum PackageReviewSemanticDependencyKind {
-    NominalIdentity,
-    Layout,
-    OwnershipBehavior,
-    AutomaticCleanup,
-    AutomaticCleanupMachine,
-}
+pub type PackageReviewSemanticDependencyKind = semantic_vocabulary::SemanticDependencyKind;

@@ -8,8 +8,8 @@
 //! `wiki/spec/build/validation_subjects.md` sets what a check claims: "every
 //! declaration of the subject packages is valid", and the closure "starts
 //! from every declaration of every subject, including unused ones". So each
-//! program must be rejected by the route or handed back to the current
-//! checker, and none may be accepted.
+//! program must be rejected or reported as unsupported by the route, and
+//! none may be accepted.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -32,7 +32,7 @@ enum Expected {
     /// machine is unproved.
     Rejected,
     /// A subject declaration is outside what the route lowers, so the
-    /// current checker decides the whole compilation.
+    /// compilation is reported as unsupported.
     FallsBack,
     /// The route lowers the whole program and an obligation of the uncalled
     /// machine has a goal form the prover has no rule for: not accepted,
@@ -287,7 +287,7 @@ fn route_verdict(
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -490,7 +490,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: Some(another),
+            subjects: &[Some(another)],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -520,7 +520,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
             typed,
             Compilation {
                 entries: &frontier.entries,
-                subject: Some(another),
+                subjects: &[Some(another)],
                 selected: &[selected],
                 bindings: &frontier.bindings,
             },
@@ -717,13 +717,45 @@ fn staged_unused(name: &str, declaration: &str) -> Box<compiler::TypedFrontier> 
     }
 }
 
+/// A generic machine nothing applies is still in the check, as its own
+/// check form: judged once as written, with the closure judged beside it
+/// (`judge_compilation`). generics.md: "An unspecialized body checks every
+/// admitted alternative". A closure judged without it decides nothing, so
+/// `judge` alone hands the compilation back (the table above), and
+/// `judge_compilation` judges it: a valid body is accepted, and one that
+/// can overflow for a type it admits is rejected though no caller uses that
+/// type or any other.
+#[test]
+fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let parts = judged_parts;
+    // The closure (the empty entry) and the generic form, both accepted.
+    assert_eq!(
+        parts(
+            "generic_machine",
+            "machine keep<T>(value: u64) -> u64 { value }"
+        ),
+        [Verdict::Accepted(1), Verdict::Accepted(1)]
+    );
+    // One check per listed alternative; the body can overflow in each.
+    assert_eq!(
+        parts(
+            "generic_family_overflow",
+            "machine bump<T>(value: u64) -> u64 requires T == u8 || T == u16 { value + 1u64 }"
+        ),
+        [Verdict::Accepted(1), Verdict::Rejected, Verdict::Rejected]
+    );
+}
+
+/// Every part `judge_compilation` judges of `declaration` and an empty
+/// entry: the closure first, then each generic check form.
 fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
     let frontier = staged_unused(name, declaration);
     lowered_discharge::judge_compilation(
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -740,69 +772,16 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
     .collect()
 }
 
-/// A generic machine nothing applies is still in the check, as its own
-/// check form: judged once as written, with the closure judged beside it
-/// (`judge_compilation`). generics.md: "An unspecialized body checks every
-/// admitted alternative". A closure judged without it decides nothing, so
-/// `judge` alone hands the compilation back (the table above), and
-/// `judge_compilation` judges it: a valid body is accepted, and one that
-/// can overflow for a type it admits is rejected though no caller uses that
-/// type or any other.
-#[test]
-fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    // The closure (the empty entry) and the generic form, both accepted.
-    assert_eq!(
-        judged_parts(
-            "generic_machine",
-            "machine keep<T>(value: u64) -> u64 { value }"
-        ),
-        [Verdict::Accepted(1), Verdict::Accepted(1)]
-    );
-    // One check per listed alternative; the body can overflow in each.
-    assert_eq!(
-        judged_parts(
-            "generic_family_overflow",
-            "machine bump<T>(value: u64) -> u64 requires T == u8 || T == u16 { value + 1u64 }"
-        ),
-        [Verdict::Accepted(1), Verdict::Rejected, Verdict::Rejected]
-    );
-}
-
-/// A generic check form cannot assume the contract of itself or of another
-/// form that calls it back. Even a body with no result guarantee must refuse:
-/// otherwise its `terminates` promise could be accepted without a cycle proof.
-#[test]
-fn generic_application_cycles_are_refused_before_using_their_contracts() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    for (name, declaration, cycles) in [
-        (
-            "generic_application_of_itself",
-            "machine again<T>(item: T, limit: u32) -> u32 ensures result <= limit { again<T>(item, limit) }",
-            &["again"][..],
-        ),
-        (
-            "generic_application_of_itself_with_no_guarantee",
-            "machine forever<T>(item: T, limit: u32) -> u32 terminates { forever<T>(item, limit) }",
-            &["forever"][..],
-        ),
-        (
-            "generic_application_cycle_of_two",
-            "machine ping<T>(item: T, limit: u32) -> u32 { pong<T>(item, limit) }
-             machine pong<T>(item: T, limit: u32) -> u32 { ping<T>(item, limit) }",
-            &["ping", "pong"][..],
-        ),
-    ] {
-        let mut expected = vec![Verdict::Accepted(1)];
-        expected.extend(cycles.iter().map(|machine| {
-            Verdict::FallsBack(format!("generic machine `{machine}` on a call cycle"))
-        }));
-        assert_eq!(judged_parts(name, declaration), expected, "{name}");
-    }
-}
-
-/// A generic caller uses the callee's published contract in its own check
-/// form. Its justified bound passes; a tighter bound still refuses.
+/// A generic body that calls another generic machine at its own type
+/// parameter is judged, not handed back. `relay<T>` holds `forward<T>` as a
+/// contract with no body; `forward`'s own check form, judged in the same
+/// compilation, is what proves that contract for every `T`, so `relay`'s
+/// form is accepted on its own proofs. A bound the callee does not give
+/// still rejects the caller. A machine that applies itself is refused by
+/// name, with or without an `ensures`: its form would take its own contract
+/// as given, and nothing in a form judges the cycle. The one with no
+/// `ensures` and a `terminates` promise is the case that was once accepted:
+/// it has no contract row to leave undecided, and it never returns.
 #[test]
 fn a_generic_body_that_applies_another_generic_machine_is_judged() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -830,6 +809,41 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
             Verdict::Accepted(1),
             Verdict::Accepted(1),
             Verdict::Rejected
+        ]
+    );
+    assert_eq!(
+        judged_parts(
+            "generic_application_of_itself",
+            "machine again<T>(item: T, limit: u32) -> u32 \
+             ensures result <= 10 { again<T>(item, limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::FallsBack("generic machine `again` on a call cycle".to_owned())
+        ]
+    );
+    assert_eq!(
+        judged_parts(
+            "generic_application_of_itself_with_no_guarantee",
+            "machine forever<T>(item: T, limit: u32) -> u32              terminates { forever<T>(item, limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::FallsBack("generic machine `forever` on a call cycle".to_owned())
+        ]
+    );
+    // Two generic machines that reach each other are one cycle; each is
+    // refused.
+    assert_eq!(
+        judged_parts(
+            "generic_application_cycle_of_two",
+            "machine ping<T>(item: T, limit: u32) -> u32 { pong<T>(item, limit) }
+             machine pong<T>(item: T, limit: u32) -> u32 { ping<T>(item, limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::FallsBack("generic machine `ping` on a call cycle".to_owned()),
+            Verdict::FallsBack("generic machine `pong` on a call cycle".to_owned())
         ]
     );
 }

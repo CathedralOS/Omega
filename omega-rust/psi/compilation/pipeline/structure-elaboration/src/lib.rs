@@ -54,23 +54,18 @@ pub use canonical::substituted_routes as substituted_call_routes;
 mod components;
 mod declare;
 mod external_providers;
-pub use read::{source_zero_projection_bindings, source_zero_scalar};
-mod expression_formation;
-pub use expression_formation::{
-    SourceExpressionAssumptions, SourceExpressionBinding, SourceExpressionContext,
-    SourceExpressionGoal, SourceExpressionProjectionBinding, SourceExpressionValue,
-    elaborate_source_expression_witnesses, static_tuple_requirements,
-};
 mod lower;
 mod names;
 mod outcome;
+mod proof_scope;
 mod reach;
 mod read;
 mod static_contracts;
 
 pub use body::{
     Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, Policy, RecordField,
-    RecordType, Signature, Statement, Strict, Target, Termination, ValueType, self_place,
+    RecordType, Signature, Statement, StorageShape, Strict, Target, Termination, ValueType,
+    self_place,
 };
 pub use callable_headers::{CallableCrashPolicy, CallableHeader};
 pub use external_providers::{ExternalProviderCandidate, ProviderContractHeader};
@@ -81,7 +76,6 @@ pub use static_contracts::{
     StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
     StaticProviderCandidate, StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
 };
-pub use typed_trees::SourceServiceCorrespondence;
 
 use semantic_vocabulary::{
     BlockId, EdgeId, IdTable, MachineId, ObligationId, OperationId, PackageKeyIdentity,
@@ -99,17 +93,8 @@ use typed_trees::TypedTrees;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceOrigin {
     Authored(source::SourceSpan),
-    /// The exact typed occurrence survives source transformations even when
-    /// several generated operations share one authored span.
-    Typed {
-        owner: SymbolHandle,
-        node: SourceNode,
-        span: Option<source::SourceSpan>,
-    },
     Unpositioned(Unpositioned),
 }
-
-pub use typed_trees::{SourceCallCorrespondence, SourceNode};
 
 /// Why a lowered construct has no source position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -141,30 +126,7 @@ impl SourceOrigin {
     pub fn span(self) -> Option<source::SourceSpan> {
         match self {
             Self::Authored(span) => Some(span),
-            Self::Typed { span, .. } => span,
             Self::Unpositioned(_) => None,
-        }
-    }
-
-    pub fn node(self) -> Option<SourceNode> {
-        match self {
-            Self::Typed { node, .. } => Some(node),
-            Self::Authored(_) | Self::Unpositioned(_) => None,
-        }
-    }
-
-    pub fn owner(self) -> Option<SymbolHandle> {
-        match self {
-            Self::Typed { owner, .. } => Some(owner),
-            Self::Authored(_) | Self::Unpositioned(_) => None,
-        }
-    }
-
-    pub(crate) fn typed(owner: SymbolHandle, node: SourceNode, span: source::SourceSpan) -> Self {
-        Self::Typed {
-            owner,
-            node,
-            span: Self::of(span).span(),
         }
     }
 
@@ -200,9 +162,10 @@ pub struct MachineSources {
 pub struct Compilation<'a> {
     /// The Build's bound program entries. The first is the module's entry.
     pub entries: &'a [SymbolHandle],
-    /// The package the request checks. `None` for a source that belongs to
-    /// no admitted package; such a source is its own subject.
-    pub subject: Option<PackageKeyIdentity>,
+    /// Full checks explicitly requested in addition to the entry/selection
+    /// closure. `Some(package)` selects that package; `None` selects standalone
+    /// user source. An empty slice requests only the concrete root closure.
+    pub subjects: &'a [Option<PackageKeyIdentity>],
     /// The declarations the Build's selections name (selected providers and
     /// what each provides, layout-scope entries, chosen representations),
     /// whichever package declares them. The check claims each with its
@@ -211,6 +174,32 @@ pub struct Compilation<'a> {
     /// One visible-continuation shape obligation per executed Build binding.
     /// Deduplicating machine roots must not discard distinct slot contracts.
     pub bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
+}
+
+/// Exact authored occurrence of an emitted compiler-owned Build call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildCallOccurrence {
+    Expression(typed_trees::expression::ExpressionHandle),
+    Statement(typed_trees::statement::StatementHandle),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BuildCallSource {
+    pub owner: SymbolHandle,
+    pub declaration: SymbolHandle,
+    pub occurrence: BuildCallOccurrence,
+}
+
+/// The source protocol association and the physical operation it produced.
+/// It grants no host authority; accepted publication authenticates that later.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EmittedBuildCall {
+    pub machine: MachineId,
+    pub operation: OperationId,
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub owner: SymbolHandle,
+    pub declaration: SymbolHandle,
+    pub occurrence: BuildCallOccurrence,
 }
 
 /// The result of elaborating everything one compilation is responsible for:
@@ -227,6 +216,10 @@ pub struct Elaboration {
     /// README, "Findings".
     pub tables: CheckTables,
     pub sources: IdTable<MachineId, MachineSources>,
+    pub build_calls: Vec<EmittedBuildCall>,
+    /// Nominal storage and field identities from this same typed-tree owner.
+    /// Empty for raw bodies, which have no source declaration/application.
+    pub source_records: Vec<typed_trees::SourceRecordCorrespondence>,
     /// What diagnostics call each machine's constructs, read from the typed
     /// trees (`names`). Empty for bodies lowered without typed trees
     /// (`lower_bodies`): a message then names identities only.
@@ -300,15 +293,11 @@ pub struct Elaboration {
     /// The service ceiling each machine's header wrote and what a diagnostic
     /// calls each service (`reach`). The rows themselves are in `module`.
     pub reach: ServiceReach,
-    /// Source coordinates paired with this module's exact structural types.
-    pub source_records: Vec<typed_trees::SourceRecordCorrespondence>,
-    /// Canonical service IDs paired with their original declarations.
-    pub services: Vec<SourceServiceCorrespondence>,
     pub external_provider_candidates: Vec<ExternalProviderCandidate>,
     pub static_schemas: Vec<StaticSchemaQuestion>,
     pub static_conformances: Vec<StaticConformanceQuestion>,
     /// Each retained boundary's original declaration in the same typed frontier.
-    pub boundaries: IdTable<semantic_vocabulary::BoundaryMachineId, SymbolHandle>,
+    pub boundary_declarations: IdTable<semantic_vocabulary::BoundaryMachineId, SymbolHandle>,
 }
 
 /// One call through an implementation parameter in a machine stage 04
@@ -412,7 +401,23 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
 /// Any refusal refuses the whole compilation, because a module missing a
 /// machine the check claims would be a silent drop.
 pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<Elaboration> {
+    elaborate_for(
+        typed,
+        compilation,
+        terminal_codec::TerminalPublication::Portable,
+    )
+}
+
+/// Fixes publication custody before any structural identity is minted. An
+/// invocation is judged with its actual activation scope, never rewritten
+/// from a portable module after acceptance.
+pub fn elaborate_for(
+    typed: &TypedTrees,
+    compilation: Compilation<'_>,
+    publication: terminal_codec::TerminalPublication,
+) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, false);
+    program.publication = publication;
     let first = MachineId::new(1).expect("1 is nonzero");
     let Some((entry, others)) = compilation.entries.split_first() else {
         // A Terminal module names one entry machine, so a compilation that
@@ -430,8 +435,10 @@ pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<El
         program.fixed_inputs.push(other);
     }
     program.selected_declarations(entry, compilation.selected)?;
-    program.subject_declarations(entry, compilation.subject)?;
-    finish_reading(program, entry, IdTable::default(), Some(typed))
+    program.subject_declarations(entry, compilation.subjects)?;
+    let mut elaboration = finish_reading(program, entry, IdTable::default(), Some(typed))?;
+    proof_scope::declare(typed, &mut elaboration)?;
+    Ok(elaboration)
 }
 
 /// Elaborates one machine and the closure of machines it calls, in discovery
@@ -558,37 +565,7 @@ pub fn elaborate_witness(
 #[derive(Clone, Copy)]
 pub enum CallableDeclaration<'a> {
     Signature(&'a typed_trees::signature::StateSignature),
-    Operator(&'a typed_trees::operator::OperatorDefinition),
     Machine(SymbolHandle),
-    MachineState {
-        declaration: SymbolHandle,
-        entry: SymbolHandle,
-    },
-}
-
-/// Exact source applications and alpha correspondence supplied by formation.
-/// Type operands keep their original typed-table ownership. Captures are paired
-/// by declaration symbol, never by a rendered formal name.
-#[derive(Clone, Copy, Default)]
-pub struct CallableRefinementContext<'a> {
-    pub required_types: &'a [(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-    pub supplied_types: &'a [(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-    pub required_scope_starts: &'a [usize],
-    pub supplied_scope_starts: &'a [usize],
-    pub required_constants: &'a [(
-        SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-        language_semantics::const_value::CanonicalConstIdentity,
-    )],
-    pub supplied_constants: &'a [(
-        SymbolHandle,
-        typed_trees::types::TypeReferenceHandle,
-        language_semantics::const_value::CanonicalConstIdentity,
-    )],
-    pub binder_pairs: &'a [(SymbolHandle, SymbolHandle)],
-    pub required_lexical_owner: SymbolHandle,
-    pub supplied_lexical_owner: SymbolHandle,
-    pub selecting: Option<SymbolHandle>,
 }
 
 /// The logical refinement obligation between two published callable contracts.
@@ -602,24 +579,9 @@ pub fn elaborate_callable_witness<'a>(
     required: &'a typed_trees::signature::StateSignature,
     supplied: CallableDeclaration<'a>,
 ) -> Checked<Elaboration> {
-    elaborate_published_callable_witness(
-        typed,
-        CallableDeclaration::Signature(required),
-        supplied,
-        CallableRefinementContext::default(),
-    )
-}
-
-/// A proof between exact published declarations in their retained application
-/// context. Both headers stay abstract: no implementation body is a premise.
-pub fn elaborate_published_callable_witness<'a>(
-    typed: &'a TypedTrees,
-    required: CallableDeclaration<'a>,
-    supplied: CallableDeclaration<'a>,
-    context: CallableRefinementContext<'_>,
-) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, false);
-    let (entry, callee) = program.refinement_contracts(required, supplied, context)?;
+    let entry = program.witnessed_signature(required, &[])?;
+    let callee = program.callable_contract(supplied)?;
     elaborate_witness_call(program, entry, callee)
 }
 
@@ -709,6 +671,7 @@ fn finish_logical_witness(
         &services,
         &program.external_providers,
         &program.static_contracts,
+        program.publication,
     )?;
     witness.machines = program.symbols;
     witness.names = program.names;
@@ -753,8 +716,6 @@ fn finish_reading(
     program.finish_operational_envelopes(&bodies)?;
     program.prepare_external_providers(entry)?;
     let services = program.service_map(entry)?;
-    let source_records = program.source_records(entry)?;
-    let boundary_sources = program.boundary_sources(entry)?;
     let mut elaboration = lower_program(
         entry,
         &bodies,
@@ -766,12 +727,11 @@ fn finish_reading(
         &services,
         &program.external_providers,
         &program.static_contracts,
+        program.publication,
     )?;
     elaboration.machines = program.symbols.clone();
     crate::reach::publish(program.typed, entry, &services, &mut elaboration)?;
-    elaboration.source_records = source_records;
-    elaboration.services = services.correspondence(entry)?;
-    elaboration.boundaries = boundary_sources;
+    elaboration.boundary_declarations = program.boundaries.rows.map(|_, source| source.source);
     if let Some(typed) = declared {
         declare::declare(
             typed,
@@ -780,6 +740,7 @@ fn finish_reading(
             &mut elaboration,
         );
     }
+    elaboration.source_records = program.source_record_correspondence(entry)?;
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.local_results = local_results;
@@ -830,6 +791,24 @@ pub fn lower_generic(
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
 ) -> Checked<Elaboration> {
+    lower_generic_for(
+        entry,
+        bodies,
+        signatures,
+        records,
+        requirements,
+        terminal_codec::TerminalPublication::Portable,
+    )
+}
+
+fn lower_generic_for(
+    entry: MachineId,
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+    records: &IdTable<StructuralTypeId, RecordType>,
+    requirements: &[MachineId],
+    publication: terminal_codec::TerminalPublication,
+) -> Checked<Elaboration> {
     lower_program(
         entry,
         bodies,
@@ -841,6 +820,7 @@ pub fn lower_generic(
         &reach::ServiceMap::default(),
         &external_providers::ExternalProviderNamespace::default(),
         &static_contracts::StaticContracts::default(),
+        publication,
     )
 }
 
@@ -855,6 +835,7 @@ fn lower_program(
     services: &reach::ServiceMap,
     external_providers: &external_providers::ExternalProviderNamespace,
     static_contracts: &static_contracts::StaticContracts,
+    publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
     for requirement in requirements {
         let body = terminal_check_tables::row(bodies, *requirement, entry, Construct::Machine)?;
@@ -872,6 +853,14 @@ fn lower_program(
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
+    let identities = match publication {
+        terminal_codec::TerminalPublication::Portable => {
+            terminal_psi::TerminalIdentityTableBuilder::default()
+        }
+        terminal_codec::TerminalPublication::Invocation => {
+            terminal_psi::TerminalIdentityTableBuilder::for_invocation()
+        }
+    };
     let declared = lower::places::declare(
         entry,
         records,
@@ -897,14 +886,14 @@ fn lower_program(
                     .iter()
                     .map(|question| &question.signature),
             ),
+        identities,
     )?;
-    if !declared.structural_types.is_empty() {
-        module.identities = declared.identities;
-        module.structural_types = declared.structural_types;
-        module.native_layouts = declared.native_layouts;
-    }
+    module.identities = declared.identities;
+    module.structural_types = declared.structural_types;
+    module.native_layouts = declared.native_layouts;
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();
+    let mut build_calls = Vec::new();
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
             refuse(
@@ -931,6 +920,7 @@ fn lower_program(
         module.scalar_block_invariants.extend(lowered.invariants);
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
+        build_calls.extend(lowered.build_calls);
     }
     for machine in &mut module.machines {
         let plan = terminal_semantics::plain_affine::plan(machine, &module.structural_types)
@@ -1029,6 +1019,13 @@ fn lower_program(
         services,
         &mut module,
     )?;
+    // This is the emitted behavior before proving or publication. Keeping its
+    // inventory here lets product consumers retain the exact judged module.
+    module.unoptimized_behavior = module
+        .machines
+        .iter()
+        .map(terminal_psi::UnoptimizedMachineBehavior::capture)
+        .collect();
     let mut domains = IdTable::default();
     let (static_schemas, static_conformances) = static_contracts.publish(
         entry,
@@ -1048,6 +1045,8 @@ fn lower_program(
         module,
         tables,
         sources,
+        build_calls,
+        source_records: Vec::new(),
         names: IdTable::default(),
         machines: IdTable::default(),
         private_inputs: Vec::new(),
@@ -1061,14 +1060,62 @@ fn lower_program(
         generic_templates: Vec::new(),
         undeclared: Vec::new(),
         reach: ServiceReach::default(),
-        source_records: Vec::new(),
-        services: Vec::new(),
         external_provider_candidates,
         static_schemas,
         static_conformances,
-        boundaries: IdTable::default(),
+        boundary_declarations: IdTable::default(),
     })
 }
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod publication_scope_tests {
+    use super::*;
+
+    #[test]
+    fn invocation_scope_is_minted_before_lowering_even_without_records() {
+        let entry = MachineId::new(1).unwrap();
+        let mut bodies = IdTable::default();
+        bodies.push(Body {
+            slots: Vec::new(),
+            statements: Vec::new(),
+        });
+        let mut signatures = IdTable::default();
+        signatures.push(Signature {
+            parameters: Vec::new(),
+            erased: Vec::new(),
+            borrowed: Vec::new(),
+            result: None,
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(Vec::new()),
+            termination: Termination::Silent,
+        });
+        let lower = |publication| {
+            lower_generic_for(
+                entry,
+                &bodies,
+                &signatures,
+                &IdTable::default(),
+                &[],
+                publication,
+            )
+            .unwrap()
+        };
+        let first = lower(terminal_codec::TerminalPublication::Invocation);
+        let second = lower(terminal_codec::TerminalPublication::Invocation);
+        let portable = lower(terminal_codec::TerminalPublication::Portable);
+        assert!(portable.module.identities.invocation_scope().is_none());
+        let first_scope = first.module.identities.invocation_scope().unwrap();
+        let second_scope = second.module.identities.invocation_scope().unwrap();
+        assert_ne!(first_scope, second_scope);
+        let first_code = terminal_codec::InvocationTerminalCode::new(first.module).unwrap();
+        let second_code = terminal_codec::InvocationTerminalCode::new(second.module).unwrap();
+        assert_ne!(
+            first_code.view().custody_identity(),
+            second_code.view().custody_identity()
+        );
+    }
+}

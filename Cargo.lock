@@ -199,7 +199,6 @@ dependencies = [
  "build-output",
  "build-time-evaluation",
  "calling-conventions",
- "checked-trees",
  "compilation-products",
  "diagnostics",
  "effects",
@@ -214,9 +213,7 @@ dependencies = [
  "provider-planning",
  "psi-compiler",
  "psi-work",
- "representation-planning",
  "runtime-abi",
- "selected-dispatch",
  "semantic-vocabulary",
  "source",
  "symbols",
@@ -229,7 +226,6 @@ dependencies = [
  "terminal-runtime",
  "trust-model",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -239,7 +235,6 @@ dependencies = [
  "access-plans",
  "arena",
  "build-time-values",
- "checked-trees",
  "compiler-storage",
  "diagnostics",
  "evaluation-accounting",
@@ -254,7 +249,6 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
- "structure-elaboration",
  "symbol-resolved-trees",
  "symbol-resolved-trees-to-typed-trees",
  "symbols",
@@ -267,8 +261,6 @@ dependencies = [
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
- "typed-trees-to-typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -353,28 +345,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "checked-trees"
-version = "0.1.0"
-dependencies = [
- "access-plans",
- "arena",
- "compiler-storage",
- "diagnostics",
- "facts",
- "flow-effects",
- "language-core",
- "language-semantics",
- "numerics",
- "optimization",
- "proof-admission",
- "semantic-vocabulary",
- "source",
- "source-audit",
- "symbols",
- "typed-trees",
-]
-
-[[package]]
 name = "command-group"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -394,7 +364,6 @@ dependencies = [
  "build-output",
  "build-time-evaluation",
  "calling-conventions",
- "checked-trees",
  "compiler-storage",
  "component-description",
  "diagnostics",
@@ -410,8 +379,8 @@ dependencies = [
  "platform-custody",
  "program-entry-plan",
  "provider-planning",
+ "provider-selection",
  "psi-compiler",
- "representation-planning",
  "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
@@ -426,7 +395,6 @@ dependencies = [
  "terminal-psi-to-abstract-operations",
  "trust-model",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -447,7 +415,6 @@ dependencies = [
  "build-time-evaluation",
  "calling-conventions",
  "cap-std",
- "checked-trees",
  "compilation-products",
  "compiler-storage",
  "component-description",
@@ -466,7 +433,6 @@ dependencies = [
  "layout-plans",
  "libc",
  "lowered-discharge",
- "lowered-psi",
  "machine-code",
  "machine-emission",
  "mimalloc",
@@ -490,7 +456,6 @@ dependencies = [
  "psi-compiler",
  "psi-work",
  "register-model",
- "representation-planning",
  "runtime-abi",
  "selected-dispatch",
  "selected-instructions",
@@ -511,7 +476,6 @@ dependencies = [
  "terminal-semantics",
  "trust-model",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -677,20 +641,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "facts"
-version = "0.1.0"
-dependencies = [
- "arena",
- "compiler-storage",
- "language-core",
- "language-semantics",
- "numerics",
- "semantic-vocabulary",
- "symbols",
- "typed-trees",
-]
-
-[[package]]
 name = "filesystem-authority"
 version = "0.1.0"
 dependencies = [
@@ -815,7 +765,6 @@ dependencies = [
  "language-core",
  "layout-plans",
  "legalized-operations",
- "lowered-psi-to-terminal-psi",
  "machine-code",
  "machine-emission",
  "object-file",
@@ -907,7 +856,6 @@ dependencies = [
  "terminal-psi",
  "terminal-runtime",
  "tokens-to-syntax-trees",
- "typed-trees",
 ]
 
 [[package]]
@@ -1132,62 +1080,21 @@ version = "0.1.0"
 dependencies = [
  "diagnostics",
  "language-core",
- "language-semantics",
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
  "source",
+ "source-files-to-tokens",
  "structure-elaboration",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
  "terminal-check-tables",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "tokens-to-syntax-trees",
  "typed-trees",
-]
-
-[[package]]
-name = "lowered-psi"
-version = "0.1.0"
-dependencies = [
- "arena",
- "checked-trees",
- "language-semantics",
- "semantic-vocabulary",
- "symbols",
- "terminal-psi",
-]
-
-[[package]]
-name = "lowered-psi-to-lowered-psi"
-version = "0.1.0"
-dependencies = [
- "lowered-psi",
- "optimization",
- "semantic-vocabulary",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
-]
-
-[[package]]
-name = "lowered-psi-to-terminal-psi"
-version = "0.1.0"
-dependencies = [
- "checked-trees",
- "language-core",
- "language-semantics",
- "lowered-psi",
- "lowered-psi-to-lowered-psi",
- "numerics",
- "proof-admission",
- "semantic-vocabulary",
- "symbols",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
- "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -1571,7 +1478,6 @@ dependencies = [
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
- "checked-trees",
  "compiler-storage",
  "diagnostics",
  "effects",
@@ -1597,7 +1503,6 @@ dependencies = [
 name = "package-evidence"
 version = "0.1.0"
 dependencies = [
- "arena",
  "calling-conventions",
  "compilation-products",
  "diagnostics",
@@ -1605,22 +1510,17 @@ dependencies = [
  "flow-effects",
  "language-core",
  "language-semantics",
- "layout",
  "layout-plans",
  "numerics",
  "optimization-core",
  "package-compilation",
- "proof",
  "provider-planning",
- "psi-terminal-production",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
  "symbols",
  "target",
  "terminal-psi",
- "terminal-semantics",
- "trust-model",
  "typed-trees",
 ]
 
@@ -1768,18 +1668,10 @@ name = "proof"
 version = "0.1.0"
 dependencies = [
  "arena",
- "checked-trees",
- "diagnostics",
- "language-core",
  "language-semantics",
- "numerics",
  "proof-admission",
- "semantic-vocabulary",
- "source",
- "symbols",
  "syntax-trees",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -1836,7 +1728,6 @@ dependencies = [
  "build-time-evaluation",
  "build-time-values",
  "calling-conventions",
- "checked-trees",
  "component-description",
  "diagnostics",
  "effects",
@@ -1851,23 +1742,17 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-selection",
- "psi-terminal-production",
  "psi-work",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
  "source-audit",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
- "tokens-to-syntax-trees",
- "typed-trees",
 ]
 
 [[package]]
@@ -1896,13 +1781,12 @@ dependencies = [
  "compiler-storage",
  "diagnostics",
  "flow-effects",
+ "language-core",
  "language-semantics",
  "layout-plans",
  "optimization",
  "psi-terminal-production",
  "rayon",
- "representation-planning",
- "representation-selections",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
@@ -1916,19 +1800,16 @@ dependencies = [
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-typed-trees",
- "validation",
 ]
 
 [[package]]
 name = "psi-terminal-production"
 version = "0.1.0"
 dependencies = [
- "checked-trees",
  "compiler-storage",
  "diagnostics",
  "language-semantics",
  "lowered-discharge",
- "optimization",
  "semantic-vocabulary",
  "source",
  "structure-elaboration",
@@ -2041,30 +1922,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "representation-planning"
-version = "0.1.0"
-dependencies = [
- "diagnostics",
- "language-semantics",
- "representation-selections",
- "source",
- "symbols",
- "typed-trees",
- "validation",
-]
-
-[[package]]
-name = "representation-selections"
-version = "0.1.0"
-dependencies = [
- "compiler-storage",
- "language-semantics",
- "source",
- "symbols",
- "typed-trees",
-]
-
-[[package]]
 name = "resolved-layout-to-resolved-layout"
 version = "0.1.0"
 dependencies = [
@@ -2147,26 +2004,18 @@ dependencies = [
 name = "selected-dispatch"
 version = "0.1.0"
 dependencies = [
- "arena",
  "backend-plan",
- "checked-trees",
  "diagnostics",
  "effects",
- "language-core",
  "language-semantics",
- "numerics",
  "package-compilation",
- "program-entry-plan",
  "provider-planning",
- "provider-selection",
  "psi-terminal-production",
  "semantic-vocabulary",
- "source",
  "symbols",
  "target",
  "terminal-psi",
  "trust-model",
- "typed-trees",
 ]
 
 [[package]]
@@ -2445,7 +2294,6 @@ dependencies = [
  "arena",
  "compiler-storage",
  "diagnostics",
- "facts",
  "language-core",
  "language-semantics",
  "numerics",
@@ -2454,7 +2302,6 @@ dependencies = [
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -2858,19 +2705,12 @@ name = "typed-trees-to-typed-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "checked-trees",
  "compiler-storage",
  "diagnostics",
- "facts",
  "language-core",
  "language-semantics",
- "numerics",
- "proof",
- "representation-selections",
- "source",
  "symbols",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -2884,34 +2724,6 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
-
-[[package]]
-name = "validation"
-version = "0.1.0"
-dependencies = [
- "access-plans",
- "arena",
- "checked-trees",
- "compiler-storage",
- "diagnostics",
- "facts",
- "flow-effects",
- "language-core",
- "language-semantics",
- "layout-plans",
- "lowered-discharge",
- "numerics",
- "optimization",
- "proof-admission",
- "rayon",
- "representation-selections",
- "semantic-vocabulary",
- "source",
- "structure-elaboration",
- "symbols",
- "terminal-check-tables",
- "typed-trees",
-]
 
 [[package]]
 name = "verified-optimization-input"
@@ -2934,7 +2746,6 @@ dependencies = [
  "provider-selection",
  "semantic-vocabulary",
  "target",
- "target-operations",
  "task-plans",
  "terminal-codec",
  "terminal-installation",

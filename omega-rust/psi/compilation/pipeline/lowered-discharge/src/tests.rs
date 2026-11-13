@@ -22,7 +22,9 @@ use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
+mod applications;
 mod arithmetic_policies;
+mod arrays;
 mod callable_contracts;
 mod empty_records;
 mod entry_inputs;
@@ -31,6 +33,7 @@ mod inferred_bounds;
 mod mathematical_clauses;
 mod mutable_formals;
 mod owned_records;
+mod proof_scope;
 mod ranges;
 mod reach;
 mod references;
@@ -1286,18 +1289,19 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Point"),
-        fields: vec![
+        shape: structure_elaboration::StorageShape::Record(vec![
             field(1, "x", ValueType::Scalar(u32_type())),
             field(2, "y", ValueType::Scalar(u32_type())),
-        ],
-        cases: Vec::new(),
+        ]),
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Line"),
-        fields: vec![field(3, "from", point()), field(4, "to", point())],
-        cases: Vec::new(),
+        shape: structure_elaboration::StorageShape::Record(vec![
+            field(3, "from", point()),
+            field(4, "to", point()),
+        ]),
         requires: Vec::new(),
     });
     records
@@ -1455,12 +1459,11 @@ fn an_affine_empty_case_cannot_be_moved_twice() {
     records.push(RecordType {
         copyable: false,
         identity: "EmptyCase".into(),
-        fields: Vec::new(),
-        cases: vec![structure_elaboration::CaseType {
+        shape: structure_elaboration::StorageShape::Sum(vec![structure_elaboration::CaseType {
             id: id(1),
             identity: "Empty".into(),
             fields: Vec::new(),
-        }],
+        }]),
         requires: Vec::new(),
     });
     let caller = |again| Shaped {
@@ -1777,7 +1780,7 @@ fn field_reads(elaboration: &structure_elaboration::Elaboration) -> Vec<(Operati
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
-        .filter(|operation| matches!(operation.kind, OperationKind::ScalarStructuralField { .. }))
+        .filter(|operation| matches!(operation.kind, OperationKind::PrimitiveScalarRead { .. }))
         .map(|operation| (operation.id, operation.result.scalar_ref().unwrap().id))
         .collect()
 }
@@ -2164,13 +2167,27 @@ fn sibling_fields_are_disjoint_and_ancestors_overlap() {
     assert!(may(first_case, second_case));
     assert!(may(first_case, field));
     assert!(may(field, first_case));
-    assert!(may(first_index, second_index));
+    assert!(!may(first_index, second_index));
 }
 
 fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
+    let mut destination = Expression {
+        kind: ExpressionKind::Slot(slot),
+        result: None,
+        source: nowhere(),
+    };
+    for field in path {
+        destination = Expression {
+            kind: ExpressionKind::Field {
+                base: Box::new(destination),
+                field: *field,
+            },
+            result: None,
+            source: nowhere(),
+        };
+    }
     Statement::Store {
-        slot,
-        path: path.to_vec(),
+        destination,
         value,
         source: nowhere(),
     }
@@ -2849,12 +2866,11 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     types.push(RecordType {
         copyable: true,
         identity: String::from("Gated"),
-        fields: vec![RecordField {
+        shape: structure_elaboration::StorageShape::Record(vec![RecordField {
             id: id(5),
             identity: String::from("v"),
             value_type: ValueType::Scalar(u32_type()),
-        }],
-        cases: Vec::new(),
+        }]),
         requires: vec![Proposition::LessOrEqual(number(1), field_of_self(5))],
     });
     let gated = ValueType::Record(id(3));
@@ -3000,15 +3016,16 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Point"),
-        fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
-        cases: Vec::new(),
+        shape: structure_elaboration::StorageShape::Record(vec![
+            field(1, "x", scalar),
+            field(2, "y", scalar),
+        ]),
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Shape"),
-        fields: Vec::new(),
-        cases: vec![
+        shape: structure_elaboration::StorageShape::Sum(vec![
             case(1, "Dot", vec![field(3, "at", scalar)]),
             case(
                 2,
@@ -3017,14 +3034,13 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
             ),
             case(3, "Boxed", vec![field(6, "inner", point())]),
             case(4, "Empty", Vec::new()),
-        ],
+        ]),
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Holder"),
-        fields: vec![field(7, "shape", shape())],
-        cases: Vec::new(),
+        shape: structure_elaboration::StorageShape::Record(vec![field(7, "shape", shape())]),
         requires: Vec::new(),
     });
     records
@@ -3063,6 +3079,7 @@ fn matching(
 ) -> Expression {
     of_type(
         ExpressionKind::Match {
+            capture: None,
             subject: Box::new(subject),
             arms,
             default: default.map(Box::new),
@@ -3650,8 +3667,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
     let record = |spelled: &str, fields, requires| RecordType {
         copyable: true,
         identity: spelled.to_owned(),
-        fields,
-        cases: Vec::new(),
+        shape: structure_elaboration::StorageShape::Record(fields),
         requires,
     };
     let mut records = IdTable::default();
@@ -3679,8 +3695,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("ByteRead"),
-        fields: Vec::new(),
-        cases: vec![
+        shape: structure_elaboration::StorageShape::Sum(vec![
             CaseType {
                 id: id(1),
                 identity: String::from("Eof"),
@@ -3691,7 +3706,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
                 identity: String::from("Byte"),
                 fields: vec![field(6, "value", scalar)],
             },
-        ],
+        ]),
         requires: vec![Proposition::Disjunction(vec![
             self_is(1),
             Proposition::Conjunction(vec![
@@ -5175,22 +5190,19 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Both"),
-        fields: vec![field(10, "a"), field(11, "b")],
-        cases: Vec::new(),
+        shape: structure_elaboration::StorageShape::Record(vec![field(10, "a"), field(11, "b")]),
         requires: vec![at_least_one(10), at_least_one(11)],
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Half"),
-        fields: vec![field(12, "a"), field(13, "b")],
-        cases: Vec::new(),
+        shape: structure_elaboration::StorageShape::Record(vec![field(12, "a"), field(13, "b")]),
         requires: vec![at_least_one(12)],
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Limits"),
-        fields: vec![field(14, "a"), field(15, "b")],
-        cases: Vec::new(),
+        shape: structure_elaboration::StorageShape::Record(vec![field(14, "a"), field(15, "b")]),
         requires: vec![
             Proposition::LessOrEqual(field_of_self(14), number(5)),
             at_least_one(15),

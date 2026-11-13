@@ -1,7 +1,6 @@
 //! Form static schemas in their own binder scope and retain each exact
 //! required/supplied question. A named map grants no evidence by itself.
 
-use language_semantics::{ServiceReachRowId, ServiceReachRowTable};
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
@@ -26,15 +25,7 @@ impl Program<'_> {
         signature: &StateSignature,
         boundary: bool,
     ) -> Checked<StaticSourceEnvelope> {
-        let written = self
-            .typed
-            .authored_service_reach_rows_for(signature.symbol)
-            .next()
-            .is_some()
-            || !matches!(
-                signature.service_reach_row,
-                ServiceReachRowId::NULL | ServiceReachRowTable::EMPTY_ROW
-            );
+        let written = crate::reach::has_authored_ceiling(self.typed, context, signature.symbol)?;
         let service_reach = if written {
             if signature.service_reach_is_installation_bound {
                 return Err(services::unavailable(

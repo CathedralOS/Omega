@@ -1,12 +1,15 @@
-// Prepare one immutable source frontier, judge it with the lowered-form
-// checker, and retain exactly the artifact and declaration packet it publishes.
-// Native selection consumes that packet; no retired body verdict or lowering
-// output can substitute for it.
+// Prepare the actual frozen typed owner, judge its complete structural closure,
+// and retain that same owner for product consumers. No old judgment or checked
+// tree projection participates in producing the application.
 
+use artifacts::compile_timings::StageMeta;
 use compilation_products::{CheckedProductSource, PreparedProductSource};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use std::sync::Arc;
+
+const SOURCE_PREPARATION: StageMeta =
+    StageMeta::new("typed-source-preparation", "TypedTrees", "FrozenTypedTrees");
 
 pub(crate) fn check_product_source(
     source: PreparedProductSource,
@@ -28,9 +31,8 @@ pub(crate) fn check_product_source(
     let build = &computed_build_config.config;
     let symbol_sources = typed.symbols.source_map();
     let layout_scopes = layout_target_scopes(&typed, build)?;
-    let mut external_roots = build.program_roots();
-    let bindings =
-        provider_planning::program_entry::bound_program_entry_shapes(&typed, &build.root_bindings)?;
+    let external_roots = build.program_roots();
+    let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
     let mut selected = Vec::new();
     for selection in layout_scopes
         .iter()
@@ -55,17 +57,16 @@ pub(crate) fn check_product_source(
     }
     // Every admitted native supply needs its exact boundary and signature for
     // calling-policy validation and trust disclosure, even when its target or
-    // requirement is unused. Keep that checked closure through subject
-    // projection just as for an ordinary provider selection.
+    // requirement is unused. Claim these source declarations alongside each
+    // ordinary provider selection in the structural judgment.
     selected.extend(
         build
             .native_bindings
             .iter()
             .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
     );
-    // Representation choices name both an opaque type and its conformance.
-    // Keep both as checking subjects even when the conformance lives in an
-    // otherwise unused dependency.
+    // Representation declarations are claimed source dependencies; preparation
+    // explicitly refuses choices with no surviving admission route.
     selected.extend(
         build
             .opaque_representation_selections
@@ -73,7 +74,9 @@ pub(crate) fn check_product_source(
             .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
     );
     let source_admission = psi_compiler::SourceAdmission {
-        external_roots: &external_roots,
+        // Roots belong to structural judgment below, rather than to a deleted
+        // source-checking admission or projection.
+        external_roots: &[],
         layout_scopes: &layout_scopes,
         layout_selection_authority: package_inputs.map(|inputs| {
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
@@ -103,24 +106,53 @@ pub(crate) fn check_product_source(
             retained: &build.opaque_representation_selections,
         },
         asm_authority: Some(
-            validation::AsmAuthorityAdmission::from_freestanding(build.settings.freestanding)
-                .with_grants(
-                    build.settings.privileged_services.port_io,
-                    build.settings.privileged_services.interrupt_table,
-                ),
+            language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(
+                build.settings.freestanding,
+            )
+            .with_grants(
+                build.settings.privileged_services.port_io,
+                build.settings.privileged_services.interrupt_table,
+            ),
         ),
         wire_demands: &build.wire_compatibility_demands,
-        declarations: package_inputs
-            .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+        declarations: None,
     };
-    let typed = Arc::new(psi_compiler::prepare_product_typed_frontier(
-        typed,
-        &source_admission,
-    )?);
+
+    let source = timings.record_result(SOURCE_PREPARATION, || {
+        psi_compiler::SourcePreparationRequest {
+            program: typed,
+            admission: source_admission,
+        }
+        .prepare()
+    })?;
+    let program = source.program;
+    let subject = package_inputs.map(PackageCompilationInputs::root);
+    let judged = super::lowered_route::RouteScope {
+        entries: &external_roots,
+        subject,
+        selected: &selected,
+        bindings: &bindings,
+    }
+    .judge(Arc::clone(&program));
+    if let Some(frontier) = frontier {
+        *frontier = Some(super::typed_frontier::TypedFrontier {
+            typed: program.as_ref().clone(),
+            entries: external_roots,
+            subject,
+            selected,
+            bindings,
+        });
+    }
+    let accepted_source = judged.map_err(|mut diagnostics| {
+        if let Some(sources) = symbol_sources.as_deref() {
+            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+        }
+        diagnostics
+    })?;
     let mut provider_defaults =
         build_time_evaluation::provider_declarations::retain_provider_defaults(
             build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
-                &typed,
+                &program,
                 source::DependencyScope::Product,
             ),
         )?;
@@ -135,89 +167,27 @@ pub(crate) fn check_product_source(
             },
         );
     }
-    let code_roots =
-        crate::terminal::source_roots::collect(&typed, &computed_build_config, &provider_defaults)?;
-    // Keep the Build's first actual entry as the executable entry. Additional
-    // source-code obligations are checked roots, never extra invocation edges.
-    if !external_roots.is_empty() {
-        for machine in code_roots.machines {
-            if !external_roots.contains(&machine) {
-                external_roots.push(machine);
-            }
-        }
-    }
-    selected.extend(code_roots.boundaries);
-    selected.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
-    selected.dedup();
-    let subject = package_inputs.map(PackageCompilationInputs::root);
-    let route_scope = super::lowered_route::RouteScope {
-        entries: &external_roots,
-        subject,
-        selected: &selected,
-        bindings: &bindings,
-    };
-    // Keeping a frontier is an explicit inspection request. The normal
-    // product path shares one Arc through checking, metadata and emission.
-    if let Some(frontier) = frontier {
-        *frontier = Some(super::typed_frontier::TypedFrontier {
-            typed: typed.as_ref().clone(),
-            entries: external_roots.clone(),
-            subject,
-            selected: selected.clone(),
-            bindings: bindings.clone(),
-        });
-    }
-    let started = std::time::Instant::now();
-    let judged = timings.record_result(
-        artifacts::compile_timings::StageMeta::new("Psi check", "TypedTrees", "AcceptedPsi"),
-        || {
-            let (verdict, published) = route_scope.judge(&typed);
-            verdict.verdict()?;
-            published
-        },
+    let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
+    let provider_inventory = Arc::new(
+        typed_trees::provider_declarations::PreparedProviderInventory::new(
+            Arc::clone(&program),
+            sources.exact_toolchain_sources(),
+        ),
     );
-    artifacts::compile_timings::counters::record_product_source_check(started.elapsed());
-    let program = judged.map_err(|mut diagnostics| {
-        if let Some(sources) = symbol_sources.as_deref() {
-            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
-        }
-        diagnostics
-    })?;
-    if !Arc::ptr_eq(&typed, program.typed()) {
-        return Err(vec![Diagnostic::error(
-            "checked product publication changed its source frontier",
-        )]);
-    }
-    let sources = Arc::new(build_sources.seal(&typed, package_inputs)?);
-    let provider_inventory = Arc::new(provider_planning::PreparedProviderInventory::new(
-        Arc::clone(&program),
-        sources.exact_toolchain_sources(),
-    ));
     let terminal_publication = Arc::new(
         compilation_products::ProductTerminalPublication::new(
             rollback
-                .settle(&build.settings.optimizations)
+                .settle(&computed_build_config.config.settings.optimizations)
                 .effective()
                 .clone(),
         )
-        .with_checked_application(Ok(Arc::clone(&program))),
-    );
-    let native_bindings = Arc::new(
-        provider_planning::native_bindings::PreparedNativeBuildBindings::capture(
-            provider_inventory
-                .services_for(&program)
-                .map_err(|error| vec![error])?,
-            &build.native_bindings,
-        ),
+        .with_accepted(accepted_source),
     );
     Ok(CheckedProductSource {
         source_completion_accounting,
         program,
         provider_inventory,
-        native_bindings,
         terminal_publication,
-        calling_program: Arc::default(),
-        binding_declarations: Arc::default(),
         provider_defaults: provider_defaults.into(),
         computed_build_config,
         admission,

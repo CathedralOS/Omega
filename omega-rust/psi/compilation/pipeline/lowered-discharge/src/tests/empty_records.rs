@@ -19,19 +19,17 @@ fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable,
         identity: "Token".into(),
-        fields: Vec::new(),
-        cases: Vec::new(),
+        shape: structure_elaboration::StorageShape::Record(Vec::new()),
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable,
         identity: "Holder".into(),
-        fields: vec![RecordField {
+        shape: structure_elaboration::StorageShape::Record(vec![RecordField {
             id: id(1),
             identity: "token".into(),
             value_type: token(),
-        }],
-        cases: Vec::new(),
+        }]),
         requires: Vec::new(),
     });
     records

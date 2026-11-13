@@ -1,14 +1,10 @@
-//! Mathematical declaration checking and source proof descriptions.
-//!
-//! `mathematical_declarations::check_mathematical_declarations` elaborates
-//! authored definitions and inductive families and checks their evidence in
-//! the proof-admission kernel. Source reports describe authored contracts;
-//! executable body obligations belong to the lowered-form checker.
+//! Syntax-only proof surface reports and static boundary/lemma descriptions.
+//! These reports describe authored syntax; they establish no source judgment,
+//! mathematical signature or accepted certificate. The independent proof kernel
+//! remains in the separate proof-admission crate and is not retired here.
 
 pub mod boundary;
 pub mod lemmas;
-pub mod mathematical_declarations;
-mod source_operations;
 
 pub(crate) mod proof_surface {
     use arena::Arena;
@@ -333,79 +329,6 @@ pub(crate) mod proof_surface {
         state: &item::StateSignature,
         owner: &str,
     ) {
-        for parameter in syntax_trees.items.type_parameters(state.type_parameters) {
-            use item::{MachineParameterContract, TypeParameterKind};
-            let parameter_owner = format!(
-                "{owner} static parameter `{}`",
-                parameter.name.as_str(syntax_trees)
-            );
-            match &parameter.kind {
-                TypeParameterKind::Const { type_reference }
-                | TypeParameterKind::Value { type_reference } => {
-                    collect_bounded_type_site(
-                        report,
-                        syntax_trees,
-                        *type_reference,
-                        &parameter_owner,
-                    );
-                }
-                TypeParameterKind::Machine {
-                    contract: Some(MachineParameterContract::Structural(signature)),
-                } => {
-                    collect_state_signature_node(report, syntax_trees, signature, &parameter_owner);
-                }
-                TypeParameterKind::Machine {
-                    contract:
-                        Some(MachineParameterContract::Nominal {
-                            trait_arguments, ..
-                        }),
-                } => {
-                    for argument in syntax_trees
-                        .type_references
-                        .type_reference_handles(*trait_arguments)
-                    {
-                        collect_bounded_type_site(
-                            report,
-                            syntax_trees,
-                            *argument,
-                            &parameter_owner,
-                        );
-                    }
-                }
-                TypeParameterKind::Proposition {
-                    contract: Some(signature),
-                } => {
-                    for formal in syntax_trees.items.state_parameters(signature.parameters) {
-                        let formal = syntax_trees.items.state_parameter(*formal);
-                        collect_bounded_type_site(
-                            report,
-                            syntax_trees,
-                            formal.type_reference,
-                            &parameter_owner,
-                        );
-                    }
-                }
-                TypeParameterKind::Type
-                | TypeParameterKind::Implementation
-                | TypeParameterKind::Machine {
-                    contract:
-                        None
-                        | Some(
-                            MachineParameterContract::Inferred
-                            | MachineParameterContract::RequirementIdentity,
-                        ),
-                }
-                | TypeParameterKind::Proposition { contract: None } => {}
-            }
-        }
-        for bound in &state.conformance_bounds {
-            for argument in syntax_trees
-                .type_references
-                .type_reference_handles(bound.arguments)
-            {
-                collect_bounded_type_site(report, syntax_trees, *argument, owner);
-            }
-        }
         collect_contracts(report, syntax_trees, state.contracts, owner);
         collect_signature_parts(
             report,
@@ -482,15 +405,6 @@ pub(crate) mod proof_surface {
         owner: &str,
     ) {
         match syntax_trees.type_references.type_reference(type_reference) {
-            TypeReferenceNode::Callable { signature } => {
-                let signature = syntax_trees.items.state_signature(*signature);
-                collect_state_signature_node(
-                    report,
-                    syntax_trees,
-                    signature,
-                    &format!("{owner} callable signature"),
-                );
-            }
             TypeReferenceNode::Reference { referee, .. } => {
                 collect_bounded_type_site(report, syntax_trees, *referee, owner);
             }
@@ -596,27 +510,6 @@ pub(crate) mod proof_surface {
         type_reference: TypeReferenceHandle,
     ) -> String {
         match syntax_trees.type_references.type_reference(type_reference) {
-            TypeReferenceNode::Callable { signature } => {
-                let signature = syntax_trees.items.state_signature(*signature);
-                let parameters = syntax_trees
-                    .items
-                    .state_parameters(signature.parameters)
-                    .iter()
-                    .map(|parameter| {
-                        let parameter = syntax_trees.items.state_parameter(*parameter);
-                        format!(
-                            "{}: {}",
-                            parameter.name.as_str(syntax_trees),
-                            type_reference_name(syntax_trees, parameter.type_reference)
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!(
-                    "machine({parameters}) -> {}",
-                    type_reference_name(syntax_trees, signature.return_type)
-                )
-            }
             TypeReferenceNode::Reference {
                 referee, access, ..
             } => {
@@ -722,24 +615,6 @@ pub(crate) mod proof_surface {
             .items
             .identifier_path_members(name)
             .joined_path_in(syntax_trees)
-    }
-}
-pub(crate) mod typed_expressions {
-    use typed_trees::TypedTreeTables;
-    use typed_trees::expression::ExpressionTable;
-    use typed_trees::statement::StatementTable;
-    use typed_trees::types::TypeReferenceTable;
-
-    pub(crate) fn expression_table(tables: &TypedTreeTables) -> &ExpressionTable {
-        &tables.expression_table
-    }
-
-    pub(crate) fn statement_table(tables: &TypedTreeTables) -> &StatementTable {
-        &tables.statement_table
-    }
-
-    pub(crate) fn type_reference_table(tables: &TypedTreeTables) -> &TypeReferenceTable {
-        &tables.type_reference_table
     }
 }
 

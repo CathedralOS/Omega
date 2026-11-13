@@ -176,7 +176,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             };
             let mut checked = Vec::new();
             for mut form in forms {
-                let found = match discharge(&mut form, &mut Default::default()) {
+                let found = match discharge(&mut form) {
                     Ok(found) => found,
                     Err(refusal) => {
                         return format!(
@@ -211,7 +211,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         // does not yet serve every machine of the whole program.
         if let Some(symbol) = consumer.machines.get(specialization).copied()
             && let Ok(mut alone) = structure_elaboration::elaborate_closure(typed, symbol)
-            && let Ok(searched) = discharge(&mut alone, &mut Default::default())
+            && let Ok(searched) = discharge(&mut alone)
         {
             report(
                 "concrete",
@@ -273,7 +273,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                         );
                     }
                 };
-                let refinement = match discharge(&mut witness, &mut Default::default()) {
+                let refinement = match discharge(&mut witness) {
                     Ok(refinement) => refinement,
                     Err(refusal) => {
                         return format!(
@@ -309,7 +309,6 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 &mut consumer,
                 specialization,
                 &selections,
-                &mut Default::default(),
             );
             let corresponds = carried.is_ok();
             outcome = Some(carried);

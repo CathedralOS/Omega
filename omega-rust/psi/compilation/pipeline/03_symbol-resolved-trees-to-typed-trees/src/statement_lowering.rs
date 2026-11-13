@@ -460,30 +460,33 @@ pub(crate) mod statement {
                 typed::type_system::source_projections::SourceTypeCursor::new(root_type);
             let mut current = root_type;
             for step in steps.into_iter().rev() {
-                match step {
+                current = match step {
                     ProjectionStep::Element(selector) => {
-                        let selector =
-                            crate::expressions::expression::lower_executable_expression_handle(
-                                lowerer, selector,
-                            )?;
-                        let _ = selector;
-                        let Some(projected) = projection.element(&lowerer.typed_trees) else {
-                            return Ok(None);
-                        };
-                        current = projected;
+                        // Retain the exact authored operand even though reading
+                        // an element type supplies no index/bounds evidence.
+                        crate::expressions::expression::lower_executable_expression_handle(
+                            lowerer, selector,
+                        )?;
+                        crate::typing_queries::collection_element_type(
+                            &lowerer.typed_trees,
+                            current,
+                        )?
                     }
                     ProjectionStep::Field(member) => {
-                        let Some(symbol) =
+                        let symbol =
                             declared_projection_field(&lowerer.typed_trees, current, member)
-                        else {
-                            return Ok(None);
-                        };
-                        let Some(projected) = projection.field(&lowerer.typed_trees, symbol) else {
-                            return Ok(None);
-                        };
-                        current = projected;
+                                .ok_or_else(|| {
+                                    crate::unavailable_judgment(
+                                        "collection field declaration identity",
+                                    )
+                                })?;
+                        crate::typing_queries::collection_field_type(
+                            &lowerer.typed_trees,
+                            current,
+                            symbol,
+                        )?
                     }
-                }
+                };
             }
             Ok(Some(current))
         }

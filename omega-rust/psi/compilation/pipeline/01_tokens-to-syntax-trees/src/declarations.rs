@@ -1001,9 +1001,10 @@ pub(crate) mod domain {
             );
             Some((
                 ProofMembershipFact {
-                    value: syntax_trees
-                        .expressions
-                        .insert(ExpressionNode::Name(subject_path)),
+                    value: syntax_trees.expressions.insert(ExpressionNode::Name {
+                        members: subject_path,
+                        application: None,
+                    }),
                     domain: parent_path,
                     domain_arguments: name_segments[name_segments.len() - 2].1,
                 },

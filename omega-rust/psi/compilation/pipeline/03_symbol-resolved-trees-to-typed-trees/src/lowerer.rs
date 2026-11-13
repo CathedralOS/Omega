@@ -21,7 +21,6 @@ use crate::expressions::equatable::validate_equatable_conformances_in;
 use crate::expressions::exhaustiveness::validate_case_dispatch_exhaustiveness_in;
 use crate::expressions::expression::lower_expression_handle;
 use crate::lowerer::progress::normalize_machine_progress_premises;
-use crate::signatures::lexical_context::captured_arguments;
 use crate::tables::resolved_expressions;
 use crate::type_reference::domain_constraints::normalize_domain_constraints;
 use crate::type_reference::{
@@ -414,7 +413,7 @@ pub(crate) mod progress {
                 }
                 None => {
                     substitution = Vec::new();
-                    validation::field_domains::exact_declared_field(program, *projection)?
+                    crate::typing_queries::exact_declared_field(program, *projection)?
                 }
             };
             position = field.type_reference;
@@ -573,74 +572,16 @@ pub(crate) mod seeded_continuation {
         }
 
         pub fn activate_sources(
-            mut self,
-            sources: Arc<SourceMap>,
-            current_sources: Arc<SourceMap>,
-            bindings: Vec<SourceScopedTopLevelBinding>,
+            self,
+            _sources: Arc<SourceMap>,
+            _current_sources: Arc<SourceMap>,
+            _bindings: Vec<SourceScopedTopLevelBinding>,
         ) -> Result<Self, Vec<Diagnostic>> {
-            let mut resolved = Arc::unwrap_or_clone(self.resolved_base_for_extension()?);
-            if resolved
-                .symbols
-                .source_map()
-                .is_none_or(|previous| !sources.retains_source_storage(&previous))
-            {
-                return Err(vec![Diagnostic::error(
-                    "source activation does not retain its paired source coordinates",
-                )]);
-            }
-            let mut typed =
-                validation::execution_projection::project_source_program(&self.typed, &sources);
-            let selection = typed_trees::references::DeclarationSelection::from_program(&typed);
-            macro_rules! select_roots {
-            ($($field:ident),+ $(,)?) => {
-                $(resolved.roots.$field.retain(|root| selection.contains(root.symbol));)+
-            };
-        }
-            select_roots!(
-                const_declarations,
-                data_definitions,
-                type_aliases,
-                domain_definitions,
-                machines,
-                measures,
-                operators,
-                propositions,
-                mathematical_definitions,
-                traits,
-                conformances,
-                wire_schemas,
-            );
-            let retained_owner = |mut owner: SymbolHandle| {
-                while owner.is_valid() {
-                    if selection.contains(owner) {
-                        return true;
-                    }
-                    owner = resolved.symbols.get(owner).parent;
-                }
-                false
-            };
-            resolved
-                .authored_service_reach_rows
-                .retain(|row| retained_owner(row.owner));
-            resolved
-                .evidence_forwardings
-                .retain(|row| selection.contains(row.machine_symbol));
-            let symbols = typed
-                .symbols
-                .clone()
-                .begin_source_activation(sources, bindings.clone())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?
-                .finish()
-                .begin_source_activation(current_sources, bindings)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?
-                .finish();
-            resolved.symbols = symbols.clone();
-            typed.symbols = symbols;
-            resolved.resolution_indexes = Default::default();
-            Ok(Self {
-                resolved: Arc::new(resolved),
-                typed: Arc::new(typed),
-            })
+            // Activation needs a source-selected declaration projection. The
+            // retired checker's projection is not retained source authority.
+            Err(vec![crate::unavailable_judgment(
+                "source activation projection",
+            )])
         }
 
         pub fn join_prepared_allocations(
@@ -1187,422 +1128,27 @@ pub(crate) mod seeded_continuation {
     }
 }
 pub(crate) mod target_machine_families {
-    use crate::lowerer::name::lower_name;
     use diagnostics::Diagnostic;
     use symbol_resolved_trees::SymbolResolvedTrees;
     use typed_trees::TypedTrees;
-    use typed_trees::machine::{TargetMachineFamily, TargetMachineFamilyMember};
-
-    pub(crate) mod telescopes {
-        use diagnostics::Diagnostic;
-        use symbols::SymbolHandle;
-        use typed_trees::TypedTrees;
-        use typed_trees::data::TypeParameterKind;
-        use typed_trees::machine::Machine;
-        use typed_trees::type_identity::TypeIdentityRequest;
-        use validation::contract_structure::{declared_callable, generic_binders};
-
-        pub(crate) mod callable_carriers {
-            use symbols::SymbolHandle;
-            use typed_trees::TypedTrees;
-            use typed_trees::data::{MachineParameterContract, TypeParameterKind};
-            use typed_trees::signature::StateSignature;
-            use validation::contract_structure::declared_callable;
-
-            pub(crate) fn compatible_contracts(
-                program: &TypedTrees,
-                required: &MachineParameterContract,
-                actual: &MachineParameterContract,
-                required_outer: &[(SymbolHandle, String)],
-                actual_outer: &[(SymbolHandle, String)],
-                content_conservation: &[validation::ContentConservationSourcePlan],
-            ) -> bool {
-                let Some(required_view) = program.machine_parameter_contract_view(required) else {
-                    return false;
-                };
-                let Some(actual_view) = program.machine_parameter_contract_view(actual) else {
-                    return false;
-                };
-                compatible(
-                    program,
-                    required_view.signature(),
-                    actual_view.signature(),
-                    required_outer,
-                    actual_outer,
-                    content_conservation,
-                )
-            }
-
-            fn compatible(
-                program: &TypedTrees,
-                required: &StateSignature,
-                actual: &StateSignature,
-                required_outer: &[(SymbolHandle, String)],
-                actual_outer: &[(SymbolHandle, String)],
-                content_conservation: &[validation::ContentConservationSourcePlan],
-            ) -> bool {
-                let required_parameters = program.state_signature_type_parameters(required);
-                let actual_parameters = program.state_signature_type_parameters(actual);
-                if required_parameters.len() != actual_parameters.len()
-                    || required.lifetime_parameters.len() != actual.lifetime_parameters.len()
-                    || !native_callback_carriers_match(program, required, actual)
-                {
-                    return false;
-                }
-                let mut required_binders = required_outer.to_vec();
-                let mut actual_binders = actual_outer.to_vec();
-                let scope = required_binders.len();
-                for (position, (required, actual)) in required_parameters
-                    .iter()
-                    .zip(actual_parameters)
-                    .enumerate()
-                {
-                    let identity = format!("$N{scope}G{position}");
-                    required_binders.push((required.symbol, identity.clone()));
-                    actual_binders.push((actual.symbol, identity));
-                }
-                for (required, actual) in required_parameters.iter().zip(actual_parameters) {
-                    if std::mem::discriminant(&required.kind)
-                        != std::mem::discriminant(&actual.kind)
-                    {
-                        return false;
-                    }
-                    if let (
-                        TypeParameterKind::Machine { contract: required },
-                        TypeParameterKind::Machine { contract: actual },
-                    ) = (&required.kind, &actual.kind)
-                    {
-                        if !compatible_contracts(
-                            program,
-                            required,
-                            actual,
-                            &required_binders,
-                            &actual_binders,
-                            content_conservation,
-                        ) {
-                            return false;
-                        }
-                        continue;
-                    }
-                    let required =
-                        validation::contract_identities::generic_parameter_contract_bytes(
-                            program,
-                            required,
-                            &required_binders,
-                            content_conservation,
-                        );
-                    let actual = validation::contract_identities::generic_parameter_contract_bytes(
-                        program,
-                        actual,
-                        &actual_binders,
-                        content_conservation,
-                    );
-                    if !matches!((required, actual), (Ok(required), Ok(actual)) if required == actual)
-                    {
-                        return false;
-                    }
-                }
-                let required = declared_callable(
-                    program,
-                    program.state_signature_parameters(required),
-                    required.return_type,
-                    &[],
-                    &required_binders,
-                    &[],
-                    false,
-                );
-                let actual = declared_callable(
-                    program,
-                    program.state_signature_parameters(actual),
-                    actual.return_type,
-                    &[],
-                    &actual_binders,
-                    &[],
-                    false,
-                );
-                matches!((required, actual), (Ok(required), Ok(actual)) if required == actual)
-            }
-
-            fn native_callback_carriers_match(
-                program: &TypedTrees,
-                required: &StateSignature,
-                actual: &StateSignature,
-            ) -> bool {
-                if required.native_callback_parameters.len()
-                    != actual.native_callback_parameters.len()
-                {
-                    return false;
-                }
-                let binder_position =
-                    |signature: &StateSignature, binder: &typed_trees::name::Identifier| {
-                        let mut positions = program
-                            .state_signature_type_parameters(signature)
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, parameter)| {
-                                parameter.name == *binder
-                                    && matches!(parameter.kind, TypeParameterKind::Machine { .. })
-                            })
-                            .map(|(position, _)| position);
-                        let position = positions.next()?;
-                        positions.next().is_none().then_some(position)
-                    };
-                required
-                    .native_callback_parameters
-                    .iter()
-                    .zip(&actual.native_callback_parameters)
-                    .all(|(required_callback, actual_callback)| {
-                        required_callback.native_ordinal == actual_callback.native_ordinal
-                            && matches!(
-                                (
-                                    binder_position(required, &required_callback.binder),
-                                    binder_position(actual, &actual_callback.binder),
-                                ),
-                                (Some(required), Some(actual)) if required == actual
-                            )
-                    })
-            }
-        }
-
-        pub(crate) fn validate(
-            program: &validation::CheckingContext<'_>,
-            interface: &Machine,
-            member: &Machine,
-        ) -> Result<(), Diagnostic> {
-            let required = program.machine_type_parameters(interface);
-            let actual = program.machine_type_parameters(member);
-            if required.len() != actual.len()
-                || interface.lifetime_parameters.len() != member.lifetime_parameters.len()
-            {
-                return Err(incompatible(member, "generic/lifetime parameter count"));
-            }
-            let mut required_binders = generic_binders(required);
-            let mut actual_binders = generic_binders(actual);
-            if interface.conformance_bounds.len() != member.conformance_bounds.len() {
-                return Err(unjoined(member, "conformance-bound conjunction"));
-            }
-            for (position, (required, actual)) in interface
-                .conformance_bounds
-                .iter()
-                .zip(&member.conformance_bounds)
-                .enumerate()
-            {
-                required_binders.push((required.binder, format!("$C{position}")));
-                actual_binders.push((actual.binder, format!("$C{position}")));
-            }
-            for (required, actual) in interface
-                .conformance_bounds
-                .iter()
-                .zip(&member.conformance_bounds)
-            {
-                if required.trait_symbol != actual.trait_symbol
-                    || required.arguments.len() != actual.arguments.len()
-                    || required
-                        .arguments
-                        .iter()
-                        .zip(&actual.arguments)
-                        .any(|(required, actual)| {
-                            identity(program, *required, &required_binders)
-                                != identity(program, *actual, &actual_binders)
-                        })
-                {
-                    return Err(unjoined(
-                        member,
-                        "conformance-bound conjunction/alpha correspondence",
-                    ));
-                }
-            }
-            let Some(required_state) = program.machine_states(interface).first() else {
-                return Err(incompatible(member, "interface entry signature"));
-            };
-            let Some(actual_state) = program.machine_states(member).first() else {
-                return Err(incompatible(member, "member entry signature"));
-            };
-            let required_callable = declared_callable(
-                program,
-                program.state_parameters(required_state),
-                required_state.return_type,
-                &[],
-                &required_binders,
-                &[],
-                false,
-            )?;
-            let actual_callable = declared_callable(
-                program,
-                program.state_parameters(actual_state),
-                actual_state.return_type,
-                &[],
-                &actual_binders,
-                &[],
-                false,
-            )?;
-            if required_callable != actual_callable {
-                return Err(incompatible(
-                    member,
-                    "ordinary parameter relevance/calling shape or result",
-                ));
-            }
-            for (required, actual) in required.iter().zip(actual) {
-                if std::mem::discriminant(&required.kind) != std::mem::discriminant(&actual.kind) {
-                    return Err(incompatible(member, "generic parameter category"));
-                }
-                if typed_trees::data::type_parameter_demands_stronger_properties(required, actual) {
-                    return Err(unjoined(member, "generic property-demand conjunction"));
-                }
-                let content_conservation = validation::content_conservation_plans(program)?;
-                if let (
-                    TypeParameterKind::Machine { contract: required },
-                    TypeParameterKind::Machine { contract: actual },
-                ) = (&required.kind, &actual.kind)
-                {
-                    if !callable_carriers::compatible_contracts(
-                        program,
-                        required,
-                        actual,
-                        &required_binders,
-                        &actual_binders,
-                        &content_conservation,
-                    ) {
-                        return Err(incompatible(member, "nested callable carrier telescope"));
-                    }
-                    continue;
-                }
-                let required_identity =
-                    validation::contract_identities::generic_parameter_contract_bytes(
-                        program,
-                        required,
-                        &required_binders,
-                        &content_conservation,
-                    )?;
-                let actual_identity =
-                    validation::contract_identities::generic_parameter_contract_bytes(
-                        program,
-                        actual,
-                        &actual_binders,
-                        &content_conservation,
-                    )?;
-                if required_identity != actual_identity {
-                    return Err(unjoined(member, "generic contract refinement/conjunction"));
-                }
-            }
-            Ok(())
-        }
-
-        fn identity(
-            program: &TypedTrees,
-            reference: typed_trees::types::TypeReferenceHandle,
-            binders: &[(SymbolHandle, String)],
-        ) -> typed_trees::type_identity::NormalizedTypeIdentity {
-            program.type_identity(TypeIdentityRequest {
-                binders,
-                ..TypeIdentityRequest::ordinary(reference)
-            })
-        }
-
-        fn incompatible(member: &Machine, detail: &str) -> Diagnostic {
-            Diagnostic::error(format!(
-                "machine `{}` has an incompatible signature for `{}` -- \
-         every target's body of one machine shares its signature; incompatible {detail}",
-                member.name,
-                member
-                    .target
-                    .as_ref()
-                    .map_or("<missing target>", |target| target.as_str()),
-            ))
-        }
-
-        fn unjoined(member: &Machine, detail: &str) -> Diagnostic {
-            Diagnostic::error(format!(
-                "unimplemented: target-family member `{}` requires {detail}",
-                member.name
-            ))
-        }
-    }
 
     pub(crate) fn append(
         source: &SymbolResolvedTrees,
-        typed: &mut TypedTrees,
+        _typed: &mut TypedTrees,
         machine_frontier: usize,
     ) -> Result<(), Diagnostic> {
-        let mut declarations = source
+        // A family promises one contract for all members. Its retired
+        // contract/content comparison cannot be treated as declaration data.
+        if source
             .machines
             .iter()
             .skip(machine_frontier)
-            .filter(|machine| machine.target_family.is_valid())
-            .collect::<Vec<_>>();
-        declarations.sort_by_key(|machine| machine.target_family.arena_index());
-        let checking = validation::CheckingContext::new(typed);
-        let mut families = Vec::new();
-        for declarations in
-            declarations.chunk_by(|left, right| left.target_family == right.target_family)
+            .any(|machine| machine.target_family.is_valid())
         {
-            let canonical = declarations[0].target_family;
-            let Some(machine) = typed.machine_by_symbol(canonical) else {
-                return Err(Diagnostic::error(
-                    "target-machine family interface did not survive typing",
-                ));
-            };
-            if typed
-                .target_machine_families
-                .iter()
-                .any(|family| family.canonical == canonical)
-            {
-                return Err(Diagnostic::error(
-                    "seeded typing cannot append a body to a retained target-machine family",
-                ));
-            }
-            let mut members = Vec::new();
-            for declaration in declarations {
-                let Some(target) = declaration.authored_target.as_ref() else {
-                    continue;
-                };
-                if typed.machine_by_symbol(declaration.symbol).is_none() {
-                    return Err(Diagnostic::error(
-                        "target-machine family member did not survive typing",
-                    ));
-                }
-                members.push(TargetMachineFamilyMember {
-                    target: lower_name(target),
-                    machine: declaration.symbol,
-                });
-            }
-            if members.is_empty() {
-                return Err(Diagnostic::error(
-                    "target-machine family has no retained members",
-                ));
-            }
-            members.sort_by(|left, right| left.target.as_str().cmp(right.target.as_str()));
-            let canonical_identity = typed.machine_callable_identity(machine);
-            let canonical_result = typed.machine_entry_result_type_identity(machine);
-            for member in &members {
-                let member_machine = typed.machine_by_symbol(member.machine).ok_or_else(|| {
-                    Diagnostic::error("target-machine family member did not survive typing")
-                })?;
-                let member_identity = typed.machine_callable_identity(member_machine);
-                telescopes::validate(&checking, machine, member_machine)?;
-                if !canonical_identity.is_valid()
-                    || !member_identity.is_valid()
-                    || member_identity != canonical_identity
-                    || typed.machine_entry_result_type_identity(member_machine) != canonical_result
-                    || member_machine.purpose != machine.purpose
-                {
-                    return Err(Diagnostic::error(format!(
-                        "machine `{}` has an incompatible signature for `{}` -- \
-                     every target's body of one machine shares its signature",
-                        machine.name, member.target,
-                    )));
-                }
-            }
-            families.push(TargetMachineFamily {
-                name: machine.name.clone(),
-                canonical,
-                purpose: machine.purpose,
-                members,
-            });
+            return Err(crate::unavailable_judgment(
+                "legacy target-machine family contracts",
+            ));
         }
-        families.sort_by(|left, right| left.name.as_str().cmp(right.name.as_str()));
-        drop(checking);
-        typed.target_machine_families.extend(families);
         Ok(())
     }
 }
@@ -1892,6 +1438,10 @@ pub(crate) fn close_typed_cohort(
         lowerer.source_trees,
         &lowerer.typed_trees,
     )?;
+    lowerer
+        .typed_trees
+        .prepare_data_application_views(cohort.typed_type_references)
+        .map_err(Diagnostic::error)?;
     let cast_destinations = crate::expressions::construction_destinations::prepare(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
@@ -1924,7 +1474,7 @@ pub(crate) fn close_typed_cohort(
         && cohort.operators == lowerer.source_trees.operators.len()
         && cohort.data_definitions == lowerer.source_trees.data_definitions.len())
     {
-        validate_computed_arguments(lowerer.source_trees, &lowerer.typed_trees)?;
+        validate_computed_arguments(lowerer.source_trees)?;
     }
     finalize_provider_default_calls(&mut lowerer.typed_trees)?;
     target_machine_families::append(
@@ -1932,12 +1482,11 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
-    typed_trees::calls::terminal_transitions::normalize_terminal_transition_calls(
-        &mut lowerer.typed_trees,
+    crate::typing_queries::require_prebound_transitions(
+        &lowerer.typed_trees,
         cohort.typed_machines,
         cohort.completed_machines,
-        |callee| captured_arguments(Some(lowerer.source_trees), callee),
-    );
+    )?;
     bind_dynamic_call_targets(&mut lowerer.typed_trees)?;
     callable_admission.extend(crate::runtime_callables::bind_calls(
         &mut lowerer.typed_trees,
@@ -2200,6 +1749,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     let TypedTrees {
         identity: _,
         product_declaration_frontier: _,
+        runtime_callable_lowering,
         excluded_authored_selection_occurrences,
         roots,
         tables,
@@ -2244,6 +1794,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     } = typed;
     let mut trees = TypedTrees::with_roots(roots, tables, symbols);
     trees.type_identities = type_identities;
+    trees.runtime_callable_lowering = runtime_callable_lowering;
     trees.access_borrow_factories = access_borrow_factories;
     trees.excluded_authored_selection_occurrences = excluded_authored_selection_occurrences;
     trees.service_reaches = service_reaches;
@@ -2262,9 +1813,5 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
 }
 
 fn bind_dynamic_call_targets(trees: &mut TypedTrees) -> Result<(), Diagnostic> {
-    validation::resolve_dynamic_call_targets(trees).map_err(|diagnostics| {
-        diagnostics.into_iter().next().unwrap_or_else(|| {
-            Diagnostic::error("dynamic call target binding failed without a diagnostic")
-        })
-    })
+    crate::typing_queries::require_prebound_calls(trees)
 }

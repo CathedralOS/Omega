@@ -438,10 +438,30 @@ pub(crate) fn follow_the_lowered_form(
                 minted.claim(
                     semantics.obligation(),
                     ObligationKind::OperationSafety {
-                        operation: operation.id,
+                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                            operation.id,
+                        ),
                     },
                     before,
                 )?;
+            }
+            for projection in operation.kind.structural_projections() {
+                for segment in projection.path {
+                    if let terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        obligation, ..
+                    } = segment
+                    {
+                        minted.claim(
+                            *obligation,
+                            ObligationKind::OperationSafety {
+                                site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                                    operation.id,
+                                ),
+                            },
+                            before,
+                        )?;
+                    }
+                }
             }
             let site = InvocationSite::Operation(operation.id);
             if let Some(inputs) = call_contracts::inputs_at(lowered, site)? {
@@ -486,6 +506,23 @@ pub(crate) fn follow_the_lowered_form(
                 }
             }
             before = ProgramPoint::AfterOperation(operation.id);
+        }
+        for projection in block.terminator.storage_uses() {
+            for segment in projection.path {
+                if let terminal_psi::StructuralPathSegment::RuntimeIndex { obligation, .. } =
+                    segment
+                {
+                    minted.claim(
+                        *obligation,
+                        ObligationKind::OperationSafety {
+                            site: terminal_check_tables::obligations::ExecutionSite::Block(
+                                block.id,
+                            ),
+                        },
+                        before,
+                    )?;
+                }
+            }
         }
         let site = match block.terminator {
             Terminator::ExternalCompletion { edge, .. } => InvocationSite::ExternalCompletion(edge),

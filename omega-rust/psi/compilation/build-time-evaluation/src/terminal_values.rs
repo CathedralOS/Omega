@@ -75,6 +75,15 @@ fn write_structural(
         .structural_type(structural_type)
         .ok_or_else(|| "Terminal input lost its structural declaration".to_owned())?;
     match (&declaration.shape, value) {
+        (StructuralTypeShape::ByteSequence(carrier), BuildTimeValue::Text(bytes))
+            if carrier.is_shared_readable_view() =>
+        {
+            values.push(TerminalBoundaryStorageValue {
+                path: path.clone(),
+                contents: TerminalStorageContents::Bytes(bytes.as_slice().into()),
+            });
+            Ok(())
+        }
         (
             StructuralTypeShape::Record { fields, .. },
             BuildTimeValue::Struct {
@@ -149,6 +158,22 @@ fn write_fields(
         let result = match &field.field_type {
             StructuralFieldType::Structural(child) => {
                 write_structural(program, *child, value, path, values)
+            }
+            kind if kind
+                .byte_sequence_carrier()
+                .is_some_and(|carrier| carrier.is_shared_readable_view()) =>
+            {
+                let BuildTimeValue::Text(bytes) = value else {
+                    return Err("Terminal byte field requires actual immutable contents".into());
+                };
+                if !kind.byte_predicates().holds_for(bytes) {
+                    return Err("Terminal byte contents do not satisfy the field predicates".into());
+                }
+                values.push(TerminalBoundaryStorageValue {
+                    path: path.clone(),
+                    contents: TerminalStorageContents::Bytes(bytes.as_slice().into()),
+                });
+                Ok(())
             }
             kind => {
                 let scalar = kind

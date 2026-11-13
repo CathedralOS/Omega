@@ -77,7 +77,7 @@ pub(super) enum Stored {
     /// What a call returned, or left in storage this machine lent it
     /// exclusively: contents its callee established, with no value identity
     /// in this machine.
-    Returned,
+    Established,
 }
 
 impl Stored {
@@ -87,7 +87,9 @@ impl Stored {
         match self {
             Self::Vacated => Content::Vacated,
             Self::Value(value) => Content::Value(*value),
-            Self::Moved(_) | Self::Case(_) | Self::Zeroed | Self::Returned => Content::Overwritten,
+            Self::Moved(_) | Self::Case(_) | Self::Zeroed | Self::Established => {
+                Content::Overwritten
+            }
         }
     }
 }
@@ -282,6 +284,38 @@ impl Storage<'_> {
             OperationKind::EstablishStructuralLocal {} => {
                 rows.push((fresh()?, Stored::Vacated));
             }
+            // Literal bytes establish the explicitly named home. Unlike a
+            // record constructor, this operation has no structural result.
+            OperationKind::EstablishByteSequenceLiteral { destination, .. } => {
+                rows.push((
+                    self.stored_at(*destination, &[], concerns)?,
+                    Stored::Established,
+                ));
+            }
+            OperationKind::EstablishScalarArray { elements } => {
+                let root = fresh()?;
+                rows.push((root.clone(), Stored::Established));
+                for (index, value) in elements.iter().enumerate() {
+                    let index = u64::try_from(index)
+                        .map_err(|_| self.foreign(concerns, "array element index exceeds u64"))?;
+                    rows.push((
+                        beneath(&root, &[Segment::FixedIndex(index)])?,
+                        Stored::Value(*value),
+                    ));
+                }
+            }
+            OperationKind::EstablishStructuralArray { elements } => {
+                let root = fresh()?;
+                rows.push((root.clone(), Stored::Established));
+                for (index, value) in elements.iter().enumerate() {
+                    let index = u64::try_from(index)
+                        .map_err(|_| self.foreign(concerns, "array element index exceeds u64"))?;
+                    rows.push((
+                        beneath(&root, &[Segment::FixedIndex(index)])?,
+                        Stored::Moved(self.argument(value, concerns)?),
+                    ));
+                }
+            }
             OperationKind::EstablishRecord { fields } => {
                 let root = fresh()?;
                 for field in fields {
@@ -417,7 +451,7 @@ impl Storage<'_> {
                 || matches!(kind, OperationKind::BoundaryCall { .. }) =>
             {
                 if produced.is_some() {
-                    rows.push((fresh()?, Stored::Returned));
+                    rows.push((fresh()?, Stored::Established));
                 }
                 // An exclusive loan lets the callee store anything beneath
                 // the lent place; a shared one lets it store nothing.
@@ -426,7 +460,7 @@ impl Storage<'_> {
                 for argument in kind.structural_arguments() {
                     match argument.access {
                         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
-                            rows.push((self.argument(argument, concerns)?, Stored::Returned));
+                            rows.push((self.argument(argument, concerns)?, Stored::Established));
                         }
                         StructuralAccess::Owned | StructuralAccess::SharedBorrow => {}
                     }
@@ -461,6 +495,17 @@ impl Storage<'_> {
         let (case, fields) = match &self.declaration(structural_type, concerns)?.shape {
             StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 found.push((at.clone(), *scalar_type));
+                return Ok(());
+            }
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
+                for index in 0..*length {
+                    at.segments.push(Segment::FixedIndex(index));
+                    self.zero_scalars(*element, at, found, concerns)?;
+                    at.segments.pop();
+                }
                 return Ok(());
             }
             StructuralTypeShape::Record { fields, .. } => (None, fields),

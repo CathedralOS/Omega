@@ -12,9 +12,7 @@ publication or executable acceptance. It leaves the abstract rows and their
 Unsupported verdicts intact.
 */
 
-use structure_elaboration::{
-    CallableDeclaration, CallableRefinementContext, elaborate_published_callable_witness,
-};
+use structure_elaboration::{CallableDeclaration, elaborate_callable_witness};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::{Checked, Construct, RefusalReason};
 use typed_trees::TypedTrees;
@@ -29,48 +27,8 @@ pub fn prove_callable_refinement<'a>(
     supplied: CallableDeclaration<'a>,
     activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
-    prove_published_callable_refinement(
-        typed,
-        CallableDeclaration::Signature(required),
-        supplied,
-        CallableRefinementContext::default(),
-        activity,
-    )
-}
-
-pub fn prove_published_callable_refinement<'a>(
-    typed: &'a TypedTrees,
-    required: CallableDeclaration<'a>,
-    supplied: CallableDeclaration<'a>,
-    context: CallableRefinementContext<'_>,
-    activity: &mut crate::ProofSearchActivity,
-) -> Checked<()> {
-    let mut witness = elaborate_published_callable_witness(typed, required, supplied, context)?;
-    prove_logical_witness(&mut witness, activity)
-}
-
-/// Prove expression formation or a Boolean goal without issuing executable
-/// acceptance. The reader separately owes formation of every source premise.
-pub fn prove_source_expression(
-    typed: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-    goal: structure_elaboration::SourceExpressionGoal,
-    context: structure_elaboration::SourceExpressionContext<'_>,
-    activity: &mut crate::ProofSearchActivity,
-) -> Checked<()> {
-    for mut witness in structure_elaboration::elaborate_source_expression_witnesses(
-        typed, expression, goal, context,
-    )? {
-        prove_logical_witness(&mut witness, activity)?;
-    }
-    Ok(())
-}
-
-fn prove_logical_witness(
-    witness: &mut structure_elaboration::Elaboration,
-    activity: &mut crate::ProofSearchActivity,
-) -> Checked<()> {
-    let discharged = crate::discharge(witness, activity)?;
+    let mut witness = elaborate_callable_witness(typed, required, supplied)?;
+    let discharged = crate::discharge(&mut witness, activity)?;
     for (machine, result) in discharged.machines.iter() {
         if witness.requirements.contains(&machine) {
             continue;

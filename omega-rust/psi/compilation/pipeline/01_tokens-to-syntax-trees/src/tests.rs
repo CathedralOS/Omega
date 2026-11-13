@@ -1742,6 +1742,63 @@ pub(crate) mod definitions_and_contracts {
     }
 
     #[test]
+    fn uninvoked_declaration_paths_retain_both_static_telescopes_when_copied() {
+        let source = r#"
+        machine inspect() {
+            reflect::callable(Operations<'scope, u32>::update<'item, u64>);
+            reflect::field(Buffer<u32>::used);
+        }
+        "#;
+        let parsed = super::parse_source(source, "applied declaration operands should parse");
+        let mut copied = syntax_trees::SyntaxTrees::new(Default::default());
+        let operands = parsed
+            .expressions
+            .iter_expressions()
+            .filter_map(|(handle, node)| {
+                let ExpressionNode::Name {
+                    members: _,
+                    application: path_application,
+                } = node
+                else {
+                    return None;
+                };
+                path_application.as_ref().map(|_| handle)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(operands.len(), 2);
+        for (operand, expected) in operands.into_iter().zip([
+            "Operations<'scope, u32>::update<'item, u64>",
+            "Buffer<u32>::used",
+        ]) {
+            assert_eq!(parsed.display_expression_name(operand), expected);
+            let copy = copied.copy_expression_from(&parsed, operand);
+            assert_eq!(copied.display_expression_name(copy), expected);
+            let ExpressionNode::Name {
+                members: _,
+                application: path_application,
+            } = copied.expressions.expression(copy)
+            else {
+                panic!("a copied declaration remains a path, not an invocation")
+            };
+            let application = path_application.as_ref().expect("outer application");
+            assert_eq!(application.arguments.len(), 1);
+            let member = copied
+                .expressions
+                .static_member(application.member)
+                .expect("selected member belongs to the destination table");
+            if expected.starts_with("Operations") {
+                assert_eq!(application.lifetime_arguments.len(), 1);
+                let local = member.application.as_ref().expect("member application");
+                assert_eq!(local.arguments.len(), 1);
+                assert_eq!(local.lifetime_arguments.len(), 1);
+            } else {
+                assert!(application.lifetime_arguments.is_empty());
+                assert!(member.application.is_none());
+            }
+        }
+    }
+
+    #[test]
     fn parses_explicit_parameter_use_as_ordinary_name() {
         let source = r#"
         data Main {
@@ -1767,11 +1824,15 @@ pub(crate) mod definitions_and_contracts {
             panic!("expected expression statement");
         };
 
-        let ExpressionNode::Name(path) = parsed.expressions.expression(*expression) else {
+        let ExpressionNode::Name {
+            members: path,
+            application: None,
+        } = parsed.expressions.expression(*expression)
+        else {
             panic!("explicit parameter must remain an ordinary name");
         };
         assert_eq!(
-            parsed.expressions.identifier_path_members(*path)[0].as_str(&parsed),
+            parsed.expressions.identifier_path_members(path.to_owned())[0].as_str(&parsed),
             "main"
         );
     }
@@ -2743,7 +2804,7 @@ pub(crate) mod definitions_and_contracts {
             };
             assert!(matches!(
                 parsed.expressions.expression(membership.value),
-                ExpressionNode::Name(_)
+                ExpressionNode::Name { .. }
             ));
             let path = parsed
                 .expressions
@@ -3062,8 +3123,8 @@ pub(crate) mod domains_and_transitions {
             super::root_domain(trees, "domain");
             for name in ["self", "player"] {
                 assert_eq!(trees.expressions.iter_expressions().filter(|(_, node)| {
-                let ExpressionNode::Name(path) = node else { return false; };
-                matches!(trees.expressions.identifier_path_members(*path), [member] if member.as_str(trees) == name)
+                let ExpressionNode::Name { members: path, application: None } = node else { return false; };
+                matches!(trees.expressions.identifier_path_members(path.to_owned()), [member] if member.as_str(trees) == name)
             }).count(), 1, "logical and ordinary subjects remain separate through copying");
             }
         }
@@ -3078,8 +3139,8 @@ pub(crate) mod domains_and_transitions {
         let parsed = parse_syntax_trees(&tokens).expect("parse indexed logical subject");
         for name in ["self", "Limit"] {
             assert!(parsed.expressions.iter_expressions().any(|(_, node)| {
-            let ExpressionNode::Name(path) = node else { return false; };
-            matches!(parsed.expressions.identifier_path_members(*path), [member] if member.as_str(&parsed) == name)
+            let ExpressionNode::Name { members: path, application: None } = node else { return false; };
+            matches!(parsed.expressions.identifier_path_members(path.to_owned()), [member] if member.as_str(&parsed) == name)
         }));
         }
     }
@@ -4971,7 +5032,7 @@ pub(crate) mod items_and_selections {
             };
             assert!(matches!(
                 parsed.expressions.expression(local.initial_value),
-                ExpressionNode::Name(_)
+                ExpressionNode::Name { .. }
             ));
             let start = source.find(expression).expect("authored name expression");
             assert_eq!(
@@ -4991,7 +5052,7 @@ pub(crate) mod items_and_selections {
             .expressions
             .iter_expressions()
             .filter_map(|(handle, expression)| {
-                matches!(expression, ExpressionNode::Name(_))
+                matches!(expression, ExpressionNode::Name { .. })
                     .then_some(parsed.expressions.source_span(handle))
             })
             .collect::<Vec<_>>();
@@ -5183,13 +5244,18 @@ pub(crate) mod items_and_selections {
                 assert_eq!(call.arguments.count(), 1);
                 assert_eq!(call.evidence_arguments[0].as_str(&parsed), "proof");
                 if target == "other.next" {
-                    let ExpressionNode::Name(receiver) =
-                        parsed.expressions.expression(call.receiver)
+                    let ExpressionNode::Name {
+                        members: receiver,
+                        application: None,
+                    } = parsed.expressions.expression(call.receiver)
                     else {
                         panic!("direct receiver identity lost");
                     };
                     assert_eq!(
-                        parsed.expressions.identifier_path_members(*receiver)[0].as_str(&parsed),
+                        parsed
+                            .expressions
+                            .identifier_path_members(receiver.to_owned())[0]
+                            .as_str(&parsed),
                         "other"
                     );
                 }
@@ -5607,15 +5673,19 @@ pub(crate) mod items_and_selections {
         assert!(call.target_is_static);
         assert!(matches!(
             parsed.expressions.expression(*builder),
-            ExpressionNode::Name(_)
+            ExpressionNode::Name { .. }
         ));
-        let ExpressionNode::Name(mode) = parsed.expressions.expression(*mode) else {
+        let ExpressionNode::Name {
+            members: mode,
+            application: None,
+        } = parsed.expressions.expression(*mode)
+        else {
             panic!("composition mode remains one ordinary name expression")
         };
         assert_eq!(
             parsed
                 .expressions
-                .identifier_path_members(*mode)
+                .identifier_path_members(mode.to_owned())
                 .iter()
                 .map(|member| member.as_str(&parsed))
                 .collect::<Vec<_>>(),
@@ -6077,9 +6147,12 @@ pub(crate) mod mathematical_definitions {
 
     fn render_expression(parsed: &SyntaxTrees, handle: ExpressionHandle) -> String {
         match parsed.expressions.expression(handle) {
-            ExpressionNode::Name(path) => parsed
+            ExpressionNode::Name {
+                members: path,
+                application: None,
+            } => parsed
                 .expressions
-                .identifier_path_members(*path)
+                .identifier_path_members(path.to_owned())
                 .iter()
                 .map(|member| member.as_str(parsed))
                 .collect::<Vec<_>>()
@@ -8457,7 +8530,7 @@ pub(crate) mod value_dispatch {
         assert_eq!(trees.expressions.match_arms(inner.arms).len(), 1);
         assert!(matches!(
             trees.expressions.expression(arms[1].value),
-            ExpressionNode::Name(_)
+            ExpressionNode::Name { .. }
         ));
     }
 

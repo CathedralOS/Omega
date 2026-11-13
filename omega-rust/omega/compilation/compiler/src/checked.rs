@@ -50,4 +50,4 @@ pub use package_compilation::{
     PackageSourceRequest, PreparedPackageProduct, SourceBuildDeclaration,
 };
 pub use package_review::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
-pub(crate) use target_preparation::{PreparedProductTarget, PreparedTargetDeclarations};
+pub(crate) use target_preparation::PreparedProductTarget;

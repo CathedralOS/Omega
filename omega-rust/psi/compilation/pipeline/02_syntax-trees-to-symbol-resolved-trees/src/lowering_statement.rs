@@ -1083,7 +1083,7 @@ mod statement_nodes {
                 implementation_operand: if binding.implementation_operand.is_valid() {
                     if !matches!(
                         syntax_expressions(syntax_trees).expression(binding.implementation_operand),
-                        syntax::expression::ExpressionNode::Name(_)
+                        syntax::expression::ExpressionNode::Name { .. }
                     ) {
                         lower_statement_expression(
                             lowerer,
@@ -1598,12 +1598,20 @@ mod statement_nodes {
         syntax_trees: &SyntaxTrees,
         expression: syntax::expression::ExpressionHandle,
     ) -> Option<&Identifier> {
-        let syntax::expression::ExpressionNode::Name(path) =
-            syntax_trees.expressions.expression(expression)
+        let syntax::expression::ExpressionNode::Name {
+            members: path,
+            application: path_application,
+        } = syntax_trees.expressions.expression(expression)
         else {
             return None;
         };
-        let [name] = syntax_trees.expressions.identifier_path_members(*path) else {
+        if path_application.is_some() {
+            return None;
+        }
+        let [name] = syntax_trees
+            .expressions
+            .identifier_path_members(path.to_owned())
+        else {
             return None;
         };
         Some(name)

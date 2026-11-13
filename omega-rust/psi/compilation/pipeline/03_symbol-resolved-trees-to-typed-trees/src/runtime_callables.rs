@@ -248,6 +248,7 @@ enum CallOwner {
         owner: symbols::SymbolHandle,
         lexical_owner: symbols::SymbolHandle,
         parameters: arena::HandleSpan<typed::signature::StateParameter>,
+        result: typed::types::TypeReferenceHandle,
         type_parameters: arena::HandleSpan<typed::data::TypeParameter>,
         trait_scope: Option<typed::trait_definition::RetainedTraitScope>,
         contract: Option<typed::callable_values::RuntimeCallableContractHandle>,
@@ -270,78 +271,31 @@ impl CallOwner {
         }
     }
 
-    fn place_type(
-        program: &typed::TypedTrees,
-        owner: symbols::SymbolHandle,
-        parameters: Option<&[typed::signature::StateParameter]>,
-        expression: typed::expression::ExpressionHandle,
-    ) -> Option<typed::types::TypeReferenceHandle> {
-        validation::parameter_place_type_reference(
-            program,
-            owner,
-            parameters.unwrap_or(&[]),
-            expression,
-        )
-        .or_else(|| {
-            let path = program.expression_table.name_path_node(expression)?;
-            if let Some(parameters) = parameters
-                && (parameters
-                    .iter()
-                    .any(|parameter| parameter.symbol == path.symbol)
-                    || (path.symbol.is_valid()
-                        && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Parameter
-                        && program.symbols.get(path.symbol).parent == owner))
-            {
-                return None;
-            }
-            validation::named_value_type_reference(program, path)
-        })
-    }
-
     fn result_type(
         self,
         program: &typed::TypedTrees,
         expression: typed::expression::ExpressionHandle,
-    ) -> Option<typed::types::TypeReferenceHandle> {
-        match self {
-            Self::State { machine, state } => validation::expression_result_type_reference(
-                program,
-                program.machine_by_symbol(machine)?,
-                program.state_by_symbol(state)?,
-                expression,
-            ),
-            Self::Signature {
-                owner,
-                lexical_owner,
-                parameters,
-                trait_scope,
-                ..
-            } => validation::declaration_expression_result_type_reference(
-                program,
-                lexical_owner,
-                trait_scope,
-                &|place| {
-                    Self::place_type(
-                        program,
-                        owner,
-                        Some(program.state_parameters.span_or_empty(parameters)),
-                        place,
-                    )
-                },
-                expression,
-            ),
-            Self::Declaration { owner } => {
-                validation::declaration_expression_result_type_reference(
-                    program,
-                    owner,
-                    program
-                        .closed_requirement_application(owner)
-                        .map(|application| application.trait_scope),
-                    &|place| Self::place_type(program, owner, None, place),
-                    expression,
-                )
+    ) -> Result<Option<typed::types::TypeReferenceHandle>, Diagnostic> {
+        let (parameters, result) = match self {
+            Self::State { state, .. } => {
+                let state = program.state_by_symbol(state).ok_or_else(|| {
+                    Diagnostic::error("callable source scope lost its exact state")
+                })?;
+                (program.state_parameters(state), state.return_type)
             }
-        }
+            Self::Signature {
+                parameters, result, ..
+            } => (
+                program.state_parameters.span(parameters).ok_or_else(|| {
+                    Diagnostic::error("callable source scope lost its formal telescope")
+                })?,
+                result,
+            ),
+            Self::Declaration { .. } => (&[][..], Default::default()),
+        };
+        crate::typing_queries::scoped_expression_type_reference(
+            program, parameters, result, expression,
+        )
     }
 }
 
@@ -410,6 +364,7 @@ struct ScopeCoordinate {
     owner: (u32, u32),
     supplying_owner: (u32, u32),
     parameters: (u32, u32, u32),
+    result: (u32, u32),
     type_parameters: (u32, u32, u32),
     contract: (u32, u32),
 }
@@ -421,6 +376,7 @@ impl CallOwner {
             owner: handle(self.symbol()),
             supplying_owner: (0, 0),
             parameters: (0, 0, 0),
+            result: (0, 0),
             type_parameters: (0, 0, 0),
             contract: (0, 0),
         };
@@ -433,12 +389,14 @@ impl CallOwner {
             Self::Signature {
                 lexical_owner,
                 parameters,
+                result,
                 type_parameters,
                 contract,
                 ..
             } => {
                 coordinate.kind = 2;
                 coordinate.supplying_owner = handle(lexical_owner);
+                coordinate.result = (result.arena_index(), result.generation());
                 coordinate.parameters = (
                     parameters.start().arena_index(),
                     parameters.start().generation(),
@@ -753,6 +711,7 @@ impl typed::references::TypedReferences for CallInventory<'_> {
             owner: signature.symbol,
             lexical_owner,
             parameters: signature.parameters,
+            result: signature.return_type,
             type_parameters: signature.type_parameters,
             trait_scope: self
                 .program
@@ -982,7 +941,7 @@ pub(crate) fn bind_calls(
         {
             continue;
         }
-        let type_reference = owner.result_type(program, binding.callee).ok_or_else(|| {
+        let type_reference = owner.result_type(program, binding.callee)?.ok_or_else(|| {
             Diagnostic::error(
             "runtime call callee has no complete declared value type in its exact lexical scope",
         ).with_source_span(program.expression_table.source_span(binding.callee))

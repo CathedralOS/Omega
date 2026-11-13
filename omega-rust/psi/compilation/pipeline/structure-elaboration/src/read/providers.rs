@@ -264,15 +264,14 @@ impl Program<'_> {
                 requirement,
                 satisfaction.external_binding,
             )?;
-            let service = typed
-                .service_reaches
-                .id_for_symbol(declaring.symbol)
-                .ok_or_else(|| {
-                    services::unavailable(context, "native service use lost its declaring service")
-                })?;
-            envelope
-                .service_reach
-                .extend(services::service_closure(typed, context, &[service])?);
+            if !crate::reach::has_authored_ceiling(typed, context, requirement.symbol)? {
+                return Err(services::unavailable(
+                    context,
+                    "native conformance requirement has an open service ceiling",
+                ));
+            }
+            let required = self.signature_envelope(context, requirement)?;
+            envelope.service_reach.extend(required.service_reach);
         }
         envelope.service_reach.sort_by_key(|service| service.0);
         envelope.service_reach.dedup();

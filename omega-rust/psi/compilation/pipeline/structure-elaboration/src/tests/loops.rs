@@ -162,7 +162,7 @@ fn a_machine_that_calls_itself_in_terminal_position_is_a_head_block_and_a_jump_b
         .collect();
     assert_eq!(jumps.len(), 2, "the entry's jump and the jump back");
     let mut expected = vec![ObligationKind::OperationSafety {
-        operation: subtract.id,
+        site: terminal_check_tables::obligations::ExecutionSite::Operation(subtract.id),
     }];
     expected.extend(jumps);
     assert_eq!(obligations(tables), expected);
