@@ -13,9 +13,8 @@ use std::sync::Arc;
 
 /// The part of the toolchain Build prelude these programs use, declared the
 /// way the prelude declares it: in a toolchain source named `<build-prelude>`.
-/// Each operation also states `crashes none`, which the real prelude does
-/// not yet: the checker refuses a boundary call with no published crash
-/// contract, and that refusal is not what these tests are about.
+/// Each operation states `crashes none`, as the prelude's do: the checker
+/// refuses a boundary call with no published crash contract.
 const PRELUDE: &str = r#"
 public data Build {
     marker: u64;
