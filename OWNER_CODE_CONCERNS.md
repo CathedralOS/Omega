@@ -512,3 +512,10 @@ own to defend. Say what you saw, not what you would build.
 - Saw: every refusal reads "no product route yet: X requires a lowered-form judgment", but most of X is arity, a declared type or a field's owner, which typing decides from declarations; two of them stopped the bundled library (`core::Strict<0>`, `ForeignBinding<N, ...>`) although no proof was involved
 - Cost: a reader cannot tell a typing rule that was not rebuilt from a proof the checker must supply, so each stop is investigated from scratch and the wording invites routing typing work to the checker
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
+
+### A whole-program stage refuses every program for a library construct nobody calls
+- Category: a verdict with nothing behind it
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs` (`require_prebound_calls`), `call_and_product_selections.rs` ("assignment literal receiving type"), and any by-name refusal added to `04_typed-trees-to-typed-trees`
+- Saw: typing and typed preparation see the program together with all of `core` and `std` and have no notion of what an entry demands, so one unbound call or unlanded literal in an uncalled library machine stops a program that never reaches it; structural elaboration, which reads only what is demanded, already refuses the same constructs by name
+- Cost: each such gate must be served for the entire library before any program compiles; pipeline.md's own pattern ("refusals stay deferred data") would record the refusal on the declaration and let the reader of that declaration raise it
+- Reported: 2026-11-13, Claude Code, while getting the route probe through typing
