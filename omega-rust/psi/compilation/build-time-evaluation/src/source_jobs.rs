@@ -685,7 +685,7 @@ mod tests {
             entry
                 .invoke(
                     target(),
-                    &[result.clone()],
+                    std::slice::from_ref(&result),
                     &mut psi_work::WorkMeter::unbounded()
                 )
                 .expect("readback retains its complete formal identity"),
