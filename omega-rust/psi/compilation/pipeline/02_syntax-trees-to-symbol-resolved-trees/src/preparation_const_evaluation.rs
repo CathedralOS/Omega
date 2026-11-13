@@ -853,86 +853,106 @@ mod arguments {
                     integer_type,
                     warnings,
                 )?;
-                match (binary.operator, &right) {
-                    (
-                        BinaryOperator::Divide | BinaryOperator::Modulo,
-                        EvaluatedConst::Concrete(0),
-                    ) => {
-                        return Err(match binary.operator {
-                            BinaryOperator::Divide => "division by zero is invalid".to_string(),
-                            _ => "remainder by zero is invalid".to_string(),
-                        });
-                    }
-                    (
-                        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight,
-                        EvaluatedConst::Concrete(amount),
-                    ) if *amount < 0 || *amount >= i128::from(u64::BITS) => {
-                        return Err(match binary.operator {
-                            BinaryOperator::ShiftLeft => {
-                                "left shift exceeds the `u64` width".to_string()
-                            }
-                            _ => "right shift exceeds the `u64` width".to_string(),
-                        });
-                    }
-                    (
-                        BinaryOperator::Add
-                        | BinaryOperator::Subtract
-                        | BinaryOperator::Multiply
-                        | BinaryOperator::Divide
-                        | BinaryOperator::Modulo
-                        | BinaryOperator::ShiftLeft
-                        | BinaryOperator::ShiftRight
-                        | BinaryOperator::BitwiseAnd
-                        | BinaryOperator::BitwiseOr
-                        | BinaryOperator::BitwiseXor,
-                        _,
-                    ) => {}
-                    _ => {
-                        return Err(
-                            "only integer arithmetic, shifts, and bitwise operators are supported"
-                                .to_string(),
-                        );
-                    }
-                }
+                admit_integer_operator(
+                    binary.operator,
+                    match &right {
+                        EvaluatedConst::Concrete(right) => Some(*right),
+                        EvaluatedConst::Symbolic(_) => None,
+                    },
+                )?;
                 let (EvaluatedConst::Concrete(left), EvaluatedConst::Concrete(right)) =
                     (&left, &right)
                 else {
                     return Ok(left.or_symbolic(right));
                 };
-                let (left, right) = (*left, *right);
-                match binary.operator {
-                    BinaryOperator::Add => {
-                        checked_evaluated_const(left.checked_add(right), "addition")
-                    }
-                    BinaryOperator::Subtract => {
-                        checked_evaluated_const(left.checked_sub(right), "subtraction")
-                    }
-                    BinaryOperator::Multiply => {
-                        checked_evaluated_const(left.checked_mul(right), "multiplication")
-                    }
-                    BinaryOperator::Divide => left
-                        .checked_div(right)
-                        .map(EvaluatedConst::Concrete)
-                        .ok_or_else(|| "division by zero is invalid".to_string()),
-                    BinaryOperator::Modulo => left
-                        .checked_rem(right)
-                        .map(EvaluatedConst::Concrete)
-                        .ok_or_else(|| "remainder by zero is invalid".to_string()),
-                    BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight
-                    | BinaryOperator::BitwiseAnd
-                    | BinaryOperator::BitwiseOr
-                    | BinaryOperator::BitwiseXor => evaluate_declared_width_operation(
-                        binary.operator,
-                        left,
-                        right,
-                        integer_type,
-                    )
-                    .map(EvaluatedConst::Concrete),
-                    _ => unreachable!("const integer operator was validated above"),
-                }
+                apply_integer_operator(binary.operator, *left, *right, integer_type)
+                    .map(EvaluatedConst::Concrete)
             }
             _ => Err("expression is not a symbolic integer const expression".to_string()),
+        }
+    }
+
+    /*
+        Whether `operator` has a builtin integer meaning at all, and whether a
+        right operand that is already known leaves it defined. The right operand
+        is checked even while the left one is still a symbolic const parameter,
+        so a template dividing by a literal zero is refused before it is bound.
+    */
+    pub(in crate::preparation::generic_data) fn admit_integer_operator(
+        operator: BinaryOperator,
+        right: Option<i128>,
+    ) -> Result<(), String> {
+        match (operator, right) {
+            (BinaryOperator::Divide, Some(0)) => Err("division by zero is invalid".to_string()),
+            (BinaryOperator::Modulo, Some(0)) => Err("remainder by zero is invalid".to_string()),
+            (BinaryOperator::ShiftLeft, Some(amount))
+                if amount < 0 || amount >= i128::from(u64::BITS) =>
+            {
+                Err("left shift exceeds the `u64` width".to_string())
+            }
+            (BinaryOperator::ShiftRight, Some(amount))
+                if amount < 0 || amount >= i128::from(u64::BITS) =>
+            {
+                Err("right shift exceeds the `u64` width".to_string())
+            }
+            (
+                BinaryOperator::Add
+                | BinaryOperator::Subtract
+                | BinaryOperator::Multiply
+                | BinaryOperator::Divide
+                | BinaryOperator::Modulo
+                | BinaryOperator::ShiftLeft
+                | BinaryOperator::ShiftRight
+                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::BitwiseOr
+                | BinaryOperator::BitwiseXor,
+                _,
+            ) => Ok(()),
+            _ => Err(
+                "only integer arithmetic, shifts, and bitwise operators are supported".to_string(),
+            ),
+        }
+    }
+
+    /*
+        The builtin integer meaning of one admitted operator over two known
+        values. Every constant evaluator in this stage computes through here, so
+        addition, typed division and the declared-width shifts and bitwise
+        operators have one definition. The result is only held to the signed and
+        unsigned 64-bit envelope; a caller that knows the operation's carrier
+        checks the result against that carrier itself.
+    */
+    pub(in crate::preparation::generic_data) fn apply_integer_operator(
+        operator: BinaryOperator,
+        left: i128,
+        right: i128,
+        integer_type: Option<LandedIntegerType>,
+    ) -> Result<i128, String> {
+        let in_envelope = |value: Option<i128>, operation: &str| {
+            value
+                .and_then(const_integer_in_envelope)
+                .ok_or_else(|| format!("{operation} exceeds the signed/unsigned 64-bit envelope"))
+        };
+        match operator {
+            BinaryOperator::Add => in_envelope(left.checked_add(right), "addition"),
+            BinaryOperator::Subtract => in_envelope(left.checked_sub(right), "subtraction"),
+            BinaryOperator::Multiply => in_envelope(left.checked_mul(right), "multiplication"),
+            BinaryOperator::Divide => left
+                .checked_div(right)
+                .ok_or_else(|| "division by zero is invalid".to_string()),
+            BinaryOperator::Modulo => left
+                .checked_rem(right)
+                .ok_or_else(|| "remainder by zero is invalid".to_string()),
+            BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor => {
+                evaluate_declared_width_operation(operator, left, right, integer_type)
+            }
+            _ => Err(
+                "only integer arithmetic, shifts, and bitwise operators are supported".to_string(),
+            ),
         }
     }
 
@@ -1063,16 +1083,6 @@ mod arguments {
     pub(in crate::preparation::generic_data) enum EvaluatedConst {
         Concrete(i128),
         Symbolic(String),
-    }
-
-    pub(in crate::preparation::generic_data) fn checked_evaluated_const(
-        value: Option<i128>,
-        operation: &str,
-    ) -> Result<EvaluatedConst, String> {
-        value
-            .and_then(const_integer_in_envelope)
-            .map(EvaluatedConst::Concrete)
-            .ok_or_else(|| format!("{operation} exceeds the signed/unsigned 64-bit envelope"))
     }
 
     impl EvaluatedConst {
@@ -1552,6 +1562,8 @@ mod domains {
         Ok(())
     }
 }
+#[path = "preparation_const_initializers.rs"]
+mod initializers;
 mod fact_values {
     /* Values used while discharging closed generic facts, not a proof IR. */
 
@@ -6592,6 +6604,7 @@ pub(crate) use facts::{
     const_type_requires_declaration_proof, evaluate_const_fact_expression,
     evaluate_const_membership_fact, prove_const_literal_predicates,
 };
+pub(crate) use initializers::fold_closed_scalar_initializers;
 use remainder::validate_anonymous_remainder;
 pub(in crate::preparation) use templates::collect_type_positions;
 pub(super) use templates::{
