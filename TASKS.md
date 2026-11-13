@@ -114,8 +114,8 @@ Write each item so any agent can start from it alone: current state, files and e
 - **INTEGER-CARRIER-FAMILY-CONSTRAINTS.** Supply the four [integer-family classifiers](wiki/spec/language/numeric_values.md#integer-carrier-families) through authoritative metadata and ordinary checked library contracts. Generalize type refinement and domain admission so carrier eligibility is checked before value predicates, without name magic, implicit implementation search or enumerating widths.
   Acceptance: generic nonzero/signed/unsigned/fixed-width uses work for their admitted carriers; signed-to-unsigned-domain application, fake classifier, missing fixed-width premise and invalid value predicates reject for distinct obligations. Preserve exact domain carriers and authority; exercise arbitrary widths as WIDTH-INDEXED-INTEGERS lands. New semantic holes go to `OWNER_QUESTIONS.md`.
 
-- **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/drafts/designs/operation_arithmetic_policy.md).
-  Acceptance: draft fixtures pass `--both`; `source/psi` has no `in Trapping`.
+- **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/spec/language/numeric_values.md#policy-operators) and their [declared policy-domain overloads](wiki/spec/language/numeric_values.md#policy-domains). Remove the literal-only mixed-operand refusal in `structure-elaboration` and preserve exact qualified/plain signatures through selection, lowered-form checking and realization; no implicit conversions or surrounding-policy propagation.
+  Acceptance: Wrapping, Saturating and Trapping arithmetic/comparisons handle either mixed operand order uniformly for literals, locals, parameters, fields and call results, with the specified result qualification and crash contract. Reject unmatched policy/carrier/domain combinations and overflowing inner Exact operations despite an outer wrapping operation. Focused controls demonstrate native/Psi agreement; migrate `source/psi` off `in Trapping` onto explicit policy operators.
 
 - **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
 
