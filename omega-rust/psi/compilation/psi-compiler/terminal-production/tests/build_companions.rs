@@ -29,6 +29,7 @@ public boundary trait BuildRequestOperations {
 public boundary trait Probe {
     machine poke(value: u64) reaches none crashes none;
 }
+public const LIMIT: u64 = 4;
 "#;
 
 fn package() -> semantic_vocabulary::PackageKeyIdentity {
@@ -475,4 +476,35 @@ fn a_portable_artifact_without_build_companions_still_round_trips() {
             .unwrap()
             .is_empty()
     );
+}
+
+/// A Build admission must know whether the module it accepted reads a
+/// constant: a Product frontier typed later settles nothing for a module
+/// that reads none. The accepted module answers from its own declarations.
+#[test]
+fn an_accepted_build_that_names_no_constant_reads_none() {
+    // The prelude declares `LIMIT`; a declaration nobody names is no read.
+    assert!(accepted(ONE_BINDING).unwrap().constants_read().is_empty());
+}
+
+/// The twins: the same prelude constant named in a body, in a contract of a
+/// called machine and in a type the Build declares. Each program is accepted
+/// (name resolution recorded the constant's value), so acceptance alone does
+/// not show that a Build reads no constant.
+#[test]
+fn an_accepted_build_states_each_constant_its_declarations_name() {
+    for build in [
+        "machine build(builder: &mut Build) { Probe::poke(LIMIT); }
+",
+        "machine helper(value: u64) requires value < LIMIT { }
+         machine build(builder: &mut Build) { helper(1); }
+",
+        "data Table { cells: [u64; LIMIT]; }
+         machine helper(table: &Table) { }
+         machine build(builder: &mut Build) { }
+",
+    ] {
+        let accepted = accepted(build).unwrap_or_else(|refused| panic!("{build}: {refused:?}"));
+        assert_eq!(accepted.constants_read(), ["LIMIT"], "{build}");
+    }
 }
