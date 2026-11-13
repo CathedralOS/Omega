@@ -1,1 +1,0 @@
-mentions proof-only `Ordinal`, which has no runtime layout

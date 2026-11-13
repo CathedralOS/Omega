@@ -1,8 +1,0 @@
-// Omitting SQOS_PRESENT cannot enter the private library-owned open contract.
-use omega_language_std::targets::windows_x86_64::windows_filesystem_metadata_native;
-use omega::language::core::filesystem_authority;
-
-machine checked_metadata_open(path: &[u16; 4096] in WindowsNativePath) -> i64
-reaches FilesystemMetadataQuery {
-    block WindowsFilesystemMetadataIo::open_attributes(path, 128, 7, 0, 3, 33554432, 0)
-}

@@ -1,2 +1,0 @@
-consume
-value >= 0

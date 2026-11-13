@@ -1,5 +1,0 @@
-data Sizes {}
-const Sizes::SIZE: [u64; 2] = [1, 2];
-data Indexed<const Selected: [u64; 2]> { value: u8; }
-machine keep(Sizes: u64, value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SIZE> { value }
-machine main() {}

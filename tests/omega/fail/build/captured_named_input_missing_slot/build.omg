@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "captured_named_input_missing_slot");
-    Build::artifact_only(builder);
-    let input: BuildSource = BuildInputs::get(&builder.inputs, "absent");
-    let path: BuildPath = BuildSource::resolve(&input, "input.txt");
-    let reader: i32 = BuildSource::open(&input, path, 0);
-    _ = BuildSource::close(&input, reader);
-}

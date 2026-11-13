@@ -1,5 +1,0 @@
-use omega::language::core::Extent;
-
-machine leak(extent: Extent) {
-    // Owned range authority cannot disappear through ordinary scope cleanup.
-}

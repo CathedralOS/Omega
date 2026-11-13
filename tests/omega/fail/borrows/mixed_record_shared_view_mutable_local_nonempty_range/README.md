@@ -1,3 +1,0 @@
-A mutable affine record containing an unrelated exclusive view field cannot lend mutable access through a nonempty shared element-view field. The caller proves the nonempty precondition through a normal guard. If the invalid local initializer were accepted, the helper would overwrite the original shared backing and the caller would take its authored Trap instead of observing 7.
-
-Frozen 0dee source checking admitted the unchanged program. This fixture must reject at the shared-field receiving-access obligation, before lowering or runtime execution. The expected diagnostic pins the shared receiving-access judgment used by local reference initialization, call arguments and constructor fields.

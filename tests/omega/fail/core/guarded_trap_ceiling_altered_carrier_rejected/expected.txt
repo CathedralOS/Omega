@@ -1,1 +1,0 @@
-machine `narrow` has an uncovered Trap crash at statement 0

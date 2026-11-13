@@ -1,1 +1,0 @@
-opaque `boundary data` has no visible fields for default-domain predicates

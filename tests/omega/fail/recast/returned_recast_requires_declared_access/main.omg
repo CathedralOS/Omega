@@ -1,7 +1,0 @@
-data Header { left: u64; right: u64; }
-
-machine widen(first: &Header) -> &mut Header {
-    first as &Header
-}
-
-machine main() {}

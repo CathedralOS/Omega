@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "kernel_theorem_certs");
-    builder.freestanding = true;
-}

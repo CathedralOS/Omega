@@ -1,2 +1,0 @@
-Frozen before execution: calls begins at zero, choose(true) increments to one and returns First, choose(false) increments to two and returns Second. Both case comparisons true, including reversed literal/computed order and inequality; final count exactly two. Native and Terminal exit zero. Replaying/skipping either call violates the frozen count.
-The counter explicitly selects Wrapping arithmetic; the frozen values 0,1,2 never wrap.

@@ -1,3 +1,0 @@
-cannot prove requires contract for specification call `guarded`
-in data `Invalid` default-domain predicate
-independently formed prior requires fact

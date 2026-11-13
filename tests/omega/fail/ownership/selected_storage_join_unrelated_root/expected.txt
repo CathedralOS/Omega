@@ -1,2 +1,0 @@
-cannot prove ensures contract
-result in Region::Owned

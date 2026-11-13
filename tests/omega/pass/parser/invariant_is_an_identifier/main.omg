@@ -1,6 +1,0 @@
-// `invariant` is no longer reserved source syntax. Semantic invariant windows,
-// default-domain facts, and loop reasoning remain independent mechanisms.
-machine main() -> i32 {
-    let invariant: i32 = 25;
-    invariant
-}

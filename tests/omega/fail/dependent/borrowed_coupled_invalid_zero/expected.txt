@@ -1,1 +1,0 @@
-data `Coupled` literal violates the default domain

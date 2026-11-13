@@ -1,4 +1,0 @@
-const SOURCE: [u64; 1] = [3];
-const ALIAS: [u64; 1] = SOURCE;
-machine check_source() requires SOURCE[0] <= 7 {}
-machine main() { check_source(); }

@@ -1,8 +1,0 @@
-module cathedral::provider;
-
-// The provider exposes the complete translation family through the ordinary
-// boundary-trait inheritance edge. Every inherited requirement keeps its
-// exact preconditions, domain guarantees and content conservation theorem.
-use translation::TranslationAuthority;
-
-public boundary trait CathedralTranslationProvider: TranslationAuthority {}

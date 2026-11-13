@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "suspend_param_binding");
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-}

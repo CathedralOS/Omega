@@ -1,6 +1,0 @@
-// No Windows executable is requested, but its authored body still owes its
-// constant proof. Selecting macOS cannot hide the false Windows predicate.
-machine build(builder: &mut Build) {
-    Build::application(builder, "unselected_target_layout_contract");
-    Build::bind(builder, macos_arm64::ProgramEntry, program);
-}

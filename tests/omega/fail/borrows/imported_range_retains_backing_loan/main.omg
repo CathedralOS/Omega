@@ -1,8 +1,0 @@
-use omega::language::core::slice_range;
-
-data Main { bytes: [u8; 4]; }
-machine inspect(main: &mut Main) -> u64 {
-    let view: &[u8] = slice_range<u8>(&main.bytes, 0, 4);
-    main.bytes = [1, 2, 3, 4];
-    view.len
-}

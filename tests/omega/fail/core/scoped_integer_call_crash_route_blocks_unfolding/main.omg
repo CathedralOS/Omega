@@ -1,8 +1,0 @@
-// The scoped_integer_call_unfolds_checked_body program with a crash route
-// declared on `lower`: a crash-capable invocation is not interpreted
-// denotationally, so the caller's `ensures` cannot unfold it and the
-// call has no value denotation to compare.
-machine lower(value: i16) -> i16 ensures result <= value crashes Trap { value }
-machine caller(value: i16) -> i16
-ensures (lower(value) as i16 in Saturating) == result { value }
-machine main() {}

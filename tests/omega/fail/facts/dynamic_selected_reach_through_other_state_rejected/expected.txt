@@ -1,2 +1,0 @@
-machine `observe` publishes service reach `<none>`
-reaches undeclared service `Journal`

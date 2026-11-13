@@ -1,1 +1,0 @@
-constant initializer: constant cast needs a total integer conversion or checked partial-conversion evidence

@@ -1,2 +1,0 @@
-update runtime linux_x86_64 materialized-entry
-pack runtime linux_x86_64 relocated-materialized-entry

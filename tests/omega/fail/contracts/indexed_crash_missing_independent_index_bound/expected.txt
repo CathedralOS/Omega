@@ -1,2 +1,0 @@
-cannot form specification index in machine `read_seven` requires contract
-independent collection bounds are not established by preceding formed facts

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "mixed_record_cases");
-    builder.freestanding = true;
-}

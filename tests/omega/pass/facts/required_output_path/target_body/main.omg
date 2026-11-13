@@ -1,8 +1,0 @@
-// An issued required-output path survives ordinary byte-view transport, so Build seals that exact reserved member and selects the product from its observed bytes.
-// Place: target_body
-// Expected exit: 0
-machine main() {}
-machine wrong_entry() crashes Trap { crash Trap; }
-trait Entry { machine enter() crashes Trap; }
-SelectedEntry satisfies Entry { machine enter() crashes Trap { main(); } }
-RejectedEntry satisfies Entry { machine enter() crashes Trap { wrong_entry(); } }

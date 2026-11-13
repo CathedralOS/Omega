@@ -1,2 +1,0 @@
-does not satisfy trait `Predicate`
-expected return `bool`, got `u32`

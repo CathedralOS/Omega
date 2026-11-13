@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "state_result_differs_from_machine_result");
-}

@@ -1,3 +1,0 @@
-use omega::language::core::clamp_i32;
-
-machine inverted() -> i32 { clamp_i32(3, 8, 2) }

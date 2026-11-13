@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "interior_loop_header");
-    builder.freestanding = true;
-}

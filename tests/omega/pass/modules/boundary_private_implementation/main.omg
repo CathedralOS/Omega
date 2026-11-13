@@ -1,8 +1,0 @@
-// Exported boundary signatures do not publish their implementation selections.
-data PrivateValue { value: i32; }
-machine private_value() -> i32 {
-    let value: PrivateValue = PrivateValue { value: 73 };
-    value.value
-}
-boundary machine local_value() -> i32 { private_value() }
-machine Main::main() -> i32 { local_value() }

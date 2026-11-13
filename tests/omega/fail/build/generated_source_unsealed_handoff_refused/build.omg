@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "generated_source_unsealed_handoff_refused");
-    let path: BuildPath = BuildOutput::resolve(&builder.output, "generated.omg");
-    let writer: i32 = BuildOutput::create(&mut builder.output, path, 0);
-    _ = BuildOutput::write(&mut builder.output, writer, "public const VALUE: u8 = 1;\n");
-    BuildOutput::include_source(&mut builder.output, path);
-    _ = BuildOutput::close(&mut builder.output, writer);
-}

@@ -1,1 +1,0 @@
-machine argument `small` for `filter` does not refine `Predicate`: parameter 0 expects `&i32`, got `&u8`

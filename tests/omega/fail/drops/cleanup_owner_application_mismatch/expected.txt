@@ -1,2 +1,0 @@
-cleanup application `release_reversed` receiver does not match its selected owned subject
-cleanup application `release_specialized` receiver does not match its selected owned subject

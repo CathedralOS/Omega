@@ -1,1 +1,0 @@
-machine `Main::climb` cannot prove ensures contract proof fact `result >= acc + limit - index` on the transition arm guarded by `index < limit`

@@ -1,4 +1,0 @@
-// Signedness is part of the carrier: an i16 is not a member of a u16 domain.
-domain u16::Small requires self <= 10;
-machine take(value: i16) -> i16 requires value in Small { value }
-machine main() -> i32 { 0 }

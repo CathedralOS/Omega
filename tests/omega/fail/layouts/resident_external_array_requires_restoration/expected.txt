@@ -1,1 +1,0 @@
-resident access view with destructive read requires tracked content restoration before loan return

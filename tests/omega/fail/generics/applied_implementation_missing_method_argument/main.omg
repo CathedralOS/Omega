@@ -1,5 +1,0 @@
-trait Operations<Value> { machine own<const Extra: u64>() -> u64; }
-Selected<Value, const Captured: u64> satisfies Operations<Value> {
-    machine own<const Extra: u64>() -> u64 { Extra }
-}
-machine main() -> u64 { Selected<u64, 31>::own() }

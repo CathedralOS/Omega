@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "unselected_implementation_nontail_reentry_rejected");
-    Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
-    Build::select_provider<Selection, X86Selection>(builder, linux_x86_64);
-}

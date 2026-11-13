@@ -1,3 +1,0 @@
-// A pending array call selects its source-visible declaration, not the first
-// machine with this diagnostic spelling in the retained package context.
-machine placed_byte_count() -> u64 { abs(1, 2) }

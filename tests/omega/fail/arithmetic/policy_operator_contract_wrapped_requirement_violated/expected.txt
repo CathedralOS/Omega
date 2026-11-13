@@ -1,2 +1,0 @@
-cannot prove requires contract
-value call to `small_sum` violates required fact

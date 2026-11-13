@@ -1,3 +1,0 @@
-// The consumer imports this file, not the file owning the family members.
-use bodies;
-public data Carrier [copy] { seed: u64; }

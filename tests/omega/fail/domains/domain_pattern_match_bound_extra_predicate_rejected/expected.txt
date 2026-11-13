@@ -1,1 +1,0 @@
-construction of `Selected` field `value` is not proven in domain

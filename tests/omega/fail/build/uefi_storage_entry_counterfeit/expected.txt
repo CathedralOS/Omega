@@ -1,1 +1,0 @@
-cannot prove requires contract for call forward_roots from FirmwareBootstrap::enter: image in Extent::Granted

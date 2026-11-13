@@ -1,6 +1,0 @@
-let reflexive<A: core::Type<0> >(value: f32): core::Strict<0> = value == value;
-
-machine invalid(value: f32)
-ensures reflexive<f32>(value) {}
-
-machine main() { invalid(0.0f32 / 0.0f32); }

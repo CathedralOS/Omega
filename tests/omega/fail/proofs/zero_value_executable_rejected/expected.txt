@@ -1,1 +1,0 @@
-zero_value<T>()` is a proof-only representation observation

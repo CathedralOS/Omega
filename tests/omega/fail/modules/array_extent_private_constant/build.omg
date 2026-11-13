@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "private_array_extent");
-    let mut values_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "values" });
-    dependency::with_alias(&mut values_dependency, "values");
-    let values_registration: DependencyRegistration = Build::dependency(builder, values_dependency);
-}

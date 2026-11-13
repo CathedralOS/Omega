@@ -1,5 +1,0 @@
-data Indexed<Limit:u32,Item>{value:Item;}
-machine read(limit:u32,item:&mut Indexed<limit,u64>) {}
-machine example(a:u32) { let mut item:Indexed<a,u32> = Indexed{value:8}; read(a,&mut item); }
-
-machine main() {}

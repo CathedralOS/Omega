@@ -1,3 +1,0 @@
-cannot complete return from machine `corrupt` state `entry`
-the `requires` facts of `target` (data `Bounded<10>`)
-unproved; restore them first

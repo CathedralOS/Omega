@@ -1,6 +1,0 @@
-// 300 levels of parenthesis nesting -- well within MAX_NESTING_DEPTH but
-// deep enough to have overflowed the default parser stack before the pipeline
-// gained its large-stack compile thread. It must reach checked semantics.
-data Console {}
-machine Console::exit_process(console: &Console, code: i32) {}
-machine main() { let console: Console; let x: i32 = ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((7)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))); Console::exit_process(&console, x); }

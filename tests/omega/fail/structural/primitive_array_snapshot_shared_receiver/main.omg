@@ -1,7 +1,0 @@
-data Main { values: [i32; 2]; }
-machine Main::swap(main: &mut Main) {
-    main.values = [main.values[1], main.values[0]];
-}
-machine Main::main(main: &Main) {
-    Main::swap(main);
-}

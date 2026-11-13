@@ -1,1 +1,0 @@
-Fixed-width complements of zero have different values: 255 for u8 and 65535 for u16. A mathematical predicate cannot identify them by sharing the kernel Int carrier or the same operator spelling and numeric literal.

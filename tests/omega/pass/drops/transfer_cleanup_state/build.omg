@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "transfer_cleanup_state");
-    builder.freestanding = true;
-}

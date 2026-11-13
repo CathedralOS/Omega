@@ -1,6 +1,0 @@
-machine same() -> bool {
-    let value: u64 = 7;
-    address_of(&value) == address_of(&value)
-}
-const SAME: bool = same();
-machine main() { let observed: bool = SAME; }

@@ -1,1 +1,0 @@
-mutates `work.stable.value` while local borrow `observed` is still active

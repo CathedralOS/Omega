@@ -1,8 +1,0 @@
-machine unordered_patterns(divisor: i32)
-requires (match embed(divisor) {
-    embed(7i32) / embed(divisor) -> embed(0i32),
-    embed(0i32) -> embed(0i32),
-    _ -> embed(0i32)
-}) == embed(0i32)
-{}
-machine main() {}

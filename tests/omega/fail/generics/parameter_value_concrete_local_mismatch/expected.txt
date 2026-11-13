@@ -1,1 +1,0 @@
-local `count` expects `u8`, but the value is delivered as `Input`

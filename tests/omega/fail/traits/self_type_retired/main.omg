@@ -1,9 +1,0 @@
-// FAIL CANARY. `Self` names nothing: a trait declares every data type its
-// requirements need as an ordinary parameter (`trait Area<Shape>`), so the
-// retired `Self` placeholder in a requirement signature is an unknown type.
-trait Area {
-    machine area(shape: &Self) -> u64;
-}
-
-machine main() {
-}

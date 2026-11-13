@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "boundary_entry_param");
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-}

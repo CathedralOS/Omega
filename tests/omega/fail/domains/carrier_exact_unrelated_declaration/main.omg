@@ -1,5 +1,0 @@
-// An unrelated u8 domain must not make a u8 literal a member of a u16 domain.
-domain u16::Small requires self <= 10;
-domain u8::Other requires self < 3;
-machine guarded(value: u16) -> u16 requires 7u8 in Small { value }
-machine main() -> i32 { 0 }

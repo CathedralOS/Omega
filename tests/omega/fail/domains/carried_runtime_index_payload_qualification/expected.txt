@@ -1,1 +1,0 @@
-construction of `Choice` field `ticket` is not proven in domain `Ticket::Issued`

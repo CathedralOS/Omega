@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "asm_service_requires_core_owner");
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-}

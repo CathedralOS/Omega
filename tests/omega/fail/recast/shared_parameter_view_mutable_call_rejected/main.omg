@@ -1,6 +1,0 @@
-// A shared local reference cannot lend exclusive access to its scalar backing.
-machine mutate(value: &mut i32) { value = 0; }
-machine inspect(value: i32) {
-    let view: &i32 = &value;
-    mutate(view);
-}

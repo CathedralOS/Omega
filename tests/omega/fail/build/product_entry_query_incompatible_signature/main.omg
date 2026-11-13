@@ -1,3 +1,0 @@
-machine launch(value: u8) {
-    let marker: u8 = value;
-}

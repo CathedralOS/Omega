@@ -1,1 +1,0 @@
-cannot prove requires contract for call dyn Factory::make from unproved: Width == 16 || Width == 32

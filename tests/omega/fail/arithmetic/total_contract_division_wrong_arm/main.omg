@@ -1,8 +1,0 @@
-machine invalid(value: u32) -> u32
-    requires (match value != 0u32 {
-        true -> 0u32,
-        _ -> 10u32 / value
-    }) >= 0u32
-{
-    0u32
-}

@@ -1,5 +1,0 @@
-public boundary trait Read {}
-public boundary trait Host { machine read() -> u64 reaches Read; }
-
-// Naming the provider interface does not acknowledge its read capability.
-machine missing_capability() -> u64 reaches Host { Host::read() }

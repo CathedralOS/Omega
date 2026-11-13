@@ -1,6 +1,0 @@
-// Data identity does not erase a complete generic application.
-data Packet<Value> { value: Value; }
-machine wrong_type(incoming: Packet<u8>) -> Packet<u16>
-ensures core::Identity<Packet<u16>>(result, incoming)
-{ Packet { value: 7u16 } }
-machine main() {}

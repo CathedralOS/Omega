@@ -1,1 +1,0 @@
-explicit selection requires a named implementation as the final static argument

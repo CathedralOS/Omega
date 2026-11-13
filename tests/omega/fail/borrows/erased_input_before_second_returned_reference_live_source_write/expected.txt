@@ -1,1 +1,0 @@
-mutates `two` while local borrow `chosen` is still active

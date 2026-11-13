@@ -1,5 +1,0 @@
-public data Observation { value: i32; }
-public boundary trait Output { machine fill(destination: &mut Observation) reaches; }
-machine observe(destination: &mut Observation) {
-    Output::fill<7>(destination);
-}

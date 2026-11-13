@@ -1,2 +1,0 @@
-uncovered Trap crash in machine `regained` state `entry` local `sum`: Trapping `+` of `left as u64` and `right as u64` in `u64` traps when its result lies outside `u64`
-uncovered Trap crash in machine `regained_qualified` state `entry`

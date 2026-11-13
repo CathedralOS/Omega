@@ -1,9 +1,0 @@
-// COMPILE-ONLY. Each source imports the exact files supplying its names.
-use m::b;
-use m::a::A;
-machine result() -> i32 {
-    let item: A = A { value: 7 };
-    item.value
-}
-data Main {}
-machine Main::main() {}

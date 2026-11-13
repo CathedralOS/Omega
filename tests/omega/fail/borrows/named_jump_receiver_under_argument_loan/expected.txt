@@ -1,3 +1,0 @@
-state `read_after` receives `main.count` as mutable while its mutable receiver reads `main.count`
-state `write_through_subject` receives `main.count` as mutable while its mutable receiver writes `main.count`
-state `observe` receives `main.count` as both mutable and read-only

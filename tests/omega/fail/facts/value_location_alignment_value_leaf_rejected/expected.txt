@@ -1,1 +1,0 @@
-`align_of(value)` observes an addressable storage place

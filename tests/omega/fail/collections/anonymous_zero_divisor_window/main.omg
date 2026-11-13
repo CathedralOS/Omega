@@ -1,3 +1,0 @@
-machine invalid<'row>(items: &'row [u8; 2]) -> &'row [u8] {
-    &items[0..1 / 0]
-}

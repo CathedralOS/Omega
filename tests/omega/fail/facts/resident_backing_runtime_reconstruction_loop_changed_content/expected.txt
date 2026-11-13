@@ -1,3 +1,0 @@
-cannot prove ensures contract for exit from forward
-core::Identity<<structural type>>(Granted.content(old(&storage)), Granted.content(&result))
-core::Identity<<structural type>>(Vacant.content(old(&storage)), Vacant.content(&result))

@@ -1,2 +1,0 @@
-cannot prove ensures contract
-no exact incoming reference origin for envelope

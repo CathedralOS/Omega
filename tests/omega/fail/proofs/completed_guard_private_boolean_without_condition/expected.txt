@@ -1,3 +1,0 @@
-exact arithmetic in machine `subtract_seven`
-return value may overflow `u64`
-operands are not provably in range

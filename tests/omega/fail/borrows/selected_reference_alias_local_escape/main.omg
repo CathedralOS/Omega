@@ -1,7 +1,0 @@
-data Cell { value: i32; }
-machine select<'storage>(input: &'storage Cell, choice: bool) -> &'storage Cell {
-    let local: Cell = Cell { value: 31 };
-    let view: &Cell = &local;
-    match choice { true -> input, false -> view }
-}
-machine main() {}

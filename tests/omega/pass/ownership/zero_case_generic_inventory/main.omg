@@ -1,7 +1,0 @@
-data Token [linear] { value: u64; }
-data Slot { case Empty; case Held(token: Token); }
-data Store<T> { cells: [T; 2]; }
-machine empty() -> Store<Store<Slot>> {
-    let inventory: Store<Store<Slot>>;
-    inventory
-}

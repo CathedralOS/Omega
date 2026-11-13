@@ -1,4 +1,0 @@
-machine build(builder: &mut Build, extra: i32) {
-    Build::application(builder, "build_machine_wrong_arity");
-    builder.freestanding = false;
-}

@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "contextual_hook_cleanup");
-    builder.freestanding = true;
-}

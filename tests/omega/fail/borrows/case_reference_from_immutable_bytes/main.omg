@@ -1,5 +1,0 @@
-data Selection { case Writable(bytes: &mut [u8]); }
-machine main() { inspect(Selection::Writable { bytes: "immutable" }); }
-machine inspect(selection: Selection) {}
-
-machine shared_parameter(bytes: &[u8]) { inspect(Selection::Writable { bytes: bytes }); }

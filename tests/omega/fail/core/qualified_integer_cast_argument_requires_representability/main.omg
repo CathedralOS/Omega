@@ -1,4 +1,0 @@
-machine accept(value: u8 in Saturating) -> u8 { value as u8 }
-machine caller(value: u16) -> u8 {
-    accept(value as u8 in Saturating)
-}

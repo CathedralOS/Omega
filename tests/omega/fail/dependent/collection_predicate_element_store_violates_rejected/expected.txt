@@ -1,3 +1,0 @@
-cannot complete return from machine `Main::seed` state `seed`
-the `requires` facts of `context.grid` (data `Grid`)
-unproved; restore them first

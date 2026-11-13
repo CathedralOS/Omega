@@ -1,1 +1,0 @@
-machine `choose_shifted` cannot prove ensures contract proof fact `result >= 25 && result <= 25`

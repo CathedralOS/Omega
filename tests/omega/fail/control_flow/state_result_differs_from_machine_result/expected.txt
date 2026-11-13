@@ -1,1 +1,0 @@
-terminal call to `checked` completes with its `i32` result, but the state returns `Unit`

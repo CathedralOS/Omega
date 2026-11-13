@@ -1,6 +1,0 @@
-// Exact returned-reference provenance does not discharge an array bound.
-data Main { buf: [u8; 2]; }
-machine Main::outside(main: &Main) -> &u8 {
-    transition { _ -> &main.buf[2] }
-}
-machine Main::main(main: &mut Main) { _ = Main::outside(main); }

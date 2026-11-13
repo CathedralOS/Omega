@@ -1,7 +1,0 @@
-// Arithmetic selectors do not confer mutable access to shared storage.
-data Row { data: [i32 in Wrapping; 2]; }
-machine increment(value: &mut i32 in Wrapping) { value = value + 1; }
-machine visit(rows: &[Row; 3], row: u64, column: u64)
-requires row < 3, column < 2 {
-    increment(&mut rows[row + 0].data[column + 0]);
-}

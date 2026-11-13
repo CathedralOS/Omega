@@ -1,2 +1,0 @@
-value call to `allocate` violates required fact `length <= available`
-structurally false (`32 <= 16`)

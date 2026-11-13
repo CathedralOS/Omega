@@ -1,8 +1,0 @@
-// Forbidden input or result authority does not become a repeatable value.
-data Token [linear] dropped by drop_token { code: u8; }
-machine drop_token(token: &mut Token) {}
-machine accepts(items: &[Token]) -> bool { items.len == 2 }
-machine inspect(items: &[Token])
-requires accepts(items) == true
-{}
-machine main() {}

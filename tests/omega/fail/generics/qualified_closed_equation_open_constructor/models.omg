@@ -1,2 +1,0 @@
-module models;
-public data Token<Element> [copy] { value: Element; }

@@ -1,1 +1,0 @@
-cannot prove requires contract for call dyn Shape<1 argument>::code from scan: Width == 16 || Width == 32 || Width == 64

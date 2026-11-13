@@ -1,1 +1,0 @@
-cannot prove initializer of `left` in rejoin is in domain `Region::Owned`

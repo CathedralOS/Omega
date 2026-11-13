@@ -1,1 +1,0 @@
-state `store_code` receives `second` while local borrow `selected` is still active

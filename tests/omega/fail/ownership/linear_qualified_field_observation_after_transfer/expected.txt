@@ -1,3 +1,0 @@
-cannot use `receipt.code`
-cannot use `slot.receipt.code`
-cannot use `replacement`

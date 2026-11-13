@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "guarded_runtime_index_collection_write");
-}

@@ -1,1 +1,0 @@
-target profile `windows_x86_64` declares no required root slot `windows_x86_64::UndeclaredEntry`

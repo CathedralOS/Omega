@@ -1,1 +1,0 @@
-entry runtime portable component-input Lending::write 2 mutations=0

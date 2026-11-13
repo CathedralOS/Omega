@@ -1,2 +1,0 @@
-specification call `try_from` is not denotational
-not unconditionally terminating

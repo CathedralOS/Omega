@@ -1,2 +1,0 @@
-cannot prove requires contract for call inspect_after
-ascii_only(

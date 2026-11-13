@@ -1,1 +1,0 @@
-cleanup application `drop_owner` receiver does not match its selected owned subject

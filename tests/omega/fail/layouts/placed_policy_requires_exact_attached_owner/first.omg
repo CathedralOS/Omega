@@ -1,8 +1,0 @@
-module first;
-
-public data Registers {
-    status: u32;
-    transmit: u8;
-}
-
-public data RegPlacement {}

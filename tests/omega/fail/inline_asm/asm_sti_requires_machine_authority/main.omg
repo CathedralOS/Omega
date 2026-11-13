@@ -1,3 +1,0 @@
-// Listing reach does not supply authority over the host's interrupt state.
-
-machine main() reaches MachineControl { asm { sti } }

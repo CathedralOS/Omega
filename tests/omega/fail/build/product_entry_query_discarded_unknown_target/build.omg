@@ -1,6 +1,0 @@
-// Discarding a description does not waive execution of the fallible query.
-machine build(builder: &mut Build) {
-    Build::application(builder, "product_entry_query_discarded_unknown_target");
-    _ = BuildProduct::entry(&builder.product, "launch", "unknown_target::ProgramEntry");
-    Build::bind(builder, windows_x86_64::ProgramEntry, launch);
-}

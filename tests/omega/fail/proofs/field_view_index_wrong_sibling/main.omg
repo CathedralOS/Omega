@@ -1,4 +1,0 @@
-data SpectrumView<'samples> [copy] { samples: &'samples [f64]; temperature: f64; }
-data Batch<'samples> [copy] { selected: SpectrumView<'samples>; other: SpectrumView<'samples>; }
-machine radiance<'samples>(batch: &Batch<'samples>, column: u64) -> f64
-requires column < batch.other.samples.len { batch.selected.samples[column] }

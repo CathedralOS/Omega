@@ -1,3 +1,0 @@
-cannot prove ensures contract for exit from uncited_cell
-cannot prove ensures contract for exit from wrong_subject
-cannot prove ensures contract for exit from stronger_than_predicate

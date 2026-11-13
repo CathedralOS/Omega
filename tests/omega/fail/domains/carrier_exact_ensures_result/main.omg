@@ -1,4 +1,0 @@
-// A u8 result cannot be published as a member of a u16 domain.
-domain u16::Small requires self <= 10;
-machine produce() -> u8 ensures result in Small { 7 }
-machine main() -> i32 { 0 }

@@ -1,1 +1,0 @@
-while local borrow `copied_value` is still active

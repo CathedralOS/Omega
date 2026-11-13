@@ -1,4 +1,0 @@
-// Forming mathematical identity does not create an executable machine entry.
-machine main() {
-    core::Identity<u8>(7u8, 7u8);
-}

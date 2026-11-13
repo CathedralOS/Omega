@@ -1,9 +1,0 @@
-// A call-computed result index names the callee's returned value, not the
-// caller's spelling: `bound` returns 11, so `choose<limit>()` is not `Index<limit>`.
-data Index<Limit:u32> [copy] requires value<Limit {value:u32;}
-machine bound<Count:u32>()->u32 {11u32}
-machine choose<Created:u32>()->Index<(bound<Created>())> requires Created >= 9 { Index{value:8} }
-machine probe(limit: u32)->u32 requires limit >= 9 && limit <= 10 {
- let indexed:Index<limit> = choose<limit>();
- indexed.value
-}

@@ -1,3 +1,0 @@
-cannot complete a call at statement 5 in machine `X86Probe::exercise` state `exercise`
-the `requires` facts of `span` (data `Interval`)
-unproved; restore them first

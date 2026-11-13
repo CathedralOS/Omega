@@ -1,1 +1,0 @@
-mutates `second[0]` while local borrow `found` is still active

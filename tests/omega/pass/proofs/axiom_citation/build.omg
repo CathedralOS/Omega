@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "axiom_citation");
-    builder.freestanding = true;
-}

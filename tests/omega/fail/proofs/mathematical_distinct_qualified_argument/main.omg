@@ -1,4 +1,0 @@
-domain i64::Meters;
-domain i64::Seconds;
-let meter_identity(value: i64 in Meters): i64 in Meters = value;
-let wrong(value: i64 in Seconds): i64 in Meters = meter_identity(value);

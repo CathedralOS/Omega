@@ -1,1 +1,0 @@
-entry_start callback-telescope-controls SortPolicies::sort

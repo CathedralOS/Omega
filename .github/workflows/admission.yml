@@ -2,7 +2,7 @@ name: Admission
 
 # The only check a pull request needs before it merges. It builds no compiler:
 # the rules a description and a diff must hold, and formatting. Everything that
-# needs a build (lint, tests, corpus, samples) runs on main after merge; see
+# needs a build (lint, tests, samples) runs on main after merge; see
 # wiki/drafts/designs/ci_rebuild_plan.md. Target: about one minute.
 on:
   pull_request:

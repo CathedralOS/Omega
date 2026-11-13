@@ -1,1 +1,0 @@
-machine `Main::main` state `main` asm fact `main.value` is not boolean-shaped

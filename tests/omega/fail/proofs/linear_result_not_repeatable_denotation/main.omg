@@ -1,8 +1,0 @@
-// Equal scalar fields cannot identify two freshly produced linear occurrences.
-data Token [linear] dropped by drop_token { code: u8; }
-machine drop_token(token: &mut Token) { }
-machine mint(code: u8) -> Token reaches terminates { Token { code: code } }
-machine law(code: u8) reaches terminates
-ensures core::Identity<Token>(mint(code), mint(code))
-{ }
-machine main() { }

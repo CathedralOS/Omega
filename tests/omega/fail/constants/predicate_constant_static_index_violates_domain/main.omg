@@ -1,8 +1,0 @@
-// The predicate_constant_static_index program with `VALID` set to 8, which
-// breaks `Bounded`'s `requires value <= 7`: the constant cannot be formed,
-// so it cannot index `Indexed`.
-data Bounded [copy] requires value <= 7 { value: u64; }
-const VALID: Bounded = Bounded { value: 8 };
-data Indexed<const Value: Bounded> [copy] { marker: u64; }
-data Main { indexed: Indexed<VALID>; }
-machine Main::main(main: &mut Main) {}

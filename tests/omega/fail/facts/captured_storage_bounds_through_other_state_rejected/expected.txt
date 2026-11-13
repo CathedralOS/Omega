@@ -1,3 +1,0 @@
-machine `pump_next` state `entry` statement 1: reading `counter` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Counter`
-machine `pump_next` state `entry` statement 1: the next whole-value read of `counter` occurs inside an OPEN invariant window: a prior write left data `Counter`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-cannot complete a call at statement 2 in machine `pump_next` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first

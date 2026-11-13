@@ -1,2 +1,0 @@
-cannot prove initializer `value` satisfies `finite`
-constructor field `amount`

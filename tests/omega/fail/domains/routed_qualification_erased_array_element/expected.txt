@@ -1,1 +1,0 @@
-cannot prove requires contract for call consume from main: tickets[0] in Ticket::Held

@@ -1,6 +1,0 @@
-trait Fraction { machine get() -> f64; }
-trait Other { machine get() -> f64; }
-Quarter satisfies Fraction { machine get() -> f64 { 0.25 } }
-OtherQuarter satisfies Other { machine get() -> f64 { 0.25 } }
-const UNUSED: dyn Fraction = OtherQuarter as dyn Fraction;
-machine main() {}

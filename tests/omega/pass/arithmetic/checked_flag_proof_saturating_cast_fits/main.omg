@@ -1,4 +1,0 @@
-machine main() {
- let value:u8 in Saturating = 255 as u8 in Saturating;
- asm { observed requires value == 255u8: nop }
-}

@@ -1,3 +1,0 @@
-A generic helper can store a reference from its input into a caller’s destination. Writing the input’s backing data while that stored reference remains live must reject. This program preserves the original source-write control removed during duplicate fact-folder cleanup; its program, Build declarations and expected diagnostic are unchanged.
-
-The selected implementation writes `source.value` into `slot.value`. The caller then writes `source` before reading `slot.value`, so the stored reference must keep the source loan active across the generic call. A rejection before that write does not establish this obligation.

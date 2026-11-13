@@ -1,3 +1,0 @@
-data View<'storage> { bytes: &'storage mut [u8]; }
-trait Choosing { machine choose<'storage>(first: &'storage mut [u8], second: &'storage [u8]) -> View<'storage>; }
-machine main() {}

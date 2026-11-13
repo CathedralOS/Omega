@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "explicit_lifetime_select");
-    builder.freestanding = true;
-}

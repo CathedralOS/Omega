@@ -1,4 +1,0 @@
-cannot prove requires contract for call exercise from
-witness == 7
-cannot prove requires contract for call record_exercise from
-record.value == 7

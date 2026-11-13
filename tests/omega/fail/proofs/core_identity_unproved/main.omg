@@ -1,6 +1,0 @@
-// Forming Id does not provide a proof that two independent subjects agree.
-data Pair [copy] { first: u8; last: u8; }
-machine arbitrary(left: Pair, right: Pair) reaches terminates
-ensures core::Identity<Pair>(left, right)
-{ }
-machine main() { }

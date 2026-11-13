@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "declared_view_fill");
-    builder.freestanding = true;
-}

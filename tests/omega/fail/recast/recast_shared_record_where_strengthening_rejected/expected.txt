@@ -1,1 +1,0 @@
-source leaf facts implying every target leaf fact

@@ -1,6 +1,0 @@
-const Count: u64 = 8;
-machine main() {
-    let Count: u64 = 2;
-    let bytes: [u8; Count] = [0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8];
-    let length: u64 = bytes.len;
-}

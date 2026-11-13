@@ -1,4 +1,0 @@
-// Same-spelled requirements in sibling modules are distinct dispatch slots.
-// Both runners are checked; the build selects right::Runner::run.
-use left;
-use right;

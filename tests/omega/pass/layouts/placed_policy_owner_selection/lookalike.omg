@@ -1,4 +1,0 @@
-module lookalike;
-// This namespace imports no compiler accessor template.
-public data Accessor<T [copy]> { value: T; }
-public machine Accessor::read<T [copy]>(value: &Accessor<T>) -> u32 { 11 }

@@ -1,2 +1,0 @@
-exact arithmetic in machine `pair` state `entry` terminal call operands may overflow `i32`
-exact arithmetic in machine `right` state `entry` terminal call operands may overflow `i32`

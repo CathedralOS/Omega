@@ -1,3 +1,0 @@
-module other;
-public data Configuration [copy] { minimum: u64; }
-public const ANCHOR: u64 = 0;

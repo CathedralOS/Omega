@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from X86Eval::eval at statement 2: result <= 60
-cannot prove ensures contract for exit from ArmEval::eval at statement 2: result <= 60

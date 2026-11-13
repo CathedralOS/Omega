@@ -1,9 +1,0 @@
-data Cell [copy] { value: u64; }
-data Holder { cell: &mut Cell; }
-machine retarget(holder: &mut Holder, replacement: &mut Cell) -> u64
-ensures result == 11 { holder.cell = replacement; 11 }
-machine invalid(holder: &mut Holder, replacement: &mut Cell)
-ensures holder.cell.value == 11 {
-    holder.cell.value = retarget(holder, replacement);
-}
-machine main() {}

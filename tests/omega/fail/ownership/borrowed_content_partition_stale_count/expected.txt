@@ -1,2 +1,0 @@
-cannot complete return from machine `carve`
-this write left the `requires` facts of `strategy` (data `Strategy`) unproved; restore them first

@@ -1,7 +1,0 @@
-// Windows-host canary: select the exact Windows entry.
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "windows_set_file_time_exit");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-}
