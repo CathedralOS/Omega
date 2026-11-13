@@ -91,14 +91,20 @@ public data PunctuationKind [copy] {
     case Tilde;
 }
 
-// The stored token is itself the vocabulary sum. Consumers classify this one
-// value directly; no nested kind field or numeric observation projection exists.
+// A token keeps its source/decoded ranges independently of its vocabulary
+// case. The shared record fields remain available for every TokenKind.
 public data Token [copy] {
+    kind: TokenKind;
     source: u32 in Trapping;
     start: u64 in Trapping;
     end: u64 in Trapping;
     decoded_start: u64 in Trapping;
     decoded_length: u64 in Trapping;
+}
+
+// Payloads belong only to their selected case; kind identity is nominal,
+// not an exposed integer tag. Identifier remains the zero/default case.
+public data TokenKind [copy] {
     case Identifier;
     case Integer(
         base: NumericBase,

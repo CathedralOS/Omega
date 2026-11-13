@@ -292,13 +292,13 @@ crashes Trap
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         parser.item_start = token.start;
-        transition token {
-            Token::Keyword { keyword, .. } -> classify_root_keyword(parser, input,
+        transition token.kind {
+            TokenKind::Keyword { keyword, .. } -> classify_root_keyword(parser, input,
                 keyword,
                 token.start,
                 token.end
             )
-            Token::Identifier -> named_root(parser, input, false)
+            TokenKind::Identifier -> named_root(parser, input, false)
             _ -> unsupported_root(parser, token.start,
                 token.end
             )
@@ -334,11 +334,11 @@ crashes Trap
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
         let head: MachineHead = root_machine_head(parser.item_start, true);
-        transition token {
-            Token::Keyword { keyword: KeywordKind::Data, .. } -> dispatch_data(parser, input, true, false)
-            Token::Keyword { keyword: KeywordKind::Machine, .. } -> dispatch_machine(parser, input, head)
-            Token::Keyword { keyword: KeywordKind::Let, .. } -> dispatch_definition(parser, input, true, false)
-            Token::Identifier -> named_root(parser, input, true)
+        transition token.kind {
+            TokenKind::Keyword { keyword: KeywordKind::Data, .. } -> dispatch_data(parser, input, true, false)
+            TokenKind::Keyword { keyword: KeywordKind::Machine, .. } -> dispatch_machine(parser, input, head)
+            TokenKind::Keyword { keyword: KeywordKind::Let, .. } -> dispatch_definition(parser, input, true, false)
+            TokenKind::Identifier -> named_root(parser, input, true)
             _ -> expected_item_after_public(parser, token.start,
                 token.end
             )
@@ -634,12 +634,12 @@ crashes Trap
     machine first_member(parser: &mut Parser, input: &TokenStream) {
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Identifier -> retain_member(parser, input,
+        transition token.kind {
+            TokenKind::Identifier -> retain_member(parser, input,
                 token.start,
                 token.end
             )
-            Token::Keyword { keyword, .. } -> member_keyword(parser, input,
+            TokenKind::Keyword { keyword, .. } -> member_keyword(parser, input,
                 keyword,
                 token.start,
                 token.end
@@ -690,9 +690,9 @@ crashes Trap
     machine path_tail(parser: &mut Parser, input: &TokenStream) {
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Punctuation { punctuation: PunctuationKind::ColonColon, .. } -> separator(parser, input)
-            Token::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> retain_use(parser, input,
+        transition token.kind {
+            TokenKind::Punctuation { punctuation: PunctuationKind::ColonColon, .. } -> separator(parser, input)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> retain_use(parser, input,
                 token.end
             )
             _ -> expected_separator(parser, token.start,
@@ -713,12 +713,12 @@ crashes Trap
     machine next_member(parser: &mut Parser, input: &TokenStream) {
         load_current(parser, input);
         let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Identifier -> retain_member(parser, input,
+        transition token.kind {
+            TokenKind::Identifier -> retain_member(parser, input,
                 token.start,
                 token.end
             )
-            Token::Keyword { keyword, .. } -> member_keyword(parser, input,
+            TokenKind::Keyword { keyword, .. } -> member_keyword(parser, input,
                 keyword,
                 token.start,
                 token.end
