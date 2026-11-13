@@ -251,6 +251,73 @@ fn typed_base(
     (sources, identities, base, pending)
 }
 
+#[test]
+fn an_evaluation_request_in_a_declaration_refuses_that_declaration_only() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    use typed_trees::statement::StatementNode;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    // `holder` declares a local whose type is an array with a computed
+    // extent, which needs an evaluator that does not exist. `served` asks
+    // for nothing.
+    let (_, _, base, pending) = typed_base(&[(
+        "program/main.omg",
+        "machine holder() {
+    let count: u32 = 0;
+}
+machine served() { }
+",
+    )]);
+    let mut typed = base.typed().clone();
+    let holder = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "holder")
+        .expect("the holder machine");
+    let (holder, state) = (holder.symbol, typed.machine_states(holder)[0].clone());
+    let local = state.statement_nodes.handles().next().expect("the local");
+    let StatementNode::LocalData(binding) = typed.statement_table.statement(local).clone() else {
+        panic!("a typed local")
+    };
+    let extent = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: binding.type_reference,
+            length: FixedArrayLength::Expression(binding.type_reference),
+        });
+    let StatementNode::LocalData(binding) = typed.statement_table.statement_mut(local) else {
+        panic!("a typed local")
+    };
+    binding.type_reference = extent;
+
+    // A reader of the program refuses the request while nothing carries it.
+    let error = match pending.activate_sources(&typed) {
+        Ok(_) => panic!("an unrecorded request must not pass"),
+        Err(error) => error,
+    };
+    assert!(
+        error[0].message.contains("declaration `holder`")
+            && error[0].message.contains("computed extent"),
+        "{error:?}"
+    );
+    // Once the request is recorded on its declaration the program goes on,
+    // and only that declaration is refused.
+    crate::PreCheckEvaluation::defer_declared_requests(&mut typed).unwrap();
+    assert_eq!(
+        typed
+            .deferred_refusals
+            .iter()
+            .map(|row| (row.declaration, row.request))
+            .collect::<Vec<_>>(),
+        [(holder, DeferredRequest::ArrayExtentEvaluation)]
+    );
+    assert!(pending.activate_sources(&typed).is_ok());
+
+    // The twin: the same program as written requests nothing.
+    let mut plain = base.typed().clone();
+    crate::PreCheckEvaluation::defer_declared_requests(&mut plain).unwrap();
+    assert!(plain.deferred_refusals.is_empty());
+}
+
 fn machine_names(typed: &typed_trees::TypedTrees) -> Vec<&str> {
     let mut names = typed
         .machines()
