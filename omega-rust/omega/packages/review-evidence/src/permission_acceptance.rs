@@ -22,7 +22,6 @@ use target::TargetProfile;
 pub struct RuntimePermissionInput<'a> {
     pub(crate) declarations: &'a PreparedRuntimePolicy,
     pub(crate) execution: &'a selected_dispatch::SelectedExecution,
-    pub(crate) providers: &'a provider_planning::ProviderSettlement,
     pub(crate) sources: &'a package_compilation::CheckedSourceCustody,
 }
 
@@ -34,7 +33,6 @@ impl<'a> RuntimePermissionInput<'a> {
         Self {
             declarations,
             execution: checked.execution(),
-            providers: checked.providers(),
             sources: checked.sources(),
         }
     }
