@@ -89,23 +89,64 @@ def normalize_root_route(raw_route: str, line: str) -> str:
     return raw_route or "unknown"
 
 
-def program_route_verdict(root_classes: list[str]) -> str:
-    """Accepted only if every root is accepted; partial if mixed accept + unjudged."""
-    if not root_classes:
+def root_verdict_public(raw_route: str) -> str:
+    if raw_route in ("accepted", "rejected", "outside", "no-entry"):
+        return raw_route
+    return "outside"
+
+
+def format_root_entry(root_field: str, verdict: str) -> str:
+    if root_field == "compilation":
+        return f"compilation:{verdict}"
+    if root_field.startswith("machine:"):
+        return f"machine:{root_field[len('machine:'):]}:{verdict}"
+    return f"{root_field}:{verdict}"
+
+
+def root_storage_key(root_field: str) -> str:
+    if root_field == "compilation":
+        return "compilation"
+    if root_field.startswith("machine:"):
+        return f"machine:{root_field[len('machine:'):]}"
+    return root_field
+
+
+def is_vacuous_accept(line: str) -> bool:
+    if field_prefix(line, "route=") != "accepted":
+        return False
+    return field_prefix(line, "obligations=") == "0" and field_prefix(line, "judged=") == "0"
+
+
+def parse_program_roots(
+    program_lines: list[str],
+) -> tuple[str, str, list[str]]:
+    entries: list[str] = []
+    vacuous: list[str] = []
+    internal: list[str] = []
+    for pl in program_lines:
+        root_field = field_prefix(pl, "root=") or "unknown"
+        raw = field_prefix(pl, "route=") or "unknown"
+        pub = root_verdict_public(raw)
+        entries.append(format_root_entry(root_field, pub))
+        internal.append(normalize_root_route(raw, pl))
+        if is_vacuous_accept(pl):
+            vacuous.append(root_storage_key(root_field))
+    return (";".join(entries), ";".join(vacuous), internal)
+
+
+def program_route_verdict(pub_verdicts: list[str]) -> str:
+    if not pub_verdicts:
         return "error"
     judged = {"accepted", "rejected"}
-    has_acc = any(c == "accepted" for c in root_classes)
-    has_rej = any(c == "rejected" for c in root_classes)
-    has_unj = any(c not in judged for c in root_classes)
-
-    if has_acc and has_unj:
-        return "partial"
-    if has_rej and has_unj:
-        return "partial"
+    has_acc = any(v == "accepted" for v in pub_verdicts)
+    has_rej = any(v == "rejected" for v in pub_verdicts)
+    has_unj = any(v not in judged for v in pub_verdicts)
     if has_rej:
         return "rejected"
     if has_acc and not has_unj:
         return "accepted"
+    if has_acc and has_unj:
+        return "partial"
     return "outside"
 
 
@@ -228,33 +269,33 @@ def capture_output(fixture: str) -> tuple[list[str], float, str | None]:
 
 def analyze_output(
     lines: list[str], seconds: float, fatal: str | None
-) -> tuple[str, str, str, str, str]:
+) -> tuple[str, str, str, str, str, str, str]:
     if fatal == "timeout":
-        return ("timeout", "", "n-a", "timeout", "timeout")
+        return ("timeout", "", "n-a", "timeout", "", "", "timeout")
     if fatal == "error":
-        return ("error", "", "n-a", "error", "error")
+        return ("error", "", "n-a", "error", "", "", "error")
 
     program_lines = [ln for ln in lines if ln.startswith("program\t")]
     if not program_lines:
         if any("panicked" in ln for ln in lines):
-            return ("outside", "stopped", "n-a", "panicked", "panicked")
-        return ("error", "", "n-a", "error", "no-program-line")
+            return ("outside", "stopped", "n-a", "panicked", "", "", "panicked")
+        return ("error", "", "n-a", "error", "", "", "no-program-line")
 
     current = ""
-    root_classes: list[str] = []
     for pl in program_lines:
         c = field_prefix(pl, "current=")
         if c:
             current = c
-        raw = field_prefix(pl, "route=") or "-"
-        root_classes.append(normalize_root_route(raw, pl))
 
-    route_v = program_route_verdict(root_classes)
+    roots_col, vacuous_col, root_classes = parse_program_roots(program_lines)
+    pub_verdicts = [
+        root_verdict_public(field_prefix(pl, "route=") or "") for pl in program_lines
+    ]
+    route_v = program_route_verdict(pub_verdicts)
     cur_v = current_to_verdict(current)
     agree = agreement(cur_v, route_v)
     refusal = pick_first_refusal(lines, root_classes, route_v)
-    agg = "|".join(root_classes[:8])
-    return (route_v, cur_v, agree, refusal, agg)
+    return (route_v, cur_v, agree, refusal, roots_col, vacuous_col, "")
 
 
 def tier(fixture: str) -> str:
@@ -362,17 +403,18 @@ def summarize(tsv_path: Path, md_path: Path, pin: str, bin_path: Path) -> None:
         parts = line.split("\t")
         if len(parts) < 7:
             continue
-        rows.append(
-            {
-                "fixture": parts[0],
-                "tier": parts[1],
-                "route_verdict": parts[2],
-                "current_verdict": parts[3],
-                "agreement": parts[4],
-                "first_refusal": parts[5],
-                "seconds": parts[6],
-            }
-        )
+        row = {
+            "fixture": parts[0],
+            "tier": parts[1],
+            "route_verdict": parts[2],
+            "current_verdict": parts[3],
+            "agreement": parts[4],
+            "first_refusal": parts[5],
+            "seconds": parts[6],
+            "roots": parts[7] if len(parts) > 7 else "",
+            "vacuous_accept_roots": parts[8] if len(parts) > 8 else "",
+        }
+        rows.append(row)
     for r in rows:
         if r["route_verdict"] == "accepted" and r["current_verdict"] == "rejected":
             out, _, _ = capture_output(r["fixture"])
@@ -505,7 +547,12 @@ def main() -> None:
         return
 
     fixtures = fixture_list()
-    header = "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\tfirst_refusal\tseconds\n"
+    header = (
+        "fixture\ttier\troute_verdict\tcurrent_verdict\tagreement\tfirst_refusal\tseconds"
+        "\troots\tvacuous_accept_roots\n"
+    )
+    raw_dir = Path(f"/tmp/route-coverage-shard-{SHARD}")
+    raw_dir.mkdir(parents=True, exist_ok=True)
 
     done: set[str] = set()
     if not REWRITE and tsv_path.exists():
@@ -514,6 +561,7 @@ def main() -> None:
                 done.add(line.split("\t", 1)[0])
 
     mode = "w" if REWRITE or not tsv_path.exists() else "a"
+    written: list[str] = []
     with tsv_path.open(mode) as out:
         if mode == "w":
             out.write(header)
@@ -521,13 +569,33 @@ def main() -> None:
             if fixture in done:
                 continue
             lines, seconds, fatal = capture_output(fixture)
-            rv, cv, agree, refusal, _agg = analyze_output(lines, seconds, fatal)
+            if lines:
+                safe = fixture.replace("/", "__")
+                (raw_dir / f"{safe}.txt").write_text("\n".join(lines) + "\n")
+            rv, cv, agree, refusal, roots, vacuous, _ = analyze_output(
+                lines, seconds, fatal
+            )
             out.write(
-                f"{fixture}\t{tier(fixture)}\t{rv}\t{cv}\t{agree}\t{refusal}\t{seconds:.3f}\n"
+                f"{fixture}\t{tier(fixture)}\t{rv}\t{cv}\t{agree}\t{refusal}"
+                f"\t{seconds:.3f}\t{roots}\t{vacuous}\n"
             )
             out.flush()
+            written.append(fixture)
             if (i + 1) % 25 == 0:
                 print(f"[shard {SHARD}] {i + 1}/{len(fixtures)}", flush=True)
+
+    row_n = sum(
+        1 for line in tsv_path.read_text().splitlines() if line and not line.startswith("fixture\t")
+    )
+    if row_n != len(fixtures):
+        raise SystemExit(f"row count {row_n} != fixture count {len(fixtures)}")
+    fixtures_in_tsv = [
+        line.split("\t", 1)[0]
+        for line in tsv_path.read_text().splitlines()
+        if line and not line.startswith("fixture\t")
+    ]
+    if len(fixtures_in_tsv) != len(set(fixtures_in_tsv)):
+        raise SystemExit("duplicate fixture rows in TSV")
 
     summarize(tsv_path, OUT_DIR / f"shard-{SHARD}.md", MEASURED_PIN, BIN)
     print(f"done shard {SHARD}: {len(fixtures)} fixtures", flush=True)

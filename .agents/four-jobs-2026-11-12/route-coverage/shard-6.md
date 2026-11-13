@@ -20,16 +20,16 @@ Execution: **one fixture per process, serial** (see `tools/build_slot.md`).
 
 ## Totals
 
-- judged (route accepted or rejected): 88
+- judged (route accepted or rejected): 104
 - route accepted: 34
-- route rejected: 54
-- partial: 204
+- route rejected: 70
+- partial: 188
 - outside: 1882
 - timeout: 0
 - error: 0
-- agree: 71
+- agree: 87
 - disagree: 17
-- agreement n/a (outside + partial + timeout + error): 2086
+- agreement n/a (outside + partial + timeout + error): 2070
 - route accepted + current rejected (watch list, not all candidates): 0
 
 - `meta:no-entry` (in outside/partial rows): 368
@@ -41,7 +41,7 @@ Execution: **one fixture per process, serial** (see `tools/build_slot.md`).
 
 ### Slow fixtures
 
-- `tests/omega/fail/build/installed_arrival_without_context/main.omg`: 288.843s, route `outside`, current `accepted` (completed under 300s cap).
+- `tests/omega/fail/build/installed_arrival_without_context/main.omg`: 289.513s, route `outside`, current `accepted` (completed under 300s cap).
 
 ## Top 10 first-refusal constructs (outside/partial)
 
@@ -54,7 +54,7 @@ Execution: **one fixture per process, serial** (see `tools/build_slot.md`).
 | `declaration Build selection that is not a machine or a data type` | 112 |
 | `type data with custody` | 100 |
 | `type constrained` | 56 |
-| `machine attached data` | 49 |
+| `machine attached data` | 48 |
 | `contract contracts on a state` | 33 |
 | `declaration const` | 31 |
 ## Agreement rules
@@ -76,11 +76,11 @@ Agree/disagree counts apply only to judged rows (`accepted` or `rejected` route 
 
 ### Five route rejects, current accepts
 
-- `tests/omega/pass/arithmetic/nonlinear_square_positive_operand_exit/main.omg`: `program	tests/omega/pass/arithmetic/nonlinear_square_positive_operand_exit/main.omg	current=accepted	current_us=2910632	root=compilation	route=rejected	route_us=3957	discharge_us=3689	reverify_us=3237	reverified=4	obligations=6	judged=4	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0`
-- `tests/omega/pass/arithmetic/runtime_boolean_state_shift_count_exit/main.omg`: `program	tests/omega/pass/arithmetic/runtime_boolean_state_shift_count_exit/main.omg	current=accepted	current_us=2967019	root=compilation	route=rejected	route_us=2208	discharge_us=1822	reverify_us=461	reverified=6	obligations=9	judged=8	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0`
-- `tests/omega/pass/calls/private_arrival_guarded_helper_range_exit/main.omg`: `program	tests/omega/pass/calls/private_arrival_guarded_helper_range_exit/main.omg	current=accepted	current_us=2980169	root=compilation	route=rejected	route_us=2298	discharge_us=1901	reverify_us=627	reverified=8	obligations=13	judged=10	core_refused=0	unproved=3	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0`
-- `tests/omega/pass/facts/four_variant_enum_payload_bound_through_other_machine_exit/main.omg`: `program	tests/omega/pass/facts/four_variant_enum_payload_bound_through_other_machine_exit/main.omg	current=accepted	current_us=3835982	root=compilation	route=rejected	route_us=9740	discharge_us=9228	reverify_us=8010	reverified=7	obligations=8	judged=7	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=6	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0`
-- `tests/omega/pass/facts/match_join_multi_variant_bound_through_local_exit/main.omg`: `program	tests/omega/pass/facts/match_join_multi_variant_bound_through_local_exit/main.omg	current=accepted	current_us=3279357	root=compilation	route=rejected	route_us=1970	discharge_us=1517	reverify_us=1022	reverified=6	obligations=8	judged=6	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=5	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0`
+- `tests/omega/pass/arithmetic/nonlinear_square_positive_operand_exit/main.omg`: `program	tests/omega/pass/arithmetic/nonlinear_square_positive_operand_exit/main.omg	current=accepted	current_us=3000397	root=compilation	route=rejected	route_us=4082	discharge_us=3781	reverify_us=3240	reverified=4	obligations=6	judged=4	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0`
+- `tests/omega/pass/arithmetic/runtime_boolean_state_shift_count_exit/main.omg`: `program	tests/omega/pass/arithmetic/runtime_boolean_state_shift_count_exit/main.omg	current=accepted	current_us=2917441	root=compilation	route=rejected	route_us=2518	discharge_us=1700	reverify_us=476	reverified=6	obligations=9	judged=8	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0`
+- `tests/omega/pass/calls/private_arrival_guarded_helper_range_exit/main.omg`: `program	tests/omega/pass/calls/private_arrival_guarded_helper_range_exit/main.omg	current=accepted	current_us=2920411	root=compilation	route=rejected	route_us=2365	discharge_us=1961	reverify_us=626	reverified=8	obligations=13	judged=10	core_refused=0	unproved=3	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=0	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0`
+- `tests/omega/pass/facts/four_variant_enum_payload_bound_through_other_machine_exit/main.omg`: `program	tests/omega/pass/facts/four_variant_enum_payload_bound_through_other_machine_exit/main.omg	current=accepted	current_us=3759438	root=compilation	route=rejected	route_us=9747	discharge_us=9236	reverify_us=8028	reverified=7	obligations=8	judged=7	core_refused=0	unproved=1	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=6	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0`
+- `tests/omega/pass/facts/match_join_multi_variant_bound_through_local_exit/main.omg`: `program	tests/omega/pass/facts/match_join_multi_variant_bound_through_local_exit/main.omg	current=accepted	current_us=3247217	root=compilation	route=rejected	route_us=2233	discharge_us=1539	reverify_us=1028	reverified=6	obligations=8	judged=6	core_refused=0	unproved=2	refused_other=0	needed_relation=0	needed_branch=0	published_held=0	uses=5	unestablished=0	windows=0	consumed=0	closed=0	weakened_joins=0`
 
 ## All disagreements
 
