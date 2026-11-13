@@ -326,7 +326,7 @@ Refused by name:
 | `T in Trapping`, whose every operation is its own `Trap` site, and a cast into it | `type constrained by Trapping`, `expression cast into Trapping` |
 | a type constrained by a declared domain, alone or beside a policy | `type constrained by a domain that is not one arithmetic policy` |
 | a policy on `bool` or a float | `type arithmetic policy on a type that is not an integer` |
-| an operator over a policy-qualified operand and a plain binding: open owner question `policy-operator-plain-operand` | `expression operator between a policy-qualified operand and a plain operand that is not a literal` |
+| an operator over a policy-qualified operand and a plain binding: [policy-domain signatures](../../../../../wiki/spec/language/numeric_values.md#policy-domains) admit this in either order; remove the literal-only implementation restriction under `OPERATION-ARITHMETIC-POLICY` | `expression operator between a policy-qualified operand and a plain operand that is not a literal` |
 | operands under two different policies | `typing operands under two arithmetic policies` |
 | `&`, `\|`, `^` and `~` over a policy-qualified operand, which the policy catalog has no row for | `expression bitwise operator on a policy-qualified operand`, `typing unary operand type` |
 | a Saturating shift, which owes the Exact count proof under an operation the lowering does not emit | `expression saturating shift` |

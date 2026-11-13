@@ -760,6 +760,12 @@ machine farther(left: i32 in Km, right: i32 in Km) -> bool {
 }
 ```
 
+[Core policy-domain operators](numeric_values.md#policy-domains) explicitly
+declare mixed qualified/plain parameter types in both orders. A plain variable
+matches those signatures just as a plain literal does; neither gains a domain
+at the call site. This is ordinary exact matching, not a general conversion
+rule for mismatched qualifications or carriers.
+
 In a domain's own `requires`, `self` is the value in the underlying carrier
 without the domain being defined, so `self > 0` in `Positive` is a builtin
 comparison on `i32`. Indexing follows the same rule through its operator

@@ -64,41 +64,4 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - Does an unsuffixed operator apply to one policy-qualified operand and one plain binding, or only to a plain literal?
-
-Decision name: `policy-operator-plain-operand`.
-
-**Customer.** A hash or checksum loop that keeps its state in a Wrapping
-binding and mixes in plain values:
-
-```omega
-machine mix(hash: u32 in Wrapping, byte: u32) -> u32 in Wrapping {
-    hash * 31 + byte
-}
-```
-
-`hash * 31` is the case every reading accepts. `... + byte` adds a plain
-`u32` binding to a `u32 in Wrapping` value.
-
-**Gap.** [Policy domains](wiki/spec/language/numeric_values.md#policy-domains)
-says core declares each unsuffixed operator "for two operands carrying the
-domain and for one such operand with a plain operand of the same carrier, so
-`counter + 1` needs no cast". Read as written, `byte` is a plain operand of
-the same carrier and the program is valid.
-[Overflow policies](wiki/spec/language/numeric_values.md#overflow-policies)
-says "incompatible policies do not mix implicitly" and "A machine naming no
-arithmetic policy publishes Exact", and the checker being removed rejects
-this exact program as "mixed arithmetic domains ... one operand is `Wrapping`
-and the other is `Exact`", while accepting the literal. Neither page says
-whether the plain-operand declarations were meant for literals only, and
-[literals and expected types](wiki/spec/language/domains.md#literals-and-expected-types)
-makes a literal an ordinary plain value, which would leave no way to tell the
-two apart by type.
-
-**Options.** (a) Any plain operand of the same carrier, as the sentence
-reads. (b) A literal only; a plain binding needs `as` first. The same answer
-applies to the comparisons core declares for these shapes.
-
-**Until answered.** The lowered-form checker serves the literal and refuses
-the plain binding as not supported (`operator between a policy-qualified
-operand and a plain operand that is not a literal`).
+None currently.

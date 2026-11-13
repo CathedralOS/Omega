@@ -542,6 +542,9 @@ generic spelling for that choice remains unsettled. Omission does not choose a
 weaker policy, and incompatible policies do not mix implicitly. A
 [policy operator](#policy-operators) selects its policy for that one operation
 and leaves its operands and result unqualified.
+Exact as the plain-operation default does not restrict a plain value to Exact
+operations: a [declared mixed policy-domain overload](#policy-domains) may
+explicitly accept that plain type without converting or qualifying the input.
 
 ### Integer equality and order
 
@@ -670,16 +673,39 @@ rules.
 
 #### Policy domains
 
+Named decision: `policy-operator-plain-operand`, confirmed 2026-11-13.
+
 `Wrapping`, `Saturating` and `Trapping` remain qualifications for a value whose
 every operation should use one policy. They are `omega::core` domains, not
 separately specified arithmetic. For each fixed integer carrier, core declares
 each unsuffixed arithmetic operator for two operands carrying the domain and
-for one such operand with a plain operand of the same carrier, so
+for one such operand with a plain operand of the same carrier in either order, so
 `counter + 1` needs no cast. The operator is the corresponding suffixed
 operation on the operands with the domain removed, and its result carries the
 same domain. Core declares the comparisons for the same operand shapes; they
 compare the stored values and return `bool`. `Trapping`'s operators publish
 `crashes Trap`. Their role and the float policy rows are unchanged.
+
+The plain operand may be a landed literal, local, parameter, field projection
+or call result. Its expression form does not change overload eligibility.
+For addition on a fixed carrier `T`, each policy domain `D` supplies signatures
+for `(T in D, T in D)`, `(T in D, T)` and `(T, T in D)`, returning `T in D`.
+Plain-plus-plain remains Exact and returns plain `T`. The mixed comparison
+signatures instead return `bool` and compare the stored values.
+
+This is exact matching of declared parameter types, not implicit conversion or
+a rule that one operand's policy wins. The selected implementation explicitly
+removes qualifications where needed, uses its chosen suffixed operation and
+qualifies the arithmetic result. The caller's plain input stays plain. Core
+does not supply a Wrapping-plus-Saturating overload; incompatible domains,
+additional qualifications and other carrier combinations require a fitting
+declaration or an explicit source conversion/cast, never an inferred one.
+
+Selection is local to each operation. With `hash` of type `u32 in Wrapping`
+and `byte` of type `u32`, `hash + (byte + 1)` selects Exact for the inner
+addition and Wrapping for the outer addition. The inner result must fit;
+the outer policy cannot relax that obligation. Writing `byte +% 1` explicitly
+selects wrapping for the inner operation and still produces a plain `u32`.
 
 These are ordinary declarations under
 [exact operator matching](domains.md#semantic-roles-and-operators). An operand
@@ -691,9 +717,6 @@ Use a suffixed operator when one operation needs a policy. A qualified binding
 makes every later operation on it use that policy, and `as -Wrapping` removes
 the domain before Exact use. A `Trapping` qualification in particular says nothing about the
 value it qualifies: a returned Trapping result is the exact value.
-
-Compiler and library support is pending **OPERATION-ARITHMETIC-POLICY** in
-[TASKS.md](../../../TASKS.md).
 
 ### Integer quotient and remainder
 
