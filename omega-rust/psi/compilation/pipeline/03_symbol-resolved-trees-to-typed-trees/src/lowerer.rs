@@ -2059,6 +2059,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         data_implementation_applications: _,
         dynamic_slots: _,
         target_machine_families: _,
+        deferred_refusals: _,
         boundary_completion_declarations: _,
         evidence_forwardings: _,
         proof_output_calls,

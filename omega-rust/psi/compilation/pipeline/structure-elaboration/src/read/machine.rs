@@ -351,6 +351,24 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
+    /// Refuses a demanded declaration that holds a request no pass served
+    /// (`typed_trees::deferred_refusals`). Typing and typed preparation see
+    /// the whole program with every library and record such a request on its
+    /// declaration instead of refusing programs that never reach it; this is
+    /// where it is raised. Every machine read passes here, as an entry, a
+    /// Build selection, a subject declaration or a callee, so a declaration
+    /// with a row is never read through.
+    pub(super) fn served(&self, id: MachineId, declaration: SymbolHandle) -> Checked<()> {
+        match self.typed.deferred_refusal(declaration) {
+            None => Ok(()),
+            Some(row) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration(row.request.construct()),
+            )),
+        }
+    }
+
     pub(super) fn declaration(
         &self,
         id: MachineId,
@@ -559,6 +577,7 @@ impl<'t> Program<'t> {
         reading: &Reading,
     ) -> Checked<(Signature, MachineNames, usize)> {
         let (machine, state) = self.declaration(id, symbol)?;
+        self.served(id, symbol)?;
         // The entry of a generic check form keeps its value parameters as
         // formals; `machine_shape` refuses them on every other machine.
         let binders = match reading {
@@ -685,6 +704,7 @@ impl<'t> Program<'t> {
         requirement: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
+        self.served(id, requirement.symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
         if requirement.spelling.is_some() {
             return unserved("operator spelling");

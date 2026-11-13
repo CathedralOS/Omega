@@ -377,6 +377,9 @@ fn remove_declaration_rows(program: &mut TypedTrees, removed: &SymbolMembership)
         false
     };
     program
+        .deferred_refusals
+        .retain(|row| !owner_removed(row.declaration));
+    program
         .plan_laid_layouts
         .retain(|row| !owner_removed(row.data_symbol));
     program
