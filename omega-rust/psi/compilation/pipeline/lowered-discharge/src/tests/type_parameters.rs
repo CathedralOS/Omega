@@ -256,3 +256,38 @@ fn one_type_parameter_is_one_type_in_a_specialization() {
         RefusalReason::Unsupported
     );
 }
+
+#[test]
+fn an_applied_contract_is_left_to_its_own_check_form_only_when_one_is_judged() {
+    use crate::verdict::{AppliedContracts, judge_owing};
+    // Shows: `relay<T>` relies on `forward<T>`'s `ensures`, which is in
+    // `relay`'s form as a row of a machine with no body. Judged alone, the
+    // form is undecided, because nothing in it proves that row. Judged in a
+    // compilation that also judges `forward`'s own check form, `relay`'s
+    // form is accepted on its own three proofs.
+    let form = || {
+        Ok(lowered(
+            vec![relay(rigid(), 11), forward(rigid(), Vec::new())],
+            &[2],
+        ))
+    };
+    assert!(matches!(judge(form()).unwrap(), RouteVerdict::FallBack(_)));
+    assert!(matches!(
+        judge_owing(form(), AppliedContracts::OwnCheckForms).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    // The negative twin: the bound `forward` does not give is still a
+    // rejection of `relay`, named at `relay`'s own guarantee.
+    let RouteVerdict::Rejected { unproved, .. } = judge_owing(
+        Ok(lowered(
+            vec![relay(rigid(), 10), forward(rigid(), Vec::new())],
+            &[2],
+        )),
+        AppliedContracts::OwnCheckForms,
+    )
+    .unwrap() else {
+        panic!("a bound the callee does not give must reject the form");
+    };
+    assert!(unproved.iter().all(|entry| entry.machine == id(1)));
+    assert!(!unproved.is_empty());
+}
