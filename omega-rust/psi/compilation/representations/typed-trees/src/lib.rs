@@ -26,6 +26,7 @@ without re-running type inference or inspecting surface syntax.
 - Flat module layout:
   - `lib.rs`: `TypedTrees`, `FrozenTypedTrees`, `TypedTreeRoots`, `TypedTreeTables`, `boundary_values`, `direct_calls`, and `source_review`.
   - `references.rs`: typed declaration and expression reference occurrences (`references`).
+  - `declaration_projection.rs`: narrowing a program to selected declarations and their closure (`declaration_projection`).
   - `service_declarations.rs`: boundary service and provider declaration projections (`service_declarations`, `provider_declarations`).
   - `access_views_and_commitments.rs`: placed/plan-laid access views, conformance commitments, constant recipes, and wire schema queries.
   - `callable_applications.rs`: closed machine, trait, requirement, and domain callable applications.
@@ -753,6 +754,7 @@ pub(crate) mod build_selections {
     }
 }
 pub mod callable_signature_shapes;
+pub mod declaration_projection;
 pub mod references;
 pub mod service_declarations;
 pub use service_declarations::provider_declarations;
