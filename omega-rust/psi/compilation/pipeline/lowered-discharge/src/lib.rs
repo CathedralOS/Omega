@@ -52,6 +52,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 */
 
 mod arrivals;
+mod callable_formations;
 mod crashes;
 mod describe;
 mod entry_inputs;
@@ -64,11 +65,15 @@ mod prove;
 mod reuse;
 mod verdict;
 
+pub use callable_formations::{
+    CallableFormationCause, CallableFormationDefect, CallableFormationFailure,
+    check_bound_callable_shapes,
+};
 pub use places::{ConflictingLoan, LoanConflict};
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use verdict::{
-    AcceptedClosure, ConflictingUse, ConsumptionSite, PublicationError, RoutePublication,
-    RouteVerdict, UnestablishedUse, UnprovedObligation, judge, judge_compilation,
+    AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, PublicationError,
+    RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge, judge_compilation,
 };
 
 #[cfg(test)]

@@ -58,12 +58,19 @@ fn accepted(fixture: &str) -> Box<lowered_discharge::AcceptedClosure> {
         FixtureFrontierCheck::Accepted { frontier, .. } => frontier,
         _ => panic!("{fixture}: the program must check"),
     };
+    assert!(
+        lowered_discharge::check_bound_callable_shapes(&frontier.typed, &frontier.bindings)
+            .expect("entry shape identities resolve")
+            .is_empty(),
+        "publication requires the bound continuation shapes as well as body proofs"
+    );
     match judge(elaborate(
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
             subject: frontier.subject,
             selected: &frontier.selected,
+            bindings: &frontier.bindings,
         },
     )) {
         Ok(RouteVerdict::Accepted(closure)) => closure,
