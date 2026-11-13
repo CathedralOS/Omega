@@ -1013,8 +1013,8 @@ impl<'t> Program<'t> {
     /// is not public. Which package a declaration belongs to is the package
     /// of the source file its symbol was declared in, as for subjects
     /// (`subjects`); a declaration with no source file cannot be placed and
-    /// is refused. The typed trees can hold such a call: the current checker
-    /// rejects it after them, where a product selects the callee, so a
+    /// is refused. The typed trees can hold such a call: the deleted checker
+    /// rejected it after them, where a product selected the callee, so a
     /// reader that took every resolved call as permitted would accept a
     /// program that reaches into a dependency's private machine.
     pub(super) fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
@@ -1220,7 +1220,7 @@ impl<'t> Program<'t> {
             return unserved("borrow whose access differs from its formal's");
         }
         // What a diagnostic calls the lender: the binding at the root of
-        // the place, as the current checker names it.
+        // the place, as the deleted checker named it.
         let mut root = target;
         while let ExpressionNode::Member(member) = self.node(id, root)? {
             root = member.receiver;

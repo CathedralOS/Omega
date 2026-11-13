@@ -29,6 +29,14 @@ const REJECTIONS: &[(&str, &str)] = &[
         "tests/fixtures/fail/arithmetic/signed_zero_does_not_prove_positive",
         "check",
     ),
+    // The same, where the fixture pins the whole sentence: the fact the
+    // callee asked for in its own words, and the caller's state. The
+    // program's sum states a bound on each case's payload, so its `main`
+    // is judged only when that data `requires` is read.
+    (
+        "tests/fixtures/fail/facts/four_variant_enum_payload_bound_through_local_rejected",
+        "main",
+    ),
     // A nested callee.
     (
         "tests/fixtures/fail/calls/state_arrival_call_result_above_bound",

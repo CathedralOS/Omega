@@ -33,7 +33,7 @@ pub use checking::compile_thread::{
     COMPILE_STACK_SIZE, run_on_compile_thread, spawn_compile_worker,
 };
 pub use checking::typed_frontier::{
-    CurrentCheckerVerdict, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
+    ProductCheckOutcome, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
 };
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,

@@ -11,7 +11,7 @@
 mod fixture_package_inputs;
 
 use fixture_package_inputs::{
-    FixtureFrontierCheck, check_fixture_keeping_typed_frontier, repo_root,
+    FixtureProductCheck, check_fixture_keeping_typed_frontier, repo_root,
 };
 use lowered_discharge::{RouteVerdict, judge_compilation};
 use structure_elaboration::Compilation;
@@ -36,7 +36,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     });
-    let FixtureFrontierCheck::Rejected {
+    let FixtureProductCheck::Rejected {
         frontier,
         diagnostics,
     } = checked

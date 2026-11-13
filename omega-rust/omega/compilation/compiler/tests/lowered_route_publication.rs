@@ -11,19 +11,19 @@
 //!
 //! Each machine of the published module states the declaration identity of
 //! the source machine it lowers, so the Build's selected entry is found on it
-//! the way the program-entry receipt finds it on the current checker's
+//! the way the program-entry receipt finds it on the product check's
 //! program.
 //!
 //! The default compile takes this path for the application: when the route
 //! accepts a compilation and its module publishes, the Terminal product is
 //! that artifact and its seals stay beside it for Omega 00. Everything else
 //! a product reads (provider selection, calling policies, the Build's
-//! companions) still comes from the current checker's program.
+//! companions) still comes from the product check's program.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
 use fixture_package_inputs::{
-    FixtureFrontierCheck, check_fixture_keeping_typed_frontier, discover_fixture,
+    FixtureProductCheck, check_fixture_keeping_typed_frontier, discover_fixture,
     fixture_build_snapshot, produce_fixture, repo_root, review_fixture,
 };
 use lowered_discharge::{RouteVerdict, judge};
@@ -65,7 +65,7 @@ fn accepted(
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     });
     let (frontier, checked) = match checked {
-        FixtureFrontierCheck::Accepted { frontier, checked } => (frontier, checked),
+        FixtureProductCheck::Accepted { frontier, checked } => (frontier, checked),
         _ => panic!("{fixture}: the program must check"),
     };
     assert!(
@@ -196,7 +196,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
 
 /// The default compile builds the application of a program the route accepts
 /// from the route's own module: the Terminal product holds exactly the
-/// artifact `AcceptedClosure::publish` produces, not the current checker's
+/// artifact `AcceptedClosure::publish` produces, not the product check's
 /// program, and the evidence seals bound to that artifact's identity are
 /// retained beside it, so native production hands Omega 00 the module the
 /// kernel judged with the certificates that judged it.
@@ -268,7 +268,7 @@ fn default_product(fixture: &str) -> terminal_psi_to_abstract_operations::Retain
 }
 
 /// The route states, for every machine of the module it publishes, the
-/// declaration identity the current checker's program states for the same
+/// declaration identity the product check's program states for the same
 /// source machine: the exact-owner machine and state, the semantic
 /// declaration, the parameter and result types, the callable and the
 /// published suspension and blocking. Only the contract commitment differs,

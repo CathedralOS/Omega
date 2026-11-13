@@ -137,7 +137,7 @@ impl CompilationSession {
     }
 
     /// Run the session's ordinary check and also return the frozen typed trees
-    /// the current checker judged, whether it accepted them or not.
+    /// the product check judged, whether it accepted them or not.
     ///
     /// A package request takes `check_package_build`'s path and a source request
     /// takes `complete_source_check`'s; the verdict is what that call returns.

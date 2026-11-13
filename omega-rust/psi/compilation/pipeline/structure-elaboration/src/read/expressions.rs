@@ -156,7 +156,7 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
-                // The current checker rejects this program ("erased
+                // The deleted checker rejected this program ("erased
                 // parameter ... has no runtime value"); this route does not
                 // own that rejection yet, so the closure falls back to it.
                 if slots[slot].erased {
@@ -589,7 +589,7 @@ fn binary_expression(
     // The plain partner is served when it is a literal, the case that
     // sentence names. Whether a plain *binding* is one too is open
     // (`OWNER_QUESTIONS.md`, decision `policy-operator-plain-operand`):
-    // the sentence reads that way, and the current checker rejects it as
+    // the sentence reads that way, and the deleted checker rejected it as
     // mixed arithmetic domains.
     let carried = |value_type| match value_type {
         // domains.md, "Operands": builtin operators take unqualified

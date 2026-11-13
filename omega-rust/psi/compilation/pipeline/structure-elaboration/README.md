@@ -127,7 +127,7 @@ executes":
   checker before it runs and before these trees exist.
 - **The bound target's entry-contract source**
   (`source/library/std/targets/<target>/entry.omg`), whose machines plan the
-  entry boundary. The current checker keeps that whole source as a subject
+  entry boundary. The deleted checker kept that whole source as a subject
   (`check_product_source`); here it is a toolchain file, so its machines are
   judged only if something reaches them.
 
@@ -1026,7 +1026,7 @@ established value or the type is gated
 
 A scalar local is zero-constructed by the same rule
 (`local-without-initializer`): `let mut x: u32; f(x)` reads zero, as the
-current checker accepts. Lowering logs `Content::Value(zero)` on the scalar
+deleted checker accepted. Lowering logs `Content::Value(zero)` on the scalar
 home at its `EstablishPrimitiveLocal`, naming the zero constant emitted just
 before it
 ([dependent values](../../../../../wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization):
@@ -1282,7 +1282,7 @@ worked around by adding to `terminal-check-tables`.
     `let { x, y as _ } = p;` reaches the typed trees as a marker local
     followed by one ordinary field-read local per bound field. The marker
     used to name its fields only in its own name (`__destructure#x#y`), which
-    the current checker split and compared by spelling. It now carries a
+    the deleted checker split and compared by spelling. It now carries a
     roster (`TableLocalData::pattern_fields`, one row per named field, bound
     or waived) that typed preparation resolves against the subject's declared
     record (`pattern_subject`), and `validate_destructure_exhaustiveness`
@@ -1354,7 +1354,7 @@ worked around by adding to `terminal-check-tables`.
     its published routes"; "`crashes none` admitting only crash-free
     members"). Both publish no route in the generic form, so the generic
     check decides nothing about crashes through the call either way. The
-    current checker refuses a member that is not crash-free where it
+    deleted checker refused a member that is not crash-free where it
     satisfies a `crashes none` requirement, and gives each application of a
     deferring requirement the selected member's routes
     (`tests/omega/fail/traits/omitted_requirement_crashes_reach_generic_caller`).
@@ -1374,23 +1374,23 @@ worked around by adding to `terminal-check-tables`.
     wants requirements out of `module.machines` needs a callee row for one.
 
 33. **A resolved call is not a permitted call.** The typed trees hold a call
-    into a dependency's private machine fully resolved; the current checker
+    into a dependency's private machine fully resolved; the deleted checker
     rejects it later, where a product selects the callee. The reader
     therefore checks visibility itself: a callee that is not public must be
     declared in the caller's package, by the source file each symbol was
     declared in, with a generated machine placed where its declaration is
     (`visible_to`). Any other call is refused as `call private machine of
-    another package`, so the current checker decides the compilation
+    another package`, so the deleted checker decided the compilation
     (`tests/fixtures/fail/build/executed_dependency_private_call`).
 34. **A runtime read of an erased binding falls back; it is not yet rejected
-    here.** The current checker rejects `let total: i32 = bound;` for an
+    here.** The deleted checker rejected `let total: i32 = bound;` for an
     erased `bound` ("erased parameter `bound` has no runtime value"). That is
     a verdict about the program, and this route has no refusal reason for it,
     so the reader refuses the closure as `Unsupported` and the current
     checker decides. The slice that owns the rejection adds the reason.
 35. **The current pipeline cannot lower an erased local supplied as an erased
     term.** `let witness [erased]: i32 = limit; keep(n, witness)` passes the
-    current checker and then fails in Psi 06 ("scalar read has no authored
+    deleted checker and then fails in Psi 06 ("scalar read has no authored
     binding"). This route lowers it: the local names the term. The witness is
     `tests/omega/pending/relevance/erased_local_forwarded_to_erased_formal`.
 36. **A recursive call records its selection as the entry state.** A call of
@@ -1411,4 +1411,4 @@ worked around by adding to `terminal-check-tables`.
     final expression as an expression, and the reader makes it the
     unguarded arm that completes the machine, so `machine f(n: u32) -> u32
     { f(n) }` is a jump back like `transition { _ -> f(n) }`. Whether the
-    current checker treats the two alike was not measured.
+    deleted checker treated the two alike was not measured.

@@ -97,9 +97,6 @@ source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-f
 tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
-# The checker on the lowered form (route one) is also used by the corpus
-# probe (examples/structure_elaboration_corpus.rs) and the side-by-side
-# comparison (examples/route_one_comparison.rs).
 
 [target.'cfg(unix)'.dev-dependencies]
 # Match the CLI's native dependency features. A libc feature mismatch travels
@@ -181,7 +178,7 @@ name = "lowered_route_subjects"
 path = "tests/lowered_route_subjects.rs"
 
 # The default compile reports the lowered route's verdict where the owner's
-# split gives it, and the current checker's everywhere else.
+# split gives it, and the product check's everywhere else.
 [[test]]
 name = "lowered_route_governance"
 path = "tests/lowered_route_governance.rs"
