@@ -778,10 +778,25 @@ fn require(
                             "a planned private arrival has no call operation",
                         )
                     })?;
-                let OperationKind::Call {
+                // Terminal Psi has one call operation per result lane
+                // (scalar, scalar with record arguments, none, record), and
+                // each owes its callee's requirements the same way.
+                let (OperationKind::Call {
                     requirement_obligations,
                     ..
-                } = &mut found.kind
+                }
+                | OperationKind::CallStructuralScalar {
+                    requirement_obligations,
+                    ..
+                }
+                | OperationKind::CallUnit {
+                    requirement_obligations,
+                    ..
+                }
+                | OperationKind::CallStructuralWithScalarArguments {
+                    requirement_obligations,
+                    ..
+                }) = &mut found.kind
                 else {
                     return Err(refusal(
                         RefusalReason::ForeignIdentity,

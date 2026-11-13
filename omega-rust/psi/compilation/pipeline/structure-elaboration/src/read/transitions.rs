@@ -314,9 +314,14 @@ impl Program<'_> {
                     ));
                 }
                 self.direct_selection(id, path.symbol, *authored_call_selection, None)?;
-                if typed.statement_table.name_path_members(path.members).len() != 1
-                    || path.receiver_symbol.is_valid()
-                {
+                // `Counter::step(count)`: two names, the first the data type
+                // the callee is declared under, which only completes its
+                // name (`names_carrier`).
+                let members = typed.statement_table.name_path_members(path.members).len();
+                let qualified = members == 2
+                    && path.head_symbol == path.receiver_symbol
+                    && self.names_carrier(path.symbol, path.receiver_symbol);
+                if !qualified && (members != 1 || path.receiver_symbol.is_valid()) {
                     return Err(refuse(
                         id,
                         Construct::Machine,

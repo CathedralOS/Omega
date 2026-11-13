@@ -197,6 +197,12 @@ path = "tests/lowered_route_messages.rs"
 name = "lowered_route_generics"
 path = "tests/lowered_route_generics.rs"
 
+# A machine declared under a data type's name, and each form of call that
+# names it, is judged on the lowered form.
+[[test]]
+name = "lowered_route_qualified"
+path = "tests/lowered_route_qualified.rs"
+
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"
