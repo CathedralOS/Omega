@@ -202,52 +202,133 @@ fn literal(
     };
     Ok(program.expression_table.insert(node))
 }
+pub(crate) fn direct_call(
+    program: &TypedTrees,
+    machine: &Machine,
+) -> Result<TableCallExpression, String> {
+    let entry =
+        entry_state(program, machine).ok_or("constant invocation has no exact entry state")?;
+    Ok(TableCallExpression {
+        authored_call_selection: None,
+        authored_call_binding: None,
+        authored_machine_application: Default::default(),
+        requirement_application: Default::default(),
+        exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
+        receiver: ExpressionHandle::invalid(),
+        target_symbol: entry.symbol,
+        static_machine_parameter: SymbolHandle::invalid(),
+        target: entry.name.clone(),
+        static_requirement_dispatch: None,
+        machine_arguments: Box::default(),
+        quotient_operation: None,
+        private_layout_operation: None,
+        installed_interrupt_operation: None,
+        layout_query: None,
+        native_code_layout: None,
+        build_selection: Default::default(),
+        arguments: Default::default(),
+        evidence_arguments: Box::default(),
+        operational_acknowledgement: language_semantics::CallOperationalAcknowledgement::default(),
+    })
+}
+
 pub(crate) fn prepare_value_invocation(
     program: &TypedTrees,
     requester: SymbolHandle,
     machine: &Machine,
+    request: &TableCallExpression,
     arguments: &[crate::BuildTimeValue],
     source_span: Option<source::SourceSpan>,
-) -> Result<(TypedTrees, SymbolHandle), String> {
+) -> Result<(TypedTrees, SymbolHandle, ExpressionHandle), String> {
     let entry =
         entry_state(program, machine).ok_or("constant invocation has no exact entry state")?;
     let parameters = program.state_parameters(entry);
-    if parameters.len() != arguments.len() {
+    let declaration_argument =
+        typed_trees::reflection::construction::declaration_query_argument_role(
+            program,
+            typed_trees::references::StaticArgumentCall::Expression(
+                ExpressionHandle::invalid(),
+                request,
+            ),
+        ) == typed_trees::references::StaticArgumentRole::DeclarationDescription;
+    if declaration_argument {
+        if !arguments.is_empty()
+            || program
+                .expression_table
+                .expression_handles(request.arguments)
+                .len()
+                != parameters.len()
+        {
+            return Err(
+                "a declaration query retains its authored operand, not a runtime argument".into(),
+            );
+        }
+    } else if parameters.len() != arguments.len() {
         return Err("constant invocation arguments differ from its checked entry arity".into());
     }
+    let supplied = typed_trees::references::StaticArgumentCall::Expression(
+        ExpressionHandle::invalid(),
+        request,
+    )
+    .arguments(program);
+    let type_parameters = program.machine_type_parameters(machine);
+    if !machine.lifetime_parameters.is_empty() {
+        return Err("source invocation lifetime arguments are not materialized".into());
+    }
+    if type_parameters
+        .iter()
+        .any(|parameter| !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type))
+    {
+        return Err("source invocation non-type static arguments are not materialized".into());
+    }
+    if type_parameters.len() != supplied.len() {
+        return Err("source invocation lost its complete static argument list".into());
+    }
+    let mut substitutions = Vec::with_capacity(type_parameters.len());
+    for (parameter, argument) in type_parameters.iter().zip(supplied) {
+        if !program
+            .type_reference_table
+            .contains_type_reference(argument.type_reference)
+        {
+            return Err("source invocation type argument has no retained reference".into());
+        }
+        substitutions.push((parameter.symbol, argument.type_reference));
+    }
     let mut probe = program.clone();
-    let (probe_machine, mut state) = invocation_probe_declarations(
-        &mut probe,
-        requester,
-        "@const-invocation",
-        entry.return_type,
-    );
+    let result_type = probe
+        .type_reference_table
+        .instantiate(entry.return_type, &substitutions)?;
+    let (probe_machine, mut state) =
+        invocation_probe_declarations(&mut probe, requester, "@const-invocation", result_type);
     let mut actuals = Vec::with_capacity(arguments.len());
     for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
         if matches!(argument, crate::BuildTimeValue::LayoutTarget(_)) {
             return Err("source invocation requires an actually materialized layout target".into());
         }
-        let mut carrier = parameter.type_reference;
+        let destination = probe
+            .type_reference_table
+            .instantiate(parameter.type_reference, &substitutions)?;
+        let mut carrier = destination;
         while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
-            program.type_reference_table.type_reference(carrier)
+            probe.type_reference_table.type_reference(carrier)
         {
             carrier = *base_type;
         }
-        let reference = match program.type_reference_table.type_reference(carrier) {
+        let reference = match probe.type_reference_table.type_reference(carrier) {
             typed_trees::types::TypeReferenceNode::Reference {
                 referee, access, ..
             } => Some((*referee, *access)),
             _ => None,
         };
         let byte_view = matches!(reference, Some((referee, language_core::ReferenceAccess::Shared))
-                    if matches!(program.type_reference_table.type_reference(referee), TypeReferenceNode::Slice { .. }));
+                    if matches!(probe.type_reference_table.type_reference(referee), TypeReferenceNode::Slice { .. }));
         let mut snapshot = argument.clone();
         let value = literal(
             &mut probe,
             if byte_view {
-                parameter.type_reference
+                destination
             } else {
-                reference.map_or(parameter.type_reference, |(referee, _)| referee)
+                reference.map_or(destination, |(referee, _)| referee)
             },
             &mut snapshot,
         )
@@ -282,28 +363,10 @@ pub(crate) fn prepare_value_invocation(
         };
         actuals.push(actual);
     }
-    let call = TableCallExpression {
-        authored_call_selection: None,
-        authored_call_binding: None,
-        authored_machine_application: Default::default(),
-        requirement_application: Default::default(),
-        exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
-        receiver: ExpressionHandle::invalid(),
-        target_symbol: entry.symbol,
-        static_machine_parameter: SymbolHandle::invalid(),
-        target: entry.name.clone(),
-        static_requirement_dispatch: None,
-        machine_arguments: Box::default(),
-        quotient_operation: None,
-        private_layout_operation: None,
-        installed_interrupt_operation: None,
-        layout_query: None,
-        native_code_layout: None,
-        build_selection: Default::default(),
-        arguments: probe.expression_table.insert_expression_handles(actuals),
-        evidence_arguments: Box::default(),
-        operational_acknowledgement: language_semantics::CallOperationalAcknowledgement::default(),
-    };
+    let mut call = request.clone();
+    if !declaration_argument {
+        call.arguments = probe.expression_table.insert_expression_handles(actuals);
+    }
     let concrete = probe.expression_table.insert(ExpressionNode::Call(call));
     let call_span = source_span
         .or_else(|| probe.symbols.symbol_provenance_source_span(requester))
@@ -311,7 +374,7 @@ pub(crate) fn prepare_value_invocation(
     probe.expression_table.set_source_span(concrete, call_span);
     let owner = finish_invocation_probe(&mut probe, probe_machine, state, concrete);
     probe.retain_call_static_argument_context(concrete, owner)?;
-    Ok((probe, owner))
+    Ok((probe, owner, concrete))
 }
 
 fn probe_name_path(

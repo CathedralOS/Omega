@@ -82,6 +82,8 @@ pub struct PreparedBuildMachineEntry {
     source: Arc<TypedTrees>,
     symbol: SymbolHandle,
     requester: SymbolHandle,
+    call: typed_trees::expression::TableCallExpression,
+    call_source: typed_trees::expression::ExpressionHandle,
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
 }
 impl PreparedBuildMachineEntry {
@@ -104,7 +106,7 @@ impl PreparedBuildMachineEntry {
         arguments: &[crate::BuildTimeValue],
         meter: &mut psi_work::WorkMeter,
     ) -> Result<crate::BuildTimeValue, String> {
-        let accepted = self.accept_invocation(arguments)?;
+        let (accepted, _) = self.accept_invocation(arguments)?;
         let produced = self.produce_invocation(&accepted)?;
         let admitted = self.admit_invocation(&produced, target)?;
         self.execute_invocation(&produced, &admitted, meter)
@@ -118,7 +120,7 @@ impl PreparedBuildMachineEntry {
         arguments: &[crate::BuildTimeValue],
         accounting: &mut crate::SourceCompletionAccounting,
     ) -> Result<crate::MeasuredEvaluation<crate::BuildTimeValue>, String> {
-        let accepted = self.accept_invocation(arguments)?;
+        let (accepted, call) = self.accept_invocation(arguments)?;
         let produced = Arc::new(self.produce_invocation(&accepted)?);
         let admitted = self.admit_invocation(&produced, target)?;
         let account = crate::evaluation_accounting::pure_terminal_invocation_account()?;
@@ -143,6 +145,7 @@ impl PreparedBuildMachineEntry {
         };
         let receipt = crate::evaluation_accounting::PureTerminalEvaluationReceipt::new(
             &accepted,
+            call,
             self,
             arguments,
             produced,
@@ -157,17 +160,26 @@ impl PreparedBuildMachineEntry {
     fn accept_invocation(
         &self,
         arguments: &[crate::BuildTimeValue],
-    ) -> Result<psi_terminal_production::AcceptedTerminalSource, String> {
+    ) -> Result<
+        (
+            psi_terminal_production::AcceptedTerminalSource,
+            typed_trees::expression::ExpressionHandle,
+        ),
+        String,
+    > {
         let machine = self
             .source
             .machine_by_symbol(self.symbol)
             .ok_or("source invocation lost its selected declaration")?;
-        let (source, caller) = invocation::prepare_value_invocation(
+        let (source, caller, call) = invocation::prepare_value_invocation(
             &self.source,
             self.requester,
             machine,
+            &self.call,
             arguments,
-            None,
+            self.source
+                .expression_table
+                .try_source_span(self.call_source),
         )?;
         let source = Arc::new(typed_trees::FrozenTypedTrees::from(source));
         let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
@@ -190,7 +202,7 @@ impl PreparedBuildMachineEntry {
         if accepted.closure().elaboration.machines.get(entry) != Some(&caller) {
             return Err("source invocation accepted another caller".into());
         }
-        Ok(accepted)
+        Ok((accepted, call))
     }
 
     fn produce_invocation(
@@ -349,6 +361,70 @@ impl PreparedBuildMachineProgram {
     pub fn typed(&self) -> &TypedTrees {
         &self.source
     }
+    /// Keep the actual authored call and its complete arguments in the job.
+    /// The expression is selected from this retained source owner; its author
+    /// must be the actual requesting declaration, not the called declaration.
+    pub fn entry_call(
+        &self,
+        requester: SymbolHandle,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Result<PreparedBuildMachineEntry, String> {
+        if !self.source.symbols.symbols().nodes().is_valid(requester) {
+            return Err("source job requires its actual requesting declaration".into());
+        }
+        if !self.source.expression_table.expression_is_valid(expression) {
+            return Err("source job call does not belong to its retained source".into());
+        }
+        let span = self
+            .source
+            .expression_table
+            .try_source_span(expression)
+            .ok_or("source job call lost its authored source location")?;
+        if self.source.symbols.source_file(span).is_none()
+            || !self
+                .source
+                .symbols
+                .source_reference_may_select_symbol(span, requester)
+        {
+            return Err("source job call is outside its requesting source".into());
+        }
+        let call = self
+            .source
+            .expression_table
+            .call_node(expression)
+            .ok_or("source job requires a retained call expression")?;
+        if typed_trees::references::StaticArgumentCall::Expression(expression, call)
+            .lexical_owner(&self.source)
+            != requester
+        {
+            return Err("source job call has another requesting declaration".into());
+        }
+        let machine = self
+            .source
+            .machine_by_symbol(call.target_symbol)
+            .or_else(|| self.source.machine_holding_state(call.target_symbol))
+            .ok_or("source job call has no concrete machine declaration")?;
+        let mut entry = self.entry(requester, machine.symbol)?;
+        if call.target_symbol != entry.call.target_symbol && call.target_symbol != machine.symbol {
+            return Err("source job call does not select the declared entry".into());
+        }
+        let [state] = self.source.machine_states(machine) else {
+            return Err("source job call has no exact entry state".into());
+        };
+        if self
+            .source
+            .expression_table
+            .expression_handles(call.arguments)
+            .len()
+            != self.source.state_parameters(state).len()
+        {
+            return Err("source job call lost its complete argument list".into());
+        }
+        entry.call = call.clone();
+        entry.call_source = expression;
+        Ok(entry)
+    }
+
     pub fn entry(
         &self,
         requester: SymbolHandle,
@@ -363,13 +439,17 @@ impl PreparedBuildMachineProgram {
         {
             return Err("source job requires its actual requesting declaration".into());
         }
-        if self.source.machine_by_symbol(symbol).is_none() {
-            return Err("no product route yet: source Build entry is unavailable".into());
-        }
+        let machine = self
+            .source
+            .machine_by_symbol(symbol)
+            .ok_or("no product route yet: source Build entry is unavailable")?;
+        let call = invocation::direct_call(&self.source, machine)?;
         Ok(PreparedBuildMachineEntry {
             source: Arc::clone(&self.source),
             symbol,
             requester,
+            call,
+            call_source: typed_trees::expression::ExpressionHandle::invalid(),
             authority: self.authority.clone(),
         })
     }
@@ -472,6 +552,142 @@ mod tests {
             .expect("resolve exact core and author");
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
             .expect("type exact core and author")
+    }
+
+    fn returned_source_call(
+        source: &TypedTrees,
+        name: &str,
+    ) -> (SymbolHandle, typed_trees::expression::ExpressionHandle) {
+        let machine = source.realized_machine_named(name).unwrap();
+        let [state] = source.machine_states(machine) else {
+            panic!("one authored entry")
+        };
+        let Some(typed_trees::statement::StatementNode::Transition(transition)) = source
+            .statement_table
+            .statements(state.statement_nodes)
+            .last()
+        else {
+            panic!("the source returns its query")
+        };
+        let typed_trees::statement::TransitionTargetNode::Value(expression) =
+            source.statement_table.transition_target(transition.target)
+        else {
+            panic!("the returned value is the authored call")
+        };
+        (machine.symbol, *expression)
+    }
+
+    #[test]
+    fn source_call_requests_keep_their_authored_operand_and_owner() {
+        let source = with_reflection(
+            "use omega::language::core::reflect;
+            data Cell<T> { value: T; }
+            machine selected<T>(value: T) -> T { value }
+            machine answer() -> reflect::CallableInfo { reflect::callable(selected<u32>) }
+            machine alternate() -> reflect::CallableInfo { reflect::callable(selected<u64>) }
+            machine not_callable() -> reflect::CallableInfo { reflect::callable(Cell<u32>) }",
+        );
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let source = program.typed();
+        let (requester, first_call) = returned_source_call(source, "answer");
+        let (another, second_call) = returned_source_call(source, "alternate");
+        let error = program
+            .entry_call(another, first_call)
+            .err()
+            .expect("one declaration cannot adopt another declaration's call");
+        assert_eq!(error, "source job call has another requesting declaration");
+        let mut descriptions = Vec::new();
+        for (requester, expression) in [(requester, first_call), (another, second_call)] {
+            let expected = source.expression_table.call_node(expression).unwrap();
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            let value = program
+                .entry_call(requester, expression)
+                .unwrap()
+                .invoke_recorded(target(), &[], &mut accounting)
+                .expect("the original declaration operand is not replaced by a value");
+            let Some(crate::PureEvaluationRecord::Invocation(receipt)) =
+                accounting.receipts().last()
+            else {
+                panic!("the actual invocation is recorded")
+            };
+            assert_eq!(receipt.requester(), requester);
+            assert_eq!(receipt.call().unwrap(), expected);
+            receipt.validate_charge().unwrap();
+            descriptions.push(value.value().clone());
+        }
+        assert_ne!(descriptions[0], descriptions[1]);
+        let (requester, expression) = returned_source_call(source, "not_callable");
+        let mut meter = psi_work::WorkMeter::unbounded();
+        let error = program
+            .entry_call(requester, expression)
+            .unwrap()
+            .invoke(target(), &[], &mut meter)
+            .expect_err("an applied data declaration is not a callable declaration");
+        assert!(
+            error.contains("an applied declaration operand requires a machine or requirement"),
+            "{error}"
+        );
+        assert_eq!(meter.usage().total_units(), 0);
+    }
+
+    #[test]
+    fn source_schema_query_retains_the_requested_application_and_structural_home() {
+        let source = with_reflection(
+            "use omega::language::core::reflect;
+            data Cell<T> { value: T; }
+            machine answer() -> reflect::TypeSchema { reflect::schema<Cell<u32>>() }
+            machine alternate() -> reflect::TypeSchema { reflect::schema<Cell<u64>>() }",
+        );
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let mut descriptions = Vec::new();
+        let mut homes = Vec::new();
+        for name in ["answer", "alternate"] {
+            let (requester, expression) = returned_source_call(program.typed(), name);
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            let result = program
+                .entry_call(requester, expression)
+                .unwrap()
+                .invoke_recorded(target(), &[], &mut accounting)
+                .expect("the actual selected type produces its schema");
+            let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+                panic!("one actual query request")
+            };
+            let request = typed_trees::references::StaticArgumentCall::Expression(
+                typed_trees::expression::ExpressionHandle::invalid(),
+                receipt.call().unwrap(),
+            );
+            assert_eq!(request.lexical_owner(receipt.source()), requester);
+            let [operand] = request.arguments(receipt.source()) else {
+                panic!("the receipt retains the complete selected argument")
+            };
+            let selected = receipt
+                .source()
+                .closed_data_definition(operand.type_reference)
+                .unwrap();
+            let rows = receipt
+                .program()
+                .source_records()
+                .iter()
+                .filter(|row| row.application.reference == operand.type_reference)
+                .collect::<Vec<_>>();
+            let [row] = rows.as_slice() else {
+                panic!("the same query registers one exact actual application")
+            };
+            assert_eq!(row.declaration, selected.symbol);
+            assert_eq!(row.fields.len(), 1);
+            homes.push(row.storage_identity.clone());
+            let BuildTimeValue::Struct { fields, .. } = result.value() else {
+                panic!("the source returns an ordinary TypeSchema record")
+            };
+            let [(field, BuildTimeValue::Text(bytes))] = fields.as_slice() else {
+                panic!("the result has its real immutable image")
+            };
+            assert_eq!(field, "storage");
+            assert!(!bytes.is_empty());
+            descriptions.push(bytes.clone());
+        }
+        assert_ne!(descriptions[0], descriptions[1]);
+        assert_ne!(homes[0], homes[1]);
     }
 
     #[test]
@@ -792,7 +1008,7 @@ mod tests {
                 .require_invocation(receipt.program().view(), "windows_x86_64", selected)
                 .is_err()
         );
-        let another = entry
+        let (another, _) = entry
             .accept_invocation(receipt.arguments())
             .expect("another actual caller");
         let another = entry
@@ -820,7 +1036,7 @@ mod tests {
         // The runtime program may be silent about termination; a compiler job
         // must establish it before consuming any interpreter work.
         let entry = entry("machine answer(value: u64) -> u64 { answer(value) }");
-        let accepted = entry
+        let (accepted, _) = entry
             .accept_invocation(&[BuildTimeValue::Int(1)])
             .expect("ordinary source is accepted without promising progress");
         let produced = entry
@@ -900,7 +1116,7 @@ mod tests {
                     BuildTimeValue::Int(17)
                 );
             } else {
-                let accepted = entry
+                let (accepted, _) = entry
                     .accept_invocation(&[])
                     .expect("the standalone call closure excludes the unused declaration");
                 let produced = entry
@@ -997,7 +1213,7 @@ mod tests {
             .unwrap()
             .entry(requester, callee)
             .unwrap();
-        let accepted = entry
+        let (accepted, _) = entry
             .accept_invocation(&[BuildTimeValue::Int(1)])
             .expect("actual caller checks the arguments");
         let caller = *accepted
