@@ -17,7 +17,7 @@ Write each item so any agent can start from it alone: current state, files and e
   - Step 2, gate: root `std/targets/<target>/entry.omg` so the four `fail/build/*entry*` programs the route accepts are rejected (no ad-hoc entry rule); wire `reverify_specialization` (`lowered-discharge`) into the compile so stage-04 specializations decide carried certificates instead of searching; then ask the owner whether condition 3 is met.
   - Step 3, lanes in order of programs unblocked, re-measured first: owned non-`[copy]` data and affine locals, entry machines taking their own state (`Main::main(&mut Main)`), the rest of generics, Q8 caller-inferred helper facts (5 signed `shift_left` rows), calls and callee summaries. After each, run `cargo xtask stage-coverage` on newly governed programs.
   - Step 4, condition 4: delete the old-stage code only fully governed programs reach; report lines deleted beside lines the route needed, and check time before and after.
-  - Rule: build a construct a lane needs in the route, not in the stages it replaces; repair those only to unblock CI or close a soundness hole. Pushed wip worth landing first: single commits on `work/compiler-typed-library-slices` (subject naming) and `work/psi-effect-memory` (bounded planning window).
+  - Rule: build a construct a lane needs in the route, not in the stages it replaces; repair those only to unblock CI or close a soundness hole.
   Acceptance: the four gate conditions pass on main and Psi 05, validation and Psi 06 are deleted with every corpus row still green.
 
 - **NESTED-MACHINE-UNIFICATION.** Replace `state` with nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
