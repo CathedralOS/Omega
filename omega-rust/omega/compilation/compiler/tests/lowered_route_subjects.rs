@@ -1005,7 +1005,7 @@ const WRITTEN_FORMALS: &[(&str, &str)] = &[
 /// formal, a store into that field of a record formal, a whole assignment or
 /// an exclusive loan, and each such program is rejected for the operation
 /// that needed it. A formal that is not `mut` is still not written, and the
-/// cases the route does not serve are refused by name.
+/// case the route does not serve is refused by name.
 #[test]
 fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -1022,7 +1022,9 @@ fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
         Verdict::Accepted(3),
         Verdict::Rejected,
         falls_back("contract clause that names a mutable parameter outside requires"),
-        falls_back("type data with custody"),
+        // Plain data without `[copy]` is served since affine moves landed:
+        // the callee owns the value, stores into it and drops it.
+        Verdict::Accepted(2),
     ];
     assert_eq!(expected.len(), WRITTEN_FORMALS.len());
     let mut wrong = Vec::new();
@@ -1070,13 +1072,6 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
         "wrapping_divide_proved",
         "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping\n\
          requires right > 0\n{\n    left / right\n}",
-    ),
-    // Both operands are at least 2^31, so the mathematical sum is nonzero
-    // and the wrapped sum can be zero.
-    (
-        "wrapped_sum_as_divisor",
-        "machine spare(left: u32, right: u32) -> u32\n\
-         requires left >= 2147483648, right >= 2147483648\n{\n    1 / (left +% right)\n}",
     ),
     // A Wrapping operation beside it excuses no Exact one.
     (
@@ -1146,9 +1141,10 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
 /// named such a type (`type constrained`) and every suffixed operator's
 /// rewrite. A policy operation owes what Terminal semantics says it owes: an
 /// add nothing, a divide its divisor. It is never read as the Exact
-/// operation: a wrapped sum is not known to be nonzero where the
-/// mathematical sum is, and an Exact add beside a Wrapping one still owes
-/// its range. A cast into a policy converts the carrier exactly and owes
+/// operation: an Exact add beside a Wrapping one still owes its range. That
+/// a wrapped sum is not taken for the mathematical sum is pinned in
+/// `lowered-discharge` (`a_wrapped_sum_is_not_the_mathematical_sum`): its
+/// verdict is "no rule for this goal", which this table has no row for. A cast into a policy converts the carrier exactly and owes
 /// that the value fits. What the route does not serve is refused by name.
 #[test]
 fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
@@ -1161,7 +1157,6 @@ fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
         Verdict::Accepted(2),
         Verdict::Rejected,
         Verdict::Accepted(2),
-        Verdict::Rejected,
         Verdict::Rejected,
         Verdict::Accepted(2),
         Verdict::Accepted(2),
