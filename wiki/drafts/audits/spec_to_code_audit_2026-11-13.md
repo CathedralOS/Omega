@@ -1136,6 +1136,31 @@ Checks:
 - `mbx xtask fmt --check`
 - `rg -n 'OptimizedLoweredPsi|CheckedTrees' omega-rust/psi/compilation/psi-compiler/terminal-production`
 
+## 6. Large-crate coverage
+
+Each of the six crates named below gets its own pass. A clean result means
+the searches for a second walker, a repeated lowering, or a parallel lookup
+found nothing new. It is not a line-by-line reading of every file.
+
+### Interpreter, clean
+
+`omega-rust/psi/interpreter` is 56,772 lines of Rust. `git diff --stat
+a93022df945edf9147d3e75332c7ee944594029a -- omega-rust/psi/interpreter` is
+empty. The only proposition walk is `InputObservations::evaluate` and
+`closed_guard` in `boundary_effects.rs`, which is LF-1. Crash admission
+uses that same `closed_guard`. `verify_obligation` does not appear.
+`rg -n "fn evaluate" omega-rust/psi/interpreter --glob '*.rs'` is 1 hit.
+`rg -n "closed_guard"` in that tree is 7 hits, all in `boundary_effects.rs`.
+`rg -n "fn admit_"` is 3 hits: `admit_boundary_crash` (LF-1), plus
+`admit_isolated_simulated_domain` and `admit_runtime_supplies`, which do
+not walk a proposition. `CheckedTrees` appears in a test that asserts the
+observation text does not contain it.
+
+Not line-read: `storage_bytes_and_views.rs`, `storage_records_and_arrays.rs`,
+`storage_providers.rs`, `storage_references.rs`, and `engine_structural.rs`.
+Those files were searched for `Proposition`, `CrashRoute`, `evaluate`, and
+`CheckedTrees`. No `mbx` run.
+
 ### What this pass could not verify
 
 - Whether any on-disk build record still encodes measurement tag 0. The
@@ -1148,9 +1173,7 @@ Checks:
   elaboration and discharge. This pass did not walk every command flag to
   that function, so the stage READMEs' "not wired" claim is contradicted
   for the product route and unverified for every other route.
-- A line-by-line reading of the largest live crates (`typed-trees` 71,141
-  lines, instruction selection 68,336, the resolver 66,064, the interpreter
-  56,772, terminal semantics 53,446, proof admission 48,667; all `wc -l` of
-  `src` excluding a `tests` path). The pass traced the deletion's patterns
-  and the live callers of the old names. It did not claim those crates are
-  free of every other duplication.
+- The other five large crates are still unread: typed-trees (71,141),
+  instruction selection (68,336), the resolver (66,064), terminal semantics
+  (53,446), and proof admission (48,667). The interpreter's storage files
+  listed in section 6 were searched, not line-read.
