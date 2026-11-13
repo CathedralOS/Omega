@@ -35,6 +35,12 @@ the helpers it calls. Nothing is assumed around a call cycle: a summary enters
 a contract only once it is proved, so a machine never reads its own, and
 "assuming a proposed summary around a cycle is not a proof" cannot happen.
 
+Summaries run before input inference and once more after it
+(`discharge_with`). A helper that omits `requires` is first summarized under
+no input, and what it returns because of the input its callers establish is
+a further clause the second run adds; a clause already in the contract is
+not added again.
+
 Limits. Only a scalar result is summarized, and only by comparisons that name
 it: what it equals, what bounds it, how it relates to a scalar formal. A
 helper whose returns differ is summarized by what they share, never by one
