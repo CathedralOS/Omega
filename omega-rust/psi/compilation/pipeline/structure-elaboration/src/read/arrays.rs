@@ -10,6 +10,7 @@ use terminal_psi::ArrayExtent;
 use typed_trees::expression::{ExpressionHandle, TableIndexedExpression};
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle};
 
+use super::authority::Access;
 use super::{Program, Slot, places::RecordSource};
 use crate::{
     Expression, ExpressionKind, RecordType, SourceOrigin, StorageShape, Unserved, ValueType, refuse,
@@ -24,6 +25,8 @@ impl Program<'_> {
         expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        // A literal constructs the bare carrier, whatever its context
+        // expects: a qualified destination then refuses the plain value.
         let Some(ValueType::Record(array, _)) = expected else {
             return Err(refuse(
                 machine,
@@ -55,7 +58,7 @@ impl Program<'_> {
         }
         Ok(Expression {
             kind: ExpressionKind::Array { elements },
-            result: expected,
+            result: Some(ValueType::record(array)),
             source,
         })
     }
@@ -68,7 +71,7 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let base = self.expression(machine, slots, indexed.collection, None)?;
-        let Some(ValueType::Record(array, _)) = base.result else {
+        let Some(array) = self.opened(machine, base.result, Access::Read)? else {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -209,7 +212,14 @@ impl Program<'_> {
                     Unserved::Type("array of elements that carry a declared domain"),
                 ));
             }
-            ValueType::Record(id, _) => return Ok(id),
+            ValueType::Record(id, Qualification::NONE) => return Ok(id),
+            ValueType::Record(..) => {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Type("array of elements that carry a declared domain"),
+                ));
+            }
             ValueType::Rigid(_) => {
                 return Err(refuse(
                     machine,

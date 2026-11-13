@@ -1231,10 +1231,13 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
             | ExpressionKind::Cast(_)
-            | ExpressionKind::Requalify(_)
             | ExpressionKind::ShortCircuit { .. } => {
                 Err(self.internal("a scalar operation has a record type"))
             }
+            // The operand's value under another set of domains: the same
+            // storage, and nothing is computed (domains.md: "removing `D`
+            // with a cast changes no bits or geometry").
+            ExpressionKind::Requalify(operand) => self.located(operand),
             ExpressionKind::Borrow { .. } => {
                 Err(self.internal("a loan outside a call's arguments"))
             }

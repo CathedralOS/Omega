@@ -377,6 +377,14 @@ impl<'t> Program<'t> {
         let typed = self.typed;
         let carries = |mut reference: typed_trees::types::TypeReferenceHandle,
                        domain: SymbolHandle| {
+            // A reference formal's domains are its referent's: `seal: &Seal in
+            // Issued` lends a `Seal in Issued`.
+            while reference.is_valid()
+                && let TypeReferenceNode::Reference { referee, .. } =
+                    typed.type_reference_table.type_reference(reference)
+            {
+                reference = *referee;
+            }
             while reference.is_valid()
                 && let TypeReferenceNode::Constrained {
                     base_type,
