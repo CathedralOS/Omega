@@ -63,7 +63,6 @@ members = [
     "omega-rust/psi/compilation/terminal-installation",
     "omega-rust/psi/interpreter/terminal-interpreter",
     "omega-rust/psi/compilation/build-time-evaluation",
-    "omega-rust/psi/compilation/proof",
     "omega-rust/omega/foundation/optimization-core",
     "omega-rust/omega/foundation/bounded-process",
     "omega-rust/omega/foundation/platform-custody",

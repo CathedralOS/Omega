@@ -332,13 +332,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the crate header (`lib.rs:9-15`) says every stable, atomic or external access request is authorized before lowering, and a reader will believe a pipeline stage does that when none calls it
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Proof surface reports and vocabulary remain exported with no production consumer
-- Category: zombie machinery
-- Where: `omega-rust/psi/compilation/proof/src/lemmas.rs`, `boundary.rs`, `lib.rs` (`build_proof_surface_report`)
-- Saw: the checker, cache and duplicate checked-tree vocabulary have been deleted. The remaining crate honestly describes syntax-only reports, but the report is still called only by its own tests and the boundary/lemma descriptions have no external consumer.
-- Cost: unused public report and vocabulary APIs still require maintenance and look available for a new caller; establish a real product consumer or retire them, without touching the separate proof-admission kernel.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Public resolution entry points have no production callers
 - Category: zombie machinery
 - Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs` (`select_data_declarations`), `resolution.rs` (`resolve_numeric_probe`), and their re-exports in `lib.rs`
