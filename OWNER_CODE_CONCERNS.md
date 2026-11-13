@@ -235,13 +235,6 @@ own to defend. Say what you saw, not what you would build.
 - Cost: the type-graph rules live once on each side of the Psi/Omega boundary, so a fix on one side leaves the other accepting or rejecting something different, with no test found tying them together
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Package review recovery has no arm for four intrinsic tags its own encoder writes
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/packages/review-evidence/src/encoding/encode/values/providers/intrinsics.rs:14`, `:17`, `:69`, `:101`, against `.../encoding/recovery/policy/intrinsic.rs:14-50`
-- Saw: the encoder writes tags 16 (`empty_run_release`), 17 (`static_interrupt`), 11 (`access_lifecycle`) and 8 (`accessor_scalar_access`); the recovery match has arms 0 to 7, 9, 10 and 12 to 15, and its `tag!` macro rejects anything else
-- Cost: the encode and recovery tables are kept in step by hand and have already drifted, so a baseline naming one of these four intrinsics cannot be read back; the review cache reads through `.ok()?` (`package-manager/src/review/candidate/review_cache.rs:108`), so nobody is told
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The source span that identifies a called declaration is computed twice, in a different order
 - Category: one idea, several implementations
 - Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs:493-549` and `omega-rust/psi/compilation/build-time-evaluation/src/const_generic_expressions.rs:43-100`
