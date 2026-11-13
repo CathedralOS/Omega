@@ -95,6 +95,54 @@ formal's position from its row, requires those positions to increase in
 contract order, and gives the runtime formals the remaining positions in
 their own order. A row that breaks either is `ForeignIdentity`.
 
+## Result summaries
+
+A caller in the same package may rely on what a private helper's body
+returns, not only on the `ensures` its author wrote. A helper that widens its
+input under `requires narrow >= 300 && narrow <= 500` and writes no guarantee
+still returns a value in that range, and its caller may pass the result to a
+machine that requires it.
+[Local call summaries](../../../../../wiki/spec/language/state_contracts.md#local-call-summaries):
+"An exact checked call inside the same fingerprinted verification unit may
+use the callee's written contract plus checked body-derived result and state
+facts", and "Derive and check a reusable summary against the body; each call
+substitutes its evaluated actual arguments".
+
+[result_summaries.rs](src/result_summaries.rs) runs before anything is
+decided. For each machine elaboration lists in `Elaboration::local_results`
+(a private machine of the subject package: no other verification unit can
+call it), callees first, it describes every normal return in the machine's
+formals and `result`: each comparison known on that return that names
+`result` (what the returned value equals when that is a formal or a literal,
+what a callee's guarantee or a guard says of it), and the literal bounds the
+prover finds for the returned value. The summary is what every return
+establishes: the comparisons all the descriptions hold and the widest of the
+returns' bounds. It becomes one more `ensures` clause of the machine only
+when the prover and the kernel decide it on every return, and then owes a
+`NormalGuarantee` per return and a `PublishedGuarantee` like an authored
+clause. Callers read it as `CalleeGuarantee` knowledge with no rule of their
+own, and a private helper's inferred input condition (`entry_inputs.rs`,
+which runs next) is described from facts that include it.
+
+A summary that some return does not establish is not added, and the machine
+keeps its written contract; so does a public machine, a dependency, a
+requirement, a selected implementation, a Build selection and a machine stage
+04 generated. Nothing is assumed around a call cycle, because a summary is in
+no contract before it is proved.
+
+Not served: a result that is not a scalar; what a helper stores through a
+borrowed formal; a fact that names `result` inside a term
+(`result + 1 <= n`), which a return's guarantee does not substitute; and one
+alternative per return. A helper that returns its input inside `[20, 60]` and
+40 otherwise is known to return a value in `[20, 60]`, not `value` or 40: a
+caller's proof splits at most once over a disjunction, and with alternatives
+kept `pass/calls/private_arrival_guarded_helper_range_exit` was rejected
+where its caller passes the result to a private helper. The module's
+fingerprint is the only record of which body a caller's proof depended on:
+the per-fact dependency the specification asks for ("Using a body-derived
+fact records a dependency on that exact checked body") waits for dependency
+slices.
+
 ## The rows are checked against the lowered form
 
 A certificate for every row proves nothing about a row that is missing, that

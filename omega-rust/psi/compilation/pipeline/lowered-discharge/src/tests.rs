@@ -26,6 +26,7 @@ mod entry_inputs;
 mod guard_contradiction;
 mod ranges;
 mod references;
+mod result_summaries;
 mod type_parameters;
 mod value_parameters;
 

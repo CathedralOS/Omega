@@ -152,14 +152,23 @@ fn describe_calls(
         )?;
         let actuals = scalar_actuals(&call.actuals);
         let target = terminal_machine(&elaboration.module.machines, callee, id)?;
+        let crossing: Vec<_> = target
+            .parameters
+            .iter()
+            .zip(&actuals)
+            .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
+            .collect();
         let predicate = describe(
             &tables,
             &prepared.graph,
             &prepared.context,
             id,
             site.before,
-            target,
-            &actuals,
+            &crossing,
+            &mut InputBindings {
+                actuals: &actuals,
+                target,
+            },
         )?;
         incoming
             .get_mut(callee)
@@ -327,15 +336,21 @@ fn machine_row_mut<T>(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
-fn describe(
+/// What machine `id` knows at `point` about the values that cross a contract
+/// boundary there, stated in the names of the other side. `crossing` pairs
+/// each such name with the value it takes here: a callee's formal with the
+/// actual at a call, or a machine's `result` with the value one return
+/// yields. `bindings` says which other values of this machine have a name
+/// on that side; a fact over any value that has none is left out, which only
+/// weakens the description.
+pub(crate) fn describe(
     tables: &MachineTables,
     graph: &Graph,
     context: &semantic_vocabulary::PropositionContext,
     id: MachineId,
     point: ProgramPoint,
-    target: &TerminalMachine,
-    actuals: &[ValueId],
+    crossing: &[(ScalarTerm, ValueId)],
+    bindings: &mut dyn Bindings,
 ) -> Checked<Proposition> {
     let mut available = Vec::new();
     for (_, row) in tables.knowledge.iter() {
@@ -374,17 +389,16 @@ fn describe(
             _ => None,
         })
         .collect();
-    let mut bindings = InputBindings { actuals, target };
     let mut parts = Vec::new();
-    for (formal, actual) in target.parameters.iter().zip(actuals) {
+    for (name, here) in crossing {
         let definition = joins::unfold(
-            &ScalarTerm::value(*actual, formal.scalar_type),
+            &ScalarTerm::value(*here, name.scalar_type()),
             &definitions,
             0,
         );
         let equality = Proposition::Equal(
-            ScalarTerm::value(formal.id, formal.scalar_type),
-            match crate::bound(&definition, &mut bindings) {
+            name.clone(),
+            match crate::bound(&definition, &mut *bindings) {
                 Ok(term) => term,
                 Err(_) => continue,
             },
@@ -399,7 +413,7 @@ fn describe(
         // Projection can weaken the former; the latter still carries every
         // relation established before crossing the input boundary.
         parts.push(joins::project(proposition, &mut |atom| {
-            substitute(atom, &mut bindings).ok()
+            substitute(atom, &mut *bindings).ok()
         }));
     }
     Ok(joins::connective(parts, true))
@@ -456,7 +470,7 @@ impl Bindings for InputBindings<'_> {
     }
 }
 
-fn canonical(proposition: Proposition, id: MachineId) -> Checked<Proposition> {
+pub(crate) fn canonical(proposition: Proposition, id: MachineId) -> Checked<Proposition> {
     let encode_error = |_| {
         refusal(
             RefusalReason::ForeignIdentity,
@@ -778,10 +792,25 @@ fn require(
                             "a planned private arrival has no call operation",
                         )
                     })?;
-                let OperationKind::Call {
+                // Every direct call lowering makes, whatever its result and
+                // argument lanes: a private helper that returns Unit or
+                // takes a record owes its inferred input like any other.
+                let (OperationKind::Call {
                     requirement_obligations,
                     ..
-                } = &mut found.kind
+                }
+                | OperationKind::CallUnit {
+                    requirement_obligations,
+                    ..
+                }
+                | OperationKind::CallStructuralScalar {
+                    requirement_obligations,
+                    ..
+                }
+                | OperationKind::CallStructuralWithScalarArguments {
+                    requirement_obligations,
+                    ..
+                }) = &mut found.kind
                 else {
                     return Err(refusal(
                         RefusalReason::ForeignIdentity,
