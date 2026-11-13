@@ -2116,15 +2116,15 @@ impl<'a> Lowering<'a> {
     /// field has no declared range, so it carries no obligation ("unbounded
     /// fields must not carry one"). A record field is the ordinary
     /// structural replacement, `StoreStructuralField`, of a root that holds
-    /// the already constructed value. A stored byte view is a byte field,
-    /// replaced by `StructuralByteViewFieldStore` from the root that holds
-    /// the source descriptor ("No length, capacity or bytes are retained:
-    /// the slot takes the source's backing and extent") ("A whole record assignment constructs
+    /// the already constructed value ("A whole record assignment constructs
     /// its operands before replacing the destination through the ordinary
     /// structural replacement operation ... Root, field, and indexed
     /// destinations do not change construction semantics or decompose the
-    /// assignment into member stores"). A homed scalar local is
-    /// `WriteOnlyPrimitiveStore` with an empty path.
+    /// assignment into member stores"). A stored byte view is a byte field,
+    /// replaced by `StructuralByteViewFieldStore` from the root that holds
+    /// the source descriptor ("No length, capacity or bytes are retained:
+    /// the slot takes the source's backing and extent"). A homed scalar
+    /// local is `WriteOnlyPrimitiveStore` with an empty path.
     pub(super) fn store(
         &mut self,
         destination: &Expression,
