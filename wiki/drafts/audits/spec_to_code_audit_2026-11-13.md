@@ -405,6 +405,8 @@ one implementation.
 | A lookup that still accepts the previous address | OC-4 |
 | Two evaluators of one closed proposition | LF-1, PA-1 |
 | A second prover with no production caller | PA-2 |
+| Three answers to one domain spelling | RS-1, RS-2, RS-3 |
+| A second layout of a plan the previous stage stored | IS-1, IS-2, IS-3 |
 | Storage whose producer never writes it | LF-2, LF-3 |
 | A named surface with no caller | LF-4, LF-5 |
 
@@ -994,6 +996,162 @@ The challenge stands. Deleting the search leaves the `Denotation` integer
 vocabulary and the law tables that certificate elaboration calls.
 `verify_obligation` stays.
 
+### RS-1. Three domain lookups, and they do not share a collapse rule
+
+Pattern: three answers to one name. Category: confirmed duplication.
+Confidence: high. Owner: the symbol resolver. About 104 lines:
+`resolve_domain_symbol` is `symbols.rs` 1590–1662, and `domain_named` is
+`lowering_machine.rs` 837–868.
+
+[Modules](wiki/spec/language/modules.md) says distinct visible declarations
+competing for the same domain reject, and neither carrier ownership nor
+import order selects a winner.
+
+`membership_domain_lookup` unions a top-level hit with a scan of root
+children, then `prefer_module_local_domain`. Equal display paths collapse.
+Several remaining paths are `Contested`, which `membership_selection`
+returns as `Ok(None)`. A domain competing with a case is an error.
+Ordinary expression membership uses this path through
+`assign_membership_symbol`.
+
+`resolve_domain_symbol` is what a proof-fact membership writes into
+`domain_symbol`. It returns invalid when any pooled row differs in
+authored name or semantic id. It does not look at cases. It does not call
+`membership_selection`.
+
+`domain_named` returns immediately on a signature-free `Unique` or
+`Ambiguous`, before the `domain_definitions` scan and before
+`prefer_module_local_domain`. `mark_token_bound_domain_homes` uses it.
+
+The challenge corrected one sentence from the first write-up. These are
+not one field written twice. Proof facts and ordinary expressions are
+different slots, and each slot calls a different function. The
+disagreement stays: the same spelling can be a domain, contested, or a
+different module-local row depending on which function runs.
+
+Follow-up: one pool, the membership rule. The other two call it.
+
+### RS-2. Operator homes use string maps; later facts use the symbol table
+
+Pattern: a second name map. Category: confirmed duplication. Confidence:
+high. Owner: the symbol resolver. About 158 non-comment lines:
+`NamespaceScope` is `selection.rs` 2561–2692, and `explicit_domain_homes`
+is 2842–2879.
+
+[Pipeline](omega-rust/pipeline.md) says scoped symbol-tree lookup is the
+baseline and extra lookup maps need a measured reason.
+[Modules](wiki/spec/language/modules.md) says importing a declaring module
+exposes its directly declared public domains.
+
+`select_operator_homes` runs before `symbols::assign`. `NamespaceScope`
+fills two `HashMap`s. `domain_exposed_to` is true for an exact path
+string, an empty module, the same module string, or a `::`-free spelling
+whose import text equals the domain path. Later domain facts,
+`resolve_domain_symbol`, `membership_domain_lookup`, and `domain_named`
+use `domain_name_reaches`, which accepts a leaf through
+`same_semantic_name` and a module import. A qualified spelling such as
+`Carrier::Leaf` can reach through the symbol table and fail
+`domain_exposed_to`, because the authored text contains `::` and is not
+the full path string. The operator home is not recomputed after the
+symbol table exists.
+
+Follow-up: install the namespace symbols first and home operators with
+`domain_name_reaches`. Drop `NamespaceScope`.
+
+### RS-3. Two child scans, and the static call keeps only `entry`
+
+Pattern: two scans of one machine's children. Category: confirmed
+duplication. Confidence: high. Owner: the symbol resolver. About 45 lines:
+the matching loop is `symbols.rs` 2049–2076, and the entry arm in
+`static_call_target` is `symbols_targets.rs` 905–921.
+
+[Modules](wiki/spec/language/modules.md) says ambiguous imported
+declarations reject and traversal order cannot select between them.
+
+`find_child_by_name_and_kind` keeps the requested kind and drops symbols
+that fail `symbol_source_is_selected`. Two selected children of that kind
+and name under a module return none.
+
+`child_symbol_by_kinds_matching` does not call
+`symbol_source_is_selected`. Under a module parent the kind test is
+skipped, so `Data foo` beside `Machine foo` is invalid here and a machine
+there.
+
+`machine_entry_symbol` uses the local scan: a state named the call target,
+then `"entry"`. `static_call_target` asks
+`find_child_by_name_and_kind` for `"entry"` only.
+`normalize_static_module_calls` assigns that result after the call already
+has a target. A state named the call target wins in the first scan and
+loses in the static pass.
+
+Follow-up: the local scan calls `find_child_by_name_and_kind` per kind.
+`static_call_target` calls `machine_entry_symbol`.
+
+### IS-1. Legalization rebuilds sum layouts the target row already stores
+
+Pattern: a second layout of a sealed plan. Category: confirmed duplication.
+Confidence: high. Owner: instruction selection. About 213 lines for the
+solvers that recompute a stored result.
+
+[Pipeline](omega-rust/pipeline.md) says the default compile path does not
+rebuild output the same compile just produced.
+[Exact selection](wiki/spec/build/optimizations.md) says legalization stays
+necessary, and that does not require a second layout of a plan the
+previous stage sealed.
+
+`TargetUnitOperation::StructuralCaseMembership` stores `case_tag` and
+`tag_byte_offset`. `project_structural_case_membership` does not read that
+row. It calls `membership_layout`, which walks the type and builds the
+layout again. `EstablishCase` and the activation-claim arms call
+`sum_layout` the same way. `home_layout` calls `sum_type_layout` and then
+`sum_layout` again and drops the second result. `StructuralCase` stores
+`byte_offset` and `layout`; `dispatch_projection` rebuilds both.
+
+The off-path checker in `legalization_target.rs` is the validator stage 02
+already documents. It stays off the default path.
+
+Follow-up: copy the stored tag, offset, and layout onto the legalized row.
+Keep one sum walker.
+
+### IS-2. Selection recomputes the layout legalization just attached
+
+Pattern: a second judgment of the row just built. Category: confirmed
+duplication. Confidence: high. Owner: instruction selection. About 142
+lines: `membership_layout` in `selection_inputs.rs` 705–762, the sum
+rebuild in `fields` at 1232–1296, and the geometry check in
+`structural_case::build` at 6492–6510.
+
+On `select_instructions`, `case_membership::observe` errors unless the
+recomputed tag and offset equal the legalized row.
+`fields` requires `evaluate_conventional_sum_layout` to equal the layout
+already on the row. `structural_case::build` errors when the recomputed
+`byte_offset` differs, then uses `pointer_slots` that the legalized case
+row does not store. The equality check is the second judgment. The slot
+list is the part legalization dropped.
+
+Follow-up: keep the pointer-slot list on the legalized row. Emit the case
+from that row. Delete the selection `membership_layout` and the sum-layout
+equality in `fields`.
+
+### IS-3. Selection re-runs the calling-convention plan
+
+Pattern: a second run of one ABI function. Category: likely unnecessary.
+Confidence: medium. Owner: instruction selection. About 22 lines:
+`scalar_call_abi::validate` at `selection_call_abi.rs` 1698–1702 and
+`cleanup_call::emit` at `selection_scalar_graph.rs` 2484–2500.
+
+`validate` builds `canonical = evaluate_call_plan(...)` and returns an
+error when `call.call_plan != canonical`. Legalization already copied
+`call_plan` from the target operation. `evaluate_call_plan` is one
+function in `calling_conventions`. This is a second run on the default
+path, not a second ABI. The installation-role and owned-argument checks
+in the same function are selection work and stay.
+
+The challenge stands at medium confidence. A reviewer can treat the
+equality as a local refusal of a plan selection is about to encode. The
+spec still says the default path does not re-validate output the same
+compile just produced.
+
 ## 4. Independent review
 
 This pass re-read the callers of each finding above and tried to break the
@@ -1021,54 +1179,67 @@ simplification. It did not re-open the directory census.
 | LF-5 | Stands. The publication label still says its input is `OptimizedLoweredPsi`. |
 | PA-1 | Stands. `normalize` collapses a closed IEEE literal comparison to `Truth` or `Falsehood`. Fact validity says IEEE relations remain unchanged in this conversion. The fixed-integer arm stays. |
 | PA-2 | Stands. `SourceIntegerTheory` is constructed only in the two test modules. The kernel stays. |
+| RS-1 | Stands, with one correction. Proof-fact membership and ordinary expression membership are different slots. Each calls a different function. `domain_named` returns on a signature-free unique hit before `prefer_module_local_domain`. The three rules do not collapse the same way. |
+| RS-2 | Stands. `domain_exposed_to` matches path strings. Later facts use `domain_name_reaches`. A qualified spelling can pass one and fail the other. |
+| RS-3 | Stands. `child_symbol_by_kinds_matching` does not call `symbol_source_is_selected`. `machine_entry_symbol` prefers a state named the call target. `static_call_target` asks only for `"entry"`. |
+| IS-1 | Stands. `StructuralCaseMembership` stores `case_tag` and `tag_byte_offset`. `project_structural_case_membership` ignores that row and calls `membership_layout`. The off-path checker in `legalization_target.rs` stays off the default path. |
+| IS-2 | Stands. Selection rebuilds the same layout and errors when the copy differs. The pointer-slot list is the part the legalized row dropped. |
+| IS-3 | Stands as likely unnecessary, medium confidence. `validate` re-runs `evaluate_call_plan` and errors when the plans differ. That is one ABI function run again, not a second ABI. |
 
-LF-1 is the one confirmed duplication. Similar names
+Confirmed duplication is no longer only LF-1. Similar names
 (`CheckedCompilation`, `compiler/src/checked/`, `PsiOptimization`) are the
 current product coordinator and the abstract-operation optimizer, which have
 live callers.
 
 ## 5. Ranking and follow-ups
 
-The rank key is authored lines a follow-up can delete, largest first.
-Two exceptions stay in front of that list, because each one changes a live
-judgment and sorting them by the lines they delete would bury them. LF-1
-is the crash-guard disagreement. PA-1 is the denotation conversion deciding
-an IEEE relation the spec says remains unchanged. Retargets that rewrite
-instead of delete (OC-3) come after the deletions. Spec questions come
-after those, ordered by the lines that would go if the answer is to delete.
-Confidence breaks ties.
+Confirmed duplications come first, because each one can pick a different
+answer or rebuild a result the previous stage stored. Inside that group,
+LF-1 stays first: the repair keeps one walker, so its line count is zero,
+and sorting it by lines would bury the crash-guard disagreement. The other
+confirmed rows are ordered by lines the repair removes. Likely-unnecessary
+rows follow, largest deletion first. Retargets that rewrite instead of
+delete (OC-3) come after those. Spec questions come last, ordered by the
+lines that would go if the answer is to delete. Confidence breaks ties.
 
-Confirmed duplication: 2 (LF-1, PA-1). Likely unnecessary: 11 (TL-1, TL-2,
-OC-2, DOCS-1, OC-3, TL-4, TL-5, LF-2, LF-3, LF-5, PA-2). Unresolved spec
-questions: 6 (OC-1, FD-1, PL-1, PL-2, OC-4, LF-4). Dropped by review: 1
-(TL-3).
+Confirmed duplication: 7 (LF-1, PA-1, RS-1, RS-2, RS-3, IS-1, IS-2).
+Likely unnecessary: 12 (TL-1, TL-2, OC-2, DOCS-1, OC-3, TL-4, TL-5, LF-2,
+LF-3, LF-5, PA-2, IS-3). Unresolved spec questions: 6 (OC-1, FD-1, PL-1,
+PL-2, OC-4, LF-4). Dropped by review: 1 (TL-3).
 
 | Rank | Id | Lines a follow-up can delete | Why this order |
 | --- | --- | ---: | --- |
-| 1 | LF-1 | 0 | Named exception. The walkers disagree on `false && unknown`. The repair keeps one walker. |
-| 2 | PA-1 | 40 | Named exception. `normalize` decides an IEEE relation the spec says stays unchanged. |
-| 3 | PA-2 | 760 | The source-integer theory search. Constructed only in tests. |
-| 4 | TL-1 | 499 | `stage_coverage.rs` plus its `main.rs` arm. |
-| 5 | LF-3 | 390 | `elision` in `semantics/src/scalars.rs`, lines 802–1191. No caller. |
-| 6 | LF-2 | 146 | `may_sets.rs` is 93 lines. `Summary` through `Termination` in `edges.rs` is lines 127–179 (53). Nothing constructs them. The module ceiling stays. |
-| 7 | TL-5 | 107 | The three `.codex` slot scripts. |
-| 8 | LF-5 | 28 | The `OBSERVATION_LABELS` table. A relabel, not a deleted stage. |
-| 9 | OC-2 | 23 | Two unread stage constants (4) and the uncalled preliminary-check recorder (19). |
-| 10 | OC-1 | 10 | The uncalled helper. The wire tag stays until the spec question is answered, so only the helper is in this count. |
-| 11 | TL-2 | 2 | Two missing roots. The stage 04 scan stays. |
-| 12 | TL-4 | 0 | The testing guide's Python commands. A rewrite of instructions. |
-| 13 | DOCS-1 | 0 | Stale sentences. No behavior. |
-| 14 | OC-3 | 0 | Retarget. The parser implements spellings the spec forbids. |
-| 15 | LF-4 | 961 | Spec question. Package `proof` has no caller. `pipeline.md` still names the directory. |
-| 16 | OC-4 | 72 | Spec question. The legacy snapshot scan re-verifies. |
-| 17 | FD-1 | 0 | Spec question. Keep the decode arm and the refusal fence. |
-| 18 | PL-1 | 0 | Spec question. Do not delete the Psi passes. |
-| 19 | PL-2 | 0 | Spec question. Keep the phase refusal. |
+| 1 | LF-1 | 0 | First in the confirmed group. The walkers disagree on `false && unknown`. The repair keeps one walker. |
+| 2 | IS-1 | 213 | Confirmed. Legalization rebuilds a layout the target row already stores. |
+| 3 | RS-2 | 158 | Confirmed. Operator homes use string maps. Later facts use the symbol table. |
+| 4 | IS-2 | 142 | Confirmed. Selection rebuilds the layout legalization just attached. |
+| 5 | RS-1 | 104 | Confirmed. Three domain lookups do not share a collapse rule. |
+| 6 | RS-3 | 45 | Confirmed. The static call keeps only `entry`. The first scan prefers a state named the call target. |
+| 7 | PA-1 | 40 | Confirmed. `normalize` decides an IEEE relation the spec says stays unchanged. |
+| 8 | PA-2 | 760 | The source-integer theory search. Constructed only in tests. |
+| 9 | TL-1 | 499 | `stage_coverage.rs` plus its `main.rs` arm. |
+| 10 | LF-3 | 390 | `elision` in `semantics/src/scalars.rs`, lines 802–1191. No caller. |
+| 11 | LF-2 | 146 | `may_sets.rs` is 93 lines. `Summary` through `Termination` in `edges.rs` is lines 127–179 (53). Nothing constructs them. The module ceiling stays. |
+| 12 | TL-5 | 107 | The three `.codex` slot scripts. |
+| 13 | LF-5 | 28 | The `OBSERVATION_LABELS` table. A relabel, not a deleted stage. |
+| 14 | OC-2 | 23 | Two unread stage constants (4) and the uncalled preliminary-check recorder (19). |
+| 15 | IS-3 | 22 | The calling-convention equality. One ABI function, run again. Medium confidence. |
+| 16 | OC-1 | 10 | The uncalled helper. The wire tag stays until the spec question is answered, so only the helper is in this count. |
+| 17 | TL-2 | 2 | Two missing roots. The stage 04 scan stays. |
+| 18 | TL-4 | 0 | The testing guide's Python commands. A rewrite of instructions. |
+| 19 | DOCS-1 | 0 | Stale sentences. No behavior. |
+| 20 | OC-3 | 0 | Retarget. The parser implements spellings the spec forbids. |
+| 21 | LF-4 | 961 | Spec question. Package `proof` has no caller. `pipeline.md` still names the directory. |
+| 22 | OC-4 | 72 | Spec question. The legacy snapshot scan re-verifies. |
+| 23 | FD-1 | 0 | Spec question. Keep the decode arm and the refusal fence. |
+| 24 | PL-1 | 0 | Spec question. Do not delete the Psi passes. |
+| 25 | PL-2 | 0 | Spec question. Keep the phase refusal. |
 
-Lines the deletion follow-ups can remove, from the rank table: 40 (PA-1)
-+ 760 (PA-2) + 499 (TL-1) + 390 (LF-3) + 146 (LF-2) + 107 (TL-5) + 23
-(OC-2) + 10 (OC-1's helper) + 2 (TL-2) = 1,977. LF-5 rewrites its 28-line
-label table. LF-1 keeps one walker. OC-3 rewrites the parser. Generated,
+Lines the deletion follow-ups can remove, from the rank table: 213 (IS-1)
++ 158 (RS-2) + 142 (IS-2) + 104 (RS-1) + 45 (RS-3) + 40 (PA-1) + 760 (PA-2)
++ 499 (TL-1) + 390 (LF-3) + 146 (LF-2) + 107 (TL-5) + 23 (OC-2) + 22 (IS-3)
++ 10 (OC-1's helper) + 2 (TL-2) = 2,661. LF-5 rewrites its 28-line label
+table. LF-1 keeps one walker. OC-3 rewrites the parser. Generated,
 vendored, and fixture reduction: 0. Documentation rewrites are the
 stage-coverage section in `tools/testing.md` (lines 440–497), the Python
 baseline commands (TL-4), and DOCS-1.
@@ -1226,6 +1397,64 @@ Checks:
 - `mbx xtask fmt --check`
 - `rg -n 'SourceIntegerTheory::' omega-rust/psi/compilation/proof/admission/src/bounded_denotation.rs`
 
+### Follow-up 11. Copy the stored sum layout through legalization and selection
+
+`backend: stop rebuilding sum layouts the target row already stores`
+
+Legalization copies `case_tag`, `tag_byte_offset`, `byte_offset`, and
+`layout` from the target row, and it keeps the pointer-slot list on the
+legalized case. Selection emits from that row. Delete selection's
+`membership_layout` and the sum-layout equality in `fields`. Leave
+`legalization_target.rs` as the off-path checker.
+
+Checks:
+
+- `mbx test -p target-operations-to-selected-instructions --lib < /dev/null`
+- `mbx clippy -p target-operations-to-selected-instructions --all-targets -- -D warnings < /dev/null`
+- `mbx xtask fmt --check`
+
+### Follow-up 12. One domain lookup
+
+`psi: one domain lookup for expressions, proof facts, and token homes`
+
+`resolve_domain_symbol` and `domain_named` call `membership_domain_lookup`.
+A proof-fact membership uses that result and still rejects a competing
+case. A signature-free unique hit does not skip `prefer_module_local_domain`.
+
+Checks:
+
+- `mbx test -p syntax-trees-to-symbol-resolved-trees --lib < /dev/null`
+- `mbx clippy -p syntax-trees-to-symbol-resolved-trees --all-targets -- -D warnings < /dev/null`
+- `mbx xtask fmt --check`
+
+### Follow-up 13. Home operators with the symbol table
+
+`psi: home operators with domain_name_reaches`
+
+Install namespace symbols before operator homes. `domain_exposed_to` goes.
+`NamespaceScope` goes.
+
+Checks:
+
+- `mbx test -p syntax-trees-to-symbol-resolved-trees --lib < /dev/null`
+- `mbx clippy -p syntax-trees-to-symbol-resolved-trees --all-targets -- -D warnings < /dev/null`
+- `mbx xtask fmt --check`
+- `rg -n 'struct NamespaceScope' omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees`
+
+### Follow-up 14. One child scan for the machine entry
+
+`psi: one child scan for the machine entry`
+
+`child_symbol_by_kinds_matching` calls `find_child_by_name_and_kind` per
+requested kind. `static_call_target` calls `machine_entry_symbol`, so a
+state named the call target still wins.
+
+Checks:
+
+- `mbx test -p syntax-trees-to-symbol-resolved-trees --lib < /dev/null`
+- `mbx clippy -p syntax-trees-to-symbol-resolved-trees --all-targets -- -D warnings < /dev/null`
+- `mbx xtask fmt --check`
+
 ## 6. Large-crate coverage
 
 Each of the six crates named below gets its own pass. A clean result means
@@ -1263,6 +1492,33 @@ Not line-read: the integer-affine, cast, shift, and forbidden-root replay
 bodies, the quotient and indexed-scheme bodies in `mathematical_core.rs`,
 and the `mathematical_typing.rs` judgment arms. No `mbx` run.
 
+### Symbol resolver, three findings
+
+`omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees`
+is 66,064 lines. `git diff --stat a93022df945edf9147d3e75332c7ee944594029a --`
+that directory is empty. RS-1, RS-2, and RS-3 are the three name answers.
+`begin_complete` and `resolve_deferred` call one function twice, after
+`machine_equations::complete` rewrites syntax. That is not a second name
+map. `ResolvedIndexes` maps a symbol to a row. `lexical_integer_const_values`
+is a literal ledger. `SourceLinks` is read by `complete`.
+
+Not line-read: the rest of the resolver beyond the three lookups and their
+callers. No `mbx` run.
+
+### Instruction selection, three findings
+
+`omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions`
+is 68,336 lines. `git diff --stat a93022df945edf9147d3e75332c7ee944594029a --`
+that directory is empty. IS-1 and IS-2 rebuild a sum layout the target row
+already stores. IS-3 re-runs `evaluate_call_plan`. The off-path checker
+`legalization_target.rs` stays off the default path and is not a new
+finding. Stage 04's SelectedLowering ownership and stage 02's refusal of a
+nonempty TargetOperations selection are not re-filed.
+
+Not line-read: `selection_access_lifecycles.rs`,
+`selection_views_and_bytes.rs`, `legalization_reference_custody.rs`, and
+`legalization_target.rs` beyond the case and layout matches. No `mbx` run.
+
 ### What this pass could not verify
 
 - Whether any on-disk build record still encodes measurement tag 0. The
@@ -1275,8 +1531,9 @@ and the `mathematical_typing.rs` judgment arms. No `mbx` run.
   elaboration and discharge. This pass did not walk every command flag to
   that function, so the stage READMEs' "not wired" claim is contradicted
   for the product route and unverified for every other route.
-- Four large crates are still unread: typed-trees (71,141), instruction
-  selection (68,336), the resolver (66,064), and terminal semantics
-  (53,446). Proof admission's integer-affine, quotient, and typing-arm
-  bodies were not line-read. The interpreter's storage files listed in
-  section 6 were searched, not line-read.
+- Two large crates are still unread: typed-trees (71,141) and terminal
+  semantics (53,446). Proof admission's integer-affine, quotient, and
+  typing-arm bodies were not line-read. The resolver and instruction
+  selection files named in section 6 were searched, not line-read. The
+  interpreter's storage files listed in section 6 were searched, not
+  line-read.
