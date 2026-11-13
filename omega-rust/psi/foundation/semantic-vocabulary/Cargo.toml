@@ -10,5 +10,6 @@ path = "src/lib.rs"
 
 [dependencies]
 compiler-storage = { path = "../compiler-storage" }
+numerics = { path = "../numerics" }
 arena = { path = "../arena" }
 optimization = { path = "../optimization" }

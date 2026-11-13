@@ -3182,6 +3182,6 @@ pub(super) fn normalized_boolean_argument(text: &str) -> Option<bool> {
 }
 
 pub(super) fn const_binder_envelope(type_name: &str) -> Option<(BigInt, BigInt)> {
-    let (minimum, maximum) = LandedIntegerType::from_name(type_name)?.bounds();
+    let (minimum, maximum) = LandedIntegerType::from_name(type_name)?.bounds()?;
     Some((BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
 }
