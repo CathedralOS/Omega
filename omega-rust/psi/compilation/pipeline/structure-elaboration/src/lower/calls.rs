@@ -102,7 +102,8 @@ impl Lowering<'_> {
                         .push(StructuralArgument::whole(root, StructuralAccess::Owned));
                     evaluated.consumed.push(root);
                 }
-                Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_)) | None => {
+                Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_))
+                | None => {
                     let value = self.scalar(argument)?;
                     evaluated.actuals.push(Actual::Value(value));
                     evaluated.scalars.push(value);

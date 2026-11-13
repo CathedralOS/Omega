@@ -98,7 +98,7 @@ impl Program<'_> {
                         | ExpressionKind::Not(_)
                         | ExpressionKind::BitwiseNot(_)
                         | ExpressionKind::Cast(_)
-            | ExpressionKind::Requalify(_)
+                        | ExpressionKind::Requalify(_)
                         | ExpressionKind::ShortCircuit { .. }
                         | ExpressionKind::Borrow { .. }
                         | ExpressionKind::Call { .. } => {

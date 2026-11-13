@@ -226,9 +226,8 @@ impl Lowering<'_> {
             Statement::Bind { slot, value } => {
                 let bound = match value.result {
                     Some(ValueType::Record(_)) => Bound::Record(self.bind_record(value)?),
-                    Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_)) | None => {
-                        Bound::Scalar(self.scalar(value)?)
-                    }
+                    Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_))
+                    | None => Bound::Scalar(self.scalar(value)?),
                 };
                 *self.slot_mut(*slot)? = Some(bound);
                 Ok(())

@@ -71,17 +71,18 @@ impl Lowering<'_> {
                 Ok(Witness::Integer(t, *value))
             }
             (ExpressionKind::Boolean(value), _) => Ok(Witness::Boolean(*value)),
-            (ExpressionKind::Slot(slot), Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _))) => {
-                match *self.slot_mut(*slot)? {
-                    Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
-                    Some(Bound::Erased(witness)) => Ok(witness),
-                    Some(Bound::Home(_) | Bound::Record(_)) | None => Err(refuse(
-                        self.id,
-                        self.current.map_or(Construct::Machine, Construct::Block),
-                        Unserved::Expression("erased term that reads storage"),
-                    )),
-                }
-            }
+            (
+                ExpressionKind::Slot(slot),
+                Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)),
+            ) => match *self.slot_mut(*slot)? {
+                Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
+                Some(Bound::Erased(witness)) => Ok(witness),
+                Some(Bound::Home(_) | Bound::Record(_)) | None => Err(refuse(
+                    self.id,
+                    self.current.map_or(Construct::Machine, Construct::Block),
+                    Unserved::Expression("erased term that reads storage"),
+                )),
+            },
             _ => Err(refuse(
                 self.id,
                 self.current.map_or(Construct::Machine, Construct::Block),
@@ -103,7 +104,9 @@ impl Lowering<'_> {
         // holds it. Everything below is scalar or Unit.
         let result = match expression.result {
             Some(ValueType::Record(_)) => return self.record(expression).map(Value::Record),
-            Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => Some(scalar_type),
+            Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
+                Some(scalar_type)
+            }
             // A value of a rigid type is only ever named: no operation
             // produces one, so no result row is minted for it here.
             Some(ValueType::Rigid(_)) => {
@@ -297,13 +300,11 @@ impl Lowering<'_> {
                 right,
                 obligation: self.safety(operation, source)?,
             },
-            (Strict::Remainder, Policy::Saturating) => {
-                OperationKind::SaturatingIntegerRemainder {
-                    left,
-                    right,
-                    obligation: self.safety(operation, source)?,
-                }
-            }
+            (Strict::Remainder, Policy::Saturating) => OperationKind::SaturatingIntegerRemainder {
+                left,
+                right,
+                obligation: self.safety(operation, source)?,
+            },
             (Strict::ShiftLeft, Policy::Wrapping) => OperationKind::WrappingIntegerShiftLeft {
                 value: left,
                 count: right,

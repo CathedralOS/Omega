@@ -430,7 +430,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         | ExpressionKind::Not(_)
         | ExpressionKind::BitwiseNot(_)
         | ExpressionKind::Cast(_)
-            | ExpressionKind::Requalify(_)
+        | ExpressionKind::Requalify(_)
         | ExpressionKind::ShortCircuit { .. }
         | ExpressionKind::Call { .. } => false,
     }
@@ -862,8 +862,14 @@ mod tests {
                 Ok(saturating)
             );
             // `w + 1` and `1 + w`: the literal landed in the carrier.
-            assert_eq!(typed(operator, wrapping, plain, (false, true)), Ok(wrapping));
-            assert_eq!(typed(operator, plain, wrapping, (true, false)), Ok(wrapping));
+            assert_eq!(
+                typed(operator, wrapping, plain, (false, true)),
+                Ok(wrapping)
+            );
+            assert_eq!(
+                typed(operator, plain, wrapping, (true, false)),
+                Ok(wrapping)
+            );
             for (left, right) in [(wrapping, plain), (plain, wrapping)] {
                 assert_eq!(
                     typed(operator, left, right, neither).unwrap_err(),
