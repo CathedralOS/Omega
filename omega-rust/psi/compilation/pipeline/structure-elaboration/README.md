@@ -245,8 +245,9 @@ body that is one call of the implementation. `template_of` gives the
 declaration a generated machine came from. A callable parameter, a
 runtime-capable value binder (`Count: u32` without `const`), a value
 parameter of a carrier other than an integer, and a type parameter with a
-declared type equation are still refused as `machine generic parameters`
-or by the parameter's own refusal (findings 29 to 32).
+declared type equation are still refused by the rule the parameters broke
+and the declaration's name (`machine linear type parameter: \`relay\``) or
+by the parameter's own refusal (findings 29 to 32).
 
 A contract clause that is the literal `true` adds no clause: it asks and
 promises nothing, as an absent `requires` or `ensures` does.
@@ -541,9 +542,25 @@ binders declared in the lexical owner. Duplicate binders and undeclared tags
 reject."). The owner of the lifetimes an application names is the typed
 trees' answer: the declaration they retained for that occurrence of the type,
 as stage 03 does for the type of a literal nested in another literal, and
-otherwise the data declaration whose member is being read. A machine is read
-under no owner, since one that declares lifetime parameters is refused
-(`machine generic parameters`).
+otherwise the declaration being read: the data declaration whose member it
+is, or the machine whose signature or body it is.
+
+A machine that declares lifetime parameters is one machine, read once
+("Lifetime arguments are erased regions, separate from runtime generic arity,
+layout and monomorphization"). A byte view written with one of them,
+`&'a [u8]`, has a type that names that region, so the body may return or
+store it only where the same region is written. A call stands a region of
+the caller in for each lifetime the callee's signature names or leaves out:
+the region of the view passed (`read/calls.rs`, `view_regions`). Views of two
+regions passed for one lifetime are refused, a result view is a view of the
+region its lifetime was given, and a result written without a lifetime is a
+view of the one region all views passed without a lifetime are of. A place
+that holds a view, a binding or a field, is passed to a view formal as it
+stands. Still refused: a reference to anything but bytes written with a
+lifetime (`reference parameter with a named lifetime`), and storing a view of
+a machine's lifetime into data applied at it, since data applied at lifetimes
+is still the declaration's one record whose stored views name the data's own
+binders.
 
 A `mut` formal that holds its own value (`mut x: u32`, `mut p: R`) is the
 callee's own storage, initialised from the argument, and is written as a
