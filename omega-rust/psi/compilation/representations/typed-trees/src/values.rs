@@ -2563,6 +2563,7 @@ pub mod expression {
             #[test]
             fn applied_names_keep_authored_targets_and_complete_arguments_in_copies() {
                 use crate::expression::{StaticMachineArgument, StaticSymbolApplication};
+                use numerics::literals::IntegerLiteral;
                 let original = SymbolHandle::from_arena_index(7);
                 let entry = SymbolHandle::from_arena_index(8);
                 let parameter = SymbolHandle::from_arena_index(9);
@@ -2687,9 +2688,8 @@ pub mod expression {
                         ..Default::default()
                     }
                 ));
-                let result_name = table.insert_name_path_members(&NamePath::unresolved(vec![
-                    Identifier::generated("result"),
-                ]));
+                let mut result_name = HandleSpan::empty();
+                table.push_name_path_member(&mut result_name, Identifier::generated("result"));
                 let result_description = table.insert(ExpressionNode::Name(TableNamePath {
                     members: result_name,
                     static_application: application,
