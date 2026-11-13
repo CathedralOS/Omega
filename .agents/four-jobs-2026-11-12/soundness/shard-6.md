@@ -19,96 +19,128 @@ python3 .agents/four-jobs-2026-11-12/soundness/run_shard_mutations.py
 | Metric | Count |
 | --- | ---: |
 | Fixtures in shard | 1130 |
-| Originals skipped | 232 |
-| Fixtures checked (original accepted) | 898 |
-| Fixtures with zero generated mutants (no-mutation) | 110 |
-| Fixtures with ≥1 mutant row | 788 |
-| Mutant rows | 1870 |
-| Mean mutants per mutated fixture | 2.37 |
+| original-not-accepted | 208 |
+| failed-run (original check) | 0 |
+| no-mutation | 103 |
+| mutated fixtures | 819 |
+| Mutant rows | 2286 |
+| Mean mutation kinds per mutated fixture | 2.66 |
 
-Reconcile: `fixtures in shard` = skipped + checked; `checked` = no-mutation + mutated fixtures; mutant row buckets sum to `mutant rows`.
+Reconcile: `fixtures in shard` = original-not-accepted + failed-run + no-mutation + mutated; mutant row buckets sum to `mutant rows`.
+
+## Original-not-accepted diagnostics (top)
+
+| Diagnostic (prefix) | Count |
+| --- | ---: |
+| error: prior run checked main.omg only; corpus uses build.omg when present | 208 |
+
+## Mutation kinds (all rows)
+
+| Kind | Count |
+| --- | ---: |
+| `drop_requires` | 553 |
+| `mut_ref_instead_of_shared` | 669 |
+| `remove_mut` | 309 |
+| `shared_instead_of_mut` | 367 |
+| `widen_requires` | 388 |
+
+drop_requires header vs body: header=49, body=504
+
+## Q7 mut split (known-gap-q7-mut rows)
+
+- In PR #2638 audit list: **1**
+- Same Q7 enforcement class, not audit-listed: **311**
+- Audit sites loaded: 173 distinct (path, binding)
 
 ## Mutant buckets (sum = mutants attempted)
 
 | Bucket | Count |
 | --- | ---: |
-| `confirmed-hole` | 323 |
-| `known-gap-q7-mut` | 0 |
+| `confirmed-hole` | 57 |
+| `known-gap-q7-mut` | 312 |
 | `disagreement-valid` | 5 |
-| `valid-route-outside` | 241 |
-| `discarded-valid` | 85 |
-| `rejected-both` | 1216 |
+| `valid-route-outside` | 265 |
+| `discarded-valid` | 92 |
+| `rejected-both` | 74 |
+| `rejected-current-route-outside` | 1481 |
 | `timeout` | 0 |
 | `failed-run` | 0 |
-| `failed-run` | 0 |
-| **Total** | **1870** |
+| **Total** | **2286** |
+
+## Bucket integrity
+
+- rejected-both rows with current=rejected AND route=rejected: 74 / 74
+- valid-route-outside anomalies: 0
+- rejected-both anomalies (not both rejected): 0
+- mutants missing route verdict: 0
 
 ## Fixtures with more than one mutant row
 
-Count: 591 fixtures.
+Count: 649 fixtures.
 - `tests/omega/pass/arithmetic/checked_flag_proof_signed_mask/main.omg`: 2 rows
 - `tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg`: 5 rows
 - `tests/omega/pass/arithmetic/runtime_boolean_field_shift_count_exit/main.omg`: 2 rows
 - `tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg`: 4 rows
-- `tests/omega/pass/arithmetic/sparse_captured_utf_path_exit/main.omg`: 2 rows
-- `tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit/main.omg`: 4 rows
+- `tests/omega/pass/arithmetic/sparse_captured_utf_path_exit/main.omg`: 3 rows
+- `tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit/main.omg`: 5 rows
 - `tests/omega/pass/asm/atomic_release_disposition_pair_exit/main.omg`: 2 rows
-- `tests/omega/pass/asm/checked_asm_nominal_symbolic_conjunction_exit/main.omg`: 4 rows
-- `tests/omega/pass/asm/checked_label_borrow_last_use_exit/main.omg`: 2 rows
+- `tests/omega/pass/asm/checked_asm_nominal_symbolic_conjunction_exit/main.omg`: 5 rows
+- `tests/omega/pass/asm/checked_label_borrow_last_use_exit/main.omg`: 3 rows
 - `tests/omega/pass/atomics/placed_atomic_shared_store/main.omg`: 2 rows
-- `tests/omega/pass/atomics/runtime_atomic_computed_updates_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrow/runtime_indexed_write_only_local_receiver_exit/main.omg`: 2 rows
+- `tests/omega/pass/atomics/runtime_atomic_computed_updates_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrow/runtime_indexed_write_only_local_receiver_exit/main.omg`: 4 rows
 - `tests/omega/pass/borrow/runtime_static_callable_preserves_readonly_subject_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/aliased_descriptor_slot_after_last_use_exit/main.omg`: 2 rows
+- `tests/omega/pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrows/aliased_descriptor_slot_after_last_use_exit/main.omg`: 3 rows
 - `tests/omega/pass/borrows/borrowed_literal_backing_releases_input_loan_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/conditional_copied_slot_restores_parent_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/copied_input_descriptor_independent_mutation_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/foreign_output_copied_lifetime_last_use/main.omg`: 2 rows
+- `tests/omega/pass/borrows/conditional_copied_slot_restores_parent_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrows/copied_input_descriptor_independent_mutation_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrows/foreign_output_copied_lifetime_last_use/main.omg`: 3 rows
 - `tests/omega/pass/borrows/initialized_empty_array_snapshot_replacement_exit/main.omg`: 2 rows
 - `tests/omega/pass/borrows/literal_index_reference_copy_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg`: 4 rows
-- `tests/omega/pass/borrows/opaque_incoming_nested_projected_array_result_exit/main.omg`: 3 rows
-- `tests/omega/pass/borrows/ordinary_select_provider_reference_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg`: 4 rows
+- `tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg`: 5 rows
+- `tests/omega/pass/borrows/opaque_incoming_nested_projected_array_result_exit/main.omg`: 4 rows
+- `tests/omega/pass/borrows/ordinary_select_provider_reference_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg`: 5 rows
 - `tests/omega/pass/borrows/qualified_reference_field_retarget_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/resident_view_borrowed_helper_exit/main.omg`: 2 rows
+- `tests/omega/pass/borrows/resident_view_borrowed_helper_exit/main.omg`: 4 rows
 - `tests/omega/pass/borrows/runtime_computed_backing_reference_copy_exit/main.omg`: 3 rows
-- `tests/omega/pass/borrows/runtime_copied_byte_distinct_epochs_exit/main.omg`: 4 rows
-- `tests/omega/pass/borrows/runtime_dependent_forwarded_window_exit/main.omg`: 4 rows
-- `tests/omega/pass/borrows/runtime_formed_child_descriptor_replacement_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/runtime_independent_qualified_owner_reference_exit/main.omg`: 3 rows
-- `tests/omega/pass/borrows/runtime_match_payload_parent_disjoint_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/runtime_mutable_reference_captures_selector_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg`: 4 rows
-- `tests/omega/pass/borrows/runtime_qualified_statement_descriptor_replacement_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/runtime_reference_call_scalar_snapshot_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/runtime_selected_stored_carrier_exit/main.omg`: 2 rows
-- `tests/omega/pass/borrows/runtime_static_callback_snapshot_exit/main.omg`: 3 rows
-- … and 551 more (see TSV)
+- `tests/omega/pass/borrows/runtime_copied_byte_distinct_epochs_exit/main.omg`: 5 rows
+- `tests/omega/pass/borrows/runtime_dependent_forwarded_window_exit/main.omg`: 5 rows
+- `tests/omega/pass/borrows/runtime_formed_child_descriptor_replacement_exit/main.omg`: 4 rows
+- `tests/omega/pass/borrows/runtime_independent_qualified_owner_reference_exit/main.omg`: 4 rows
+- `tests/omega/pass/borrows/runtime_match_payload_parent_disjoint_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrows/runtime_mutable_reference_captures_selector_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg`: 5 rows
+- `tests/omega/pass/borrows/runtime_qualified_statement_descriptor_replacement_exit/main.omg`: 4 rows
+- `tests/omega/pass/borrows/runtime_reference_call_scalar_snapshot_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrows/runtime_selected_stored_carrier_exit/main.omg`: 3 rows
+- `tests/omega/pass/borrows/runtime_static_callback_snapshot_exit/main.omg`: 4 rows
+- … and 609 more (see TSV)
 
 ## Confirmed holes by mutation kind
 
 | Kind | Count |
 | --- | ---: |
-| `amp_to_ampmut` | 68 |
-| `drop_requires` | 4 |
+| `drop_requires` | 5 |
+| `mut_ref_instead_of_shared` | 68 |
 | `remove_mut` | 244 |
-| `weaken_requires` | 7 |
+| `shared_instead_of_mut` | 45 |
+| `widen_requires` | 7 |
 
 ## Confirmed holes by accepted_by
 
 | accepted_by | Count |
 | --- | ---: |
 | `both` | 9 |
-| `current` | 314 |
+| `current` | 360 |
 
-## Kept rows
+## Kept rows (sample)
 
 ### tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `values`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__221870285650b17a/main.omg`
 - Current: `accepted`; route: `no-entry`; accepted_by: `current`
@@ -123,7 +155,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/arithmetic/runtime_boolean_field_shift_count_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `guard`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__f309fcc21272105d/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -138,7 +170,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/arithmetic/sparse_captured_utf_path_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `output`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__a1bf5fc91e003f1e/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -153,7 +185,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/asm/checked_asm_nominal_symbolic_conjunction_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `cursor`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__remove_mut__dd1ae77a62b9561c/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -168,7 +200,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/asm/checked_label_borrow_last_use_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `entry_storage`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_label_borrow_last_use_exit__main.omg__remove_mut__5ef632b5dd793d32/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -183,7 +215,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/atomics/placed_atomic_shared_store/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `entries`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__atomics__placed_atomic_shared_store__main.omg__remove_mut__698bd3fb4dace34b/main.omg`
 - Current: `accepted`; route: `no-entry`; accepted_by: `current`
@@ -198,7 +230,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/atomics/runtime_atomic_computed_updates_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `trace`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__atomics__runtime_atomic_computed_updates_exit__main.omg__remove_mut__b0b9c59434b0adde/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -213,7 +245,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrow/runtime_indexed_write_only_local_receiver_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `cells`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_indexed_write_only_local_receiver_exit__main.omg__remove_mut__056e2e20b4562b36/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -228,7 +260,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `held`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_aggregate_exit__main.omg__remove_mut__eba29fb81a6e84fd/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -243,7 +275,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `held`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrow__runtime_write_only_exclusive_reference_returned_view_exit__main.omg__remove_mut__026c93f80ef2a4a9/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -258,7 +290,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/borrowed_literal_backing_releases_input_loan_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `second`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__borrowed_literal_backing_releases_input_loan_exit__main.omg__remove_mut__fe9e2e25b552a337/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -273,7 +305,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/copied_input_descriptor_independent_mutation_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `counter`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__copied_input_descriptor_independent_mutation_exit__main.omg__remove_mut__3fbf375251282eef/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -288,7 +320,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/foreign_output_copied_lifetime_last_use/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `first`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__foreign_output_copied_lifetime_last_use__main.omg__remove_mut__961c6eec0e3affec/main.omg`
 - Current: `accepted`; route: `no-entry`; accepted_by: `current`
@@ -303,7 +335,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/initialized_empty_array_snapshot_replacement_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `packet`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__initialized_empty_array_snapshot_replacement_exit__main.omg__remove_mut__039a175236069329/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -318,7 +350,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/literal_index_reference_copy_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `bytes`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__literal_index_reference_copy_exit__main.omg__remove_mut__d88ab24fb0f32c9e/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -333,7 +365,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `bytes`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__remove_mut__95a8b46df06a7f29/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -346,9 +378,9 @@ Count: 591 fixtures.
 - (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
 - (c) Minimal diff: see hand-verification section below.
 
-### tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg — amp_to_ampmut
+### tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg — mut_ref_instead_of_shared
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: first shared & -> &mut
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__amp_to_ampmut__d31452bfce2909de/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -363,7 +395,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/opaque_incoming_nested_projected_array_result_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `backing`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__opaque_incoming_nested_projected_array_result_exit__main.omg__remove_mut__42f3387b9632fc4c/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -378,7 +410,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/ordinary_select_provider_reference_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `holder`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__ordinary_select_provider_reference_exit__main.omg__remove_mut__3a40fd137fb6aedb/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -393,7 +425,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `items`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__remove_mut__5d26dbcef23c1942/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -406,9 +438,9 @@ Count: 591 fixtures.
 - (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
 - (c) Minimal diff: see hand-verification section below.
 
-### tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg — amp_to_ampmut
+### tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg — mut_ref_instead_of_shared
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: first shared & -> &mut
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__amp_to_ampmut__1644168050b9d4d2/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -423,7 +455,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/qualified_reference_field_retarget_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `protected`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__qualified_reference_field_retarget_exit__main.omg__remove_mut__7e9af1b913ab71dd/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -438,7 +470,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/resident_view_borrowed_helper_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `entries`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__resident_view_borrowed_helper_exit__main.omg__remove_mut__6bfab553627f460c/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -453,7 +485,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/runtime_copied_byte_distinct_epochs_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `entry_storage`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_copied_byte_distinct_epochs_exit__main.omg__remove_mut__ebef68fdc4e399fb/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -468,7 +500,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/runtime_formed_child_descriptor_replacement_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `original`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_formed_child_descriptor_replacement_exit__main.omg__remove_mut__d1996063f1a77255/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -483,7 +515,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/runtime_match_payload_parent_disjoint_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `backing`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_match_payload_parent_disjoint_exit__main.omg__remove_mut__b715854371e6096e/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -498,7 +530,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/runtime_mutable_reference_captures_selector_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `cells`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_mutable_reference_captures_selector_exit__main.omg__remove_mut__14d56be69b40f6cc/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -513,7 +545,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `entry_storage`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_projected_record_region_loop_exit__main.omg__remove_mut__8ff6ce3aaf315ffa/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -526,9 +558,9 @@ Count: 591 fixtures.
 - (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
 - (c) Minimal diff: see hand-verification section below.
 
-### tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg — amp_to_ampmut
+### tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg — mut_ref_instead_of_shared
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: first shared & -> &mut
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_projected_record_region_loop_exit__main.omg__amp_to_ampmut__2d7d2472dd381be2/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -543,7 +575,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/runtime_qualified_statement_descriptor_replacement_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `original`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_qualified_statement_descriptor_replacement_exit__main.omg__remove_mut__73041d9fe1e00b5a/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -558,7 +590,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/runtime_reference_call_scalar_snapshot_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `entry_storage`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_reference_call_scalar_snapshot_exit__main.omg__remove_mut__4e323ffe493b9b53/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -573,7 +605,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/runtime_selected_stored_carrier_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `left`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_selected_stored_carrier_exit__main.omg__remove_mut__45ed5c0817a0b3a5/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -588,7 +620,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/runtime_static_callback_snapshot_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `visits`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_static_callback_snapshot_exit__main.omg__remove_mut__d3ddec1278f4fccd/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -603,7 +635,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/borrows/runtime_writeonly_nested_reference_array_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `first`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_writeonly_nested_reference_array_exit__main.omg__remove_mut__9aa182cde73c0f94/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -618,7 +650,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/build/activation_descriptor_write_observed_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `carrier`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__build__activation_descriptor_write_observed_exit__main.omg__remove_mut__1b026a1991142698/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -633,7 +665,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/build/installed_entry_ram_two_occurrences_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `entries`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__build__installed_entry_ram_two_occurrences_exit__main.omg__remove_mut__dfc12f4db32fd97d/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -648,7 +680,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/build/sibling_module_service_exclusion_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `entry_storage`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__build__sibling_module_service_exclusion_exit__main.omg__remove_mut__768c7eac2355bdd0/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -661,9 +693,24 @@ Count: 591 fixtures.
 - (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
 - (c) Minimal diff: see hand-verification section below.
 
-### tests/omega/pass/calls/converted_call_value_private_arrival_exit/main.omg — amp_to_ampmut
+### tests/omega/pass/calls/converted_call_value_private_arrival_exit/main.omg — drop_requires
 
-- Bucket: `confirmed-hole`
+- Bucket: `disagreement-valid`
+- Mutation: delete first body requires line
+- Mutant: `tests__omega__pass__calls__converted_call_value_private_arrival_exit__main.omg__drop_requires__8f385fdaff67e638`
+- Current: `accepted`; route: `rejected`; accepted_by: `current`
+- Route detail (hint only): diagnostic: reject main.omg:27 bytes 890..901 cannot prove requires contract for call verify_wide from step: forwarded >= 300 && forwarded <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry` 
+- Broken obligation: ``
+- (a) Compile-time spec (`` § ):
+
+> 
+- Subtype: `(n/a)`
+- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
+- (c) Minimal diff: see hand-verification section below.
+
+### tests/omega/pass/calls/converted_call_value_private_arrival_exit/main.omg — mut_ref_instead_of_shared
+
+- Bucket: `known-gap-q7-mut`
 - Mutation: first shared & -> &mut
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__converted_call_value_private_arrival_exit__main.omg__amp_to_ampmut__fde2c5322096d104/main.omg`
 - Current: `accepted`; route: `rejected`; accepted_by: `current`
@@ -678,7 +725,7 @@ Count: 591 fixtures.
 
 ### tests/omega/pass/calls/recursive_terminal_block_acknowledgement_exit/main.omg — remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Mutation: remove mut from `entry_storage`
 - Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__recursive_terminal_block_acknowledgement_exit__main.omg__remove_mut__0ce9200e1feb5580/main.omg`
 - Current: `accepted`; route: `outside`; accepted_by: `current`
@@ -691,4272 +738,297 @@ Count: 591 fixtures.
 - (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
 - (c) Minimal diff: see hand-verification section below.
 
-### tests/omega/pass/calls/runtime_constructor_child_membership_snapshot_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_constructor_child_membership_snapshot_exit__main.omg__remove_mut__13883144ba2c718c/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `44:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/calls/runtime_nested_constructor_child_snapshots_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_nested_constructor_child_snapshots_exit__main.omg__remove_mut__3dcc8afc0799b9d3/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `66:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/calls/runtime_selected_call_argument_from_fieldwise_local_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__calls__runtime_selected_call_argument_from_fieldwise_local_exit__main.omg__amp_to_ampmut__f327f5c05a1a0c4f/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `3: // whole literal. A selected (`&mut&`-guarded) consuming call of one of its fields`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/cases/match_reference_local/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__match_reference_local__main.omg__amp_to_ampmut__81e62aff68db5139/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `16: machine Main::main(main: &mut Main) crashes Trap {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/cases/runtime_case_payload_policy_cast_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__cases__runtime_case_payload_policy_cast_exit__main.omg__remove_mut__40657d915d1c6e49/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `50:     main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/collections/runtime_captured_structural_copy_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `matrix`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_captured_structural_copy_exit__main.omg__remove_mut__3352e43724ecaaff/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `35:     let observed: u32 in Wrapping = observe(&mut matrix, &mut cursor);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/collections/runtime_sequential_index_observations_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `cursor`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_sequential_index_observations_exit__main.omg__remove_mut__75bed46b9d98a569/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `8:     cursor.index = 0;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/collections/runtime_stored_reference_array_replacement_contract_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `backing`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__collections__runtime_stored_reference_array_replacement_contract_exit__main.omg__remove_mut__878c721939bb0ec9/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     let mut windows: [&mut [u8]; 1] = [&mut backing[..]];`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/control_flow/constant_aggregate_dispatch_complete/main.omg — drop_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: delete first requires line
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__constant_aggregate_dispatch_complete__main.omg__drop_requires__1dc76d7a0fe9e0da/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `14:     machine take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; } (arithmetic on `hi` formerly guarded by `(self in Interval::Empty) || ((self in Interval::Point) && (self.lo == self.hi))`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md` § Nested machines and identity; Private entry inference):
-
-> A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `inferred-entry`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/control_flow/runtime_static_type_terminal_unit_cleanup_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `frame`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__runtime_static_type_terminal_unit_cleanup_exit__main.omg__remove_mut__cf8567b11d4d4cf6/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `14:         true -> first(effects, &mut frame)`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/control_flow/saved_case_predicate_disjoint_effects_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `marker`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__saved_case_predicate_disjoint_effects_exit__main.omg__remove_mut__e099ab9407eb97fb/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `19:     let observed: u64 = quotient(&choice, &mut marker);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/control_flow/shared_view_selected_disposition_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `holder`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__shared_view_selected_disposition_exit__main.omg__remove_mut__63da36eeb828e99d/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `19:     holder.calls = ((holder.calls as u64 in Wrapping) + 1) as u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/core/numeric_widening_preserves_values/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__core__numeric_widening_preserves_values__main.omg__amp_to_ampmut__68a3e7c84c37a15e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `23: // than an inline `&mut&`, so the checking machines stay straight-line code.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/dependent/closed_case_common_and_active_payload_projection/main.omg — drop_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: delete first requires line
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__closed_case_common_and_active_payload_projection__main.omg__drop_requires__336fa8e7e0b609b1/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `16:     machine take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; } (arithmetic on `hi` formerly guarded by `((self in Interval::Point) && (self.lo == self.hi)) || (self in Interval::Other)`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md` § Nested machines and identity; Private entry inference):
-
-> A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `inferred-entry`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/dependent/data_requires_cyclic_handoff_walk_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `idle`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__data_requires_cyclic_handoff_walk_exit__main.omg__remove_mut__e9c283cd9374fafa/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `32:     drain(&mut idle);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/dependent/runtime_borrowed_coupled_last_store_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `envelope`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__runtime_borrowed_coupled_last_store_exit__main.omg__remove_mut__72827da96129ab9f/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `17:     replace(&mut envelope.item, 11);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/domains/carried_nested_payload_qualification/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `envelope`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__carried_nested_payload_qualification__main.omg__remove_mut__1f7cbc8dd6f2cae9/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `12:     envelope.counter = 1;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/domains/domain_pattern_match_bound_ordered_effects_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `visits`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__domain_pattern_match_bound_ordered_effects_exit__main.omg__remove_mut__7084f4d567b6fc96/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     visits = 1u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/domains/qualified_record_capture_after_mutation/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `value`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__domains__qualified_record_capture_after_mutation__main.omg__remove_mut__eeefd42efc6b1945/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `4:     value = 1;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/drops/borrowed_projection_earlier_call_capture_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `seed`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__borrowed_projection_earlier_call_capture_exit__main.omg__remove_mut__4f20e45210d4cd70/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     seed.code = 0;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/drops/result_cleanup_named_boolean_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `count`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__result_cleanup_named_boolean_exit__main.omg__remove_mut__c3f505d40a5e66bf/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `7:     count = ((count as u64 in Wrapping) + 1) as u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/drops/runtime_cleanup_case_evidence_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `drops`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_cleanup_case_evidence_exit__main.omg__remove_mut__d91dd3ae5d42127e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `40:         before: 11, slot: make(which, Ticket { drops: &mut drops, value: 73 }), after: 19 } });`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/drops/runtime_nested_empty_array_owner_cleanup_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `holder`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_nested_empty_array_owner_cleanup_exit__main.omg__remove_mut__cc5b95fbc0b083e9/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `8:     holder.value = 0;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/drops/runtime_owner_scoped_generic_cleanup_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `first`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_owner_scoped_generic_cleanup_exit__main.omg__remove_mut__ed378d41fe7fd200/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `25:         destination: &mut first, marker: [41, 42], extra: true,`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/drops/runtime_replaced_record_custody_transfer_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `pair`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__drops__runtime_replaced_record_custody_transfer_exit__main.omg__remove_mut__8464ec7dd72903ba/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `8:     pair.right = Token { value: 13 };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/expressions/runtime_match_structural_predicate_effect_order_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `tag_counter`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__runtime_match_structural_predicate_effect_order_exit__main.omg__remove_mut__f733506f8494a23e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `22:         Probe::Active { value: count(&mut tag_counter) } if allow(&mut tag_counter) -> 0`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/expressions/runtime_owned_match_multiple_projected_claims_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `output`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__expressions__runtime_owned_match_multiple_projected_claims_exit__main.omg__remove_mut__fb37a640536210f7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `31:     let observed: bool = select(&mut output, choose);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/additional_input_domain_mutation_through_other_state_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `cell`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__additional_input_domain_mutation_through_other_state_exit__main.omg__remove_mut__d6198f3d7eb17af7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `6:     cell.value = 73;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/affine_discard_root_cleanup_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `dropped_true`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__affine_discard_root_cleanup_through_match_join_exit__main.omg__remove_mut__b8209565aad2ab57/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `34:     let result_true: u64 = exercise(&mut dropped_true, true);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/aggregate_storage_address_identity_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `value`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__aggregate_storage_address_identity_through_local_exit__main.omg__remove_mut__cd33bc027c100bb5/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `9:     value.left = 13;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/alias_fact_transfer_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `a`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__alias_fact_transfer_through_const_name_exit__main.omg__remove_mut__a64919ae7959f864/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `34:     Main::main(&mut a);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/atomic_bounded_fetch/match_join/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `path`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__atomic_bounded_fetch__match_join__main.omg__remove_mut__801670d01cf9c645/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `13:     path = 1u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/borrowed_projection_cleanup_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `direct_drops`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_projection_cleanup_through_call_result_exit__main.omg__remove_mut__b97214308261d890/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `44:     let direct_code: u64 = capture(&CapturedReceipt { code: seed.code, counter: &mut direct_drops }).receipt.code;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/borrowed_restoration_window_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `cell`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_restoration_window_through_parameter_exit__main.omg__remove_mut__07bb73e33f4b6d3a/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     cell.value = 100u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/borrowed_restoration_window_through_parameter_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_restoration_window_through_parameter_exit__main.omg__amp_to_ampmut__351c0e28b14dacf0/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: retiring a borrow restoration window restores full owner access and post-borrow invariant value >= 100u64 &mut& value <= 100u64 for exact subtraction value - 100u64.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/borrowed_store_call_through_other_state_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `subject`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__borrowed_store_call_through_other_state_exit__main.omg__remove_mut__2497b924cb959505/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `25:     forward(&mut subject, &second);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/boundary_provider_call_through_other_machine_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__boundary_provider_call_through_other_machine_exit__main.omg__amp_to_ampmut__e37aea917a49f090/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: a provider-settled boundary call whose contract establishes result >= 100u64 &mut& result <= 100u64 discharges exact subtraction result - 100u64.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/boundary_zero_origin_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `request`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__boundary_zero_origin_through_match_join_exit__main.omg__remove_mut__8ed83448f5068ed7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `11:     let status: i32 = Io::acquire(&mut request);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/bounded_activation_computed_bound_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `live`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_computed_bound_exit__main.omg__remove_mut__0ec1c3b459196a37/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `25:         let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/bounded_activation_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `live`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__bounded_activation_through_local_exit__main.omg__remove_mut__c60c583fe55d7823/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `24:         let bytes: &mut [u8] = ActivationClaim::bytes(&mut live);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/build_activation_borrow/other_state/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `owned`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__build_activation_borrow__other_state__main.omg__remove_mut__ce651f22d92a5547/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `23:         apply(&mut owned)`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/c_layout_nested_representation_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__c_layout_nested_representation_through_match_join_exit__main.omg__remove_mut__13dd7332668edcd5/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/call_result_bound_discharge_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__call_result_bound_discharge_through_local_exit__main.omg__remove_mut__0e2398e6b9dbab88/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `36:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/captured_storage_bounds_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `first`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_storage_bounds_through_const_name_exit__main.omg__remove_mut__d10e3c1f01c122bb/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `51:     update(&mut first, true);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/captured_window_slot_retirement_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `original`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__captured_window_slot_retirement_through_call_result_exit__main.omg__remove_mut__7228b49f4a17f720/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `52:     let mut windows: [Window; 2] = [Window { values: &mut original[..] }, Window { values: &mut neighbor[..] }];`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `current`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_dependent_default_domain_through_parameter_exit__main.omg__remove_mut__4bee6a9f0d9f2268/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `48:         Interval::Range { .. } -> both_widths(&mut current)`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/case_payload_stored_loan_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `backing`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_payload_stored_loan_through_local_exit__main.omg__remove_mut__6f01379bead232e7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `27:     let loan: Loan = lend(&mut backing);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/case_where_equality_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_through_call_result_exit__main.omg__remove_mut__32c15c39f5e13732/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `41:     run_main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/case_where_equality_through_target_body_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__case_where_equality_through_target_body_exit__main.omg__remove_mut__bd2b5c214d2f5637/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `42:     run_main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/checked_asm_nominal_predicate_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `cursor`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__checked_asm_nominal_predicate_through_parameter_exit__main.omg__remove_mut__07f36b6d18426d7b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `23:     let observed: u64 = move_selected(snapshot(cursor, 9), reset(&mut cursor));`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/checked_predicate_disjoint_loans_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `values`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__checked_predicate_disjoint_loans_through_local_exit__main.omg__remove_mut__acb1934b67bc7404/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `18:     replace(&mut values[..], selected, 1);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/component_scalar_lending_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `value`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__component_scalar_lending_through_call_result_exit__main.omg__remove_mut__a7dd694292cedaa5/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     let reported: u64 = suspend Lending::write(&mut value, &token, original, member);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/component_scalar_lending_through_target_body_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `value`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__component_scalar_lending_through_target_body_exit__main.omg__remove_mut__098537a652870fef/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `13:     let reported: u64 = suspend Lending::write(&mut value, &token, original, member);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/compound_index_guard_through_other_state_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__compound_index_guard_through_other_state_exit__main.omg__remove_mut__24bb6f6894cac5ed/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `58:     run_main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/computed_nested_state_loan_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `rows`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__computed_nested_state_loan_through_local_exit__main.omg__remove_mut__e23341008ccdb42d/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `31:     transition { _ -> apply(&mut rows[choose_row(cursor, selected_row)].data[choose_column(cursor, selected_column)], replacement(cursor)) }`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/computed_record_window_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `holder`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__computed_record_window_through_field_exit__main.omg__remove_mut__1c337da79bb32f16/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `13:         0 -> &mut holder.samples[0..holder.which + 2]`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/copied_call_argument_snapshot_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `source`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__copied_call_argument_snapshot_through_match_join_exit__main.omg__remove_mut__2fc31179b72ce3f2/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `26:     let observed: u64 = receive(source, overwrite(&mut source));`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/copied_case_before_later_argument_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__copied_case_before_later_argument_through_local_exit__main.omg__remove_mut__b486a8d7fe7d7bc3/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `19:     let observed: u64 = read_payload(chosen, set_to_absent(&mut chosen));`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/correlated_invariant_store_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `interior`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__correlated_invariant_store_through_call_result_exit__main.omg__remove_mut__29454044adfab08d/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `18:     advance(&mut interior, 40);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/correlated_invariant_store_through_target_body_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `interior`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__correlated_invariant_store_through_target_body_exit__main.omg__remove_mut__770cacc954ac068a/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `54:     SelectedAdvance::advance(&mut interior, 40);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/data_where_standing_mutable_recast_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__data_where_standing_mutable_recast_through_field_exit__main.omg__remove_mut__225a162aabd99316/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `16:     replace(&mut storage.value, replacement);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/default_domain_field_write_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `span`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__default_domain_field_write_through_const_name_exit__main.omg__remove_mut__79c5f1bc24c5d1d3/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `19:     span.hi = NEXT;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/dependent_subtract_through_other_state_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `a`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__dependent_subtract_through_other_state_exit__main.omg__remove_mut__8348ed845c0f0818/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `20:     Main::main(&mut a);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/descriptor_payload_exclusive_loan_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__descriptor_payload_exclusive_loan_through_other_machine_exit__main.omg__remove_mut__1bb1e9a3b00ec71f/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `17:         true -> &mut chosen.value[..]`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/descriptor_range_exclusive_loan_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__descriptor_range_exclusive_loan_through_match_join_exit__main.omg__remove_mut__992611e2dd0cb678/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `24:         true -> &mut chosen.value[0..2]`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/disjoint_field_borrow_windows_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `holder`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__disjoint_field_borrow_windows_through_field_exit__main.omg__remove_mut__7168fef90ee0ae43/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `23:     touch_left(&mut holder.pair.left);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/disjoint_windows_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__disjoint_windows_through_const_name_exit__main.omg__remove_mut__be12a722ffd2c5ca/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `17:     let written: bool = exercise(&mut entries[..]);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/domain_selected_cleanup_computed_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `first`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__domain_selected_cleanup_computed_match_join_exit__main.omg__remove_mut__d43572d830587f93/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `36:     exercise(&mut first, true, 11);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/domain_selected_cleanup_erased_predicates_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `output`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__domain_selected_cleanup_erased_predicates_exit__main.omg__remove_mut__98c40e54fe4fd93d/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `21:     let keeper: Keeper in Held = Keeper { output: &mut output, code: 7 };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/domain_selected_cleanup_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `output`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__domain_selected_cleanup_through_match_join_exit__main.omg__remove_mut__a3aaca3232870393/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `23:     consume(select(true, Keeper { output: &mut output, code: 7 }));`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/double_indexed_rmw_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `grid`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__double_indexed_rmw_through_local_exit__main.omg__remove_mut__b8ab6e597cfd9189/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `6:     transition { _ -> grid_rmw(&mut grid, 1, 2) }`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/dynamic_trait_dispatch_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `first_observation`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__dynamic_trait_dispatch_through_other_machine_exit__main.omg__remove_mut__08f04f21d977711b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `56:     let first: u64 = probe(first_selector, 60u64, 40u64, &mut first_observation);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/exact_sub_guard_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__exact_sub_guard_through_field_exit__main.omg__remove_mut__1581154cd8d2b55b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `40:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/exclusive_observation_exposure_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `items`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__exclusive_observation_exposure_through_call_result_exit__main.omg__remove_mut__1214eff899bcf83d/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `23:     let held: u64 = expose(&mut items[0]);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/exclusive_observation_exposure_through_target_body_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `items`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__exclusive_observation_exposure_through_target_body_exit__main.omg__remove_mut__9b78f5fb1091669a/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `44:         let held: u64 = expose(&mut items[0]);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/field_where_index_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__field_where_index_through_parameter_exit__main.omg__remove_mut__e71730720d52dade/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `46:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/finite_family_exclusive_result/other_machine/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `counter`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__finite_family_exclusive_result__other_machine__main.omg__remove_mut__17ff25fc0f8efe3e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `62:     helper(&mut counter);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/finite_family_input_index/match_join/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `limit`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__finite_family_input_index__match_join__main.omg__remove_mut__2f3a96de76f6a724/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `42:     let item: Indexed<saved> = Family::row<width>(selected, input(&mut limit, observations), limit, observations);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/fixed_layout_bit_observation_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__fixed_layout_bit_observation_through_field_exit__main.omg__remove_mut__8cd0dde93dc63ac6/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     entries[0] = FieldEntry {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/fixed_layout_byte_roundtrip_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__fixed_layout_byte_roundtrip_through_const_name_exit__main.omg__remove_mut__44ca91179bed8deb/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `14:         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/fixed_layout_storage_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__fixed_layout_storage_through_match_join_exit__main.omg__remove_mut__3c0f1b4060dd6917/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `9:         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 8 } };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/fixed_region_byte_roundtrip_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `destination`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__fixed_region_byte_roundtrip_through_local_exit__main.omg__remove_mut__429694099da1c614/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `4:     destination = source;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/foreign_nested_record_backing_match_join/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `buffer`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__foreign_nested_record_backing_match_join__main.omg__remove_mut__6a5ce98bd1ee1446/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `43:     let pending: Pending in Pending::Retained = Writer::register(capacity, &mut buffer);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/foreign_reference_result_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `left`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__foreign_reference_result_through_const_name_exit__main.omg__remove_mut__e5bb48741e52b0f5/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `24:  let first: bool = journey(&mut left, true);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/foreign_retained_mutable_borrow_call_result/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `buffer`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__foreign_retained_mutable_borrow_call_result__main.omg__remove_mut__53849f66332b7eac/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `40:     let pending: Pending = Writer::register(capacity, &mut buffer);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/foreign_retained_mutable_borrow_parameter/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `buffer`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__foreign_retained_mutable_borrow_parameter__main.omg__remove_mut__52ddc65fc89daa1f/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `40:     let pending: Pending = Writer::register(capacity, &mut buffer);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/foreign_retained_shared_borrow_local/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `observed`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__foreign_retained_shared_borrow_local__main.omg__remove_mut__c1bf859d2ca517d1/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `38:     let returned: Capacity in Capacity::Available = Reader::complete(pending, &mut observed);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `observed`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__foreign_retained_shared_borrow_raw_same_carrier_called__main.omg__remove_mut__e48b1ef34a243271/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `44:     let returned: Capacity in Capacity::Available = Reader::complete(pending, &mut observed);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/free_entry_local_state_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `tally`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__free_entry_local_state_through_const_name_exit__main.omg__remove_mut__2fdd5bddd12f79fb/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `13:     settle(&Mark { slot: &mut tally, code: code });`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/generic_requirement_statement_call_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `first`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__generic_requirement_statement_call_through_parameter_exit__main.omg__remove_mut__e3fb9cac8b517251/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `23:     notify<i32>(&subject, 9, &mut first);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/guarded_call_entry_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `context`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__guarded_call_entry_through_other_machine_exit__main.omg__remove_mut__3c33595041e1c7ee/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `14:     Plan(&mut context);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/guarded_line_loan_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `line`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__guarded_line_loan_through_match_join_exit__main.omg__remove_mut__3884fbf094f4ca5c/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `11:     line[0] = 37;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/guarded_record_line_loan_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `line`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__guarded_record_line_loan_through_local_exit__main.omg__remove_mut__efbfa4b629f58edc/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `15:     line[0] = 37;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/ieee_float_32bit_ordered_bound_through_field_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__ieee_float_32bit_ordered_bound_through_field_exit__main.omg__amp_to_ampmut__58dc9f7dadee298d/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: a 32-bit IEEE f32 ordered comparison guard (reading >= 1.25f32 &mut& reading <= 2.75f32) establishes a finite, non-NaN sub-interval that satisfies a downstream contract requiring reading >= 1.0f32 && reading <= 3.0f32 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/ieee_float_ordered_comparison_through_const_name_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__ieee_float_ordered_comparison_through_const_name_exit__main.omg__amp_to_ampmut__083782e5bfdb0de1/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: an IEEE f64 ordered comparison guard (reading >= 1.5 &mut& reading <= 2.5) establishes a finite, non-NaN sub-interval that satisfies a downstream contract requiring reading >= 1.0 && reading <= 3.0 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/in_place_view_argument_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `packet`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__in_place_view_argument_through_parameter_exit__main.omg__remove_mut__93f62bfd3b01c1ec/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `19:     packet[0] = 11;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/indexed_recoverable_replacement_window_through_target_body_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `holder`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__indexed_recoverable_replacement_window_through_target_body_exit__main.omg__remove_mut__bbbfe6b55455ac76/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `58:         let first: Outcome = attempt(alias, succeed, observe(&mut holder.sibling));`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/indexed_storage_address_identity_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `items`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__indexed_storage_address_identity_through_parameter_exit__main.omg__remove_mut__81b9e39ab2581aaa/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `15:     observe(&mut items, input)`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/integer_width_truncation_mask_bound_through_other_machine_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__integer_width_truncation_mask_bound_through_other_machine_exit__main.omg__amp_to_ampmut__41684a62d4639b8d/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: masking an unsigned 64-bit integer to its low byte (val &mut 255u64) establishes the exact byte-width upper bound (masked <= 255u64), discharging exact subtraction 255u64 - masked across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/invariant_window_snapshot_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `first`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__invariant_window_snapshot_through_match_join_exit__main.omg__remove_mut__1c10ef8e0179a8ea/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `40:     let first_result: i32 = inspect(&mut first, -1, 3, true);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/linear_owner_borrowed_projection_call_result/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `cells`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__linear_owner_borrowed_projection_call_result__main.omg__remove_mut__379ce58fdf094cb3/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `30:     let mut buffer: Buffer = make_buffer(&mut cells, &mut cleanup_slots, expected_route);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/linear_owner_borrowed_projection_target_body/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `cells`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__linear_owner_borrowed_projection_target_body__main.omg__remove_mut__23c6a4157fa9d1d6/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `27:     let mut buffer: Buffer = Buffer { marker: 91, route: expected_route, cells: &mut cells, cleanup: &mut cleanup_slots };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/match_computed_root_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__match_computed_root_through_field_exit__main.omg__remove_mut__a2c65857ac8c1803/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `21:         17 -> &mut chosen[0]`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/match_effectful_subject_custody_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `kept`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__match_effectful_subject_custody_through_const_name_exit__main.omg__remove_mut__47876c782699ff18/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `15:     kept.mark = 40;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/match_join_multi_variant_bound_through_call_result_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__match_join_multi_variant_bound_through_call_result_exit__main.omg__amp_to_ampmut__549c045761da16d5/main.omg`
-- Current: `accepted`; route: `rejected`; accepted_by: `current`
-- Route detail (hint only): diagnostic: reject main.omg:25 bytes 1016..1017 exact arithmetic in machine `run` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds exceed 
-- Broken obligation: `1: // Exhaustively matching a three-variant case value where every arm establishes joined >= 20u64 &mut& joined <= 60u64 preserves the joined interval bound across all nine places, discharging exact subtraction 60u64 - joined and joined - 20u64.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/match_join_multi_variant_bound_through_target_body_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__match_join_multi_variant_bound_through_target_body_exit__main.omg__amp_to_ampmut__87b0fc451819b81b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Exhaustively matching a three-variant case value where every arm establishes joined >= 20u64 &mut& joined <= 60u64 preserves the joined interval bound across all nine places, discharging exact subtraction 60u64 - joined and joined - 20u64.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/match_loan_last_use_through_other_state_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__match_loan_last_use_through_other_state_exit__main.omg__remove_mut__5985f87bd18a7630/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `22:             true -> &mut chosen.value[0..2]`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/match_runtime_view_extent_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `pair`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__match_runtime_view_extent_through_field_exit__main.omg__remove_mut__c431136142ee4387/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `18:         true -> &mut pair.chosen`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/matched_field_windows_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `bytes`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__matched_field_windows_through_const_name_exit__main.omg__remove_mut__7f3246260360ab07/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `26:     let window: &mut [u8] = from_const(&mut bytes, 0);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/may_write_choice_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__may_write_choice_through_call_result_exit__main.omg__remove_mut__551e459a752193a0/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `31:     let marker: u64 in Wrapping = add(overwrite(choose(&mut chosen, &mut other, true)), zero);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/may_write_choice_through_target_body_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__may_write_choice_through_target_body_exit__main.omg__remove_mut__3a5472f280a69b2b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `80:     let found: u8 = SelectedProbe::probe(&mut chosen, &mut other, &items);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/may_write_codec_argument_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `buffer`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__may_write_codec_argument_through_parameter_exit__main.omg__remove_mut__e2b849554e907c51/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `22:     Blob::encode(&sample, &mut buffer, choose(chosen, other, true));`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/may_write_codec_through_other_state_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__may_write_codec_through_other_state_exit__main.omg__remove_mut__b848ff2554c36b61/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `18:     let counter: Counter = Counter { slot: &mut chosen };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/may_write_computed_receiver_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__may_write_computed_receiver_through_other_machine_exit__main.omg__remove_mut__e293a95b74b1bfbe/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `11:     entries[0] = FieldEntry {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/may_write_named_state_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__may_write_named_state_through_match_join_exit__main.omg__remove_mut__3f834e67939988a6/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `51:     let marker: u64 in Wrapping = add(overwrite(relay(&mut chosen, &mut other, true)), zero);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/may_write_nested_helper_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__may_write_nested_helper_through_local_exit__main.omg__remove_mut__4de7c8c9da3fa933/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `31:     let marker: u64 in Wrapping = add(overwrite(relay(&mut chosen, &mut other, true)), zero);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/may_write_stored_rebind_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `bounds`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__may_write_stored_rebind_through_field_exit__main.omg__remove_mut__57880cc0b36f13db/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `28:     referent = choose(&mut bounds.chosen, &mut bounds.other, true);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/method_array_operand_inference_through_const_name_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__method_array_operand_inference_through_const_name_exit__main.omg__amp_to_ampmut__644530b9393cd5cc/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: with Count supplied as 3, the omitted element T of Bytes::last is inferred as u8 from the actual &mut[u8; 3], and the selected implementation's [T; Count] carrier is the caller's copyable [u8; 3].`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/mutable_slice_element_write_bound_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `backing`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__mutable_slice_element_write_bound_through_other_machine_exit__main.omg__remove_mut__419704cb6ed7bd34/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     &mut backing.items`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_field_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__narrow_to_narrow_truncation_64to8_mask_bound_through_field_exit__main.omg__amp_to_ampmut__705cba2116dd822e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: masking an unsigned 64-bit integer to 5 bits and narrowing through u8 ((x &mut 31u64) as u8 as u64) preserves the exact upper bound (truncated <= 31u64), discharging exact subtraction 31u64 - truncated across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/narrow_to_wide_signed_16to64_extension_through_call_result_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__narrow_to_wide_signed_16to64_extension_through_call_result_exit__main.omg__amp_to_ampmut__2c02829d1b1c722e/main.omg`
-- Current: `accepted`; route: `rejected`; accepted_by: `current`
-- Route detail (hint only): diagnostic: reject main.omg:20 bytes 962..973 cannot prove requires contract for call verify_wide from ext_call_result: wide >= 300 && wide <= 500 (needs fact `wide >= 300 && wide <= 500` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-- Broken obligation: `1: // Fact: sign-extending a bounded 16-bit signed i16 value (narrow >= 300i16 &mut& narrow <= 500i16) to i64 (narrow as i64) preserves the exact interval (wide >= 300i64 && wide <= 500i64), discharging exact 64-bit signed subtractions 500i64 - wide and wide - 300i64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/narrow_to_wide_signed_16to64_extension_through_target_body_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__narrow_to_wide_signed_16to64_extension_through_target_body_exit__main.omg__amp_to_ampmut__1df9ccba5af1b5a7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: sign-extending a bounded 16-bit signed i16 value (narrow >= 300i16 &mut& narrow <= 500i16) to i64 (narrow as i64) preserves the exact interval (wide >= 300i64 && wide <= 500i64), discharging exact 64-bit signed subtractions 500i64 - wide and wide - 300i64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/narrow_to_wide_signed_8to64_extension_through_parameter_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__narrow_to_wide_signed_8to64_extension_through_parameter_exit__main.omg__amp_to_ampmut__164224e1a2bcf8e5/main.omg`
-- Current: `accepted`; route: `accepted`; accepted_by: `both`
-- Route detail (hint only): route=accepted
-- Broken obligation: `1: // Fact: sign-extending a bounded 8-bit signed i8 value (narrow >= 30i8 &mut& narrow <= 100i8) to i64 (narrow as i64) preserves the exact interval (wide >= 30i64 && wide <= 100i64), discharging exact 64-bit signed subtractions 100i64 - wide and wide - 30i64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_other_state_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__narrow_to_wide_unsigned_16to64_extension_through_other_state_exit__main.omg__amp_to_ampmut__455ff522efc1a806/main.omg`
-- Current: `accepted`; route: `accepted`; accepted_by: `both`
-- Route detail (hint only): route=accepted
-- Broken obligation: `1: // Fact: zero-extending a bounded 16-bit unsigned u16 value (narrow >= 300u16 &mut& narrow <= 500u16) to u64 (narrow as u64) preserves the exact interval (wide >= 300u64 && wide <= 500u64), discharging exact 64-bit subtractions 500u64 - wide and wide - 300u64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/narrow_to_wide_unsigned_32to64_extension_through_other_machine_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__narrow_to_wide_unsigned_32to64_extension_through_other_machine_exit__main.omg__amp_to_ampmut__75c21b76e80e34f2/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: zero-extending a bounded 32-bit unsigned u32 value (narrow >= 70000u32 &mut& narrow <= 90000u32) to u64 (narrow as u64) preserves the exact interval (wide >= 70000u64 && wide <= 90000u64), discharging exact 64-bit subtractions 90000u64 - wide and wide - 70000u64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_match_join_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__narrow_to_wide_unsigned_8to64_extension_through_match_join_exit__main.omg__amp_to_ampmut__1f6be21b582cf90f/main.omg`
-- Current: `accepted`; route: `accepted`; accepted_by: `both`
-- Route detail (hint only): route=accepted
-- Broken obligation: `1: // Fact: zero-extending a bounded 8-bit unsigned u8 value (narrow >= 50u8 &mut& narrow <= 180u8) to u64 (narrow as u64) preserves the exact interval (wide >= 50u64 && wide <= 180u64), discharging exact 64-bit subtractions 180u64 - wide and wide - 50u64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/narrowed_integer_write_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__narrowed_integer_write_through_field_exit__main.omg__remove_mut__273b4da4a5640673/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     entries[0] = FieldEntry {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/nested_borrow_qualification_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `words`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__nested_borrow_qualification_through_parameter_exit__main.omg__remove_mut__62a8a7fd737a2395/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `28:     words[0] = 11;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/nested_result_extent_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `bytes`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__nested_result_extent_through_parameter_exit__main.omg__remove_mut__7ce1ebf24effadff/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `21:     let first: u64 = trial(&mut bytes[..], &other[..], 13);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/nominal_reference_cleanup_through_other_state_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `output`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__nominal_reference_cleanup_through_other_state_exit__main.omg__remove_mut__25d066f03ed5dc37/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `21:     observe(&Keeper { output: &mut output, code: seed.code });`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/placed_stable_write_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__placed_stable_write_through_call_result_exit__main.omg__remove_mut__8d2cbf672f0d6e54/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     entries[0] = FieldEntry {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/placed_stable_write_through_target_body_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__placed_stable_write_through_target_body_exit__main.omg__remove_mut__69fb746a2d9c8663/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     entries[0] = FieldEntry {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/predicate_array_copy_through_other_state_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `values`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__predicate_array_copy_through_other_state_exit__main.omg__remove_mut__7d7dc7b281d4670b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `5:     values[0] = 37;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/predicate_type_formation_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `formed`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__predicate_type_formation_through_other_machine_exit__main.omg__remove_mut__9bcdac7ba967ad5a/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `24:     fill_true(&mut formed);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/progress_selector_nested_arrival_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `calls`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__progress_selector_nested_arrival_through_match_join_exit__main.omg__remove_mut__ecf400fa6f4634a6/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `15:     calls = ((calls as u64 in Wrapping) + 1) as u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/progress_selector_owned_arrival_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `calls`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__progress_selector_owned_arrival_through_local_exit__main.omg__remove_mut__e9f7d6f53284ac84/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `15:     calls = ((calls as u64 in Wrapping) + 1) as u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/progress_selector_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `calls`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__progress_selector_through_field_exit__main.omg__remove_mut__78776d7cd7004573/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `15:     calls = ((calls as u64 in Wrapping) + 1) as u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__readonly_byte_pool_relocation_bound_through_other_machine_exit__main.omg__amp_to_ampmut__ec9cc03c4b44fe0a/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: a read-only byte-pool slice literal ("omega") establishes a static 5-byte length bound (bytes.len >= 5u64 &mut& bytes.len <= 5u64), proving safe indexed byte projection bytes[4u64] and exact length subtraction bytes.len - 5u64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/recast_parent_restoration_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `first`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__recast_parent_restoration_through_match_join_exit__main.omg__remove_mut__feec8a6c638f34e2/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `30:     inspect(&mut first, true);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/reflection_declaration_inspection_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `counts`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__reflection_declaration_inspection_through_other_machine_exit__main.omg__remove_mut__6e7de5879ed10938/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `7:     counts.evaluations = ((counts.evaluations as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/replaced_field_loan_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `original`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__replaced_field_loan_through_field_exit__main.omg__remove_mut__1371ab973f7b3398/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `19:     let mut message: Message = Message { body: &mut original };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/resident_backing_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__resident_backing_local_exit__main.omg__remove_mut__382f600814dd60a5/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `15:     entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/resident_backing_runtime_helper_loop_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__resident_backing_runtime_helper_loop_exit__main.omg__remove_mut__512dd31a37341f9e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `17:     entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/result_cleanup_guarantees_through_match_join_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__result_cleanup_guarantees_through_match_join_exit__main.omg__amp_to_ampmut__5d11a49df27daa92/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `5: machine drop_token(token: &mut Token)`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/runtime_index_application_computed_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `origin`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__runtime_index_application_computed_through_other_machine_exit__main.omg__remove_mut__fabd114c5afea908/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `21:  let mut indexed:Index<(origin+1u32)> = Index{value:payload(&mut origin)};`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/runtime_index_application_equivalent_subject_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `indexed`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__runtime_index_application_equivalent_subject_through_local_exit__main.omg__remove_mut__0c4a2e4aad2c91fe/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `24:  preserve(limit,&mut indexed);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/runtime_index_application_forwarded_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `indexed`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__runtime_index_application_forwarded_through_field_exit__main.omg__remove_mut__4ba10f274a2bc035/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `24:  preserve(limit,&mut indexed);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/runtime_index_application_mutating_operator_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `flag`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__runtime_index_application_mutating_operator_through_const_name_exit__main.omg__remove_mut__4a6069203e39bfb1/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `12:  let indexed:Index<((&mut flag)+total)> = Index{value:8};`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/runtime_index_application_nested_forwarded_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `indexed`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__runtime_index_application_nested_forwarded_through_call_result_exit__main.omg__remove_mut__1028620404d41872/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `29:  preserve(limit,&mut indexed);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/runtime_index_application_ordinary_call_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `flag`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__runtime_index_application_ordinary_call_through_parameter_exit__main.omg__remove_mut__85b3c3475868cc04/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:  let indexed:Index<(count(total,&mut flag))> = Index{value:8};`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/runtime_index_application_selected_operator_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `origin`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__runtime_index_application_selected_operator_through_other_machine_exit__main.omg__remove_mut__c29ea9ad4e2d7207/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `27:  let mut indexed:Index<(origin+1u32)> = Index{value:payload(&mut origin)};`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/saturating_integer_arithmetic_through_local_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__saturating_integer_arithmetic_through_local_exit__main.omg__amp_to_ampmut__21c2b9f792dd94a7/main.omg`
-- Current: `accepted`; route: `rejected`; accepted_by: `current`
-- Route detail (hint only): diagnostic: reject main.omg:10 bytes 506..516 cannot prove ensures contract for exit from clamp at statement 2: result >= 10 && result <= 100 (no proof found from the facts available here: the bounds do not decide the comparison) site=different
-- Broken obligation: `1: // Clamping or bounding an unsigned sum/value at a ceiling (`clamped >= 10u64 &mut& clamped <= 100u64`) establishes both lower and upper interval bounds across all nine places, discharging exact subtraction `100u64 - clamped` and `clamped - 10u64` without overflow.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/saved_case_predicate_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `holder`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__saved_case_predicate_through_field_exit__main.omg__remove_mut__f13f916398eb79a5/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `12:     clear(&mut holder.other);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/saved_observation_snapshot_after_call_relational_return_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `first`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__saved_observation_snapshot_after_call_relational_return_exit__main.omg__remove_mut__8818a3a7afd92f6b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `13:     let one: u64 = probe(&mut first, 7);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/saved_observation_snapshot_predicate_handback_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `copied`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__saved_observation_snapshot_predicate_handback_field_exit__main.omg__remove_mut__b36444281cbef631/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `12:     copied[0] = 4;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/saved_observation_snapshot_stored_reference_handback_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `copied`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__saved_observation_snapshot_stored_reference_handback_const_name_exit__main.omg__remove_mut__290a62dfcf3aa647/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `11:     copied[0] = 4;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/saved_observation_snapshot_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `marker`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__saved_observation_snapshot_through_call_result_exit__main.omg__remove_mut__826e736ec48065cb/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `21:     let saved: u64 = read_kept(&items, &mut marker);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/sealed_requirement_member_through_call_result_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__sealed_requirement_member_through_call_result_exit__main.omg__amp_to_ampmut__76c91954d014e932/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Selected satisfies Sum and its inline combine only calls add, which already satisfies Sum::combine, preserving 0 <= result &mut& result <= 100.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/sealed_requirement_member_through_target_body_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__sealed_requirement_member_through_target_body_exit__main.omg__amp_to_ampmut__aae00169609b82a7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Selected satisfies Sum and its inline combine only calls add, which already satisfies Sum::combine, preserving 0 <= result &mut& result <= 100.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/selected_provider_issuance_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `application`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__selected_provider_issuance_through_other_machine_exit__main.omg__remove_mut__e000caf434071142/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `104:     Main::main(&mut application);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_parameter_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_64bit_bitwise_and_mask_bound_through_parameter_exit__main.omg__amp_to_ampmut__ca5af5b3e27a2007/main.omg`
-- Current: `accepted`; route: `rejected`; accepted_by: `current`
-- Route detail (hint only): diagnostic: reject main.omg:17 bytes 700..713 cannot prove requires contract for call verify_masked from bitwise_and_param: masked >= 40 && masked <= 63 (needs fact `masked >= 40 && masked <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state
-- Broken obligation: `1: // Fact: 64-bit signed bitwise AND mask raw &mut 63i64 with bounded interval 40i64 <= masked <= 63i64 establishes 40i64 <= masked <= 63i64 across all nine places so exact subtractions 63i64 - masked and masked - 40i64 are safe.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_8bit_division_quotient_bound_through_call_result_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_division_quotient_bound_through_call_result_exit__main.omg__amp_to_ampmut__d2aa447db47441d9/main.omg`
-- Current: `accepted`; route: `rejected`; accepted_by: `current`
-- Route detail (hint only): diagnostic: reject main.omg:19 bytes 682..683 cannot prove ensures contract for exit from compute_quotient at statement 0: result >= 30 && result <= 30 (no proof found from the facts available here: the bounds do not decide the comparison) site=different
-- Broken obligation: `1: // Fact: an 8-bit signed i8 division of bounded inputs (dividend >= 90i8 &mut& dividend <= 90i8, divisor >= 3i8 && divisor <= 3i8) establishes quotient >= 30i8 && quotient <= 30i8 so exact 8-bit signed subtraction quotient - 30i8 is proved overflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_8bit_division_quotient_bound_through_target_body_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_division_quotient_bound_through_target_body_exit__main.omg__amp_to_ampmut__cef1e47596829c56/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: an 8-bit signed i8 division of bounded inputs (dividend >= 90i8 &mut& dividend <= 90i8, divisor >= 3i8 && divisor <= 3i8) establishes quotient >= 30i8 && quotient <= 30i8 so exact 8-bit signed subtraction quotient - 30i8 is proved overflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_8bit_division_remainder_bound_through_parameter_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_division_remainder_bound_through_parameter_exit__main.omg__amp_to_ampmut__bc639a73e0cdeef9/main.omg`
-- Current: `accepted`; route: `rejected`; accepted_by: `current`
-- Route detail (hint only): diagnostic: reject main.omg:22 bytes 815..825 cannot prove requires contract for call verify_rem from compute_parameter: transported >= 0 && transported <= 15 (needs fact `rem >= 0 && rem <= 15` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state 
-- Broken obligation: `1: // Fact: an 8-bit signed i8 remainder operation (dividend % divisor where dividend >= 0i8 &mut& dividend <= 100i8, divisor >= 16i8 && divisor <= 16i8) establishes rem >= 0i8 && rem <= 15i8 so exact 8-bit signed subtraction 15i8 - rem is proved overflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_8bit_exact_arithmetic_bound_through_other_state_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_exact_arithmetic_bound_through_other_state_exit__main.omg__amp_to_ampmut__ccd7f55c52a4025d/main.omg`
-- Current: `accepted`; route: `rejected`; accepted_by: `current`
-- Route detail (hint only): diagnostic: reject main.omg:10 bytes 595..596 exact arithmetic in machine `step` state `entry` local `headroom` may overflow `i8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds exceed
-- Broken obligation: `1: // Fact: an 8-bit signed i8 exact addition of bounded inputs (lhs >= 20i8 &mut& lhs <= 45i8, rhs >= 15i8 && rhs <= 35i8) establishes sum >= 35i8 && sum <= 80i8 so exact 8-bit signed subtraction 80i8 - sum is proved overflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_8bit_exact_multiplication_bound_through_other_machine_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_exact_multiplication_bound_through_other_machine_exit__main.omg__amp_to_ampmut__3dbc1ca4419f9f0f/main.omg`
-- Current: `accepted`; route: `accepted`; accepted_by: `both`
-- Route detail (hint only): route=accepted
-- Broken obligation: `1: // Fact: an 8-bit signed i8 exact multiplication of bounded inputs (lhs >= 5i8 &mut& lhs <= 10i8, rhs >= 6i8 && rhs <= 10i8) establishes prod >= 30i8 && prod <= 100i8 so exact 8-bit signed subtraction 100i8 - prod is proved overflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_8bit_shift_left_bound_through_field_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_shift_left_bound_through_field_exit__main.omg__amp_to_ampmut__3a19208f2f9c29c7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: an 8-bit signed i8 left shift of a bounded input (val >= 25i8 &mut& val <= 25i8) by 2u32 bits establishes shifted >= 100i8 && shifted <= 100i8 so exact 8-bit signed subtraction shifted - 100i8 is proved overflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_8bit_shift_right_bound_through_const_name_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_8bit_shift_right_bound_through_const_name_exit__main.omg__amp_to_ampmut__e7c48a17a5d42dd5/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: an 8-bit signed i8 arithmetic right shift of a bounded input (val >= 100i8 &mut& val <= 100i8) by 2u32 bits establishes shifted >= 25i8 && shifted <= 25i8 so exact 8-bit signed subtraction shifted - 25i8 is proved overflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_arithmetic_shift_right_through_parameter_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_arithmetic_shift_right_through_parameter_exit__main.omg__amp_to_ampmut__59f4ca0c06df41ec/main.omg`
-- Current: `accepted`; route: `rejected`; accepted_by: `current`
-- Route detail (hint only): diagnostic: reject main.omg:15 bytes 719..720 exact arithmetic in machine `shift_right` state `entry` local `diff` may overflow `i64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation) (no proof found from the facts available here: the operands' bounds ex
-- Broken obligation: `1: // An arithmetic right shift (`>>`) on a bounded signed `i64` value (`value >= 400i64 &mut& value <= 400i64`) by a bounded shift count (`shift >= 2u32 && shift <= 2u32`) preserves sign and establishes the exact post-shift interval (`shifted >= 100i64 && shifted <= 100i64`), discharging exact subtraction `shifted - 100i64` with exit code `0`.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_exact_addition_bound_through_match_join_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_exact_addition_bound_through_match_join_exit__main.omg__amp_to_ampmut__89378172ca7c3321/main.omg`
-- Current: `accepted`; route: `accepted`; accepted_by: `both`
-- Route detail (hint only): route=accepted
-- Broken obligation: `1: // Adding two bounded signed i64 values (base >= 20i64 &mut& base <= 40i64 and delta >= 10i64 && delta <= 30i64) establishes the exact post-addition interval (sum >= 30i64 && sum <= 70i64), discharging exact subtraction 70i64 - sum across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_exact_multiplication_bound_through_local_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_exact_multiplication_bound_through_local_exit__main.omg__amp_to_ampmut__b26eb75fb7e459fe/main.omg`
-- Current: `accepted`; route: `accepted`; accepted_by: `both`
-- Route detail (hint only): route=accepted
-- Broken obligation: `1: // Fact: multiplying two bounded signed i64 values (factor >= 10i64 &mut& factor <= 15i64 and scale >= 4i64 && scale <= 6i64) establishes product >= 40i64 && product <= 90i64, discharging a downstream contract requiring product >= 40i64 && product <= 90i64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_exact_subtraction_bound_through_field_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_exact_subtraction_bound_through_field_exit__main.omg__amp_to_ampmut__4f7ec0508877208d/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: subtracting two bounded signed i64 values establishes the exact post-subtraction interval, discharging a downstream contract requiring diff >= 50i64 &mut& diff <= 80i64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/signed_shift_left_bound_through_const_name_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__signed_shift_left_bound_through_const_name_exit__main.omg__amp_to_ampmut__8fb082a6dfbb96e6/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: left shift on a bounded signed i64 value value >= 25i64 &mut& value <= 25i64 by 2 establishes shifted >= 100i64 && shifted <= 100i64 for exact subtraction shifted - 100i64.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/skipped_short_circuit_call_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `counter`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__skipped_short_circuit_call_through_other_machine_exit__main.omg__remove_mut__5500d44b9b2fd78c/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `8:     counter = counter + 1u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/slice_view_element_read_bound_through_match_join_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__slice_view_element_read_bound_through_match_join_exit__main.omg__amp_to_ampmut__5ba090422dc41ab7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: a slice view (&mut[u64]) whose length is guarded (view.len >= 3u64) proves safe indexed element read at view[2u64] and preserves the length lower bound to discharge exact subtraction view.len - 3u64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/slice_view_layout_geometry_through_local_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__slice_view_layout_geometry_through_local_exit__main.omg__amp_to_ampmut__243efeb8da80bd2c/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: querying size_of and align_of on a 64-bit slice view (&mut[u64]) establishes its exact two-word (ptr, len) descriptor geometry (size == 16u64 and align == 8u64), discharging exact subtraction size - (align * 2u64) across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/static_callable_type_requirements_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `value`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__static_callable_type_requirements_through_const_name_exit__main.omg__remove_mut__360d4c4141f619cd/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `22:     apply(&mut value);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/stored_exclusive_byte_view_through_const_name_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `backing`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__stored_exclusive_byte_view_through_const_name_exit__main.omg__remove_mut__e30cfaa94c0eaaf1/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `8:     let windows: [&mut [u8]; 1] = [&mut backing[..]];`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/typed_reflection_mutation_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `value`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__typed_reflection_mutation_through_other_machine_exit__main.omg__remove_mut__66d57a93b0889003/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `8:     value = ((value as u64 in Wrapping) + (1u64 as u64 in Wrapping)) as u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/typed_reflection_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `totals`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__typed_reflection_through_match_join_exit__main.omg__remove_mut__fe76b08a2bf46651/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `158:     reflect::visit_runtime_fields<FortyFields, observe>(&subject, &mut totals);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_parameter_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__unsigned_32bit_division_remainder_bound_through_parameter_exit__main.omg__amp_to_ampmut__ff74b7b390405070/main.omg`
-- Current: `accepted`; route: `accepted`; accepted_by: `both`
-- Route detail (hint only): route=accepted
-- Broken obligation: `1: // Fact: A 32-bit unsigned u32 remainder operation (dividend % divisor where divisor >= 16u32 &mut& divisor <= 16u32) establishes rem <= 15u32 so exact 32-bit subtraction 15u32 - rem is proved underflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__unsigned_64bit_bitwise_and_mask_bound_through_other_state_exit__main.omg__amp_to_ampmut__0b5f6308e48832a9/main.omg`
-- Current: `accepted`; route: `rejected`; accepted_by: `current`
-- Route detail (hint only): diagnostic: reject main.omg:18 bytes 666..670 cannot prove requires contract for call step from exercise: masked >= 40 && masked <= 63 (needs fact `m >= 40 && m <= 63` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry` (no proof found fro
-- Broken obligation: `1: // Fact: 64-bit unsigned bitwise AND mask raw &mut 63u64 with bounded interval 40u64 <= masked <= 63u64 establishes 40u64 <= masked <= 63u64 across all nine places so exact subtractions 63u64 - masked and masked - 40u64 are safe.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_other_state_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__unsigned_8bit_division_quotient_bound_through_other_state_exit__main.omg__amp_to_ampmut__2091e2de59f17c9b/main.omg`
-- Current: `accepted`; route: `rejected`; accepted_by: `current`
-- Route detail (hint only): diagnostic: reject main.omg:11 bytes 634..645 cannot prove requires contract for call check_state from divide_other_state: quotient >= 30 && quotient <= 30 (needs fact `q >= 30 && q <= 30` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry
-- Broken obligation: `1: // Fact: an 8-bit unsigned u8 division of bounded inputs (dividend >= 120u8 &mut& dividend <= 120u8, divisor >= 4u8 && divisor <= 4u8) establishes quotient >= 30u8 && quotient <= 30u8 so exact 8-bit subtraction quotient - 30u8 is proved underflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `rejected`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_other_machine_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__unsigned_8bit_exact_arithmetic_bound_through_other_machine_exit__main.omg__amp_to_ampmut__392cdfa237b8f752/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: an 8-bit unsigned u8 exact addition of bounded inputs (lhs >= 30u8 &mut& lhs <= 80u8, rhs >= 40u8 && rhs <= 100u8) establishes sum >= 70u8 && sum <= 180u8 so exact 8-bit subtractions 180u8 - sum and sum - 70u8 are proved overflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_match_join_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__unsigned_8bit_exact_multiplication_bound_through_match_join_exit__main.omg__amp_to_ampmut__805068d5035bcc1b/main.omg`
-- Current: `accepted`; route: `accepted`; accepted_by: `both`
-- Route detail (hint only): route=accepted
-- Broken obligation: `1: // Fact: an 8-bit unsigned u8 exact multiplication of bounded inputs (lhs >= 10u8 &mut& lhs <= 15u8, rhs >= 8u8 && rhs <= 12u8) establishes prod >= 80u8 && prod <= 180u8 so exact 8-bit subtractions 180u8 - prod and prod - 80u8 are proved overflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/unsigned_8bit_shift_right_bound_through_const_name_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__unsigned_8bit_shift_right_bound_through_const_name_exit__main.omg__amp_to_ampmut__be523bce4062887f/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: an 8-bit unsigned u8 logical right shift of a bounded input (val >= 160u8 &mut& val <= 160u8) by 2u32 bits establishes shifted >= 40u8 && shifted <= 40u8 so exact 8-bit subtraction shifted - 40u8 is proved underflow-free across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/unsigned_exact_addition_bound_through_match_join_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__unsigned_exact_addition_bound_through_match_join_exit__main.omg__amp_to_ampmut__159740b01b545d2b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: adding two bounded unsigned u64 values (lhs >= 15u64 &mut& lhs <= 40u64 and rhs >= 25u64 && rhs <= 50u64) establishes sum >= 40u64 && sum <= 90u64, discharging both 90u64 - sum and sum - 40u64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/unsigned_exact_multiplication_bound_through_local_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__unsigned_exact_multiplication_bound_through_local_exit__main.omg__amp_to_ampmut__1c0505c0e820190b/main.omg`
-- Current: `accepted`; route: `accepted`; accepted_by: `both`
-- Route detail (hint only): route=accepted
-- Broken obligation: `1: // Multiplying two bounded unsigned u64 values (factor >= 10u64 &mut& factor <= 20u64 and scale >= 3u64 && scale <= 4u64) establishes the exact post-multiplication interval (product >= 30u64 && product <= 80u64), discharging exact subtraction 80u64 - product and product - 30u64 across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `accepted`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/unsigned_exact_subtraction_interval_through_field_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__unsigned_exact_subtraction_interval_through_field_exit__main.omg__amp_to_ampmut__790db7b4a438c02e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: Subtracting two bounded unsigned u64 values (minuend >= 80u64 &mut& minuend <= 100u64 and subtrahend >= 20u64 && subtrahend <= 30u64) establishes the exact post-subtraction interval (diff >= 50u64 && diff <= 80u64), discharging both diff - 50u64 and 80u64 - diff across all nine places.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/view_extent_after_write_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `bytes`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__view_extent_after_write_through_local_exit__main.omg__remove_mut__986fcc18ee374ea0/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `14:     bytes[1020] = 73;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/wildcard_structural_return_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `counter`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__wildcard_structural_return_through_field_exit__main.omg__remove_mut__fc79f50c99c1603b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     counter = ((counter as u64 in Wrapping) + 1) as u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/wrapping_integer_arithmetic_through_const_name_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__wrapping_integer_arithmetic_through_const_name_exit__main.omg__amp_to_ampmut__496735ecdb1e23b8/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Masking an unsigned scalar with a constant bitmask (val &mut 63u64) establishes the upper bound (masked <= 63u64), discharging exact subtraction 63u64 - masked.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/write_only_borrow_initialization_through_call_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `slot`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__write_only_borrow_initialization_through_call_result_exit__main.omg__remove_mut__a878f9db89bc5332/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `28:     initialize_slot(&write slot);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/write_only_borrow_struct_destination_through_parameter_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `slot`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__write_only_borrow_struct_destination_through_parameter_exit__main.omg__remove_mut__b752f03d326dc88a/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `26:     initialize_destination(&write slot);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/write_only_ieee_store_readback_through_other_state_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `slot`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__write_only_ieee_store_readback_through_other_state_exit__main.omg__remove_mut__057cd3334e630f80/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `9:     store(&write slot);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/write_only_indexed_reborrow_through_other_machine_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__write_only_indexed_reborrow_through_other_machine_exit__main.omg__remove_mut__b2abb6d445ccc762/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `19:     let parent: &write [Cell; 2] = &write storage.cells;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/write_only_match_join_through_match_join_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `chosen`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__write_only_match_join_through_match_join_exit__main.omg__remove_mut__a67565c8c159b99c/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `25:         true -> &write chosen.value`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/write_only_recast_through_local_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `original`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__write_only_recast_through_local_exit__main.omg__remove_mut__4f6f4a8957638299/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `11:     overwrite(&write original);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/write_only_reference_store_through_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `held`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__write_only_reference_store_through_field_exit__main.omg__remove_mut__1b076efaba2adab8/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `14:     let carrier: Carrier = Carrier { slot: &write held };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/facts/zero_byte_erased_carrier_through_const_name_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__facts__zero_byte_erased_carrier_through_const_name_exit__main.omg__amp_to_ampmut__5226729075e8683e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: // Fact: a record pairing a zero-byte token with a u64 value carries value >= 100u64 &mut& value <= 100u64 with zero physical byte overhead across nine places, discharging exact subtraction value - 100u64 and size_of checks.`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/float/live_float_parameter_across_call_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `sink`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__float__live_float_parameter_across_call_exit__main.omg__remove_mut__f6b8b8444adb9928/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `14:     let observed: f64 = carry(41.5, &mut sink);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/generics/inferred_machine_array_equation_generic_owner_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__generics__inferred_machine_array_equation_generic_owner_field_exit__main.omg__remove_mut__f50cc7b4fb7fc529/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `18:     main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/generics/runtime_constructor_equation_binder_carriers_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__generics__runtime_constructor_equation_binder_carriers_exit__main.omg__remove_mut__e54691dc1a6bc95f/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `43:     main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/generics/runtime_forwarded_generic_slice_result_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__generics__runtime_forwarded_generic_slice_result_exit__main.omg__remove_mut__389a07e3ce57d8bd/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `26:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/generics/runtime_generic_qualified_constructor_shadow_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__generics__runtime_generic_qualified_constructor_shadow_exit__main.omg__remove_mut__c701d16ac9874696/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `24:     main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/generics/runtime_static_requirement_complex_composition_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__generics__runtime_static_requirement_complex_composition_exit__main.omg__remove_mut__184a1492f7bcbb89/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `73:     main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/host/foreign_byte_recast/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__host__foreign_byte_recast__main.omg__remove_mut__29c08274da5abea6/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `11:     entries[0] = FieldEntry {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/host/runtime_descriptor_float_loan_input_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `value`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__host__runtime_descriptor_float_loan_input_exit__main.omg__remove_mut__aa24c1f8e0620d69/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `18:     let no_bytes: i64 = block FloatIo::read(0, &mut value, 0);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/host/runtime_descriptor_padded_prefix_loans_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__host__runtime_descriptor_padded_prefix_loans_exit__main.omg__remove_mut__eece2e7480a0e319/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `45:     block Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/host/runtime_stored_scalar_reference_foreign_export_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__host__runtime_stored_scalar_reference_foreign_export_exit__main.omg__remove_mut__20e3a2b23fb09d4b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `48:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/layouts/fixed_layout_closed_requirement_policy_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__layouts__fixed_layout_closed_requirement_policy_exit__main.omg__remove_mut__67ed79e8fd3a0ae4/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `8:         entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/layouts/fixed_layout_fragmented_mutable_byte_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__layouts__fixed_layout_fragmented_mutable_byte_exit__main.omg__remove_mut__8a6f06bf3bd09ec7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `9:   entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::Bits { container: 0, container_width: 8, destination_lsb: 4, source_lsb: 0, width: 4 } };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/layouts/resident_aggregate_extraction/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__layouts__resident_aggregate_extraction__main.omg__remove_mut__0700fac01f659604/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `14:     entries[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/layouts/runtime_foreign_encoded_reference_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entries`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__layouts__runtime_foreign_encoded_reference_exit__main.omg__remove_mut__b403dd384a942992/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `8:     entries[0] = FieldEntry {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/layouts/runtime_placed_external_array_snapshot_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `fields`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__layouts__runtime_placed_external_array_snapshot_exit__main.omg__remove_mut__4a98b7f326d38948/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `12:     fields[0] = FieldEntry { key: schema.fields[0].key, representation: FieldPlan::At { offset: 0 } };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/machines/computed_arrival_state/main.omg — weaken_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__machines__computed_arrival_state__main.omg__weaken_requires__433d9c3d6b6640c1/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `7:     transition { _ -> tally(remaining, base + step) } (arithmetic on `base` formerly guarded by `0 <= remaining && remaining <= 5 && 0 <= base && base <= 5 && 0 <= step && step <= 5`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md` § Call preconditions):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/machines/private_where_store_through_cycle_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `counter`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__machines__private_where_store_through_cycle_exit__main.omg__remove_mut__421579749ea8517e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `12:     counter.count = 0;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/operators/runtime_generic_reference_selector_snapshot_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__operators__runtime_generic_reference_selector_snapshot_exit__main.omg__remove_mut__d6859bb9286c865f/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `27:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/optimizer/address_offset_selection_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__optimizer__address_offset_selection_exit__main.omg__remove_mut__0c28d9d8886235b4/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `64:     main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/ownership/domain_member_view_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__ownership__domain_member_view_compile__main.omg__amp_to_ampmut__fc25067c5110ce0e/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `1: // A `&mut` view may name a domain-qualified member: `peek(&main.pair.n)``
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/ownership/invariant_record_view_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__ownership__invariant_record_view_compile__main.omg__amp_to_ampmut__39bc92616f49c48f/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `1: // A `&mut` view may name a whole `data where` record: `peek(&main.band)``
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/ownership/linear_inline_constructed_argument_claims_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `sequence`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__ownership__linear_inline_constructed_argument_claims_exit__main.omg__remove_mut__f453f597b1c3fcd3/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `36:     sequence = ((sequence as i32 in Wrapping) + (1 as i32 in Wrapping)) as i32;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/ownership/runtime_borrowed_case_restore_variants_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `holder`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__ownership__runtime_borrowed_case_restore_variants_exit__main.omg__remove_mut__585ae95bbbb7a4d3/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `49:     holder.token = restore(attempt);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/ownership/runtime_case_alternative_custody_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `holder`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__ownership__runtime_case_alternative_custody_exit__main.omg__remove_mut__4a7ac1c3db54ca54/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `54:     holder.token = settle(detached, succeed);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/ownership/shared_float_view_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__ownership__shared_float_view_compile__main.omg__amp_to_ampmut__8dc7d8b47996a56e/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `1: // A `&mut` view may name a float member: `read(&main.rate)` lends read`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/ownership/view_reborrow_argument_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__ownership__view_reborrow_argument_compile__main.omg__amp_to_ampmut__6c781bf21d9d386b/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `1: // A stored `&mut` view forwards to another callee as an argument: `let`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/progress/provider_receiver_progress_installation/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__progress__provider_receiver_progress_installation__main.omg__remove_mut__cdb56615a1bb3bea/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `75:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/proofs/captured_scalar_field_observations/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `counter`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__proofs__captured_scalar_field_observations__main.omg__remove_mut__a8b2ab75590e85f7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `9:     counter.len = 19;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/proofs/completed_guard_two_call_identities/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `marker`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__proofs__completed_guard_two_call_identities__main.omg__remove_mut__adb5bd02531561d0/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `6:     marker.calls = marker.calls + 1;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/proofs/mutable_fixed_array_ensures_exact_product/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `cells`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__proofs__mutable_fixed_array_ensures_exact_product__main.omg__remove_mut__819846cfada06f38/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `6:     cells[0] = 6;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/providers/inherited_applied_binding_forwarded_value_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__providers__inherited_applied_binding_forwarded_value_exit__main.omg__remove_mut__4a5c2f2764b25080/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `34:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/providers/kernel_import_result_chain_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__providers__kernel_import_result_chain_exit__main.omg__remove_mut__bbe0bf279bdd8465/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `40:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/providers/owned_array_operand_epochs_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `buffer`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__providers__owned_array_operand_epochs_exit__main.omg__remove_mut__6d874386d815bc3d/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `57:         write31(&mut buffer), buffer.values, write99(&mut buffer)`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/providers/runtime_boundary_qualified_state_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__providers__runtime_boundary_qualified_state_exit__main.omg__remove_mut__989a88b666910d91/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `75:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/providers/service_fused_root_establishment/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__providers__service_fused_root_establishment__main.omg__remove_mut__c685690c5a4af73b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `39:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/providers/structural_membership_boundary_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__providers__structural_membership_boundary_exit__main.omg__remove_mut__0a4ae45183755f72/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `68:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/ranges/runtime_primitive_window_copy_snapshot_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `values`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__ranges__runtime_primitive_window_copy_snapshot_exit__main.omg__remove_mut__080242504e9c6dcd/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `4:     values[0..1] = [value];`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/recast/bool_byte_view_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__recast__bool_byte_view_compile__main.omg__amp_to_ampmut__fcba698aa0d31f6a/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `9: machine Main::main(main: &mut Main) {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/recast/captured_field_guard_disjoint_byte_write/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `bytes`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__recast__captured_field_guard_disjoint_byte_write__main.omg__remove_mut__9ee3a7f6e35caa55/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `47:     let end: u64 = stamp(&mut bytes, 8);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/recast/i16_unsigned_bits_view_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__recast__i16_unsigned_bits_view_compile__main.omg__amp_to_ampmut__c258c3468099a32c/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `9: machine Main::main(main: &mut Main) {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/recast/local_bits_view_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__recast__local_bits_view_compile__main.omg__amp_to_ampmut__d24e17bc2f18c228/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `6: machine Main::main(main: &mut Main) {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/recast/narrow_signed_bits_view_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__recast__narrow_signed_bits_view_compile__main.omg__amp_to_ampmut__1b7f9af2e8a189a2/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `9: machine Main::main(main: &mut Main) {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/recast/u16_signed_view_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__recast__u16_signed_view_compile__main.omg__amp_to_ampmut__3f42d8c850655d25/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `8: machine Main::main(main: &mut Main) {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/recast/write_footprint/state/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `value`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__recast__write_footprint__state__main.omg__remove_mut__c3045908d7967d10/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `25:         let observed: u64 = observe(7, &mut value);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/bare_range_returned_subslice_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__bare_range_returned_subslice_exit__main.omg__remove_mut__4fb93bff75903600/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `27:     run(&mut storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/bare_range_returned_subslice_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__bare_range_returned_subslice_exit__main.omg__amp_to_ampmut__0b20b74b0051496e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `13: machine run(main: &mut Main) crashes Trap {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/guarded_slice_parameter_bounded_subslice_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__guarded_slice_parameter_bounded_subslice_compile__main.omg__amp_to_ampmut__7980fc2c6341901a/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `10:     machine choose(entries: &mut[Entry], start: u64, end: u64) -> u64 {`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/mutable_byte_field_range_scalar_initializer_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `context`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__mutable_byte_field_range_scalar_initializer_exit__main.omg__remove_mut__a04fdb965156d557/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `20:     let matched: bool = stamp(&mut context.items[1..3]) == 2;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/runtime_boolean_alias_guard_transport_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `values`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__runtime_boolean_alias_guard_transport_exit__main.omg__remove_mut__919d2006218e82b7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `19:     values[0] = 7;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/runtime_element_write_preserves_view_extent_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `values`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__runtime_element_write_preserves_view_extent_exit__main.omg__remove_mut__70f8696078038feb/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `6:     let view: &mut [u32] = &mut values[..];`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/runtime_element_write_preserves_view_extent_exit/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__runtime_element_write_preserves_view_extent_exit__main.omg__amp_to_ampmut__432f067f6b786931/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `1: machine read(values: &mut[u32], selected: u64) -> u32`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/runtime_matched_window_length/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `bytes`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__runtime_matched_window_length__main.omg__remove_mut__85e526a278f902b6/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `11:         0 -> &mut bytes[0..count]`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/runtime_mutable_subslice_state_forwarding_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `items`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__runtime_mutable_subslice_state_forwarding_exit__main.omg__remove_mut__d7a58e29f6208a62/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `4:     transition { _ -> forwarded(&mut items[1..2]) }`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/runtime_nested_view_descriptor_reseat_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `original`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__runtime_nested_view_descriptor_reseat_exit__main.omg__remove_mut__77c97d94abe68ed2/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `18:     let mut windows: [Window; 1] = [Window { values: &mut original[..] }];`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/signed_index_and_range_lower_bounds/main.omg — weaken_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__signed_index_and_range_lower_bounds__main.omg__weaken_requires__c125ebaaafbd29e3/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `4:     items[index] (index uses `items` formerly guarded by `0 <= index && index < items.len`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md` § Call preconditions):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/signed_index_and_range_lower_bounds/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__signed_index_and_range_lower_bounds__main.omg__amp_to_ampmut__8b312fc3973ea20c/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `1: machine read(items: &mut[u8], index: i64) -> u8`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/stored_element_window_field_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `row`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__stored_element_window_field_exit__main.omg__remove_mut__a7a6cedd6a020073/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `12:         0 -> &mut row[0..2]`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/slices/window_shrink_min_length_tail_index_compile/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__window_shrink_min_length_tail_index_compile__main.omg__amp_to_ampmut__868f62e83d8712f9/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `9: machine main(items: &mut[i32]) -> i32`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/computed_rank_endpoint/main.omg — drop_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: delete first requires line
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__computed_rank_endpoint__main.omg__drop_requires__2115a6749be74983/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `6: terminates by remaining in 0..(cap / 5 + 6) { (division uses `cap` formerly guarded by `band `0 <= cap <= 20`; the iterate`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md` § Nested machines and identity; Private entry inference):
-
-> A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `inferred-entry`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/computed_rank_endpoint/main.omg — weaken_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__computed_rank_endpoint__main.omg__weaken_requires__a74b93e790f940b0/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `7: terminates by remaining in 0..(cap / 5 + 6) { (division uses `cap` formerly guarded by `band `0 <= cap <= 20`; the iterate`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md` § Call preconditions):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/mutable_rank_endpoint/main.omg — weaken_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__mutable_rank_endpoint__main.omg__weaken_requires__ff27c28eb0b9da75/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `11: terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1) { (arithmetic on `limit` formerly guarded by `0 <= limit && limit <= 10`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md` § Call preconditions):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/progress_selector_owned_arrival_reference_reborrow_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `calls`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__progress_selector_owned_arrival_reference_reborrow_exit__main.omg__remove_mut__8f81da5de60d3ab4/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `15:     calls = ((calls as u64 in Wrapping) + 1) as u64;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/rank_range_mutable_bounded_endpoint/main.omg — weaken_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__rank_range_mutable_bounded_endpoint__main.omg__weaken_requires__02b53fc685aeb761/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `12: terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1) { (arithmetic on `limit` formerly guarded by `0 <= limit && limit <= 10`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md` § Call preconditions):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/rank_range_state_call_requires_bridge/main.omg — drop_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: delete first requires line
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__rank_range_state_call_requires_bridge__main.omg__drop_requires__2b5b4721e6eff0fb/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `33:         true -> Main::outer(main, limit, n - 1) (arithmetic on `n` formerly guarded by `n <= limit` is discharged without a respelled guard. The`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md` § Nested machines and identity; Private entry inference):
-
-> A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `inferred-entry`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/rank_range_state_call_requires_bridge/main.omg — weaken_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__rank_range_state_call_requires_bridge__main.omg__weaken_requires__264f20e4edf0a64e/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `34:         true -> Main::outer(main, limit, n - 1) (arithmetic on `n` formerly guarded by `n <= limit` is discharged without a respelled guard. The`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md` § Call preconditions):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/runtime_computed_result_rank_arrivals_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__runtime_computed_result_rank_arrivals_exit__main.omg__remove_mut__93b444d3bc1d4a9e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `75:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/runtime_projected_extent_fill_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__runtime_projected_extent_fill_exit__main.omg__remove_mut__a2d81afd7adb6307/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `61:     let count: u64 = fill_nested(&mut storage, 0);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/runtime_zero_local_rank_prefix_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `scratch`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__runtime_zero_local_rank_prefix_exit__main.omg__remove_mut__ba7faf47e892c3eb/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `10:     scratch[0] = 7;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/termination/symbolic_quotient_endpoints/main.omg — weaken_requires
-
-- Bucket: `confirmed-hole`
-- Mutation: requires <= to <
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__symbolic_quotient_endpoints__main.omg__weaken_requires__6321add2a40982b0/main.omg`
-- Current: `accepted`; route: `no-entry`; accepted_by: `current`
-- Route detail (hint only): route=no-entry
-- Broken obligation: `3: terminates by remaining in 0..(cap / divisor + 6) { (division uses `cap` formerly guarded by `0 <= remaining && remaining <= 5 && 0 <= cap && cap <= 20 && 1 <= divisor && divisor <= 5`)`
-- (a) Compile-time spec (`wiki/spec/language/machines.md` § Call preconditions):
-
-> Every machine application establishes the selected contract's `requires` under the exact argument substitution. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `no-entry`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/text/runtime_qualified_byte_field_replacement_cleanup_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `view`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__text__runtime_qualified_byte_field_replacement_cleanup_exit__main.omg__remove_mut__5604500746dbc9c6/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `8:     view.bytes = "AB";`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/traits/default_row_same_spelled_supplier_region_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__traits__default_row_same_spelled_supplier_region_exit__main.omg__remove_mut__703f42c54533ea9f/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `31:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/traits/runtime_dyn_byte_record_result/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__traits__runtime_dyn_byte_record_result__main.omg__remove_mut__b170b1bd4fad4572/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `57:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/traits/runtime_dyn_family_scalar_continuation/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__traits__runtime_dyn_family_scalar_continuation__main.omg__remove_mut__0e52a877d4f3068e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `27:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/traits/runtime_dyn_mutable_byte_result/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__traits__runtime_dyn_mutable_byte_result__main.omg__remove_mut__fad394a547de1fb6/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `37:     Main::main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/types/address_model_conversion/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `view`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__types__address_model_conversion__main.omg__remove_mut__1d289125b2e6ed32/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `64:     view.image = replacement;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/pass/wire/reflection_active_nullary_cases_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `a`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__wire__reflection_active_nullary_cases_exit__main.omg__remove_mut__04e0ad1fd102d4e1/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `28:     reflect::visit_active_fields<Event, selected, field>(&item, &mut a);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/run/calls/static_boundary_terminal_arguments/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `entry_storage`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__run__calls__static_boundary_terminal_arguments__main.omg__remove_mut__8e1796c51843c31b/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `65:     main(&mut entry_storage);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/run/domains/issued_record_domain_predicate_transport/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `items`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__run__domains__issued_record_domain_predicate_transport__main.omg__remove_mut__601bdad5db218849/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `45:     items[0] = 17;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/run/domains/qualified_fixed_byte_array_captured_destination_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `first`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__run__domains__qualified_fixed_byte_array_captured_destination_exit__main.omg__remove_mut__22b4177753062b7e/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `16:     let bundle: Bundle = Bundle { raw: &mut first.bytes };`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/run/domains/qualified_fixed_byte_array_view_element_copy_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `output`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__run__domains__qualified_fixed_byte_array_view_element_copy_exit__main.omg__remove_mut__3b746b0b80add6a7/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `25:     output.first = 31u8;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/run/domains/zero_field_call_formation_exit/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `defaulted`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__run__domains__zero_field_call_formation_exit__main.omg__remove_mut__6f2d8080c399ce7f/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `17:     mutable(&mut defaulted);`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/run/facts/double_indexed_rmw_through_match_join_traps/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `grid`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__run__facts__double_indexed_rmw_through_match_join_traps__main.omg__remove_mut__8dc74e5adf762ad3/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `9:         true -> left_arm(&mut grid, &mut rows, 1, 2, 2, 1)`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/run/facts/double_indexed_rmw_through_match_join_traps/main.omg — amp_to_ampmut
-
-- Bucket: `confirmed-hole`
-- Mutation: first shared & -> &mut
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__run__facts__double_indexed_rmw_through_match_join_traps__main.omg__amp_to_ampmut__d1b3acce867972ee/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `9:         true -> left_arm(&mut grid, &mut rows, 1, 2, 2, 1)`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; forming `&mut` without writable authority violates exclusivity and mutability rules. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
-### tests/omega/run/traits/static_implementation_method_arguments/main.omg — remove_mut
-
-- Bucket: `confirmed-hole`
-- Mutation: remove mut from `destination`
-- Mutant: `.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__run__traits__static_implementation_method_arguments__main.omg__remove_mut__c80e289cc295cd96/main.omg`
-- Current: `accepted`; route: `outside`; accepted_by: `current`
-- Route detail (hint only): route=outside
-- Broken obligation: `11:         destination.value = Value;`
-- (a) Compile-time spec (`wiki/spec/language/expressions.md` § Assignment and explicit `&mut` / `&write` loans):
-
-> Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
-- Subtype: `n/a`
-- (b) Check-time vs runtime: accepting checker verdict `accepted` (route `outside`); obligation must be proved at check, not deferred to crash.
-- (c) Minimal diff: see hand-verification section below.
-
 
 ## Hand verification (5 confirmed-hole)
 
-#### Hand verification: tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg / remove_mut
+#### Hand verification: tests/omega/pass/control_flow/constant_aggregate_dispatch_complete/main.omg / drop_requires
 
 - Bucket: `confirmed-hole`
+- Obligation: `14:     machine take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; } (arithmetic on `hi` formerly guarded by `(self in Interval::Empty) || ((self in Interval::Point) && (self.lo == self.hi))`)`
+
+**Mutant diff (excerpt)**
+```diff
+-     requires (self in Interval::Empty) || ((self in Interval::Point) && (self.lo == self.hi))
++     {
+- {
++     case Empty;
+-     case Empty;
++     case Point(lo: u64, hi: u64);
+-     case Point(lo: u64, hi: u64);
++ }
+- }
++ const BUNDLE: [Interval; 1] = [Interval::Point { lo: 4, hi: 4 }];
+- const BUNDLE: [Interval; 1] = [Interval::Point { lo: 4, hi: 4 }];
++ data Main { width: u64; }
+- data Main { width: u64; }
++ machine Main::main(main: &mut Main) {
+- machine Main::main(main: &mut Main) {
++     transition BUNDLE[0] {
+-     transition BUNDLE[0] {
++         Interval::Point { lo, hi } -> take(lo, hi, main)
+-         Interval::Point { lo, hi } -> take(lo, hi, main)
++         Interval::Empty -> done()
+-         Interval::Empty -> done()
++     }
+-     }
++     machine take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; }
+-     machine take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; }
++     machine done() {}
+-     machine done() {}
++ }
+- }
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__constant_aggregate_dispatch_complete__main.omg__drop_requires__1dc76d7a0fe9e0da/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`no-entry`
+- Route detail: route=no-entry
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__control_flow__constant_aggregate_dispatch_complete__main.omg__drop_requires__1dc76d7a0fe9e0da/main.omg	current=accepted	current_us=2365855	root=compilation	route=no-entry
+
+```
+
+
+> Spec (wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md): A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check. Checked compilation must establi
+
+#### Hand verification: tests/omega/pass/machines/computed_arrival_state/main.omg / widen_requires
+
+- Bucket: `confirmed-hole`
+- Obligation: `7:     transition { _ -> tally(remaining, base + step) } (arithmetic on `base` formerly guarded by `0 <= remaining && remaining <= 5 && 0 <= base && base <= 5 && 0 <= step && step <= 5`)`
+
+**Mutant diff (excerpt)**
+```diff
+-     requires 0 <= remaining && remaining <= 5 && 0 <= base && base <= 5 && 0 <= step && step <= 5
++     requires 0 < remaining && remaining <= 5 && 0 <= base && base <= 5 && 0 <= step && step <= 5
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__machines__computed_arrival_state__main.omg__weaken_requires__433d9c3d6b6640c1/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`no-entry`
+- Route detail: route=no-entry
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__machines__computed_arrival_state__main.omg__weaken_requires__433d9c3d6b6640c1/main.omg	current=accepted	current_us=2109227	root=compilation	route=no-entry
+
+```
+
+
+> Spec (wiki/spec/language/machines.md): Every machine application establishes the selected contract's `requires` under the exact argument substitution. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+
+#### Hand verification: tests/omega/pass/dependent/closed_case_common_and_active_payload_projection/main.omg / drop_requires
+
+- Bucket: `confirmed-hole`
+- Obligation: `16:     machine take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; } (arithmetic on `hi` formerly guarded by `((self in Interval::Point) && (self.lo == self.hi)) || (self in Interval::Other)`)`
+
+**Mutant diff (excerpt)**
+```diff
+-     requires ((self in Interval::Point) && (self.lo == self.hi)) || (self in Interval::Other)
++     {
+- {
++     marker: u64;
+-     marker: u64;
++     case Point(lo: u64, hi: u64);
+-     case Point(lo: u64, hi: u64);
++     case Other(lo: u64, hi: u64);
+-     case Other(lo: u64, hi: u64);
++ }
+- }
++ data Main { width: u64; }
+- data Main { width: u64; }
++ machine Main::main(main: &mut Main) {
+- machine Main::main(main: &mut Main) {
++     transition (Interval::Point { marker: 9, lo: 4, hi: 4 }) {
+-     transition (Interval::Point { marker: 9, lo: 4, hi: 4 }) {
++         Interval { marker as _, case as operation } -> match operation {
+-         Interval { marker as _, case as operation } -> match operation {
++             Interval::Point { lo, hi } -> take(lo, hi, main)
+-             Interval::Point { lo, hi } -> take(lo, hi, main)
++             Interval::Other { lo as _, hi as _ } -> done()
+-             Interval::Other { lo as _, hi as _ } -> done()
++         }
+-         }
++     }
+-     }
++     machine take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; }
+-     machine take(lo: u64, hi: u64, main: &mut Main) { main.width = hi - lo; }
++     machine done() {}
+-     machine done() {}
++ }
+- }
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__closed_case_common_and_active_payload_projection__main.omg__drop_requires__336fa8e7e0b609b1/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`no-entry`
+- Route detail: route=no-entry
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__dependent__closed_case_common_and_active_payload_projection__main.omg__drop_requires__336fa8e7e0b609b1/main.omg	current=accepted	current_us=1867494	root=compilation	route=no-entry
+
+```
+
+
+> Spec (wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md): A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check. Checked compilation must establi
+
+#### Hand verification: tests/omega/pass/slices/signed_index_and_range_lower_bounds/main.omg / widen_requires
+
+- Bucket: `confirmed-hole`
+- Obligation: `4:     items[index] (index uses `items` formerly guarded by `0 <= index && index < items.len`)`
+
+**Mutant diff (excerpt)**
+```diff
+- requires 0 <= index && index < items.len
++ requires 0 < index && index < items.len
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__signed_index_and_range_lower_bounds__main.omg__weaken_requires__c125ebaaafbd29e3/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`no-entry`
+- Route detail: route=no-entry
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__slices__signed_index_and_range_lower_bounds__main.omg__weaken_requires__c125ebaaafbd29e3/main.omg	current=accepted	current_us=1722339	root=compilation	route=no-entry
+
+```
+
+
+> Spec (wiki/spec/language/machines.md): Every machine application establishes the selected contract's `requires` under the exact argument substitution. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+
+#### Hand verification: tests/omega/pass/termination/computed_rank_endpoint/main.omg / drop_requires
+
+- Bucket: `confirmed-hole`
+- Obligation: `7: terminates by remaining in 0..(cap / 5 + 6) { (division uses `cap` formerly guarded by `band `0 <= cap <= 20`; the iterate`)`
+
+**Mutant diff (excerpt)**
+```diff
+- // strengthened by the requires band `0 <= cap <= 20`; the iterate
++ // strengthened by the // state's own requires repins both bands.
+- // state's own requires repins both bands.
++ machine walk(remaining: u64, cap: u64) -> u64
+- machine walk(remaining: u64, cap: u64) -> u64
++     requires 0 <= remaining && remaining <= 5 && 0 <= cap && cap <= 20
+-     requires 0 <= remaining && remaining <= 5 && 0 <= cap && cap <= 20
++ terminates by remaining in 0..(cap / 5 + 6) {
+- terminates by remaining in 0..(cap / 5 + 6) {
++     transition { _ -> iterate(cap, remaining) }
+-     transition { _ -> iterate(cap, remaining) }
++     machine iterate(limit: u64, pending: u64) -> u64
+-     machine iterate(limit: u64, pending: u64) -> u64
++         requires 0 <= limit && limit <= 20 && 0 <= pending && pending <= 5
+-         requires 0 <= limit && limit <= 20 && 0 <= pending && pending <= 5
++     terminates by pending in 0..=5
+-     terminates by pending in 0..=5
++     {
+-     {
++         transition pending > 0 {
+-         transition pending > 0 {
++             true -> iterate(limit - 0, pending - 1)
+-             true -> iterate(limit - 0, pending - 1)
++             false -> pending
+-             false -> pending
++         }
+-         }
++     }
+-     }
++ }
+- }
++ 
+- 
++ data Main {}
+- data Main {}
++ machine Main::main(main: &mut Main) { }
+- machine Main::main(main: &mut Main) { }
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__computed_rank_endpoint__main.omg__drop_requires__2115a6749be74983/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`no-entry`
+- Route detail: route=no-entry
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__termination__computed_rank_endpoint__main.omg__drop_requires__2115a6749be74983/main.omg	current=accepted	current_us=1863072	root=compilation	route=no-entry
+
+```
+
+
+> Spec (wiki/spec/language/machines.md; wiki/spec/language/state_contracts.md): A written entry contract remains complete even when all currently visible callers happen to establish stronger facts. An authored `requires` is complete, including on a private helper. Inference cannot silently conjoin further entry conditions to make the body check. Checked compilation must establi
+
+
+## Hand verification (5 discarded-valid)
+
+#### Hand verification: tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg — could not regen mutant
+#### Hand verification: tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg / widen_requires
+
+- Bucket: `discarded-valid`
+- Obligation: `11:     view[0] = 0; (index uses `view` formerly guarded by `view.len >= 1`)`
+
+**Mutant diff (excerpt)**
+```diff
+- requires view.len >= 1
++ requires view.len > 1
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__widen_requires__435aebcce7b6daff/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__widen_requires__435aebcce7b6daff/main.omg	current=accepted	current_us=3368565	root=compilation	route=outside	Unsupported: parameter mutable parameter
+
+```
+
+#### Hand verification: tests/omega/pass/borrows/opaque_incoming_nested_projected_array_result_exit/main.omg — could not regen mutant
+#### Hand verification: tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg / widen_requires
+
+- Bucket: `discarded-valid`
+- Obligation: `15:     view[0] = 0; (index uses `view` formerly guarded by `view.len >= 1`)`
+
+**Mutant diff (excerpt)**
+```diff
+- requires view.len >= 1
++ requires view.len > 1
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__widen_requires__cfde70333307ace9/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`outside`
+- Route detail: route=outside
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__widen_requires__cfde70333307ace9/main.omg	current=accepted	current_us=3642430	root=compilation	route=outside	Unsupported: parameter mutable parameter
+
+```
+
+#### Hand verification: tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg — could not regen mutant
+
+## Hand verification (5 known-gap-q7-mut)
+
+#### Hand verification: tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg / remove_mut
+
+- Bucket: `known-gap-q7-mut`
 - Obligation: `28:     values[direct] = 2.0;`
 
 **Mutant diff (excerpt)**
@@ -4974,13 +1046,16 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`no-entry`
 - Route detail: route=no-entry
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__221870285650b17a/main.omg	current=accepted	current_us=1380218	root=compilation	route=no-entry
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__remove_mut__221870285650b17a/main.omg	current=accepted	current_us=1593325	root=compilation	route=no-entry
 
 ```
 
+
+> Spec (wiki/spec/language/expressions.md): Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+
 #### Hand verification: tests/omega/pass/arithmetic/runtime_boolean_field_shift_count_exit/main.omg / remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Obligation: `5:     guard.count = count;`
 
 **Mutant diff (excerpt)**
@@ -4998,13 +1073,16 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__f309fcc21272105d/main.omg	current=accepted	current_us=3003586	root=compilation	route=outside	Unsupported: type data with custody
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_boolean_field_shift_count_exit__main.omg__remove_mut__f309fcc21272105d/main.omg	current=accepted	current_us=3362522	root=compilation	route=outside	Unsupported: type data with custody
 
 ```
 
+
+> Spec (wiki/spec/language/expressions.md): Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+
 #### Hand verification: tests/omega/pass/arithmetic/sparse_captured_utf_path_exit/main.omg / remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Obligation: `46:         output[output_offset] = narrow_u32_to_u16_wrapping(character.point);`
 
 **Mutant diff (excerpt)**
@@ -5022,13 +1100,16 @@ compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__a1bf5fc91e003f1e/main.omg	current=accepted	current_us=3693593	root=compilation	route=outside	Unsupported: type reference
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__sparse_captured_utf_path_exit__main.omg__remove_mut__a1bf5fc91e003f1e/main.omg	current=accepted	current_us=3883393	root=compilation	route=outside	Unsupported: type reference
 
 ```
 
+
+> Spec (wiki/spec/language/expressions.md): Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+
 #### Hand verification: tests/omega/pass/asm/checked_asm_nominal_symbolic_conjunction_exit/main.omg / remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Obligation: `23:     let observed: u64 = move_selected(snapshot(cursor, 9), reset(&mut cursor) + 11);`
 
 **Mutant diff (excerpt)**
@@ -5046,13 +1127,16 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__remove_mut__dd1ae77a62b9561c/main.omg	current=accepted	current_us=2889050	root=compilation	route=outside	Unsupported: contract term other than a formal or literal
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_asm_nominal_symbolic_conjunction_exit__main.omg__remove_mut__dd1ae77a62b9561c/main.omg	current=accepted	current_us=3346709	root=compilation	route=outside	Unsupported: contract term other than a formal or literal
 
 ```
 
+
+> Spec (wiki/spec/language/expressions.md): Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
+
 #### Hand verification: tests/omega/pass/asm/checked_label_borrow_last_use_exit/main.omg / remove_mut
 
-- Bucket: `confirmed-hole`
+- Bucket: `known-gap-q7-mut`
 - Obligation: `30:     Main::main(&mut entry_storage);`
 
 **Mutant diff (excerpt)**
@@ -5070,481 +1154,110 @@ compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_label_borrow_last_use_exit__main.omg__remove_mut__5ef632b5dd793d32/main.omg	current=accepted	current_us=3011166	root=compilation	route=outside	Unsupported: type reference
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__asm__checked_label_borrow_last_use_exit__main.omg__remove_mut__5ef632b5dd793d32/main.omg	current=accepted	current_us=3280972	root=compilation	route=outside	Unsupported: type reference
 
 ```
 
 
-## Hand verification (5 discarded-valid)
+> Spec (wiki/spec/language/expressions.md): Such a loan requires existing writable authority at the selected place; owned-local mutability requires a `mut` binding when that place is the local's owned storage. Checked compilation must establish this obligation before execution; a runtime trap or crash arm does not discharge it at check time.
 
-#### Hand verification: tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg / drop_requires
 
-- Bucket: `discarded-valid`
-- Obligation: `8:         true -> decimal(rest - 10, count + 1) (arithmetic on `count` formerly guarded by `count <= 9 && embed(rest) + embed(count) * 10 <= 99`)`
+## Hand verification (5 valid-route-outside)
+
+#### Hand verification: tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg — could not regen mutant
+#### Hand verification: tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg / widen_requires
+
+- Bucket: `valid-route-outside`
+- Obligation: ``
 
 **Mutant diff (excerpt)**
 ```diff
-- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-+ {
-- {
-+     transition rest >= 10 {
--     transition rest >= 10 {
-+         true -> decimal(rest - 10, count + 1)
--         true -> decimal(rest - 10, count + 1)
-+         _ -> (count)
--         _ -> (count)
-+     }
--     }
-+ }
-- }
-+ 
-- 
-+ machine next(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-- machine next(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-+ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-+ { count }
-- { count }
-+ 
-- 
-+ machine local(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-- machine local(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-+ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-+ {
-- {
-+     let selected: bool = rest >= 10;
--     let selected: bool = rest >= 10;
-+     let copied: bool = selected;
--     let copied: bool = selected;
-+     let combined: bool = copied && copied;
--     let combined: bool = copied && copied;
-+     transition combined {
--     transition combined {
-+         true -> next(rest - 10, count + 1)
--         true -> next(rest - 10, count + 1)
-+         _ -> (count)
--         _ -> (count)
-+     }
--     }
-+ }
-- }
-+ 
-- 
-+ machine replaced(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-- machine replaced(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-+ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-+ {
-- {
-+     let mut condition: Condition = Condition { selected: false };
+- requires position >= 0 && position <= 3 && (side == 0 || side == 1)
++ requires position > 0 && position <= 3 && (side == 0 || side == 1)
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__widen_requires__d9d0b9a2e04725c2/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`no-entry`
+- Route detail: route=no-entry
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__widen_requires__d9d0b9a2e04725c2/main.omg	current=accepted	current_us=1488426	root=compilation	route=no-entry
+
+```
+
+#### Hand verification: tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg / widen_requires
+
+- Bucket: `valid-route-outside`
+- Obligation: ``
+
+**Mutant diff (excerpt)**
+```diff
+- requires position >= 0 && position <= 3 && (side == 0 || side == 1)
++ requires position >= 0 && position < 3 && (side == 0 || side == 1)
+```
+
+**`omega --check`** exit=0 verdict=`accepted`
+```
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__widen_requires__b82daf74280bd955/main.omg; wrote_output=false
+
+```
+
+**`route_one_comparison`** route=`no-entry`
+- Route detail: route=no-entry
+```
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__disjunctive_requires_exact_slot__main.omg__widen_requires__b82daf74280bd955/main.omg	current=accepted	current_us=1545955	root=compilation	route=no-entry
+
+```
+
+#### Hand verification: tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg / remove_mut
+
+- Bucket: `valid-route-outside`
+- Obligation: ``
+
+**Mutant diff (excerpt)**
+```diff
 -     let mut condition: Condition = Condition { selected: false };
-+     condition.selected = rest >= 10;
--     condition.selected = rest >= 10;
-+     transition condition.selected {
--     transition condition.selected {
-+         true -> next(rest - 10, count + 1)
--         true -> next(rest - 10, count + 1)
-+         _ -> (count)
--         _ -> (count)
-+     }
--     }
-+ }
-- }
-+ 
-- 
-+ machine field(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-- machine field(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-+ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-+ {
-- {
-+     let condition: Condition = Condition { selected: rest >= 10 };
--     let condition: Condition = Condition { selected: rest >= 10 };
-+     let copied: Condition = condition;
--     let copied: Condition = condition;
-+     transition copied.selected {
--     transition copied.selected {
-+         true -> next(rest - 10, count + 1)
--         true -> next(rest - 10, count + 1)
-+         _ -> (count)
--         _ -> (count)
-+     }
--     }
-+ }
-- }
-+ 
-- 
-+ machine denied(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-- machine denied(rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-+ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-+ {
-- {
-+     let below: bool = rest < 10;
--     let below: bool = rest < 10;
-+     transition below {
--     transition below {
-+         false -> next(rest - 10, count + 1)
--         false -> next(rest - 10, count + 1)
-+         _ -> (count)
--         _ -> (count)
-+     }
--     }
-+ }
-- }
-+ 
-- 
-+ machine historical(mut rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-- machine historical(mut rest: u64 in Trapping, count: u64 in Trapping) -> u64 in Trapping
-+ requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-- requires count <= 9 && embed(rest) + embed(count) * 10 <= 99
-+ {
-- {
-+     let observed: u64 in Trapping = rest;
--     let observed: u64 in Trapping = rest;
-+     let selected: bool = rest >= 10;
--     let selected: bool = rest >= 10;
-+     rest = 0;
--     rest = 0;
-+     transition selected {
--     transition selected {
-+         true -> next(observed - 10, count + 1)
--         true -> next(observed - 10, count + 1)
-+         _ -> (count)
--         _ -> (count)
-+     }
--     }
-+ }
-- }
-+ 
-- 
-+ machine main() crashes Trap {
-- machine main() crashes Trap {
-+     let digits: u64 in Trapping = decimal(99, 0);
--     let digits: u64 in Trapping = decimal(99, 0);
-+     let zero: u64 in Trapping = decimal(0, 0);
--     let zero: u64 in Trapping = decimal(0, 0);
-+     let one: u64 in Trapping = decimal(10, 0);
--     let one: u64 in Trapping = decimal(10, 0);
-+     let from_local: u64 in Trapping = local(49, 5);
--     let from_local: u64 in Trapping = local(49, 5);
-+     let from_field: u64 in Trapping = field(29, 7);
--     let from_field: u64 in Trapping = field(29, 7);
-+     let from_denial: u64 in Trapping = denied(19, 8);
--     let from_denial: u64 in Trapping = denied(19, 8);
-+     let from_history: u64 in Trapping = historical(39, 6);
--     let from_history: u64 in Trapping = historical(39, 6);
-+     let from_replacement: u64 in Trapping = replaced(59, 4);
--     let from_replacement: u64 in Trapping = replaced(59, 4);
-+     transition digits == 9 && zero == 0 && one == 1
--     transition digits == 9 && zero == 0 && one == 1
-+         && from_local == 6 && from_field == 8 && from_denial == 9
--         && from_local == 6 && from_field == 8 && from_denial == 9
-+         && from_history == 7 && from_replacement == 5 {
--         && from_history == 7 && from_replacement == 5 {
-+         true -> done()
--         true -> done()
-+         _ -> wrong()
--         _ -> wrong()
-+     }
--     }
-+     machine done() {}
--     machine done() {}
-+     machine wrong() { crash Trap; }
--     machine wrong() { crash Trap; }
-+ }
-- }
++     let condition: Condition = Condition { selected: false };
 ```
 
 **`omega --check`** exit=0 verdict=`accepted`
 ```
-compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__drop_requires__3a6e19b82553794b/main.omg; wrote_output=false
+compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__remove_mut__87faae966e7fddd1/main.omg; wrote_output=false
 
 ```
 
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__drop_requires__3a6e19b82553794b/main.omg	current=accepted	current_us=3063447	root=compilation	route=outside	Unsupported: type constrained
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arithmetic__runtime_captured_boolean_recurrence__main.omg__remove_mut__87faae966e7fddd1/main.omg	current=accepted	current_us=3376442	root=compilation	route=outside	Unsupported: type constrained
 
 ```
 
-#### Hand verification: tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg / weaken_requires
+#### Hand verification: tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit/main.omg / remove_mut
 
-- Bucket: `discarded-valid`
-- Obligation: `11:     view[0] = 0; (index uses `view` formerly guarded by `view.len >= 1`)`
+- Bucket: `valid-route-outside`
+- Obligation: ``
 
 **Mutant diff (excerpt)**
 ```diff
-- requires view.len >= 1
-+ requires view.len > 1
+-         let mut cell: i32 = byte;
++         let cell: i32 = byte;
 ```
 
 **`omega --check`** exit=0 verdict=`accepted`
 ```
-compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__weaken_requires__1f65f214778af6b4/main.omg; wrote_output=false
+compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__runtime_completed_array_window_replacement_exit__main.omg__remove_mut__b9a3bdab948d8393/main.omg; wrote_output=false
 
 ```
 
 **`route_one_comparison`** route=`outside`
 - Route detail: route=outside
 ```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__local_subslice_parent_lent_after_last_use_exit__main.omg__weaken_requires__1f65f214778af6b4/main.omg	current=accepted	current_us=2938691	root=compilation	route=outside	Unsupported: parameter mutable parameter
-
-```
-
-#### Hand verification: tests/omega/pass/borrows/opaque_incoming_nested_projected_array_result_exit/main.omg / drop_requires
-
-- Bucket: `discarded-valid`
-- Obligation: `8:     wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19 (index uses `windows` formerly guarded by `wrapper.bundle.windows[0].len == 1`)`
-
-**Mutant diff (excerpt)**
-```diff
-- requires wrapper.bundle.windows[0].len == 1
-+ {
-- {
-+     wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
--     wrapper.bundle.windows[0].len == 1 && wrapper.bundle.windows[0][0] == 19
-+ }
-- }
-+ data Container<'bundle, 'storage> { wrappers: [Wrapper<'bundle, 'storage>; 1]; }
-- data Container<'bundle, 'storage> { wrappers: [Wrapper<'bundle, 'storage>; 1]; }
-+ machine relay<'bundle, 'storage>(container: Container<'bundle, 'storage>) -> Container<'bundle, 'storage>
-- machine relay<'bundle, 'storage>(container: Container<'bundle, 'storage>) -> Container<'bundle, 'storage>
-+ ensures result.wrappers[0].bundle.windows[0].len == container.wrappers[0].bundle.windows[0].len
-- ensures result.wrappers[0].bundle.windows[0].len == container.wrappers[0].bundle.windows[0].len
-+ { container }
-- { container }
-+ machine main() crashes Trap {
-- machine main() crashes Trap {
-+     let mut backing: [u8; 1] = [19];
--     let mut backing: [u8; 1] = [19];
-+     let bundle: Bundle = Bundle { windows: [&mut backing[..]] };
--     let bundle: Bundle = Bundle { windows: [&mut backing[..]] };
-+     let wrapper: Wrapper = Wrapper { bundle: &bundle };
--     let wrapper: Wrapper = Wrapper { bundle: &bundle };
-+     let stored: Container = Container { wrappers: [wrapper] };
--     let stored: Container = Container { wrappers: [wrapper] };
-+     let selected: Container = relay(stored);
--     let selected: Container = relay(stored);
-+     let observed: bool = observe(&selected.wrappers[0]);
--     let observed: bool = observe(&selected.wrappers[0]);
-+     transition observed { true -> done() false -> bad() }
--     transition observed { true -> done() false -> bad() }
-+     machine done() {}
--     machine done() {}
-+     machine bad() crashes Trap { crash Trap; }
--     machine bad() crashes Trap { crash Trap; }
-+ }
-- }
-```
-
-**`omega --check`** exit=0 verdict=`accepted`
-```
-compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__opaque_incoming_nested_projected_array_result_exit__main.omg__drop_requires__69dc4db1d8501575/main.omg; wrote_output=false
-
-```
-
-**`route_one_comparison`** route=`outside`
-- Route detail: route=outside
-```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__opaque_incoming_nested_projected_array_result_exit__main.omg__drop_requires__69dc4db1d8501575/main.omg	current=accepted	current_us=2985905	root=compilation	route=outside	Unsupported: type reference
-
-```
-
-#### Hand verification: tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg / weaken_requires
-
-- Bucket: `discarded-valid`
-- Obligation: `15:     view[0] = 0; (index uses `view` formerly guarded by `view.len >= 1`)`
-
-**Mutant diff (excerpt)**
-```diff
-- requires view.len >= 1
-+ requires view.len > 1
-```
-
-**`omega --check`** exit=0 verdict=`accepted`
-```
-compiled 28 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__weaken_requires__3398e68f2ec52a15/main.omg; wrote_output=false
-
-```
-
-**`route_one_comparison`** route=`outside`
-- Route detail: route=outside
-```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__plain_read_after_exclusive_loan_last_use_exit__main.omg__weaken_requires__3398e68f2ec52a15/main.omg	current=accepted	current_us=2962648	root=compilation	route=outside	Unsupported: parameter mutable parameter
-
-```
-
-#### Hand verification: tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg / drop_requires
-
-- Bucket: `discarded-valid`
-- Obligation: `63:         let next: u32 = off + stride; (arithmetic on `off` formerly guarded by `off <= 32` contract;`)`
-
-**Mutant diff (excerpt)**
-```diff
-- //     forwarded offset into each nested machine's `requires off <= 32` contract;
-+ //     forwarded offset into each nested machine's `//   - the stride: the guard `0 < stride <= 16` on the stored descriptor size
-- //   - the stride: the guard `0 < stride <= 16` on the stored descriptor size
-+ //     bounds `off + stride`;
-- //     bounds `off + stride`;
-+ //   - the view footprint: `high(off) + size_of(Desc) <= len(buf)` through
-- //   - the view footprint: `high(off) + size_of(Desc) <= len(buf)` through
-+ //     the walk's current requirements and incoming edges give the offset -- 0
-- //     the walk's current requirements and incoming edges give the offset -- 0
-+ //     and the `next <= 32` guard;
-- //     and the `next <= 32` guard;
-+ //   - no runtime bounds checks, no linear-counter workaround.
-- //   - no runtime bounds checks, no linear-counter workaround.
-+ // Three descriptors at offsets 0/16/32 carry kind tags 3, 4, 5 and page
-- // Three descriptors at offsets 0/16/32 carry kind tags 3, 4, 5 and page
-+ // counts 10, 20, 30; the walk sums the page counts of kind >= 4 entries:
-- // counts 10, 20, 30; the walk sums the page counts of kind >= 4 entries:
-+ // 20 + 30 = 50.
-- // 20 + 30 = 50.
-+ //
-- //
-+ // Expected exit: 50
-- // Expected exit: 50
-+ use omega::language::core::numeric_conversion;
-- use omega::language::core::numeric_conversion;
-+ data Desc { kind: u32; pages: u64; }
-- data Desc { kind: u32; pages: u64; }
-+ data Main {
-- data Main {
-+     buf: [u8; 48];
--     buf: [u8; 48];
-+     descriptor_size: u32;
--     descriptor_size: u32;
-+     total: u32 in Wrapping;
--     total: u32 in Wrapping;
-+ }
-- }
-+ machine walk_descriptors(main: &mut Main) crashes Trap {
-- machine walk_descriptors(main: &mut Main) crashes Trap {
-+     // Descriptor 0: kind 3, pages 10.
--     // Descriptor 0: kind 3, pages 10.
-+     main.buf[0] = 3;
--     main.buf[0] = 3;
-+     main.buf[8] = 10;
--     main.buf[8] = 10;
-+     // Descriptor 1: kind 4, pages 20.
--     // Descriptor 1: kind 4, pages 20.
-+     main.buf[16] = 4;
--     main.buf[16] = 4;
-+     main.buf[24] = 20;
--     main.buf[24] = 20;
-+     // Descriptor 2: kind 5, pages 30.
--     // Descriptor 2: kind 5, pages 30.
-+     main.buf[32] = 5;
--     main.buf[32] = 5;
-+     main.buf[40] = 30;
--     main.buf[40] = 30;
-+     main.descriptor_size = 16;
--     main.descriptor_size = 16;
-+     transition { _ -> walk(main, 0) }
--     transition { _ -> walk(main, 0) }
-+ 
-- 
-+     // The view is taken once per entry. Current arrival requirements and the
--     // The view is taken once per entry. Current arrival requirements and the
-+     // guarded back edge establish its footprint over the original buffer.
--     // guarded back edge establish its footprint over the original buffer.
-+     machine walk(main: &mut Main, off: u32) requires off <= 32 crashes Trap {
--     machine walk(main: &mut Main, off: u32) requires off <= 32 crashes Trap {
-+         let d: &Desc = &main.buf[off] as &Desc;
--         let d: &Desc = &main.buf[off] as &Desc;
-+         let pages: u64 = d.pages;
--         let pages: u64 = d.pages;
-+         transition d.kind >= 4 {
--         transition d.kind >= 4 {
-+             true -> tally(main, off, pages)
--             true -> tally(main, off, pages)
-+             _ -> step(main, off)
--             _ -> step(main, off)
-+         }
--         }
-+     }
--     }
-+     machine tally(main: &mut Main, off: u32, pages: u64) requires off <= 32 crashes Trap {
--     machine tally(main: &mut Main, off: u32, pages: u64) requires off <= 32 crashes Trap {
-+         let counted: u32 in Wrapping =
--         let counted: u32 in Wrapping =
-+             narrow_u64_to_u32_wrapping(pages) as u32 in Wrapping;
--             narrow_u64_to_u32_wrapping(pages) as u32 in Wrapping;
-+         main.total = main.total + counted;
--         main.total = main.total + counted;
-+         transition { _ -> step(main, off) }
--         transition { _ -> step(main, off) }
-+     }
--     }
-+     machine step(main: &mut Main, off: u32) requires off <= 32 crashes Trap {
--     machine step(main: &mut Main, off: u32) requires off <= 32 crashes Trap {
-+         let stride: u32 = main.descriptor_size;
--         let stride: u32 = main.descriptor_size;
-+         transition stride > 0 && stride <= 16 {
--         transition stride > 0 && stride <= 16 {
-+             true -> advance(main, off, stride)
--             true -> advance(main, off, stride)
-+             _ -> done(main)
--             _ -> done(main)
-+         }
--         }
-+     }
--     }
-+     machine advance(main: &mut Main, off: u32, stride: u32) requires off <= 32 requires stride <= 16 crashes Trap {
--     machine advance(main: &mut Main, off: u32, stride: u32) requires off <= 32 requires stride <= 16 crashes Trap {
-+         let next: u32 = off + stride;
--         let next: u32 = off + stride;
-+         transition next <= 32 {
--         transition next <= 32 {
-+             true -> walk(main, next)
--             true -> walk(main, next)
-+             _ -> done(main)
--             _ -> done(main)
-+         }
--         }
-+     }
--     }
-+     machine done(main: &mut Main) crashes Trap {
--     machine done(main: &mut Main) crashes Trap {
-+         transition main.total == 50 { true -> good() _ -> bad() }
--         transition main.total == 50 { true -> good() _ -> bad() }
-+     }
--     }
-+ }
-- }
-+ 
-- 
-+ // The entry owns ordinary local state; selection supplies no context.
-- // The entry owns ordinary local state; selection supplies no context.
-+ machine entry_start() crashes Trap {
-- machine entry_start() crashes Trap {
-+     let mut entry_storage: Main;
--     let mut entry_storage: Main;
-+     walk_descriptors(&mut entry_storage);
--     walk_descriptors(&mut entry_storage);
-+ }
-- }
-+ 
-- 
-+ machine good() {}
-- machine good() {}
-+ machine bad() crashes Trap { crash Trap; }
-- machine bad() crashes Trap { crash Trap; }
-```
-
-**`omega --check`** exit=0 verdict=`accepted`
-```
-compiled 29 source file(s) from /agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_projected_record_region_loop_exit__main.omg__drop_requires__885ac42f221b8727/main.omg; wrote_output=false
-
-```
-
-**`route_one_comparison`** route=`outside`
-- Route detail: route=outside
-```
-program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__borrows__runtime_projected_record_region_loop_exit__main.omg__drop_requires__885ac42f221b8727/main.omg	current=accepted	current_us=3054576	root=compilation	route=outside	Unsupported: parameter mutable parameter
+program	/agent/repos/omega/.agents/four-jobs-2026-11-12/soundness/shard-6/mutants/tests__omega__pass__arrays__runtime_completed_array_window_replacement_exit__main.omg__remove_mut__b9a3bdab948d8393/main.omg	current=accepted	current_us=4546828	root=compilation	route=outside	Unsupported: machine service reach
 
 ```
 

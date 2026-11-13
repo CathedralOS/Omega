@@ -1,0 +1,35 @@
+// A bare machine call names the machine rather than its entry state, and
+// the claim a caller binds must not depend on that spelling: `pack`
+// places its linear inputs in different fields on its two arms, and the
+// caller still discharges every member through the external sink.
+
+data Receipt [linear] {
+    code: i32;
+}
+
+boundary trait ReceiptAck {
+    machine ack(receipt: Receipt) reaches;
+}
+
+data Pair {
+    left: Receipt;
+    right: Receipt;
+}
+
+machine pack(swap: bool, left: Receipt, right: Receipt) -> Pair {
+    transition swap {
+        false -> (Pair { left: left, right: right })
+        true -> (Pair { left: right, right: left })
+    }
+}
+
+data Main {}
+
+machine Main::main(main: & Main) {
+    let kept: Pair = pack(false, Receipt { code: 1 }, Receipt { code: 2 });
+    let swapped: Pair = pack(true, Receipt { code: 3 }, Receipt { code: 4 });
+    ReceiptAck::ack(kept.left);
+    ReceiptAck::ack(kept.right);
+    ReceiptAck::ack(swapped.left);
+    ReceiptAck::ack(swapped.right);
+}

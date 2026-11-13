@@ -1,0 +1,1131 @@
+fixture	tier	outcome	diagnostic
+tests/omega/pass/arithmetic/bounded_assignment/main.omg	pass	no-mutation	
+tests/omega/pass/arithmetic/checked_flag_proof_signed_mask/main.omg	pass	mutated	
+tests/omega/pass/arithmetic/disjunctive_requires_exact_slot/main.omg	pass	mutated	
+tests/omega/pass/arithmetic/fixed_unsigned_multiply_values_survive_calls_exit/main.omg	pass	no-mutation	
+tests/omega/pass/arithmetic/narrowing_flow_and_widen_permitted/main.omg	pass	no-mutation	
+tests/omega/pass/arithmetic/qualified_float_cast_specification_declared_sources/main.omg	pass	no-mutation	
+tests/omega/pass/arithmetic/runtime_boolean_field_shift_count_exit/main.omg	pass	mutated	
+tests/omega/pass/arithmetic/runtime_captured_boolean_recurrence/main.omg	pass	mutated	
+tests/omega/pass/arithmetic/runtime_exact_guarded_shift_count_exit/main.omg	pass	no-mutation	
+tests/omega/pass/arithmetic/runtime_float_nan_comparison_exit/main.omg	pass	no-mutation	
+tests/omega/pass/arithmetic/runtime_monte_carlo_pi_exit/main.omg	pass	no-mutation	
+tests/omega/pass/arithmetic/runtime_remainder_result_cast_exit/main.omg	pass	no-mutation	
+tests/omega/pass/arithmetic/runtime_signed_minimum_remainder_postcondition_exit/main.omg	pass	mutated	
+tests/omega/pass/arithmetic/runtime_u64_guarded_cap_store_exit/main.omg	pass	no-mutation	
+tests/omega/pass/arithmetic/sparse_captured_utf_path_exit/main.omg	pass	mutated	
+tests/omega/pass/arrays/computed_fixed_array_length_exit/main.omg	pass	mutated	
+tests/omega/pass/arrays/runtime_completed_array_window_replacement_exit/main.omg	pass	mutated	
+tests/omega/pass/asm/atomic_release_disposition_pair_exit/main.omg	pass	mutated	
+tests/omega/pass/asm/checked_asm_nominal_symbolic_conjunction_exit/main.omg	pass	mutated	
+tests/omega/pass/asm/checked_label_borrow_last_use_exit/main.omg	pass	mutated	
+tests/omega/pass/asm/instruction_disposition_native/main.omg	pass	no-mutation	
+tests/omega/pass/asm/scratch_snapshot_survives_input_write_exit/main.omg	pass	mutated	
+tests/omega/pass/atomics/placed_atomic_shared_store/main.omg	pass	mutated	
+tests/omega/pass/atomics/runtime_atomic_computed_updates_exit/main.omg	pass	mutated	
+tests/omega/pass/atomics/runtime_mixed_common_atomic_cell_exit/main.omg	pass	mutated	
+tests/omega/pass/blockexec/runtime_selected_worker_body_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrow/nested_reference_parameter_referent_assignment/main.omg	pass	mutated	
+tests/omega/pass/borrow/runtime_indexed_write_only_local_receiver_exit/main.omg	pass	mutated	
+tests/omega/pass/borrow/runtime_static_callable_preserves_readonly_subject_exit/main.omg	pass	mutated	
+tests/omega/pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit/main.omg	pass	mutated	
+tests/omega/pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit/main.omg	pass	mutated	
+tests/omega/pass/borrow/runtime_write_only_reference_aggregate_call_result_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrow/storage_address_byte_window_identity_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/aliased_descriptor_slot_after_last_use_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/borrowed_literal_backing_releases_input_loan_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/branch_selected_record_composed_receiver_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/case_payload_shared_transition_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/conditional_copied_slot_restores_parent_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/copied_input_descriptor_independent_mutation_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/dynamic_window_return_custody_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/foreign_output_copied_lifetime_last_use/main.omg	pass	mutated	
+tests/omega/pass/borrows/initialized_empty_array_snapshot_replacement_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/literal_index_reference_copy_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/local_subslice_parent_lent_after_last_use_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/nested_machine_carried_long_cycle_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/nested_reference_call_checked_index_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/opaque_incoming_nested_projected_array_result_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/ordinary_select_provider_reference_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/plain_read_after_exclusive_loan_last_use_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/projected_param_member_loan/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/qualified_reference_field_retarget_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/resident_view_borrowed_helper_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/returned_record_field_read_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_affine_local_case_return_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_byte_case_partial_cleanup_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_carrier_reference_store_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_computed_backing_reference_copy_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_copied_byte_distinct_epochs_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_dependent_forwarded_window_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_dropped_reference_qualification_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_formed_child_descriptor_replacement_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_independent_qualified_owner_reference_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_indexed_reference_array_bounded_read_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_match_payload_parent_disjoint_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_mutable_reference_captures_selector_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_nested_owned_call_backing_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_owned_input_reference_replacement_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_projected_record_region_loop_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_qualified_statement_descriptor_replacement_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_recursive_shared_array_read_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_reference_call_scalar_snapshot_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_reference_record_direct_payload_restoration_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_returned_mutable_reference_array_bounded_read_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_returned_stored_view_reborrow_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_selected_reference_child_retirement_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_selected_stored_carrier_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_shared_scalar_local_capture_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_static_callback_snapshot_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_stored_reference_leaf_child_retirement_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_tail_expression_views_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/runtime_unrelated_empty_carrier_before_owned_join_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/runtime_writeonly_nested_reference_array_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/static_carrier_bounded_reference_read_exit/main.omg	pass	no-mutation	
+tests/omega/pass/borrows/stored_view_return_consumers/main.omg	pass	mutated	
+tests/omega/pass/borrows/suspension_projected_call_view_inline_source_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/suspension_saved_reference_view_all_suppliers_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/tagged_scalar_field_live_copy_exit/main.omg	pass	mutated	
+tests/omega/pass/borrows/writeonly_record_field_store/main.omg	pass	no-mutation	
+tests/omega/pass/boundary/requirement_float_precondition_exit/main.omg	pass	mutated	
+tests/omega/pass/build/activation_descriptor_write_observed_exit/main.omg	pass	mutated	
+tests/omega/pass/build/build_no_entry/main.omg	pass	no-mutation	
+tests/omega/pass/build/component_assumption_policy_accepted/main.omg	pass	no-mutation	
+tests/omega/pass/build/copied_domain_source_exit/main.omg	pass	mutated	
+tests/omega/pass/build/dependency_declaration_queries/main.omg	pass	no-mutation	
+tests/omega/pass/build/descriptor_table_round_trip/main.omg	pass	no-mutation	
+tests/omega/pass/build/executed_git_source_join_exit/main.omg	pass	no-mutation	
+tests/omega/pass/build/explicit_provider_storage_extent_exit/main.omg	pass	no-mutation	
+tests/omega/pass/build/installed_entry_ram_two_occurrences_exit/main.omg	pass	mutated	
+tests/omega/pass/build/native_component_case_loan_cycle/main.omg	pass	no-mutation	
+tests/omega/pass/build/nested_generated_dependency_dual_purpose/generator/main.omg	pass	no-mutation	
+tests/omega/pass/build/package_batch_distinct_builds/main.omg	pass	no-mutation	
+tests/omega/pass/build/product_selection_helper_exit/main.omg	pass	no-mutation	
+tests/omega/pass/build/provider_package_default_override_exit/reading_provider/main.omg	pass	no-mutation	
+tests/omega/pass/build/provider_target_value_forwarding_exit/main.omg	pass	no-mutation	
+tests/omega/pass/build/retained_domain_and_service_rows_exit/main.omg	pass	mutated	
+tests/omega/pass/build/runtime_retained_const_application_exit/main.omg	pass	mutated	
+tests/omega/pass/build/sibling_module_service_exclusion_exit/main.omg	pass	mutated	
+tests/omega/pass/build/terminal_private_callback_calling/main.omg	pass	no-mutation	
+tests/omega/pass/build/uefi_provisioned_context_roots/main.omg	pass	no-mutation	
+tests/omega/pass/calling/calling_count_boundaries_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/borrowed_float_result_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/callback_borrowed_scalar_entry/main.omg	pass	no-mutation	
+tests/omega/pass/calls/callback_private_deep_forwarded_record/main.omg	pass	no-mutation	
+tests/omega/pass/calls/case_scrutinee_self_dispatch_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/converted_call_value_private_arrival_exit/main.omg	pass	mutated	
+tests/omega/pass/calls/direct_target_foreign_scalar_result_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/guard_call_scalar_argument_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/local_after_call_result_store_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/local_record_forwarded_across_callee_states_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/mixed_value_forwarding_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/native_code_layout_frame_exit/main.omg	pass	mutated	
+tests/omega/pass/calls/nested_binding_call/main.omg	pass	mutated	
+tests/omega/pass/calls/nested_scalar_argument_evaluation_order_exit/main.omg	pass	mutated	
+tests/omega/pass/calls/nonreturning_record_constructor_prefix_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/outcome_specific_mixed_snapshot/main.omg	pass	no-mutation	
+tests/omega/pass/calls/owned_overaligned_local_call/main.omg	pass	mutated	
+tests/omega/pass/calls/recursive_terminal_block_acknowledgement_exit/main.omg	pass	mutated	
+tests/omega/pass/calls/resultless_native_callback_compile/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_assignment_call_post_mutation_value_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_boundary_computed_selector_order_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_case_record_return_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_constant_tail_requires_argument_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_constructor_child_membership_snapshot_exit/main.omg	pass	mutated	
+tests/omega/pass/calls/runtime_cross_machine_substate_name_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_enum_self_method_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_foreign_scalar_indirect_result_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_guarded_reference_return_machine_crash/main.omg	pass	mutated	
+tests/omega/pass/calls/runtime_guarded_terminal_structural_result_exit/main.omg	pass	mutated	
+tests/omega/pass/calls/runtime_let_mut_reassign_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_local_scalar_array_element_loan_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_mutable_local_parameter_write_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_nested_constructor_child_snapshots_exit/main.omg	pass	mutated	
+tests/omega/pass/calls/runtime_option_value_call_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_qualified_owned_result_argument_exit/main.omg	pass	mutated	
+tests/omega/pass/calls/runtime_selected_call_argument_from_fieldwise_local_exit/main.omg	pass	mutated	
+tests/omega/pass/calls/runtime_static_proof_only_namespace_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_structural_literal_call_initializer_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/runtime_value_call_nested_entry_call_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/scalar_local_record_view_call_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/selected_crash_formal_permitted_return_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/static_arithmetic_name_callback_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/stored_unsigned_as_signed_positive_requires_exit/main.omg	pass	no-mutation	
+tests/omega/pass/calls/terminal_call_acknowledgements/main.omg	pass	mutated	
+tests/omega/pass/calls/value_call_embedded_in_binary_exit/main.omg	pass	no-mutation	
+tests/omega/pass/capabilities/alternative_synchronous_provider_exit/main.omg	pass	mutated	
+tests/omega/pass/capabilities/selected_synchronous_chain_exit/main.omg	pass	no-mutation	
+tests/omega/pass/cases/arm_field_placement/main.omg	pass	mutated	
+tests/omega/pass/cases/case_where_common/main.omg	pass	mutated	
+tests/omega/pass/cases/match_reference_local/main.omg	pass	mutated	
+tests/omega/pass/cases/runtime_case_payload_policy_cast_exit/main.omg	pass	mutated	
+tests/omega/pass/cases/unit_empty_arm/main.omg	pass	mutated	
+tests/omega/pass/collections/case_array_literal_nested_store_exit/main.omg	pass	no-mutation	
+tests/omega/pass/collections/element_view_field_write/main.omg	pass	no-mutation	
+tests/omega/pass/collections/float_array_completed_call_store_exit/main.omg	pass	no-mutation	
+tests/omega/pass/collections/nested_runtime_indexed_successor_argument_exit/main.omg	pass	no-mutation	
+tests/omega/pass/collections/record_array_literal_field_store_exit/main.omg	pass	no-mutation	
+tests/omega/pass/collections/runtime_captured_structural_copy_exit/main.omg	pass	mutated	
+tests/omega/pass/collections/runtime_computed_index_direct_exit/main.omg	pass	no-mutation	
+tests/omega/pass/collections/runtime_double_indexed_rmw_exit/main.omg	pass	no-mutation	
+tests/omega/pass/collections/runtime_fixed_array_captured_selector_store_exit/main.omg	pass	no-mutation	
+tests/omega/pass/collections/runtime_float_array_projection_return_exit/main.omg	pass	mutated	
+tests/omega/pass/collections/runtime_indexed_bounded_field_local_exit/main.omg	pass	no-mutation	
+tests/omega/pass/collections/runtime_maze_pathfind_exit/main.omg	pass	no-mutation	
+tests/omega/pass/collections/runtime_nested_selected_element_extents_exit/main.omg	pass	mutated	
+tests/omega/pass/collections/runtime_projected_element_descriptor_read_exit/main.omg	pass	mutated	
+tests/omega/pass/collections/runtime_sequential_index_observations_exit/main.omg	pass	mutated	
+tests/omega/pass/collections/runtime_stored_reference_array_replacement_contract_exit/main.omg	pass	mutated	
+tests/omega/pass/collections/typed_run_relocation_exit/main.omg	pass	mutated	
+tests/omega/pass/components/independent_same_spelling_packages/main.omg	pass	no-mutation	
+tests/omega/pass/comptime/runtime_const_array_cast_expression_exit/main.omg	pass	mutated	
+tests/omega/pass/comptime/runtime_const_array_wrapping_result_exit/main.omg	pass	no-mutation	
+tests/omega/pass/concurrency/incoming_loan_after_suspend/main.omg	pass	mutated	
+tests/omega/pass/concurrency/suspend_carry_task/main.omg	pass	mutated	
+tests/omega/pass/constants/const_data_param/main.omg	pass	mutated	
+tests/omega/pass/constants/predicate_constant_static_index/main.omg	pass	mutated	
+tests/omega/pass/constants/target_layout_derived_helper_exit/main.omg	pass	mutated	
+tests/omega/pass/constraints/proof_machine_order_fact/main.omg	pass	mutated	
+tests/omega/pass/contracts/boolean_result_all_normal_returns_exit/main.omg	pass	mutated	
+tests/omega/pass/contracts/completed_anonymous_cast_preserves_prefix_exit/main.omg	pass	mutated	
+tests/omega/pass/contracts/contradictory_match_predecessor_join_exit/main.omg	pass	mutated	
+tests/omega/pass/contracts/ensures_fact_list_exit/main.omg	pass	no-mutation	
+tests/omega/pass/contracts/folded_actual_requires/main.omg	pass	mutated	
+tests/omega/pass/contracts/header_suspends_before_body/main.omg	pass	no-mutation	
+tests/omega/pass/contracts/match_payload_contract/main.omg	pass	no-mutation	
+tests/omega/pass/contracts/policy_field_ensures/main.omg	pass	mutated	
+tests/omega/pass/contracts/requires_u8_ceiling_below_carrier/main.omg	pass	no-mutation	
+tests/omega/pass/contracts/runtime_float_entry_relations_exit/main.omg	pass	no-mutation	
+tests/omega/pass/contracts/runtime_later_arm_call_requires_exit/main.omg	pass	no-mutation	
+tests/omega/pass/contracts/runtime_recursive_result_bound_exit/main.omg	pass	mutated	
+tests/omega/pass/contracts/static_type_requires_prior_call_exit/main.omg	pass	mutated	
+tests/omega/pass/control_flow/affine_record_state_cycle_exit/main.omg	pass	no-mutation	
+tests/omega/pass/control_flow/bool_subject_dispatch_compile/main.omg	pass	mutated	
+tests/omega/pass/control_flow/case_arm_scalar_payload_arguments_exit/main.omg	pass	no-mutation	
+tests/omega/pass/control_flow/constant_aggregate_dispatch_complete/main.omg	pass	mutated	
+tests/omega/pass/control_flow/field_bool_dispatch_compile/main.omg	pass	mutated	
+tests/omega/pass/control_flow/guarded_leaf_branch_expansion/main.omg	pass	mutated	
+tests/omega/pass/control_flow/indexed_record_state_argument_exit/main.omg	pass	no-mutation	
+tests/omega/pass/control_flow/mixed_sign_arms_dispatch_compile/main.omg	pass	mutated	
+tests/omega/pass/control_flow/nested_parameter_receiver_call/main.omg	pass	mutated	
+tests/omega/pass/control_flow/owned_array_state_transfer_exit/main.omg	pass	no-mutation	
+tests/omega/pass/control_flow/record_pattern_arm_rename_guard_exit/main.omg	pass	no-mutation	
+tests/omega/pass/control_flow/runtime_branch_parameter_cleanup_exit/main.omg	pass	mutated	
+tests/omega/pass/control_flow/runtime_completed_readonly_home_replacement_exit/main.omg	pass	mutated	
+tests/omega/pass/control_flow/runtime_diamond_join_borrowed_record_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/control_flow/runtime_guard_case_survives_disjoint_conjunct_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/control_flow/runtime_indexed_case_dispatch_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit/main.omg	pass	mutated	
+tests/omega/pass/control_flow/runtime_nonentry_state_local_shared_loan_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/control_flow/runtime_projected_index_case_payload_forwarding_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/control_flow/runtime_saved_transition_subject_exit/main.omg	pass	mutated	
+tests/omega/pass/control_flow/runtime_static_type_terminal_unit_cleanup_exit/main.omg	pass	mutated	
+tests/omega/pass/control_flow/saved_case_predicate_disjoint_effects_exit/main.omg	pass	mutated	
+tests/omega/pass/control_flow/shared_view_selected_disposition_exit/main.omg	pass	mutated	
+tests/omega/pass/control_flow/sum_field_storage_roundtrip/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/core/address_interval_partition_reverse_exit/main.omg	pass	mutated	
+tests/omega/pass/core/content_conservation_contract_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/core/content_conservation_selected_field_replacement_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/core/content_conservation_wrapper_match_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/core/content_projection_exact_integer_arithmetic/main.omg	pass	mutated	
+tests/omega/pass/core/content_transform_predicate_array/main.omg	pass	mutated	
+tests/omega/pass/core/independent_content_factory_exit/main.omg	pass	mutated	
+tests/omega/pass/core/materialized_owned_entry_return/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/core/numeric_trapping_discarded_conversion/main.omg	pass	mutated	
+tests/omega/pass/core/numeric_widening_preserves_values/main.omg	pass	mutated	
+tests/omega/pass/core/runtime_inherited_content_formal_identity_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/core/vacant_extent_partition_endpoints/main.omg	pass	mutated	
+tests/omega/pass/data/opaque_copy_selected/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/data/record_pattern_let_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/data/runtime_mixed_case_nested_common_fields_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/dependent/boundary_requires_caller_field_extent_compile/main.omg	pass	mutated	
+tests/omega/pass/dependent/closed_case_common_and_active_payload_projection/main.omg	pass	mutated	
+tests/omega/pass/dependent/data_requires_cyclic_handoff_walk_exit/main.omg	pass	mutated	
+tests/omega/pass/dependent/data_where_cross_field_disequality_compile/main.omg	pass	mutated	
+tests/omega/pass/dependent/data_where_half_open_interval_compile/main.omg	pass	mutated	
+tests/omega/pass/dependent/data_where_negation_bound_compile/main.omg	pass	mutated	
+tests/omega/pass/dependent/data_where_signed_disequality_compile/main.omg	pass	mutated	
+tests/omega/pass/dependent/data_where_three_field_equality_compile/main.omg	pass	mutated	
+tests/omega/pass/dependent/domain_member_with_where_compile/main.omg	pass	mutated	
+tests/omega/pass/dependent/runtime_borrowed_coupled_last_store_exit/main.omg	pass	mutated	
+tests/omega/pass/dependent/runtime_slice_coordinate_citation_exit/main.omg	pass	mutated	
+tests/omega/pass/dependent/valuation_order_cycle/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/domains/bitwise_live_membership_exit/main.omg	pass	mutated	
+tests/omega/pass/domains/carried_nested_payload_qualification/main.omg	pass	mutated	
+tests/omega/pass/domains/case_payload_predicate_domain_member_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/domains/domain_family_result/main.omg	pass	mutated	
+tests/omega/pass/domains/domain_pattern_match_bound_full_width_field_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/domains/domain_pattern_match_bound_ordered_effects_exit/main.omg	pass	mutated	
+tests/omega/pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit/main.omg	pass	mutated	
+tests/omega/pass/domains/inactive_impossible_payload_exit/main.omg	pass	mutated	
+tests/omega/pass/domains/linear_qualification_projected_sibling/main.omg	pass	mutated	
+tests/omega/pass/domains/moved_payload_uses_current_membership_exit/main.omg	pass	mutated	
+tests/omega/pass/domains/private_case_payload_construction/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/domains/qualified_record_capture_after_mutation/main.omg	pass	mutated	
+tests/omega/pass/domains/qualified_structural_argument_same_shape_no_call/main.omg	pass	mutated	
+tests/omega/pass/domains/routed_record_capture_before_sibling_mutation/main.omg	pass	mutated	
+tests/omega/pass/domains/runtime_bodyless_routed_primitive_receiver_replacement_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/domains/runtime_primitive_receiver_explicit_domain_erasure_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/domains/runtime_scalar_domain_generic_issuer_exit/main.omg	pass	mutated	
+tests/omega/pass/domains/runtime_terminal_result_context_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/domains/tagged_scalar_reference_carriers_exit/main.omg	pass	mutated	
+tests/omega/pass/domains/utf8_field_read_carries_domain_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/drops/borrowed_projection_earlier_call_capture_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/conditional_structural_return_cleanup_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/core_drop_owner_hook/main.omg	pass	mutated	
+tests/omega/pass/drops/lifetime_owner_drop_hook/main.omg	pass	mutated	
+tests/omega/pass/drops/result_cleanup_named_boolean_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_borrowed_temporary_deferred_child_cleanup_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_cleanup_case_evidence_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_empty_array_owner_cleanup_sites_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_local_nominal_return_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_nested_empty_array_owner_cleanup_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_nominal_state_loan_crash_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_owner_scoped_generic_cleanup_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_replaced_record_custody_transfer_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_selected_nominal_owner_cleanup_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_sibling_constructor_source_frontier_exit/main.omg	pass	mutated	
+tests/omega/pass/drops/runtime_unobserved_owned_state_transfer_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/drops/transfer_cleanup_into_state/main.omg	pass	mutated	
+tests/omega/pass/effects/core_critical_service_catalog/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/effects/nominal_callback_dependency/main.omg	pass	mutated	
+tests/omega/pass/effects/reach_inferred_wrapper/main.omg	pass	mutated	
+tests/omega/pass/effects/structural_callback_reach/main.omg	pass	mutated	
+tests/omega/pass/errors/member_crash_route/main.omg	pass	mutated	
+tests/omega/pass/expressions/anonymous_structural_match_results_exit/main.omg	pass	mutated	
+tests/omega/pass/expressions/borrowed_field_store_call_product/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/expressions/call_result_comparison_operands_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/expressions/deep_paren_nesting/main.omg	pass	mutated	
+tests/omega/pass/expressions/match_float_interpretation/main.omg	pass	mutated	
+tests/omega/pass/expressions/match_owned_call_product_arms/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/expressions/match_owned_projected_field_arm/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/expressions/mixed_integer_comparison_widths/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/expressions/owned_match_projected_field/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/expressions/runtime_float_record_field_reads_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/expressions/runtime_match_structural_predicate_effect_order_exit/main.omg	pass	mutated	
+tests/omega/pass/expressions/runtime_owned_match_multiple_projected_claims_exit/main.omg	pass	mutated	
+tests/omega/pass/expressions/seq_consuming_combinators/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/abi_multi_arg_spill_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/abstract_signature_call_applied_callback_nested_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/abstract_signature_call_applied_callback_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/abstract_signature_call_constant_initializer_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/abstract_signature_call_constant_initializer_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/abstract_signature_call_generic_actual_through_call_result_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/abstract_signature_call_generic_actual_through_target_body_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/abstract_signature_call_through_other_target_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/additional_input_domain_mutation_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/address_count_partition_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/affine_discard_root_cleanup_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/aggregate_storage_address_identity_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/aggregate_struct_return_abi_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/alias_fact_transfer_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/applied_requirement_indices_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/applied_requirement_indices_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/applied_zero_establishment_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/array_element_default_domain/other_state/main.omg	pass	mutated	
+tests/omega/pass/facts/as_slice_views_generic_through_const_name_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/as_slice_views_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/as_slice_views_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/assumed_binding_input_authority_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/assumed_binding_result_bound_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/atomic_boolean_store/other_machine/main.omg	pass	mutated	
+tests/omega/pass/facts/atomic_bounded_fetch/match_join/main.omg	pass	mutated	
+tests/omega/pass/facts/atomic_bounded_resident/local/main.omg	pass	mutated	
+tests/omega/pass/facts/atomic_compare_exchange_once_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/atomic_compare_exchange_once_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/atomic_try_exchange_once/controls/wide/main.omg	pass	mutated	
+tests/omega/pass/facts/body_bearing_comparison_case_fields_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/body_bearing_comparison_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/borrowed_case_result_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/borrowed_content_partition_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/borrowed_projection_cleanup_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/borrowed_projection_cleanup_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/borrowed_restoration_window_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/borrowed_store_call_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/boundary_provider_call_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/boundary_zero_origin_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/bounded_activation_claim_split_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/bounded_activation_computed_bound_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/bounded_activation_named_attempt_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/bounded_activation_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/bounded_products_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/bounded_products_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/bounded_scalar_sums_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/build_activation_borrow/other_state/main.omg	pass	mutated	
+tests/omega/pass/facts/build_target_provider_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/build_target_provider_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/c_layout_nested_representation_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/c_layout_scalar_record_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/call_result_bound_discharge_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/callee_saved_across_nested_calls_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/captured_storage_bounds_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/captured_window_slot_retirement_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/captured_window_slot_retirement_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/case_dependent_default_domain_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/case_match_payload_loan_through_other_state_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/case_payload_exclusive_loan_through_other_machine_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/case_payload_layout_geometry_through_match_join_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/case_payload_stored_loan_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/case_payload_transport_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/case_tag_discriminant_layout_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/case_type_equation_recovery_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/case_type_equation_recovery_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/case_where_equality_data_predicate_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/case_where_equality_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/case_where_equality_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_add_carry_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_arm_load_through_other_state_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/checked_asm_compare_preserves_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_countdown_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_fence_contracts_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_flag_restore_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_flag_snapshot_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_flag_snapshot_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_nominal_predicate_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_rank_decrease_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_register_contract_bound_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_asm_view_move_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/checked_predicate_disjoint_loans_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/closed_integer_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/completed_integer_carrier_bounds_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/component_scalar_lending_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/component_scalar_lending_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/component_scalar_lending_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/compound_index_guard_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/computed_constant_array_extent_through_match_join_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/computed_nested_state_loan_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/computed_record_window_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/computed_subslice_extent_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/computed_subslice_extent_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/content_interval_adjacency_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/content_reunion_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/contract_excluded_case_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/copied_call_argument_snapshot_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/copied_case_before_later_argument_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/core_float_representation_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/core_integer_endpoint_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/correlated_invariant_store_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/correlated_invariant_store_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/crash_entry_ieee_view_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/crash_entry_nan_equality_through_other_state_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/crash_entry_nonempty_path_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/crash_entry_representation_view_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/crash_entry_signed_zero_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/darwin_stat_abi_through_field_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/data_where_standing_borrowed_field_array_const_name/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/data_where_standing_borrowed_field_descriptor_snapshot_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/data_where_standing_borrowed_field_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/data_where_standing_mutable_recast_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/data_where_standing_mutable_restoration_snapshot/main.omg	pass	mutated	
+tests/omega/pass/facts/data_where_standing_nested_borrowed_field_local/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/data_where_standing_predicate_helper_literal_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/data_where_standing_predicate_helper_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/data_where_standing_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/data_where_standing_write_only_call_result/main.omg	pass	mutated	
+tests/omega/pass/facts/data_where_standing_write_only_parameter/main.omg	pass	mutated	
+tests/omega/pass/facts/default_domain_field_write_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/dependency_type_qualified_call_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/dependency_type_qualified_call_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/dependent_subtract_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/descriptor_payload_exclusive_loan_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/descriptor_range_exclusive_loan_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/descriptor_replacement_order_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/disjoint_field_borrow_windows_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/disjoint_windows_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/domain_carrier_identity_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/domain_carrier_identity_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/domain_geometry_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/domain_pattern_match_bound_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/domain_predicate_call_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/domain_selected_cleanup_computed_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/domain_selected_cleanup_erased_predicates_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/domain_selected_cleanup_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/double_indexed_rmw_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/dyn_returned_view_membership_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/dynamic_float_refinement_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/dynamic_float_refinement_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/dynamic_selected_reach_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/dynamic_suspension_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/dynamic_trait_dispatch_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/erased_reference_contract_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/exact_integer_narrowing_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/exact_sub_guard_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/exclusive_match_arm_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/exclusive_observation_exposure_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/exclusive_observation_exposure_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/field_where_index_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/finite_family_const_roster/other_state/main.omg	pass	mutated	
+tests/omega/pass/facts/finite_family_exclusive_result/other_machine/main.omg	pass	mutated	
+tests/omega/pass/facts/finite_family_input_index/match_join/main.omg	pass	mutated	
+tests/omega/pass/facts/finite_family_owned_field/local/main.omg	pass	mutated	
+tests/omega/pass/facts/finite_family_returned_descriptor/field/main.omg	pass	mutated	
+tests/omega/pass/facts/finite_family_static_inline_result/const_name/main.omg	pass	mutated	
+tests/omega/pass/facts/five_variant_enum_payload_bound_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/five_variant_enum_payload_bound_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/fixed_array_eight_elem_index_bound_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/fixed_array_layout_geometry_through_other_state_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/fixed_array_onethousandtwentyfour_elem_index_bound_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/fixed_array_twofiftysix_elem_index_bound_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/fixed_array_value_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/fixed_layout_bit_observation_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/fixed_layout_byte_roundtrip_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/fixed_layout_reference_readback_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/fixed_layout_reference_readback_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/fixed_layout_storage_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/fixed_region_byte_roundtrip_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/float_comparison_route_through_field_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/float_meaning_result_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/float_range_delivery_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/float_range_delivery_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/float_result_equality_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/foreign_byte_array_element_backing_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/foreign_indirect_float_record_result_through_other_machine_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/foreign_nested_record_backing_match_join/main.omg	pass	mutated	
+tests/omega/pass/facts/foreign_package_service_reach_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/foreign_reference_result_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/foreign_retained_mutable_borrow_call_result/main.omg	pass	mutated	
+tests/omega/pass/facts/foreign_retained_mutable_borrow_parameter/main.omg	pass	mutated	
+tests/omega/pass/facts/foreign_retained_shared_borrow_local/main.omg	pass	mutated	
+tests/omega/pass/facts/foreign_retained_shared_borrow_raw_same_carrier_called/main.omg	pass	mutated	
+tests/omega/pass/facts/foreign_scalar_backing_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/foreign_scalar_record_result_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/four_variant_enum_payload_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/free_entry_local_state_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/generic_calling_policy/inherited_helper_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/generic_calling_policy_through_local_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/generic_case_subject_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/generic_comparison_body_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/generic_content_transfer_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/generic_content_transfer_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/generic_requirement_statement_call_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/generic_terminated_array_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/guarded_call_entry_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/guarded_line_loan_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/guarded_record_line_loan_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/ieee_float_32bit_ordered_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/ieee_float_ordered_comparison_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/implementation_region_forwarding_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/implementation_region_forwarding_through_target_body_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/in_place_view_argument_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/independent_call_result_bound_through_other_machine_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/independent_content_partition_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/index_every_width_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/indexed_crash_guard_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/indexed_element_mut_loan_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/indexed_recoverable_replacement_window_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/indexed_recoverable_replacement_window_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/indexed_storage_address_identity_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/induction_call_guarantee_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/inferred_array_equation_call_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/inferred_record_equation_call/field/main.omg	pass	mutated	
+tests/omega/pass/facts/inline_member_helper_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/inline_member_helper_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/installed_entry_storage_through_parameter_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/integer_multiple_remainder_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/integer_width_truncation_mask_bound_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/invariant_window_snapshot_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/length_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/lexical_generic_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/linear_claim_retirement_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/linear_owner_borrowed_projection_call_result/main.omg	pass	mutated	
+tests/omega/pass/facts/linear_owner_borrowed_projection_target_body/main.omg	pass	mutated	
+tests/omega/pass/facts/linear_routed_label_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/live_across_call_spill_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/live_across_two_calls_preservation_bound_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/loop_branch_relaxation_ranking_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/machine_tuple_dispatch_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/match_computed_root_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/match_effectful_subject_custody_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/match_join_multi_variant_bound_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/match_join_multi_variant_bound_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/match_join_place_read_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/match_loan_last_use_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/match_primitive_local_origin_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/match_projected_product_custody_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/match_reference_referent_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/match_runtime_view_extent_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/matched_field_windows_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/may_write_choice_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/may_write_choice_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/may_write_codec_argument_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/may_write_codec_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/may_write_computed_receiver_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/may_write_named_state_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/may_write_nested_helper_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/may_write_stored_rebind_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/method_array_operand_inference_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/mixed_width_record_padding_geometry_through_call_result_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/mixed_width_record_padding_geometry_through_target_body_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/multi_exit_callee_saved_restoration_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/mutable_borrow_field_writeback_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/mutable_slice_element_write_bound_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/named_conformance_dispatch_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/named_const_callable_family_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/narrow_to_wide_sign_extension_through_const_name_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/narrow_to_wide_signed_16to64_extension_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/narrow_to_wide_signed_16to64_extension_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/narrow_to_wide_signed_8to64_extension_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/narrow_to_wide_unsigned_16to64_extension_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/narrow_to_wide_unsigned_32to64_extension_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/narrow_to_wide_zero_extension_through_local_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/narrowed_integer_write_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/negated_mathematical_order_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_array_element_projection_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_array_element_projection_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_borrow_qualification_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_machine_invocation/other_machine/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/nested_machine_joint_rank_bounded_computed_length_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_nine_level_record_field_bound_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_record_field_borrow_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_record_layout_geometry_through_const_name_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/nested_record_value_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_record_value_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_result_extent_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_three_level_record_field_bound_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nested_zero_leaf_array_storage_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nine_arg_stack_calling_plan_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nominal_callback_reach_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nominal_declaration_owner_through_const_name/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/nominal_loan_backing_cleanup_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nominal_loan_backing_cleanup_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nominal_record_representation_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/nominal_reference_cleanup_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/non_owning_reference_erasure_through_other_machine_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/opaque_independent_inherited_result_through_local_exit/producer/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/opaque_independent_qualified_result_renumbered_catalog_exit/producer/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/open_array_const_implementation_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/open_const_implementation_private_record_package_exit/support/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/open_const_implementation_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/open_index_distributivity_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/open_record_const_implementation_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/outcome_structural_evidence_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/placed_stable_write_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/placed_stable_write_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/positional_implementation_binder_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/predicate_array_copy_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/predicate_type_formation_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/progress_selector_nested_arrival_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/progress_selector_owned_arrival_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/progress_selector_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/projection_call_premise_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/projection_receiver_call_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/projection_receiver_call_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/provider_contract_endpoint_closed_owner_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/provider_contract_endpoint_control_generic_forwarded_provider_selection/main.omg	pass	mutated	
+tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/provider_contract_endpoint_pending_call_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/provider_contract_endpoint_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/qualified_field_capacity_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/quotient_closed_literal_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/quotient_closed_literal_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/range_fact_delivery_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/readonly_byte_literal_subslice_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/recast_parent_restoration_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/record_layout_geometry_through_local_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/recorded_build_role/field/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/recoverable_replacement_window_through_const_name_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/reference_arrival_handoff_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/reference_arrival_handoff_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/reference_recast_backing_footprint_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/reflection_capacity_through_other_state_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/reflection_declaration_inspection_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/register_stack_arg_calling_plan_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/remainder_width_index_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/replaced_field_loan_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/representation_agreement_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/representation_conversion_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/representation_conversion_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/required_output_path/parameter/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/resident_backing_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/resident_backing_runtime_helper_loop_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/result_cleanup_guarantees_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/returned_indexed_linear_residual_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/returned_linear_residual_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/returned_write_destination_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_count_index_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_count_index_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_call_index_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_computed_result_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_computed_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_contract_index_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_equivalent_subject_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_forwarded_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_mutating_operator_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_nested_forwarded_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_nested_forwarded_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_ordinary_call_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_qualified_computed_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_selected_operator_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/runtime_index_application_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/saturating_integer_arithmetic_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/saved_case_predicate_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/saved_observation_snapshot_after_call_relational_return_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/saved_observation_snapshot_after_call_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/saved_observation_snapshot_indexed_handback_other_machine_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/saved_observation_snapshot_predicate_handback_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/saved_observation_snapshot_stored_reference_handback_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/saved_observation_snapshot_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/saved_observation_snapshot_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/scalar_array_row_construction_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/scalar_boundary_parameter_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/scalar_domain_call_guarantee_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/scalar_sign_zero_extension_through_match_join_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/scalar_tag_field_loan_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/scalar_width_shifts_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/scoped_scalar_initializer_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/sealed_requirement_member_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/sealed_requirement_member_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/selected_crash_formal_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/selected_native_code_layout_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/selected_provider_issuance_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/selected_scalar_initializer_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/selected_value_application_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/shared_borrow_field_projection_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/shared_byte_view_rebinding_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/shared_qualification_erasure_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/shared_qualification_erasure_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_64bit_bitwise_and_mask_bound_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_64bit_bitwise_or_bound_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_64bit_bitwise_xor_bound_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_64bit_saturating_multiplication_bound_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_64bit_saturating_subtraction_bound_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_64bit_wrapping_multiplication_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_64bit_wrapping_subtraction_bound_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_division_quotient_bound_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_division_quotient_bound_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_division_remainder_bound_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_exact_arithmetic_bound_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_exact_multiplication_bound_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_exact_subtraction_bound_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_saturating_arithmetic_bound_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_shift_left_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_shift_right_bound_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_wrapping_arithmetic_bound_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_8bit_wrapping_arithmetic_bound_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_arithmetic_shift_right_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_division_quotient_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_division_remainder_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_exact_addition_bound_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_exact_multiplication_bound_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_exact_subtraction_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/signed_shift_left_bound_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/size_align_layout_geometry_private_arrival_calls_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/size_align_layout_geometry_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/skipped_short_circuit_call_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/slice_view_element_read_bound_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/slice_view_layout_geometry_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/source_indexed_binary_tree_irrelevant_scalar_scope_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/source_indexed_binary_tree_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/source_indexed_family_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/source_indexed_family_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/source_indexed_type_parameter_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/sret_aggregate_return_bound_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/stack_frame_slot_isolation_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/state_transition_ranking_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/static_callable_type_requirements_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/static_callback_reach_boundary_schema/main.omg	pass	mutated	
+tests/omega/pass/facts/static_callback_reach_recursive_component/main.omg	pass	mutated	
+tests/omega/pass/facts/static_callback_reach_through_local/main.omg	pass	mutated	
+tests/omega/pass/facts/static_evidence_premise_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/stored_exclusive_byte_view_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/stored_shared_byte_view_element_lend_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/stored_shared_byte_view_element_lend_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/suspension_transported_loan_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/target_family_callback_guarantee/other_state/main.omg	pass	mutated	
+tests/omega/pass/facts/target_family_contract_operand/other_machine/main.omg	pass	mutated	
+tests/omega/pass/facts/target_family_invocation_lifetime/match_join/main.omg	pass	mutated	
+tests/omega/pass/facts/target_family_open_const/local/main.omg	pass	mutated	
+tests/omega/pass/facts/target_layout_derived_constant_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/target_recursive_bound_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/target_scoped_constant_realization_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/target_scoped_constant_realization_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/temporary_case_cleanup_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/typed_reflection_mutation_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/typed_reflection_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unannotated_direct_boundary_call_through_call_result_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/unannotated_direct_boundary_call_through_target_body_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/facts/unsigned_32bit_division_remainder_bound_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_64bit_bitwise_and_mask_bound_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_64bit_bitwise_or_bound_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_64bit_bitwise_xor_bound_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_64bit_saturating_multiplication_bound_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_64bit_saturating_subtraction_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_64bit_shift_left_bound_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_64bit_wrapping_multiplication_bound_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_64bit_wrapping_subtraction_bound_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_8bit_division_quotient_bound_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_8bit_exact_subtraction_bound_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_8bit_saturating_arithmetic_bound_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_8bit_shift_right_bound_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_8bit_wrapping_arithmetic_bound_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_byte_to_signed_case_domain_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_division_quotient_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_division_remainder_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_exact_addition_bound_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_exact_multiplication_bound_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_exact_subtraction_interval_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_shift_left_bound_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_shift_right_bound_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/unsigned_shift_right_bound_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/value_location_alignment_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/view_extent_after_write_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/wildcard_structural_return_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/wrapping_integer_arithmetic_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/write_only_borrow_initialization_through_call_result_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/write_only_borrow_initialization_through_target_body_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/write_only_borrow_struct_destination_through_parameter_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/write_only_ieee_store_readback_through_other_state_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/write_only_indexed_reborrow_through_other_machine_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/write_only_match_join_through_match_join_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/write_only_recast_through_local_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/write_only_reference_store_through_field_exit/main.omg	pass	mutated	
+tests/omega/pass/facts/zero_byte_erased_carrier_through_const_name_exit/main.omg	pass	mutated	
+tests/omega/pass/filesystem/create_dir_all_existing_file_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/filesystem/native_filetype/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/filesystem/portable_raw_family_capabilities_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/filesystem/runtime_portable_unknown_directory_kinds_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/filesystem/windows_lock_has_empty_reach/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/filesystem/windows_raw_directory_nth_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/filesystem/windows_wrapper_results_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/boundary_call_guard_result/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/computed_float_bare_literal_comparison/main.omg	pass	mutated	
+tests/omega/pass/float/constructor_record_direct_widen_exit/main.omg	pass	mutated	
+tests/omega/pass/float/finite_core_domain_range_discharge/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/float_ops_surface/main.omg	pass	mutated	
+tests/omega/pass/float/format_conversion_proved_finite_return_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/live_float_parameter_across_call_exit/main.omg	pass	mutated	
+tests/omega/pass/float/named_ieee_operations_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/named_provider_min_max_sqrt_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/ordinary_numeric_helper_edges_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/public_class_result_contract_import_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/runtime_absolute_return_sum_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/runtime_exact_integer_coercion_exit/main.omg	pass	mutated	
+tests/omega/pass/float/runtime_generic_constructor_literal_landing_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/runtime_named_fma_sequence_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/runtime_result_predicate_custody_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/scalar_helper_boundary_sequence_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/float/unselected_target_fma_needs_no_deployment_features/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/borrowed_applied_payload_field_static_selection/main.omg	pass	mutated	
+tests/omega/pass/generics/const_index_boolean_predicate_composition_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/contextual_static_machine_conformance_application_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/contextual_static_machine_universal_lifetime_application_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/dependent_const_array_carrier/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/generic_callback_schema/main.omg	pass	mutated	
+tests/omega/pass/generics/inferred_equation_generic_result_projection_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/inferred_equation_typed_const_field_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/inferred_machine_array_equation_generic_owner_field_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/inferred_record_equation_explicit_equal_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/mixed_value_case_constructor_checked/main.omg	pass	mutated	
+tests/omega/pass/generics/open_computed_quantity_result/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/open_const_selected_private_nested_dependency/main.omg	pass	mutated	
+tests/omega/pass/generics/owned_member_applied_result/main.omg	pass	mutated	
+tests/omega/pass/generics/runtime_captured_map_borrowed_type/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/runtime_captured_map_nominal_const_forward/main.omg	pass	mutated	
+tests/omega/pass/generics/runtime_captured_map_type_body/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/runtime_computed_closed_call_identity_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/runtime_computed_nested_const_call_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/runtime_const_data_array_length_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/runtime_constructor_equation_binder_carriers_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/runtime_forwarded_generic_slice_result_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/runtime_generic_qualified_constructor_shadow_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/runtime_index_carrier_array_valid/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/runtime_index_carrier_indexed_element_valid/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/runtime_index_carrier_parameter/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/runtime_inferred_statement_lifetime_conformance_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/runtime_mixed_generic_erased_sum_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/generics/runtime_static_requirement_complex_composition_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/selected_member_shared_runtime_subject_exit/main.omg	pass	mutated	
+tests/omega/pass/generics/static_type_predicate_reference_callback_exit/main.omg	pass	mutated	
+tests/omega/pass/host/foreign_byte_recast/main.omg	pass	mutated	
+tests/omega/pass/host/process_exit_i32_status_ordered/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/host/runtime_console_bounded_line_full_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/host/runtime_descriptor_binary_output_exit/main.omg	pass	mutated	
+tests/omega/pass/host/runtime_descriptor_float_loan_input_exit/main.omg	pass	mutated	
+tests/omega/pass/host/runtime_descriptor_padded_prefix_loans_exit/main.omg	pass	mutated	
+tests/omega/pass/host/runtime_foreign_zero_argument_import_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/host/runtime_stored_scalar_reference_foreign_export_exit/main.omg	pass	mutated	
+tests/omega/pass/host/user32_window_procedure_registration/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/inline_asm/asm_memory_transfer/main.omg	pass	mutated	
+tests/omega/pass/inline_asm/asm_reach_wrapper/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/inline_asm/asm_typed_places/main.omg	pass	mutated	
+tests/omega/pass/layouts/alternating_member_padding_layout_compile/main.omg	pass	mutated	
+tests/omega/pass/layouts/byte_array_then_wide_layout_compile/main.omg	pass	mutated	
+tests/omega/pass/layouts/declaration_only_initializer_formation/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/layouts/fixed_layout_closed_requirement_policy_exit/main.omg	pass	mutated	
+tests/omega/pass/layouts/fixed_layout_fragmented_mutable_byte_exit/main.omg	pass	mutated	
+tests/omega/pass/layouts/float_member_layout_queries_compile/main.omg	pass	mutated	
+tests/omega/pass/layouts/nested_record_layout_queries_compile/main.omg	pass	mutated	
+tests/omega/pass/layouts/placed_primitive_aligned_backing/main.omg	pass	mutated	
+tests/omega/pass/layouts/placed_ram_mixed_callback/main.omg	pass	mutated	
+tests/omega/pass/layouts/portable_layout_constant_composition_exit/main.omg	pass	mutated	
+tests/omega/pass/layouts/resident_aggregate_extraction/main.omg	pass	mutated	
+tests/omega/pass/layouts/resident_lifecycle_plan_discovery/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/layouts/retained_layout_initializer_alias_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/layouts/runtime_foreign_encoded_reference_exit/main.omg	pass	mutated	
+tests/omega/pass/layouts/runtime_placed_external_array_snapshot_exit/main.omg	pass	mutated	
+tests/omega/pass/layouts/runtime_plan_laid_record_array_mutable_write_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/layouts/runtime_run_qualified_element_exit/main.omg	pass	mutated	
+tests/omega/pass/layouts/runtime_target_layout_forwarded_integer_exit/main.omg	pass	mutated	
+tests/omega/pass/layouts/single_float_member_layout_compile/main.omg	pass	mutated	
+tests/omega/pass/layouts/tiny_record_layout_queries_compile/main.omg	pass	mutated	
+tests/omega/pass/layouts/wide_narrow_alignment_layout_compile/main.omg	pass	mutated	
+tests/omega/pass/locals/runtime_erased_parameter_mutable_local_exit/main.omg	pass	mutated	
+tests/omega/pass/machines/computed_arrival_state/main.omg	pass	mutated	
+tests/omega/pass/machines/private_completion_console_loop_no_normal_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/machines/private_division_signed_exit/main.omg	pass	mutated	
+tests/omega/pass/machines/private_frontier_cycle_reordered_exit/main.omg	pass	mutated	
+tests/omega/pass/machines/private_where_store_through_cycle_exit/main.omg	pass	mutated	
+tests/omega/pass/memory/interrupt_table_canary/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/memory/runtime_linear_native_allocation_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/modules/boundary_private_implementation/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/modules/computed_constant_initializers/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/modules/domain_constant_indices/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/modules/module_array_constant_indices/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/modules/open_const_private_implementation_projection_exit/support/main.omg	pass	mutated	
+tests/omega/pass/modules/packaged_structured_const_generic_composition_exit/dependency/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/modules/qualified_constants/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/modules/runtime_nominal_constant_lexical_ownership_exit/main.omg	pass	mutated	
+tests/omega/pass/modules/selected_constant_array_alias_computed_extent_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/modules/selected_constant_nominal_call/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/objc/objc_msgsend_scalar/main.omg	pass	mutated	
+tests/omega/pass/operators/fixed_token_operators/main.omg	pass	mutated	
+tests/omega/pass/operators/runtime_bitwise_operators_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/operators/runtime_generic_reference_selector_snapshot_exit/main.omg	pass	mutated	
+tests/omega/pass/optimizer/address_offset_selection_exit/main.omg	pass	mutated	
+tests/omega/pass/optimizer/ordinary_copy_membership_selected/main.omg	pass	mutated	
+tests/omega/pass/optimizer/rollback_copy_propagation_control/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/optimizer/rollback_sparse_conditional_constant_propagation_control/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/ownership/activation_claim_spelling_is_ordinary_return_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/ownership/conditional_owned_reads_exit/main.omg	pass	mutated	
+tests/omega/pass/ownership/domain_member_view_compile/main.omg	pass	mutated	
+tests/omega/pass/ownership/invariant_record_view_compile/main.omg	pass	mutated	
+tests/omega/pass/ownership/linear_call_result_claims_exit/main.omg	pass	mutated	
+tests/omega/pass/ownership/linear_inline_constructed_argument_claims_exit/main.omg	pass	mutated	
+tests/omega/pass/ownership/linear_state_graph_claim_transport_exit/main.omg	pass	mutated	
+tests/omega/pass/ownership/member_element_loan_compile/main.omg	pass	mutated	
+tests/omega/pass/ownership/mut_local_reassign_compile/main.omg	pass	mutated	
+tests/omega/pass/ownership/registration_capacity_case_round_trip/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/ownership/runtime_borrowed_case_restore_variants_exit/main.omg	pass	mutated	
+tests/omega/pass/ownership/runtime_borrowed_record_transform_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/ownership/runtime_captured_case_qualification_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/ownership/runtime_case_alternative_custody_exit/main.omg	pass	mutated	
+tests/omega/pass/ownership/runtime_exclusive_argument_before_descriptor_retarget_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/ownership/runtime_index_before_descriptor_retarget_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/ownership/runtime_match_expression_moves_selected_payload_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/ownership/runtime_nested_owned_value_call_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/ownership/runtime_owned_parameter_restoration_exit/main.omg	pass	mutated	
+tests/omega/pass/ownership/runtime_repeated_linear_result_forwarding_exit/main.omg	pass	mutated	
+tests/omega/pass/ownership/runtime_selected_linear_temporary_exit/main.omg	pass	mutated	
+tests/omega/pass/ownership/runtime_unknown_affine_case_discard_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/ownership/selected_constructor_swapped_fields/main.omg	pass	mutated	
+tests/omega/pass/ownership/shared_float_view_compile/main.omg	pass	mutated	
+tests/omega/pass/ownership/view_reborrow_argument_compile/main.omg	pass	mutated	
+tests/omega/pass/packages/retained_dependency_bodies_exit/main.omg	pass	mutated	
+tests/omega/pass/parser/clause_word_names_a_requires_subject/main.omg	pass	mutated	
+tests/omega/pass/progress/provider_receiver_progress_installation/main.omg	pass	mutated	
+tests/omega/pass/proofs/applied_operator_const_requires/main.omg	pass	mutated	
+tests/omega/pass/proofs/captured_scalar_field_observations/main.omg	pass	mutated	
+tests/omega/pass/proofs/completed_guard_two_call_identities/main.omg	pass	mutated	
+tests/omega/pass/proofs/declaration_constructed_data_identity/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/proofs/domain_mathematical_selection_exit/main.omg	pass	mutated	
+tests/omega/pass/proofs/embedded_address_bounds_exit/main.omg	pass	mutated	
+tests/omega/pass/proofs/field_view_index_contract/main.omg	pass	mutated	
+tests/omega/pass/proofs/kernel_integer_discreteness/main.omg	pass	mutated	
+tests/omega/pass/proofs/mathematical_generic_result_carrier/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/proofs/mutable_fixed_array_ensures_exact_product/main.omg	pass	mutated	
+tests/omega/pass/proofs/nested_machine_proof_erasure_exit/main.omg	pass	mutated	
+tests/omega/pass/proofs/ordinary_denotational_requirement_published_termination_exit/main.omg	pass	mutated	
+tests/omega/pass/proofs/proof_bignum_constant_fold/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/proofs/proof_integer_quotient_remainder/main.omg	pass	mutated	
+tests/omega/pass/proofs/proof_remainder_range/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/proofs/quotient_lift_managed_compile/main.omg	pass	mutated	
+tests/omega/pass/proofs/ring_full_polynomial_compile/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/proofs/runtime_nat_structural_recursion_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/proofs/runtime_result_index_unrelated_machine_bound_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/proofs/scalar_field_copy_guard/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/proofs/selected_specification_requires_exact/main.omg	pass	mutated	
+tests/omega/pass/proofs/structural_application_decreasing_actuals_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/providers/applied_requirement_computed_const_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/assumed_result_bound_match_join_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/providers/binding_formal_type_const_operands/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/providers/boundary_entry_param/main.omg	pass	mutated	
+tests/omega/pass/providers/boundary_scalar_field_store/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/providers/checked_fixed_operator_dispatch_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/providers/cross_package_public_slot_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/finite_requirement_direct_provider_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/foreign_out_parameter_write_observed_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/providers/generic_required_instance_roster_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/inherited_applied_binding_forwarded_value_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/kernel_import_result_chain_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/named_boundary_mutable_issuance/main.omg	pass	mutated	
+tests/omega/pass/providers/owned_array_operand_epochs_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/qualified_foreign_structural_arguments/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/providers/runtime_boundary_array_construction_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/providers/runtime_boundary_qualified_state_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/runtime_foreign_leaf_slice_element_argument_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/providers/runtime_provider_mutable_reference_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/runtime_provider_reference_state_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/same_target_internal/main.omg	pass	mutated	
+tests/omega/pass/providers/service_fused_root_establishment/main.omg	pass	mutated	
+tests/omega/pass/providers/structural_membership_boundary_exit/main.omg	pass	mutated	
+tests/omega/pass/providers/unused_named_provider_candidates/main.omg	pass	mutated	
+tests/omega/pass/ranges/runtime_primitive_window_copy_snapshot_exit/main.omg	pass	mutated	
+tests/omega/pass/recast/bool_byte_view_compile/main.omg	pass	mutated	
+tests/omega/pass/recast/captured_field_guard_disjoint_byte_write/main.omg	pass	mutated	
+tests/omega/pass/recast/i16_unsigned_bits_view_compile/main.omg	pass	mutated	
+tests/omega/pass/recast/local_bits_view_compile/main.omg	pass	mutated	
+tests/omega/pass/recast/mutable_i32_float_write_compile/main.omg	pass	mutated	
+tests/omega/pass/recast/narrow_signed_bits_view_compile/main.omg	pass	mutated	
+tests/omega/pass/recast/recast_view_forward_compile/main.omg	pass	mutated	
+tests/omega/pass/recast/runtime_aggregate_slice_representation_recast_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/recast/runtime_float_range_representation_recast_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/recast/runtime_interior_slice_congruent_offset_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/recast/runtime_offset_byte_recast_mutable_write_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/recast/runtime_shared_parameter_view_calls_exit/main.omg	pass	mutated	
+tests/omega/pass/recast/u16_signed_view_compile/main.omg	pass	mutated	
+tests/omega/pass/recast/write_footprint/state/main.omg	pass	mutated	
+tests/omega/pass/register_allocation/fixed_uses_across_hosted_clobbers_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/relevance/erased_formal_before_borrowed_argument_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/relevance/erased_reference_qualified_observation_exit/main.omg	pass	mutated	
+tests/omega/pass/slices/bare_range_returned_subslice_exit/main.omg	pass	mutated	
+tests/omega/pass/slices/copy_view_descriptor/main.omg	pass	mutated	
+tests/omega/pass/slices/extent_core_surface/main.omg	pass	mutated	
+tests/omega/pass/slices/guarded_slice_parameter_bounded_subslice_compile/main.omg	pass	mutated	
+tests/omega/pass/slices/local_array_element_view_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/slices/mutable_byte_field_range_scalar_initializer_exit/main.omg	pass	mutated	
+tests/omega/pass/slices/nested_captured_element_store/main.omg	pass	mutated	
+tests/omega/pass/slices/requires_field_count_alias_index_compile/main.omg	pass	mutated	
+tests/omega/pass/slices/runtime_boolean_alias_guard_transport_exit/main.omg	pass	mutated	
+tests/omega/pass/slices/runtime_captured_range_end_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/slices/runtime_element_write_preserves_view_extent_exit/main.omg	pass	mutated	
+tests/omega/pass/slices/runtime_guarded_view_copy_cycle_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/slices/runtime_indexed_store_captures_selector_before_rhs_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/slices/runtime_matched_window_length/main.omg	pass	mutated	
+tests/omega/pass/slices/runtime_mutable_subslice_state_forwarding_exit/main.omg	pass	mutated	
+tests/omega/pass/slices/runtime_nested_view_descriptor_reseat_exit/main.omg	pass	mutated	
+tests/omega/pass/slices/runtime_qualified_record_copy_local_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/slices/runtime_returned_range_extent_contract_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/slices/runtime_slice_fixed_index_guard_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/slices/runtime_state_cycle_tagged_reference_argument/main.omg	pass	mutated	
+tests/omega/pass/slices/runtime_subslice_range_pointer_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/slices/signed_index_and_range_lower_bounds/main.omg	pass	mutated	
+tests/omega/pass/slices/stored_element_window_field_exit/main.omg	pass	mutated	
+tests/omega/pass/slices/window_shrink_min_length_tail_index_compile/main.omg	pass	mutated	
+tests/omega/pass/storage/runtime_alias_field_binary/main.omg	pass	mutated	
+tests/omega/pass/storage/runtime_primitive_local_literal_composition_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/structs/nested_unused_provider_fields/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/structs/runtime_local_array_snapshot_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/structs/runtime_state_record_array_element_read_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/structural/borrowed_array_state_carry/main.omg	pass	mutated	
+tests/omega/pass/structural/indexed_scalar_call_result_store/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/structural/runtime_nested_constructor_payload_exit/main.omg	pass	mutated	
+tests/omega/pass/structural/sum_attachment_receiver_compile/main.omg	pass	mutated	
+tests/omega/pass/targets/private_target_supplies_remain_disclosed/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/targets/runtime_family_composed_owned_results_exit/main.omg	pass	mutated	
+tests/omega/pass/targets/runtime_family_nested_projected_results_exit/main.omg	pass	mutated	
+tests/omega/pass/targets/runtime_target_inherited_provider_roster_exit/main.omg	pass	mutated	
+tests/omega/pass/targets/sysv_mixed_aggregate_entry/main.omg	pass	mutated	
+tests/omega/pass/tasks/ordinary_named_task_runtime_compile/main.omg	pass	mutated	
+tests/omega/pass/terminal_psi/portable_contract_component/main.omg	pass	mutated	
+tests/omega/pass/termination/bitwise_payload_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/termination/computed_rank_endpoint/main.omg	pass	mutated	
+tests/omega/pass/termination/distance_constant_bound_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/termination/inherited_acyclic_requirement_guarantee_compile/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/termination/lower_upper_endpoints/main.omg	pass	mutated	
+tests/omega/pass/termination/measure_field_named_arrival/main.omg	pass	mutated	
+tests/omega/pass/termination/measure_field_remainder_limit/main.omg	pass	mutated	
+tests/omega/pass/termination/mutable_rank_endpoint/main.omg	pass	mutated	
+tests/omega/pass/termination/nested_helper_record_measure_result_equation_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/termination/private_self_call_without_promise_compile/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/termination/progress_selector_owned_arrival_reference_reborrow_exit/main.omg	pass	mutated	
+tests/omega/pass/termination/rank_arrival_captured_record_fields_exit/main.omg	pass	mutated	
+tests/omega/pass/termination/rank_range_mutable_bounded_endpoint/main.omg	pass	mutated	
+tests/omega/pass/termination/rank_range_state_call_requires_bridge/main.omg	pass	mutated	
+tests/omega/pass/termination/remainder_literal_call_component/main.omg	pass	mutated	
+tests/omega/pass/termination/runtime_computed_result_rank_arrivals_exit/main.omg	pass	mutated	
+tests/omega/pass/termination/runtime_projected_extent_fill_exit/main.omg	pass	mutated	
+tests/omega/pass/termination/runtime_ranked_sequence_arrival_coordinates_exit/main.omg	pass	mutated	
+tests/omega/pass/termination/runtime_selected_requirement_rank_composed_prefix_exit/main.omg	pass	mutated	
+tests/omega/pass/termination/runtime_zero_local_rank_prefix_exit/main.omg	pass	mutated	
+tests/omega/pass/termination/symbolic_quotient_endpoints/main.omg	pass	mutated	
+tests/omega/pass/text/bounded_text_loan/main.omg	pass	mutated	
+tests/omega/pass/text/local_bounded_text_case_result_loan_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/text/owned_record_byte_field_read_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/text/runtime_chained_string_append_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/text/runtime_mutable_string_parameter_concat_write_line/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/text/runtime_qualified_byte_field_replacement_cleanup_exit/main.omg	pass	mutated	
+tests/omega/pass/text/runtime_utf16_literal_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/text/runtime_view_local_reassign_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/text/view_field_literal_store_outlives_helper_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/time/runtime_fs_mtime_system_time_interop_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/time/static_duration_accessors/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/traits/applied_nominal_callback_proposition_contract/main.omg	pass	mutated	
+tests/omega/pass/traits/contract_call_forwarded_static_arguments_exit/main.omg	pass	mutated	
+tests/omega/pass/traits/default_row_same_spelled_supplier_region_exit/main.omg	pass	mutated	
+tests/omega/pass/traits/equatable_record_equality_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/traits/float_contract_refinement_boundaries_exit/main.omg	pass	mutated	
+tests/omega/pass/traits/implementation_argument_category_collision/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/traits/implementation_value_region_identity/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/traits/named_contract_arithmetic_refinement/main.omg	pass	mutated	
+tests/omega/pass/traits/public_implementation_member_selection_exit/main.omg	pass	mutated	
+tests/omega/pass/traits/repeated_structural_capture_exit/main.omg	pass	mutated	
+tests/omega/pass/traits/runtime_dyn_byte_record_result/main.omg	pass	mutated	
+tests/omega/pass/traits/runtime_dyn_family_scalar_continuation/main.omg	pass	mutated	
+tests/omega/pass/traits/runtime_dyn_mutable_byte_result/main.omg	pass	mutated	
+tests/omega/pass/traits/runtime_dyn_selected_reach_copied_selector_exit/main.omg	pass	mutated	
+tests/omega/pass/traits/runtime_dyn_selector_record_post_write_exit/main.omg	pass	mutated	
+tests/omega/pass/traits/runtime_dyn_suspending_retained_record_exit/main.omg	pass	mutated	
+tests/omega/pass/traits/runtime_finite_family_affine_result_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/traits/runtime_qualified_byte_crash_equality_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/traits/structural_identity_crash_contract/main.omg	pass	mutated	
+tests/omega/pass/types/address_model_conversion/main.omg	pass	mutated	
+tests/omega/pass/types/shared_borrow_retains_carrier_exit/main.omg	pass	mutated	
+tests/omega/pass/wire/fixed_vec_wire_member/main.omg	pass	mutated	
+tests/omega/pass/wire/library_compact_binary_signed_reflection_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/wire/reflection_active_nullary_cases_exit/main.omg	pass	mutated	
+tests/omega/pass/wire/runtime_wire_encode_interior_scalar_slice_exit/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/pass/wire/wire_data_reserved_field/main.omg	pass	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/arithmetic/fixed_input_reused_across_calls/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/arithmetic/policy_operator_exact_result_fact/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/borrows/call_result_mutable_window_field_exit/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/borrows/independent_invocation_reference_results/main.omg	run	mutated	
+tests/omega/run/borrows/qualified_owner_views/main.omg	run	mutated	
+tests/omega/run/borrows/returned_indexed_case/main.omg	run	mutated	
+tests/omega/run/borrows/shared_record_loan_member_read/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/borrows/transition_shared_borrow/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/calls/named_transition_f32_destination_single_rounding_exit/main.omg	run	mutated	
+tests/omega/run/calls/nested_static_implementation_shadow/main.omg	run	mutated	
+tests/omega/run/calls/owned_literal_call_operands/main.omg	run	mutated	
+tests/omega/run/calls/retained_implicit_entry_selection/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/calls/static_boundary_terminal_arguments/main.omg	run	mutated	
+tests/omega/run/contracts/qualified_result_forwarding_exit/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/domains/completed_membership_after_earlier_guarantee/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/domains/issued_case_owner_observation/main.omg	run	mutated	
+tests/omega/run/domains/issued_record_domain_predicate_transport/main.omg	run	mutated	
+tests/omega/run/domains/qualified_fixed_byte_array_captured_destination_exit/main.omg	run	mutated	
+tests/omega/run/domains/qualified_fixed_byte_array_owned_parameter_exit/main.omg	run	mutated	
+tests/omega/run/domains/qualified_fixed_byte_array_view_element_copy_exit/main.omg	run	mutated	
+tests/omega/run/domains/structural_predicate_casts/main.omg	run	mutated	
+tests/omega/run/domains/zero_field_call_formation_exit/main.omg	run	mutated	
+tests/omega/run/facts/double_indexed_rmw_through_match_join_traps/main.omg	run	mutated	
+tests/omega/run/facts/float_comparison_route_through_local_traps/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/generics/implementation_parameter_contract/main.omg	run	mutated	
+tests/omega/run/layouts/placed_ram_scalar_types/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/ownership/content_transform_case_parent/main.omg	run	mutated	
+tests/omega/run/ownership/owned_parameter_member_moves_exit/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/proofs/quotient_copy_paths/main.omg	run	original-not-accepted	error: prior run checked main.omg only; corpus uses build.omg when present
+tests/omega/run/ranges/refuted_boolean_alias_dispatch/main.omg	run	mutated	
+tests/omega/run/slices/matched_record_window_lower_bound/main.omg	run	mutated	
+tests/omega/run/termination/productive_scalar_loop_exit/main.omg	run	mutated	
+tests/omega/run/traits/static_implementation_method_arguments/main.omg	run	mutated	

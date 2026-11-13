@@ -1,0 +1,10 @@
+// A constant whose type carries a data `requires` can be a const-generic
+// index once its value satisfies the predicate: `VALID` is 7 and `Bounded`
+// requires `value <= 7`. This replaces an earlier fence that expected the
+// index-site proof to be unimplemented; the twin
+// fail/constants/predicate_constant_static_index_violates_domain uses 8.
+data Bounded [copy] requires value <= 7 { value: u64; }
+const VALID: Bounded = Bounded { value: 7 };
+data Indexed<const Value: Bounded> [copy] { marker: u64; }
+data Main { indexed: Indexed<VALID>; }
+machine Main::main(main: & Main) {}

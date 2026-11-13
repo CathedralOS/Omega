@@ -1,0 +1,30 @@
+// `boundary machine` entry with a linear parameter: the state
+// entry establishment is realized by the entry prologue's
+// inbound argument write — the body observes `handle.raw`,
+// releases the claim through a boundary-trait requirement, and
+// returns a value (boundary entries may return, unlike bound
+// `Main::main(main: & Main)` carriers).
+//
+//   * `public data ImageHandle [linear] { raw: addr; }`.
+//   * `boundary machine Main::main(handle) -> i32`.
+//
+// Compile-checked only: no standard-library dependency.
+
+public data ImageHandle [linear] { raw: addr; }
+boundary trait ImageHandleRelease {
+    machine release(handle: ImageHandle) reaches;
+}
+
+public data Main {}
+
+boundary machine Main::main(handle: ImageHandle) -> i32 invokes ImageHandleRelease {
+    let raw: addr = handle.raw;
+    ImageHandleRelease::release(handle);
+    transition raw == 0 {
+        true -> zero()
+        false -> present()
+    }
+
+    machine zero() -> i32 { 4 }
+    machine present() -> i32 { 5 }
+}
