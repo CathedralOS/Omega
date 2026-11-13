@@ -1733,6 +1733,9 @@ pub(crate) mod identity_context {
         pub(crate) lifetime_binders: &'binders [(LifetimeParameterIdentity, usize)],
         pub(crate) invalid_application: Option<&'binders Cell<bool>>,
         pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
+        // A description can retain elision without claiming a concrete region.
+        // Existing checked identities point this observation at their error flag.
+        pub(crate) encountered_elided_regions: Option<&'binders Cell<bool>>,
         pub(crate) binders: &'binders [(SymbolHandle, String)],
         pub(crate) substitutions: &'binders [(SymbolHandle, TypeReferenceHandle)],
         pub(crate) substitution_scope_starts: &'binders [usize],
@@ -2505,9 +2508,9 @@ pub(crate) mod identity_context {
                                 || {
                                     if context.qualification
                                         == TypeIdentityQualification::PackageQualified
-                                        && let Some(invalid) = context.invalid_application
+                                        && let Some(elided) = context.encountered_elided_regions
                                     {
-                                        invalid.set(true);
+                                        elided.set(true);
                                     }
                                     bare(RegionForm::Elided)
                                 },
@@ -5681,6 +5684,7 @@ pub(crate) mod portable_machine_applications {
             exact_toolchain_sources,
             missing_exact_nominal_owner: Some(&invalid),
             invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
             invalid_index_argument: Some(&invalid),
             ..Default::default()
         };
@@ -6164,6 +6168,7 @@ pub(crate) mod static_operand_identity {
                     lifetime_binders: request.lifetime_binders,
                     qualification: super::TypeIdentityQualification::PackageQualified,
                     invalid_application: Some(&invalid),
+                    encountered_elided_regions: Some(&invalid),
                     invalid_index_argument: Some(&invalid),
                     ..Default::default()
                 },
@@ -6202,6 +6207,7 @@ pub(crate) mod static_operand_identity {
                     substitutions: request.substitutions,
                     substitution_semantics,
                     invalid_application: Some(&invalid),
+                    encountered_elided_regions: Some(&invalid),
                     invalid_index_argument: Some(&invalid),
                     ..TypeIdentityContext::default()
                 },
@@ -7072,6 +7078,7 @@ pub fn applied_declared_carrier_identity(
             declared_carrier: true,
             application_scopes: scopes,
             invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
             invalid_index_argument: Some(&invalid),
             ..TypeIdentityContext::default()
         },
@@ -7146,6 +7153,7 @@ fn qualified_applied_index_identity(
             application_owner: lexical_owner,
             qualification,
             invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
             invalid_index_argument: Some(&invalid),
             ..TypeIdentityContext::default()
         },
@@ -7170,6 +7178,42 @@ pub fn portable_applied_type_identity(
     )
 }
 
+/// Descriptions retain declared lifetime relationships, including elision,
+/// with the actual supplying scope and requested nominal qualification.
+/// This produces descriptive data; portable/static clients keep their own
+/// concrete-region requirement through the same normalization owner.
+pub fn descriptive_type_identity_in_region_scope(
+    program: &TypedTrees,
+    request: TypeIdentityRequest<'_>,
+    receiving_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let elided = Cell::new(false);
+    let identity = normalize_type_reference(
+        program,
+        request.type_reference,
+        &TypeIdentityContext {
+            binders: request.binders,
+            substitutions: request.substitutions,
+            qualification: request.qualification,
+            application_scopes: scopes,
+            application_owner: receiving_owner,
+            application_argument_owner: argument_owner,
+            resolved_lifetimes,
+            invalid_application: Some(&invalid),
+            // Elision remains explicit descriptive information. Missing named
+            // scopes and malformed applications still set `invalid`.
+            encountered_elided_regions: Some(&elided),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then(|| program_intern_type_identity(program, identity))
+}
+
 fn qualified_applied_type_identity(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -7190,6 +7234,7 @@ fn qualified_applied_type_identity(
             application_argument_owner: argument_owner,
             qualification,
             invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
             invalid_index_argument: Some(&invalid),
             ..TypeIdentityContext::default()
         },
@@ -7236,6 +7281,7 @@ pub fn applied_type_lifetime_identity_in_scope(
         application_owner: receiving_owner,
         application_argument_owner: argument_owner,
         invalid_application: Some(&invalid),
+        encountered_elided_regions: Some(&invalid),
         ..TypeIdentityContext::default()
     }
     .enter_type_operand(program, reference);
@@ -7271,6 +7317,7 @@ fn qualified_applied_lifetime_identity(
         application_owner: lexical_owner,
         qualification,
         invalid_application: Some(&invalid),
+        encountered_elided_regions: Some(&invalid),
         ..TypeIdentityContext::default()
     }
     .lifetime(program, name);
@@ -8230,6 +8277,7 @@ impl TypedTrees {
                 index_substitutions: arguments,
                 invalid_index_argument: Some(&invalid),
                 invalid_application: Some(&invalid),
+                encountered_elided_regions: Some(&invalid),
                 encountered_regions: Some(&regions),
                 qualification: request.qualification,
                 ..TypeIdentityContext::default()

@@ -708,7 +708,6 @@ pub(crate) mod const_arguments {
         use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
         use typed_trees::TypedTrees;
         use typed_trees::data::TypeParameterKind;
-        #[cfg(test)]
         use typed_trees::name::Identifier;
         use typed_trees::types::TypeReferenceNode;
 
@@ -827,6 +826,21 @@ pub(crate) mod const_arguments {
                 }));
             }
             for (declaration, arguments, owner) in applications {
+                if let Some(sort) = universe_sort(program, declaration) {
+                    // `core::Type<u>` and `core::Strict<u>` apply one universe
+                    // level, which is not a constant argument: it has no
+                    // carrier and no value to admit. Typing owns the arity;
+                    // the level grammar and its constraints belong to sort
+                    // formation in the proof kernel.
+                    if arguments.len() != 1 {
+                        return Err(Diagnostic::error(format!(
+                            "`{}` takes exactly one universe level, found {} arguments",
+                            sort.name(),
+                            arguments.len()
+                        )));
+                    }
+                    continue;
+                }
                 let has_closed_demand = arguments.iter().any(|argument| {
                     argument.arena_index() as usize > frontier
                         && needs_admission(program, *argument)
@@ -858,20 +872,182 @@ pub(crate) mod const_arguments {
                     }
                 }
                 for (parameter, argument) in parameters.iter().zip(arguments.iter().copied()) {
-                    if argument.arena_index() as usize <= frontier
-                        || !matches!(parameter.kind, TypeParameterKind::Const { .. })
-                    {
+                    if argument.arena_index() as usize <= frontier {
                         continue;
                     }
-                    let demanded = needs_admission(program, argument);
-                    if demanded {
-                        return Err(crate::unavailable_judgment(
-                            "closed const argument admission",
-                        ));
+                    let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                        continue;
+                    };
+                    let TypeReferenceNode::ConstExpression(expression) =
+                        *program.type_reference_table.type_reference(argument)
+                    else {
+                        if needs_admission(program, argument) {
+                            // A record or case value: whether it is a value
+                            // of the declared data type is typing's question,
+                            // and the check that answered it is not rebuilt.
+                            return Err(Diagnostic::error(
+                                "no product route yet: a record or case const argument is not \
+                                 typed against its declared data type",
+                            ));
+                        }
+                        continue;
+                    };
+                    if !needs_admission(program, argument) {
+                        continue;
                     }
+                    let Some(carrier) =
+                        builtin_carrier(program, type_reference, &parameters, &arguments)
+                    else {
+                        continue;
+                    };
+                    let Some(spelling) =
+                        literal_in_carrier(program, declaration, parameter, expression, carrier)?
+                    else {
+                        continue;
+                    };
+                    program.type_reference_table.substitute_node(
+                        argument,
+                        TypeReferenceNode::Named {
+                            symbol: symbols::SymbolHandle::invalid(),
+                            name: Identifier::generated(spelling),
+                        },
+                    );
                 }
             }
             Ok(())
+        }
+
+        /// The builtin scalar a const parameter is declared in.
+        enum Carrier {
+            Integer(numerics::literals::LandedIntegerType),
+            Boolean,
+        }
+
+        /// The builtin integer or `bool` that `carrier` names, directly or as
+        /// the type this application supplies for a type parameter of the
+        /// same header (`<T, const N: T>` applied at `<u8, 4>`).
+        ///
+        /// `None` for every other carrier. A carrier with a domain or an
+        /// arithmetic policy asks whether the value is a member, which is a
+        /// proof question, and an alias or data carrier asks for a structured
+        /// value; neither is answered by reading a literal, so the argument
+        /// stays as written.
+        fn builtin_carrier(
+            program: &TypedTrees,
+            carrier: typed_trees::types::TypeReferenceHandle,
+            parameters: &[typed_trees::data::TypeParameter],
+            arguments: &[typed_trees::types::TypeReferenceHandle],
+        ) -> Option<Carrier> {
+            use numerics::literals::LandedIntegerType as Landed;
+            use symbols::BuiltinTypeAtom as Atom;
+            let named = |reference| match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => Some(*symbol),
+                _ => None,
+            };
+            let mut symbol = named(carrier)?;
+            if let Some(supplied) = parameters.iter().position(|parameter| {
+                parameter.symbol == symbol && matches!(parameter.kind, TypeParameterKind::Type)
+            }) {
+                symbol = named(arguments[supplied])?;
+            }
+            Some(match program.symbols.builtin_type_atom(symbol)? {
+                Atom::Bool => Carrier::Boolean,
+                Atom::I8 => Carrier::Integer(Landed::I8),
+                Atom::I16 => Carrier::Integer(Landed::I16),
+                Atom::I32 => Carrier::Integer(Landed::I32),
+                Atom::I64 => Carrier::Integer(Landed::I64),
+                Atom::U8 => Carrier::Integer(Landed::U8),
+                Atom::U16 => Carrier::Integer(Landed::U16),
+                Atom::U32 => Carrier::Integer(Landed::U32),
+                Atom::U64 => Carrier::Integer(Landed::U64),
+                _ => return None,
+            })
+        }
+
+        /// The canonical spelling of a literal argument that has the
+        /// parameter's declared type, an error when the literal has another
+        /// type or lies outside the carrier, and `None` when the argument is
+        /// not a literal.
+        ///
+        /// Resolution folds a closed scalar argument to its literal, so a
+        /// remaining operator, name or call is work for an evaluator and is
+        /// left as written for it. numeric_values.md: an anonymous literal
+        /// lands in the expected carrier when its exact value is in range,
+        /// and a typed literal keeps the carrier it names.
+        fn literal_in_carrier(
+            program: &TypedTrees,
+            declaration: symbols::SymbolHandle,
+            parameter: &typed_trees::data::TypeParameter,
+            expression: typed_trees::expression::ExpressionHandle,
+            carrier: Carrier,
+        ) -> Result<Option<String>, Diagnostic> {
+            use typed_trees::expression::ExpressionNode;
+            let refuse = |found: String| {
+                let expected = match carrier {
+                    Carrier::Integer(landed) => landed.name(),
+                    Carrier::Boolean => "bool",
+                };
+                Diagnostic::error(format!(
+                    "const argument for `{}` of `{}` must be a `{expected}`, found {found}",
+                    parameter.name.as_str(),
+                    program.symbols.name(declaration),
+                ))
+                .with_source_span(program.expression_table.source_span(expression))
+            };
+            match (program.expression_table.expression(expression), &carrier) {
+                (ExpressionNode::Integer(literal), Carrier::Integer(landed)) => {
+                    if let Some(landing) = literal.landing() {
+                        if landing.landed_type != *landed {
+                            return Err(refuse(format!(
+                                "a `{}` literal",
+                                landing.landed_type.name()
+                            )));
+                        }
+                        if landing.domain != numerics::arithmetic::ArithmeticDomain::Exact {
+                            return Ok(None);
+                        }
+                    }
+                    let value = literal
+                        .value_i64()
+                        .map(i128::from)
+                        .or_else(|| literal.value_u64().map(i128::from));
+                    let (least, greatest) = landed.bounds();
+                    match value {
+                        Some(value) if (least..=greatest).contains(&value) => {
+                            Ok(Some(value.to_string()))
+                        }
+                        _ => Err(refuse(format!(
+                            "`{}`, which is outside that type",
+                            literal.canonical_spelling().as_str()
+                        ))),
+                    }
+                }
+                (ExpressionNode::Boolean(value), Carrier::Boolean) => Ok(Some(value.to_string())),
+                (ExpressionNode::Integer(_), Carrier::Boolean) => {
+                    Err(refuse("an integer literal".to_owned()))
+                }
+                (ExpressionNode::Boolean(_), Carrier::Integer(_)) => {
+                    Err(refuse("a Boolean literal".to_owned()))
+                }
+                _ => Ok(None),
+            }
+        }
+
+        /// The fixed sort `declaration` is, when it is one of the two that
+        /// apply a universe level. Only the compiler-installed slot counts.
+        fn universe_sort(
+            program: &TypedTrees,
+            declaration: symbols::SymbolHandle,
+        ) -> Option<symbols::FixedCoreDeclaration> {
+            program
+                .symbols
+                .fixed_core_declaration_for_symbol(declaration)
+                .filter(|sort| {
+                    matches!(
+                        sort,
+                        symbols::FixedCoreDeclaration::Type | symbols::FixedCoreDeclaration::Strict
+                    )
+                })
         }
 
         fn parameter_declarations(
@@ -972,6 +1148,101 @@ pub(crate) mod const_arguments {
                 normalize(&mut TypedTrees::default(), 0).unwrap();
             }
 
+            /// A program holding `base<level, ...>` with `count` closed
+            /// integer arguments, where `base` is either the installed
+            /// `core::Strict` slot or an authored definition spelled the same.
+            fn sort_application(
+                installed: bool,
+                count: usize,
+            ) -> (TypedTrees, Vec<typed_trees::types::TypeReferenceHandle>) {
+                let mut builder = SymbolTableBuilder::new();
+                let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                builder.insert_children(
+                    root,
+                    symbols::builtin_type_symbols()
+                        .into_iter()
+                        .chain(symbols::builtin_function_symbols())
+                        .chain(symbols::fixed_core_declaration_symbols())
+                        .chain([(
+                            SymbolKind::MathematicalDefinition,
+                            SymbolNameRef::Static("core::Strict"),
+                        )]),
+                );
+                let mut program = TypedTrees {
+                    symbols: builder.finish(),
+                    ..Default::default()
+                };
+                let base = if installed {
+                    program
+                        .symbols
+                        .fixed_core_declaration_symbol(symbols::FixedCoreDeclaration::Strict)
+                        .unwrap()
+                } else {
+                    program
+                        .symbols
+                        .child_handles(program.symbols.root())
+                        .unwrap()
+                        .last()
+                        .unwrap()
+                };
+                let levels = (0..count)
+                    .map(|_| {
+                        let level = program
+                            .expression_table
+                            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(0)));
+                        program
+                            .type_reference_table
+                            .insert(TypeReferenceNode::ConstExpression(level))
+                    })
+                    .collect::<Vec<_>>();
+                let arguments = program
+                    .type_reference_table
+                    .insert_type_reference_handles(levels.iter().copied());
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Generic {
+                        base_symbol: base,
+                        base_name: Identifier::generated("core::Strict"),
+                        arguments,
+                        lifetime_arguments: Vec::new(),
+                    });
+                (program, levels)
+            }
+
+            #[test]
+            fn a_universe_level_is_not_a_constant_argument_to_admit() {
+                let (mut program, levels) = sort_application(true, 1);
+                let authored = program.clone();
+                normalize(&mut program, 0).unwrap();
+                assert!(matches!(
+                    program.type_reference_table.type_reference(levels[0]),
+                    TypeReferenceNode::ConstExpression(_)
+                ));
+                assert_eq!(program, authored);
+            }
+
+            #[test]
+            fn a_sort_applied_to_no_level_or_two_is_a_typing_error() {
+                for count in [0, 2] {
+                    let (mut program, _) = sort_application(true, count);
+                    let error = normalize(&mut program, 0).unwrap_err();
+                    assert!(
+                        error
+                            .message
+                            .contains("`core::Strict` takes exactly one universe level"),
+                        "{}",
+                        error.message
+                    );
+                }
+            }
+
+            #[test]
+            fn a_definition_spelled_like_a_sort_keeps_its_refusal() {
+                let (mut program, _) = sort_application(false, 1);
+                let error = normalize(&mut program, 0).unwrap_err();
+                assert!(error.message.contains("no product route yet"));
+            }
+
             #[test]
             fn ordinary_type_arguments_keep_their_exact_supplier_scope() {
                 let mut builder = SymbolTableBuilder::new();
@@ -1042,7 +1313,7 @@ pub(crate) mod const_arguments {
             }
 
             #[test]
-            fn closed_const_admission_refuses_without_mutating_retained_arguments() {
+            fn a_literal_of_the_declared_type_is_admitted_and_the_rest_wait_or_refuse() {
                 for (kind, header_count, argument_scope) in [
                     (SymbolKind::TypeAlias, 0, false),
                     (SymbolKind::TypeAlias, 1, false),
@@ -1181,12 +1452,35 @@ pub(crate) mod const_arguments {
                             supplier,
                         )
                         .unwrap();
-                    let error = normalize(&mut program, 0).unwrap_err();
-                    assert!(error.message.contains("no product route yet"));
-                    assert_eq!(
-                        program.type_reference_table.type_reference(argument),
-                        &TypeReferenceNode::ConstExpression(value)
-                    );
+                    let outcome = normalize(&mut program, 0);
+                    if header_count == 1 {
+                        outcome.unwrap();
+                    } else {
+                        // With no header or two, typing cannot say which
+                        // parameter the argument answers.
+                        assert!(
+                            outcome
+                                .unwrap_err()
+                                .message
+                                .contains("no product route yet")
+                        );
+                    }
+                    if header_count == 1 && !argument_scope {
+                        // The `u64` literal has the declared type: it takes
+                        // its canonical spelling.
+                        assert!(matches!(
+                            program.type_reference_table.type_reference(argument),
+                            TypeReferenceNode::Named { symbol, name }
+                                if !symbol.is_valid() && name.as_str() == "1"
+                        ));
+                    } else {
+                        // `ZERO + 1` is not a literal: it waits as written
+                        // for an evaluator.
+                        assert_eq!(
+                            program.type_reference_table.type_reference(argument),
+                            &TypeReferenceNode::ConstExpression(value)
+                        );
+                    }
                     assert_eq!(
                         program
                             .type_reference_table
@@ -1198,23 +1492,188 @@ pub(crate) mod const_arguments {
                         supplier
                     );
                     if header_count == 1 {
-                        let wrong_width = program.expression_table.insert(ExpressionNode::Integer(
-                            IntegerLiteral::from_value(1).with_landing(IntegerLanding {
-                                landed_type: LandedIntegerType::U8,
-                                domain: ArithmeticDomain::Exact,
-                            }),
-                        ));
-                        program.type_reference_table.substitute_node(
-                            argument,
-                            TypeReferenceNode::ConstExpression(wrong_width),
-                        );
-                        assert!(normalize(&mut program, 0).is_err());
-                        assert_eq!(
-                            program.type_reference_table.type_reference(argument),
-                            &TypeReferenceNode::ConstExpression(wrong_width)
-                        );
+                        for (literal, found) in [
+                            (
+                                IntegerLiteral::from_value(1).with_landing(IntegerLanding {
+                                    landed_type: LandedIntegerType::U8,
+                                    domain: ArithmeticDomain::Exact,
+                                }),
+                                "must be a `u64`, found a `u8` literal",
+                            ),
+                            (
+                                IntegerLiteral::from_value(-1),
+                                "must be a `u64`, found `-1`, which is outside that type",
+                            ),
+                        ] {
+                            let refused = program
+                                .expression_table
+                                .insert(ExpressionNode::Integer(literal));
+                            program.type_reference_table.substitute_node(
+                                argument,
+                                TypeReferenceNode::ConstExpression(refused),
+                            );
+                            let error = normalize(&mut program, 0).unwrap_err();
+                            assert!(error.message.contains(found), "{}", error.message);
+                            assert_eq!(
+                                program.type_reference_table.type_reference(argument),
+                                &TypeReferenceNode::ConstExpression(refused)
+                            );
+                        }
                     }
                 }
+            }
+
+            /// `data Alias<T, const N: carrier>` applied at `<u8, value>`.
+            /// The carrier is `T`, `u8 in Wrapping` or `bool`.
+            fn applied_alias(
+                carrier: &str,
+                value: ExpressionNode,
+            ) -> (TypedTrees, typed_trees::types::TypeReferenceHandle) {
+                let mut builder = SymbolTableBuilder::new();
+                let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let children = builder.insert_children(
+                    root,
+                    symbols::builtin_type_symbols()
+                        .into_iter()
+                        .chain([(SymbolKind::TypeAlias, SymbolNameRef::Static("Alias"))]),
+                );
+                let alias = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+                let formals = builder.insert_children(
+                    alias,
+                    [
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                        (SymbolKind::TypeParameter, SymbolNameRef::Static("N")),
+                    ],
+                );
+                let mut program = TypedTrees {
+                    symbols: builder.finish(),
+                    ..Default::default()
+                };
+                let named = |program: &mut TypedTrees, symbol, name: &'static str| {
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol,
+                            name: Identifier::generated(name),
+                        })
+                };
+                let atom =
+                    |atom: symbols::BuiltinTypeAtom| children.handle_at(atom.ordinal() as u32);
+                let u8_type = named(&mut program, atom(symbols::BuiltinTypeAtom::U8), "u8");
+                let carrier = match carrier {
+                    "T" => named(&mut program, formals.handle_at(0), "T"),
+                    "bool" => named(&mut program, atom(symbols::BuiltinTypeAtom::Bool), "bool"),
+                    _ => {
+                        let constraints = program.type_reference_table.insert_constraints([
+                            typed_trees::types::TypeConstraintNode::ArithmeticDomain(
+                                ArithmeticDomain::Wrapping,
+                            ),
+                        ]);
+                        program
+                            .type_reference_table
+                            .insert(TypeReferenceNode::Constrained {
+                                base_type: u8_type,
+                                constraints,
+                            })
+                    }
+                };
+                let parameters = program.data_type_parameters.insert_many([
+                    TypeParameter {
+                        symbol: formals.handle_at(0),
+                        name: Identifier::generated("T"),
+                        kind: TypeParameterKind::Type,
+                        ..Default::default()
+                    },
+                    TypeParameter {
+                        symbol: formals.handle_at(1),
+                        name: Identifier::generated("N"),
+                        kind: TypeParameterKind::Const {
+                            type_reference: carrier,
+                        },
+                        ..Default::default()
+                    },
+                ]);
+                program.push_type_alias_definition(TypeAliasDefinition {
+                    symbol: alias,
+                    name: Identifier::generated("Alias"),
+                    type_parameters: parameters,
+                    expansion: u8_type,
+                    ..Default::default()
+                });
+                let value = program.expression_table.insert(value);
+                let argument = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::ConstExpression(value));
+                let supplied = named(&mut program, atom(symbols::BuiltinTypeAtom::U8), "u8");
+                let arguments = program
+                    .type_reference_table
+                    .insert_type_reference_handles([supplied, argument]);
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Generic {
+                        base_symbol: alias,
+                        base_name: Identifier::generated("Alias"),
+                        arguments,
+                        lifetime_arguments: Vec::new(),
+                    });
+                (program, argument)
+            }
+
+            fn integer(value: i64) -> ExpressionNode {
+                ExpressionNode::Integer(IntegerLiteral::from_value(value))
+            }
+
+            #[test]
+            fn a_carrier_naming_a_type_parameter_is_the_type_the_application_supplies() {
+                let (mut program, argument) = applied_alias("T", integer(255));
+                normalize(&mut program, 0).unwrap();
+                assert!(matches!(
+                    program.type_reference_table.type_reference(argument),
+                    TypeReferenceNode::Named { symbol, name }
+                        if !symbol.is_valid() && name.as_str() == "255"
+                ));
+                let (mut program, _) = applied_alias("T", integer(256));
+                let error = normalize(&mut program, 0).unwrap_err();
+                assert!(
+                    error
+                        .message
+                        .contains("const argument for `N` of `Alias` must be a `u8`, found `256`"),
+                    "{}",
+                    error.message
+                );
+            }
+
+            #[test]
+            fn a_boolean_carrier_takes_a_boolean_literal_only() {
+                let (mut program, argument) = applied_alias("bool", ExpressionNode::Boolean(true));
+                normalize(&mut program, 0).unwrap();
+                assert!(matches!(
+                    program.type_reference_table.type_reference(argument),
+                    TypeReferenceNode::Named { symbol, name }
+                        if !symbol.is_valid() && name.as_str() == "true"
+                ));
+                let (mut program, _) = applied_alias("bool", integer(1));
+                let error = normalize(&mut program, 0).unwrap_err();
+                assert!(
+                    error
+                        .message
+                        .contains("must be a `bool`, found an integer literal")
+                );
+            }
+
+            #[test]
+            fn membership_in_a_constrained_carrier_is_not_decided_by_typing() {
+                // 300 is outside `u8`, and whether it is a member of
+                // `u8 in Wrapping` is the checker's question: typing neither
+                // accepts nor rejects, and the argument stays unadmitted.
+                let (mut program, argument) = applied_alias("u8 in Wrapping", integer(300));
+                let authored = program.clone();
+                normalize(&mut program, 0).unwrap();
+                assert!(matches!(
+                    program.type_reference_table.type_reference(argument),
+                    TypeReferenceNode::ConstExpression(_)
+                ));
+                assert_eq!(program, authored);
             }
         }
     }

@@ -4856,6 +4856,48 @@ pub(crate) mod selected_operands {
     use crate::{TypedTrees, expression, types};
 
     impl TypedTrees {
+        /// Resolve the retained declaration operand before a description uses
+        /// it. Bare generic heads share the parser's type-expression form;
+        /// their resolved declaration and complete arguments decide the role.
+        pub fn declaration_operand_from_expression(
+            &self,
+            expression: expression::ExpressionHandle,
+        ) -> Result<expression::StaticMachineArgument, &'static str> {
+            use expression::{ExpressionNode, StaticMachineArgument};
+            if !self.expression_table.expression_is_valid(expression) {
+                return Err("declaration operand lost its retained expression");
+            }
+            match self.expression_table.expression(expression) {
+                ExpressionNode::Name(path) if path.static_application.is_valid() => self
+                    .expression_table
+                    .static_member(path.static_application)
+                    .cloned()
+                    .ok_or("declaration operand lost its selected application"),
+                ExpressionNode::Name(path) => Ok(StaticMachineArgument {
+                    symbol: path.symbol,
+                    ..StaticMachineArgument::default()
+                }),
+                ExpressionNode::TypeExpression(reference) => {
+                    let mut selected = self.static_operand_from_type_reference(*reference)?;
+                    if !self.symbols.symbols().nodes().is_valid(selected.symbol)
+                        || !matches!(
+                            self.symbols.get(selected.symbol).kind,
+                            symbols::SymbolKind::Machine | symbols::SymbolKind::State
+                        )
+                    {
+                        return Err(
+                            "an applied declaration operand requires a machine or requirement",
+                        );
+                    }
+                    // Keep the original supplying scope so the existing region
+                    // owner can authenticate this exact selected application.
+                    selected.type_reference = *reference;
+                    Ok(selected)
+                }
+                _ => Err("a declaration operand requires an uninvoked path, not a value or call"),
+            }
+        }
+
         pub fn static_operand_region_supplier(
             &self,
             selected: &expression::StaticMachineArgument,
@@ -4944,6 +4986,11 @@ pub(crate) mod selected_operands {
                     path: Box::from([name.clone()]),
                     ..StaticMachineArgument::default()
                 }),
+                TypeReferenceNode::Generic { base_symbol, .. }
+                    if !self.symbols.symbols().nodes().is_valid(*base_symbol) =>
+                {
+                    Err("static operand lost its selected declaration")
+                }
                 TypeReferenceNode::Generic {
                     base_symbol,
                     base_name,

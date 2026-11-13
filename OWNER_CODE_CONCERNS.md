@@ -506,6 +506,13 @@ own to defend. Say what you saw, not what you would build.
 - Cost: no source program reaches the lowered-form checker, so no work on the checker can be verified from source until constants have an evaluator and Psi 04 passes a nonempty program through
 - Reported: 2026-11-13, Claude Code, while restoring source activation for the route probe
 
+### Typing refuses its own questions as if they waited for the checker
+- Category: a stage reaching across a boundary
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/lib.rs` (`unavailable_judgment`) and its 26 callers, such as `typing_queries.rs` ("constructor field type", "call entry parameter types") and `type_reference.rs` ("closed const argument declaration custody")
+- Saw: every refusal reads "no product route yet: X requires a lowered-form judgment", but most of X is arity, a declared type or a field's owner, which typing decides from declarations; two of them stopped the bundled library (`core::Strict<0>`, `ForeignBinding<N, ...>`) although no proof was involved
+- Cost: a reader cannot tell a typing rule that was not rebuilt from a proof the checker must supply, so each stop is investigated from scratch and the wording invites routing typing work to the checker
+- Reported: 2026-11-13, Claude Code, while getting the route probe through typing
+
 ### An `invokes` row that names an ordinary trait is dropped without a word
 - Category: a verdict with nothing behind it
 - Where: `typed-trees/src/declarations.rs` (`declared_targets`); `lowered-discharge/src/refinement.rs` (`prove_callable_refinement`)
