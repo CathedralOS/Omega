@@ -13,7 +13,8 @@ Unsupported verdicts intact.
 */
 
 use structure_elaboration::{CallableDeclaration, elaborate_callable_witness};
-use terminal_check_tables::Checked;
+use terminal_check_tables::obligations::ObligationKind;
+use terminal_check_tables::{Checked, Construct, RefusalReason};
 use typed_trees::TypedTrees;
 use typed_trees::signature::StateSignature;
 
@@ -35,8 +36,34 @@ pub fn prove_callable_refinement<'a>(
         // storage reads and consumption points of open invariant windows.
         // Abstract guarantees are premises only after their symbolic call;
         // they are never treated as proved implementation bodies here.
-        for (_, verdict) in result.verdicts.iter() {
-            verdict.as_ref().map_err(Clone::clone)?;
+        let tables = terminal_check_tables::row(
+            &witness.tables.machines,
+            machine,
+            machine,
+            Construct::Machine,
+        )?;
+        for (obligation, verdict) in result.verdicts.iter() {
+            let Err(refused) = verdict else { continue };
+            let row = terminal_check_tables::row(
+                &tables.obligations,
+                obligation,
+                machine,
+                Construct::Obligation(obligation),
+            )?;
+            // A published clause restates its failing return. Report the
+            // return's actual cause, especially NoRuleForGoalForm, instead
+            // of converting an incomplete proof into ReturnDoesNotEstablish.
+            // The return remains in this same obligation inventory and must
+            // refuse below; no failing clause can disappear from the proof.
+            if matches!(row.kind, ObligationKind::PublishedGuarantee { .. })
+                && tables.obligations.iter().any(|(exit, row)| {
+                    matches!(row.kind, ObligationKind::NormalGuarantee { published, .. } if published == obligation)
+                        && matches!(result.verdicts.get(exit), Some(Err(refused)) if matches!(refused.reason, RefusalReason::Unproved(_)))
+                })
+            {
+                continue;
+            }
+            return Err(refused.clone());
         }
         for used in &result.uses {
             used.verdict.as_ref().map_err(Clone::clone)?;
