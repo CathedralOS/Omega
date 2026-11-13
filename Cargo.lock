@@ -2129,6 +2129,7 @@ dependencies = [
  "package-compilation",
  "provider-planning",
  "psi-terminal-production",
+ "semantic-vocabulary",
  "symbols",
  "target",
  "terminal-psi",

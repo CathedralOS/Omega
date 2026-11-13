@@ -17,6 +17,7 @@ provider-planning = { path = "../provider-planning" }
 psi-terminal-production = { path = "../../../../psi/compilation/psi-compiler/terminal-production" }
 target = { path = "../../backend/target" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
