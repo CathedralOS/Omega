@@ -16,7 +16,6 @@ and settles providers, dispatch, entry bindings, and task activations without
 reopening source checking.
 */
 
-pub(crate) mod checked_slice_store;
 pub(crate) mod checking;
 mod compilation_session;
 mod component_cache;

@@ -1,13 +1,7 @@
 /*
-    Target-neutral Psi source compilation facade: source-frontier parsing,
-    resolver and typing continuations across Build execution, whole-program and
-    library-slice checking, and invocation-shared portable Terminal production.
-
-    We load and parse admitted source frontiers into arena-backed syntax pages,
-    drive symbol resolution and seeded typing through `SourceContinuation` and
-    `CompletedSource`, admit post-join Product policies, check typed programs
-    against fresh invocation authority or matching retained judgments, and
-    re-export `psi-terminal-production` for checked-to-Terminal lowering.
+    Target-neutral source parsing, resolution, typing, and preparation. This
+    facade supplies frozen typed input to the lowered-form checker; it produces
+    no source-checker judgment, checked-tree cache, or selected checked product.
 */
 
 /*
@@ -22,7 +16,7 @@
     parsing, `source_compilation` (`SourceCompilationRequest`,
     `SourceContinuation`, and `CompletedSource`) for the resolver/typing
     continuation and Product policy admission, `source_checking`
-    (`CheckRequest` and `CheckedSource`) for whole-program and library-slice
+    (`SourcePreparationRequest` and `FrozenSource`) before lowered-form
     checking, and `portable_productions` (`PortableProductions`) for sharing
     identical portable Terminal productions within an invocation.
 */
@@ -537,16 +531,11 @@ pub(crate) mod source_parsing {
 
 pub use portable_productions::{PortableProductionInputs, PortableProductions};
 pub use source_checking::{
-    CheckRequest, CheckedSliceOwner, CheckedSliceReuse, CheckedSliceStore, CheckedSource,
-    CheckedTreeProductSelection, LibrarySliceKey, LibrarySliceRequest, LibrarySliceTotals,
-    ProductRepresentationInput, ProductSelections, RetainedCheck, SelectedCheckedSource,
-    SourceAdmission, checked_slice_totals, library_slice_totals, retained_layout_match_hits,
-    whole_program_reuse_hits,
+    FrozenSource, ProductRepresentationInput, SourceAdmission, SourcePreparationRequest,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
 };
-pub use typed_trees_to_checked_trees::declaration_page_fork_totals;
 pub use validation::{dependency_body_read_totals, dependency_entailment_totals};
 
 pub use source_compilation::{

@@ -47,7 +47,6 @@ pub(super) fn prepare_build_invocation(
         package_inputs,
         build,
         optimization_rollback: _,
-        settled_check_reuse,
     } = child;
     let build_execution_profile = build.profile;
     let dependency_activation = build.dependency_activation;
@@ -77,15 +76,6 @@ pub(super) fn prepare_build_invocation(
             generated_source_custody: &generated_source_custody,
             execution: build,
             artifact_only: false,
-            prior_checks: settled_check_reuse
-                .prior
-                .build
-                .as_ref()
-                .into_iter()
-                .chain(settled_check_reuse.prior.sibling_build_checks.iter())
-                .collect(),
-            retain_check: settled_check_reuse.retain,
-            checked_slices: crate::checked::checked_slice_store::shared(),
         },
         &mut timings,
     )?;
@@ -308,7 +298,6 @@ pub(super) fn complete_build_source(
         configuration: mut computed_build_config,
         restricted_build_requests,
         base_source_consumption_commitment,
-        retained_check: retained_build_check,
         provider_folded_constants,
     } = evaluated;
     if let Some(pending) = product_sources {
@@ -419,7 +408,6 @@ pub(super) fn complete_build_source(
             base_sources,
             computed_build_config,
             admission,
-            retained_build_check,
         },
         sources,
     ))
@@ -498,7 +486,6 @@ pub(super) fn complete_product_frontend(
         base_sources,
         mut computed_build_config,
         admission,
-        retained_build_check: _,
     } = built;
     let source =
         source.complete_authored(&mut crate::observations::PsiStageTimings::new(timings))?;

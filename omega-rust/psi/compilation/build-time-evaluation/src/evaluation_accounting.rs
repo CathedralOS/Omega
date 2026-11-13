@@ -571,56 +571,6 @@ impl EvaluationAccounting {
         Ok(Some((ordinal, retained)))
     }
 
-    pub(crate) fn evaluate_terminal(
-        &self,
-        program: BuildMachineProgram<'_>,
-        machine: symbols::SymbolHandle,
-        operators: &[SelectedBuildTimeBinaryOperator],
-        execute: impl FnOnce(
-            &mut psi_work::WorkMeter,
-            &mut Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
-        ) -> Result<TerminalExecutionResult, String>,
-    ) -> Result<TerminalExecutionResult, String> {
-        if !matches!(
-            program,
-            BuildMachineProgram::Checked(_) | BuildMachineProgram::CheckedClosure { .. }
-        ) {
-            return Err("Terminal source-completion accounting requires checked input".to_owned());
-        }
-        let input = self.reserve_invocation(program)?;
-        let operators = input.as_ref().map(|_| operators.to_vec());
-        let mut meter = psi_work::WorkMeter::with_budget(PURE_PSI_WORK_BUDGET);
-        let mut artifact = None;
-        let evaluation = execute(&mut meter, &mut artifact);
-        if let (Some(state), Some((ordinal, source_program)), Some(operators)) =
-            (&self.state, input, operators)
-        {
-            let receipt = PureTerminalEvaluationReceipt {
-                source_program,
-                machine,
-                arguments: Vec::new(),
-                operators,
-                program: artifact,
-                outcome: match &evaluation {
-                    Ok(value) => PureTerminalEvaluationOutcome::Returned {
-                        value: value.clone(),
-                    },
-                    Err(reason) => PureTerminalEvaluationOutcome::Failed {
-                        reason: reason.clone(),
-                    },
-                },
-                usage: meter.into_usage(),
-                work_budget: PURE_PSI_WORK_BUDGET,
-            };
-            receipt.validate_charge()?;
-            state
-                .lock()
-                .map_err(|_| "source-completion accounting owner is poisoned".to_owned())?
-                .receipts[ordinal] = Some(PureEvaluationRecord::Terminal(receipt));
-        }
-        evaluation
-    }
-
     /// Run one admitted checked invocation as a Terminal program and record the
     /// exact arguments, artifact, materialized value, work and storage usage.
     /// The caller's `execute` owns production, instantiation and readback; it

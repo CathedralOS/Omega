@@ -61,7 +61,6 @@ pub fn project_checked_package_policy<'a>(
         source: super::SourceDeclarationInput {
             checking_input: &queries.candidate,
             original_checking_input: &queries.custody,
-            contract_owner_queries: None,
             mathematical_calls: Some(&mathematical_calls),
             original_mathematical_calls: Some(&original_mathematical_calls),
             ..input.source

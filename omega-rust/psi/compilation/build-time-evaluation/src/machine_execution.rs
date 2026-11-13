@@ -25,34 +25,23 @@ pub(crate) mod admission {
     use crate::syntax_probes::PreparedEvaluationInputs;
 
     mod closure_validation {
-        use super::{
-            BuildTimeAdmissionPlan, BuildTimeCallEdge, BuildTimeProgram, RecursiveCheckingInput,
-        };
+        use super::{BuildTimeAdmissionPlan, BuildTimeCallEdge, BuildTimeProgram};
         use crate::build_time_evaluation::{expression_table, type_reference_table};
-        use language_semantics::{MachineSupplyMode, Multiplicity, TerminationGuarantee};
+
         use symbols::{SymbolHandle, SymbolKind};
         use typed_trees::TypedTrees;
         use typed_trees::machine::Machine;
         use typed_trees::signature::{SignatureContract, StateSignature};
-        use typed_trees_to_checked_trees::{
-            infer_checked_recursive_machine_terminations, infer_machine_termination_summary,
-        };
 
         pub(super) fn checked_closure_violation<'request>(
-            admission: &'request BuildTimeAdmissionPlan,
-            input: BuildTimeProgram<'request>,
-            call_edges: &[BuildTimeCallEdge],
-            execution: &dyn validation::CheckingInput,
-            root: &Machine,
-            discharge_authored_requires: bool,
+            _admission: &'request BuildTimeAdmissionPlan,
+            _input: BuildTimeProgram<'request>,
+            _call_edges: &[BuildTimeCallEdge],
+            _execution: &dyn validation::CheckingInput,
+            _root: &Machine,
+            _discharge_authored_requires: bool,
         ) -> Option<String> {
-            machine_termination_violation(
-                call_edges,
-                execution,
-                root.symbol,
-                &mut ClosureWalk::new(admission, input, root.symbol),
-                discharge_authored_requires,
-            )
+            Some("no product route yet: compile-time closure proof".into())
         }
 
         pub(super) fn closure_has_authored_requires(
@@ -198,224 +187,10 @@ pub(crate) mod admission {
                 })
         }
 
-        struct ClosureWalk<'request> {
-            admission: &'request BuildTimeAdmissionPlan,
-            input: BuildTimeProgram<'request>,
-            root: SymbolHandle,
-            recursion_input: Option<RecursiveCheckingInput<'request>>,
-            completed: Vec<SymbolHandle>,
-            active: Vec<SymbolHandle>,
-            path: Vec<String>,
-            recursive_terminations: Vec<checked_trees::CheckedRuntimeRankMember>,
-        }
-
-        impl<'request> ClosureWalk<'request> {
-            fn new(
-                admission: &'request BuildTimeAdmissionPlan,
-                input: BuildTimeProgram<'request>,
-                root: SymbolHandle,
-            ) -> Self {
-                Self {
-                    admission,
-                    input,
-                    root,
-                    recursion_input: None,
-                    completed: Vec::new(),
-                    active: Vec::new(),
-                    path: Vec::new(),
-                    recursive_terminations: Vec::new(),
-                }
-            }
-
-            fn recursive_terminations(
-                &mut self,
-                machine: SymbolHandle,
-                body: arena::HandleSpan<typed_trees::state::State>,
-            ) -> Result<Vec<checked_trees::CheckedRuntimeRankMember>, String> {
-                if self.recursion_input.is_none() {
-                    self.recursion_input = Some(
-                        self.admission
-                            .prepare_recursive_checking_input(self.input, self.root)?,
-                    );
-                }
-                let checked = self
-                    .recursion_input
-                    .as_ref()
-                    .expect("this request prepared its recursive checking input")
-                    .checked();
-                infer_checked_recursive_machine_terminations(checked, machine, body)
-                    .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))
-            }
-        }
-
-        fn machine_termination_violation(
-            call_edges: &[BuildTimeCallEdge],
-            input: &dyn validation::CheckingInput,
-            machine_symbol: SymbolHandle,
-            walk: &mut ClosureWalk<'_>,
-            discharge_authored_requires: bool,
-        ) -> Option<String> {
-            let program = input.typed_program();
-            if walk.completed.contains(&machine_symbol) {
-                return None;
-            }
-            let machine = program.machine(machine_symbol)?;
-            walk.path.push(machine.name.as_str().to_owned());
-
-            if !discharge_authored_requires
-                && let Some(violation) =
-                    machine_precondition_violation(program, machine, &walk.path)
-            {
-                walk.path.pop();
-                return Some(violation);
-            }
-            if let Some(violation) = machine_linear_carrier_violation(program, machine, &walk.path)
-            {
-                walk.path.pop();
-                return Some(violation);
-            }
-
-            if walk.active.contains(&machine_symbol) {
-                let matches_body = |member: &checked_trees::CheckedRuntimeRankMember| {
-                    member.machine == machine_symbol && member.body == machine.states
-                };
-                if !walk.recursive_terminations.iter().any(matches_body) {
-                    let result = walk.recursive_terminations(machine_symbol, machine.states);
-                    match result {
-                        Ok(members) => walk.recursive_terminations.extend(members),
-                        Err(reason) => {
-                            let violation = format!(
-                                "recursive machine-call component along `{}` failed ordinary checking: {reason}",
-                                walk.path.join(" -> ")
-                            );
-                            walk.path.pop();
-                            return Some(violation);
-                        }
-                    }
-                }
-                let measured = walk.recursive_terminations.iter().any(matches_body);
-                if !measured {
-                    let violation = format!(
-                        "recursive machine-call cycle has no ordinary termination proof along `{}`",
-                        walk.path.join(" -> ")
-                    );
-                    walk.path.pop();
-                    return Some(violation);
-                }
-                walk.path.pop();
-                return None;
-            }
-            walk.active.push(machine_symbol);
-
-            let target_snapshot = match program.layout_target_facts_result(machine_symbol) {
-                Ok(snapshot) => snapshot.is_some(),
-                Err(reason) => {
-                    walk.active.pop();
-                    walk.path.pop();
-                    return Some(reason.to_owned());
-                }
-            };
-            let locally_terminates = target_snapshot
-                || (machine.supply_mode == MachineSupplyMode::CheckedBody
-                    && matches!(
-                        infer_machine_termination_summary(input, machine_symbol),
-                        Some(TerminationGuarantee::Terminates { .. })
-                    ));
-            if !locally_terminates {
-                let violation = if matches!(
-                    machine.supply_mode,
-                    MachineSupplyMode::Requirement
-                        | MachineSupplyMode::TopLevelRequirement
-                        | MachineSupplyMode::Boundary
-                ) {
-                    format!(
-                        "machine call path `{}` reaches a requirement that requires exact authored selection before evaluation; the evaluator cannot execute a bodyless requirement",
-                        walk.path.join(" -> ")
-                    )
-                } else {
-                    format!(
-                        "machine call path `{}` has no ordinary checked `Terminates` guarantee",
-                        walk.path.join(" -> ")
-                    )
-                };
-                walk.active
-                    .retain(|active_symbol| *active_symbol != machine_symbol);
-                walk.path.pop();
-                return Some(violation);
-            }
-
-            for call in call_edges
-                .iter()
-                .filter(|call| call.source_machine_symbol == machine_symbol)
-            {
-                if let Some(target_machine_symbol) = call.target_machine(program) {
-                    if let Some(violation) = machine_termination_violation(
-                        call_edges,
-                        input,
-                        target_machine_symbol,
-                        walk,
-                        discharge_authored_requires,
-                    ) {
-                        walk.active
-                            .retain(|active_symbol| *active_symbol != machine_symbol);
-                        walk.path.pop();
-                        return Some(violation);
-                    }
-                } else if let Some(violation) = callable_contract_violation(
-                    program,
-                    call.target_state_symbol,
-                    &walk.path,
-                    discharge_authored_requires,
-                ) {
-                    walk.active
-                        .retain(|active_symbol| *active_symbol != machine_symbol);
-                    walk.path.pop();
-                    return Some(violation);
-                }
-            }
-
-            walk.active
-                .retain(|active_symbol| *active_symbol != machine_symbol);
-            walk.completed.push(machine_symbol);
-            walk.path.pop();
-            None
-        }
-
-        fn machine_precondition_violation(
-            program: &TypedTrees,
-            machine: &Machine,
-            path: &[String],
-        ) -> Option<String> {
-            if has_authored_requires(program.machine_contracts(machine)) {
-                return Some(format!(
-                    "machine `{}` has an authored `requires` premise along `{}`; pre-check semantic evaluation has no checked invocation proof for that premise",
-                    machine.name,
-                    path.join(" -> ")
-                ));
-            }
-            program.machine_states(machine).iter().find_map(|state| {
-        has_authored_requires(program.state_contracts(state)).then(|| {
-            format!(
-                "state `{}` has an authored `requires` premise along `{}`; pre-check semantic evaluation has no checked invocation proof for that premise",
-                state.name,
-                path.join(" -> ")
-            )
-        })
-    })
-        }
-
         pub(super) fn has_authored_requires(contracts: &[SignatureContract]) -> bool {
             contracts.iter().any(|contract| {
                 contract.kind == typed_trees::signature::SignatureContractKind::Requires
             })
-        }
-
-        fn machine_linear_carrier_violation(
-            program: &TypedTrees,
-            machine: &Machine,
-            _path: &[String],
-        ) -> Option<String> {
-            validation::compiler_evaluation::linear_carrier_violation(program, machine)
         }
 
         fn callable_signature(
@@ -445,60 +220,11 @@ pub(crate) mod admission {
                 has_authored_requires(program.state_signature_contracts(signature))
             })
         }
-
-        fn callable_contract_violation(
-            program: &TypedTrees,
-            symbol: SymbolHandle,
-            path: &[String],
-            discharge_authored_requires: bool,
-        ) -> Option<String> {
-            let signature = callable_signature(program, symbol)?;
-
-            if !discharge_authored_requires
-                && has_authored_requires(program.state_signature_contracts(signature))
-            {
-                return Some(format!(
-                    "callable contract `{}` has an authored `requires` premise along `{}`; pre-check semantic evaluation has no checked invocation proof for that premise",
-                    signature.name,
-                    path.join(" -> ")
-                ));
-            }
-
-            for parameter in program.state_signature_parameters(signature) {
-                if program.type_multiplicity(parameter.type_reference) == Multiplicity::Linear {
-                    return Some(format!(
-                        "callable contract `{}` parameter `{}` has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
-                        signature.name,
-                        parameter.name,
-                        program.display_type_reference(parameter.type_reference),
-                        path.join(" -> ")
-                    ));
-                }
-            }
-            if program.type_multiplicity(signature.return_type) == Multiplicity::Linear {
-                return Some(format!(
-                    "callable contract `{}` result has linear runtime type `{}` along `{}`; semantic evaluation has no proof/build-admission for that resource carrier",
-                    signature.name,
-                    program.display_type_reference(signature.return_type),
-                    path.join(" -> ")
-                ));
-            }
-
-            if signature.termination_guarantee.promises_termination() {
-                return None;
-            }
-
-            let name = signature.name.as_str();
-            Some(format!(
-                "callable contract `{name}` reached from `{}` publishes no `Terminates` guarantee",
-                path.join(" -> ")
-            ))
-        }
     }
     mod concrete_invocation {
         use symbols::{SymbolHandle, SymbolKind};
         use typed_trees::TypedTrees;
-        use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+        use typed_trees::expression::ExpressionHandle;
         use typed_trees::machine::Machine;
         use typed_trees::state::State;
         use typed_trees::statement::{StatementNode, TableTransition, TransitionTargetNode};
@@ -506,8 +232,6 @@ pub(crate) mod admission {
         use super::BuildTimeProgram;
         use super::closure_validation::has_authored_requires;
         use crate::syntax_probes::PreparedEvaluationInputs;
-        use typed_trees_to_checked_trees::lower_typed_trees;
-        use typed_trees_to_typed_trees::prepare_typed_trees;
 
         pub(super) fn zero_argument_invocation_discharges(
             program: &TypedTrees,
@@ -518,153 +242,12 @@ pub(crate) mod admission {
         }
 
         pub(super) fn value_invocation_discharges(
-            program: &TypedTrees,
-            machine: &Machine,
-            arguments: &[crate::BuildTimeValue],
-            source_span: Option<source::SourceSpan>,
+            _program: &TypedTrees,
+            _machine: &Machine,
+            _arguments: &[crate::BuildTimeValue],
+            _source_span: Option<source::SourceSpan>,
         ) -> Result<(), String> {
-            let entry = entry_state(program, machine)
-                .ok_or("constant invocation has no exact entry state")?;
-            let parameters = program.state_parameters(entry);
-            if parameters.len() != arguments.len() {
-                return Err(
-                    "constant invocation arguments differ from its checked entry arity".into(),
-                );
-            }
-            let mut probe = program.clone();
-            probe.pending_const_range_endpoints.clear();
-            let (probe_machine, mut state) = invocation_probe_declarations(
-                &mut probe,
-                machine.symbol,
-                "@const-invocation",
-                entry.return_type,
-            );
-            let mut actuals = Vec::with_capacity(arguments.len());
-            for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
-                if matches!(argument, crate::BuildTimeValue::LayoutTarget(_)) {
-                    let name = format!("@context-{position}");
-                    let symbol = probe
-                        .symbols
-                        .insert_generated_children(
-                            state.symbol,
-                            [(SymbolKind::Parameter, name.as_str())],
-                        )
-                        .start();
-                    let mut retained = parameter.clone();
-                    retained.symbol = symbol;
-                    retained.name = typed_trees::name::Identifier::generated(&name);
-                    probe.push_state_parameter(&mut state, retained.clone());
-                    let path = probe_name_path(&mut probe, symbol, retained.name);
-                    actuals.push(probe.expression_table.insert(ExpressionNode::Name(path)));
-                    continue;
-                }
-                let mut carrier = parameter.type_reference;
-                while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
-                    program.type_reference_table.type_reference(carrier)
-                {
-                    carrier = *base_type;
-                }
-                let reference = match program.type_reference_table.type_reference(carrier) {
-                    typed_trees::types::TypeReferenceNode::Reference {
-                        referee, access, ..
-                    } => Some((*referee, *access)),
-                    _ => None,
-                };
-                let mut snapshot = argument.clone();
-                let value = super::supplied_values::literal(
-                    &mut probe,
-                    reference.map_or(parameter.type_reference, |(referee, _)| referee),
-                    &mut snapshot,
-                )
-                .map_err(|reason| format!("constant argument `{}`: {reason}", parameter.name))?;
-                let actual = if let Some((referee, access)) = reference {
-                    let name = format!("@argument-{position}");
-                    let symbol = probe
-                        .symbols
-                        .insert_generated_children(
-                            state.symbol,
-                            [(SymbolKind::Local, name.as_str())],
-                        )
-                        .start();
-                    let name = typed_trees::name::Identifier::generated(&name);
-                    probe.statement_table.push_statement(
-                        &mut state.statement_nodes,
-                        StatementNode::LocalData(typed_trees::statement::TableLocalData {
-                            symbol,
-                            name: name.clone(),
-                            type_reference: referee,
-                            initial_value: value,
-                            is_mutable: access.is_exclusive(),
-                            ..Default::default()
-                        }),
-                    );
-                    let path = probe_name_path(&mut probe, symbol, name);
-                    let target = probe.expression_table.insert(ExpressionNode::Name(path));
-                    probe.expression_table.insert(ExpressionNode::Borrow(
-                        typed_trees::expression::TableBorrowExpression { target, access },
-                    ))
-                } else {
-                    value
-                };
-                actuals.push(actual);
-            }
-            let call = TableCallExpression {
-                authored_call_selection: None,
-                authored_call_binding: None,
-                authored_machine_application: Default::default(),
-                requirement_application: Default::default(),
-                exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
-                receiver: ExpressionHandle::invalid(),
-                target_symbol: entry.symbol,
-                static_machine_parameter: SymbolHandle::invalid(),
-                target: entry.name.clone(),
-                static_requirement_dispatch: None,
-                machine_arguments: Box::default(),
-                quotient_operation: None,
-                private_layout_operation: None,
-                installed_interrupt_operation: None,
-                layout_query: None,
-                native_code_layout: None,
-                build_selection: Default::default(),
-                arguments: probe.expression_table.insert_expression_handles(actuals),
-                evidence_arguments: Box::default(),
-                operational_acknowledgement:
-                    language_semantics::CallOperationalAcknowledgement::default(),
-            };
-            let concrete = probe.expression_table.insert(ExpressionNode::Call(call));
-            let call_span = source_span
-                .or_else(|| probe.symbols.symbol_source_span(machine.symbol))
-                .unwrap_or_default();
-            probe.expression_table.set_source_span(concrete, call_span);
-            let owner = finish_invocation_probe(&mut probe, probe_machine, state, concrete);
-            let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
-            let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-            let checked = prepare_typed_trees(probe, &preparation_request)
-                .and_then(|(probe, preparation)| lower_typed_trees(probe, preparation, &checking))
-                .map_err(|diagnostics| {
-                    format!(
-                        "constant invocation failed ordinary checking: {}",
-                        diagnostics::join_messages(&diagnostics),
-                    )
-                })?;
-            require_complete_invocation_conditions(&checked, owner)?;
-            require_empty_failure_summary(&checked, owner)
-        }
-
-        fn probe_name_path(
-            probe: &mut TypedTrees,
-            symbol: SymbolHandle,
-            name: typed_trees::name::Identifier,
-        ) -> typed_trees::expression::TableNamePath {
-            let mut members = arena::HandleSpan::empty();
-            probe
-                .expression_table
-                .push_name_path_member(&mut members, name);
-            let mut member_symbols = arena::HandleSpan::empty();
-            probe
-                .expression_table
-                .push_name_path_member_symbol(&mut member_symbols, symbol);
-            typed_trees::expression::TableNamePath::new(members, member_symbols, symbol, symbol)
+            Err("no product route yet: compile-time proof requires the lowered-form checker".into())
         }
 
         pub(super) fn require_empty_failure_summary(
@@ -711,27 +294,10 @@ pub(crate) mod admission {
         }
 
         pub(super) fn checked_demanded_closure(
-            domain: &crate::build_time_evaluation::EvaluationDomain,
-            program: &TypedTrees,
+            _domain: &crate::build_time_evaluation::EvaluationDomain,
+            _program: &TypedTrees,
         ) -> Result<checked_trees::CheckedTrees, String> {
-            let mut probe = domain.execution_program(program);
-            probe.pending_const_range_endpoints.clear();
-            let preparation_request = typed_trees_to_typed_trees::PreparationRequest::preliminary();
-            let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-            let (probe, preparation) =
-                prepare_typed_trees(probe, &preparation_request).map_err(|error| {
-                    format!(
-                        "demanded premise closure preparation failed: {}",
-                        diagnostics::join_messages(&error)
-                    )
-                })?;
-            let checked = lower_typed_trees(probe, preparation, &checking).map_err(|error| {
-                format!(
-                    "demanded premise closure checking failed: {}",
-                    diagnostics::join_messages(&error)
-                )
-            })?;
-            Ok(checked)
+            Err("no product route yet: compile-time proof requires the lowered-form checker".into())
         }
 
         pub(super) fn entry_state<'a>(
@@ -749,123 +315,6 @@ pub(crate) mod admission {
                 .iter()
                 .find(|state| state.name.as_str() == leaf)
                 .or_else(|| states.first())
-        }
-
-        pub(crate) struct SnapshotArgument {
-            pub original: ExpressionHandle,
-            pub literal: ExpressionNode,
-        }
-
-        pub(crate) fn snapshot_arguments_discharge(
-            admission: &super::BuildTimeAdmissionPlan,
-            program: &TypedTrees,
-            retained: &[SymbolHandle],
-            owner: SymbolHandle,
-            probe_name: &str,
-            preparation_request: &typed_trees_to_typed_trees::PreparationRequest,
-            checking: &typed_trees_to_checked_trees::CheckingRequest,
-            expression: ExpressionHandle,
-            callee: &str,
-            return_type: typed_trees::types::TypeReferenceHandle,
-            snapshots: Vec<SnapshotArgument>,
-        ) -> Result<(), String> {
-            let mut probe = program.clone();
-            if probe.expression_table.call_node(expression).is_none() {
-                return Err("constant invocation has no selected call".into());
-            }
-            let copied = probe.expression_table.copy_graph(None, expression);
-            typed_trees_to_typed_trees::restore_copied_call_sources(&mut probe, &[copied.root])
-                .map_err(|reason| format!("constant call source restoration failed: {reason}"))?;
-            probe.pending_const_range_endpoints.clear();
-            let machines = probe
-                .machines()
-                .iter()
-                .filter(|candidate| retained.contains(&candidate.symbol))
-                .cloned()
-                .collect::<Vec<_>>();
-            probe.roots.machines = arena::HandleSpan::empty();
-            for candidate in machines {
-                probe.push_machine(candidate);
-            }
-            for snapshot in snapshots {
-                let copied_argument = copied
-                    .correspondence
-                    .iter()
-                    .find(|(original, _)| *original == snapshot.original)
-                    .map(|(_, copied)| *copied)
-                    .ok_or("constant snapshot has no exact copied operand")?;
-                *probe.expression_table.expression_mut(copied_argument) = snapshot.literal;
-            }
-            let concrete = copied.root;
-            let owner =
-                append_invocation_probe(&mut probe, owner, probe_name, concrete, return_type);
-            let checked = prepare_typed_trees(probe, preparation_request)
-                .and_then(|(probe, preparation)| lower_typed_trees(probe, preparation, checking))
-                .map_err(|diagnostics| {
-                    format!(
-                        "constant invocation of `{callee}` failed checking: {}",
-                        diagnostics::join_messages(&diagnostics)
-                    )
-                })?;
-            require_complete_invocation_conditions(&checked, owner)?;
-            require_empty_failure_summary(&checked, owner)?;
-            require_public_call_floor(&checked, owner, concrete, callee)?;
-            let plan = admission.checked_program_admission(&checked)?;
-            let machine = checked
-                .typed
-                .machine_by_symbol(owner)
-                .ok_or("constant snapshot invocation lost its checked machine")?;
-            plan.require_floor(
-                BuildTimeProgram::Checked(&checked),
-                machine,
-                Some(crate::BuildTimeInvocationCustody::Source(
-                    program.expression_table.source_span(expression),
-                )),
-                true,
-            )
-            .map_err(String::from)
-        }
-
-        fn require_public_call_floor(
-            checked: &checked_trees::CheckedTrees,
-            owner: SymbolHandle,
-            expression: ExpressionHandle,
-            callee: &str,
-        ) -> Result<(), String> {
-            let program = checked.typed.as_ref();
-            let call = program
-                .expression_table
-                .call_node(expression)
-                .ok_or("checked constant invocation has no call expression")?;
-            let site = validation::CallSite::Expression { expression, call };
-            if call.static_requirement_dispatch.is_none()
-                && validation::selected_requirement_signature(program, call.target_symbol).is_none()
-            {
-                return Ok(());
-            }
-            let (_, signature) = validation::resolve_requirement_contract(program, owner, &site)?;
-            let services = validation::trait_signature_service_reach(checked, signature.symbol)
-                .ok_or("constant call has no exact applied public service envelope")?;
-            let services = services
-                .iter()
-                .map(|service| {
-                    program
-                        .service_reaches
-                        .definition(*service)
-                        .map(|definition| definition.name.to_string())
-                        .ok_or("constant call's public envelope names an unavailable service")
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            semantic_vocabulary::compiler_evaluation::require_compiler_evaluation_floor(
-                callee,
-                &semantic_vocabulary::compiler_evaluation::CompilerEvaluationEffects {
-                    services,
-                    may_suspend: signature.suspends,
-                    may_block: signature.blocks,
-                },
-                None,
-                None,
-            )
         }
 
         pub(super) fn append_invocation_probe(
@@ -1186,27 +635,6 @@ pub(crate) mod admission {
                     .map(crate::MeasuredEvaluation::into_value)
             }
 
-            /// Run one invocation whose machine has an authored `requires`: the
-            /// concrete arguments are the only proof of that premise, so this is
-            /// the entry a constant call with literal arguments uses.
-            fn evaluate_under_concrete_premises(
-                admission: &BuildTimeAdmissionPlan,
-                program: &typed_trees::TypedTrees,
-                machine_name: &str,
-                arguments: Vec<BuildTimeValue>,
-            ) -> Result<BuildTimeValue, String> {
-                let symbol = program
-                    .realized_machine_named(machine_name)
-                    .expect("the invoked machine exists")
-                    .symbol;
-                admission.evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
-                    program,
-                    symbol,
-                    arguments,
-                    BuildTimeInvocationCustody::Symbol(symbol),
-                )
-            }
-
             #[test]
             fn source_admission_proves_guarded_actuals_before_execution() {
                 on_compilation_stack(|| {
@@ -1241,46 +669,6 @@ pub(crate) mod admission {
                     assert!(error.contains("not build-time admissible"), "{error}");
                     assert!(error.contains("unhandled [Trap]"), "{error}");
                     assert!(error.contains("before execution"), "{error}");
-                });
-            }
-
-            #[test]
-            fn source_failure_summary_distinguishes_unknown_from_proved_empty() {
-                on_compilation_stack(|| {
-                    let (program, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
-                        typed("machine answer() -> u64 { 7 }"),
-                        &typed_trees_to_typed_trees::PreparationRequest::settled(),
-                    )
-                    .expect("prepare");
-                    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
-                        program,
-                        preparation,
-                        &typed_trees_to_checked_trees::CheckingRequest::new(),
-                    )
-                    .expect("check");
-                    let owner = checked
-                        .typed
-                        .realized_machine_named("answer")
-                        .expect("answer")
-                        .symbol;
-                    assert!(checked.body_crash_summary(owner).is_some());
-                    concrete_invocation::require_empty_failure_summary(&checked, owner)
-                        .expect("ordinary checking proves the complete empty result");
-                    let plan = checked
-                        .facts
-                        .contract_plans
-                        .machines_mut()
-                        .iter_mut()
-                        .find(|plan| plan.machine == owner)
-                        .expect("exact plan");
-                    plan.crash = plan.crash.clone().with_checked_body_summary(None);
-                    assert!(checked.body_crash_summary(owner).is_none());
-                    let error = concrete_invocation::require_empty_failure_summary(&checked, owner)
-                        .expect_err("absence cannot grant no-failure evidence");
-                    assert!(
-                        error.contains("no complete checked failure summary"),
-                        "{error}"
-                    );
                 });
             }
 
@@ -1387,104 +775,6 @@ pub(crate) mod admission {
                             "the same target with a zero actual must refuse before execution",
                         );
                     assert!(error.contains("unhandled [Trap]"), "{error}");
-                    assert!(error.contains("before execution"), "{error}");
-                });
-            }
-
-            #[test]
-            fn source_admission_establishes_host_parameter_domains_before_execution() {
-                on_compilation_stack(|| {
-                    let (program, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
-                        typed(
-                            r#"
-            domain u64::NonZero requires self != 0;
-            machine divide(denominator: u64 in NonZero) -> u64 { 7u64 / denominator }
-        "#,
-                        ),
-                        &typed_trees_to_typed_trees::PreparationRequest::settled(),
-                    )
-                    .expect("prepare");
-                    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-                        program,
-                        preparation,
-                        &typed_trees_to_checked_trees::CheckingRequest::new(),
-                    )
-                    .expect("check");
-                    let program = checked.typed.as_ref();
-                    let symbol = program
-                        .realized_machine_named("divide")
-                        .expect("divide")
-                        .symbol;
-                    concrete_invocation::require_empty_failure_summary(&checked, symbol)
-                        .expect("the body is crash-free under its declared parameter domain");
-                    let admission = BuildTimeAdmissionPlan::infer(program, None);
-                    let value = evaluate_under_concrete_premises(
-                        &admission,
-                        program,
-                        "divide",
-                        vec![BuildTimeValue::Int(1)],
-                    )
-                    .expect("a host actual in the declared domain is established");
-                    assert_eq!(value, BuildTimeValue::Int(7));
-                    let error = evaluate_under_concrete_premises(
-                        &admission,
-                        program,
-                        "divide",
-                        vec![BuildTimeValue::Int(0)],
-                    )
-                    .expect_err("a body summary cannot establish its host argument domain");
-                    assert!(
-                        error.contains("constant invocation failed ordinary checking"),
-                        "{error}"
-                    );
-                    assert!(error.contains("requires"), "{error}");
-                    assert!(error.contains("not build-time admissible"), "{error}");
-                    assert!(error.contains("before execution"), "{error}");
-                });
-            }
-
-            #[test]
-            fn source_empty_failure_summary_does_not_discharge_authored_requires() {
-                on_compilation_stack(|| {
-                    let (program, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
-                        typed("machine answer(value: u64) -> u64 requires value != 0 { 7 }"),
-                        &typed_trees_to_typed_trees::PreparationRequest::settled(),
-                    )
-                    .expect("prepare");
-                    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-                        program,
-                        preparation,
-                        &typed_trees_to_checked_trees::CheckingRequest::new(),
-                    )
-                    .expect("check");
-                    let program = checked.typed.as_ref();
-                    let symbol = program
-                        .realized_machine_named("answer")
-                        .expect("answer")
-                        .symbol;
-                    concrete_invocation::require_empty_failure_summary(&checked, symbol)
-                        .expect("the constant body has an empty failure summary");
-                    let admission = BuildTimeAdmissionPlan::infer(program, None);
-                    let value = evaluate_under_concrete_premises(
-                        &admission,
-                        program,
-                        "answer",
-                        vec![BuildTimeValue::Int(1)],
-                    )
-                    .expect("the exact actual establishes the authored entry requirement");
-                    assert_eq!(value, BuildTimeValue::Int(7));
-                    let error = evaluate_under_concrete_premises(
-                        &admission,
-                        program,
-                        "answer",
-                        vec![BuildTimeValue::Int(0)],
-                    )
-                    .expect_err("a crash-free body cannot grant its invocation precondition");
-                    assert!(
-                        error.contains("constant invocation failed ordinary checking"),
-                        "{error}"
-                    );
-                    assert!(error.contains("requires"), "{error}");
                     assert!(error.contains("before execution"), "{error}");
                 });
             }
@@ -1791,11 +1081,6 @@ pub(crate) mod admission {
         }
     }
 
-    pub(crate) use concrete_invocation::{
-        SnapshotArgument,
-        require_complete_invocation_conditions as require_complete_checked_conditions,
-        snapshot_arguments_discharge,
-    };
     pub(crate) mod const_evaluable {
         use language_semantics::{DataSupplyMode, Multiplicity};
         use typed_trees::TypedTrees;
@@ -2583,11 +1868,10 @@ pub(crate) mod admission {
         }
     }
     mod selection_authority {
-        use crate::build_time_evaluation::expression_table;
-        use language_semantics::declaration_selection::BuildOperation;
+
         use semantic_vocabulary::PackageKeyIdentity;
         use source::{SourceOrigin, SourceSpan};
-        use symbols::{SymbolHandle, SymbolKind};
+        use symbols::SymbolHandle;
         use typed_trees::{
             TypedTrees,
             expression::{ExpressionHandle, ExpressionNode},
@@ -2597,9 +1881,7 @@ pub(crate) mod admission {
         };
 
         use super::{BuildTimeCallEdge, BuildTimeInvocationCustody, BuildTimeSelectionAuthority};
-        use typed_trees::AuthoredDeclarationSelectionTarget;
-        use typed_trees_to_checked_trees::typed_operator_authored_selection_candidates;
-        use validation::compiler_operations::build_product_request_intrinsic;
+
         use validation::has_builtin_binary_expression_meaning;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2997,341 +2279,13 @@ pub(crate) mod admission {
         }
 
         fn expression_occurrence_violation(
-            input: &dyn validation::CheckingInput,
-            expression: ExpressionHandle,
-            authority: Option<&dyn BuildTimeSelectionAuthority>,
+            _input: &dyn validation::CheckingInput,
+            _expression: ExpressionHandle,
+            _authority: Option<&dyn BuildTimeSelectionAuthority>,
         ) -> Option<SelectionViolation> {
-            let program = input.typed_program();
-            if let Some(authority) = authority {
-                let occurrences = expression_table(program)
-                    .authored_selection_occurrences(expression)
-                    .collect::<Vec<_>>();
-                for (occurrence_offset, occurrence) in occurrences.iter().copied().enumerate() {
-                    let Some(selection) = input.authored_declaration_selections().get(occurrence)
-                    else {
-                        return Some(SelectionViolation {
-                            message: format!(
-                                "build-time expression retains unknown authored declaration selection occurrence {}",
-                                occurrence.ordinal()
-                            ),
-                            source_span: Some(program.expression_table.source_span(expression)),
-                        });
-                    };
-                    let located = |message: String| SelectionViolation {
-                        message,
-                        source_span: Some(selection.source_span()),
-                    };
-                    match build_product_request_intrinsic(input, expression, selection) {
-                        Ok(Some(expected)) => {
-                            if selection.target()
-                                != AuthoredDeclarationSelectionTarget::Intrinsic(expected)
-                            {
-                                return Some(located(
-                            "Build request occurrence differs from its source-issued inert meaning"
-                                .to_owned(),
-                        ));
-                            }
-                            continue;
-                        }
-                        Ok(None) => {}
-                        Err(reason) => return Some(located(reason)),
-                    }
-                    if validation::compiler_operations::is_build_declaration_selection(
-                        input, expression,
-                    ) {
-                        use typed_trees::AuthoredDeclarationSelectionKind as Kind;
-                        if selection.kind() == Kind::Call {
-                            continue;
-                        }
-                        if matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance)
-                            && let Some(argument_index) =
-                                selection.top_level_static_argument_position()
-                        {
-                            let expected =
-                                validation::compiler_operations::resolve_build_static_operand(
-                                    input,
-                                    expression,
-                                    argument_index,
-                                    selection.source_span(),
-                                );
-                            let expected = match expected {
-                                Ok(expected) => expected,
-                                Err(message) => return Some(located(message)),
-                            };
-                            use validation::selection_resolution::AuthoredSelectionResolutionTarget as Resolution;
-                            let retained = match selection.target() {
-                                AuthoredDeclarationSelectionTarget::Resolved(target) => {
-                                    Some(Resolution::Declaration(target.selected_symbol()))
-                                }
-                                AuthoredDeclarationSelectionTarget::Intrinsic(intrinsic) => {
-                                    Some(Resolution::Intrinsic(intrinsic))
-                                }
-                                AuthoredDeclarationSelectionTarget::LateBound(_) => None,
-                            };
-                            if retained != Some(expected) {
-                                return Some(located("Build static operand occurrence does not retain its exact checked meaning".to_owned()));
-                            }
-                            continue;
-                        }
-                    }
-                    let requester = package_for_source(program, selection.source_span());
-                    let owner = match selection.target() {
-                AuthoredDeclarationSelectionTarget::Intrinsic(_) => continue,
-                AuthoredDeclarationSelectionTarget::LateBound(binding) => {
-                    if binding
-                        == typed_trees::AuthoredDeclarationSelectionLateBinding::CheckedOperator
-                        && (typed_trees_to_checked_trees::typed_operator_has_no_authored_selection(
-                            program, expression,
-                        ) || unresolved_operator_candidates_are_confined(
-                            program, expression, requester, authority,
-                        ))
-                    {
-                        continue;
-                    } else {
-                        match late_bound_selection_symbol(
-                            input,
-                            expression,
-                            &occurrences[..occurrence_offset],
-                            binding,
-                        ) {
-                            Some(selected) => package_for_symbol(program, selected),
-                            None => {
-                                match unresolved_spelling_confinement(
-                                    program,
-                                    program.symbols.source_text(selection.source_span()),
-                                    requester,
-                                    authority,
-                                    binding,
-                                ) {
-                                    Ok(()) => continue,
-                                    Err(unconfined) => {
-                                        return Some(located(format!(
-                                            "build-time expression has unresolved authored {:?} selection `{}` ({binding:?}) with no derivable exact owner, so its package authority is confined by spelling across the program and {unconfined}; package authority must be known before compiler execution",
-                                            selection.kind(),
-                                            program.symbols.source_text(selection.source_span()),
-                                        )));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                AuthoredDeclarationSelectionTarget::Resolved(selected) => {
-                    if program
-                        .symbols
-                        .builtin_type_atom(selected.selected_symbol())
-                        .is_some()
-                    {
-                        continue;
-                    }
-                    package_for_symbol(program, selected.selected_symbol())
-                }
-            };
-                    let context = format!("build-time authored {:?} selection", selection.kind());
-                    if let Some(violation) =
-                        require_selection(program, requester, owner, authority, &context)
-                    {
-                        return Some(located(violation));
-                    }
-                }
-            }
-
-            None
-        }
-
-        fn unresolved_operator_candidates_are_confined(
-            program: &TypedTrees,
-            expression: ExpressionHandle,
-            requester: PackageCustody,
-            authority: &dyn BuildTimeSelectionAuthority,
-        ) -> bool {
-            let candidates = typed_operator_authored_selection_candidates(program, expression);
-            candidates.into_iter().all(|candidate| {
-                require_selection(
-                    program,
-                    requester,
-                    package_for_symbol(program, candidate),
-                    authority,
-                    "candidate for an unresolved build-time operator selection",
-                )
-                .is_none()
-            })
-        }
-
-        fn unresolved_spelling_confinement(
-            program: &TypedTrees,
-            spelling: &str,
-            requester: PackageCustody,
-            authority: &dyn BuildTimeSelectionAuthority,
-            binding: typed_trees::AuthoredDeclarationSelectionLateBinding,
-        ) -> Result<(), String> {
-            use typed_trees::AuthoredDeclarationSelectionLateBinding as Binding;
-
-            if !matches!(
-                binding,
-                Binding::CheckedCall
-                    | Binding::CheckedMember
-                    | Binding::CheckedStaticPathSegment
-                    | Binding::CheckedStructLiteralType
-                    | Binding::CheckedStructLiteralCase
-                    | Binding::CheckedStructLiteralField
-            ) {
-                return Err(format!(
-                    "a {binding:?} occurrence has no spelling-confinement route"
-                ));
-            }
-            let candidates = program
-                .symbols
-                .symbols()
-                .nodes()
-                .iter()
-                .filter_map(|(symbol, data)| {
-                    (program.symbols.name(symbol) == spelling
-                        && candidate_kind_matches_binding(data.kind, binding))
-                    .then_some(symbol)
-                })
-                .collect::<Vec<_>>();
-            if candidates.is_empty() {
-                return Err(format!(
-                    "no declaration spelled `{spelling}` exists in the program"
-                ));
-            }
-            for candidate in candidates {
-                if let Some(violation) = require_selection(
-                    program,
-                    requester,
-                    package_for_symbol(program, candidate),
-                    authority,
-                    "candidate for an unresolved build-time declaration selection",
-                ) {
-                    return Err(format!(
-                        "`{}` is not: {violation}",
-                        program.symbols.display_path(candidate, "::")
-                    ));
-                }
-            }
-            Ok(())
-        }
-
-        fn candidate_kind_matches_binding(
-            kind: SymbolKind,
-            binding: typed_trees::AuthoredDeclarationSelectionLateBinding,
-        ) -> bool {
-            use typed_trees::AuthoredDeclarationSelectionLateBinding as Binding;
-
-            match binding {
-                Binding::CheckedCall => matches!(
-                    kind,
-                    SymbolKind::BuiltinFunction
-                        | SymbolKind::Function
-                        | SymbolKind::Machine
-                        | SymbolKind::MachineParameter
-                        | SymbolKind::State
-                        | SymbolKind::Trait
-                        | SymbolKind::ConformanceParameter
-                ),
-                Binding::CheckedMember | Binding::CheckedStructLiteralField => {
-                    matches!(kind, SymbolKind::Field | SymbolKind::State)
-                }
-                Binding::CheckedStaticPathSegment => !matches!(
-                    kind,
-                    SymbolKind::Root
-                        | SymbolKind::Local
-                        | SymbolKind::Parameter
-                        | SymbolKind::TypeParameter
-                        | SymbolKind::ConformanceParameter
-                        | SymbolKind::MachineParameter
-                        | SymbolKind::PropositionParameter
-                        | SymbolKind::PropositionMachineParameter
-                ),
-                Binding::CheckedStructLiteralType => {
-                    matches!(kind, SymbolKind::BuiltinType | SymbolKind::Data)
-                }
-                Binding::CheckedStructLiteralCase => matches!(kind, SymbolKind::Variant),
-                Binding::CheckedCaseMembership
-                | Binding::CheckedDomainMembership
-                | Binding::CheckedStaticArgument
-                | Binding::CheckedOperator
-                | Binding::CheckedConformance => false,
-            }
-        }
-
-        fn late_bound_selection_symbol(
-            input: &dyn validation::CheckingInput,
-            expression: ExpressionHandle,
-            prior_occurrences: &[typed_trees::AuthoredDeclarationSelectionOccurrenceId],
-            binding: typed_trees::AuthoredDeclarationSelectionLateBinding,
-        ) -> Option<SymbolHandle> {
-            let program = input.typed_program();
-            use typed_trees::AuthoredDeclarationSelectionLateBinding as Binding;
-
-            let ordinal = prior_occurrences
-                .iter()
-                .filter(|occurrence| {
-                    input
-                        .authored_declaration_selections()
-                        .get(**occurrence)
-                        .is_some_and(|selection| {
-                            selection.target()
-                                == AuthoredDeclarationSelectionTarget::LateBound(binding)
-                        })
-                })
-                .count();
-            let table = &program.expression_table;
-            let selected = match (binding, table.expression(expression)) {
-                (Binding::CheckedStaticArgument, ExpressionNode::Call(call))
-                    if BuildOperation::from_call_target(call.target.as_str())
-                        == Some(BuildOperation::ProviderSelection) =>
-                {
-                    call.machine_arguments
-                        .get(ordinal)
-                        .map(|argument| argument.symbol)
-                        .unwrap_or_default()
-                }
-                (Binding::CheckedCall, ExpressionNode::Call(call)) => {
-                    if call.target_symbol.is_valid() {
-                        call.target_symbol
-                    } else {
-                        typed_trees::operator::resolve_named_expression_call(program, call)
-                            .map(|operator| operator.symbol)
-                            .unwrap_or_else(SymbolHandle::invalid)
-                    }
-                }
-                (Binding::CheckedMember, ExpressionNode::Member(member)) => {
-                    if member.member_symbol.is_valid() {
-                        member.member_symbol
-                    } else {
-                        typed_trees_to_checked_trees::late_bound_member_declaration_from_exact_owner(
-                    program, expression,
-                )
-                .unwrap_or_else(SymbolHandle::invalid)
-                    }
-                }
-                (Binding::CheckedStaticPathSegment, ExpressionNode::Name(path)) => table
-                    .name_path_member_symbols(path.member_symbols)
-                    .get(ordinal)
-                    .copied()
-                    .unwrap_or_else(SymbolHandle::invalid),
-                (Binding::CheckedStructLiteralType, ExpressionNode::StructLiteral(literal)) => {
-                    literal.type_symbol
-                }
-                (Binding::CheckedStructLiteralCase, ExpressionNode::StructLiteral(literal)) => {
-                    literal.case_symbol.unwrap_or_else(SymbolHandle::invalid)
-                }
-                (Binding::CheckedStructLiteralField, ExpressionNode::StructLiteral(literal)) => {
-                    table
-                        .struct_fields(literal.fields)
-                        .get(ordinal)
-                        .map(|field| field.field_symbol)
-                        .unwrap_or_else(SymbolHandle::invalid)
-                }
-                (
-                    Binding::CheckedOperator,
-                    ExpressionNode::Binary(_) | ExpressionNode::Unary(_),
-                ) => SymbolHandle::invalid(),
-                _ => SymbolHandle::invalid(),
-            };
-            selected.is_valid().then_some(selected)
+            Some(SelectionViolation::unlocated(
+                "no product route yet: compile-time proof requires the lowered-form checker".into(),
+            ))
         }
 
         fn target_operator_symbol(
@@ -4556,38 +3510,6 @@ pub(crate) mod admission {
             Ok(measured)
         }
 
-        pub(crate) fn require_const_evaluable_invocation(
-            &self,
-            program: &TypedTrees,
-            machine: &Machine,
-            arguments: &[BuildTimeValue],
-            custody: BuildTimeInvocationCustody,
-            discharge_authored_requires: bool,
-        ) -> Result<(), String> {
-            let discharge_authored_requires = discharge_authored_requires
-                || self.zero_argument_invocation_discharge(
-                    program,
-                    machine,
-                    arguments,
-                    Some(custody),
-                );
-            if discharge_authored_requires {
-                self.require_common_floor_for_concrete_premise_invocation(
-                    program, machine, custody,
-                )?;
-            } else {
-                self.require_common_floor_for_invocation(program, machine, custody)?;
-            }
-            let mut snapshots = arguments.to_vec();
-            self.require_invocation_failures(
-                BuildTimeProgram::Typed(program),
-                machine,
-                &mut snapshots,
-                Some(custody),
-            )?;
-            Ok(())
-        }
-
         fn machine_suspension(&self, machine_symbol: SymbolHandle) -> Option<bool> {
             self.suspension
                 .iter()
@@ -5349,7 +4271,6 @@ pub(crate) mod build_machines {
 
     pub struct PreparedBuildMachineProgram {
         program: PreparedBuildMachineBody,
-        identity: Arc<PreparedBuildMachineProgramIdentity>,
     }
 
     enum PreparedBuildMachineBody {
@@ -5365,12 +4286,7 @@ pub(crate) mod build_machines {
 
     #[derive(Clone)]
     pub struct PreparedBuildMachineEntry {
-        program_identity: Arc<PreparedBuildMachineProgramIdentity>,
         symbol: SymbolHandle,
-    }
-
-    struct PreparedBuildMachineProgramIdentity {
-        _private: u8,
     }
 
     impl PreparedBuildMachineEntry {
@@ -5391,7 +4307,6 @@ pub(crate) mod build_machines {
                     checked: Arc::new(program),
                     product_declarations,
                 }),
-                identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
             }
         }
 
@@ -5409,7 +4324,6 @@ pub(crate) mod build_machines {
             let typed = typed_trees_to_typed_trees::prepare_constant_execution(typed)?;
             Ok(Self {
                 program: PreparedBuildMachineBody::Typed(Box::new(typed)),
-                identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
             })
         }
 
@@ -5434,85 +4348,6 @@ pub(crate) mod build_machines {
             }
         }
 
-        pub(crate) fn evaluate_checked_constant(
-            &self,
-            entry: &PreparedBuildMachineEntry,
-            operators: &[crate::SelectedBuildTimeBinaryOperator],
-            accounting: &crate::evaluation_accounting::EvaluationAccounting,
-        ) -> Result<terminal_interpreter::TerminalExecutionResult, String> {
-            let PreparedBuildMachineBody::Checked(program) = &self.program else {
-                return Err("constant invocation requires a checked preparation".into());
-            };
-            let symbol = self.validate_entry(entry)?;
-            super::selected_operators::validate_selected_operators(self.typed(), operators)?;
-            accounting.evaluate_terminal(
-            self.interpreter_program(),
-            symbol,
-            operators,
-            |meter, retained_artifact| {
-                let toolchain_sources = source::source_identity::toolchain_source_identities(
-                    program.checked.symbols.source_files(),
-                )?;
-                let mut production = psi_terminal_production::TerminalProductionRequest::new(
-                    &program.checked,
-                    psi_terminal_production::TerminalMachineSelection::Symbol(symbol),
-                    &toolchain_sources,
-                );
-                production.publication = terminal_codec::TerminalPublication::Invocation;
-                let produced = production.produce(
-                    Default::default(),
-                    &mut psi_terminal_production::UnmeasuredProduction,
-                )
-                .map_err(|error| error.to_string())?;
-                *retained_artifact = Some(Arc::new(produced));
-                let artifact = retained_artifact.as_ref().ok_or_else(|| {
-                    "constant Terminal production lost its exact artifact".to_owned()
-                })?;
-                let program = terminal_interpreter::TerminalProgram::borrow(artifact.view());
-                let mut instance = program
-                    .instantiate(terminal_interpreter::TerminalInstantiation {
-                        scalar_arguments: &[],
-                        structural_inputs: Default::default(),
-                        ..Default::default()
-                    })
-                    .map_err(|error| error.to_string())?;
-                numeric_imports::install(&program, &mut instance, self.typed(), operators)?;
-                match instance
-                    .invoke(meter)
-                    .map_err(|error| format!("constant Terminal invocation failed: {error:?}"))?
-                {
-                    terminal_interpreter::TerminalExecutionStatus::Complete(value) => Ok(value),
-                    terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => Err(format!(
-                        "constant Terminal execution exhausted its work budget after {} units",
-                        meter.usage().total_units(),
-                    )),
-                    terminal_interpreter::TerminalExecutionStatus::Crashed(crash) => {
-                        Err(format!("constant Terminal execution crashed: {crash:?}"))
-                    }
-                    terminal_interpreter::TerminalExecutionStatus::AwaitingEffect(site) => Err(
-                        format!("constant Terminal execution cannot await a host effect: {site:?}"),
-                    ),
-                    terminal_interpreter::TerminalExecutionStatus::HostComputationPending(site) => Err(
-                        format!("constant Terminal execution has no host computation scheduler: {site:?}"),
-                    ),
-                    terminal_interpreter::TerminalExecutionStatus::ExternalCompletion(completion) => Err(
-                        format!("constant Terminal execution completed externally: {completion:?}"),
-                    ),
-                }
-            },
-        )
-        }
-
-        fn interpreter_program(&self) -> BuildMachineProgram<'_> {
-            match &self.program {
-                PreparedBuildMachineBody::Typed(typed) => BuildMachineProgram::Typed(typed),
-                PreparedBuildMachineBody::Checked(program) => BuildMachineProgram::CheckedClosure {
-                    execution: &program.checked,
-                    product_declarations: &program.product_declarations,
-                },
-            }
-        }
-
         pub fn entry(&self, symbol: SymbolHandle) -> Result<PreparedBuildMachineEntry, String> {
             if !self.typed().machine(symbol).is_some() {
                 return Err(format!(
@@ -5525,327 +4360,7 @@ pub(crate) mod build_machines {
                 super::admission::BuildTimeAdmissionPlan::infer(self.typed(), None)
                     .require_closed_static_applications(self.typed(), symbol)?;
             }
-            Ok(PreparedBuildMachineEntry {
-                program_identity: Arc::clone(&self.identity),
-                symbol,
-            })
-        }
-
-        fn validate_entry(
-            &self,
-            entry: &PreparedBuildMachineEntry,
-        ) -> Result<SymbolHandle, String> {
-            if !Arc::ptr_eq(&self.identity, &entry.program_identity) {
-                return Err(
-                    "prepared build-machine entry belongs to a different prepared program"
-                        .to_owned(),
-                );
-            }
-            Ok(entry.symbol)
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::PreparedBuildMachineProgram;
-        use crate::evaluation_accounting::EvaluationAccounting;
-        use semantic_vocabulary::IntegerValue;
-        use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
-
-        fn typed(source: &str) -> typed_trees::TypedTrees {
-            let tokens = source_files_to_tokens::Lexer::new(source)
-                .tokenize()
-                .expect("lex");
-            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-            let mut sources = source::SourceMap::default();
-            sources.add_with_metadata(
-                "constant.omg".into(),
-                source.into(),
-                ".".into(),
-                semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
-                source::SourceOrigin::User,
-            );
-            let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
-            request.sources = Some(std::sync::Arc::new(sources));
-            let resolved =
-                syntax_trees_to_symbol_resolved_trees::resolve(request).expect("resolve");
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                .expect("type")
-        }
-
-        fn checked(source: &str) -> PreparedBuildMachineProgram {
-            let (typed, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
-                typed(source),
-                &typed_trees_to_typed_trees::PreparationRequest::settled(),
-            )
-            .expect("prepare");
-            let checked = typed_trees_to_checked_trees::lower_typed_trees(
-                typed,
-                preparation,
-                &typed_trees_to_checked_trees::CheckingRequest::new(),
-            )
-            .expect("check");
-            PreparedBuildMachineProgram::from_checked(checked)
-        }
-
-        fn on_compilation_stack(test: impl FnOnce() + Send + 'static) {
-            std::thread::Builder::new()
-                .stack_size(16 * 1024 * 1024)
-                .spawn(test)
-                .expect("start compilation test")
-                .join()
-                .expect("compilation test");
-        }
-
-        #[test]
-        fn checked_constant_runs_transitive_terminal_calls() {
-            on_compilation_stack(|| {
-                let program = checked(
-                    "machine leaf() -> u64 { 16 }
-             machine middle() -> u64 { leaf() }
-             machine answer() -> u64 { middle() }",
-                );
-                let symbol = program
-                    .typed()
-                    .realized_machine_named("answer")
-                    .expect("answer")
-                    .symbol;
-                let entry = program.entry(symbol).expect("entry");
-                let accounting = EvaluationAccounting::recording();
-                let result = program
-                    .evaluate_checked_constant(&entry, &[], &accounting)
-                    .expect("Terminal execution");
-                let completed = accounting.finish().expect("complete Terminal accounting");
-                assert!(completed.has_complete_usage());
-                let [crate::PureEvaluationRecord::Terminal(receipt)] = completed.receipts() else {
-                    panic!("one root Terminal execution must retain one typed receipt");
-                };
-                assert_eq!(receipt.machine(), symbol);
-                let input = program.checked_program().expect("exact checked input");
-                assert!(matches!(
-                    receipt.source_program(),
-                    crate::PureEvaluationProgram::CheckedClosure {
-                        execution,
-                        product_declarations,
-                    } if execution.as_ref() == input.checked.as_ref()
-                        && product_declarations.as_ref() == input.product_declarations.as_ref()
-                ));
-                assert!(receipt.operators().is_empty());
-                assert!(receipt.program().is_some());
-                assert!(receipt.usage().total_units() > 0);
-                assert!(matches!(
-                    receipt.outcome(),
-                    crate::PureTerminalEvaluationOutcome::Returned { value } if value == &result
-                ));
-                completed
-                    .validate_charges()
-                    .expect("retained Terminal usage");
-                assert!(
-                    matches!(
-                        result,
-                        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
-                            value: IntegerValue::Unsigned(16),
-                            ..
-                        })
-                    ),
-                    "{result:?}"
-                );
-            });
-        }
-
-        #[test]
-        fn checked_constant_rejects_another_preparations_entry() {
-            on_compilation_stack(|| {
-                let first = checked("machine answer() -> u64 { 16 }");
-                let second = checked("machine answer() -> u64 { 17 }");
-                let symbol = first
-                    .typed()
-                    .realized_machine_named("answer")
-                    .expect("answer")
-                    .symbol;
-                let entry = first.entry(symbol).expect("entry");
-                let error = second
-                    .evaluate_checked_constant(&entry, &[], &EvaluationAccounting::default())
-                    .expect_err("foreign entry");
-                assert!(error.contains("different prepared program"), "{error}");
-            });
-        }
-
-        #[test]
-        fn checked_constant_retains_unsigned_result_meaning() {
-            on_compilation_stack(|| {
-                let program = checked("machine answer() -> u64 { 18446744073709551615u64 }");
-                let symbol = program
-                    .typed()
-                    .realized_machine_named("answer")
-                    .expect("answer")
-                    .symbol;
-                let entry = program.entry(symbol).expect("entry");
-                let result = program
-                    .evaluate_checked_constant(&entry, &[], &EvaluationAccounting::default())
-                    .expect("Terminal execution");
-                assert!(
-                    matches!(
-                        result,
-                        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
-                            value: IntegerValue::Unsigned(18446744073709551615),
-                            ..
-                        })
-                    ),
-                    "{result:?}"
-                );
-            });
-        }
-
-        #[test]
-        fn checked_constant_admits_the_retained_recursive_component() {
-            on_compilation_stack(|| {
-                let program = checked(
-                    "data Node { step: u64; count: u64 }
-             machine descend(node: Node, index: u64, work: u64) -> u64
-             reaches terminates by work
-             requires work >= 1 && index <= 8 && node.count <= 8
-             {
-                 transition index < node.count && work > 1 {
-                     true -> through(node, index, work - 1)
-                     _ -> work
-                 }
-                 machine through(node: Node, index: u64, work: u64) -> u64
-                 requires work >= 1 && index <= 7 && node.count <= 8
-                 {
-                     descend(node, index + 1, work)
-                 }
-             }
-             machine answer() -> u64 {
-                 descend(Node { step: 1u64, count: 8u64 }, 0u64, 3u64)
-             }",
-                );
-                let symbol = program
-                    .typed()
-                    .realized_machine_named("answer")
-                    .expect("answer")
-                    .symbol;
-                let entry = program.entry(symbol).expect("entry");
-                let result = program
-                    .evaluate_checked_constant(&entry, &[], &EvaluationAccounting::default())
-                    .expect("Terminal execution");
-                assert!(
-                    matches!(
-                        result,
-                        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
-                            value: IntegerValue::Unsigned(1),
-                            ..
-                        })
-                    ),
-                    "{result:?}"
-                );
-            });
-        }
-
-        #[test]
-        fn checked_constant_admits_mutating_recursive_component() {
-            on_compilation_stack(|| {
-                let program = checked(
-                    "data Node { step: u64; count: u64 }
-             machine descend(node: Node, index: u64, work: u64) -> u64
-             reaches terminates by work
-             requires work >= 1 && index <= 8 && node.count <= 8
-             {
-                 transition index < node.count && work > 1 {
-                     true -> through(node, index, work - 1)
-                     _ -> work
-                 }
-                 machine through(mut node: Node, index: u64, work: u64) -> u64
-                 requires work >= 1 && index <= 7 && node.count <= 8
-                 {
-                     node.step = node.step;
-                     descend(node, index + 1, work)
-                 }
-             }
-             machine answer() -> u64 {
-                 descend(Node { step: 1u64, count: 8u64 }, 0u64, 3u64)
-             }",
-                );
-                let symbol = program
-                    .typed()
-                    .realized_machine_named("answer")
-                    .expect("answer")
-                    .symbol;
-                let entry = program.entry(symbol).expect("entry");
-                let result = program
-                    .evaluate_checked_constant(&entry, &[], &EvaluationAccounting::default())
-                    .expect("Terminal execution");
-                assert!(
-                    matches!(
-                        result,
-                        TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
-                            value: IntegerValue::Unsigned(1),
-                            ..
-                        })
-                    ),
-                    "{result:?}"
-                );
-            });
-        }
-
-        #[test]
-        fn checked_constant_refuses_a_cycle_without_descent() {
-            on_compilation_stack(|| {
-                let (typed, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
-                    typed(
-                        "machine descend(work: u64) -> u64
-                 reaches terminates by work
-                 requires work >= 1
-                 {
-                     transition work > 1 {
-                         true -> through(work)
-                         _ -> work
-                     }
-                     machine through(work: u64) -> u64
-                     requires work >= 1
-                     {
-                         descend(work)
-                     }
-                 }",
-                    ),
-                    &typed_trees_to_typed_trees::PreparationRequest::settled(),
-                )
-                .expect("prepare");
-                let error = typed_trees_to_checked_trees::lower_typed_trees(
-                    typed,
-                    preparation,
-                    &typed_trees_to_checked_trees::CheckingRequest::new(),
-                )
-                .expect_err("an undescended recursion cannot carry a measure promise");
-                assert!(
-                    error.iter().any(|diagnostic| {
-                        diagnostic.message.contains("termination")
-                            || diagnostic.message.contains("descent")
-                            || diagnostic.message.contains("measure")
-                    }),
-                    "{error:?}"
-                );
-            });
-        }
-
-        #[test]
-        fn checked_constant_does_not_install_boundary_imports() {
-            on_compilation_stack(|| {
-                let program = checked(
-                    "boundary trait Counter { machine read() -> u64 reaches; }
-             machine answer() -> u64 reaches Counter { Counter::read() }",
-                );
-                let symbol = program
-                    .typed()
-                    .realized_machine_named("answer")
-                    .expect("answer")
-                    .symbol;
-                let entry = program.entry(symbol).expect("entry");
-                let error = program
-                    .evaluate_checked_constant(&entry, &[], &EvaluationAccounting::default())
-                    .expect_err("no host authority");
-                assert!(error.contains("UnboundImports"), "{error}");
-            });
+            Ok(PreparedBuildMachineEntry { symbol })
         }
     }
 }
