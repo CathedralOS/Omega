@@ -676,7 +676,7 @@ impl<'t> Program<'t> {
     /// the literals of its value parameters, in declaration order: its
     /// clauses are read with each binder standing for its literal, so the
     /// contract is the one a call with those static arguments is held to.
-    fn requirement_signature(
+    pub(super) fn requirement_signature(
         &mut self,
         id: MachineId,
         requirement: &'t StateSignature,
@@ -769,13 +769,6 @@ impl<'t> Program<'t> {
             }
             let access = reference.as_ref().map(|reference| reference.access);
             if let Some(reference) = reference {
-                if matches!(declared, Declarer::Requirement { .. }) {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Parameter("reference parameter of a requirement"),
-                    ));
-                }
                 borrowed.push(crate::body::Borrowed {
                     position,
                     ..reference

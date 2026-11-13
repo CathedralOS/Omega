@@ -372,18 +372,65 @@ pub(crate) mod invocations {
     }
 
     #[derive(Clone, Copy)]
-    pub struct ModuleInvocationInputs<'a> {
-        pub callee: MachineId,
+    pub struct ModuleInvocationInputs<'a, Callable = MachineId> {
+        pub callee: Callable,
         pub arguments: &'a [ValueId],
         pub erased_arguments: &'a [ScalarTerm],
         pub erased_proof_arguments: &'a [ProofTerm],
         pub structural_arguments: &'a [StructuralArgument],
         pub claim_transfers: &'a [ClaimTransfer],
+        pub completion_receipts: &'a [crate::CompletionReceipt],
         pub requirement_obligations: &'a [ObligationId],
         pub crash_continuations: &'a [CrashRouteBucket],
     }
 
+    impl<'a> ModuleInvocationInputs<'a> {
+        pub fn declared(self) -> ModuleInvocationInputs<'a, super::TargetMachineCallable> {
+            ModuleInvocationInputs {
+                callee: super::TargetMachineCallable::Machine(self.callee),
+                arguments: self.arguments,
+                erased_arguments: self.erased_arguments,
+                erased_proof_arguments: self.erased_proof_arguments,
+                structural_arguments: self.structural_arguments,
+                claim_transfers: self.claim_transfers,
+                completion_receipts: self.completion_receipts,
+                requirement_obligations: self.requirement_obligations,
+                crash_continuations: self.crash_continuations,
+            }
+        }
+    }
+
     impl OperationKind {
+        /// The two declaration namespaces share call operands and obligation
+        /// custody. Machine-only consumers keep `module_invocation`; callers
+        /// judging interface contracts use the exact declared target here.
+        pub fn declared_invocation(
+            &self,
+        ) -> Option<ModuleInvocationInputs<'_, super::TargetMachineCallable>> {
+            if let Self::BoundaryCall {
+                boundary,
+                arguments,
+                structural_arguments,
+                completion_receipts,
+                requirement_obligations,
+            } = self
+            {
+                return Some(ModuleInvocationInputs {
+                    callee: super::TargetMachineCallable::Boundary(*boundary),
+                    arguments,
+                    erased_arguments: &[],
+                    erased_proof_arguments: &[],
+                    structural_arguments,
+                    claim_transfers: &[],
+                    completion_receipts,
+                    requirement_obligations,
+                    crash_continuations: &[],
+                });
+            }
+            self.module_invocation()
+                .map(ModuleInvocationInputs::declared)
+        }
+
         pub fn module_invocation(&self) -> Option<ModuleInvocationInputs<'_>> {
             let (
                 callee,
@@ -478,6 +525,7 @@ pub(crate) mod invocations {
                 erased_proof_arguments,
                 structural_arguments,
                 claim_transfers,
+                completion_receipts: &[],
                 requirement_obligations,
                 crash_continuations,
             })
@@ -507,6 +555,7 @@ pub(crate) mod invocations {
                 erased_proof_arguments,
                 structural_arguments,
                 claim_transfers,
+                completion_receipts: &[],
                 requirement_obligations,
                 crash_continuations,
             })
@@ -2215,13 +2264,7 @@ pub(crate) mod scalar_case_field {
 }
 pub(crate) mod target_families {
 
-    use semantic_vocabulary::{BoundaryMachineId, MachineId};
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub enum TargetMachineCallable {
-        Machine(MachineId),
-        Boundary(BoundaryMachineId),
-    }
+    pub use semantic_vocabulary::TargetMachineCallable;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum TargetMachineSupply {

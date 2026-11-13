@@ -91,8 +91,10 @@ pub struct InvocationRow {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Callee {
-    /// A direct call of one machine.
-    Machine(MachineId),
+    /// A direct call names the exact machine or boundary declaration.
+    /// Contract lookup follows this identity; a boundary never acquires a
+    /// machine body merely because the invocation has been recorded.
+    Declared(semantic_vocabulary::TargetMachineCallable),
     /// A call through a callable selector value; its candidates are that
     /// value's `ValueRow::selects`. calls_and_outcomes.md: "Indirect calls
     /// through machine values retain these same argument, result, proof and

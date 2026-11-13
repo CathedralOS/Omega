@@ -327,7 +327,8 @@ fn an_invocation_row_with_another_callee_is_refused() {
     let verdict = with_fault(program, |elaboration| {
         let tables = entry_tables(elaboration);
         let invocation = tables.invocations.keys().next().unwrap();
-        tables.invocations.get_mut(invocation).unwrap().callee = Callee::Machine(id(3));
+        tables.invocations.get_mut(invocation).unwrap().callee =
+            Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(id(3)));
     });
     assert_refused(verdict, "an invocation row names another callee");
 }
@@ -550,7 +551,7 @@ fn an_invocation_row_for_a_call_the_machine_does_not_make_is_refused() {
         let constant = elaboration.module.machines[0].blocks[0].operations[0].id;
         entry_tables(elaboration).invocations.push(InvocationRow {
             site: InvocationSite::Operation(constant),
-            callee: Callee::Machine(id(2)),
+            callee: Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(id(2))),
             actuals: vec![Actual::Value(id(1))],
             requirements: Vec::new(),
         });
