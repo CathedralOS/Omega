@@ -24,7 +24,9 @@ REFUSAL_PREFIXES = (
     "Conflict:",
 )
 
-SKIPPED_ROUTES = frozenset(
+ROOT_VERDICTS = frozenset({"accepted", "rejected", "outside", "no-entry", "error", "timeout"})
+JUDGED_ROOT = frozenset({"accepted", "rejected"})
+UNJUDGED_ROOT = frozenset(
     {
         "outside",
         "no-entry",
@@ -34,6 +36,7 @@ SKIPPED_ROUTES = frozenset(
         "defect",
         "panicked",
         "unknown",
+        "error",
     }
 )
 
@@ -45,6 +48,8 @@ class ProgramRoot:
     route: str
     construct: str | None
     extra: str | None
+    obligations: int
+    judged: int
 
 
 def tier_from_path(fixture: str) -> str:
@@ -55,6 +60,18 @@ def tier_from_path(fixture: str) -> str:
     if "/fail/" in fixture:
         return "fail"
     return "unknown"
+
+
+def parse_int_fields(parts: list[str]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for part in parts:
+        for key in ("obligations", "judged"):
+            if part.startswith(f"{key}="):
+                try:
+                    out[key] = int(part.split("=", 1)[1])
+                except ValueError:
+                    out[key] = 0
+    return out
 
 
 def kv_pairs(parts: list[str]) -> dict[str, str]:
@@ -116,6 +133,16 @@ def parse_route_tail(tail: list[str]) -> tuple[str, str | None, str | None]:
     return "unknown", None, None
 
 
+def root_verdict_for_column(route: str) -> str:
+    if route == "unreached":
+        return "error"
+    if route in {"incomplete", "fallback", "refused-module", "defect", "panicked", "unknown"}:
+        return "outside"
+    if route in ROOT_VERDICTS:
+        return route
+    return "outside"
+
+
 def parse_program_line(line: str) -> ProgramRoot | None:
     if not line.startswith("program\t"):
         return None
@@ -124,12 +151,15 @@ def parse_program_line(line: str) -> ProgramRoot | None:
         return None
     kv = kv_pairs(parts[2:])
     route, construct, extra = parse_route_tail(parts[2:])
+    counts = parse_int_fields(parts[2:])
     return ProgramRoot(
         root=kv.get("root", "compilation"),
         current=kv.get("current", "unknown"),
         route=route,
         construct=construct,
         extra=extra,
+        obligations=counts.get("obligations", 0),
+        judged=counts.get("judged", 0),
     )
 
 
@@ -143,49 +173,21 @@ def parse_fallback_construct(lines: Iterable[str], fixture: str, root: str) -> s
     return None
 
 
-def parse_current_diagnostics(lines: Iterable[str], fixture: str) -> list[str]:
-    prefix = f"current-diagnostic\t{fixture}\t"
-    messages: list[str] = []
-    for line in lines:
-        if not line.startswith(prefix):
-            continue
-        rest = line.split("\t", 3)
-        if len(rest) >= 4:
-            messages.append(rest[3])
-    return messages
+def format_roots(roots: list[ProgramRoot]) -> str:
+    parts: list[str] = []
+    for root in roots:
+        label = root.root
+        verdict = root_verdict_for_column(root.route)
+        parts.append(f"{label}:{verdict}")
+    return ";".join(parts)
 
 
-def diagnostic_class(message: str) -> str:
-    lower = message.lower()
-    if "service reach" in lower:
-        return "service-reach"
-    if "program entry" in lower or "build" in lower and "entry" in lower:
-        return "build-entry"
-    if "ensures" in lower or "requires" in lower or "proof fact" in lower:
-        return "contract"
-    if "borrow" in lower or "loan" in lower or "&mut" in lower or "mutable" in lower:
-        return "borrow"
-    if "division" in lower or "divide" in lower or "divisor" in lower:
-        return "division"
-    if "assembly" in lower or "instruction" in lower or "clobber" in lower:
-        return "asm"
-    if "cannot prove" in lower or "unproved" in lower:
-        return "unproved-obligation"
-    return "other"
-
-
-def machine_from_root(root: str) -> str | None:
-    if root.startswith("machine:"):
-        return root[8:]
-    return None
-
-
-def machines_named_in_diagnostics(messages: list[str]) -> set[str]:
-    found: set[str] = set()
-    for message in messages:
-        for match in re.finditer(r"machine `([^`]+)`", message):
-            found.add(match.group(1))
-    return found
+def vacuous_accept_roots(roots: list[ProgramRoot]) -> str:
+    vacuous: list[str] = []
+    for root in roots:
+        if root.route == "accepted" and root.obligations == 0 and root.judged == 0:
+            vacuous.append(root.root)
+    return ";".join(vacuous)
 
 
 def first_outside_construct(roots: list[ProgramRoot]) -> str | None:
@@ -197,70 +199,50 @@ def first_outside_construct(roots: list[ProgramRoot]) -> str | None:
     return None
 
 
-def fixture_verdict(
-    fixture: str, roots: list[ProgramRoot], diagnostics: list[str]
-) -> tuple[str, str | None]:
+def error_bucket(roots: list[ProgramRoot]) -> str:
+    for root in roots:
+        if root.route == "unreached" and root.extra:
+            text = root.extra.strip()
+            if text.startswith("Some(") and text.endswith(")"):
+                text = text[5:-1].strip().strip('"')
+            return f"{BUCKET_STOPPED}:{text[:160]}"
+    return BUCKET_STOPPED
+
+
+def program_verdict(roots: list[ProgramRoot], current: str) -> tuple[str, str | None]:
+    """Uniform root aggregation for merge."""
     if not roots:
         return "error", BUCKET_STOPPED
 
-    current = roots[0].current
-    first_construct = first_outside_construct(roots)
+    if current == "stopped" or any(r.route == "unreached" for r in roots):
+        # Program-level error only when no judged root exists.
+        column_routes = [root_verdict_for_column(r.route) for r in roots]
+        if not any(v in JUDGED_ROOT for v in column_routes):
+            return "error", error_bucket(roots)
 
-    if any(r.route == "unreached" for r in roots):
-        extra = next((r.extra for r in roots if r.route == "unreached" and r.extra), None)
-        bucket = BUCKET_STOPPED
-        if extra:
-            text = extra.strip()
-            if text.startswith("Some(") and text.endswith(")"):
-                text = text[5:-1].strip().strip('"')
-            bucket = f"{BUCKET_STOPPED}:{text[:160]}"
-        return "error", bucket
+    column_routes = [root_verdict_for_column(r.route) for r in roots]
+    has_rejected = any(v == "rejected" for v in column_routes)
+    has_accepted = any(v == "accepted" for v in column_routes)
+    has_unjudged = any(v in {"outside", "no-entry", "error"} for v in column_routes)
 
-    if current == "stopped":
-        return "error", BUCKET_STOPPED
+    if has_rejected:
+        return "rejected", first_outside_construct(roots)
 
-    routes = [r.route for r in roots]
-
-    if any(r == "rejected" for r in routes):
-        return "rejected", first_construct if current == "rejected" else None
-
-    accepted_roots = [r for r in roots if r.route == "accepted"]
-    skipped_roots = [r for r in roots if r.route in SKIPPED_ROUTES]
-
-    if current == "rejected":
-        # Fail/ multi-root: route "accepted" only if every rejected part was judged.
-        if accepted_roots and skipped_roots:
-            return "partial", BUCKET_PARTIAL
-        if len(roots) == 1:
-            only = roots[0]
-            if only.route == "accepted":
-                return "accepted", None
-            if only.route == "no-entry":
-                return "no-entry", BUCKET_NO_ENTRY
-            if only.route == "outside":
-                return "outside", only.construct or first_construct
-        if accepted_roots and not skipped_roots:
-            return "accepted", None
-        if all(r.route == "no-entry" for r in roots):
-            return "no-entry", BUCKET_NO_ENTRY
-        if any(r.route == "outside" for r in roots):
-            return "outside", first_construct
-        if any(r.route == "incomplete" for r in routes):
-            return "outside", first_construct or BUCKET_INCOMPLETE
-        return "outside", first_construct
-
-    # current == accepted
-    if any(r == "rejected" for r in routes):
-        return "rejected", None
-    if any(r == "accepted" for r in routes):
+    if has_accepted and not has_unjudged and all(v == "accepted" for v in column_routes):
         return "accepted", None
-    if all(r == "no-entry" for r in routes):
+
+    if has_accepted and has_unjudged:
+        return "partial", BUCKET_PARTIAL
+
+    if has_accepted:
+        return "accepted", None
+
+    # Nothing judged at accepted/rejected level.
+    if all(v == "no-entry" for v in column_routes):
         return "no-entry", BUCKET_NO_ENTRY
-    if any(r == "outside" for r in routes):
-        return "outside", first_construct
-    if any(r == "no-entry" for r in routes):
-        return "no-entry", BUCKET_NO_ENTRY
-    return "outside", first_construct
+    if all(v == "error" for v in column_routes):
+        return "error", error_bucket(roots)
+    return "outside", first_outside_construct(roots)
 
 
 def agreement(current: str, route: str) -> str:
@@ -291,17 +273,20 @@ def row_from_harness_output(
                     parsed.construct = f"{BUCKET_FALLBACK}:{fb}"
             roots.append(parsed)
 
-    diagnostics = parse_current_diagnostics(lines, fixture)
-    route_verdict, first_refusal = fixture_verdict(fixture, roots, diagnostics)
+    roots_col = format_roots(roots)
+    vacuous_col = vacuous_accept_roots(roots)
+    cur = roots[0].current if roots else "unknown"
+    route_verdict, first_refusal = program_verdict(roots, cur)
 
     if route_verdict == "partial":
         first_refusal = BUCKET_PARTIAL
-    elif route_verdict not in {"outside", "error", "no-entry"}:
-        first_refusal = None
     elif route_verdict == "no-entry":
         first_refusal = BUCKET_NO_ENTRY
+    elif route_verdict == "error":
+        first_refusal = error_bucket(roots)
+    elif route_verdict != "outside":
+        first_refusal = None
 
-    cur = roots[0].current if roots else "unknown"
     agree = agreement(cur, route_verdict)
     tier = tier_from_path(fixture)
     return (
@@ -311,7 +296,37 @@ def row_from_harness_output(
         cur,
         agree,
         first_refusal or "",
+        seconds if isinstance(seconds, str) else f"{float(seconds):.3f}",
+        roots_col,
+        vacuous_col,
+    )
+
+
+def row_from_timeout(fixture: str, seconds: float, tier: str) -> tuple[str, ...]:
+    return (
+        fixture,
+        tier,
+        "timeout",
+        "?",
+        "n-a",
+        "",
         f"{seconds:.3f}",
+        "compilation:timeout",
+        "",
+    )
+
+
+def row_from_harness_failure(fixture: str, seconds: float, tier: str, detail: str) -> tuple[str, ...]:
+    return (
+        fixture,
+        tier,
+        "error",
+        "?",
+        "n-a",
+        f"bucket:harness-failure:{detail[:160]}",
+        f"{seconds:.3f}",
+        "compilation:error",
+        "",
     )
 
 
