@@ -403,7 +403,8 @@ one implementation.
 | Second lowering, or a phase running on the wrong representation | PL-1, PL-2 |
 | A retired spelling is still the implementation | OC-3, TL-4, TL-5 |
 | A lookup that still accepts the previous address | OC-4 |
-| Two evaluators of one closed proposition | LF-1 |
+| Two evaluators of one closed proposition | LF-1, PA-1 |
+| A second prover with no production caller | PA-2 |
 | Storage whose producer never writes it | LF-2, LF-3 |
 | A named surface with no caller | LF-4, LF-5 |
 
@@ -944,6 +945,55 @@ Follow-up: label the live publication and entry-receipt rows with the
 representations they carry. Leave elaboration and discharge as the route.
 Validation: `mbx test -p psi-terminal-production --lib`.
 
+### PA-1. Predicate denotation decides closed IEEE comparisons
+
+Pattern: a second evaluator of one closed comparison. Category: confirmed
+duplication. Confidence: high. Owner: proof admission. The float function
+and its call are about 40 lines (`closed_ieee_float_relation` at 586–618
+and the branch at 522–528).
+
+[Fact validity](wiki/spec/terminal-psi/fact_validity.md) says the bounded
+predicate-denotation conversion decides equality and order between two
+literal fixed integers, and then: "Open integer relations, mathematical
+arithmetic, IEEE relations, and storage observations remain unchanged."
+[Integer certificates](wiki/spec/terminal-psi/integer_certificates.md)
+says the same conversion "evaluates no open storage observation, arithmetic
+expression, or IEEE relation."
+
+`normalize` in `proof/admission/src/predicate_denotation.rs` calls
+`closed_ieee_float_relation` before the integer-literal arm. Two
+`IeeeFloatLiteral` operands become `Truth` or `Falsehood` through
+`FloatSemantics`. The interpreter `closed_guard` decides the same six
+comparison kinds. The installation walker has no float arm and returns
+unknown. `normalize` runs on the proof path: `lowered-discharge`
+(`prove.rs`, `joins.rs`, `prove/ranges.rs`, `known.rs`) and terminal
+semantics (`descriptors.rs`, `scalars.rs`).
+
+The challenge stands. This is not the integer conversion the spec
+requires. Collapsing `+0 == -0` to `Truth` lets a later proof step treat
+an IEEE relation as a Boolean constant. The repair leaves
+`ScalarIeeeFloatComparison` unchanged in `normalize`. Crash-route
+evaluation stays on the one walker from LF-1. The fixed-integer arm stays.
+
+### PA-2. The source-integer theory search has no production caller
+
+Pattern: a second prover beside the kernel. Category: likely unnecessary.
+Confidence: high. Owner: proof admission. About 760 lines, not counting
+the two test modules.
+
+`SourceIntegerTheory` is constructed only inside the `#[cfg(test)]`
+modules in `bounded_denotation.rs` (lines 12662, 13138, and 13177).
+`closed_predicate` and `predicate_from_assumptions` build a proof term
+from closed arithmetic and an assumption search. They do not call
+`verify_obligation`. [Proof foundation](wiki/spec/proofs/foundation.md)
+says elaboration and search are untrusted producers, and that the kernel
+does not accept a producer's Boolean success flag. No spec page names
+this theory.
+
+The challenge stands. Deleting the search leaves the `Denotation` integer
+vocabulary and the law tables that certificate elaboration calls.
+`verify_obligation` stays.
+
 ## 4. Independent review
 
 This pass re-read the callers of each finding above and tried to break the
@@ -969,6 +1019,8 @@ simplification. It did not re-open the directory census.
 | LF-3 | Stands. The elision module has no caller outside its re-export. Discharge stays in `lowered-discharge` and `proof_admission`. |
 | LF-4 | Stands as a spec question. Nothing depends on package `proof`. `pipeline.md` still names the directory. `proof-admission` stays. |
 | LF-5 | Stands. The publication label still says its input is `OptimizedLoweredPsi`. |
+| PA-1 | Stands. `normalize` collapses a closed IEEE literal comparison to `Truth` or `Falsehood`. Fact validity says IEEE relations remain unchanged in this conversion. The fixed-integer arm stays. |
+| PA-2 | Stands. `SourceIntegerTheory` is constructed only in the two test modules. The kernel stays. |
 
 LF-1 is the one confirmed duplication. Similar names
 (`CheckedCompilation`, `compiler/src/checked/`, `PsiOptimization`) are the
@@ -978,44 +1030,48 @@ live callers.
 ## 5. Ranking and follow-ups
 
 The rank key is authored lines a follow-up can delete, largest first.
-LF-1 is the one exception, and it is first because the two walkers disagree
-on a crash proposition: the repair keeps one walker, so it deletes nothing,
-and sorting it as zero lines would bury the only confirmed duplication.
-Retargets that rewrite instead of delete (OC-3) come after the deletions.
-Spec questions come after those, ordered by the lines that would go if the
-answer is to delete. Confidence breaks ties.
+Two exceptions stay in front of that list, because each one changes a live
+judgment and sorting them by the lines they delete would bury them. LF-1
+is the crash-guard disagreement. PA-1 is the denotation conversion deciding
+an IEEE relation the spec says remains unchanged. Retargets that rewrite
+instead of delete (OC-3) come after the deletions. Spec questions come
+after those, ordered by the lines that would go if the answer is to delete.
+Confidence breaks ties.
 
-Confirmed duplication: 1 (LF-1). Likely unnecessary: 10 (TL-1, TL-2, OC-2,
-DOCS-1, OC-3, TL-4, TL-5, LF-2, LF-3, LF-5). Unresolved spec questions: 6
-(OC-1, FD-1, PL-1, PL-2, OC-4, LF-4). Dropped by review: 1 (TL-3).
+Confirmed duplication: 2 (LF-1, PA-1). Likely unnecessary: 11 (TL-1, TL-2,
+OC-2, DOCS-1, OC-3, TL-4, TL-5, LF-2, LF-3, LF-5, PA-2). Unresolved spec
+questions: 6 (OC-1, FD-1, PL-1, PL-2, OC-4, LF-4). Dropped by review: 1
+(TL-3).
 
 | Rank | Id | Lines a follow-up can delete | Why this order |
 | --- | --- | ---: | --- |
 | 1 | LF-1 | 0 | Named exception. The walkers disagree on `false && unknown`. The repair keeps one walker. |
-| 2 | TL-1 | 499 | `stage_coverage.rs` plus its `main.rs` arm. Largest deletion that can land. |
-| 3 | LF-3 | 390 | `elision` in `semantics/src/scalars.rs`, lines 802–1191. No caller. |
-| 4 | LF-2 | 146 | `may_sets.rs` is 93 lines. `Summary` through `Termination` in `edges.rs` is lines 127–179 (53). Nothing constructs them. The module ceiling stays. |
-| 5 | TL-5 | 107 | The three `.codex` slot scripts. |
-| 6 | LF-5 | 28 | The `OBSERVATION_LABELS` table. A relabel, not a deleted stage. |
-| 7 | OC-2 | 23 | Two unread stage constants (4) and the uncalled preliminary-check recorder (19). |
-| 8 | OC-1 | 10 | The uncalled helper. The wire tag stays until the spec question is answered, so only the helper is in this count. |
-| 9 | TL-2 | 2 | Two missing roots. The stage 04 scan stays. |
-| 10 | TL-4 | 0 | The testing guide's Python commands. A rewrite of instructions. |
-| 11 | DOCS-1 | 0 | Stale sentences. No behavior. |
-| 12 | OC-3 | 0 | Retarget. The parser implements spellings the spec forbids. |
-| 13 | LF-4 | 961 | Spec question. Package `proof` has no caller. `pipeline.md` still names the directory. |
-| 14 | OC-4 | 72 | Spec question. The legacy snapshot scan re-verifies. |
-| 15 | FD-1 | 0 | Spec question. Keep the decode arm and the refusal fence. |
-| 16 | PL-1 | 0 | Spec question. Do not delete the Psi passes. |
-| 17 | PL-2 | 0 | Spec question. Keep the phase refusal. |
+| 2 | PA-1 | 40 | Named exception. `normalize` decides an IEEE relation the spec says stays unchanged. |
+| 3 | PA-2 | 760 | The source-integer theory search. Constructed only in tests. |
+| 4 | TL-1 | 499 | `stage_coverage.rs` plus its `main.rs` arm. |
+| 5 | LF-3 | 390 | `elision` in `semantics/src/scalars.rs`, lines 802–1191. No caller. |
+| 6 | LF-2 | 146 | `may_sets.rs` is 93 lines. `Summary` through `Termination` in `edges.rs` is lines 127–179 (53). Nothing constructs them. The module ceiling stays. |
+| 7 | TL-5 | 107 | The three `.codex` slot scripts. |
+| 8 | LF-5 | 28 | The `OBSERVATION_LABELS` table. A relabel, not a deleted stage. |
+| 9 | OC-2 | 23 | Two unread stage constants (4) and the uncalled preliminary-check recorder (19). |
+| 10 | OC-1 | 10 | The uncalled helper. The wire tag stays until the spec question is answered, so only the helper is in this count. |
+| 11 | TL-2 | 2 | Two missing roots. The stage 04 scan stays. |
+| 12 | TL-4 | 0 | The testing guide's Python commands. A rewrite of instructions. |
+| 13 | DOCS-1 | 0 | Stale sentences. No behavior. |
+| 14 | OC-3 | 0 | Retarget. The parser implements spellings the spec forbids. |
+| 15 | LF-4 | 961 | Spec question. Package `proof` has no caller. `pipeline.md` still names the directory. |
+| 16 | OC-4 | 72 | Spec question. The legacy snapshot scan re-verifies. |
+| 17 | FD-1 | 0 | Spec question. Keep the decode arm and the refusal fence. |
+| 18 | PL-1 | 0 | Spec question. Do not delete the Psi passes. |
+| 19 | PL-2 | 0 | Spec question. Keep the phase refusal. |
 
-Lines the deletion follow-ups can remove, from the rank table: 499 (TL-1)
-+ 390 (LF-3) + 146 (LF-2) + 107 (TL-5) + 23 (OC-2) + 10 (OC-1's helper) + 2
-(TL-2) = 1,177. LF-5 rewrites its 28-line label table. LF-1 keeps one
-walker. OC-3 rewrites the parser. Generated, vendored, and fixture
-reduction: 0. Documentation rewrites are the stage-coverage section in
-`tools/testing.md` (lines 440–497), the Python baseline commands (TL-4),
-and DOCS-1.
+Lines the deletion follow-ups can remove, from the rank table: 40 (PA-1)
++ 760 (PA-2) + 499 (TL-1) + 390 (LF-3) + 146 (LF-2) + 107 (TL-5) + 23
+(OC-2) + 10 (OC-1's helper) + 2 (TL-2) = 1,977. LF-5 rewrites its 28-line
+label table. LF-1 keeps one walker. OC-3 rewrites the parser. Generated,
+vendored, and fixture reduction: 0. Documentation rewrites are the
+stage-coverage section in `tools/testing.md` (lines 440–497), the Python
+baseline commands (TL-4), and DOCS-1.
 
 ### Follow-up 1. Remove `stage-coverage`
 
@@ -1136,6 +1192,40 @@ Checks:
 - `mbx xtask fmt --check`
 - `rg -n 'OptimizedLoweredPsi|CheckedTrees' omega-rust/psi/compilation/psi-compiler/terminal-production`
 
+### Follow-up 9. Leave IEEE relations unchanged in predicate denotation
+
+`psi: stop deciding IEEE relations in predicate denotation`
+
+Remove the `closed_ieee_float_relation` branch from `normalize`. A closed
+IEEE literal comparison stays `ScalarIeeeFloatComparison`. The
+fixed-integer arm stays. Add a test that a literal IEEE comparison does
+not become `Truth` or `Falsehood`. That test fails on the current
+`normalize`.
+
+Checks:
+
+- `mbx test -p proof-admission --lib < /dev/null`
+- `mbx test -p lowered-discharge --lib < /dev/null`
+- `mbx clippy -p proof-admission --all-targets -- -D warnings < /dev/null`
+- `mbx xtask fmt --check`
+- `mbx xtask check-rules --base origin/main --title "psi: stop deciding IEEE relations in predicate denotation"`
+
+### Follow-up 10. Delete the uncalled source-integer theory search
+
+`psi: drop the uncalled source-integer theory search`
+
+Delete `SourceIntegerTheory`'s search and the helpers only it calls
+(`source_rewrite_proof`, `closed_source_predicate`,
+`source_assumption_predicate`). Keep the `Denotation` integer vocabulary
+and the law tables certificate elaboration calls. Keep `verify_obligation`.
+
+Checks:
+
+- `mbx test -p proof-admission --lib < /dev/null`
+- `mbx clippy -p proof-admission --all-targets -- -D warnings < /dev/null`
+- `mbx xtask fmt --check`
+- `rg -n 'SourceIntegerTheory::' omega-rust/psi/compilation/proof/admission/src/bounded_denotation.rs`
+
 ## 6. Large-crate coverage
 
 Each of the six crates named below gets its own pass. A clean result means
@@ -1161,6 +1251,18 @@ Not line-read: `storage_bytes_and_views.rs`, `storage_records_and_arrays.rs`,
 Those files were searched for `Proposition`, `CrashRoute`, `evaluate`, and
 `CheckedTrees`. No `mbx` run.
 
+### Proof admission, two findings
+
+`omega-rust/psi/compilation/proof/admission` is 48,667 lines.
+`git diff --stat a93022df945edf9147d3e75332c7ee944594029a -- omega-rust/psi/compilation/proof/admission`
+is empty. `verify_obligation` stays. Two new findings: PA-1, `normalize`
+decides a closed IEEE comparison the spec says this conversion leaves
+unchanged, and PA-2, `SourceIntegerTheory` is constructed only in tests.
+
+Not line-read: the integer-affine, cast, shift, and forbidden-root replay
+bodies, the quotient and indexed-scheme bodies in `mathematical_core.rs`,
+and the `mathematical_typing.rs` judgment arms. No `mbx` run.
+
 ### What this pass could not verify
 
 - Whether any on-disk build record still encodes measurement tag 0. The
@@ -1173,7 +1275,8 @@ Those files were searched for `Proposition`, `CrashRoute`, `evaluate`, and
   elaboration and discharge. This pass did not walk every command flag to
   that function, so the stage READMEs' "not wired" claim is contradicted
   for the product route and unverified for every other route.
-- The other five large crates are still unread: typed-trees (71,141),
-  instruction selection (68,336), the resolver (66,064), terminal semantics
-  (53,446), and proof admission (48,667). The interpreter's storage files
-  listed in section 6 were searched, not line-read.
+- Four large crates are still unread: typed-trees (71,141), instruction
+  selection (68,336), the resolver (66,064), and terminal semantics
+  (53,446). Proof admission's integer-affine, quotient, and typing-arm
+  bodies were not line-read. The interpreter's storage files listed in
+  section 6 were searched, not line-read.
