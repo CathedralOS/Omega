@@ -1307,11 +1307,12 @@ pub(crate) mod construction_destinations {
                         }
                         StatementNode::Assignment(assignment) => {
                             if needs_destination(program, assignment.value) {
-                                // Project the exact declared storage type; bounds,
+                                // A literal assigned to a field or array element
+                                // needs that destination's declared type. Bounds,
                                 // access and establishment are checked later. An
                                 // unavailable destination remains this machine's
                                 // deferred request rather than stopping its siblings.
-                                match assigned_binding_type(program, state, assignment.target) {
+                                match assigned_place_type(program, state, assignment.target) {
                                     Some(receiving_type) => destinations.push((
                                         assignment.value,
                                         receiving_type,
@@ -1488,7 +1489,7 @@ pub(crate) mod construction_destinations {
         Ok(cast_destinations)
     }
 
-    fn assigned_binding_type(
+    fn assigned_place_type(
         program: &TypedTrees,
         state: &typed_trees::state::State,
         target: ExpressionHandle,
