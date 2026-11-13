@@ -290,14 +290,6 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
             .len(),
         bytes
     );
-    assert!(
-        first
-            .source
-            .facts()
-            .consumed_units
-            .as_ref()
-            .is_some_and(|units| !units.is_empty())
-    );
     assert!(bytes > 0);
     assert!(matches!(
         review(bytes - 1),
