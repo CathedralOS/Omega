@@ -591,13 +591,16 @@ impl<'a> Prover<'a> {
     /// `goal` at a point no execution reaches: what is known there is
     /// contradictory, so anything follows (`wiki/spec/proofs/contracts.md`,
     /// "Required automatic discharge": order reasoning includes
-    /// "contradiction of an unreachable path"). Two searches, both ending in
-    /// `ex_falso`: an order fact chained with its opposite into a closed
-    /// false relation (`refute`, which needs a literal endpoint), then a
-    /// taken guard whose negation is provable (`refute_guard`, which does
-    /// not). It is tried last, so a reachable point pays for it only when its
+    /// "contradiction of an unreachable path"). Each search ends in
+    /// `ex_falso`: a closed mathematical comparison proved false, an order
+    /// chained with its opposite (`refute`, which needs a literal endpoint),
+    /// or a taken guard whose negation is provable (`refute_guard`). This
+    /// search is tried last, so a reachable point pays for it only when its
     /// goal is otherwise unproved.
     fn unreachable(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        if let Some(absurd) = self.refute_closed_mathematical(goal) {
+            return Some(absurd);
+        }
         let mut orders: Vec<ProofNode> = self
             .facts
             .iter()
@@ -639,6 +642,55 @@ impl<'a> Prover<'a> {
         guards
             .into_iter()
             .find_map(|taken| self.refute_guard(taken, goal))
+    }
+
+    /// A closed false mathematical assumption also makes a path unreachable.
+    /// Retain its exact value equations in the proof; the kernel independently
+    /// evaluates the negated comparison and checks the transport back.
+    fn refute_closed_mathematical(&self, goal: &Proposition) -> Option<ProofNode> {
+        self.facts
+            .iter()
+            .filter(|fact| fact.axiom.is_none())
+            .find_map(|fact| {
+                if !matches!(
+                    &fact.proposition,
+                    Proposition::IntegerMathEqual(..)
+                        | Proposition::IntegerMathLessThan(..)
+                        | Proposition::IntegerMathLessOrEqual(..)
+                ) {
+                    return None;
+                }
+                let negation = Proposition::Implication {
+                    premise: Box::new(fact.proposition.clone()),
+                    conclusion: Box::new(Proposition::Falsehood),
+                };
+                let closed = check_value_equality_denotation(
+                    self.context,
+                    &negation,
+                    self.equations.iter().map(|(equation, _)| equation),
+                )
+                .ok()?;
+                let proof = self.closed(closed)?;
+                let negation = node(
+                    negation,
+                    ProofRule::ValueEqualityTransport {
+                        premise: Box::new(proof),
+                        equalities: self
+                            .equations
+                            .iter()
+                            .map(|(_, proof)| proof.clone())
+                            .collect(),
+                    },
+                );
+                let absurd = node(
+                    Proposition::Falsehood,
+                    ProofRule::ImplicationElimination {
+                        implication: Box::new(negation),
+                        premise: Box::new(fact.proof.clone()),
+                    },
+                );
+                Some(ex_falso(absurd, goal))
+            })
     }
 
     /// `goal` where the guard that was taken cannot have held: `taken` is the

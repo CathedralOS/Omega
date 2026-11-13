@@ -1134,7 +1134,9 @@ impl Analysis<'_> {
                 // A byte field's descriptor is inline storage of its record,
                 // so its region is the carrier's path and the field. The
                 // static projection stops there because a view's bytes lie
-                // outside the record; the descriptor does not.
+                // outside the record; the descriptor does not. A payload
+                // field's carrier is the sum, and its region lies under the
+                // case, as a scalar payload leaf's does.
                 let (StructuralPathSegment::Field(_), carrier) = path.split_last()? else {
                     return None;
                 };
@@ -1144,11 +1146,16 @@ impl Analysis<'_> {
                     path,
                 )?;
                 field.field_type.byte_sequence_carrier()?;
+                let (carrier, case) = match carrier.split_last() {
+                    Some((StructuralPathSegment::Case(case), sum)) => (sum, Some(*case)),
+                    _ => (carrier, None),
+                };
                 let (mut canonical, _) = crate::canonical_static_projection(
                     self.types.iter(),
                     declaration.structural_type,
                     carrier,
                 )?;
+                canonical.extend(case.map(Segment::Case));
                 canonical.push(Segment::Field(field.id));
                 Some(canonical)
             })

@@ -443,7 +443,11 @@ pub(crate) mod contracts {
             lowerer: &mut Lowerer,
             contract: &resolved::signature::SignatureContract,
         ) -> Result<typed::signature::SignatureContract, Diagnostic> {
-            let facts = lower_proof_facts(lowerer, contract.facts)?;
+            // Every callable contract admits total policy arithmetic, including
+            // requirements without a body. The declaration kind is irrelevant.
+            let facts = lowerer.admitting_contract_policy_operators(|lowerer| {
+                lower_proof_facts(lowerer, contract.facts)
+            })?;
             Ok(typed::signature::SignatureContract {
                 kind: lower_contract_kind(&contract.kind),
                 keyword_source_span: contract.keyword_source_span,

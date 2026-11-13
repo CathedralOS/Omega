@@ -358,7 +358,7 @@ Refused by name:
 
 ### Mathematical integers in a clause
 
-A machine's `requires` or `ensures` may compare mathematical integers:
+A machine's `requires`, `ensures` or crash guard may compare mathematical integers:
 `requires embed(rest) + embed(count) * 10 <= 99`. `embed` takes a runtime
 integer into the unbounded integers
 ([proof contracts](../../../../../wiki/spec/proofs/contracts.md#mathematical-values-and-quantification):
@@ -406,8 +406,14 @@ arguments.
 | a runtime value or typed literal that is not embedded, `embed(a) + b` or `embed(a) <= 99u8` | `contract runtime value in a mathematical term without embed`, `contract typed literal in a mathematical term without embed` |
 | a cast or a call inside a mathematical term, `embed(a) as Nat`, `integer::quotient(..)` | `contract cast in a mathematical term`, `contract call in a mathematical term` |
 | a literal past 64 bits, or an anonymous tree whose value is fractional | `contract mathematical literal beyond 64 bits`, `contract fractional anonymous value in a mathematical term` |
-| the comparison in a crash route guard or in a data `requires`, each restated by a substitution that knows only scalar comparisons | `contract mathematical comparison in a crash route guard`, `contract mathematical comparison in a data requires` |
-| the comparison in the `requires` of a member of a call cycle, which becomes a loop head's invariant | `contract mathematical comparison required on a call cycle` |
+| the comparison in a data `requires`, whose establishment goals do not yet serve mathematical comparisons | `contract mathematical comparison in a data requires` |
+
+Crash guards and cycle-head requirements use the same checked clause
+substitution as call requirements and guarantees. It retains mathematical
+arithmetic and total policy operations while replacing exact formal identities;
+an unbound name is refused, never retained as an accidental caller identity.
+Structural crash guards still require captured entry-storage observations before
+the source reader can admit them.
 
 ### Erased scalar bindings
 
