@@ -76,6 +76,7 @@ mod calls {
                 || matches!(symbols.get(receiver_symbol).kind, SymbolKind::Domain))
                 && let symbol_resolved_trees::expression::ExpressionNode::Name(path) =
                     expression_table.expression(call.receiver)
+                && !path.static_application.is_valid()
                 && let [owner] = expression_table.name_path_members(path.members)
             {
                 return super::super::lookup::call_target_for_attached_data(
@@ -214,7 +215,9 @@ pub(in crate::symbols) mod projected_receivers {
                         member.receiver
                     }
                     ExpressionNode::Borrow(borrow) => borrow.target,
-                    ExpressionNode::Name(name) => break name,
+                    ExpressionNode::Name(name) if !name.static_application.is_valid() => {
+                        break name;
+                    }
                     _ => return None,
                 };
             };

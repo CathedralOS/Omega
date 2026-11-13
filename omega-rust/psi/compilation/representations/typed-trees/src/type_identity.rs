@@ -2624,6 +2624,19 @@ pub(crate) mod identity_context {
     ) -> String {
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
+                if path.static_application.is_valid() {
+                    return match program
+                        .expression_table
+                        .static_member(path.static_application)
+                    {
+                        Some(argument) => substitution::index_argument(
+                            program,
+                            crate::type_identity::IndexIdentityArgument::StaticArgument(argument),
+                            context,
+                        ),
+                        None => substitution::rejected(context),
+                    };
+                }
                 let members = program.expression_table.name_path_members(path.members);
                 let fallback = members.joined_path();
                 let symbol = if path.symbol.is_valid() {
@@ -6876,7 +6889,10 @@ pub(crate) mod substitution {
                             ExpressionNode::Integer(literal) => {
                                 return usize::try_from(literal.value_u64()?).ok();
                             }
-                            ExpressionNode::Name(path) if path.symbol.is_valid() => {
+                            ExpressionNode::Name(path)
+                                if !path.static_application.is_valid()
+                                    && path.symbol.is_valid() =>
+                            {
                                 symbol = path.symbol;
                                 spelling = "";
                             }

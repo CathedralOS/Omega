@@ -1496,6 +1496,9 @@ mod domain_facts {
                     assign_struct_literal_symbols(self.symbols, self.expression_table, expression);
                 }
                 ExpressionNode::Name(path) => {
+                    if path.static_application.is_valid() {
+                        return;
+                    }
                     if path.head_symbol.is_valid() || path.symbol.is_valid() {
                         return;
                     }
@@ -3185,7 +3188,7 @@ pub(crate) mod recursive_tail_calls {
         }
         if call.receiver.is_valid()
             && !matches!(expressions.expression(call.receiver), ExpressionNode::Name(receiver)
-            if identity.owner.is_valid() && receiver.symbol == identity.owner)
+            if !receiver.static_application.is_valid() && identity.owner.is_valid() && receiver.symbol == identity.owner)
         {
             return None;
         }
