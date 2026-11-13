@@ -34,8 +34,6 @@ pub use provider_planning::{
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, same_semantic_name,
     satisfies_plan_name,
 };
-pub(crate) use provider_planning::{
-    DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
-};
+pub(crate) use provider_planning::{DerivedProviderPlan, SelectedTargetMachineOrigin};
 
 pub use provider_planning::ProviderRowRealization;
