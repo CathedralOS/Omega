@@ -159,6 +159,122 @@ pub(crate) fn collection_field_type(
     Ok(field.type_reference)
 }
 
+/// Read a storage destination's declared type so its literal can retain the
+/// same applied constructor. Bounds, case selection, access and establishment
+/// remain obligations of the consuming lowered operation.
+pub(crate) fn declared_place_type(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    target: ExpressionHandle,
+) -> Result<TypeReferenceHandle, Diagnostic> {
+    let table = &program.expression_table;
+    let mut spine = Vec::new();
+    let mut cursor = target;
+    // Scratch grows only with this expression spine. The arena's existing
+    // count bounds malformed cycles without allocating a whole-arena bitmap.
+    for _ in 0..table.expression_count() {
+        if !table.expression_is_valid(cursor) {
+            break;
+        }
+        match table.expression(cursor) {
+            ExpressionNode::Name(path) => {
+                let names = table.name_path_members(path.members);
+                let selected = table.name_path_member_symbols(path.member_symbols);
+                let binder = path
+                    .resolved_symbol()
+                    .ok_or_else(|| crate::unavailable_judgment("assignment storage binder"))?;
+                if names.is_empty() || (!selected.is_empty() && selected.len() != names.len()) {
+                    return Err(crate::unavailable_judgment(
+                        "assignment storage path roster",
+                    ));
+                }
+                if selected
+                    .first()
+                    .is_some_and(|symbol| symbol.is_valid() && *symbol != binder)
+                {
+                    return Err(crate::unavailable_judgment(
+                        "assignment storage binder identity",
+                    ));
+                }
+                let mut reference = program
+                    .declared_binding_type_by_symbol(state, binder)
+                    .ok_or_else(|| {
+                        crate::unavailable_judgment("unique assignment storage declaration")
+                    })?;
+                for (position, name) in names.iter().enumerate().skip(1) {
+                    reference = declared_field_type(
+                        program,
+                        reference,
+                        name.as_str(),
+                        selected.get(position).copied().unwrap_or_default(),
+                    )?;
+                }
+                for expression in spine.into_iter().rev() {
+                    reference = match table.expression(expression) {
+                        ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                            declared_field_type(
+                                program,
+                                reference,
+                                member.member.as_str(),
+                                member.member_symbol,
+                            )?
+                        }
+                        ExpressionNode::Indexed(_) => collection_element_type(program, reference)?,
+                        _ => {
+                            return Err(crate::unavailable_judgment("assignment storage selector"));
+                        }
+                    };
+                    if !program
+                        .type_reference_table
+                        .contains_type_reference(reference)
+                    {
+                        return Err(crate::unavailable_judgment(
+                            "assignment selected type occurrence",
+                        ));
+                    }
+                }
+                return Ok(reference);
+            }
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                spine.push(cursor);
+                cursor = member.receiver;
+            }
+            ExpressionNode::Indexed(index) => {
+                spine.push(cursor);
+                cursor = index.collection;
+            }
+            _ => break,
+        }
+    }
+    Err(crate::unavailable_judgment("assignment storage expression"))
+}
+
+fn declared_field_type(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    name: &str,
+    selected: SymbolHandle,
+) -> Result<TypeReferenceHandle, Diagnostic> {
+    let carrier = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    let data = program
+        .closed_data_definition(carrier)
+        .ok_or_else(|| crate::unavailable_judgment("assignment field application"))?;
+    let mut fields = program
+        .data_members(data)
+        .iter()
+        .filter_map(typed_trees::data::DataMember::as_field)
+        .filter(|field| field.name.as_str() == name);
+    let field = fields
+        .next()
+        .ok_or_else(|| crate::unavailable_judgment("assignment field declaration"))?;
+    if fields.next().is_some() || (selected.is_valid() && selected != field.symbol) {
+        return Err(crate::unavailable_judgment("assignment field identity"));
+    }
+    collection_field_type(program, carrier, field.symbol)
+}
+
 use typed_trees::deferred_refusals::DeferredRequest;
 use typed_trees::{expression::ExpressionNode, types::PrimitiveType};
 pub(crate) fn land_owned_fixed_byte_literal(
@@ -463,6 +579,326 @@ pub(crate) fn defer_unbound_calls(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn assignment_places_keep_applied_fields_and_refuse_foreign_or_duplicate_binders() {
+        use symbols::{SymbolNameRef, SymbolTableBuilder};
+        use typed_trees::{
+            data::{DataDefinition, DataField, DataMember, TypeParameter},
+            expression::{TableIndexedExpression, TableMemberExpression, TableNamePath},
+            machine::Machine,
+            name::Identifier,
+            state::State,
+            types::FixedArrayLength,
+        };
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let owners = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Data, SymbolNameRef::Static("Cell")),
+                (SymbolKind::Data, SymbolNameRef::Static("OtherCell")),
+                (SymbolKind::Data, SymbolNameRef::Static("Row")),
+                (SymbolKind::Machine, SymbolNameRef::Static("caller")),
+            ],
+        );
+        let [cell, other, row, caller] = [0, 1, 2, 3].map(|index| owners.handle_at(index));
+        let row_members = builder.insert_children(
+            row,
+            [
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                (SymbolKind::Field, SymbolNameRef::Static("items")),
+            ],
+        );
+        let foreign_field = builder
+            .insert_children(other, [(SymbolKind::Field, SymbolNameRef::Static("items"))])
+            .start();
+        let state = builder
+            .insert_children(
+                caller,
+                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+            )
+            .start();
+        let bindings = builder.insert_children(
+            state,
+            [
+                (SymbolKind::Parameter, SymbolNameRef::Static("left")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("right")),
+            ],
+        );
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let mut named = |symbol, name| {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::generated(name),
+                })
+        };
+        let cell_type = named(cell, "Cell");
+        let other_type = named(other, "OtherCell");
+        let parameter_type = named(row_members.handle_at(0), "T");
+        program.push_data_definition(DataDefinition {
+            symbol: cell,
+            name: Identifier::generated("Cell"),
+            ..Default::default()
+        });
+        let members = program
+            .data_members
+            .insert_many([DataMember::Field(DataField {
+                symbol: foreign_field,
+                name: Identifier::generated("items"),
+                type_reference: cell_type,
+                ..Default::default()
+            })]);
+        program.push_data_definition(DataDefinition {
+            symbol: other,
+            name: Identifier::generated("OtherCell"),
+            members,
+            ..Default::default()
+        });
+        let element_array = program
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: parameter_type,
+                length: FixedArrayLength::Literal(2),
+            });
+        let type_parameters = program.data_type_parameters.insert_many([TypeParameter {
+            symbol: row_members.handle_at(0),
+            name: Identifier::generated("T"),
+            ..Default::default()
+        }]);
+        let members = program
+            .data_members
+            .insert_many([DataMember::Field(DataField {
+                symbol: row_members.handle_at(1),
+                name: Identifier::generated("items"),
+                type_reference: element_array,
+                ..Default::default()
+            })]);
+        program.push_data_definition(DataDefinition {
+            symbol: row,
+            name: Identifier::generated("Row"),
+            type_parameters,
+            members,
+            ..Default::default()
+        });
+        let applications = [cell_type, other_type].map(|argument| {
+            let arguments = program
+                .type_reference_table
+                .insert_type_reference_handles([argument]);
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Generic {
+                    base_symbol: row,
+                    base_name: Identifier::generated("Row"),
+                    arguments,
+                    lifetime_arguments: Vec::new(),
+                })
+        });
+        program
+            .prepare_data_application_views(0)
+            .expect("actual closed applications");
+        let parameters = program
+            .state_parameters
+            .insert_many([0, 1].map(|index| StateParameter {
+                symbol: bindings.handle_at(index),
+                name: Identifier::generated(if index == 0 { "left" } else { "right" }),
+                type_reference: applications[index as usize],
+                ..Default::default()
+            }));
+        let states = program.machine_states.insert_many([State {
+            symbol: state,
+            parameters,
+            ..Default::default()
+        }]);
+        program.push_machine(Machine {
+            symbol: caller,
+            states,
+            ..Default::default()
+        });
+        let mut targets = Vec::new();
+        let mut members = Vec::new();
+        for index in [0, 1] {
+            let mut names = Default::default();
+            program.expression_table.push_name_path_member(
+                &mut names,
+                Identifier::generated(if index == 0 { "left" } else { "right" }),
+            );
+            let binder = bindings.handle_at(index);
+            let receiver = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members: names,
+                    head_symbol: binder,
+                    symbol: binder,
+                    ..Default::default()
+                }));
+            let member =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Member(TableMemberExpression {
+                        receiver,
+                        member_symbol: row_members.handle_at(1),
+                        member: Identifier::generated("items"),
+                        case_variant: None,
+                    }));
+            let selector = program.expression_table.insert(ExpressionNode::Integer(
+                numerics::literals::IntegerLiteral::from_value(1),
+            ));
+            targets.push(program.expression_table.insert(ExpressionNode::Indexed(
+                TableIndexedExpression {
+                    collection: member,
+                    index: selector,
+                },
+            )));
+            members.push(member);
+        }
+        assert_eq!(
+            declared_place_type(
+                &program,
+                &program.machine_states(&program.machines()[0])[0],
+                targets[0]
+            )
+            .unwrap(),
+            cell_type
+        );
+        assert_eq!(
+            declared_place_type(
+                &program,
+                &program.machine_states(&program.machines()[0])[0],
+                targets[1]
+            )
+            .unwrap(),
+            other_type
+        );
+        let mut foreign_state = program.machine_states(&program.machines()[0])[0].clone();
+        foreign_state.parameters = Default::default();
+        assert!(declared_place_type(&program, &foreign_state, targets[0]).is_err());
+        let ExpressionNode::Member(member) = program.expression_table.expression_mut(members[0])
+        else {
+            panic!("member")
+        };
+        member.member_symbol = foreign_field;
+        assert!(
+            declared_place_type(
+                &program,
+                &program.machine_states(&program.machines()[0])[0],
+                targets[0]
+            )
+            .unwrap_err()
+            .message
+            .contains("assignment field identity")
+        );
+        member_reset(&mut program, members[0], row_members.handle_at(1));
+        let applied_field = program
+            .data_application_definition(applications[0])
+            .expect("retained actual application")
+            .members
+            .start();
+        let DataMember::Field(field) = program.data_members.get_mut(applied_field) else {
+            panic!("field")
+        };
+        let original = field.type_reference;
+        field.type_reference =
+            TypeReferenceHandle::from_parts(original.arena_index(), original.generation() + 1);
+        let error = declared_place_type(
+            &program,
+            &program.machine_states(&program.machines()[0])[0],
+            targets[0],
+        )
+        .unwrap_err();
+        assert!(
+            error.message.contains("collection field owner/type"),
+            "{error:?}"
+        );
+        let DataMember::Field(field) = program.data_members.get_mut(applied_field) else {
+            panic!("field")
+        };
+        field.type_reference = original;
+        let array = program
+            .type_reference_table
+            .type_reference(original)
+            .clone();
+        let TypeReferenceNode::FixedArray {
+            element_type,
+            length,
+        } = array
+        else {
+            panic!("array")
+        };
+        program.type_reference_table.substitute_node(
+            original,
+            TypeReferenceNode::FixedArray {
+                element_type: TypeReferenceHandle::from_parts(
+                    element_type.arena_index(),
+                    element_type.generation() + 1,
+                ),
+                length: length.clone(),
+            },
+        );
+        let error = declared_place_type(
+            &program,
+            &program.machine_states(&program.machines()[0])[0],
+            targets[0],
+        )
+        .unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("assignment selected type occurrence"),
+            "{error:?}"
+        );
+        program.type_reference_table.substitute_node(
+            original,
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            },
+        );
+        let mut duplicates = program
+            .state_parameters(
+                program
+                    .machine_states(&program.machines()[0])
+                    .first()
+                    .unwrap(),
+            )
+            .to_vec();
+        duplicates.push(duplicates[0].clone());
+        let parameters = program.state_parameters.insert_many(duplicates);
+        let machine = program.machines()[0].clone();
+        program.machine_states_mut(&machine)[0].parameters = parameters;
+        assert!(
+            declared_place_type(
+                &program,
+                &program.machine_states(&program.machines()[0])[0],
+                targets[0]
+            )
+            .unwrap_err()
+            .message
+            .contains("unique assignment storage declaration")
+        );
+        assert_eq!(
+            declared_place_type(
+                &program,
+                &program.machine_states(&program.machines()[0])[0],
+                targets[1]
+            )
+            .unwrap(),
+            other_type
+        );
+    }
+
+    fn member_reset(program: &mut TypedTrees, expression: ExpressionHandle, symbol: SymbolHandle) {
+        let ExpressionNode::Member(member) = program.expression_table.expression_mut(expression)
+        else {
+            panic!("member")
+        };
+        member.member_symbol = symbol;
+    }
+
     use super::*;
 
     /// The rows the gate records on a copy of `program`.
