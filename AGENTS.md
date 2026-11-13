@@ -83,6 +83,12 @@ and what the change makes work:
 `Gate: <release-gate> | <what the change makes work>`, where the name comes from
 the release matrix in [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
 
+The same PRs carry one line naming the specification they implement, so a
+reviewer can open the text the change claims to follow:
+`Spec: <wiki/spec/...md[#anchor]>[, <page>...]`, or
+`Spec: none | <why no page governs this>` when the spec is silent. A change that
+knowingly departs from a page says so in its description, beside this line.
+
 The same PRs carry one line saying what proved the change:
 `Proof: <tests on the change and the area around it> | <clean, or what failed and what it turned out to be>`.
 
