@@ -1044,8 +1044,9 @@ fn root_slot<'a>(
 }
 
 /// Arguments run left to right, but this lowering forms loans together at
-/// the call. Refuse an argument read or newly evaluated selector that would
-/// observe storage while an earlier argument's loan is already live.
+/// the call. Conservatively refuse any argument read or newly evaluated
+/// selector of a root this call lends, including reads before a loan. This
+/// preserves the existing restriction until loan timing is represented.
 fn lent_storage_is_untouched<'a>(
     id: MachineId,
     arguments: &'a [Expression],
