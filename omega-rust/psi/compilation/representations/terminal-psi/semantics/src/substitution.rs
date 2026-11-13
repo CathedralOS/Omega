@@ -6,6 +6,8 @@ places, and callable boundaries.
 use std::collections::{BTreeMap, HashMap};
 use std::hash::{Hash, Hasher};
 
+pub mod clauses;
+
 use terminal_psi::{CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard};
 
 use semantic_vocabulary::ScalarReadProjection;

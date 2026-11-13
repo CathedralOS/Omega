@@ -20,7 +20,14 @@ pub fn decide_primitive(
     proposition: &Proposition,
     judgment: PrimitiveJudgment,
 ) -> Result<(), KernelError> {
-    if let semantic_vocabulary::integer_math_comparison_operands!(left, right) = proposition {
+    let relation = match proposition {
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } if **conclusion == Proposition::Falsehood => premise.as_ref(),
+        _ => proposition,
+    };
+    if let semantic_vocabulary::integer_math_comparison_operands!(left, right) = relation {
         check_integer_math_term_size(left, right).map_err(KernelError::ClosedIntegerEvaluation)?;
     }
     context
@@ -64,28 +71,38 @@ pub fn decide_primitive(
                 false
             }
         }
-        (PrimitiveJudgment::ClosedIntegerRelation, Proposition::IntegerMathEqual(left, right)) => {
-            compare_integer_math_terms(left, right)
-                .map_err(KernelError::ClosedIntegerEvaluation)?
-                .is_some_and(|ordering| ordering.is_eq())
+        (
+            PrimitiveJudgment::ClosedIntegerRelation,
+            Proposition::Implication {
+                premise,
+                conclusion,
+            },
+        ) if **conclusion == Proposition::Falsehood => {
+            // An unavailable evaluation is not evidence of falsity. Only a
+            // closed comparison decided false proves its logical negation.
+            closed_mathematical_relation(premise)? == Some(false)
         }
-        (
-            PrimitiveJudgment::ClosedIntegerRelation,
-            Proposition::IntegerMathLessThan(left, right),
-        ) => compare_integer_math_terms(left, right)
-            .map_err(KernelError::ClosedIntegerEvaluation)?
-            .is_some_and(|ordering| ordering.is_lt()),
-        (
-            PrimitiveJudgment::ClosedIntegerRelation,
-            Proposition::IntegerMathLessOrEqual(left, right),
-        ) => compare_integer_math_terms(left, right)
-            .map_err(KernelError::ClosedIntegerEvaluation)?
-            .is_some_and(|ordering| !ordering.is_gt()),
+        (PrimitiveJudgment::ClosedIntegerRelation, relation) => {
+            closed_mathematical_relation(relation)? == Some(true)
+        }
         _ => false,
     };
     accepted
         .then_some(())
         .ok_or(KernelError::JudgmentDoesNotEstablishGoal { judgment })
+}
+
+fn closed_mathematical_relation(proposition: &Proposition) -> Result<Option<bool>, KernelError> {
+    let semantic_vocabulary::integer_math_comparison_operands!(left, right) = proposition else {
+        return Ok(None);
+    };
+    Ok(compare_integer_math_terms(left, right)
+        .map_err(KernelError::ClosedIntegerEvaluation)?
+        .map(|ordering| match proposition {
+            Proposition::IntegerMathEqual(..) => ordering.is_eq(),
+            Proposition::IntegerMathLessThan(..) => ordering.is_lt(),
+            _ => !ordering.is_gt(),
+        }))
 }
 
 fn integer_carrier_bound(left: &ScalarTerm, right: &ScalarTerm) -> bool {
@@ -242,6 +259,96 @@ mod tests {
                 PrimitiveJudgment::ClosedIntegerRelation,
             )
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn closed_mathematical_negation_requires_a_false_relation() {
+        use semantic_vocabulary::{ScalarType, ValueId};
+        let literal = |value| IntegerMathTerm::literal(IntegerValue::Unsigned(value));
+        let negate = |premise| Proposition::Implication {
+            premise: Box::new(premise),
+            conclusion: Box::new(Proposition::Falsehood),
+        };
+        for (relation, accepted) in [
+            (Proposition::IntegerMathEqual(literal(2), literal(3)), true),
+            (Proposition::IntegerMathEqual(literal(2), literal(2)), false),
+            (
+                Proposition::IntegerMathLessThan(literal(3), literal(2)),
+                true,
+            ),
+            (
+                Proposition::IntegerMathLessThan(literal(2), literal(3)),
+                false,
+            ),
+            (
+                Proposition::IntegerMathLessOrEqual(literal(3), literal(2)),
+                true,
+            ),
+            (
+                Proposition::IntegerMathLessOrEqual(literal(2), literal(2)),
+                false,
+            ),
+        ] {
+            let goal = negate(relation);
+            assert_eq!(
+                decide_primitive(
+                    &PropositionContext::default(),
+                    &goal,
+                    PrimitiveJudgment::ClosedIntegerRelation
+                )
+                .is_ok(),
+                accepted
+            );
+            let proof = crate::ProofNode {
+                conclusion: goal.clone(),
+                rule: crate::ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+            };
+            assert_eq!(
+                crate::accept_certificate(&PropositionContext::default(), &goal, &[], &[], &proof)
+                    .is_ok(),
+                accepted
+            );
+        }
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let value = ValueId::new(1).unwrap();
+        let context =
+            PropositionContext::from_value_types([(value, ScalarType::Integer(integer))]).unwrap();
+        let open = Proposition::IntegerMathEqual(
+            IntegerMathTerm::MathValue {
+                source_type: integer,
+                value,
+            },
+            literal(2),
+        );
+        assert!(
+            decide_primitive(
+                &context,
+                &negate(open),
+                PrimitiveJudgment::ClosedIntegerRelation
+            )
+            .is_err()
+        );
+        let over_budget = IntegerMathTerm::ShiftLeft {
+            value: Box::new(literal(1)),
+            count: Box::new(literal(u128::MAX)),
+        };
+        assert_eq!(
+            decide_primitive(
+                &context,
+                &negate(Proposition::IntegerMathLessThan(over_budget, literal(0))),
+                PrimitiveJudgment::ClosedIntegerRelation
+            ),
+            Err(KernelError::ClosedIntegerEvaluation(
+                ClosedIntegerEvaluationError::ResourceLimitExceeded
+            ))
+        );
+        let forged = Proposition::Implication {
+            premise: Box::new(Proposition::IntegerMathEqual(literal(2), literal(3))),
+            conclusion: Box::new(Proposition::IntegerMathEqual(literal(2), literal(3))),
+        };
+        assert!(
+            decide_primitive(&context, &forged, PrimitiveJudgment::ClosedIntegerRelation).is_err()
         );
     }
 
