@@ -2460,6 +2460,7 @@ dependencies = [
  "terminal-check-tables",
  "terminal-codec",
  "terminal-psi",
+ "terminal-semantics",
  "typed-trees",
 ]
 

@@ -14,8 +14,11 @@ A field, case or type the typed trees hold only as a spelling is refused as
 `Unserved::Spelling`. A member's `case_variant` is a spelling and is never
 read: a payload member is the payload field its symbol names.
 
-The slice served is copy-eligible plain data: a record whose fields, or a sum
-whose payload fields, are builtin integers, `bool` or other such data.
+The slice serves plain data with explicit copy permission or ordinary affine
+custody: fields and payloads are builtin integers, `bool` or other such data.
+Affine values transfer once and publish normal-edge disposal of their remaining
+regions. Nominal cleanup hooks, linear claims, reference-bearing data and
+extraction through borrowed storage remain outside this slice.
 A declaration's `requires` is read into `RecordType::requires` by the clause
 reader the machine contracts use (`contracts`), over `self` and its fields;
 a `requires` on a case is refused (`type data requires`). Everything else
@@ -177,9 +180,12 @@ impl Program<'_> {
         }
         let copyable =
             data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted;
-        if copyable && declared.iter().chain(case_types.iter().flat_map(|case| &case.fields)).any(|field| {
-            matches!(field.value_type, ValueType::Record(nested) if self.records.get(nested).is_some_and(|record| !record.copyable))
-        }) {
+        if copyable
+            && !declared
+                .iter()
+                .chain(case_types.iter().flat_map(|case| &case.fields))
+                .all(|field| copy_field_is_unrestricted(field.value_type, &self.records))
+        {
             return Err(unserved("copy data with an owned field"));
         }
         let record: StructuralTypeId = self.records.push(RecordType {
@@ -807,6 +813,19 @@ fn record_shape<'m>(
     Ok(())
 }
 
+// Copy permission must reach every nested value. Scalar fields alone do not
+// grant it to their affine owner, and a missing record identity grants nothing.
+fn copy_field_is_unrestricted(
+    field: ValueType,
+    records: &semantic_vocabulary::IdTable<StructuralTypeId, RecordType>,
+) -> bool {
+    match field {
+        ValueType::Scalar(_) => true,
+        ValueType::Record(record) => records.get(record).is_some_and(|record| record.copyable),
+        ValueType::Rigid(_) => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -815,6 +834,31 @@ mod tests {
 
     fn machine() -> MachineId {
         MachineId::new(1).unwrap()
+    }
+
+    #[test]
+    fn copy_permission_does_not_hide_an_owned_nested_record() {
+        let mut records = semantic_vocabulary::IdTable::default();
+        let owned = records.push(RecordType {
+            copyable: false,
+            identity: "Owned".into(),
+            fields: Vec::new(),
+            cases: Vec::new(),
+            requires: Vec::new(),
+        });
+        assert!(!copy_field_is_unrestricted(
+            ValueType::Record(owned),
+            &records
+        ));
+        records.get_mut(owned).unwrap().copyable = true;
+        assert!(copy_field_is_unrestricted(
+            ValueType::Record(owned),
+            &records
+        ));
+        assert!(!copy_field_is_unrestricted(
+            ValueType::Record(StructuralTypeId::new(2).unwrap()),
+            &records,
+        ));
     }
 
     /// `data P [copy] { x: ...; }` as the typed trees hold a plain record.
@@ -844,12 +888,12 @@ mod tests {
     fn each_data_declaration_outside_the_slice_is_refused_by_name() {
         let (data, members) = plain();
         assert_eq!(record_shape(machine(), &data, &members, |_| &[]), Ok(()));
+        let mut affine = data.clone();
+        affine.properties.multiplicity = language_semantics::Multiplicity::Affine;
+        assert_eq!(record_shape(machine(), &affine, &members, |_| &[]), Ok(()));
         // A declaration-level `requires` is no longer refused here: its
         // clauses are read by the clause reader. A case-level one still is.
-        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 10] = [
-            ("type data with custody", |data, _| {
-                data.properties.multiplicity = language_semantics::Multiplicity::Affine;
-            }),
+        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 9] = [
             ("type data with custody", |data, _| {
                 data.properties.multiplicity = language_semantics::Multiplicity::Linear;
             }),

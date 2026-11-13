@@ -279,6 +279,9 @@ impl Storage<'_> {
         };
         let mut rows = Vec::new();
         match &operation.kind {
+            OperationKind::EstablishStructuralLocal {} => {
+                rows.push((fresh()?, Stored::Vacated));
+            }
             OperationKind::EstablishRecord { fields } => {
                 let root = fresh()?;
                 for field in fields {
@@ -388,8 +391,17 @@ impl Storage<'_> {
                     Stored::Moved(self.argument(value, concerns)?),
                 ));
             }
-            OperationKind::StoreStructuralField { field: None, .. } => {
-                return Err(self.unsupported(concerns, "a whole store that names no field"));
+            OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field: None,
+                value,
+                ..
+            } => {
+                rows.push((
+                    self.stored_at(*destination, path, concerns)?,
+                    Stored::Moved(self.argument(value, concerns)?),
+                ));
             }
             OperationKind::EstablishPrimitiveLocal { value, .. } => {
                 rows.push((fresh()?, Stored::Value(*value)));

@@ -6,7 +6,8 @@
 //! edge schedule; a checker reconstructs it from the same unsealed operations.
 
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment as Segment, EdgeId, OperationId, PlaceId, StructuralTypeId,
+    CanonicalStructuralPathSegment as Segment, EdgeId, IdSet, OperationId, PlaceId,
+    StructuralTypeId,
 };
 use terminal_psi::{
     StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralTypeDeclaration,
@@ -33,6 +34,7 @@ pub enum Error {
 
 #[derive(Debug, Default)]
 pub struct Plan {
+    pub affine_roots: IdSet<PlaceId>,
     pub cleanup: Vec<(EdgeId, Vec<TerminalAffineCleanupAction>)>,
     pub unavailable: Vec<Unavailable>,
 }
@@ -69,6 +71,19 @@ impl Region {
         {
             Ok(position) => self.children[position].1.available(tail),
             Err(_) => self.base,
+        }
+    }
+
+    fn vacant(&self, path: &[Segment]) -> bool {
+        let Some((head, tail)) = path.split_first() else {
+            return !self.base && self.children.is_empty();
+        };
+        match self
+            .children
+            .binary_search_by_key(head, |(segment, _)| *segment)
+        {
+            Ok(position) => self.children[position].1.vacant(tail),
+            Err(_) => !self.base,
         }
     }
 
@@ -135,6 +150,7 @@ struct Analysis<'a> {
     roots: Vec<Option<Root>>,
     unavailable: Vec<Unavailable>,
     unavailable_roots: Vec<Option<Site>>,
+    max_residuals: usize,
 }
 
 fn index(raw: u64) -> Result<usize, Error> {
@@ -156,30 +172,66 @@ fn storage_root(used: terminal_psi::StructuralStorageUse<'_>) -> Option<PlaceId>
     }
 }
 
-fn live_entries(machine: &TerminalMachine) -> Result<Vec<Vec<bool>>, Error> {
-    let mut live = vec![vec![false; machine.structural_places.len()]; machine.blocks.len()];
+// Cleanup is output of this analysis, never an observation that keeps its
+// own root alive. Only actual outgoing values and case selection are inputs.
+fn terminator_roots(terminator: &terminal_psi::Terminator) -> Vec<PlaceId> {
+    use terminal_psi::Terminator as T;
+    match terminator {
+        T::StructuralCase { source, .. } | T::ReturnStructural { source, .. } => vec![*source],
+        T::Jump {
+            structural_arguments,
+            ..
+        }
+        | T::InvokeNoNormal {
+            structural_arguments,
+            ..
+        }
+        | T::ExternalCompletion {
+            structural_arguments,
+            ..
+        } => structural_arguments
+            .iter()
+            .map(|argument| argument.place)
+            .collect(),
+        T::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => when_true
+            .structural_arguments
+            .iter()
+            .chain(&when_false.structural_arguments)
+            .map(|argument| argument.place)
+            .collect(),
+        T::Return { .. } | T::ReturnUnit { .. } | T::Crash { .. } => Vec::new(),
+    }
+}
+
+fn live_entries(machine: &TerminalMachine) -> Result<Vec<IdSet<PlaceId>>, Error> {
+    let mut live = vec![IdSet::new(); machine.blocks.len()];
     loop {
         let mut changed = false;
         for block in machine.blocks.iter().rev() {
-            let mut before = vec![false; machine.structural_places.len()];
+            let mut before = IdSet::new();
             for target in block.terminator.successor_targets() {
-                let entering = live
-                    .get(index(target.get())?)
-                    .ok_or(Error::Malformed("edge target is outside the machine"))?;
-                for (needed, successor) in before.iter_mut().zip(entering) {
-                    *needed |= successor;
-                }
+                before.union_with(
+                    live.get(index(target.get())?)
+                        .ok_or(Error::Malformed("edge target is outside the machine"))?,
+                );
             }
-            for used in block.terminator.storage_uses() {
-                *before
-                    .get_mut(index(used.root.get())?)
-                    .ok_or(Error::Malformed("terminator place is outside the machine"))? = true;
+            let valid = |place: PlaceId| -> Result<PlaceId, Error> {
+                if index(place.get())? < machine.structural_places.len() {
+                    Ok(place)
+                } else {
+                    Err(Error::Malformed("live place is outside the machine"))
+                }
+            };
+            for root in terminator_roots(&block.terminator) {
+                before.insert(valid(root)?);
             }
             for operation in block.operations.iter().rev() {
                 if let Some(result) = operation.result.as_structural() {
-                    *before
-                        .get_mut(index(result.place.get())?)
-                        .ok_or(Error::Malformed("result place is outside the machine"))? = false;
+                    before.remove(valid(result.place)?);
                 }
                 for used in operation
                     .kind
@@ -187,9 +239,7 @@ fn live_entries(machine: &TerminalMachine) -> Result<Vec<Vec<bool>>, Error> {
                     .into_iter()
                     .filter_map(storage_root)
                 {
-                    *before
-                        .get_mut(index(used.get())?)
-                        .ok_or(Error::Malformed("operand place is outside the machine"))? = true;
+                    before.insert(valid(used)?);
                 }
             }
             let old = live
@@ -209,11 +259,154 @@ fn live_entries(machine: &TerminalMachine) -> Result<Vec<Vec<bool>>, Error> {
 /// Plans only no-code affine storage. Nominal hooks, conserved claims and
 /// borrowed extraction require their own contracts, rather than an empty plan.
 pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> Result<Plan, Error> {
-    use terminal_psi::{StructuralPlaceKind, TerminalMachineResult, Terminator};
+    analyze(machine, types, usize::MAX)
+}
+
+/// Reconstructs the canonical schedule without trusting the supplied actions.
+/// The producer's actual output bounds residual enumeration before allocation.
+/// Exact equality then checks root/path/type identity, maximality and order.
+pub fn verify(
+    machine: &TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+) -> Result<Plan, Error> {
+    let max_residuals = machine
+        .blocks
+        .iter()
+        .flat_map(|block| block.terminator.cleanup_rosters())
+        .flat_map(|(_, actions)| actions)
+        .filter(|action| matches!(action, TerminalAffineCleanupAction::DiscardResidual(_)))
+        .count();
+    let plan = analyze(machine, types, max_residuals)?;
+    for block in &machine.blocks {
+        for (edge, actions) in block.terminator.cleanup_rosters() {
+            for action in actions {
+                if machine
+                    .structural_places
+                    .get(index(action.place().get())?)
+                    .is_none_or(|place| place.id != action.place())
+                {
+                    return Err(Error::Malformed("cleanup root is outside the machine"));
+                }
+            }
+            let actual = actions
+                .iter()
+                .filter(|action| plan.affine_roots.contains(action.place()));
+            let expected = plan
+                .cleanup
+                .binary_search_by_key(&edge, |(edge, _)| *edge)
+                .ok()
+                .map(|position| plan.cleanup[position].1.as_slice())
+                .unwrap_or(&[]);
+            if !actual.eq(expected.iter()) {
+                return Err(Error::Malformed(
+                    "normal edge affine disposal differs from its canonical schedule",
+                ));
+            }
+        }
+    }
+    Ok(plan)
+}
+
+fn analyze(
+    machine: &TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+    max_residuals: usize,
+) -> Result<Plan, Error> {
+    use semantic_vocabulary::StructuralPlaceKind;
+    use terminal_psi::{TerminalMachineResult, Terminator};
     // A generic requirement is a check-form signature, not an executable
     // activation. Its caller still transfers each argument normally.
     if machine.blocks.is_empty() {
         return Ok(Plan::default());
+    }
+    // A parent's permission cannot erase the custody of its represented
+    // children. Check direct dependencies once; no recursive rescanning is
+    // needed because every declaration in the dense catalog is visited.
+    for (slot, declaration) in types.iter().enumerate() {
+        if index(declaration.id.get())? != slot {
+            return Err(Error::Malformed("types are not in dense identity order"));
+        }
+        let mut children = declaration
+            .shape
+            .direct_fields()
+            .unwrap_or(&[])
+            .iter()
+            .chain(
+                declaration
+                    .shape
+                    .sum_cases()
+                    .unwrap_or(&[])
+                    .iter()
+                    .flat_map(|case| &case.fields),
+            )
+            .filter_map(|field| match field.field_type {
+                terminal_psi::StructuralFieldType::Structural(child) => Some(child),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if let terminal_psi::StructuralTypeShape::FixedArray { element, .. } = declaration.shape {
+            children.push(element);
+        }
+        for child in children {
+            let child = types
+                .get(index(child.get())?)
+                .ok_or(Error::Malformed("nested type is outside the catalog"))?;
+            if declaration.copyable && !child.copyable
+                || declaration.no_code_affine_cleanup && !child.no_code_affine_cleanup
+                || declaration.descriptor_cleanup && !child.descriptor_cleanup
+                || !declaration.owns_linear_claim && child.owns_linear_claim
+            {
+                return Err(Error::Malformed(
+                    "parent type permissions erase a nested ownership obligation",
+                ));
+            }
+        }
+    }
+    let mut contracts = vec![None; machine.structural_places.len()];
+    let mut insert_contract =
+        |place: PlaceId, structural_type, multiplicity, access| -> Result<(), Error> {
+            let slot = contracts
+                .get_mut(index(place.get())?)
+                .ok_or(Error::Malformed(
+                    "custody declaration is outside the machine",
+                ))?;
+            if slot
+                .replace((structural_type, multiplicity, access))
+                .is_some()
+            {
+                return Err(Error::Malformed("a place has two custody declarations"));
+            }
+            Ok(())
+        };
+    for parameter in machine
+        .structural_parameters
+        .iter()
+        .chain(machine.block_structural_parameters())
+    {
+        insert_contract(
+            parameter.place,
+            parameter.structural_type,
+            parameter.multiplicity,
+            parameter.access,
+        )?;
+    }
+    for operation in machine.operations() {
+        if let Some(result) = operation.result.as_structural() {
+            insert_contract(
+                result.place,
+                result.structural_type,
+                result.multiplicity,
+                StructuralAccess::Owned,
+            )?;
+        }
+    }
+    if let TerminalMachineResult::Structural(result) = &machine.result {
+        insert_contract(
+            result.place,
+            result.structural_type,
+            result.multiplicity,
+            StructuralAccess::Owned,
+        )?;
     }
     let mut roots = Vec::with_capacity(machine.structural_places.len());
     for place in &machine.structural_places {
@@ -221,17 +414,10 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
             return Err(Error::Malformed("places are not in dense identity order"));
         }
         let (ty, owned, parameter) = match place.kind {
-            StructuralPlaceKind::Parameter { position } => {
-                let parameter = machine
-                    .structural_parameters
-                    .get(position as usize)
-                    .filter(|parameter| parameter.place == place.id)
+            StructuralPlaceKind::Parameter { .. } => {
+                let (ty, _, access) = contracts[roots.len()]
                     .ok_or(Error::Malformed("parameter place has no signature"))?;
-                (
-                    parameter.structural_type,
-                    parameter.access == StructuralAccess::Owned,
-                    true,
-                )
+                (ty, access == StructuralAccess::Owned, true)
             }
             StructuralPlaceKind::OperationResult {
                 structural_type, ..
@@ -257,6 +443,27 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
             .ok_or(Error::Malformed(
                 "structural type is outside its identity table",
             ))?;
+        if matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
+            && contracts[roots.len()].is_none()
+        {
+            return Err(Error::Malformed(
+                "operation-result place has no producing operation",
+            ));
+        }
+        if let Some((declared_type, multiplicity, access)) = contracts[roots.len()] {
+            let expected = if declaration.copyable || access != StructuralAccess::Owned {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            } else if declaration.owns_linear_claim {
+                terminal_psi::StructuralMultiplicity::Linear
+            } else {
+                terminal_psi::StructuralMultiplicity::Affine
+            };
+            if declared_type != ty || multiplicity != expected {
+                return Err(Error::Malformed(
+                    "place custody disagrees with its exact type declaration",
+                ));
+            }
+        }
         let tracked = !declaration.copyable;
         if tracked
             && (declaration.owns_linear_claim
@@ -276,6 +483,14 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
     if roots.iter().all(Option::is_none) {
         return Ok(Plan::default());
     }
+    let mut affine_roots = IdSet::new();
+    for (slot, root) in roots.iter().enumerate() {
+        if root.is_some() {
+            affine_roots.insert(
+                PlaceId::new(slot as u64 + 1).ok_or(Error::Malformed("place identity overflow"))?,
+            );
+        }
+    }
     let live = live_entries(machine)?;
     let initial: State = roots
         .iter()
@@ -286,6 +501,17 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
         })
         .collect();
     let mut entering: Vec<Option<State>> = vec![None; machine.blocks.len()];
+    // Keep an entry snapshot only while another predecessor may still need
+    // comparison. Straight-line continuations move their frontier rather than
+    // retaining a full history of every earlier local home.
+    let mut arrivals = vec![0usize; machine.blocks.len()];
+    for block in &machine.blocks {
+        for target in block.terminator.successor_targets() {
+            *arrivals
+                .get_mut(index(target.get())?)
+                .ok_or(Error::Malformed("edge target is outside the machine"))? += 1;
+        }
+    }
     let first = index(machine.entry.get())?;
     *entering
         .get_mut(first)
@@ -298,6 +524,7 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
         roots,
         unavailable: Vec::new(),
         unavailable_roots,
+        max_residuals,
     };
     let mut cleanup = Vec::new();
     while let Some(block_id) = pending.pop() {
@@ -310,9 +537,12 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
             .get(slot)
             .filter(|block| block.id == block_id)
             .ok_or(Error::Malformed("block is not at its identity"))?;
-        let mut state = entering[slot]
-            .clone()
-            .ok_or(Error::Malformed("block has no incoming frontier"))?;
+        let mut state = if arrivals[slot] == 0 {
+            entering[slot].take()
+        } else {
+            entering[slot].clone()
+        }
+        .ok_or(Error::Malformed("block has no incoming frontier"))?;
         for operation in &block.operations {
             analysis.operation(&mut state, operation)?;
         }
@@ -384,27 +614,16 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
                 state[index(source.get())?] = None;
             }
         }
-        let targets = block.terminator.successor_edges();
-        let mut target_by_edge = vec![
-            None;
-            block
-                .terminator
-                .edges()
-                .map(|edge| index(edge.get()).map(|index| index + 1))
-                .collect::<Result<Vec<_>, _>>()?
-                .into_iter()
-                .max()
-                .unwrap_or(0)
-        ];
-        for (edge, target) in targets {
-            target_by_edge[index(edge.get())?] = Some(target);
-        }
-        for (edge, existing) in block.terminator.cleanup_rosters() {
+        // Edge IDs are machine-wide and untrusted here. Index only the
+        // actual local successors, never allocate up to a serialized raw ID.
+        let mut targets = block.terminator.successor_edges();
+        targets.sort_by_key(|(edge, _)| *edge);
+        for (edge, _) in block.terminator.cleanup_rosters() {
             let mut outgoing = state.clone();
-            for action in existing {
-                analysis.cleanup(&mut outgoing, action)?;
-            }
-            let target = target_by_edge[index(edge.get())?];
+            let target = targets
+                .binary_search_by_key(&edge, |(edge, _)| *edge)
+                .ok()
+                .map(|position| targets[position].1);
             let needed = target
                 .map(|target| index(target.get()).map(|index| &live[index]))
                 .transpose()?;
@@ -413,12 +632,12 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
                 let Some(info) = &analysis.roots[raw] else {
                     continue;
                 };
-                if !info.owned || needed.is_some_and(|needed| needed[raw]) {
+                let place = PlaceId::new(raw as u64 + 1)
+                    .ok_or(Error::Malformed("place identity overflow"))?;
+                if !info.owned || needed.is_some_and(|needed| needed.contains(place)) {
                     continue;
                 }
                 if let Some(region) = &outgoing[raw] {
-                    let place = PlaceId::new(raw as u64 + 1)
-                        .ok_or(Error::Malformed("place identity overflow"))?;
                     actions.extend(analysis.dispose(place, region)?);
                     outgoing[raw] = None;
                 }
@@ -428,6 +647,9 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
             }
             if let Some(target) = target {
                 let destination = index(target.get())?;
+                arrivals[destination] = arrivals[destination]
+                    .checked_sub(1)
+                    .ok_or(Error::Malformed("too many predecessor arrivals"))?;
                 match &entering[destination] {
                     Some(earlier) if earlier != &outgoing => {
                         return Err(Error::Unsupported(
@@ -440,11 +662,15 @@ pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> R
                         pending.push(target);
                     }
                 }
+                if arrivals[destination] == 0 && analyzed[destination] {
+                    entering[destination] = None;
+                }
             }
         }
     }
     cleanup.sort_by_key(|(edge, _)| *edge);
     Ok(Plan {
+        affine_roots,
         cleanup,
         unavailable: analysis.unavailable,
     })
@@ -551,11 +777,11 @@ impl Analysis<'_> {
                 }
             }
             Op::StoreStructuralField {
+                disposition,
                 destination,
                 path,
                 field,
                 value,
-                ..
             } => {
                 self.argument(state, value, site, true)?;
                 if self.root(*destination)?.is_some() {
@@ -566,7 +792,24 @@ impl Analysis<'_> {
                     if state[index(destination.get())?].is_none() {
                         self.read(state, *destination, &path, site)?;
                     } else if let Some(region) = &mut state[index(destination.get())?] {
-                        if !region.base {
+                        match disposition {
+                            terminal_psi::StructuralStoreDisposition::Vacant
+                                if !region.vacant(&path) =>
+                            {
+                                return Err(Error::Malformed(
+                                    "a vacant store displaces established affine contents",
+                                ));
+                            }
+                            terminal_psi::StructuralStoreDisposition::ReplaceDiscardable
+                                if !region.available(&path) =>
+                            {
+                                return Err(Error::Unsupported(
+                                    "replacement of a vacated or partially moved region",
+                                ));
+                            }
+                            _ => {}
+                        }
+                        if !region.base && !path.is_empty() {
                             return Err(Error::Unsupported(
                                 "projected reestablishment of an ended owner",
                             ));
@@ -584,64 +827,10 @@ impl Analysis<'_> {
         if let Some(result) = operation.result.as_structural()
             && self.root(result.place)?.is_some()
         {
-            state[index(result.place.get())?] = Some(Region::new(true));
-        }
-        Ok(())
-    }
-
-    fn cleanup(
-        &self,
-        state: &mut State,
-        action: &TerminalAffineCleanupAction,
-    ) -> Result<(), Error> {
-        let place = action.place();
-        let Some(info) = self.root(place)? else {
-            return Ok(());
-        };
-        if !info.owned {
-            return Err(Error::Malformed("cleanup disposes a borrowed parameter"));
-        }
-        let slot = &mut state[index(place.get())?];
-        // Invalid source may transfer the same home twice. Retain its earlier
-        // unavailable-use verdict instead of hiding it behind a producer error;
-        // a repeated cleanup without such a source error remains malformed.
-        let Some(region) = slot.as_mut() else {
-            return if self.unavailable_roots[index(place.get())?].is_some() {
-                Ok(())
-            } else {
-                Err(Error::Malformed("cleanup repeats an ended home"))
-            };
-        };
-        match action {
-            TerminalAffineCleanupAction::DiscardRoot(_) => {
-                if !region.whole {
-                    return Err(Error::Malformed(
-                        "whole discard follows a partial or complete move",
-                    ));
-                }
-                *slot = None;
-            }
-            TerminalAffineCleanupAction::DiscardResidual(discard) => {
-                let path = self.canonical(place, &discard.path)?;
-                if !region.available(&path) {
-                    return Err(Error::Malformed("residual discard overlaps a moved region"));
-                }
-                region.set(&path, false);
-            }
-            TerminalAffineCleanupAction::RetireHome(_) => {
-                if region.whole {
-                    return Err(Error::Malformed("home retirement omits its affine value"));
-                }
-                if self.dispose(place, region)?.len() != 1 {
-                    return Err(Error::Malformed(
-                        "home retirement omits a residual affine region",
-                    ));
-                }
-                *slot = None;
-            }
-            TerminalAffineCleanupAction::InvokeNominal(_) => {
-                return Err(Error::Unsupported("nominal affine cleanup"));
-            }
+            state[index(result.place.get())?] = Some(Region::new(!matches!(
+                operation.kind,
+                Op::EstablishStructuralLocal {}
+            )));
         }
         Ok(())
     }
@@ -674,13 +863,15 @@ impl Analysis<'_> {
             })
             .collect::<Option<BTreeSet<_>>>()
             .ok_or(Error::Malformed("moved region has no typed storage path"))?;
-        let residuals = crate::owned_structure::partial_affine_residuals(
+        let residuals = crate::partial_affine_residuals(
             self.types,
             info.structural_type,
             &moved,
-            usize::MAX,
+            self.max_residuals,
         )
-        .ok_or(Error::Unsupported("affine residual partition"))?;
+        .ok_or(Error::Malformed(
+            "affine residual partition exceeds its output or has no typed complement",
+        ))?;
         let mut actions = residuals
             .into_iter()
             .map(|(path, structural_type)| {

@@ -335,8 +335,8 @@ local `Terminates` summary".
 ### Records
 
 A formal, a local, a result, a field and an argument may also be a
-copy-eligible plain record: a `data` declaration marked `[copy]` whose fields
-are builtin integers, `bool` or other such records. On such values the subset
+plain record whose fields are builtin integers, `bool` or other such records.
+A `[copy]` declaration permits copying; ordinary data remains affine. On such values the subset
 serves:
 
 - the record literal `R { a: x, b: y }`, the field read `r.a` and `r.a.b`,
@@ -361,8 +361,13 @@ serves:
 `[copy]` is required, not inferred
 ([ownership](../../../../../wiki/spec/language/ownership.md): "A record still
 requires an explicit `[copy]` declaration; copyable fields do not change the
-affine default."). Plain data without it is affine, moves once, and belongs
-to the ownership lane (`type data with custody`).
+affine default."). Plain data without it transfers once. Its exact moved
+regions become unavailable, disjoint siblings remain readable, and normal
+continuations dispose the residual regions before retiring a dying home.
+Named affine locals reserve storage distinct from their initializer or call
+result. This first ownership slice requires no-code cleanup and no conserved
+claim: nominal cleanup hooks, linear data, reference-bearing fields, borrowed
+extraction and incompatible affine frontiers at joins are refused.
 
 Formals are immutable here. A `mut` formal that holds its own value is
 refused where the signature is read (`parameter mutable parameter`); a
@@ -463,7 +468,7 @@ the slice that serves it:
 | a `requires` on a case | `type data requires` |
 | a data `requires` clause that calls a machine, compares Booleans with `!=`, does arithmetic, or names something other than `self`, its fields and literals | `contract clause that is not a comparison or conjunction`, `contract ordering of Booleans`, `contract arithmetic clause`, `contract term other than a field of the value or a literal` |
 | a constrained field type or a named domain | `type constrained` |
-| data that is not `[copy]`, or has a cleanup selection | `type data with custody` |
+| linear data, or data with a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
 | generic, quotient or opaque data, data with a carry policy, an erased field, retired field identities or no field | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities`, `type data without fields` |
 | a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
@@ -701,10 +706,10 @@ with the Terminal Psi operations that create the storage
 `roots` entry for each record formal (`StructuralPlaceKind::Parameter`), each
 operation that produces a record (`OperationResult`: a literal, a whole copy,
 a call with a record result) and a record machine's result place (`Result`).
-A record local has no place of its own: its slot holds the root its
-initializer, or the last whole value assigned to it, produced. A local
-declared without an initializer is the one local with a home of its own: the
-root of the operation that reserves its storage. `PlaceId`s are dense per
+An affine named local reserves its own home and receives its initializer
+through a checked whole store; a continuation retires the consumed initializer.
+Copy locals may retain their initializer's unrestricted root. A local declared
+without an initializer has the home its zero-establishing operation produces. `PlaceId`s are dense per
 machine, like every identity here.
 
 **Projections.** `r.a` is the row `(r, Segment::Field(a))`, found by binary
@@ -868,8 +873,9 @@ typed trees render for it. A scalar module with no such local declares none
 of them.
 
 The record flags (`copyable`, `no_code_affine_cleanup`, `descriptor_cleanup`,
-no linear claim) are the ones the current pipeline emits for the same plain
-`[copy]` record, checked by decoding its artifact. One column differs: the
+no linear claim) retain authored copy permission and the admitted plain
+storage's no-code disposal authority. Copyable fields never promote an affine
+declaration to `[copy]`. One column differs: the
 current pipeline sets `inline_carrier` on each scalar field to the primitive
 structural type of that scalar, and this route leaves it `None`. The
 interpreter loads and runs both.

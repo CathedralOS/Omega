@@ -677,6 +677,7 @@ pub fn lower_generic(
         for block in &mut machine.blocks {
             use terminal_psi::Terminator;
             let append = |edge, actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>| {
+                actions.retain(|action| !plan.affine_roots.contains(action.place()));
                 if let Ok(position) = plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge) {
                     actions.extend(plan.cleanup[position].1.iter().cloned());
                 }

@@ -430,7 +430,7 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
     }
     let mut affine_unestablished = Vec::new();
     for machine in &elaboration.module.machines {
-        let plan = match terminal_semantics::plain_affine::plan(
+        let plan = match terminal_semantics::plain_affine::verify(
             machine,
             &elaboration.module.structural_types,
         ) {
@@ -452,14 +452,6 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                 ));
             }
         };
-        if !plan.cleanup.is_empty() {
-            return Err(refusal(
-                RefusalReason::ForeignIdentity,
-                machine.id,
-                Construct::Machine,
-                "normal edges omit an affine disposal or home retirement",
-            ));
-        }
         let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,

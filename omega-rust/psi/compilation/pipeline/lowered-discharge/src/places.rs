@@ -609,8 +609,19 @@ impl<'a> Storage<'a> {
                 field: Some(_),
                 ..
             } => self.stored_at(*destination, path, concerns)?,
-            OperationKind::StoreStructuralField { field: None, .. } => {
-                return Err(self.unsupported(concerns, "a whole store that names no field"));
+            OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field: None,
+                ..
+            } => {
+                // The incoming value arrives formed. Only strict ancestors
+                // of the replaced value owe their domains again.
+                let mut carrier = self.stored_at(*destination, path, concerns)?;
+                if carrier.segments.pop().is_none() {
+                    return Ok(Vec::new());
+                }
+                carrier
             }
             _ => return Ok(Vec::new()),
         };
