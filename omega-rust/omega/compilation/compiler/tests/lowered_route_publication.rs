@@ -50,6 +50,7 @@ fn accepted(
     Box<lowered_discharge::AcceptedClosure>,
     terminal_psi::PreparedNominalRoot,
     [u8; 32],
+    Box<compiler::CheckedCompilation>,
 ) {
     let main = repo_root().join(fixture).join("main.omg");
     let checked = std::thread::scope(|scope| {
@@ -92,7 +93,8 @@ fn accepted(
                 None,
             )
             .expect("exact selected root");
-            (closure, root, signature.identity().bytes())
+            let signature_identity = signature.identity().bytes();
+            (closure, root, signature_identity, checked)
         }
         other => panic!("{fixture}: the route must accept: {other:?}"),
     }
@@ -101,7 +103,8 @@ fn accepted(
 #[test]
 fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let (closure, root, signature) = accepted("tests/omega/run/calls/scalar_contract_route_exit");
+    let (closure, root, signature, _) =
+        accepted("tests/omega/run/calls/scalar_contract_route_exit");
     let publication = closure.publish().expect("the accepted module publishes");
 
     // The artifact holds exactly the module the route checked.
@@ -192,6 +195,31 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     );
 }
 
+#[test]
+fn the_published_route_prepares_the_selected_native_proposal() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let (closure, root, signature, checked) =
+        accepted("tests/omega/run/calls/scalar_contract_route_exit");
+    let publication = closure.publish().expect("the accepted module publishes");
+    let receipt = publication
+        .entry_receipt(&root, signature)
+        .expect("the selected entry joins the route's artifact");
+    let selections = optimization_core::OptimizationRollback::default()
+        .settle(&checked.build().config.settings.optimizations);
+    let request = checked
+        .terminal_native_proposal_request(selections.effective(), &[])
+        .expect("the actual target's native proposal inputs");
+
+    // These are the Build's real selected providers, rather than a hand-built
+    // empty plan that could conceal metadata the ordinary product requires.
+    // The publication retains its real seals beside the artifact throughout.
+    let artifact = std::sync::Arc::new(publication.artifact.clone());
+    terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
+        &artifact, receipt, request,
+    )
+    .expect("the route's artifact supports the selected native proposal");
+}
+
 /// The Terminal product the default compile builds for `fixture`, which is
 /// the current checker's program.
 fn current_product(fixture: &str) -> terminal_codec::CanonicalTerminalArtifact {
@@ -247,7 +275,7 @@ fn current_product(fixture: &str) -> terminal_codec::CanonicalTerminalArtifact {
 fn the_published_module_states_each_machines_declaration_identity() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let fixture = "tests/omega/run/calls/scalar_contract_route_exit";
-    let (closure, _, _) = accepted(fixture);
+    let (closure, _, _, _) = accepted(fixture);
     let publication = closure.publish().expect("the accepted module publishes");
     let published = publication.artifact.semantic_module();
     let current = current_product(fixture);
