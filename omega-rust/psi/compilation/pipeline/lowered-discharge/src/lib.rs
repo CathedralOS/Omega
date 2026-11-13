@@ -339,8 +339,13 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
     // Results before inputs: what a helper returns is a fact its caller
     // may pass on to the next private helper, whose inferred input
     // condition is described from the caller's facts.
+    // And once more after inputs: a helper that omits `requires` was
+    // summarized under no input, and what it returns because of the input
+    // its callers establish is a further clause. A summary already in the
+    // contract is not added twice.
     result_summaries::infer(elaboration, knowledge)?;
     entry_inputs::infer(elaboration, knowledge)?;
+    result_summaries::infer(elaboration, knowledge)?;
     let module = &elaboration.module;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();

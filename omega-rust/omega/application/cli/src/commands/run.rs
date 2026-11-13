@@ -65,6 +65,9 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     }
     let selection = arguments.selection;
     let outcome = match run_project(RunRequest {
+        build_snapshot: arguments
+            .build_inputs
+            .map(|inputs| compiler::BuildSnapshotRequest::scoped(Vec::new(), inputs)),
         private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
         target_name: arguments.target_name,
@@ -226,6 +229,9 @@ fn run_cases(arguments: RunArguments, outputs: PathBuf) -> ! {
         None => arguments.input_files.clone(),
     };
     let outcome = match run_project_cases(CaseRunRequest {
+        build_snapshot: arguments
+            .build_inputs
+            .map(|inputs| compiler::BuildSnapshotRequest::scoped(Vec::new(), inputs)),
         private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
         compare_interpreter: arguments.selection == ExecutionSelection::Both,

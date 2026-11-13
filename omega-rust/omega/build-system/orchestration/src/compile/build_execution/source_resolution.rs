@@ -170,7 +170,21 @@ pub fn resolve_project_sources(
     execution.profile = Some(execution_profile);
 
     let mut acquisitions = preparation.source_acquisitions().map_err(Preparation)?;
-    let acquired = preparation.acquire_root().map_err(Preparation)?;
+    // The caller's inventory bounds acquisition itself. Product discovery and
+    // Build reads consume that same closed source tree from the first stage.
+    let acquired = match execution
+        .snapshot
+        .as_ref()
+        .map(|snapshot| snapshot.capture())
+    {
+        Some(package_compilation::BuildSnapshotCapture::Scoped(selected)) => {
+            preparation.acquire_selected_root(selected)
+        }
+        Some(package_compilation::BuildSnapshotCapture::PackageInventory) | None => {
+            preparation.acquire_root()
+        }
+    }
+    .map_err(Preparation)?;
     let (resolved, builds) = resolve_acquired_sources(
         session,
         acquired,

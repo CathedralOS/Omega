@@ -85,6 +85,9 @@ pub(crate) struct SettledProductCandidate {
 struct CallingCandidate {
     derived: DerivedProviderPlan,
     surface: Option<RetainedServiceSurface>,
+    /// Set for a native Build plan bound at one closed application of a
+    /// generic boundary: that application's portable identity.
+    native_application: Option<String>,
 }
 
 impl CallingCandidate {
@@ -92,6 +95,18 @@ impl CallingCandidate {
         services: ServiceCatalog<'_>,
         derived: DerivedProviderPlan,
     ) -> Result<Self, Vec<Diagnostic>> {
+        // A native Build plan bound at one closed application of a generic
+        // boundary has no named implementation to compare argument handles
+        // with; its plan identity carries the application, and the calling
+        // plans evaluated for that application are joined by it.
+        let native_application = (derived.provenance.named_application.is_none()
+            && derived
+                .provenance
+                .row_realizations
+                .iter()
+                .any(|row| matches!(row, crate::ProviderRowRealization::BuildNative(_))))
+        .then(|| derived.plan.application_identity().map(str::to_owned))
+        .flatten();
         let surface = if matches!(
             derived.provenance.schema,
             ProviderSchemaDeclaration::BoundaryTrait(_)
@@ -107,7 +122,11 @@ impl CallingCandidate {
         } else {
             None
         };
-        Ok(Self { derived, surface })
+        Ok(Self {
+            derived,
+            surface,
+            native_application,
+        })
     }
 
     fn attach(
@@ -117,10 +136,18 @@ impl CallingCandidate {
         let Self {
             mut derived,
             surface,
+            native_application,
         } = self;
         if let Some(surface) = surface {
             let surface = surface.surface().map_err(|error| vec![error])?;
-            derived.plan.schema = crate::service_schema::attach_calling(&surface, calling);
+            derived.plan.schema = match &native_application {
+                Some(application) => crate::service_schema::attach_native_application_calling(
+                    &surface,
+                    application,
+                    calling,
+                ),
+                None => crate::service_schema::attach_calling(&surface, calling),
+            };
             derived.plan.digest_memo = Default::default();
         }
         Ok(derived)
@@ -272,6 +299,32 @@ impl PreparedProductProviders {
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         for candidate in &candidates[self.native_start..] {
+            // A boundary that declares `Calling<Policy>` must be called
+            // through the plan that policy produced. An applied native row
+            // whose requirement got no plan would otherwise settle on the
+            // target's default calling application, dropping the declared
+            // policy without a word.
+            let plan = &candidate.source.plan;
+            if plan.application_identity().is_some()
+                && program.declares_calling(candidate.source.provenance.schema.symbol())
+            {
+                for row in &plan.rows {
+                    let requirement = plan.identities.text(row.requirement_identity);
+                    let planned = plan.schema.declaration.methods.iter().any(|method| {
+                        plan.schema.identity_text(method.requirement_identity) == requirement
+                            && !plan
+                                .schema
+                                .calling_for_requirement(method.requirement_identity)
+                                .is_empty()
+                    });
+                    if !planned {
+                        return Err(vec![Diagnostic::error(format!(
+                            "native Build provider `{}` binds `{}`, whose boundary declares a Calling policy, but no calling plan was evaluated for the application it is bound at",
+                            plan.name, row.method,
+                        ))]);
+                    }
+                }
+            }
             let errors = candidate.source.plan.validate_candidate_against_schema();
             if !errors.is_empty() {
                 return Err(vec![Diagnostic::error(format!(

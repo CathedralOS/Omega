@@ -85,6 +85,16 @@ pub use source::source_snapshot::{
 pub fn capture_anonymous_compilation_source(
     root_path: &std::path::Path,
 ) -> Result<CapturedLocalSource, Vec<diagnostics::Diagnostic>> {
+    capture_selected_anonymous_compilation_source(
+        root_path,
+        &BuildSourceCaptureRequest::entire_tree(),
+    )
+}
+
+pub fn capture_selected_anonymous_compilation_source(
+    root_path: &std::path::Path,
+    selected: &BuildSourceCaptureRequest,
+) -> Result<CapturedLocalSource, Vec<diagnostics::Diagnostic>> {
     let root = if root_path.is_dir() {
         root_path
     } else {
@@ -93,15 +103,26 @@ pub fn capture_anonymous_compilation_source(
             .filter(|path| !path.as_os_str().is_empty())
             .unwrap_or_else(|| std::path::Path::new("."))
     };
-    package_source::local::operations::capture_local_source_input(
+    let captured = package_source::local::operations::capture_selected_local_source_input(
         root,
         package_source::LocalSourceLimits::default(),
+        selected,
     )
     .map_err(|reason| {
         vec![diagnostics::Diagnostic::error(format!(
             "cannot capture anonymous source: {reason}"
         ))]
-    })
+    })?;
+    if root != root_path
+        && !root_path
+            .file_name()
+            .is_some_and(|entry| captured.tree().is_file(std::path::Path::new(entry)))
+    {
+        return Err(vec![diagnostics::Diagnostic::error(
+            "required compilation source is absent from the caller-selected inventory",
+        )]);
+    }
+    Ok(captured)
 }
 pub use package_compilation::{
     NativeBindingProducer, NativeBindingProduction, NativeBuildEvaluation,

@@ -609,8 +609,19 @@ impl<'a> Storage<'a> {
                 field: Some(_),
                 ..
             } => self.stored_at(*destination, path, concerns)?,
-            OperationKind::StoreStructuralField { field: None, .. } => {
-                return Err(self.unsupported(concerns, "a whole store that names no field"));
+            OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field: None,
+                ..
+            } => {
+                // The incoming value arrives formed. Only strict ancestors
+                // of the replaced value owe their domains again.
+                let mut carrier = self.stored_at(*destination, path, concerns)?;
+                if carrier.segments.pop().is_none() {
+                    return Ok(Vec::new());
+                }
+                carrier
             }
             _ => return Ok(Vec::new()),
         };
@@ -1204,6 +1215,9 @@ impl<'a> Storage<'a> {
             return Ok(Reached::Unknown);
         };
         Ok(match (&row.stored, asked) {
+            (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
+            (Stored::Vacated, Asked::Case(_)) => Reached::Unknown,
+            (Stored::Vacated, Asked::Window { .. }) => unreachable!("windows are handled above"),
             (Stored::Value(value), Asked::Contents(_)) if beneath.is_empty() => {
                 Reached::Value(*value)
             }
@@ -1807,6 +1821,9 @@ impl<'a> Storage<'a> {
         match &operation.kind {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
+            }
+            OperationKind::MoveStructuralValue { source } => {
+                Ok(vec![self.argument(source, concerns)?])
             }
             // structural_access.md: "The source must be readable and
             // established on every incoming path."

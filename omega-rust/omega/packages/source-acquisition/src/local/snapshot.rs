@@ -19,13 +19,13 @@ pub(super) use address::{
 use materialize::materialize_local_snapshot;
 use materialize::materialize_local_snapshot_from_open_parent;
 
+use filesystem_authority::SourceCaptureRequest;
 use std::ffi::OsStr;
 #[cfg(test)]
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use super::observation::issue_local_source_resolution_observation;
-use super::operations::resolve_local_source;
 use super::resolution_observations::{ResolvedLocalSnapshot, ResolvedLocalSource};
 use crate::SourceResolveError;
 use crate::custody::lock::CacheEntryLock;
@@ -346,12 +346,19 @@ fn canonicalize_prospective_path(path: &Path) -> Result<PathBuf, SourceResolveEr
     }
 }
 
-pub(super) fn verify_live_source_unchanged(
+pub(super) fn verify_selected_live_source_unchanged(
     captured: &ResolvedLocalSource,
     limits: LocalSourceLimits,
+    selected: &SourceCaptureRequest,
 ) -> Result<(), SourceResolveError> {
-    let current = resolve_local_source(&captured.root, limits)
-        .map_err(|_| local_source_changed(&captured.root))?;
+    let current = crate::tree::capture::capture_selected_local_source(
+        &captured.root,
+        limits,
+        crate::tree::capture::SourceTreePolicy::LocalPackage,
+        selected,
+    )
+    .map_err(|_| local_source_changed(&captured.root))?
+    .normalized;
     if !same_source_identity(&current, captured) {
         return Err(local_source_changed(&captured.root));
     }

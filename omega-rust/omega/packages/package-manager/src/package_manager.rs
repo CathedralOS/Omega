@@ -205,6 +205,7 @@ impl PackageCommandTransaction {
             &replacement,
             storage.resolver(),
             LocalSourceLimits::default(),
+            build_inputs.as_ref(),
         )
         .map_err(failure)?;
         if recovered.as_ref().is_some_and(|proposal| {

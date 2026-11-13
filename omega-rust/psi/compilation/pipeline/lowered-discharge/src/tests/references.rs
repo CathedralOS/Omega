@@ -48,6 +48,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        copyable: true,
         identity: String::from("Pair"),
         fields: vec![field(1, "a"), field(2, "b")],
         cases: Vec::new(),

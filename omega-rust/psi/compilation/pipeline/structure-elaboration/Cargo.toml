@@ -23,4 +23,5 @@ symbols = { path = "../../../foundation/symbols" }
 terminal-check-tables = { path = "../../representations/terminal-psi/check-tables" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 typed-trees = { path = "../../representations/typed-trees" }

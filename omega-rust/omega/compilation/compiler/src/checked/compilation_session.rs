@@ -236,6 +236,7 @@ impl CompilationSession {
             &request.root_path,
             inputs,
             request.source_capture.as_ref(),
+            request.build.snapshot.as_ref(),
             request.collect_timings,
         )
     }
@@ -245,12 +246,20 @@ impl CompilationSession {
         root_path: &std::path::Path,
         inputs: Option<Arc<PackageCompilationSourceInputs>>,
         capture: Option<&package_compilation::CapturedLocalSource>,
+        snapshot: Option<&package_compilation::BuildSnapshotRequest>,
         collect_timings: bool,
     ) -> Result<PreparedCheckedSource, CompileFailure> {
         let acquired = if inputs.is_none() && capture.is_none() {
-            Some(package_compilation::capture_anonymous_compilation_source(
-                root_path,
-            )?)
+            Some(match snapshot.map(|snapshot| snapshot.capture()) {
+                Some(package_compilation::BuildSnapshotCapture::Scoped(selected)) => {
+                    package_compilation::capture_selected_anonymous_compilation_source(
+                        root_path, selected,
+                    )?
+                }
+                Some(package_compilation::BuildSnapshotCapture::PackageInventory) | None => {
+                    package_compilation::capture_anonymous_compilation_source(root_path)?
+                }
+            })
         } else {
             None
         };
@@ -297,6 +306,7 @@ impl CompilationSession {
             &shared.root_path,
             shared.package_sources.clone(),
             None,
+            target.build_snapshot(),
             shared.timings,
         )?;
         let mut execution = target.checked_execution(&shared.build_directory);

@@ -43,6 +43,7 @@ pub mod storage;
 pub mod tree;
 
 pub use error::SourceResolveError;
+pub use filesystem_authority::{SourceCaptureObligation, SourceCaptureRequest};
 pub use git::request::{GitSourceRequest, GitSourceRequestError, GitTransportProfile};
 pub use git::workspace::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionError,
