@@ -343,9 +343,10 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
     // summarized under no input, and what it returns because of the input
     // its callers establish is a further clause. A summary already in the
     // contract is not added twice.
-    result_summaries::infer(elaboration, knowledge)?;
-    entry_inputs::infer(elaboration, knowledge)?;
-    result_summaries::infer(elaboration, knowledge)?;
+    let mut unreached = Unreached::new(elaboration);
+    result_summaries::infer(elaboration, knowledge, &mut unreached)?;
+    entry_inputs::infer(elaboration, knowledge, &mut unreached)?;
+    result_summaries::infer(elaboration, knowledge, &mut unreached)?;
     let module = &elaboration.module;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
@@ -378,6 +379,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
             });
             continue;
         }
+        let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
         machines.push(machine(
             &module.machines,
             &module.structural_types,
@@ -386,9 +388,65 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
             id,
             tables,
             knowledge,
+            &beyond,
         )?);
     }
     Ok(Discharge { machines })
+}
+
+/// Values that have no defining operation in the machine that names them and
+/// still stand for one the integer rules do not reach (`prove::reach`): a
+/// formal whose input condition was inferred from a caller's unreached
+/// actual, and the result of a call to a private helper whose body returns
+/// an unreached value. A goal that depends on one is `Incomplete` when it is
+/// not proved, as it would be were the operation in the same machine.
+///
+/// Only inferred conditions carry this across a call. A written contract is
+/// the program's own claim: an arrival or a return that cannot establish it
+/// is judged where the operation is, and a caller that needs more than the
+/// contract states is rejected.
+pub(crate) struct Unreached {
+    formals: IdTable<MachineId, Vec<ValueId>>,
+    results: IdTable<MachineId, bool>,
+}
+
+impl Unreached {
+    fn new(elaboration: &Elaboration) -> Self {
+        Self {
+            formals: elaboration.tables.machines.map(|_, _| Vec::new()),
+            results: elaboration.tables.machines.map(|_, _| false),
+        }
+    }
+
+    /// The unreached values of the machine `lowered`: its marked formals and
+    /// the results of its calls of marked helpers.
+    pub(crate) fn values(&self, lowered: &TerminalMachine, tables: &MachineTables) -> Vec<ValueId> {
+        let mut values = self.formals.get(lowered.id).cloned().unwrap_or_default();
+        for call in tables.invocations.values() {
+            if let Callee::Machine(callee) = call.callee
+                && self.results.get(callee) == Some(&true)
+                && let InvocationSite::Operation(operation) = call.site
+                && let Some(result) = operation_result(lowered, operation)
+            {
+                values.push(result);
+            }
+        }
+        values
+    }
+
+    pub(crate) fn mark_formal(&mut self, machine: MachineId, formal: ValueId) {
+        if let Some(formals) = self.formals.get_mut(machine)
+            && !formals.contains(&formal)
+        {
+            formals.push(formal);
+        }
+    }
+
+    pub(crate) fn mark_result(&mut self, machine: MachineId) {
+        if let Some(result) = self.results.get_mut(machine) {
+            *result = true;
+        }
+    }
 }
 
 fn refusal(
@@ -432,6 +490,7 @@ fn machine(
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
+    unreached: &[ValueId],
 ) -> Checked<MachineDischarge> {
     let lowered = terminal_machine(machines, id, id)?;
     if !tables.knowledge.is_empty() {
@@ -501,6 +560,7 @@ fn machine(
             context: &context,
             relations: knowledge != Knowledge::LiteralIntervals,
             declared: &declared,
+            unreached,
         },
         tables,
         &mut decided,
@@ -526,6 +586,7 @@ fn machine(
                 row.created_at,
                 goal,
                 knowledge != Knowledge::LiteralIntervals,
+                unreached,
             )
             .map(Discharged::Certificate)
         });
@@ -642,6 +703,7 @@ fn machine(
                 consumption.point,
                 goal,
                 knowledge != Knowledge::LiteralIntervals,
+                unreached,
             )
         });
         let verdict = match proved {
@@ -1624,6 +1686,7 @@ fn decide(
     point: ProgramPoint,
     goal: Proposition,
     relations: bool,
+    unreached: &[ValueId],
 ) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
     let mut prover = prove::Prover::new(
@@ -1635,8 +1698,10 @@ fn decide(
     );
     let proof = prover.prove(&goal).map_err(|reason| {
         // Classified by the goal's form, not by which search path failed
-        // last, so the outcome does not depend on search order.
-        let cause = if prove::has_rules_for(&goal) {
+        // last, so the outcome does not depend on search order: the form as
+        // written, and the form of the operations that define the values it
+        // names (`prove::reach`).
+        let cause = if prove::has_rules_for(&goal) && !prover.beyond_rules(&goal, unreached) {
             UnprovedCause::NoDerivation
         } else {
             UnprovedCause::NoRuleForGoalForm
