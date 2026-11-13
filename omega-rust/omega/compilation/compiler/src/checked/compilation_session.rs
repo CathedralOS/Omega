@@ -29,7 +29,7 @@ use crate::execution_settlement::SelectedCompileOutcome;
 use artifacts::compile_timings::counters;
 use compilation_products::{
     CheckedCompileOutcome, CheckedCompileRequest, CompileFailure, IndependentComponentDiscovery,
-    PreparedCheckedSource, PreparedPackageBuild, RetainedCompilationChecks, SettledCheckReuse,
+    PreparedCheckedSource, PreparedPackageBuild,
 };
 use package_compilation::{PackageCompilationInputs, PackageCompilationSourceInputs};
 use std::path::PathBuf;
@@ -40,9 +40,7 @@ pub struct CompilationSession {
     preparation: compilation_products::SourcePreparation,
     sources: Vec<PreparedSource>,
     pure_builds: build_settings::PureBuildCompilation,
-    checks: RetainedCompilationChecks,
     component_products: Vec<Arc<compilation_products::IndependentComponentProduct>>,
-    pub(crate) selections: psi_compiler::ProductSelections,
 }
 
 struct PreparedSource {
@@ -94,7 +92,6 @@ impl CompilationSession {
                 package_inputs: inputs,
                 build: request.build.resolve_compilation_defaults(inputs),
                 optimization_rollback: request.optimization_rollback,
-                settled_check_reuse: self.reuse(),
             };
             prepare_source_compilation(&request.root_path, source, child, &self.pure_builds)
         })
@@ -178,13 +175,10 @@ impl CompilationSession {
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
         frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> SelectedCompileOutcome {
-        let mut outcome = match source.select(returned, &mut self.selections, frontier) {
+        let mut outcome = match source.select(returned, frontier) {
             Ok(outcome) => outcome,
             Err(failure) => return refusal(failure),
         };
-        if let Ok(selected) = &outcome.result {
-            self.retain(&selected.retained_checks);
-        }
         self.attach_component_products(&mut outcome);
         outcome
     }
@@ -194,7 +188,7 @@ impl CompilationSession {
         request: CheckedCompileRequest,
     ) -> Result<super::checking::PreparedPackageInvocation, CompileFailure> {
         let source = self.prepare_source(&request)?;
-        begin_package_build_worker(request, source, self.reuse(), &self.pure_builds)
+        begin_package_build_worker(request, source, &self.pure_builds)
     }
 
     pub(super) fn complete_build(
@@ -309,8 +303,7 @@ impl CompilationSession {
             target.build_snapshot(),
             shared.timings,
         )?;
-        let mut execution = target.checked_execution(&shared.build_directory);
-        execution.settled_check_reuse = self.reuse();
+        let execution = target.checked_execution(&shared.build_directory);
         prepare_source_compilation(&shared.root_path, parsed, execution, &self.pure_builds)
     }
 
@@ -319,39 +312,8 @@ impl CompilationSession {
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
     ) -> Result<compilation_products::CheckedProductSource, Vec<diagnostics::Diagnostic>> {
-        let checked = source.check(returned, &mut self.selections)?;
-        self.retain(&checked.retained_checks);
+        let checked = source.check(returned)?;
         Ok(checked)
-    }
-
-    pub(crate) fn reuse(&self) -> SettledCheckReuse {
-        SettledCheckReuse {
-            prior: self.checks.clone(),
-            retain: true,
-        }
-    }
-
-    pub(crate) fn retain(&mut self, checks: &RetainedCompilationChecks) {
-        if let Some(build) = &checks.build {
-            retain_judgment(&mut self.checks.sibling_build_checks, build);
-        }
-        if let Some(product) = &checks.product {
-            retain_judgment(&mut self.checks.sibling_product_checks, product);
-        }
-    }
-}
-
-fn retain_judgment(
-    checks: &mut Vec<psi_compiler::RetainedCheck>,
-    check: &psi_compiler::RetainedCheck,
-) {
-    if let Some(retained) = checks
-        .iter_mut()
-        .find(|retained| retained.same_judgment(check))
-    {
-        *retained = check.clone();
-    } else {
-        checks.push(check.clone());
     }
 }
 

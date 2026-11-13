@@ -343,15 +343,8 @@ impl CompilationSession {
                     )]
                 })?;
             let source = super::checking::complete_prepared_build(prepared, Some(&inputs))?;
-            let checked = super::checking::check_product_source(
-                source,
-                Some(&inputs),
-                &rollback,
-                self.reuse(),
-                &mut self.selections,
-                None,
-            )?;
-            self.retain(&checked.retained_checks);
+            let checked =
+                super::checking::check_product_source(source, Some(&inputs), &rollback, None)?;
             Ok(psi_compiler::BuildProviderProductionRequest {
                 checked: &checked.program,
                 exact_toolchain_sources: checked.sources.exact_toolchain_sources(),

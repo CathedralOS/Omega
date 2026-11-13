@@ -46,6 +46,13 @@ impl ProductTerminalPublication {
     }
 
     pub fn accepted(&self) -> Result<&psi_compiler::AcceptedTerminalSource, Vec<Diagnostic>> {
+        // The factory seals the judged module with the empty Psi execution
+        // record. A requested transform needs its own evidence transport.
+        if !self.optimizations.project_psi().selections().is_empty() {
+            return Err(vec![Diagnostic::error(
+                "no product route yet: selected Psi optimizations have no accepted evidence transport",
+            )]);
+        }
         self.accepted.as_deref().ok_or_else(|| {
             vec![Diagnostic::error(
                 "no product route yet: this root selection has no accepted source",
@@ -137,6 +144,16 @@ mod tests {
         assert_eq!(
             attempts, 1,
             "a different projection cannot replace published code or its refusal"
+        );
+    }
+    #[test]
+    fn accepted_publication_refuses_unexecuted_psi_optimizations() {
+        let selected = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let publication = ProductTerminalPublication::new(selected, Default::default());
+        assert!(
+            publication.accepted().unwrap_err()[0]
+                .message
+                .contains("Psi optimizations")
         );
     }
 }

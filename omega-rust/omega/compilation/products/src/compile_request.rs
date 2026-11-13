@@ -19,7 +19,6 @@ which defaults to `None` so ordinary production never fabricates a receiving
 permission policy).
 */
 
-use crate::RetainedCompilationChecks;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationRollback;
 use package_compilation::build_execution::BuildSnapshotRequest;
@@ -69,12 +68,6 @@ pub struct CheckedCompileRequest {
     pub collect_timings: bool,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct SettledCheckReuse {
-    pub prior: RetainedCompilationChecks,
-    pub retain: bool,
-}
-
 impl CheckedCompileRequest {
     pub fn new(root_path: &Path, target_name: Option<&str>) -> Self {
         Self {
@@ -94,7 +87,6 @@ pub struct CheckedExecutionRequest<'request> {
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub build: BuildExecutionInputs,
     pub optimization_rollback: OptimizationRollback,
-    pub settled_check_reuse: SettledCheckReuse,
 }
 
 impl CheckedExecutionRequest<'_> {
@@ -554,7 +546,6 @@ impl ValidatedTargetCompilation {
             }
             .resolve_compilation_defaults(package_inputs),
             optimization_rollback: self.optimization_rollback().clone(),
-            settled_check_reuse: SettledCheckReuse::default(),
         }
     }
 
