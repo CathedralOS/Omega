@@ -10,9 +10,10 @@ span more than one bootstrap rung.
   a canonical Delta edge.
 - `epsilon/` contains Epsilon checking, evaluation, and runtime gates.
 - `bootstrap/` contains only tests spanning more than one bootstrap rung.
-- `omega/` is the retired Omega language corpus; see
-  [the former corpus](#the-former-corpus). Nothing runs it and nothing may be
-  added to it.
+- `fixtures/` holds the Omega programs that Rust tests read, kept from the
+  former corpus; see [the former corpus](#the-former-corpus).
+- `omega/` is the retired Omega language corpus. Nothing runs it and nothing
+  may be added to it.
 - `psi/` contains black-box gates for the Omega-written Psi product source in
   `source/psi/`; each gate is its own package beside, not inside, that root.
 - `product/` holds `gate.sh`, the review, build and run driver every gate of
@@ -46,9 +47,11 @@ around it. The runner (`corpus_runner`), `cargo xtask corpus`,
 `cargo xtask corpus-gate`, the post-merge row measurement and the published
 ledger are gone, and nothing replaces them.
 
-The programs that tests still read are kept beside the tests, in the same
-`<tier>/<group>/<name>/` layout, under
-`omega-rust/omega/compilation/compiler/tests/fixtures/`.
+The programs that tests, the task board's named witnesses and current
+instructions still read are kept in `fixtures/`, in the same
+`<tier>/<group>/<name>/` layout and at the same depth, because a fixture's
+`build.omg` reaches `source/library/std` by a relative path. A test names the
+fixture it reads by that path; nothing walks the directory.
 
 Everything else stays in git history. `bd6ee1a5c45` is a commit that has the
 whole corpus, its ledgers and its runner:

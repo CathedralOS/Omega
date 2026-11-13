@@ -3,8 +3,8 @@ name = "compiler"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
-# Each test binary is declared below; the programs they read are kept under
-# tests/fixtures/ (see tests/README.md).
+# Each test binary is declared below; the programs they read are kept in the
+# repository's tests/fixtures/ (see tests/README.md in this crate).
 autotests = false
 
 

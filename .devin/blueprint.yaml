@@ -48,7 +48,7 @@ knowledge:
   - name: test
     contents: |
       Scoped: python3 tools/test_affected.py --base <verified-commit> --plan, then without --plan.
-      One crate test: mbx nextest run -p <crate> <filter>. Compiler behavior: a test on the changed code, with any program it reads kept under omega-rust/omega/compilation/compiler/tests/fixtures/
+      One crate test: mbx nextest run -p <crate> <filter>. Compiler behavior: a test on the changed code, with any program it reads kept under tests/fixtures/
       Bootstrap gates: sh tools/bootstrap/check-chain-hygiene.sh ; sh tests/bootstrap/alpha-beta-edge.sh --edge
   - name: landing
     contents: Publish only through python3 tools/landing.py (status/enqueue/claim/publish/release); see tools/landing.md. Never push main directly.

@@ -2,6 +2,8 @@
 
 Use [advance](.agents/skills/advance/SKILL.md) and [sample loop](AGENTS.md#the-sample-loop) (`omega run --both`).
 
+The fixture corpus under `tests/omega/` was retired on the owner's ruling of 2026-11-13 ([tests/README.md](tests/README.md#the-former-corpus)). An acceptance below that names a fixture or a fixture family (`runtime_dutch_flag_partition_exit`, `pass/wire/*_exit`, `modules/`) names programs of that corpus: the ones kept are under `tests/fixtures/` at the same `<tier>/<group>/<name>`, and the rest are read from history. Such an acceptance is met by the named programs passing `omega run --both`, restored beside the tests that prove the item; there is no corpus run and no ledger to consult.
+
 ### Development-health outcomes
 
 - **ITERATION-PERFORMANCE.** Restore a usable edit/build/run workflow when a bottleneck measurably obstructs development.
@@ -14,17 +16,17 @@ Write each item so any agent can start from it alone: current state, files and e
 - **LOWERED-FORM-CHECKER.** Outranks every item below (owner ruling, 2026-11-12). The [lowered-form checker](wiki/drafts/designs/check_on_lowered_form.md) lowers first and proves on unsealed Terminal Psi. The owner ruled on 2026-11-12 that the old checker (Psi 05, validation and Psi 06, about 790k lines) is removed now, not once every program is covered: none of the obligations it accepts is backed by evidence the proof kernel re-checked, so a program built on its acceptance was never a checked program. A program the lowered-form checker does not govern yet stops compiling until it does. Read that record's "The decision", "The gate" and "Lane order" first.
   - Where it stands: the router (`omega-rust/omega/compilation/compiler/src/checked/checking/lowered_route.rs`) takes the route's verdict as the only verdict of a product compilation. A program the route cannot judge is refused with a "not supported yet" error that names the construct and is never given to Psi 05. The old stages still run after an acceptance, only because the product is built from their output. Tests: `compiler/tests/lowered_route_{subjects,generics,governance,publication,messages}.rs`.
   - Freeze: no pull request edits `typed-trees-to-checked-trees` (Psi 05), `validation`, `checked-trees-to-lowered-psi` (Psi 06), `checked-trees`, `facts` or `representation-{planning,selections}` except to delete code or move a still-needed item to the crate that survives.
-  - Step 1, product route (the critical path: once Psi 05 and 06 are deleted nothing reaches native output without it): product selection, the provider inventory and target preparation read Psi 05's trees. Feed them the route's published module (`AcceptedClosure::publish` in `psi/compilation/pipeline/lowered-discharge/src/verdict.rs`, #2666), one at a time. The entry receipt resolves on that module (`structure-elaboration/src/declare.rs`). Next: the route must publish the boundary machines and `ExternalProviderConformance` rows of the target's float realization table, which Omega 00 requires in the application's own module (`validate_external_provider_owners`); then carry the published artifact from `lowered_route.rs` to `terminal_artifact.rs` and the evidence seals to Omega 00, and state declaration identities for stage-04 generated machines. Done when `run/calls/scalar_contract_route_exit` runs from the default compile and route-accepted programs pass `omega run --both` with the old stages absent.
+  - Step 1, product route (the critical path: once Psi 05 and 06 are deleted nothing reaches native output without it): product selection, the provider inventory and target preparation read Psi 05's trees. Feed them the route's published module (`AcceptedClosure::publish` in `psi/compilation/pipeline/lowered-discharge/src/verdict.rs`, #2666), one at a time. The entry receipt resolves on that module (`structure-elaboration/src/declare.rs`). Next: the route must publish the boundary machines and `ExternalProviderConformance` rows of the target's float realization table, which Omega 00 requires in the application's own module (`validate_external_provider_owners`); then carry the published artifact from `lowered_route.rs` to `terminal_artifact.rs` and the evidence seals to Omega 00, and state declaration identities for stage-04 generated machines. Done when `tests/fixtures/run/calls/scalar_contract_route_exit` runs from the default compile and route-accepted programs pass `omega run --both` with the old stages absent.
   - Step 2, deletion, leaves first so `main` builds after each pull request: Psi 05, then `validation`, then `checked-trees`, `facts` and `representation-*`. A surviving crate that needs a type or helper that merely lived in an old crate takes ownership of it; checking logic is not moved. `terminal-installation` lives under the validation directory but is not the old checker and stays. Where the product path read Psi 05's trees and the route publishes no replacement yet, it refuses with "no product route yet".
-  - Step 3, coverage: the progress number is the count of programs the route refuses (`not supported yet`), measured by the post-merge ledger. Take the next refusal from the existing table, build it, prove it with the crate's unit tests and two or three named probes, and land; do not measure first. Lanes in order of programs unblocked: the Build program and the bound target's entry-contract source (the route lowers neither, so the old stages still judge them until deleted), owned non-`[copy]` data and affine locals, the rest of generics, calls and callee summaries. Complete the installed continuation's logical contracts from its bound entry source, and wire `reverify_specialization` (`lowered-discharge`) into the compile so stage-04 specializations decide carried certificates instead of searching.
+  - Step 3, coverage: the progress number is the count of programs the route refuses (`not supported yet`); nothing measures it now that the corpus and its ledger are gone. Take the next refusal from the existing table, build it, prove it with the crate's unit tests and two or three named probes, and land; do not measure first. Lanes in order of programs unblocked: the Build program and the bound target's entry-contract source (the route lowers neither, so the old stages still judge them until deleted), owned non-`[copy]` data and affine locals, the rest of generics, calls and callee summaries. Complete the installed continuation's logical contracts from its bound entry source, and wire `reverify_specialization` (`lowered-discharge`) into the compile so stage-04 specializations decide carried certificates instead of searching.
   - Rule: build every construct in the route. Never weaken the route to keep a program compiling; a missing verdict is a refusal. Pushed wip worth landing first where it stays out of the frozen stages: single commits on `work/compiler-typed-library-slices` (subject naming) and `work/psi-effect-memory` (bounded planning window).
-  - Probe: to show the route one source program without running its Build and without Psi 05, validation or Psi 06, run `mbx run -p compiler --example route_probe -- tests/omega/run/calls/scalar_contract_route_exit/main.omg < /dev/null` (any `main.omg`; `--entry NAME`, `--target NAME`). It prints each judged part and `route=accepted|rejected|incomplete|not-supported|no-typed-trees`. It is the way to reach the route while no Build program can run; its limits are in `lowered-discharge/README.md`, "Running the checker on a source program", and `compiler/tests/route_probe.rs` pins it.
-  Acceptance: the old crates are deleted, no program is refused as not supported, and every corpus row is green on the route alone.
+  - Probe: to show the route one source program without running its Build and without Psi 05, validation or Psi 06, run `mbx run -p compiler --example route_probe -- tests/fixtures/run/calls/scalar_contract_route_exit/main.omg < /dev/null` (any `main.omg`; `--entry NAME`, `--target NAME`). It prints each judged part and `route=accepted|rejected|incomplete|not-supported|no-typed-trees`. It is the way to reach the route while no Build program can run; its limits are in `lowered-discharge/README.md`, "Running the checker on a source program", and `compiler/tests/route_probe.rs` pins it.
+  Acceptance: the old crates are deleted, no program is refused as not supported, and the kept fixtures' tests and `samples/` pass on the route alone.
 
 - **NESTED-MACHINE-UNIFICATION.** Replace `state` with nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
   - Resolve recursive scopes, elaborate flat identities, and reject runtime capture or code after trailing declarations.
   - Complete [local inference](wiki/drafts/designs/local_inference_and_contracts.md), cyclic arrivals, normal returns, loans, restoration, linear custody, and SCC rank measures across call shapes.
-  - Complete the declaration-model migration across linked repositories, samples, the corpus, and both compilers.
+  - Complete the declaration-model migration across linked repositories, samples, the kept fixtures, and both compilers.
   Acceptance: 3-level nesting, helper calls, cycles, and 9-place rows pass `omega run --both`; `state` syntax is deleted.
 
 - **CANONICALIZE-SCALAR-RANGE-CONTRACTS.** Complete [scalar range contracts](wiki/spec/language/domains.md#declaration-and-membership) and remove `T [lo..hi]` / `T [lo..=hi]`.
@@ -131,15 +133,15 @@ Write each item so any agent can start from it alone: current state, files and e
 - **STATIC-BINDER-CONTRACT-DEPENDENCIES.** Implement [static binder contract dependencies](wiki/drafts/designs/static_binder_contract_dependencies.md): one published dependency term per contract axis for static callbacks, substituted from selected published contracts.
   - Unify the `service_reach.rs` binder terms and `operational.rs` selector contexts into one term representation; publish and import it through Psi rows; forward through renamed binders; converge recursive propagation.
   - Add the crash row (public omission means none, private inference, requirement deferral, `crashes none` enforcement, per-cause routes) and the termination row (binder premises on authored `terminates`).
-  - Retire the bare `reaches` keyword in both parsers; sweep `tests/omega`, `samples`, `tests/psi/parser` and `tests/psi/resolver` to `reaches none` and re-record the touched golden rows.
+  - Retire the bare `reaches` keyword in both parsers; sweep `tests/fixtures`, `samples`, `tests/psi/parser` and `tests/psi/resolver` to `reaches none`.
   - Add the [result-relation row](wiki/spec/language/effects.md#callback-result-relations): opaque relation per checked call, authored `F::ensures(args, r)` claims discharged from it, selected relation substituted at specialization; immutable arguments first.
   Acceptance: `forward`/`compose`/`choose` fixtures across reach, suspends, blocks, crashes, terminates and carry pass `--both` with negative twins; a dependency survives export, import, binder forwarding and substitution; `for_each` over a crash-free callback publishes no route and over a trapping one publishes `Trap`; the draft's result-relation fixtures pass.
 
 - **CORE-INDEXING-CONTRACTS.** Implement [contract-gated core indexing](wiki/drafts/designs/core_indexing_contracts.md).
   Acceptance: generic sealed access proves whole contracts, retains exact Terminal evidence and passes both engines/negative controls; retire independent bounds admission.
 
-- **LOC-VALUE-CUSTODY.** (covers **IMAGE-SELF-REPLAY-DELETED**) Carry value custody on one path per layer and qualify the `linux_x86_64` native corpus leg.
-  Acceptance: retired gates have checking reject twins in `tests/omega/fail/facts/`, and `linux_x86_64` native corpus passes.
+- **LOC-VALUE-CUSTODY.** (covers **IMAGE-SELF-REPLAY-DELETED**) Carry value custody on one path per layer and qualify native execution on `linux_x86_64`.
+  Acceptance: retired gates have checking reject twins under `tests/fixtures/fail/facts/`, and the kept runnable fixtures and `samples/` pass natively on `linux_x86_64`.
 
 ## Universal interpreter cutover
 
@@ -150,7 +152,7 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **UNIVERSAL-INTERPRETER-CLOSURE.** Finish `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs`.
   - Add a `ForeignBinding::Syscall` adapter; witness `kernel_import_result_chain_exit` on `work/tests-kernel-import-process-exit`.
-  Acceptance: audits find no tree visitor, and `omega run --both`, `--engine native|terminal`, and `interpreter_migration.json` pass on all hosts.
+  Acceptance: audits find no tree visitor, and `omega run --both`, and `--engine native|terminal` pass on all hosts.
 
 ## Immediate product closure
 
@@ -183,8 +185,8 @@ Write each item so any agent can start from it alone: current state, files and e
 - **CHECKED-ASM-LABEL-CONTRACTS.** Implement `asm machine`, block declarations, `align_of(value)`, port settlements (`provider_custody.rs`), and [interpreted assembly](wiki/spec/language/assembly.md#interpreted-execution).
   Acceptance: `samples/cli/facts/checked_asm_*`, `asm_runtime_port_msr_final_validation`, `asm_aarch64_system_registers_compile`, and interrupt/AP canaries pass `--both`.
 
-- **SAMPLE-CORPUS.** (covers **CANARY-CORPUS**, **SQUALR-HEADLESS**, **MACOS-APPLICATION-PUBLICATION**) Close `samples/`, `tests/omega/` (`corpus_runner.rs`), [Squalr](samples/apps/README.md), and macOS `.app` bundles ([macos_application.md](wiki/spec/build/macos_application.md)) under the [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
-  Acceptance: all samples, corpus tiers (zero `regressed-from:` rows), `squalr/tools/verify.py native`, and `window_demo` `.app` pass on matching hosts.
+- **SAMPLE-CORPUS.** (covers **CANARY-CORPUS**, **SQUALR-HEADLESS**, **MACOS-APPLICATION-PUBLICATION**) Close `samples/`, [Squalr](samples/apps/README.md), and macOS `.app` bundles ([macos_application.md](wiki/spec/build/macos_application.md)) under the [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix).
+  Acceptance: all samples, `squalr/tools/verify.py native`, and `window_demo` `.app` pass on matching hosts.
 
 ## P1 - Authority, roots, and entry
 
@@ -214,7 +216,7 @@ Write each item so any agent can start from it alone: current state, files and e
 ## Build-level behavior exclusions
 
 - **BUILD-SEMANTIC-EXCLUSIONS.** Deliver the [behavior exclusion contract](wiki/spec/build/behavior_exclusions.md) in `behavior_exclusions.rs`, `exclusions.rs`, `retained_terminal.rs`, and `realization.rs`.
-  Acceptance: `tests/omega/{pass,fail}/build/{crash_exclusion_*,*service_exclusion*}` pass `python3 tools/corpus_gate.py --both` across all hosts.
+  Acceptance: `tests/fixtures/{pass,fail}/build/{crash_exclusion_*,*service_exclusion*}` pass `omega run --both`, the `fail` twins rejecting with their pinned diagnostic, across all hosts.
 
 ## Requirement-based tests
 

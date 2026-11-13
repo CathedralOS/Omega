@@ -131,7 +131,7 @@ publishes an explicitly erased qualified Match/call result;
 records its host build outcome. No runtime tag is introduced: ordinary jumps carry fresh values, and Boolean
 pattern equality uses the existing comparison and branch machinery.
 
-`cargo run -p omega -- --check tests/omega/pass/expressions/declared_operator_match_result/main.omg`
+`cargo run -p omega -- --check tests/fixtures/pass/expressions/declared_operator_match_result/main.omg`
 checks a wider declared operator result joined with an anonymous numeric arm.
 This is a legacy signature-plus-satisfier fixture, not the settled direct supply
 model. [Declaration-owned machine bodies](../../../../wiki/spec/language/expressions.md#executable-supply)

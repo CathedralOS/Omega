@@ -48,7 +48,7 @@ fn measure() {
         let (mut requests, custody) = discover(
             &mut session,
             &mut completed,
-            &root.join("tests/omega/pass/effects/root_service_audit/main.omg"),
+            &root.join("tests/fixtures/pass/effects/root_service_audit/main.omg"),
             &[TargetProfile::host_if_supported().expect("Build host")],
             CompilationProduct::Check,
         );
@@ -107,7 +107,7 @@ fn measure() {
     let (mut first, first_custody) = discover(
         &mut session,
         &mut completed,
-        &root.join("tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg"),
+        &root.join("tests/fixtures/pass/targets/shared_program_distinct_roots_exit/main.omg"),
         &[TargetProfile::WindowsX64, TargetProfile::LinuxX64],
         native_product(),
     );
@@ -120,7 +120,7 @@ fn measure() {
     let (mut second, second_custody) = discover(
         &mut session,
         &mut completed,
-        &root.join("tests/omega/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg"),
+        &root.join("tests/fixtures/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg"),
         &[TargetProfile::LinuxX64],
         native_product(),
     );
@@ -412,7 +412,7 @@ fn measure_component_scalars(
         let (requests, custody) = discover(
             session,
             completed,
-            &root.join("tests/omega").join(fixture).join("main.omg"),
+            &root.join("tests/fixtures").join(fixture).join("main.omg"),
             &targets,
             native_product(),
         );
@@ -507,7 +507,7 @@ fn measure_inspection_scalars(
         let (requests, custody) = discover(
             session,
             completed,
-            &root.join("tests/omega").join(fixture).join("main.omg"),
+            &root.join("tests/fixtures").join(fixture).join("main.omg"),
             &targets,
             CompilationProduct::Inspection(machine.to_owned()),
         );
@@ -584,7 +584,7 @@ fn measure_inspection_roots(
     let (mut requests, custody) = discover(
         session,
         completed,
-        &root.join("tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg"),
+        &root.join("tests/fixtures/pass/terminal_psi/debug_identity_complete_module/main.omg"),
         &targets,
         CompilationProduct::Inspection("constant".to_owned()),
     );
@@ -592,7 +592,7 @@ fn measure_inspection_roots(
     let (mut missing_requests, missing_custody) = discover(
         session,
         completed,
-        &root.join("tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg"),
+        &root.join("tests/fixtures/pass/terminal_psi/debug_identity_complete_module/main.omg"),
         &[TargetProfile::LinuxArm64],
         CompilationProduct::Inspection("missing_inspection_name".to_owned()),
     );

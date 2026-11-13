@@ -42,7 +42,7 @@ impl TerminalEffectHandler for NoEffects {
 fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let FixtureFrontierCheck::Accepted { frontier, .. } =
-        check("tests/omega/pass/calls/runtime_affine_record_call_results_reused_exit")
+        check("tests/fixtures/pass/calls/runtime_affine_record_call_results_reused_exit")
     else {
         panic!("the original owned-data witness must check");
     };
@@ -114,7 +114,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
 fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let FixtureFrontierCheck::Rejected { frontier, .. } =
-        check("tests/omega/fail/borrows/owned_address_after_operand_move")
+        check("tests/fixtures/fail/borrows/owned_address_after_operand_move")
     else {
         panic!("the move-before-borrow witness must reject after the typed frontier");
     };
@@ -139,7 +139,8 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
         }
     }
     let expected = std::fs::read_to_string(
-        repo_root().join("tests/omega/fail/borrows/owned_address_after_operand_move/expected.txt"),
+        repo_root()
+            .join("tests/fixtures/fail/borrows/owned_address_after_operand_move/expected.txt"),
     )
     .unwrap();
     assert!(

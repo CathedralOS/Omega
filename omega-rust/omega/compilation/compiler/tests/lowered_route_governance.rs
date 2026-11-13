@@ -76,7 +76,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
 fn a_rejection_is_reported_as_the_route_reports_it() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
-        rejected("tests/omega/fail/termination/productive_scalar_loop_arrival_unproved");
+        rejected("tests/fixtures/fail/termination/productive_scalar_loop_arrival_unproved");
     let RouteVerdict::Rejected { unproved, .. } = &verdict else {
         panic!("{verdict:?}");
     };
@@ -104,7 +104,7 @@ fn a_rejection_is_reported_as_the_route_reports_it() {
 fn an_invalid_bound_entry_reports_the_routes_rejection() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
-        rejected("tests/omega/fail/build/unrequested_target_entry_returns_value");
+        rejected("tests/fixtures/fail/build/unrequested_target_entry_returns_value");
     let RouteVerdict::Rejected { formations, .. } = verdict else {
         panic!("the entry calling shape must reject: {verdict:?}");
     };

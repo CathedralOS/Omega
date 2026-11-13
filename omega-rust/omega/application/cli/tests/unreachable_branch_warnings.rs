@@ -4,7 +4,7 @@ End-to-end CLI checks for advisory unreachable-branch warnings (`omega --check`)
 
 An unreachable-branch warning is advisory: it is printed to `stderr` while compilation
 still succeeds (`exit 0`). We run `omega --check` on the contract fixtures under
-`tests/omega/pass/contracts/` and count the `warning: unreachable branch:` lines:
+`tests/fixtures/pass/contracts/` and count the `warning: unreachable branch:` lines:
 - A transition or match arm that contradicts its machine's `requires` clause
   warns once.
 - A contradiction inside a generic machine warns once for the authored machine
@@ -21,7 +21,7 @@ const WARNING: &str = "warning: unreachable branch:";
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../tests/omega/pass/contracts")
+        .join("../../../../tests/fixtures/pass/contracts")
         .join(name)
 }
 

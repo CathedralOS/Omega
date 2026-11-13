@@ -44,7 +44,7 @@ const RELEASE_GATES: &[&str] = &[
 /// The fixture corpus that was deleted from the repository; see tests/README.md.
 const RETIRED_CORPUS_ROOT: &str = "tests/omega/";
 /// Where a test keeps the few programs it reads.
-const KEPT_FIXTURES_ROOT: &str = "omega-rust/omega/compilation/compiler/tests/fixtures/";
+const KEPT_FIXTURES_ROOT: &str = "tests/fixtures/";
 const FACTS_ROOT: &str = "samples/cli/facts/";
 const MEASUREMENTS_ROOT: &str = "wiki/drafts/measurements/";
 const MEASUREMENT_LINE_LIMIT: usize = 300;
@@ -1848,10 +1848,7 @@ struct Ledger;
         assert_eq!(added("tests/omega/pass/a/x/main.omg").len(), 1);
         assert_eq!(added("tests/omega/corpus_outcomes.txt").len(), 1);
         assert_eq!(added("samples/cli/facts/a/local/main.omg").len(), 1);
-        assert!(
-            added("omega-rust/omega/compilation/compiler/tests/fixtures/pass/a/x/main.omg")
-                .is_empty()
-        );
+        assert!(added("tests/fixtures/pass/a/x/main.omg").is_empty());
         // Deleting from the retired tree is how it goes away.
         assert!(
             diff_hygiene_violations(&[('D', "tests/omega/pass/a/x/main.omg".to_owned())])

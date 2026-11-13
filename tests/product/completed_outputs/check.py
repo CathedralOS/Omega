@@ -22,7 +22,7 @@ def main():
     root = options.repository.resolve()
     omega = options.omega.resolve()
     environment = {**os.environ, "OMEGA_LIBRARY_ROOT": str(root / "source/library")}
-    source = root / "tests/omega/pass/build/acquired_generator_completed_output_set"
+    source = root / "tests/fixtures/pass/build/acquired_generator_completed_output_set"
     with tempfile.TemporaryDirectory(prefix="omega-completed-outputs-") as temporary:
         workspace = Path(temporary)
         project = workspace / "project"
@@ -159,7 +159,7 @@ def main():
 
         # A later generated-source check must fail before any set is exported.
         invalid = workspace / "invalid"
-        fixture = root / "tests/omega/fail/build/acquired_generator_output_final_check_refused"
+        fixture = root / "tests/fixtures/fail/build/acquired_generator_output_final_check_refused"
         shutil.copytree(fixture, invalid)
         invalid_output = workspace / "invalid-out"
         refused = invoke("--target", "linux_x86_64", "--build-dir", invalid_output, invalid / "main.omg")

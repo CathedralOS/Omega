@@ -21,7 +21,7 @@ ledger) was removed on the owner's ruling of 2026-11-13, and the fixtures
 themselves are retired with it.
 [tests/README.md](../tests/README.md) says how to read a deleted fixture from
 history. A program a test reads is kept beside the tests, under
-`omega-rust/omega/compilation/compiler/tests/fixtures/`.
+`tests/fixtures/`.
 
 Iteration uses focused behavioral feedback; landing establishes the scoped
 change and attributes affected failures; release runs the full release matrix.
@@ -317,7 +317,7 @@ mbx nextest run -p isa-x86_64 encode
 
 Compiler behavior is tested by a Rust test on the changed code. When the test
 needs an Omega program, keep that program beside the tests under
-`omega-rust/omega/compilation/compiler/tests/fixtures/<tier>/<group>/<name>/` and name it from
+`tests/fixtures/<tier>/<group>/<name>/` and name it from
 the test; see `omega-rust/omega/compilation/compiler/tests/README.md`. Keep
 the few programs a test reads, never a matrix.
 

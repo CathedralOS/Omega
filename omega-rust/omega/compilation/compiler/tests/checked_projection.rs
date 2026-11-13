@@ -70,7 +70,7 @@ fn projected(fixture: &str) -> Projected {
 #[test]
 fn a_program_that_calls_no_service_is_checked_without_service_providers() {
     let _compilation = one_at_a_time();
-    let scalar = projected("tests/omega/run/calls/scalar_contract_route_exit");
+    let scalar = projected("tests/fixtures/run/calls/scalar_contract_route_exit");
     for service in [
         "FilesystemService",
         "PosixFilesystemHost",
@@ -109,7 +109,7 @@ fn a_program_that_calls_no_service_is_checked_without_service_providers() {
 #[test]
 fn a_program_that_calls_a_service_keeps_that_services_default_provider() {
     let _compilation = one_at_a_time();
-    let console = projected("tests/omega/run/providers/default_console_provider_reached");
+    let console = projected("tests/fixtures/run/providers/default_console_provider_reached");
     assert!(
         console.traits.iter().any(|name| name == "Console"),
         "{:?}",

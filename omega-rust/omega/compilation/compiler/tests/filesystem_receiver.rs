@@ -27,7 +27,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use std::path::{Path, PathBuf};
 use terminal_psi_to_abstract_operations::provider_admission;
 
-const FIXTURE: &str = "tests/omega/pass/filesystem/windows_canonicalize_exit/main.omg";
+const FIXTURE: &str = "tests/fixtures/pass/filesystem/windows_canonicalize_exit/main.omg";
 const TARGET: &str = "windows_x86_64";
 
 #[test]

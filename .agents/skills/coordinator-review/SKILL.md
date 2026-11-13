@@ -95,7 +95,7 @@ the five checks below fail:
   `samples/cli/facts/` is frozen against new folder creation (`cargo xtask check-rules`
   enforces this). Repairs target existing failing programs in `samples/` or
   add a test on the changed code with, at most, a focused positive/negative
-  pair kept beside it under `omega-rust/omega/compilation/compiler/tests/fixtures/`.
+  pair kept beside it under `tests/fixtures/`.
 - **No weakened positive witnesses:** Confirm the worker did not make a fixture
   or sample pass by adding a caller post-hoc equality guard (`transition x == 100`),
   changing the bound or operation, or simplifying the construct under test.

@@ -503,7 +503,7 @@ The checked-in toolchain file selects the required Rust version.
 Start with a small precondition-checking case:
 
 ```sh
-cargo run -p omega -- --check tests/omega/pass/constraints/scalar_requires_satisfied_by_literal/main.omg
+cargo run -p omega -- --check tests/fixtures/pass/constraints/scalar_requires_satisfied_by_literal/main.omg
 ```
 
 It should finish successfully: its call supplies `5` to a machine requiring
