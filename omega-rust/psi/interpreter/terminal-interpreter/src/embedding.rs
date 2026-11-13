@@ -774,7 +774,8 @@ pub(crate) mod instance {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use crate::boundary::structural_inputs::byte_arrays::byte_array_length;
         use crate::boundary::values::{
-            StructuralByteSequenceRuntimeField, StructuralFieldNamespace, TerminalStructuralValue,
+            StructuralByteSequenceRuntimeField, StructuralFieldNamespace, StructuralRuntimePlace,
+            TerminalStructuralValue,
         };
         use crate::engine::execution::TerminalExecution;
         use crate::storage::structural_storage::contents::{self, StorageLeafKind};
@@ -931,6 +932,40 @@ pub(crate) mod instance {
                         .get(destination)
                         .ok_or(TerminalStorageObservationError::OpaqueContents)?;
                     Ok(TerminalStorageObservationValue::Bytes(bytes.read_view()?))
+                }
+                StorageLeafKind::Opaque {
+                    destination,
+                    declaration,
+                } if execution
+                    .structural_declaration(*declaration)?
+                    .shape
+                    .is_shared_readable_byte_view() =>
+                {
+                    let binding = execution
+                        .structural_byte_descriptors
+                        .get(destination)
+                        .or_else(|| {
+                            execution.returned_byte_sequence.as_ref().filter(|binding| {
+                                binding.descriptor_home().is_some_and(|home| {
+                                    home.structural_type == *declaration
+                                        && StructuralRuntimePlace::from(home) == *destination
+                                })
+                            })
+                        })
+                        .ok_or(TerminalStorageObservationError::OpaqueContents)?;
+                    let home = binding
+                        .descriptor_home()
+                        .filter(|home| {
+                            home.structural_type == *declaration
+                                && StructuralRuntimePlace::from(*home) == *destination
+                        })
+                        .ok_or(TerminalStorageObservationError::OpaqueContents)?;
+                    if !binding.matches_shared_home(home) {
+                        return Err(TerminalStorageObservationError::OpaqueContents);
+                    }
+                    Ok(TerminalStorageObservationValue::Bytes(
+                        binding.read_view(execution)?,
+                    ))
                 }
                 StorageLeafKind::Opaque { .. } => {
                     Err(TerminalStorageObservationError::OpaqueContents)
