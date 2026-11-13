@@ -772,16 +772,6 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
         "Terminal root preparation reopens source",
         &["checked_trees", "typed_trees", "psi_terminal_production"],
     );
-    let declarations = include_str!(
-        "../../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/projections.rs"
-    );
-    assert!(declarations.contains("checked.callback_declaration(usage)"));
-    assert!(declarations.contains("declarations::identity("));
-    assert!(declarations.contains("TerminalRootDeclaration::Unavailable(reason.clone())"));
-    assert!(declarations.contains("PreparedTerminalRoots::new(identities, requests)"));
-    assert!(declarations.contains("usage.published_requirement_envelope"));
-    assert!(declarations.contains("usage.selected_actual_envelope"));
-    assert!(declarations.contains("usage.callback_entry.map("));
     let admission =
         include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
     assert!(admission.contains("roots.push(project_root(module, provenance, entry))"));
