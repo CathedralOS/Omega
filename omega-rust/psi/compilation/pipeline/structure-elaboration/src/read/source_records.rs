@@ -144,7 +144,7 @@ pub(super) fn source_application(
             binders.push(parameter.symbol);
             substitutions.push((parameter.symbol, *argument));
         }
-        binders.sort_unstable();
+        binders.sort_unstable_by_key(|binder| (binder.arena_index(), binder.generation()));
         if binders.windows(2).any(|pair| pair[0] == pair[1]) {
             return Err(malformed(
                 machine,
