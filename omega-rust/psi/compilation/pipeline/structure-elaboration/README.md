@@ -508,10 +508,15 @@ nothing a value is made of
 layout and monomorphization."), so the declaration is one record type
 whatever lifetimes a use applies it at, and a formal, local or result may
 name it bare. What a lifetime relates is a stored view ("A lifetime relates a
-borrowed result or stored view to storage that remains valid for its use"),
-and no field type served here stores one, so a served declaration carries no
-lifetime relation or loan: a reference field is refused as `type reference`
-until the slice that stores views and accounts for them. The reader checks
+borrowed result or stored view to storage that remains valid for its use").
+The one view a field may store is a byte view, `name: &'a [u8]`, and its type
+is keyed by the region it names under the declaration that binds it, so a
+view of any other region, an elided one included, is another type: it cannot
+be stored in the field or returned as it (`typing assigned value type`).
+Naming the data bare therefore relates nothing. The source record
+correspondence a product keeps is the declaration's, with no lifetime
+argument in it. Any other reference field is refused as `type reference`.
+The reader checks
 the declaration and each application itself, because the stage that did is
 being removed ("They must match the declaration's lifetime arity and use
 binders declared in the lexical owner. Duplicate binders and undeclared tags

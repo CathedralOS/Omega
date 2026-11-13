@@ -952,6 +952,7 @@ mod tests {
         program.record_sources.push(places::RecordSource {
             declaration: point,
             application: None,
+            region_owner: SymbolHandle::invalid(),
             fields: vec![a, b],
             cases: Vec::new(),
         });

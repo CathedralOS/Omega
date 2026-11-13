@@ -31,6 +31,7 @@ mod empty_records;
 mod entry_inputs;
 mod guard_contradiction;
 mod inferred_bounds;
+mod lifetime_elision;
 mod mathematical_clauses;
 mod mutable_formals;
 mod proof_scope;
