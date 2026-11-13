@@ -4359,7 +4359,12 @@ pub mod inspection {
                 program: &TypedTrees,
                 argument: &crate::expression::StaticMachineArgument,
             ) -> StaticArgumentSnapshot {
-                if argument.type_reference.is_valid() {
+                if argument.type_reference.is_valid()
+                    && !argument
+                        .application
+                        .as_ref()
+                        .is_some_and(|application| application.member.is_valid())
+                {
                     StaticArgumentSnapshot::Type {
                         type_reference: Box::new(type_reference_snapshot(
                             program,

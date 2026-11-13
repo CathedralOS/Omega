@@ -33,7 +33,8 @@ impl Program<'_> {
         use symbols::SymbolKind;
         use typed_trees::expression::StaticMachineArgument;
         use typed_trees::reflection::construction::{
-            construct_semantic_schema_graph, declaration_source_revision, exact_symbol_identity,
+            construct_semantic_schema_graph, construct_semantic_schema_graph_for_type,
+            declaration_source_revision, exact_symbol_identity,
         };
         use typed_trees::reflection::{SchemaNode, SchemaQueryAuthority};
         use typed_trees::type_identity::{IndexIdentityArgument, portable_applied_index_identity};
@@ -49,11 +50,71 @@ impl Program<'_> {
         else {
             return Err(fail("a field query requires exactly one declaration path"));
         };
-        let selected = self
+        let operand = self
             .typed
             .declaration_operand_from_expression(*operand)
             .map_err(|reason| invalid(machine, reason))?;
         let symbols = self.typed.symbols.symbols().nodes();
+        let author = StaticArgumentCall::Expression(ExpressionHandle::invalid(), call)
+            .lexical_owner(self.typed);
+        if !symbols.is_valid(author) {
+            return Err(fail("a field query lost its lexical owner"));
+        }
+        let mut selected = &operand;
+        let mut declaring_type = None;
+        let mut members = Vec::new();
+        while let Some(application) = &selected.application
+            && application.member.is_valid()
+        {
+            if members.contains(&application.member) {
+                return Err(fail("a field query has a cyclic member selection"));
+            }
+            members.push(application.member);
+            if !symbols.is_valid(selected.symbol) {
+                return Err(fail("a field query lost its supplying declaration"));
+            }
+            match self.typed.symbols.get(selected.symbol).kind {
+                SymbolKind::Data | SymbolKind::TypeAlias => {
+                    if declaring_type.is_some() {
+                        return Err(fail(
+                            "a field query has an unjoined enclosing type application",
+                        ));
+                    }
+                    let mut head = selected.clone();
+                    head.application
+                        .as_mut()
+                        .expect("selected member has an application")
+                        .member = arena::Handle::invalid();
+                    if !self
+                        .typed
+                        .type_reference_table
+                        .contains_type_reference(head.type_reference)
+                        || !self
+                            .typed
+                            .type_reference_table
+                            .operand_lifetime_owner(head.type_reference)
+                            .is_valid()
+                    {
+                        return Err(fail(
+                            "a field query lost its prepared supplying type and scope",
+                        ));
+                    }
+                    self.typed
+                        .static_operand_region_supplier(&head, author)
+                        .map_err(|reason| invalid(machine, reason))?;
+                    declaring_type = Some(head.type_reference);
+                }
+                SymbolKind::Variant
+                    if application.arguments.is_empty()
+                        && application.lifetime_arguments.is_empty() => {}
+                _ => return Err(fail("a field query has a non-type member supplier")),
+            }
+            selected = self
+                .typed
+                .expression_table
+                .static_member(application.member)
+                .ok_or_else(|| fail("a field query lost its selected member"))?;
+        }
         if !symbols.is_valid(selected.symbol) {
             return Err(fail("a field query lost its selected declaration"));
         }
@@ -87,10 +148,26 @@ impl Program<'_> {
         if !symbols.is_valid(owner) || self.typed.symbols.get(owner).kind != SymbolKind::Data {
             return Err(fail("a field query has no data declaration owner"));
         }
-        let data = self
-            .typed
-            .unique_data_definition_by_symbol(owner)
-            .ok_or_else(|| fail("a field query has no unique declaring data"))?;
+        let data = match declaring_type {
+            Some(reference) => {
+                if self
+                    .typed
+                    .closed_data_constructor_field(reference, owner, selected.symbol)
+                    .is_none()
+                {
+                    return Err(fail(
+                        "a field query does not belong to its closed owner application",
+                    ));
+                }
+                self.typed
+                    .closed_data_definition(reference)
+                    .ok_or_else(|| fail("a field query lost its closed declaring data"))?
+            }
+            None => self
+                .typed
+                .unique_data_definition_by_symbol(owner)
+                .ok_or_else(|| fail("a field query has no unique declaring data"))?,
+        };
         let mut occurrences = 0;
         for member in self.typed.data_members(data) {
             match member {
@@ -123,8 +200,6 @@ impl Program<'_> {
                 "a field query requires its complete owner application",
             ));
         }
-        let author = StaticArgumentCall::Expression(ExpressionHandle::invalid(), call)
-            .lexical_owner(self.typed);
         let author_span = self
             .typed
             .symbols
@@ -148,8 +223,13 @@ impl Program<'_> {
         } else {
             SchemaQueryAuthority::ForeignScope { requester_identity }
         };
-        let graph = construct_semantic_schema_graph(self.typed, owner, authority)
-            .map_err(|reason| invalid(machine, reason))?;
+        let graph = match declaring_type {
+            Some(reference) => {
+                construct_semantic_schema_graph_for_type(self.typed, reference, authority)
+            }
+            None => construct_semantic_schema_graph(self.typed, owner, authority),
+        }
+        .map_err(|reason| invalid(machine, reason))?;
         let member = exact_symbol_identity(self.typed, selected.symbol)
             .map_err(|reason| invalid(machine, reason))?
             .0;
