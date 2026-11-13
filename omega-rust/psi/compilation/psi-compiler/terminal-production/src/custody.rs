@@ -122,6 +122,11 @@ impl ProducedTerminalProgram {
     pub const fn evidence(&self) -> Option<&Arc<terminal_codec::EvidenceSeals>> {
         self.evidence.as_ref()
     }
+    /// Compiler invocations need the source type applications produced beside
+    /// their checked code. Borrow those existing rows from the same code owner.
+    pub fn source_records(&self) -> &[typed_trees::SourceRecordCorrespondence] {
+        &self.source_records
+    }
     pub fn into_shared_portable(
         self,
     ) -> Result<PortableTerminalProgram, CanonicalTerminalArtifactError> {
