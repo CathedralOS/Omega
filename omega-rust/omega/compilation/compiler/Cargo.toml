@@ -160,8 +160,8 @@ path = "tests/lowered_route_subjects.rs"
 name = "runtime_callable_precondition"
 path = "tests/runtime_callable_precondition.rs"
 
-# The default compile reports the lowered route's verdict where the owner's
-# split gives it, and the current checker's everywhere else.
+# Every source compilation uses the lowered-form checker's verdict; unsupported
+# source cannot obtain a different verdict from another checking path.
 [[test]]
 name = "lowered_route_governance"
 path = "tests/lowered_route_governance.rs"

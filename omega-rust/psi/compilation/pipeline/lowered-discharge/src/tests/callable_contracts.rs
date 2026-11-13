@@ -33,6 +33,12 @@ fn refinement_module() -> TerminalModule {
         );
     }
     let mut module = elaboration.module;
+    // These implication controls have no source declaration. Publication uses
+    // the separate source-owned fixture below.
+    for machine in &mut module.machines {
+        machine.declaration = None;
+    }
+    module.callables.machine_envelopes.clear();
     let selected = &module.machines[0];
     assert_eq!(selected.parameters[0].id, id(1));
     assert_eq!(selected.result.scalar().unwrap().id, id(2));
