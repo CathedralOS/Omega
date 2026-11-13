@@ -58,8 +58,8 @@ use terminal_check_tables::{Checked, Construct, ProgramPoint, RefusalReason};
 use terminal_psi::{ContractClause, TerminalMachine, TerminalMachineResult, Terminator};
 
 use crate::{
-    Bindings, Knowledge, Unbound, decide, entry_inputs, hypotheses, joins, prepare, prove,
-    refusal, returned_for_result, terminal_machine,
+    Bindings, Knowledge, Unbound, decide, entry_inputs, hypotheses, joins, prepare, prove, refusal,
+    returned_for_result, terminal_machine,
 };
 
 /// Adds a proved result summary to the contract of each machine in

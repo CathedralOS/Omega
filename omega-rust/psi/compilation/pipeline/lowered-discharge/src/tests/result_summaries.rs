@@ -42,7 +42,10 @@ fn accepted(machines: Vec<Machine>, local: &[u64]) -> crate::AcceptedClosure {
 /// certificate involved, the summary's own included, is the kernel's.
 #[test]
 fn a_caller_uses_what_a_private_helper_returns() {
-    let accepted = accepted(through(identity(vec![at_most(1, 10)]), 10, vec![at_most(1, 5)]), &[2]);
+    let accepted = accepted(
+        through(identity(vec![at_most(1, 10)]), 10, vec![at_most(1, 5)]),
+        &[2],
+    );
     let helper = &accepted.elaboration.module.machines[1];
     assert_eq!(helper.contract.ensures.len(), 1);
     assert!(!verdicts(&accepted.elaboration, &accepted.discharge, 2, guarantee).is_empty());
