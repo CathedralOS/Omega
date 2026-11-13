@@ -631,11 +631,6 @@ fn analyze(
         if no_normal {
             continue;
         }
-        if let Terminator::ReturnStructural { source, .. } = &block.terminator
-            && analysis.root(*source)?.is_some()
-        {
-            state.regions[index(source.get())?] = None;
-        }
         // Edge IDs are machine-wide and untrusted here. Index only the
         // actual local successors, never allocate up to a serialized raw ID.
         let mut targets = block.terminator.successor_edges();
@@ -1009,7 +1004,12 @@ impl Analysis<'_> {
             if !owned {
                 return Err(Error::Unsupported("owned extraction from borrowed storage"));
             }
-            if let Some(region) = &mut state.regions[index(argument.place.get())?] {
+            if path.is_empty() {
+                // Whole owned transport consumes its source home as well as
+                // its value. Only a projected move leaves an allocated owner
+                // whose complement needs later disposal and retirement.
+                state.regions[index(argument.place.get())?] = None;
+            } else if let Some(region) = &mut state.regions[index(argument.place.get())?] {
                 region.set(&path, false);
             }
         }

@@ -362,8 +362,9 @@ serves:
 ([ownership](../../../../../wiki/spec/language/ownership.md): "A record still
 requires an explicit `[copy]` declaration; copyable fields do not change the
 affine default."). Plain data without it transfers once. Its exact moved
-regions become unavailable, disjoint siblings remain readable, and normal
-continuations dispose the residual regions before retiring a dying home.
+regions become unavailable and disjoint siblings remain readable. Whole owned
+transport consumes its source home. A projected move leaves its owner allocated;
+normal continuations dispose the residual regions before retiring that home.
 Named affine locals reserve storage distinct from their initializer or call
 result. This first ownership slice requires no-code cleanup and no conserved
 claim: nominal cleanup hooks, linear data, reference-bearing fields, borrowed

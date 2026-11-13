@@ -10,8 +10,10 @@ formal, per operation that produces storage (a literal, a whole copy, a call
 with a record result, the home of a local declared without an initializer)
 and for a record machine's result place; `roots` maps the `PlaceId` to its
 row. An affine named local reserves a distinct home and receives its
-initializer through a checked whole store. A continuing transfer publishes
-an explicit edge on which a dying temporary is retired. A copy local can
+initializer through a checked whole store. A continuing transfer retains
+an explicit continuation even when whole transport consumed its source home.
+Projected moves leave a home whose residuals and retirement belong to its
+normal continuation. A copy local can
 retain its initializer's unrestricted root. ownership.md: "Parameter,
 named-local, and call-result roots retain distinct establishment identities."
 
@@ -1882,8 +1884,10 @@ impl<'a> Lowering<'a> {
         Ok(())
     }
 
-    /// Ends the block after a call that consumed record arguments and
-    /// retires their homes on the edge into its continuation. ownership.md:
+    /// Retains a normal continuation after record argument staging. Copy
+    /// temporaries still need explicit retirement; the ownership plan replaces
+    /// affine actions, omitting a second retirement when whole transport has
+    /// already consumed the source home. ownership.md:
     /// "A dying temporary's normal continuation owns its remaining cleanup.
     /// ... a continuing body uses an explicit continuation edge." and "The
     /// checked dying-owner partition publishes `RetireHome` after its
