@@ -1515,9 +1515,22 @@ pub(crate) mod construction_destinations {
         lifetime_owner: SymbolHandle,
         cast_destinations: &mut Vec<TypeReferenceHandle>,
         completed: &mut Vec<Vec<(TypeReferenceHandle, SymbolHandle)>>,
-    ) -> Result<(), Diagnostic> {
+    ) -> Result<bool, Diagnostic> {
         if !value.is_valid() || !destination.is_valid() {
-            return Ok(());
+            return Ok(false);
+        }
+        if !program.expression_table.expression_is_valid(value) {
+            return Err(Diagnostic::error(
+                "constructor destination refers to a missing expression occurrence",
+            ));
+        }
+        if !program
+            .type_reference_table
+            .contains_type_reference(destination)
+        {
+            return Err(Diagnostic::error(
+                "constructor destination refers to a missing receiving type occurrence",
+            ));
         }
         // A receiving occurrence includes its complete type handle and lexical
         // region owner. Revisit a different context, but do not walk the same
@@ -1527,9 +1540,9 @@ pub(crate) mod construction_destinations {
             .get(position)
             .is_some_and(|contexts| contexts.contains(&(destination, lifetime_owner)))
         {
-            return Ok(());
+            return Ok(true);
         }
-        land_destination(
+        let landed = land_destination(
             program,
             value,
             destination,
@@ -1537,11 +1550,13 @@ pub(crate) mod construction_destinations {
             cast_destinations,
             completed,
         )?;
-        if completed.len() <= position {
-            completed.resize_with(position + 1, Vec::new);
+        if landed {
+            if completed.len() <= position {
+                completed.resize_with(position + 1, Vec::new);
+            }
+            completed[position].push((destination, lifetime_owner));
         }
-        completed[position].push((destination, lifetime_owner));
-        Ok(())
+        Ok(landed)
     }
 
     fn land_destination(
@@ -1551,14 +1566,12 @@ pub(crate) mod construction_destinations {
         mut lifetime_owner: SymbolHandle,
         cast_destinations: &mut Vec<TypeReferenceHandle>,
         completed: &mut Vec<Vec<(TypeReferenceHandle, SymbolHandle)>>,
-    ) -> Result<(), Diagnostic> {
-        if !value.is_valid() || !destination.is_valid() {
-            return Ok(());
-        }
+    ) -> Result<bool, Diagnostic> {
         if let Some(dispatch) = program.expression_table.match_node(value) {
             let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
+            let mut landed = true;
             for arm in arms {
-                land_one(
+                landed &= land_one(
                     program,
                     arm.value,
                     destination,
@@ -1567,7 +1580,7 @@ pub(crate) mod construction_destinations {
                     completed,
                 )?;
             }
-            return Ok(());
+            return Ok(landed);
         }
         // An expected type supplies a literal's carrier, never its domains.
         // Retain the destination at the complete cast, not at its operand:
@@ -1624,7 +1637,7 @@ pub(crate) mod construction_destinations {
                     .closed_data_constructor_definition(destination, literal.type_symbol)
                     .is_none()
             {
-                return Ok(());
+                return Ok(false);
             }
             let prior = expression_table(program).construction_required_type_reference(value);
             let carrier = if (!prior.is_valid() || !literal.application_type.is_valid())
@@ -1663,10 +1676,11 @@ pub(crate) mod construction_destinations {
             let fields = expression_table(program)
                 .struct_fields(literal.fields)
                 .to_vec();
+            let mut landed = true;
             for field in fields {
                 let field_type =
                     selected_construction_field_type(program, value, &literal, field.field_symbol)?;
-                land_one(
+                landed &= land_one(
                     program,
                     field.value,
                     field_type,
@@ -1675,7 +1689,7 @@ pub(crate) mod construction_destinations {
                     completed,
                 )?;
             }
-            return Ok(());
+            return Ok(landed);
         }
         if let (
             ExpressionNode::ArrayLiteral(elements),
@@ -1688,8 +1702,9 @@ pub(crate) mod construction_destinations {
                 .expression_handles(*elements)
                 .to_vec();
             let element_type = *element_type;
+            let mut landed = true;
             for element in elements {
-                land_one(
+                landed &= land_one(
                     program,
                     element,
                     element_type,
@@ -1698,9 +1713,10 @@ pub(crate) mod construction_destinations {
                     completed,
                 )?;
             }
-            return Ok(());
+            return Ok(landed);
         }
         crate::typing_queries::land_owned_fixed_byte_literal(program, value, destination)
+            .map(|()| true)
     }
 
     fn callee_owns_nominal_lifetimes(
@@ -1730,6 +1746,121 @@ pub(crate) mod construction_destinations {
                 )
                 .is_some()
             })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn deferred_destinations_do_not_complete_or_hide_expression_identity() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::{data::DataDefinition, expression::TableStructLiteral};
+
+            let mut symbols = SymbolTableBuilder::default();
+            let data = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Record"));
+            let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            program.push_data_definition(DataDefinition {
+                symbol: data,
+                name: "Record".into(),
+                ..Default::default()
+            });
+            let value = program
+                .expression_table
+                .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                    type_symbol: data,
+                    type_name: "Record".into(),
+                    ..Default::default()
+                }));
+            let unrelated = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            let exact = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: data,
+                    name: "Record".into(),
+                });
+            let mut casts = Vec::new();
+            let mut completed = Vec::new();
+            assert!(
+                !land_one(
+                    &mut program,
+                    value,
+                    unrelated,
+                    owner,
+                    &mut casts,
+                    &mut completed
+                )
+                .unwrap()
+            );
+            assert!(
+                completed.is_empty(),
+                "a deferred constructor stays eligible for the census"
+            );
+            assert!(
+                land_one(
+                    &mut program,
+                    value,
+                    exact,
+                    owner,
+                    &mut casts,
+                    &mut completed
+                )
+                .unwrap()
+            );
+            assert!(
+                land_one(
+                    &mut program,
+                    value,
+                    exact,
+                    owner,
+                    &mut casts,
+                    &mut completed
+                )
+                .unwrap()
+            );
+            assert_eq!(completed[value.arena_index() as usize], [(exact, owner)]);
+            assert!(
+                land_one(&mut program, value, exact, data, &mut casts, &mut completed).unwrap()
+            );
+            assert_eq!(
+                completed[value.arena_index() as usize],
+                [(exact, owner), (exact, data)]
+            );
+
+            let stale = ExpressionHandle::from_parts(value.arena_index(), value.generation() + 1);
+            let error = land_one(
+                &mut program,
+                stale,
+                exact,
+                owner,
+                &mut casts,
+                &mut completed,
+            )
+            .unwrap_err();
+            assert!(
+                error.message.contains("missing expression occurrence"),
+                "{error:?}"
+            );
+            let stale_type =
+                TypeReferenceHandle::from_parts(exact.arena_index(), exact.generation() + 1);
+            let error = land_one(
+                &mut program,
+                value,
+                stale_type,
+                owner,
+                &mut casts,
+                &mut completed,
+            )
+            .unwrap_err();
+            assert!(
+                error.message.contains("missing receiving type occurrence"),
+                "{error:?}"
+            );
+        }
     }
 }
 
