@@ -20,11 +20,17 @@
 // judges the returned frontier with
 // `lowered_discharge::judge_compilation`.
 //
-// What a Build would decide is absent: no Build machine is checked or
-// executed, so there are no provider or representation selections, native
-// bindings, generated sources, settings or dependencies, and a
-// provider-default machine is kept only when the program reaches it. The
-// source is its own validation subject. This is a probe for the route's
+// A program reaches another package only through a dependency edge, and the
+// edge is also a Build decision (`Build::dependency`). The caller states those
+// edges as the request's package graph: without one for the standard library,
+// `use omega_language_std::Console;` is read as a path inside the program's
+// own package and selects nothing. The graph's root package is then the
+// validation subject; a source given no graph is its own subject.
+//
+// Everything else a Build would decide is absent: no Build machine is checked
+// or executed, so there are no provider or representation selections, native
+// bindings, generated sources or settings, and a provider-default machine is
+// kept only when the program reaches it. This is a probe for the route's
 // developers, not a way to compile: the CLI never calls it and it yields no
 // product.
 
@@ -51,18 +57,13 @@ pub(in crate::checked) fn typed_frontier_without_build(
              entry machine is bound to",
         )]
     })?;
-    if child.package_inputs.is_some() {
-        return Err(vec![Diagnostic::error(
-            "a program judged without its Build is a standalone source; a package graph is \
-             settled by Builds, which this path does not run",
-        )]
-        .into());
-    }
+    child.admit_package_inputs()?;
+    let package_inputs = child.package_inputs;
     let core_root = package_compilation::source_imports::bundled_core_root()?;
     let capture = package_compilation::capture_anonymous_compilation_source(&core_root)?;
     let source = source.with_toolchain_capture(capture)?;
     source.admit_root(root)?;
-    let (typed, mut timings) = prepare_typed_frontier(source, None, child.build.profile)?;
+    let (typed, mut timings) = prepare_typed_frontier(source, package_inputs, child.build.profile)?;
     let evaluated = EvaluatedBuild {
         configuration: Arc::new(ComputedBuildConfig {
             config: Default::default(),
@@ -86,7 +87,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
     let (mut built, build_sources) = build_continuation::complete_build_source(
         typed,
         evaluated,
-        None,
+        package_inputs,
         child.build.profile,
         child.build.dependency_activation,
         false,
@@ -114,25 +115,34 @@ pub(in crate::checked) fn typed_frontier_without_build(
             build_sources,
             timings,
         },
-        None,
+        package_inputs,
     )?;
-    Ok(frozen_frontier(typed, &computed_build_config.config)?)
+    Ok(frozen_frontier(
+        typed,
+        &computed_build_config.config,
+        package_inputs.map(|inputs| inputs.root()),
+    )?)
 }
 
 /// The product check's own preparation (`source_checking::check_product_source`)
 /// for a Build that selected nothing but entries, stopped where it shows the
-/// frozen typed trees.
+/// frozen typed trees. `root_package` is the root of the caller's package
+/// graph, when it gave one.
 fn frozen_frontier(
     typed: typed_trees::TypedTrees,
     build: &compilation_products::BuildConfig,
+    root_package: Option<semantic_vocabulary::PackageKeyIdentity>,
 ) -> Result<TypedFrontier, Vec<Diagnostic>> {
     let layout_scopes = super::source_checking::layout_target_scopes(&typed, build)?;
     let entries = build.program_roots();
     let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
-    // The standalone source is its own subject: the one package identity its
-    // authored product files carry.
-    let mut subject = None;
-    if let Some(sources) = typed.symbols.source_map() {
+    // The root of a stated graph is the subject. A source given no graph is
+    // its own subject: the one package identity its authored product files
+    // carry.
+    let mut subject = root_package;
+    if root_package.is_none()
+        && let Some(sources) = typed.symbols.source_map()
+    {
         for file in sources.files().filter(|file| {
             file.origin == source::SourceOrigin::User
                 && file.dependency_scope == source::DependencyScope::Product

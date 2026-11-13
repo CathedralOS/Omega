@@ -1224,9 +1224,17 @@ accepted. Without `--entry`, `main` is bound when the source declares it and a
 source without one is judged with no entry; `--target` defaults to
 `linux_x86_64`.
 
+A program that imports another package needs the dependency edge its Build
+registers, stated with `--dependency ALIAS=DIRECTORY`; a program that prints
+through the standard library's `Console` takes
+`--dependency omega_language_std=source/library/std`. Without the edge the
+import's first segment is no package alias, the path is looked up in the
+program's own package, and Psi 02 stops with "does not select one declaration,
+callable family, or module in its checked package".
+
 Limits. No Build machine is checked or executed, so the program is judged
-without anything its Build would select: providers, representations, native
-bindings, generated sources, settings and dependencies. The source is its own
+without anything else its Build would select: providers, representations,
+native bindings, generated sources and settings. The program's package is the
 validation subject, so its uncalled declarations are judged too. The harness
 is `CompilationSession::typed_frontier_without_build`
 (`omega-rust/omega/compilation/compiler/src/checked/checking/unbuilt_source.rs`),

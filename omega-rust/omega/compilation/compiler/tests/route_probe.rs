@@ -5,6 +5,14 @@
 //! checker accepts, and the same program with a machine nothing calls whose
 //! addition can overflow, which it rejects because a standalone source is its
 //! own validation subject.
+//!
+//! A program that imports another package is judged with the dependency
+//! edges its Build registers, stated by the caller. The kept program that
+//! prints through the standard library's `Console` pins that, with the same
+//! program refused at its import when the edge is left out.
+
+#[path = "support/unbuilt_dependencies.rs"]
+mod unbuilt_dependencies;
 
 use lowered_discharge::RouteVerdict;
 
@@ -85,6 +93,12 @@ fn judged(
         1,
         "{name}: `main` is the bound entry"
     );
+    judge(&frontier)
+}
+
+fn judge(
+    frontier: &compiler::TypedFrontier,
+) -> Vec<Result<RouteVerdict, lowered_discharge::CompilationRefusal>> {
     lowered_discharge::judge_compilation(
         &frontier.typed,
         structure_elaboration::Compilation {
@@ -241,5 +255,83 @@ fn an_implementation_that_promises_less_than_its_requirement_is_rejected() {
     assert_eq!(
         verdicts("implementation_exceeds_requirement", &weaker),
         ["rejected", "accepted", "accepted", "rejected"]
+    );
+}
+
+/// The repository directory `directory` names.
+fn repository(directory: &str) -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../..")
+        .join(directory)
+}
+
+/// The kept program in `directory`, judged where it stands with `entry`
+/// bound and the Product dependencies `(alias, directory)` its Build
+/// registers. `Err` holds the messages that stopped it before the checker.
+fn judged_with_dependencies(
+    directory: &str,
+    entry: &str,
+    dependencies: &[(&str, &str)],
+) -> Result<Vec<Result<RouteVerdict, lowered_discharge::CompilationRefusal>>, Vec<String>> {
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let program = repository(directory);
+    let mut request =
+        compiler::CheckedCompileRequest::new(&program.join("main.omg"), Some("linux_x86_64"));
+    if !dependencies.is_empty() {
+        let dependencies = dependencies
+            .iter()
+            .map(|(alias, directory)| ((*alias).to_owned(), repository(directory)))
+            .collect::<Vec<_>>();
+        request.package_inputs = Some(
+            unbuilt_dependencies::graph(&program, &dependencies)
+                .unwrap_or_else(|reason| panic!("{directory}: {reason}")),
+        );
+    }
+    compiler::CompilationSession::default()
+        .typed_frontier_without_build(request, Some(entry))
+        .map(|frontier| judge(&frontier))
+        .map_err(|failure| {
+            failure
+                .into_diagnostics()
+                .into_iter()
+                .map(|diagnostic| diagnostic.message)
+                .collect()
+        })
+}
+
+const CONSOLE_PROGRAM: &str = "tests/fixtures/run/providers/default_console_provider_reached";
+
+/// The program writes two bytes and exits through `Console`, which its
+/// Build reaches by registering the standard library as a dependency. With
+/// that edge stated, the import selects the boundary trait, each call is
+/// judged against its requirement's written contract, and the entry closure
+/// is accepted.
+#[test]
+fn a_program_reaching_console_through_its_dependency_is_judged() {
+    let parts = judged_with_dependencies(
+        CONSOLE_PROGRAM,
+        "entry_start",
+        &[("omega_language_std", "source/library/std")],
+    )
+    .unwrap_or_else(|stopped| panic!("Psi 00 through 04 must complete: {stopped:?}"));
+    assert!(
+        matches!(&parts[..], [Ok(RouteVerdict::Accepted(_))]),
+        "{parts:?}"
+    );
+}
+
+/// The same program with no edge stated. Its first import segment is then no
+/// package alias, so the path is looked up in the program's own package,
+/// where nothing is named `omega_language_std::Console`.
+#[test]
+fn an_import_without_its_dependency_edge_selects_nothing() {
+    let stopped = judged_with_dependencies(CONSOLE_PROGRAM, "entry_start", &[])
+        .expect_err("the import has no package to select from");
+    assert!(
+        stopped.iter().any(|message| message
+            .contains("import `omega_language_std::Console` does not select one declaration")),
+        "{stopped:?}"
     );
 }

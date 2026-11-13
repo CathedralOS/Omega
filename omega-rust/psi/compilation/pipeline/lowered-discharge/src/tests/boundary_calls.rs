@@ -155,6 +155,33 @@ machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
     );
 }
 
+/// A boundary requirement has no body to infer a crash ceiling from and no
+/// static selection to defer to, so one that writes no `crashes` clause is
+/// refused where it is called, and the same call with `crashes none` written
+/// is read.
+#[test]
+fn a_boundary_requirement_without_a_crash_ceiling_is_refused_by_name() {
+    let call = |crashes: &str| {
+        let typed = typed(&format!(
+            r#"
+boundary trait Probe {{
+    machine read(value: u32) -> u32
+    reaches none{crashes};
+}}
+machine entry() -> u32 {{ Probe::read(1) }}
+"#
+        ));
+        invocation(typed)
+    };
+    let refusal = call("").unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert_eq!(
+        refusal.detail,
+        "call boundary requirement must declare its crash ceiling"
+    );
+    assert!(call("\n    crashes none").is_ok());
+}
+
 fn borrowed_requirement(second: &str, caller_bound: &str) -> structure_elaboration::Elaboration {
     let typed = typed(&format!(
         r#"
