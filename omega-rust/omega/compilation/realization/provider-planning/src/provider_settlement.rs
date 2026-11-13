@@ -15,7 +15,7 @@ pub struct SettledTargetMachineDeclarations {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
+pub struct ProviderSettlement {
     pub calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
     pub selected_provider_publication:
         std::sync::Arc<provider_selection::SelectedTargetProviderPublication>,
@@ -25,7 +25,7 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     pub planning_target_profile: Option<target::TargetProfile>,
     pub boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     pub component_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
-    pub provider_candidates: Vec<crate::ProviderPlanCandidate<Rows>>,
+    pub provider_candidates: Vec<crate::ProviderPlanCandidate>,
     pub native_build_plans: Vec<crate::DerivedProviderPlan>,
     pub evaluated_via_bindings: EvaluatedViaBindingTable,
     pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
@@ -45,7 +45,7 @@ pub struct ComponentAssumptionDemand {
     pub bound_rows: Vec<String>,
 }
 
-impl<Rows> ProviderSettlement<Rows> {
+impl ProviderSettlement {
     /*
     Settlement verifies the attached descriptions in the same order it retains
     them, so each verified component pairs with the description, and the
@@ -82,52 +82,7 @@ impl<Rows> ProviderSettlement<Rows> {
     }
 }
 
-impl ProviderSettlement<crate::DeferredProviderRows> {
-    pub fn finish_row_declarations(self) -> Result<ProviderSettlement, Vec<Diagnostic>> {
-        let Self {
-            calling_program,
-            selected_provider_publication,
-            boundary_provider_demands,
-            provider_declarations,
-            provider_publication,
-            planning_target_profile,
-            boundary_calling_plan_realizations,
-            component_calling_applications,
-            provider_candidates,
-            native_build_plans,
-            evaluated_via_bindings,
-            external_binding_rows,
-            independent_component_descriptions,
-            verified_independent_components,
-        } = self;
-        let mut prepared = Vec::with_capacity(provider_candidates.len());
-        for candidate in provider_candidates {
-            prepared.push(
-                candidate
-                    .finish_row_declarations()
-                    .map_err(|diagnostic| vec![diagnostic])?,
-            );
-        }
-        Ok(ProviderSettlement {
-            calling_program,
-            selected_provider_publication,
-            boundary_provider_demands,
-            provider_declarations,
-            provider_publication,
-            planning_target_profile,
-            boundary_calling_plan_realizations,
-            component_calling_applications,
-            provider_candidates: prepared,
-            native_build_plans,
-            evaluated_via_bindings,
-            external_binding_rows,
-            independent_component_descriptions,
-            verified_independent_components,
-        })
-    }
-}
-
-impl<Intrinsic> ProviderSettlement<Intrinsic> {
+impl ProviderSettlement {
     pub fn calling_applications(
         &self,
         exported: &[calling_conventions::BoundaryCallingApplication],

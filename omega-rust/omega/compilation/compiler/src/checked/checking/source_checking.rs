@@ -32,8 +32,7 @@ pub(crate) fn check_product_source(
     let symbol_sources = typed.symbols.source_map();
     let layout_scopes = layout_target_scopes(&typed, build)?;
     let external_roots = build.program_roots();
-    let bindings =
-        provider_planning::program_entry::bound_program_entry_shapes(&typed, &build.root_bindings)?;
+    let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
     let mut selected = Vec::new();
     for selection in layout_scopes
         .iter()
@@ -184,19 +183,10 @@ pub(crate) fn check_product_source(
         )
         .with_accepted(accepted_source),
     );
-    let native_bindings = Arc::new(
-        provider_planning::native_bindings::PreparedNativeBuildBindings::capture(
-            provider_inventory
-                .services_for(program.as_ref())
-                .map_err(|error| vec![error])?,
-            &computed_build_config.config.native_bindings,
-        ),
-    );
     Ok(CheckedProductSource {
         source_completion_accounting,
         program,
         provider_inventory,
-        native_bindings,
         terminal_publication,
         provider_defaults: provider_defaults.into(),
         computed_build_config,

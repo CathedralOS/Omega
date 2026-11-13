@@ -26,17 +26,13 @@ enum CallingStorageScope<'account> {
 
 #[derive(Debug)]
 pub struct CallingProgram {
-    pub source_owner: std::sync::Weak<typed_trees::FrozenTypedTrees>, // association only; never keeps source alive
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
-    pub source_records: std::sync::Arc<[typed_trees::SourceRecordCorrespondence]>,
     pub evaluator: CallingPolicyEvaluator, // Build evaluation's executors; omitted from catalog equality
 }
 
 impl PartialEq for CallingProgram {
     fn eq(&self, other: &Self) -> bool {
-        std::sync::Weak::ptr_eq(&self.source_owner, &other.source_owner)
-            && self.artifact == other.artifact
-            && self.source_records == other.source_records
+        std::sync::Arc::ptr_eq(&self.artifact, &other.artifact)
     }
 }
 

@@ -19,7 +19,7 @@ pub(crate) struct PackagePolicyComponentAssumption {
 impl PackagePolicyComponentAssumption {
     // One canonical row per settled demand, in key order, for both the review
     // baseline and root Product admission.
-    pub fn project<Rows>(settlement: &provider_planning::ProviderSettlement<Rows>) -> Vec<Self> {
+    pub fn project(settlement: &provider_planning::ProviderSettlement) -> Vec<Self> {
         let mut rows: Vec<_> = settlement
             .component_assumption_demands()
             .into_iter()

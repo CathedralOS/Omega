@@ -21,15 +21,12 @@ use calling_conventions::{
     CallbackRequirementId, NativeCallbackDemand, ValidatedBoundaryEntryPlan,
     validate_boundary_entry_plan_with_callback_materializations,
 };
-use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanRealization {
     pub declaration: semantic_vocabulary::CallingSignatureId,
     pub(crate) calling_owner_application: String, // complete canonical application of the Calling relationship's root
     pub boundary_trait: symbols::SymbolHandle,
-    pub boundary_arguments: Vec<TypeReferenceHandle>,
-    pub(crate) argument_owner: symbols::SymbolHandle, // supplying declaration for lifetime-bearing type operands
     pub requirement_machine: symbols::SymbolHandle,
     pub report_fingerprint: u64, // compact compatibility/report coordinate; exact plan and signature remain authority
     pub commitment: effects::provider_plan::BoundaryCallingPlanCommitment,
@@ -47,10 +44,6 @@ pub struct BoundaryCallingPlanRealization {
 impl BoundaryCallingPlanRealization {
     pub fn calling_owner_application(&self) -> &str {
         &self.calling_owner_application
-    }
-
-    pub const fn argument_owner(&self) -> symbols::SymbolHandle {
-        self.argument_owner
     }
 
     pub const fn materialized_signature(&self) -> &MaterializedBoundarySignature {

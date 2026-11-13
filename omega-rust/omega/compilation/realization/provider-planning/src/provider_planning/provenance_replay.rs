@@ -1,8 +1,8 @@
 // Row provenance is retained data. Satisfaction derivation and old checked
 // adapter replay no longer create provider plans.
 use effects::provider_plan::ProviderPlan;
+pub use language_semantics::service_surface::ProviderSchemaDeclaration;
 pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
-pub use typed_trees::service_declarations::ProviderSchemaDeclaration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderRowRealization {
@@ -30,11 +30,9 @@ impl ProviderRowRealization {
 pub struct ProviderPlanProvenance {
     pub schema: ProviderSchemaDeclaration,
     pub provider_type: Option<symbols::SymbolHandle>,
-    pub named_application: Option<typed_trees::provider_declarations::NamedProviderApplication>, // Original named application, before selected rows lose their source scope.
     pub row_requirements: Vec<symbols::SymbolHandle>,
     pub row_realizations: Vec<ProviderRowRealization>,
     pub row_target_machine_origins: Vec<Option<SelectedTargetMachineOrigin>>, // Pre-resolution target-scoped declaration custody for catalog-inferred rows; None for ordinary checked, legacy external, and evaluated-payload rows.
-    pub row_accessors: Vec<Option<crate::SealedAccessor>>,
 }
 
 pub use language_semantics::provider_declarations::SelectedTargetMachineOrigin;

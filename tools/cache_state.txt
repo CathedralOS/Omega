@@ -5,9 +5,6 @@
 # Written by `python tools/check_rules.py --update-cache-state`.
 1 omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/providers/provider_plan.rs
 2 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/home_assignment.rs
-1 omega-rust/omega/compilation/realization/provider-planning/src/native_bindings/plans.rs
-1 omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provenance_replay/named_provider_plans.rs
-1 omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provenance_replay/plan_derivation.rs
 1 omega-rust/omega/packages/package-compilation/src/package_compilation/bindings.rs
 5 omega-rust/omega/packages/package-compilation/src/reuse/checked_source_cache.rs
 4 omega-rust/omega/packages/package-manager/src/resolution/source/custody.rs

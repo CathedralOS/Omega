@@ -37,12 +37,6 @@ pub mod provider_declarations {
     }
     pub use context::ProviderPlanningContext;
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct NamedProviderApplication {
-        pub declaration: symbols::SymbolHandle,
-        pub capture: arena::Handle<crate::CapturedMachineApplication>,
-    }
-
     /// Declaration catalogs share the exact immutable source owner. Preparing
     /// them grants no checking or admission authority: the product factory must
     /// separately retain the route's acceptance of that same source.
@@ -3370,21 +3364,4 @@ pub use catalog::{
     PreparedServiceSurface, RetainedServiceSurface, ServiceCatalog, exact_identity,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProviderSchemaDeclaration {
-    BoundaryTrait(symbols::SymbolHandle),
-    BoundaryRequirement(symbols::SymbolHandle),
-    BoundaryOperator(symbols::SymbolHandle),
-    SealedAccessor(symbols::SymbolHandle),
-}
-
-impl ProviderSchemaDeclaration {
-    pub const fn symbol(self) -> symbols::SymbolHandle {
-        match self {
-            Self::BoundaryTrait(symbol)
-            | Self::BoundaryRequirement(symbol)
-            | Self::BoundaryOperator(symbol)
-            | Self::SealedAccessor(symbol) => symbol,
-        }
-    }
-}
+pub use language_semantics::service_surface::ProviderSchemaDeclaration;
