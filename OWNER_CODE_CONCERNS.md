@@ -597,6 +597,14 @@ own to defend. Say what you saw, not what you would build.
 - Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
 
+
+### Typing lets a bare literal be stored into a field declared in a domain
+- Category: a verdict with nothing behind it
+- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `structure-elaboration/src/read/authority.rs` (`Access::Replace`); `compiler/tests/build_value_protection.rs` (`replacing_the_seal_is_not_accepted`)
+- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };` passes typing. The program is stopped only because the lowered-form checker refuses every replacement of a policy-governed value. For a domain with no policy the store of a bare carrier into a qualified field would reach the checker with nothing refusing it
+- Cost: the rule "the supplied expression's static type must carry exactly the domains the destination declares" has two owners for construction and one accidental owner for assignment; when plans are evaluated and a writer is admitted, the assignment form loses its only guard
+- Reported: 2026-11-13, Claude Code, while declaring the seal that protects the compiler-owned `Build`
+
 ### Executable products have consumers downstream and no producer in the compiler
 - Category: a verdict with nothing behind it
 - Where: `compiler/src/product_execution.rs` (`refuse_executable_product`); `CompilationOutput::{Native, Component}`, `CheckedProductReport::{Terminal, Native}`; `provider-planning/src/program_entry.rs` (`SelectedCompilerProgramEntry`), `provider_planning::{SelectedProviderReviewProvenance, ProviderPlanProvenance, DerivedProviderPlan}`, `psi-compiler/terminal-production/src/external_providers.rs` (`PreparedExternalProviderDeclarations`), `compiler/src/checked/compilation_session.rs` (`component_products`)

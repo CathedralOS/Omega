@@ -152,7 +152,14 @@ impl DeferredProductSources {
             timings,
             catalogue,
         )?;
-        let mut bindings = append_build_prelude(&mut storage, build_source, timings, catalogue)?;
+        let mut bindings = append_build_prelude(
+            &mut storage,
+            &mut imports,
+            SourceRouting::Query(inputs),
+            build_source,
+            timings,
+            catalogue,
+        )?;
         bindings.extend(crate::source::source_imports::retain_module_import_bindings(&storage)?);
         let root_sources = storage.root_sources();
         let source_items = storage
@@ -616,8 +623,18 @@ impl ImmutableSourceParseCheckpoint {
                 Ok::<_, Vec<Diagnostic>>(DeferredProductSources { checkpoint })
             })
             .transpose()?;
-        let mut source_scoped_top_level_bindings =
-            append_build_prelude(&mut source_storage, self.build_source, timings, catalogue)?;
+        let mut source_scoped_top_level_bindings = append_build_prelude(
+            &mut source_storage,
+            &mut imports,
+            SourceRouting::Compilation {
+                root_path: &self.root_path,
+                package_inputs,
+                phase: PackageImportPhase::ExactTarget(None),
+            },
+            self.build_source,
+            timings,
+            catalogue,
+        )?;
         source_scoped_top_level_bindings
             .extend(crate::source::source_imports::retain_module_import_bindings(&source_storage)?);
         let root_sources = source_storage.root_sources();
@@ -940,14 +957,31 @@ fn load_source_frontiers(
             &mut source_storage.syntax_trees,
             &mut ParsingTimings(timings),
         )?;
-        let discovered = match &routing {
+        let discovered = routing.discover(&parsed, source_storage, &mut retained_requests)?;
+        imports.enqueue(discovered)?;
+        source_storage.attach_parsed(parsed);
+    }
+    Ok(retained_requests)
+}
+
+impl SourceRouting<'_> {
+    /// The sources the `use` items of one parsed batch select, under the
+    /// import rules of this routing. Every source enters a compilation
+    /// through here, the toolchain's Build prelude included.
+    fn discover(
+        &self,
+        parsed: &syntax_trees::ParsedSources,
+        source_storage: &mut SourceStorage,
+        retained_requests: &mut Vec<PendingPackageImport>,
+    ) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
+        match self {
             SourceRouting::Compilation {
                 package_inputs: Some(package_inputs),
                 phase,
                 ..
             } => {
                 let (discovered, mut requests) = discover_package_imports(
-                    &parsed,
+                    parsed,
                     &source_storage.syntax_trees,
                     package_inputs,
                     *phase,
@@ -957,26 +991,23 @@ fn load_source_frontiers(
                     &source_storage.filesystem,
                 )?;
                 retained_requests.append(&mut requests);
-                discovered
+                Ok(discovered)
             }
             SourceRouting::Compilation {
                 root_path,
                 package_inputs: None,
                 ..
             } => discover_imports(
-                &parsed,
+                parsed,
                 &source_storage.syntax_trees,
                 root_path,
                 &source_storage.filesystem,
                 &mut source_storage.resolved_imports,
                 &mut source_storage.package_roots,
-            )?,
-            SourceRouting::Query(inputs) => inputs.discover(&parsed, source_storage)?,
-        };
-        imports.enqueue(discovered)?;
-        source_storage.attach_parsed(parsed);
+            ),
+            SourceRouting::Query(inputs) => inputs.discover(parsed, source_storage),
+        }
     }
-    Ok(retained_requests)
 }
 
 fn append_default_build(
@@ -1001,8 +1032,19 @@ fn append_default_build(
     Ok(selection)
 }
 
+/// Adds the toolchain's Build prelude to a program that has a Build script.
+///
+/// The prelude is ordinary source and names core declarations through `use`
+/// items, as any Build-scope source may (`wiki/spec/build/scoped_execution.md`,
+/// "Two checked contexts": "Core's exact toolchain vocabulary is directly
+/// available"). Its imports are therefore discovered and loaded under
+/// `routing`, the rules every other source of this compilation went through.
+/// It is added after the program's own sources are loaded because whether it
+/// is needed, and under which name, is read from them.
 fn append_build_prelude(
     storage: &mut SourceStorage,
+    imports: &mut ImportQueue,
+    routing: SourceRouting<'_>,
     build_source: Option<BuildSourceSelection>,
     timings: &mut CompileTimings,
     catalogue: &mut source::SourceCatalogue,
@@ -1032,7 +1074,18 @@ fn append_build_prelude(
         .collect();
     let parsed = SourceInput([admitted].into_iter().collect())
         .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+    let mut package_requests = Vec::new();
+    let discovered = routing.discover(&parsed, storage, &mut package_requests)?;
     storage.attach_parsed(parsed);
+    imports.enqueue(discovered)?;
+    package_requests.extend(load_source_frontiers(
+        storage, imports, routing, timings, catalogue,
+    )?);
+    if !package_requests.is_empty() {
+        return Err(vec![Diagnostic::error(
+            "the toolchain Build prelude imports only core, and one of its imports selects a package",
+        )]);
+    }
     Ok(bindings)
 }
 
