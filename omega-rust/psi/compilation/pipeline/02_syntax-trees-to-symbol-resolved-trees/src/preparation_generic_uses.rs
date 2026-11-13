@@ -1073,18 +1073,12 @@ mod expressions {
                 visit_static_argument_type_inputs(syntax, &call.machine_arguments, visit)
             }
             ExpressionNode::Name {
-                members: path,
-                application: path_application,
+                application: Some(application),
+                ..
             } => {
-                if let Some(application) = &path_application {
-                    visit_static_argument_type_inputs(syntax, &application.arguments, visit);
-                    if let Some(member) = syntax.expressions.static_member(application.member) {
-                        visit_static_argument_type_inputs(
-                            syntax,
-                            std::slice::from_ref(member),
-                            visit,
-                        );
-                    }
+                visit_static_argument_type_inputs(syntax, &application.arguments, visit);
+                if let Some(member) = syntax.expressions.static_member(application.member) {
+                    visit_static_argument_type_inputs(syntax, std::slice::from_ref(member), visit);
                 }
             }
             _ => {}

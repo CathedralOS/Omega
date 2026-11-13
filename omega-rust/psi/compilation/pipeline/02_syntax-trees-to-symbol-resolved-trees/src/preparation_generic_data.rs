@@ -1912,6 +1912,9 @@ mod static_argument_positions {
                     else {
                         continue;
                     };
+                    if path_application.is_some() {
+                        continue;
+                    }
                     let prefix = syntax_expressions(syntax)
                         .identifier_path_members(path.to_owned())
                         .iter()

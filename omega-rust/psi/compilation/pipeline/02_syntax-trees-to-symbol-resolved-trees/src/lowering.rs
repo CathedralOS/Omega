@@ -1008,12 +1008,7 @@ pub(crate) mod expression {
         })
         .copied()
         .ok_or_else(|| {
-            let head = match syntax_trees.expressions.expression(saved.pattern_head) {
-                syntax::ExpressionNode::Name { members: path, application: path_application } => syntax_trees.expressions
-                    .identifier_path_members(path.to_owned()).iter()
-                    .map(|name| name.as_str(syntax_trees)).collect::<Vec<_>>().join("::"),
-                _ => "<non-name>".to_owned(),
-            };
+            let head = syntax_trees.display_expression_name(saved.pattern_head);
             Diagnostic::error(format!(
                 "saved match subject read has no enclosing arm capture in `{}::{}` for `{head}`: capture {:?}, head {:?}, purpose {:?}, enclosing {:?}",
                 lowerer.current_machine_name.as_deref().unwrap_or("<declaration>"),
