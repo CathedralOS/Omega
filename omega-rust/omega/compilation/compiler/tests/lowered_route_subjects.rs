@@ -728,28 +728,7 @@ fn staged_unused(name: &str, declaration: &str) -> Box<compiler::TypedFrontier> 
 #[test]
 fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let parts = |name: &str, declaration: &str| -> Vec<Verdict> {
-        let frontier = staged_unused(name, declaration);
-        lowered_discharge::judge_compilation(
-            &frontier.typed,
-            Compilation {
-                entries: &frontier.entries,
-                subject: frontier.subject,
-                selected: &frontier.selected,
-                bindings: &frontier.bindings,
-            },
-        )
-        .into_iter()
-        .map(|verdict| match verdict {
-            Ok(RouteVerdict::Accepted(accepted)) => {
-                Verdict::Accepted(accepted.elaboration.machines.len())
-            }
-            Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
-            Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
-            other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
-        })
-        .collect()
-    };
+    let parts = judged_parts;
     // The closure (the empty entry) and the generic form, both accepted.
     assert_eq!(
         parts(
@@ -765,6 +744,83 @@ fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
             "machine bump<T>(value: u64) -> u64 requires T == u8 || T == u16 { value + 1u64 }"
         ),
         [Verdict::Accepted(1), Verdict::Rejected, Verdict::Rejected]
+    );
+}
+
+/// Every part `judge_compilation` judges of `declaration` and an empty
+/// entry: the closure first, then each generic check form.
+fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
+    let frontier = staged_unused(name, declaration);
+    lowered_discharge::judge_compilation(
+        &frontier.typed,
+        Compilation {
+            entries: &frontier.entries,
+            subject: frontier.subject,
+            selected: &frontier.selected,
+            bindings: &frontier.bindings,
+        },
+    )
+    .into_iter()
+    .map(|verdict| match verdict {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            Verdict::Accepted(accepted.elaboration.machines.len())
+        }
+        Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
+        Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
+        other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
+    })
+    .collect()
+}
+
+/// A generic body that calls another generic machine at its own type
+/// parameter is judged, not handed back. `relay<T>` holds `forward<T>` as a
+/// contract with no body; `forward`'s own check form, judged in the same
+/// compilation, is what proves that contract for every `T`, so `relay`'s
+/// form is accepted on its own proofs. A bound the callee does not give
+/// still rejects the caller. A machine that applies itself is handed back:
+/// its form would take its own guarantee as given, and nothing in a form
+/// judges that the recursion ends.
+#[test]
+fn a_generic_body_that_applies_another_generic_machine_is_judged() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let forward = "machine forward<T>(item: T, limit: u32) -> u32 \
+                   requires limit <= 10 ensures result <= 10 { limit }";
+    let relay = |bound: u32| {
+        format!(
+            "{forward}\nmachine relay<T>(item: T, limit: u32) -> u32 \
+             requires limit <= 10 ensures result <= {bound} {{ forward<T>(item, limit) + 1 }}"
+        )
+    };
+    // The closure (the empty entry), `forward`'s form, and `relay`'s form
+    // with `forward<T>` beside it.
+    assert_eq!(
+        judged_parts("generic_application", &relay(11)),
+        [
+            Verdict::Accepted(1),
+            Verdict::Accepted(1),
+            Verdict::Accepted(2)
+        ]
+    );
+    assert_eq!(
+        judged_parts("generic_application_exceeds_callee", &relay(10)),
+        [
+            Verdict::Accepted(1),
+            Verdict::Accepted(1),
+            Verdict::Rejected
+        ]
+    );
+    assert_eq!(
+        judged_parts(
+            "generic_application_of_itself",
+            "machine again<T>(item: T, limit: u32) -> u32 \
+             ensures result <= 10 { again<T>(item, limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::FallsBack(
+                "a requirement's guarantee is proved by each implementation, not here".to_owned()
+            )
+        ]
     );
 }
 
