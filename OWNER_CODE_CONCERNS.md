@@ -562,6 +562,13 @@ own to defend. Say what you saw, not what you would build.
 - Cost: nobody can tell from the code which Build operations work; the unused parameters and the result types (`AdmittedProductDeclarations`, `NativeBindingSelection`) describe a design that has no implementation and will drift from whatever replaces it
 - Reported: 2026-11-13, Claude Code, while taking the witness's finished Build to its Product
 
+### Selected-provider custody is a data model whose "nothing" cannot be constructed
+- Category: a verdict with nothing behind it
+- Where: `selected-dispatch/src/selected_execution.rs` (`SelectedExecution`), `provider-planning/src/provider_settlement.rs` (`ProviderSettlement`), `provider-planning/src/service_declarations.rs`, `provider-planning/src/target_machines/prepared_providers.rs`, `psi-compiler/terminal-production/src/external_providers.rs`
+- Saw: the old checker's deletion kept about thirty retained fields that every product consumer reads (`compiler/src/terminal/terminal_artifact.rs`, `product_execution.rs`, `package_review.rs`), but removed their producers. `ServiceDeclarations` and `ProviderPublicationCatalog` have private fields and no constructor at all; `PreparedExternalProviderDeclarations::prepare` always refuses. So even a program that reaches no boundary requirement cannot be handed on after its providers settle to none.
+- Cost: provider settlement can decide a program's supply and still has nowhere to put the answer; rebuilding the producers field by field would restore the old shape, while the consumers only need the plans, the entry and the calling program of the accepted artifact
+- Reported: 2026-11-13, Claude Code, while rebuilding target preparation and provider settlement on the accepted Terminal module
+
 ### Boundary requirements must write `crashes`, and 390 of the library's 401 do not
 - Category: a verdict with nothing behind it
 - Where: `source/library/{core,std,blocking-executor}` boundary traits; `01_tokens-to-syntax-trees` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `structure-elaboration/src/read/calls.rs` (`boundary`)
