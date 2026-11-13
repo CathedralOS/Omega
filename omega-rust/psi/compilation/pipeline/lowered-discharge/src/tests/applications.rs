@@ -6,17 +6,24 @@ use std::sync::Arc;
 use typed_trees::data::DataMember;
 
 fn source_program(payload: &str) -> typed_trees::TypedTrees {
-    // The Optional declaration is the one in source/library/core/option.omg;
-    // its u64 application is the identity field of the unchanged SchemaField.
+    source_program_in_scope(payload, true)
+}
+
+fn source_program_in_scope(payload: &str, bundled_optional: bool) -> typed_trees::TypedTrees {
+    // Schema uses the actual bundled Optional, not a new local generic
+    // declaration. Keep the full file, including its open generic proof.
+    let optional = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/core/option.omg"
+    ));
+    let declaration = if bundled_optional {
+        "use omega::language::core::Optional;"
+    } else {
+        optional
+    };
     let text = format!(
         r#"
-public data Optional<T> {{
-    #0 case None;
-    #1 case Some(value: T);
-}}
-machine wrap<T>(item: T) -> Optional<T> {{
-    Optional::Some {{ value: item }}
-}}
+{declaration}
 data Applied {{
     small: Optional<u32>;
     identity: Optional<u64>;
@@ -35,15 +42,44 @@ machine entry() -> Applied {{
     let source = sources
         .add("applications/source.omg".into(), text.clone())
         .source_id;
+    let core = bundled_optional.then(|| {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../../source/library/core");
+        sources
+            .add_with_metadata(
+                root.join("option.omg"),
+                optional.into(),
+                root,
+                None,
+                source::SourceOrigin::Toolchain,
+            )
+            .source_id
+    });
     let tokens = source_files_to_tokens::Lexer::new(&text)
         .tokenize()
         .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+    let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+    if let Some(core) = core {
+        let tokens = source_files_to_tokens::Lexer::new(optional)
+            .tokenize()
+            .unwrap();
+        tokens_to_syntax_trees::parse(&mut syntax, core, &tokens).unwrap();
+    }
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
             syntax,
             sources: Some(Arc::new(sources)),
-            top_level_bindings: Vec::new(),
+            top_level_bindings: core
+                .map(|core| {
+                    symbols::SourceScopedTopLevelBinding::logical_module_import(
+                        source,
+                        core,
+                        "omega::language::core::Optional",
+                        3,
+                    )
+                })
+                .into_iter()
+                .collect(),
             retained_base: None,
         },
     )
@@ -64,6 +100,14 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         .iter()
         .find(|data| data.name.as_str() == "Optional")
         .unwrap();
+    assert_eq!(
+        typed.symbols.symbol_source_origin(optional.symbol),
+        Some(source::SourceOrigin::Toolchain)
+    );
+    assert_eq!(
+        typed.symbols.symbol_source_origin(applied.symbol),
+        Some(source::SourceOrigin::User)
+    );
     let mut open_applications = 0;
     let mut open_reference = None;
     for (reference, node) in typed.type_reference_table.type_reference_rows_from(0) {
@@ -85,7 +129,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
     }
     assert!(
         open_applications > 0,
-        "the generic wrap source retains an open tuple"
+        "the actual core zero_is_none proof retains an open tuple"
     );
     let fields: Vec<_> = typed
         .data_members(applied)
@@ -111,7 +155,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
     assert!(
         !prepared_again
             .prepare_data_application_view(
-                open_reference.expect("the parsed generic wrap application")
+                open_reference.expect("the parsed generic core application")
             )
             .unwrap()
     );
@@ -193,6 +237,41 @@ fn source_application_cannot_change_its_payload_type() {
     assert!(
         matches!(verdicts.as_slice(), [Ok(RouteVerdict::FallBack(refused))]
         if refused.detail.contains("record literal field type")),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_local_generic_data_template_remains_unserved() {
+    let typed = source_program_in_scope("7u64", false);
+    let optional = typed
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "Optional")
+        .unwrap();
+    assert_eq!(
+        typed.symbols.symbol_source_origin(optional.symbol),
+        Some(source::SourceOrigin::User)
+    );
+    let entry = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "entry")
+        .unwrap()
+        .symbol;
+    let verdicts = crate::judge_compilation_for(
+        &typed,
+        structure_elaboration::Compilation {
+            entries: &[entry],
+            subject: None,
+            selected: &[],
+            bindings: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    assert!(
+        matches!(verdicts.as_slice(), [Ok(RouteVerdict::FallBack(refused))]
+        if refused.detail == "type generic data"),
         "{verdicts:?}"
     );
 }
