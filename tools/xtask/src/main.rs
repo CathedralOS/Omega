@@ -29,6 +29,7 @@ mod fixture_selection;
 mod fmt;
 mod focused_test;
 mod landing;
+mod managed_cache_retention;
 mod producer;
 mod provenance;
 mod qualification;
@@ -71,6 +72,7 @@ commands:
   claims           Inspect or update the cross-session work-claim registry
   provenance       Emit the canonical model-audit footer from the active session transcript
   worktree         List, acquire/recycle, or clean isolated `.agents/worktree/` checkouts
+  managed-cache-retention  Retain the managed session's shared worker pool in mbx
   retire-attached-machines  Rewrite retired `machine Data::member` declarations as free machines"
 }
 
@@ -97,6 +99,7 @@ fn main() -> ExitCode {
         "claims" => claims::run(&args),
         "provenance" => provenance::run(&args),
         "worktree" => worktree::run(&args),
+        "managed-cache-retention" => managed_cache_retention::run(&args),
         "retire-attached-machines" => attached_machines::run(&args),
         other => {
             eprintln!("xtask: unknown command `{other}`\n\n{}", usage());
