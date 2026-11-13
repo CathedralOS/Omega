@@ -312,8 +312,7 @@ impl CompilationSession {
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
     ) -> Result<compilation_products::CheckedProductSource, Vec<diagnostics::Diagnostic>> {
-        let checked = source.check(returned)?;
-        Ok(checked)
+        source.check(returned)
     }
 }
 

@@ -30,7 +30,7 @@ use std::sync::Arc;
 
 const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "terminal-production",
-    "CheckedTrees",
+    "FrozenTypedTrees",
     "CanonicalTerminalArtifact",
 );
 

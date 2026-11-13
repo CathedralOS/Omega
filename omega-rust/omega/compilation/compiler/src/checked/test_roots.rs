@@ -45,7 +45,7 @@ fn group_filesystem(
     inputs: &package_compilation::PackageCompilationInputs,
     group: &build_time_evaluation::test_groups::TestGroupRegistration,
 ) -> Result<TestFilesystem, Vec<Diagnostic>> {
-    let symbols = &source.program.typed.symbols;
+    let symbols = &source.program.symbols;
     let mut filesystem = TestFilesystem::Unprovided;
     for service in &group.services {
         let std = symbols
@@ -74,7 +74,7 @@ pub(crate) fn select_test_roots(
     inputs: &package_compilation::PackageCompilationInputs,
 ) -> Result<TestRootSelection, Vec<Diagnostic>> {
     let config = &source.computed_build_config.config;
-    let typed = &source.program.typed;
+    let typed = source.program.as_ref();
     let note = |requirement, status| TestRosterEntry {
         group: typed.symbols.display_path(requirement, "::"),
         test: None,

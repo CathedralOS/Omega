@@ -12,7 +12,6 @@ use std::sync::{Arc, OnceLock};
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
-    productions: Arc<psi_compiler::PortableProductions>,
     accepted: Option<Arc<psi_compiler::AcceptedTerminalSource>>,
 }
 
@@ -28,14 +27,10 @@ impl std::fmt::Debug for ProductTerminalPublication {
 }
 
 impl ProductTerminalPublication {
-    pub fn new(
-        optimizations: OptimizationSelections,
-        productions: Arc<psi_compiler::PortableProductions>,
-    ) -> Self {
+    pub fn new(optimizations: OptimizationSelections) -> Self {
         Self {
             optimizations,
             program: OnceLock::new(),
-            productions,
             accepted: None,
         }
     }
@@ -60,15 +55,10 @@ impl ProductTerminalPublication {
         })
     }
 
-    // The same portable productions published for a different root
-    // selection. Roots decide which machines the Terminal program retains, so
-    // a separately selected test root never reuses the application's program.
+    // A separately selected test root needs its own structural judgment. It
+    // cannot reuse the application's closure or a cached old production.
     pub fn for_other_roots(&self) -> Self {
-        Self::new(self.optimizations.clone(), Arc::clone(&self.productions))
-    }
-
-    pub fn productions(&self) -> &psi_compiler::PortableProductions {
-        &self.productions
+        Self::new(self.optimizations.clone())
     }
 
     pub fn optimizations(&self) -> &OptimizationSelections {
@@ -118,8 +108,7 @@ mod tests {
 
     #[test]
     fn publication_keeps_its_projection_and_one_refusal_without_retry() {
-        let publication =
-            ProductTerminalPublication::new(OptimizationSelections::default(), Default::default());
+        let publication = ProductTerminalPublication::new(OptimizationSelections::default());
         let mut attempts = 0;
         for _ in 0..2 {
             let result = publication.retain(&OptimizationSelections::default(), || {
@@ -149,7 +138,7 @@ mod tests {
     #[test]
     fn accepted_publication_refuses_unexecuted_psi_optimizations() {
         let selected = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
-        let publication = ProductTerminalPublication::new(selected, Default::default());
+        let publication = ProductTerminalPublication::new(selected);
         assert!(
             publication.accepted().unwrap_err()[0]
                 .message

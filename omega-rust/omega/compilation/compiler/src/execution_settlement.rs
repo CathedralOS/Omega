@@ -453,7 +453,7 @@ fn select_product_providers(
         )
     });
     let selection = selection.map_err(|mut diagnostics| {
-        if let Some(sources) = source.program.typed.symbols.source_map().as_deref() {
+        if let Some(sources) = source.program.symbols.source_map().as_deref() {
             attribute_diagnostics(&mut diagnostics, sources, package_inputs);
         }
         diagnostics

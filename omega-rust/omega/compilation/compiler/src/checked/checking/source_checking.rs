@@ -179,7 +179,6 @@ pub(crate) fn check_product_source(
                 .settle(&computed_build_config.config.settings.optimizations)
                 .effective()
                 .clone(),
-            Default::default(),
         )
         .with_accepted(accepted_source),
     );

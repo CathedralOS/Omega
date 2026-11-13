@@ -4,6 +4,7 @@
   scope preparation then borrows the complete immutable result.
 */
 use backend_plan::TerminalCallbackOccurrenceProposal;
+use diagnostics::Diagnostic;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeProviders {
     pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>,
