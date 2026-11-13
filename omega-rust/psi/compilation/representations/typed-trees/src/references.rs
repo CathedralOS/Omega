@@ -2126,7 +2126,11 @@ pub fn visit_static_argument(
     retained: &mut impl TypedReferences,
     argument: &StaticMachineArgument,
 ) {
-    visit_callable_symbol(program, retained, argument.symbol);
+    // A literal supplies its value, not a declaration. Keep every nonempty
+    // handle so the receiving owner still authenticates malformed references.
+    if argument.symbol != SymbolHandle::invalid() {
+        visit_callable_symbol(program, retained, argument.symbol);
+    }
     visit_type_reference(program, retained, argument.type_reference);
     if let Some(application) = &argument.application {
         for nested in application.arguments.iter() {
@@ -2506,8 +2510,8 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         visit_domain_establishment_routes(retained, &domain.establishment_routes);
         // A reached domain reaches the policy that states its issuance, as
         // it reaches its routes.
-        if let Some(policy) = domain.access_policy {
-            retained.extend([policy.implementation]);
+        if let Some(policy) = &domain.access_policy {
+            visit_static_argument(program, retained, &policy.selection);
         }
     }
 

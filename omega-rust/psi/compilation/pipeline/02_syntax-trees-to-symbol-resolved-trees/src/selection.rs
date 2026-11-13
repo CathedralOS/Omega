@@ -4439,9 +4439,14 @@ mod static_arguments {
         result?;
         let mut result = Ok(());
         program.roots.domain_definitions.for_each_mut(|domain| {
-            if result.is_ok()
-                && let Some(argument) = &mut domain.cleanup_selection
+            for argument in domain
+                .cleanup_selection
+                .iter_mut()
+                .chain(domain.access_policy.iter_mut())
             {
+                if result.is_err() {
+                    break;
+                }
                 result = bind_argument(
                     argument,
                     None,
