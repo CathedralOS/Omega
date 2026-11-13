@@ -16,7 +16,6 @@
 
 use super::{
     declaration_selection::ConstantSelection,
-    generic_data::module_constants,
     type_equations::{self, EquationTemplate},
 };
 use crate::tables::syntax_items;
@@ -197,15 +196,12 @@ mod argument_types {
                         const_parameter_types: &const_types,
                         type_equations: &equations,
                     };
-                    let constants =
-                        generic_data::module_constants::lexical_integer_const_values(syntax);
                     let mut warnings = Vec::new();
                     let completed = type_equations::complete_equation_arguments(
                         syntax,
                         template,
                         &base_name,
                         &arguments,
-                        &constants,
                         Some(selection),
                         &mut warnings,
                     )
@@ -216,7 +212,6 @@ mod argument_types {
                             &base_name,
                             &tuple,
                             field_type,
-                            &constants,
                             Some(selection),
                         )
                     });
@@ -846,7 +841,6 @@ mod completion {
             }
             arguments.push(reference);
         }
-        let const_values = module_constants::lexical_integer_const_values(syntax);
         let mut warnings = Vec::new();
         let declaration_name = declaration.name.as_str(syntax).to_owned();
         let tuple = type_equations::complete_equation_arguments_with_types(
@@ -863,7 +857,6 @@ mod completion {
             target,
             &arguments,
             ordinary_types,
-            &const_values,
             Some(selection),
             &mut warnings,
         )?;
@@ -883,7 +876,6 @@ mod completion {
                     target,
                     &tuple,
                     result,
-                    &const_values,
                     Some(selection),
                 )
             })
