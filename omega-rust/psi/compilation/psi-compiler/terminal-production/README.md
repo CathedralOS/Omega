@@ -9,10 +9,11 @@ source-record correspondence and application roots to that exact code owner.
 Structural reading refuses unserved selection, query, native-formation and
 filesystem constructs before publication can lose their meaning.
 
-The old checked-tree production requests explicitly refuse with
-`no product route yet`. Their lowering stage and intermediate Lowered Psi,
-optimization and publication wrappers are deleted. Missing capabilities belong
-on the lowered-form route; no old checker supplies a fallback artifact.
+The obsolete checked-source and Build-provider production request interfaces
+and checked-provider inventory reexport are removed. Their lowering stage and
+intermediate Lowered Psi, optimization and publication wrappers are deleted.
+Missing capabilities belong on the lowered-form route; no old checker supplies
+a fallback artifact. This crate has no checked-tree dependency.
 
 [src/lib.rs](src/lib.rs) exposes the production and application contracts.
 [custody.rs](src/custody.rs) retains code, evidence, companions and source

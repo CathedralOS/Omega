@@ -1849,12 +1849,10 @@ dependencies = [
 name = "psi-terminal-production"
 version = "0.1.0"
 dependencies = [
- "checked-trees",
  "compiler-storage",
  "diagnostics",
  "language-semantics",
  "lowered-discharge",
- "optimization",
  "semantic-vocabulary",
  "source",
  "structure-elaboration",
