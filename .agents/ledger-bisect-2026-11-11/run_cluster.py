@@ -748,12 +748,14 @@ def run_all() -> None:
     remeasure()
     queue = load_queue()
     while queue:
-        cluster = queue.pop(0)
-        save_queue(queue)
+        cluster = queue[0]
         if finished_ok(cluster):
             print(f"skip finished cluster {cluster['cluster_id']}", flush=True)
+            queue.pop(0)
+            save_queue(queue)
             continue
         payload = run_cluster(cluster)
+        queue.pop(0)
         enqueue_non_flippers(payload, queue)
         save_queue(queue)
         write_report()
