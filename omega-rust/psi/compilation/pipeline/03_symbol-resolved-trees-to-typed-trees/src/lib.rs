@@ -23,6 +23,15 @@ from `syntax-trees-to-symbol-resolved-trees` (Stage 02) and produces
 
 #![forbid(unsafe_code)]
 
+// Typing retains declarations and their exact identities. Any operation that
+// still needs a retired checker judgment refuses at the requested construct;
+// it does not imply that lowering or a later consumer has proved it.
+fn unavailable_judgment(construct: &str) -> diagnostics::Diagnostic {
+    diagnostics::Diagnostic::error(format!(
+        "no product route yet: {construct} requires a lowered-form judgment"
+    ))
+}
+
 mod call_and_product_selections;
 mod contracts_and_signatures;
 mod declarations;
@@ -31,6 +40,7 @@ mod expression_lowering;
 mod lowerer;
 mod statement_lowering;
 mod type_reference;
+mod typing_queries;
 
 pub(crate) use contracts_and_signatures::{contracts, signatures};
 

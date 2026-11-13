@@ -706,16 +706,11 @@ pub(crate) mod const_arguments {
     pub(crate) mod closed_applications {
         use diagnostics::Diagnostic;
         use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
-        use symbols::SymbolHandle;
         use typed_trees::TypedTrees;
         use typed_trees::data::TypeParameterKind;
+        #[cfg(test)]
         use typed_trees::name::Identifier;
         use typed_trees::types::TypeReferenceNode;
-
-        enum ConstArgumentInput {
-            Expression(typed_trees::expression::ExpressionHandle),
-            Canonical(CanonicalConstValue),
-        }
 
         pub(crate) fn normalize(
             program: &mut TypedTrees,
@@ -831,7 +826,7 @@ pub(crate) mod const_arguments {
                     (bound.trait_symbol, bound.arguments.clone(), owner)
                 }));
             }
-            for (declaration, arguments, owner) in applications {
+            for (declaration, arguments, _owner) in applications {
                 let parameters = if let Some(data) =
                     program.unique_data_definition_by_symbol(declaration)
                 {
@@ -873,122 +868,35 @@ pub(crate) mod const_arguments {
                 if parameters.len() != arguments.len() {
                     continue;
                 }
-                let substitutions = parameters
-                    .iter()
-                    .zip(&arguments)
-                    .map(|(parameter, argument)| (parameter.symbol, *argument))
-                    .collect::<Vec<_>>();
                 for (parameter, argument) in parameters.iter().zip(arguments.iter().copied()) {
-                    if argument.arena_index() as usize <= frontier {
-                        continue;
-                    }
-                    if owner.is_valid()
-                        && !program
-                            .type_reference_table
-                            .operand_lifetime_owner(argument)
-                            .is_valid()
+                    if argument.arena_index() as usize <= frontier
+                        || !matches!(parameter.kind, TypeParameterKind::Const { .. })
                     {
-                        program
-                            .type_reference_table
-                            .retain_operand_lifetime_owner(argument, owner)
-                            .map_err(Diagnostic::error)?;
-                    }
-                    let TypeParameterKind::Const { type_reference } = parameter.kind else {
                         continue;
-                    };
-                    let input = match program.type_reference_table.type_reference(argument) {
+                    }
+                    let demanded = match program.type_reference_table.type_reference(argument) {
                         TypeReferenceNode::ConstExpression(expression) => {
-                            if program.pending_const_range_endpoints.contains(expression) {
-                                continue;
-                            }
-                            if !typed_trees::domain::index_argument_is_closed(program, argument) {
-                                continue;
-                            }
-                            ConstArgumentInput::Expression(*expression)
+                            !program.pending_const_range_endpoints.contains(expression)
+                                && typed_trees::domain::index_argument_is_closed(program, argument)
                         }
                         TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
-                            let Some(value) = CanonicalConstValue::from_atom(name.as_str()) else {
-                                continue;
-                            };
-                            if !matches!(
-                                value.decode_encoding(),
-                                Some(
-                                    DecodedCanonicalConstValue::Record { .. }
-                                        | DecodedCanonicalConstValue::Variant { .. }
+                            CanonicalConstValue::from_atom(name.as_str()).is_some_and(|value| {
+                                matches!(
+                                    value.decode_encoding(),
+                                    Some(
+                                        DecodedCanonicalConstValue::Record { .. }
+                                            | DecodedCanonicalConstValue::Variant { .. }
+                                    )
                                 )
-                            ) {
-                                continue;
-                            }
-                            ConstArgumentInput::Canonical(value)
+                            })
                         }
-                        _ => continue,
+                        _ => false,
                     };
-                    let carrier = program
-                        .apply_callable_type(type_reference, &substitutions, &[], declaration)
-                        .map_err(Diagnostic::error)?;
-                    let argument_owner = program
-                        .type_reference_table
-                        .operand_lifetime_owner(argument);
-                    let owner = if argument_owner.is_valid() {
-                        argument_owner
-                    } else {
-                        owner
-                    };
-                    let value = match input {
-                        ConstArgumentInput::Expression(expression) => {
-                            validation::check_closed_const_expression(
-                                program, owner, expression, carrier,
-                            )
-                            .map_err(|errors| {
-                                errors.into_iter().next().unwrap_or_else(|| {
-                            Diagnostic::error(
-                                "closed const argument admission failed without a diagnostic",
-                            )
-                        })
-                            })?
-                        }
-                        ConstArgumentInput::Canonical(mut value) => {
-                            validation::validate_closed_const_argument(
-                                program,
-                                program.symbols.name(declaration),
-                                parameter,
-                                argument,
-                                &parameters,
-                                &arguments,
-                            )
-                            .map_err(|errors| {
-                                errors.into_iter().next().unwrap_or_else(|| {
-                            Diagnostic::error(
-                                "canonical const argument admission failed without a diagnostic",
-                            )
-                        })
-                            })?;
-                            value.type_name = program.normalized_type_identity_text(carrier);
-                            Some(value)
-                        }
-                    };
-                    let Some(value) = value else {
-                        continue;
-                    };
-                    let spelling = match value.decode_encoding() {
-                        Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
-                            value.to_string()
-                        }
-                        Some(DecodedCanonicalConstValue::Boolean(value)) => value.to_string(),
-                        Some(_) => value.atom(),
-                        None => {
-                            return Err(Diagnostic::error(
-                                "closed const argument has malformed canonical encoding",
-                            ));
-                        }
-                    };
-                    program.type_reference_table.substitute_node(
-                        argument,
-                        TypeReferenceNode::Named {
-                            symbol: SymbolHandle::invalid(),
-                            name: Identifier::generated(spelling),
-                        },
-                    );
+                    if demanded {
+                        return Err(crate::unavailable_judgment(
+                            "closed const argument admission",
+                        ));
+                    }
                 }
             }
             Ok(())
@@ -1013,7 +921,12 @@ pub(crate) mod const_arguments {
             };
 
             #[test]
-            fn closed_const_arguments_use_unique_headers_and_keep_the_supplier() {
+            fn empty_const_admission_needs_no_unavailable_judgment() {
+                normalize(&mut TypedTrees::default(), 0).unwrap();
+            }
+
+            #[test]
+            fn closed_const_admission_refuses_without_mutating_retained_arguments() {
                 for (kind, header_count, argument_scope) in [
                     (SymbolKind::TypeAlias, 0, false),
                     (SymbolKind::TypeAlias, 1, false),
@@ -1152,17 +1065,17 @@ pub(crate) mod const_arguments {
                             supplier,
                         )
                         .unwrap();
-                    normalize(&mut program, 0).unwrap();
+                    let result = normalize(&mut program, 0);
                     if header_count == 1 {
-                        assert!(
-                            matches!(program.type_reference_table.type_reference(argument), TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() && name.as_str() == "1")
-                        );
+                        let error = result.unwrap_err();
+                        assert!(error.message.contains("no product route yet"));
                     } else {
-                        assert_eq!(
-                            program.type_reference_table.type_reference(argument),
-                            &TypeReferenceNode::ConstExpression(value)
-                        );
+                        result.unwrap();
                     }
+                    assert_eq!(
+                        program.type_reference_table.type_reference(argument),
+                        &TypeReferenceNode::ConstExpression(value)
+                    );
                     assert_eq!(
                         program
                             .type_reference_table
@@ -1746,8 +1659,7 @@ pub(crate) mod direct {
     }
 }
 pub(crate) mod generic_origins {
-    use super::{Diagnostic, resolved, typed};
-    use crate::expressions::expression::lower_expression_handle_from_table;
+    use super::{Diagnostic, resolved};
     use arena::{Handle, HandleSpan};
     use resolved::name::DiagnosticName;
     use resolved::types::{FixedArrayLength, TypeConstraint, TypeReference};
@@ -1755,7 +1667,6 @@ pub(crate) mod generic_origins {
 
     pub(crate) fn validate_computed_arguments(
         source: &resolved::SymbolResolvedTrees,
-        typed: &typed::TypedTrees,
     ) -> Result<(), Diagnostic> {
         if source.tables.types.generic_application_origins.is_empty()
             || (!source
@@ -1774,7 +1685,6 @@ pub(crate) mod generic_origins {
         {
             return Ok(());
         }
-        let mut replay = None;
         let mut definitions = source
             .data_definitions
             .iter()
@@ -1853,10 +1763,7 @@ pub(crate) mod generic_origins {
             {
                 previous = Some(validate_origin(
                     source,
-                    Some(ReplayTyped::Lazy {
-                        base: typed,
-                        replay: &mut replay,
-                    }),
+                    EqualityPhase::Completed,
                     name,
                     member,
                     definition,
@@ -1930,12 +1837,11 @@ pub(crate) mod generic_origins {
 
     pub(crate) fn application<'source>(
         source: &'source resolved::SymbolResolvedTrees,
-        mut typed: Option<&mut typed::TypedTrees>,
         name: &DiagnosticName,
         symbol: SymbolHandle,
     ) -> Result<Option<&'source TypeReference>, Diagnostic> {
         if with_generic_origin_index(source, |index| index.malformed) {
-            return application_scanned(source, typed, name, symbol);
+            return application_scanned(source, name, symbol);
         }
         let mut selected = None;
         let mut selected_definition = None;
@@ -1974,7 +1880,7 @@ pub(crate) mod generic_origins {
             };
             selected = Some(validate_origin(
                 source,
-                typed.as_deref_mut().map(ReplayTyped::Direct),
+                EqualityPhase::Declaration,
                 name,
                 origin,
                 definition,
@@ -2007,7 +1913,7 @@ pub(crate) mod generic_origins {
         symbol: SymbolHandle,
         lifetimes: &[DiagnosticName],
     ) -> Result<Option<&'source TypeReference>, Diagnostic> {
-        let Some(application) = application(source, None, name, symbol)? else {
+        let Some(application) = application(source, name, symbol)? else {
             return Ok(None);
         };
         let TypeReference::Generic(original) = application else {
@@ -2028,7 +1934,6 @@ pub(crate) mod generic_origins {
 
     fn application_scanned<'source>(
         source: &'source resolved::SymbolResolvedTrees,
-        mut typed: Option<&mut typed::TypedTrees>,
         name: &DiagnosticName,
         symbol: SymbolHandle,
     ) -> Result<Option<&'source TypeReference>, Diagnostic> {
@@ -2060,7 +1965,7 @@ pub(crate) mod generic_origins {
             };
             selected = Some(validate_origin(
                 source,
-                typed.as_deref_mut().map(ReplayTyped::Direct),
+                EqualityPhase::Declaration,
                 name,
                 origin,
                 definition,
@@ -2078,33 +1983,15 @@ pub(crate) mod generic_origins {
         Ok(selected)
     }
 
-    enum ReplayTyped<'typed> {
-        Direct(&'typed mut typed::TypedTrees),
-        Lazy {
-            base: &'typed typed::TypedTrees,
-            replay: &'typed mut Option<typed::TypedTrees>,
-        },
-    }
-
-    impl<'typed> ReplayTyped<'typed> {
-        fn reborrow(&mut self) -> ReplayTyped<'_> {
-            match self {
-                Self::Direct(typed) => ReplayTyped::Direct(typed),
-                Self::Lazy { base, replay } => ReplayTyped::Lazy { base, replay },
-            }
-        }
-
-        fn get_mut(&mut self) -> &mut typed::TypedTrees {
-            match self {
-                Self::Direct(typed) => typed,
-                Self::Lazy { base, replay } => replay.get_or_insert_with(|| (*base).clone()),
-            }
-        }
+    #[derive(Clone, Copy)]
+    enum EqualityPhase {
+        Declaration,
+        Completed,
     }
 
     fn validate_origin<'source>(
         source: &'source resolved::SymbolResolvedTrees,
-        mut typed: Option<ReplayTyped<'_>>,
+        phase: EqualityPhase,
         name: &DiagnosticName,
         origin: &resolved::types::GenericApplicationOrigin,
         definition: &'source resolved::data::DataDefinition,
@@ -2133,7 +2020,7 @@ pub(crate) mod generic_origins {
         };
         let mut equality = Equality {
             source,
-            typed: typed.as_mut().map(ReplayTyped::reborrow),
+            phase,
             active: Vec::new(),
             failure: None,
             canonical_lifetimes: &definition.lifetime_parameters,
@@ -2148,7 +2035,7 @@ pub(crate) mod generic_origins {
         if let Some(previous) = selected {
             let mut exact = Equality {
                 source,
-                typed,
+                phase,
                 active: Vec::new(),
                 failure: None,
                 canonical_lifetimes: &[],
@@ -2181,16 +2068,16 @@ pub(crate) mod generic_origins {
         .with_source_span(name.source_span())
     }
 
-    struct Equality<'source, 'typed> {
+    struct Equality<'source> {
         source: &'source resolved::SymbolResolvedTrees,
-        typed: Option<ReplayTyped<'typed>>,
+        phase: EqualityPhase,
         active: Vec<(Handle<TypeReference>, Handle<TypeReference>)>,
         failure: Option<Diagnostic>,
         canonical_lifetimes: &'source [DiagnosticName],
         actual_lifetimes: &'source [DiagnosticName],
     }
 
-    impl Equality<'_, '_> {
+    impl Equality<'_> {
         fn arguments(
             &mut self,
             left: HandleSpan<TypeReference>,
@@ -2346,7 +2233,7 @@ pub(crate) mod generic_origins {
                     {
                         return false;
                     }
-                    self.typed.is_none()
+                    matches!(self.phase, EqualityPhase::Declaration)
                         || self
                             .closed_materialized_value(left)
                             .is_some_and(|left| Some(left) == self.closed_materialized_value(right))
@@ -2385,49 +2272,16 @@ pub(crate) mod generic_origins {
             &mut self,
             source: &resolved::types::ConstExpressionTypeReference,
         ) -> Option<(String, String)> {
-            let expressions = &self.source.tables.bodies.expressions;
-            let reference = expressions.source_span(source.expression);
-            let typed = self.typed.as_mut()?.get_mut();
-            let result = (|| {
-                let expression =
-                    lower_expression_handle_from_table(expressions, typed, source.expression)?;
-                let carrier = validation::parameter_expression_result_type_reference(
-                    typed,
-                    source.lexical_owner,
-                    &[],
-                    expression,
-                )
-                .ok_or_else(|| {
-                    Diagnostic::error(
-                        "completed const argument lost its independently selected carrier",
-                    )
-                    .with_source_span(reference)
-                })?;
-                let value = validation::normalize_closed_const_expression(
-                    typed,
-                    source.lexical_owner,
-                    expression,
-                    carrier,
-                )
-                .map_err(|reason| {
-                    Diagnostic::error(format!("completed const argument replay failed: {reason}",))
-                        .with_source_span(reference)
-                })?
-                .ok_or_else(|| {
-                    Diagnostic::error(
-                        "completed const argument is not canonical under its selected carrier",
-                    )
-                    .with_source_span(reference)
-                })?;
-                Ok((value.type_name, value.encoding))
-            })();
-            match result {
-                Ok(value) => Some(value),
-                Err(error) => {
-                    self.failure.get_or_insert(error);
-                    None
-                }
-            }
+            let span = self
+                .source
+                .tables
+                .bodies
+                .expressions
+                .source_span(source.expression);
+            self.failure.get_or_insert_with(|| {
+                crate::unavailable_judgment("closed const argument replay").with_source_span(span)
+            });
+            None
         }
 
         fn lifetime(&self, actual: &DiagnosticName, canonical: &DiagnosticName) -> bool {
@@ -2900,7 +2754,7 @@ pub(crate) fn retain_type_reference_selection(
     {
         return Ok(());
     }
-    if let Some(application) = generic_origins::application(source_trees, None, name, symbol)? {
+    if let Some(application) = generic_origins::application(source_trees, name, symbol)? {
         lower_type_reference_handle_with_context(
             source_trees,
             typed_trees,
