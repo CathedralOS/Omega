@@ -1,38 +1,38 @@
 # Route coverage map — 2026-11-12
+
 Measured commit (PIN): `0835b3aaf803ed97f905be42d94727ff58459263`
-Merged from eight shard branches (`work/route-coverage-shard-0` … `7`) at each branch head.
+
+Every `program_verdict` is **re-derived from `roots`** (uniform rule). Shard `route_verdict` / `program_verdict` columns are compared but not trusted for the merge.
 
 ## Grand totals
 
 | bucket | count |
 | --- | ---: |
-| accepted (judged) | 302 |
-| rejected (judged) | 544 |
-| judged (accepted + rejected) | 846 |
-| agree | 694 |
-| disagree | 152 |
-| partial | 1554 |
-| outside | 14501 |
-| no-entry (program verdict) | 344 |
+| accepted (judged) | 301 |
+| rejected (judged) | 576 |
+| judged (accepted + rejected) | 877 |
+| agree | 724 |
+| disagree | 153 |
+| partial | 1523 |
+| outside | 14991 |
 | timeout | 0 |
-| error | 146 |
-| **sum (all program_verdict buckets)** | **17391** |
+| **sum (program_verdict)** | **17391** |
 
-Identity: agree + disagree = judged (694+152=846).
+Identity: agree + disagree = judged (724+153=877).
 
-### Non-construct buckets (outside/partial rows)
+### Non-construct buckets (excluded from construct rankings)
 
 | bucket | count |
 | --- | ---: |
-| no-entry | 1376 |
-| checker-stopped | 528 |
-| meta:no-entry | 521 |
-| meta:no-bound-entry | 429 |
-| unreached | 259 |
-| meta:no-program-entry | 150 |
-| no_program_entry | 24 |
+| no-program-entry | 1064 |
+| no-entry | 822 |
+| unreached | 524 |
+| checker-stopped | 405 |
+| no_program_entry | 36 |
 
 ## Top first-refusal constructs — OUTSIDE programs
+
+(Construct refusals only; `meta:*`, `bucket:*`, and checker-stopped rows excluded.)
 
 | construct | programs blocked | example fixtures |
 | --- | ---: | --- |
@@ -44,8 +44,8 @@ Identity: agree + disagree = judged (694+152=846).
 | type data with custody | 779 | `tests/omega/fail/arithmetic/array_constructor_divisor_requires_nonzero/main.omg`, `tests/omega/fail/arithmetic/zii_range_excludes_zero_rejected/main.omg`, `tests/omega/fail/blockexec/blocking_executor_ticket_scope_loss/main.omg` |
 | machine attached data | 616 | `tests/omega/fail/arithmetic/float_policy_cast_fractional/main.omg`, `tests/omega/fail/arithmetic/narrowing_signedness_rejected/main.omg`, `tests/omega/fail/arithmetic/suffix_magnitude_overflow_rejected/main.omg` |
 | type constrained | 411 | `tests/omega/fail/arithmetic/checked_flag_proof_saturating_cast_overflow/main.omg`, `tests/omega/fail/borrows/erased_cast_borrow_overlaps_mutable_borrow/main.omg`, `tests/omega/fail/borrows/owned_capture_replaced_reference_qualification/main.omg` |
-| bucket:no-program-entry | 381 | `tests/omega/fail/arithmetic/affine_difference_wrong_coefficients/main.omg`, `tests/omega/fail/arithmetic/captured_boolean_replaced_condition/main.omg`, `tests/omega/fail/arithmetic/collection_result_window_metadata/main.omg` |
 | type float | 261 | `tests/omega/fail/domains/terminal_result_domain_incompatible_carrier/main.omg`, `tests/omega/fail/facts/core_float_representation_through_other_machine_rejected/main.omg`, `tests/omega/fail/facts/crash_entry_ieee_view_through_field_rejected/main.omg` |
+| declaration const | 221 | `tests/omega/fail/facts/computed_constant_array_extent_through_other_state_rejected/main.omg`, `tests/omega/fail/facts/foreign_scalar_backing_through_const_name_rejected/main.omg`, `tests/omega/fail/facts/narrow_to_wide_signed_8to64_extension_through_const_name_rejected/main.omg` |
 
 ## Top first-refusal constructs — PARTIAL programs
 
@@ -53,9 +53,8 @@ Identity: agree + disagree = judged (694+152=846).
 | --- | ---: | --- |
 | parameter mutable parameter | 265 | `tests/omega/fail/arithmetic/indexed_divisor_storage_write/main.omg`, `tests/omega/fail/asm/proposition_write_invalidates_ensures/main.omg`, `tests/omega/fail/borrow/write_only_exclusive_call_operand_incoming_child/main.omg` |
 | machine generic parameters | 186 | `tests/omega/fail/arithmetic/const_binder_unbounded_product/main.omg`, `tests/omega/fail/borrow/captured_selector_result_retires_written_bound/main.omg`, `tests/omega/fail/borrows/conditional_reference_replacement_false_first_stale_index/main.omg` |
-| bucket:partial-unjudged-defect | 122 | `tests/omega/fail/arithmetic/full_width_literal_requires_explicit_policy_conversion/main.omg`, `tests/omega/fail/arithmetic/immutable_unsigned_shift_underbound_rejected/main.omg`, `tests/omega/fail/asm/finite_prefix_skipped_fact/main.omg` |
 | type reference | 121 | `tests/omega/fail/borrows/local_shared_view_mutable_reference_result/main.omg`, `tests/omega/fail/borrows/returned_indexed_case_out_of_bounds/main.omg`, `tests/omega/fail/cases/borrowed_case_component_cannot_recover_common_fields/main.omg` |
-| machine attached data | 78 | `tests/omega/fail/arithmetic/guarded_read_count_unguarded_arrival/main.omg`, `tests/omega/fail/arithmetic/lifetime_provider_slice_count_cast_requires_fit/main.omg`, `tests/omega/fail/arithmetic/wrapping_guard_does_not_bound_original/main.omg` |
+| machine attached data | 77 | `tests/omega/fail/arithmetic/guarded_read_count_unguarded_arrival/main.omg`, `tests/omega/fail/arithmetic/lifetime_provider_slice_count_cast_requires_fit/main.omg`, `tests/omega/fail/arithmetic/wrapping_guard_does_not_bound_original/main.omg` |
 | type constrained | 68 | `tests/omega/fail/core/content_membership_return_unsupported_arm/main.omg`, `tests/omega/fail/domains/issued_record_unknown_branch/main.omg`, `tests/omega/fail/domains/scalar_domain_unrelated_call_result/main.omg` |
 | type data with custody | 55 | `tests/omega/fail/borrows/tail_recursive_mutation_retires_field_bound/main.omg`, `tests/omega/fail/contracts/aggregate_result_false_guarantee/main.omg`, `tests/omega/fail/layouts/encoded_view_opaque_write_requires_fit/main.omg` |
 | contract contracts on a state | 42 | `tests/omega/fail/core/content_membership_return_direct_adapter/main.omg`, `tests/omega/fail/facts/applied_requirement_indices_through_const_name_rejected/main.omg`, `tests/omega/fail/facts/linear_owner_borrowed_projection_call_result/main.omg` |
@@ -63,45 +62,37 @@ Identity: agree + disagree = judged (694+152=846).
 | type float | 32 | `tests/omega/fail/facts/float_comparison_route_through_parameter_rejected/main.omg`, `tests/omega/fail/facts/float_range_delivery_through_other_state_rejected/main.omg`, `tests/omega/fail/proofs/ordinary_denotational_operator_requires_normal_return/main.omg` |
 | machine service reach | 29 | `tests/omega/fail/contracts/opaque_call_retires_reference_contents/main.omg`, `tests/omega/fail/facts/assumed_binding_result_bound_through_other_state_rejected/main.omg`, `tests/omega/fail/host/conditional_process_exit_keeps_return_obligations/main.omg` |
 | contract term other than a formal or literal | 20 | `tests/omega/fail/proofs/addition_commutativity_false_twin/main.omg`, `tests/omega/fail/proofs/congruence_false_twin/main.omg`, `tests/omega/fail/proofs/proof_integer_unformed_quotient/main.omg` |
-| machine target selection | 18 | `tests/omega/fail/facts/matched_field_windows_through_target_body_rejected/main.omg`, `tests/omega/fail/calls/boundary_computed_selector_out_of_bounds/main.omg`, `tests/omega/fail/facts/float_comparison_route_through_target_body_rejected/main.omg` |
-| partial-mixed | 18 | `tests/omega/fail/arithmetic/remainder_postcondition_signed_minimum_underbound_rejected/main.omg`, `tests/omega/fail/arithmetic/transitive_bit_guard_missing_arrival/main.omg`, `tests/omega/fail/arithmetic/widened_result_does_not_grant_stricter_bound/main.omg` |
 | type fixed array | 17 | `tests/omega/fail/build/calling_policy_unproved_helper/main.omg`, `tests/omega/fail/facts/exclusive_observation_exposure_through_other_state_rejected/main.omg`, `tests/omega/fail/facts/selected_scalar_initializer_through_other_state_rejected/main.omg` |
+| machine target selection | 17 | `tests/omega/fail/facts/matched_field_windows_through_target_body_rejected/main.omg`, `tests/omega/fail/calls/boundary_computed_selector_out_of_bounds/main.omg`, `tests/omega/fail/facts/float_comparison_route_through_target_body_rejected/main.omg` |
+| contract clause that is not a comparison or conjunction | 16 | `tests/omega/fail/core/terminal_call_guard_evaluation_not_selected/main.omg`, `tests/omega/fail/facts/abstract_signature_call_through_const_name_rejected/main.omg`, `tests/omega/fail/proofs/mathematical_opaque_operation_source_meaning/main.omg` |
+| expression match on a scalar subject | 14 | `tests/omega/fail/facts/call_result_bound_discharge_through_match_join_rejected/main.omg`, `tests/omega/fail/facts/match_primitive_local_origin_through_match_join_rejected/main.omg`, `tests/omega/fail/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_match_join_rejected/main.omg` |
 
 ## Disagreements (judged rows only)
 
-Total disagree rows: **152**.
-
-By direction (`program_verdict` × `current_verdict`):
+Total disagree rows: **153**.
 
 | program | current | count |
 | --- | --- | ---: |
 | rejected | accepted | 149 |
-| accepted | rejected | 3 |
+| accepted | rejected | 4 |
 
-### Soundness watch (program accepted, current rejected)
-
-Vacuous accepts (`obligations=0`, `judged=0`) are excluded from soundness-watch counts per merge rules.
-
-**Non-vacuous watch rows:** 0
+### Soundness watch — non-vacuous (route accept, current reject)
 
 (none)
 
-**Vacuous-accept route✓/current✗ (not soundness watch):** 3
+### Vacuous-accept route✓ / current✗ (not soundness watch)
 
-- `tests/omega/fail/build/uefi_program_entry_missing_storage_roots/main.omg` shard=2 vacuous=`*`
-- `tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg` shard=4 vacuous=`*`
 - `tests/omega/fail/build/hosted_program_entry_visible_parameter/main.omg` shard=5 vacuous=`compilation`
-
-**Documented build-entry gate gaps (re-checked; shard reports):**
-
-- `tests/omega/fail/build/uefi_program_entry_missing_storage_roots/main.omg` shard=2 vacuous=True (harness disagree; known route-one entry-policy gap)
-- `tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg` shard=4 vacuous=True (harness disagree; known route-one entry-policy gap)
+- `tests/omega/fail/build/program_entry_returns_value/main.omg` shard=2 vacuous=`compilation`
+- `tests/omega/fail/build/uefi_program_entry_missing_storage_roots/main.omg` shard=2 vacuous=`compilation`
+- `tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg` shard=4 vacuous=`compilation`
 
 ### All disagreement fixtures
 
-- `tests/omega/fail/build/hosted_program_entry_visible_parameter/main.omg` tier=fail program=accepted current=rejected **[vacuous-accept; not soundness watch]**
-- `tests/omega/fail/build/uefi_program_entry_missing_storage_roots/main.omg` tier=fail program=accepted current=rejected **[watch / route-accept]**
-- `tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg` tier=fail program=accepted current=rejected **[watch / route-accept]**
+- `tests/omega/fail/build/hosted_program_entry_visible_parameter/main.omg` tier=fail program=accepted current=rejected **[vacuous; not soundness watch]**
+- `tests/omega/fail/build/program_entry_returns_value/main.omg` tier=fail program=accepted current=rejected **[vacuous; not soundness watch]**
+- `tests/omega/fail/build/uefi_program_entry_missing_storage_roots/main.omg` tier=fail program=accepted current=rejected **[vacuous; not soundness watch]**
+- `tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg` tier=fail program=accepted current=rejected **[vacuous; not soundness watch]**
 - `tests/omega/pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit/main.omg` tier=pass program=rejected current=accepted
 - `tests/omega/pass/arithmetic/nonlinear_square_positive_operand_exit/main.omg` tier=pass program=rejected current=accepted
 - `tests/omega/pass/arithmetic/runtime_boolean_alias_shift_count_exit/main.omg` tier=pass program=rejected current=accepted
@@ -252,62 +243,9 @@ Vacuous accepts (`obligations=0`, `judged=0`) are excluded from soundness-watch 
 - `tests/omega/pass/machines/private_division_exact_pair_exit/main.omg` tier=pass program=rejected current=accepted
 - `tests/omega/pass/machines/private_division_signed_remainder_exit/main.omg` tier=pass program=rejected current=accepted
 
-## Vacuous accept roots
+## Vacuous accept roots (corpus-wide)
 
-Rows listing vacuous accepts: **558** (see TSV `vacuous_accept_roots`).
-
-- `tests/omega/fail/arithmetic/boolean_shift_guard_authored_comparison/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/arithmetic/guarded_read_count_unguarded_arrival/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/arithmetic/implicit_fractional_integer_landing/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/arithmetic/indexed_divisor_storage_write/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/arithmetic/lifetime_provider_slice_count_cast_requires_fit/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/arithmetic/truncating_reconstruction_negative_dividend/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/arithmetic/wrapping_guard_does_not_bound_original/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/asm/atomic_release_two_hop_rebound_descriptor/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/asm/instruction_effect_helper_stale_operand/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/asm/instruction_effect_wrong_byte/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/asm/proposition_write_invalidates_ensures/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/borrows/byte_view_shared_element_mutable_reference/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/borrows/conditional_reference_replacement_false_first_stale_index/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/borrows/dropped_reference_qualification_private_alternative/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/borrows/generic_result_retains_lifetime_candidates/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/borrows/indexed_carrier_conditional_retains_backing/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/borrows/local_shared_view_mutable_reference_result/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/borrows/record_result_retains_declared_lifetime_origins/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/borrows/returned_indexed_case_out_of_bounds/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/borrows/tail_recursive_mutation_retires_field_bound/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/boundary/bare_field_value_rejected/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/build/build_fuel_exhausted/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/build/calling_policy_unproved_helper/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/build/explicit_provider_storage_extent/backing/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/build/generated_source_undeclared_call_refused/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/build/program_entry_binding_outside_build/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/build/staging_entry_limit_exhausted/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/calling/call_plan_count_invalid_handback/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/calls/const_boundary_rejects_other_bound/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/calls/constructor_child_named_state_epochs_not_equal/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/calls/ordered_terminal_skipped_arm_type_rejected/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/calls/requires_machine_outer_cannot_read_nested_parameter/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/capabilities/native_slice_external_leaf_rejected/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/cases/constructor_subject_range_unsigned_to_signed_unproved/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/collections/projected_range_call_selected_extent/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/concurrency/suspend_retained_loan_conflicting_backing_write/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/contracts/aggregate_result_false_guarantee/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/contracts/cyclic_terminal_changed_input/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/contracts/opaque_call_retires_reference_contents/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/contracts/returned_owned_field_wrong_subject/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/contracts/slice_descriptor_does_not_preserve_mutated_contents/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/control_flow/saved_case_predicate_local_write_retires/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/core/content_membership_return_direct_adapter/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/core/content_membership_return_unsupported_arm/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/data/boundary_data_relaxed_carry_unadmitted/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/data/opaque_copy_unselected/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/domains/issued_record_unknown_branch/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/facts/call_result_bound_discharge_through_match_join_rejected/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/facts/signed_arithmetic_shift_right_through_const_name_rejected/main.omg` — (all accepted roots vacuous)
-- `tests/omega/fail/generics/concrete_applied_argument_primitive_mismatch/main.omg` — (all accepted roots vacuous)
-
-… and 508 more in the merged TSV.
+Fixtures with vacuous accept annotation: **1527**.
 
 ## Timeouts and near-timeouts
 
@@ -318,36 +256,32 @@ Rows listing vacuous accepts: **558** (see TSV `vacuous_accept_roots`).
 ### Near-timeout (≥ 250s)
 
 - `tests/omega/fail/build/installed_arrival_wrong_controller/main.omg` 297.260s program=outside shard=7
-- `tests/omega/fail/build/installed_arrival_without_context/main.omg` 288.843s program=outside shard=6
-- `tests/omega/pass/filesystem/runtime_portable_unknown_directory_kinds_exit/main.omg` 265.034s program=outside shard=3
+- `tests/omega/fail/build/installed_arrival_without_context/main.omg` 289.513s program=outside shard=6
+- `tests/omega/pass/filesystem/runtime_portable_unknown_directory_kinds_exit/main.omg` 263.605s program=outside shard=3
 
 ## Per-shard reconciliation
 
-| shard | branch head | rows | accepted | rejected | partial | outside | timeout | error | roots in TSV |
+| shard | branch head | rows | accepted | rejected | partial | outside | timeout | recomputed≠shard | mismatch examples |
 | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 0 | `24d10db2781074710b41b1c5495b24eab944c937` | 2174 | 37 | 63 | 195 | 1879 | 0 | 0 | yes |
-| 1 | `291fb6e56cc0cd2743154d3ccec0ae8b2d38386f` | 2174 | 38 | 65 | 208 | 1863 | 0 | 0 | no |
-| 2 | `66cdb61be27b2405db0191b6be80cbe95e213926` | 2174 | 37 | 81 | 192 | 1864 | 0 | 0 | no |
-| 3 | `bb1179a8fe7358d48fbac0876cdded62d8ea27a0` | 2174 | 34 | 62 | 205 | 1873 | 0 | 0 | no |
-| 4 | `0d1fd30b689cbcd5b7910aff5ae6dd7c989834c7` | 2174 | 45 | 72 | 122 | 1445 | 0 | 146 | no |
-| 5 | `a9ea414124571aa03f21473ddc5f6287bccf9050` | 2174 | 41 | 73 | 232 | 1828 | 0 | 0 | yes |
-| 6 | `81936546a4f4cd3f9b14c75076aa428f14a429f8` | 2174 | 34 | 54 | 204 | 1882 | 0 | 0 | no |
-| 7 | `fb6c06dfaf9c9e00b14b2f82ad061079c2180809` | 2173 | 36 | 74 | 196 | 1867 | 0 | 0 | yes |
+| 0 | `24d10db2781074710b41b1c5495b24eab944c937` | 2174 | 37 | 63 | 195 | 1879 | 0 | 0 | — |
+| 1 | `e43bf91e6d428c04240f16a0859a45dbc046de67` | 2174 | 38 | 65 | 208 | 1863 | 0 | 128 | `tests/omega/fail/arithmetic/unqualified_case_value_rejected/main.omg` error→outside; `tests/omega/fail/asm/arm_subs_uninitialized_left/main.omg` error→outside; `tests/omega/fail/asm/checked_fence_arm_invented_clobber/main.omg` error→outside; …+125 |
+| 2 | `0b891ed4e20364190d0ce74fd88028418da37d7a` | 2174 | 37 | 81 | 192 | 1864 | 0 | 0 | — |
+| 3 | `ee199a4927bac3a99dcae083e729e2a13790b503` | 2174 | 34 | 78 | 189 | 1873 | 0 | 0 | — |
+| 4 | `7380bbe60eb94873dafbd2589b1612b62b92e54c` | 2174 | 44 | 72 | 123 | 1935 | 0 | 490 | `tests/omega/fail/arithmetic/anonymous_comparison_imported_zero_divisor/main.omg` error→outside; `tests/omega/fail/asm/arm_subs_invented_clobber/main.omg` error→outside; `tests/omega/fail/asm/atomic_completion_wrong_invocation/main.omg` no-entry→outside; …+487 |
+| 5 | `a9ea414124571aa03f21473ddc5f6287bccf9050` | 2174 | 41 | 73 | 232 | 1828 | 0 | 0 | — |
+| 6 | `6d5700730d329c42f3ae4ce936cb284f2c499003` | 2174 | 34 | 70 | 188 | 1882 | 0 | 0 | — |
+| 7 | `fb6c06dfaf9c9e00b14b2f82ad061079c2180809` | 2173 | 36 | 74 | 196 | 1867 | 0 | 0 | — |
 
-**Shard inconsistency:** shards [1, 2, 3, 4, 6] ship no per-root verdict column in their TSV. `program_verdict` for those rows is taken from the shard's `route_verdict` without re-derivation from roots (normalization rule 1 not applied).
+Checker-stopped overlap: **1061** rows tagged `checker-stopped` and/or `current_verdict=stopped` (shards 1 and 4 formerly counted **128** + **146** `error` program verdicts — all `stopped` + `compilation:error` roots, merged as `outside` + non-construct `checker-stopped`).
 
 ## Harness and hosts
 
 - PIN: `0835b3aaf803ed97f905be42d94727ff58459263`
-- Hosts: Linux `cursor` cloud agents (x86_64), serial one-fixture-per-process per `tools/build_slot.md`.
-- Shard 1 harness build note: `198b8cbff01c683fc49157e03474b5d3857c0765` (per shard-1 report).
+- Hosts: Linux `cursor` cloud agents (x86_64), serial one-fixture-per-process.
 
 ```bash
 git checkout 0835b3aaf803ed97f905be42d94727ff58459263
 CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR=$PWD/target \
   mbx build -p compiler --example route_one_comparison < /dev/null
-# pass/run:
-timeout 300 target/debug/examples/route_one_comparison <fixture>/main.omg < /dev/null
-# fail:
-timeout 300 target/debug/examples/route_one_comparison --every-machine <fixture>/main.omg < /dev/null
+timeout 300 target/debug/examples/route_one_comparison [--every-machine] <fixture>/main.omg < /dev/null
 ```
