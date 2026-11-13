@@ -178,8 +178,13 @@
         "pass/borrows/runtime_shared_reference_array_cohort_restoration_exit"
       ],
       "bisect": {
-        "status": "propagated",
-        "reason": "no good first-parent ancestor"
+        "status": "bisected",
+        "good": "c2bf4573a2ba029214ebea6f9ba3cb6657fbcb29",
+        "first_bad": "0378c9bcf14f9e63f4c4dd67bc60a0ec06da6cd2",
+        "pr": "1777",
+        "mechanism": "psi: allow record updates that restore declared bounds (#1777) ({ omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow/calls.rs,omega-rust/psi/compilation/validation/src/declaration_predicates.rs,omega-rust/psi/compilation/validation/src/statements/assignment_statements.rs })",
+        "flaky_good": false,
+        "flaky_bad": false
       }
     }
   ]

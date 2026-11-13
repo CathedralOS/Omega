@@ -22,7 +22,8 @@ Members: `pass/borrows/runtime_reassigned_view_capture_exit`
 Good: `c2bf4573a2ba`
 Members: `pass/facts/open_const_implementation_private_record_package_exit`
 
-| 1 | pass/run rejected | cannot prove requires contract for call require_cell_value from Main::main: first >= 0 && first <= 100 (needs fact `valu | `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit` | `` |  |  | propagated |
+| 1 | pass/run rejected | cannot prove requires contract for call require_cell_value from Main::main: first >= 0 && first <= 100 (needs fact `valu | `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit` | `0378c9bcf14f` | 1777 | psi: allow record updates that restore declared bounds (#1777) ({ omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow/calls.rs,omega-rust/psi/compilation/validation/src/declaration_predicates.rs,omega-rust/psi/compilation/validation/src/statements/assignment_statements.rs }) | bisected |
+Good: `c2bf4573a2ba`
 Members: `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit`
 
 ## Prior-slice rows fixed on main
