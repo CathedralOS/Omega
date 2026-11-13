@@ -75,7 +75,9 @@ pub use callable_formations::{
 pub use ceilings::Axis as CeilingAxis;
 pub use places::{ConflictingLoan, LoanConflict};
 pub use refinement::prove_callable_refinement;
-pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
+pub use reuse::{
+    Carried, CarriedForm, Selection, reverify, reverify_at_call, reverify_specialization,
+};
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, ExceededReach,
     PublicationError, RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge,
@@ -339,6 +341,31 @@ pub enum Knowledge {
 
 /// `discharge`, with the knowledge set chosen.
 pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Checked<Discharge> {
+    discharge_inner(elaboration, knowledge, &[])
+}
+
+/// `discharge`, where each machine of `carried` is one stage 04 generated
+/// from a generic machine whose check form was proved once. Such a machine
+/// takes each certificate from that form, moved into it, and the kernel
+/// decides it against the machine's own goal and hypotheses: no search runs
+/// for it (generics.md, "Static type equality": the unspecialized body is
+/// checked for every admitted use). An obligation for which no carried
+/// proof is accepted (a kind the carrier does not move, or a machine that
+/// is not the form's body) is decided as in any closed machine, so carrying
+/// never accepts what the closed check would not, and never rejects what it
+/// accepts.
+pub fn discharge_carrying(
+    elaboration: &mut Elaboration,
+    carried: &[Carried<'_>],
+) -> Checked<Discharge> {
+    discharge_inner(elaboration, Knowledge::All, carried)
+}
+
+fn discharge_inner(
+    elaboration: &mut Elaboration,
+    knowledge: Knowledge,
+    carried: &[Carried<'_>],
+) -> Checked<Discharge> {
     // Results before inputs: what a helper returns is a fact its caller
     // may pass on to the next private helper, whose inferred input
     // condition is described from the caller's facts.
@@ -390,6 +417,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
             tables,
             knowledge,
             &beyond,
+            carried.iter().find(|carried| carried.specialization == id),
         )?);
     }
     Ok(Discharge { machines })
@@ -491,6 +519,7 @@ fn machine(
     tables: &mut MachineTables,
     knowledge: Knowledge,
     unreached: &[ValueId],
+    carried: Option<&Carried<'_>>,
 ) -> Checked<MachineDischarge> {
     let machines = &module.machines;
     let structural_types = &module.structural_types;
@@ -569,6 +598,9 @@ fn machine(
         &mut decided,
     )?;
     // Certificates next; a published clause is then decided from its exits.
+    // A machine stage 04 generated takes each one its generic form proved,
+    // and searches only where none is carried (`discharge_carrying`).
+    let carrier = carried.and_then(|carried| carried.carrier(tables, lowered));
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
         if decided[index].is_some() {
             continue;
@@ -580,6 +612,18 @@ fn machine(
             module, lowered, &storage, id, obligation, &row.kind, tables, &types,
         )
         .and_then(|goal| {
+            if let Some(carry) = &carrier
+                && let Ok(evidence) = carry.certify(
+                    &context,
+                    &graph,
+                    obligation,
+                    &row.kind,
+                    row.created_at,
+                    goal.clone(),
+                )
+            {
+                return Ok(Discharged::Certificate(evidence));
+            }
             decide(
                 &context,
                 &graph,

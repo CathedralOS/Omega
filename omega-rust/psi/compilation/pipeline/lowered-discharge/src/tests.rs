@@ -5914,7 +5914,7 @@ mod generic_bodies {
     //     { Selected::apply(start) + 1 }
     use super::*;
     use crate::prove::SEARCHES;
-    use crate::{Selection, reverify_specialization};
+    use crate::{Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization};
 
     fn searches() -> usize {
         SEARCHES.with(std::cell::Cell::get)
@@ -6131,6 +6131,103 @@ mod generic_bodies {
             tables.propositions.get(row.proposition).unwrap().clone()
         };
         assert_ne!(after_call(double(), double()), after_call(shift(), shift()));
+    }
+
+    /// Discharges `advance(bound)` specialized to `implementation` as one
+    /// closed closure, with `carried` offering the generic form's proofs to
+    /// machine 1 when it is `Some`. Returns the discharge and how many
+    /// provers it started.
+    fn closure(
+        bound: u128,
+        implementation: Machine,
+        carried: Option<(u128, Machine)>,
+    ) -> (structure_elaboration::Elaboration, Discharge, usize) {
+        let (form, found) = checked_once(carried.as_ref().map_or(bound, |(form, _)| *form));
+        let refines = carried.map(|(_, refines)| run(vec![witness(), refines]));
+        let offered: Vec<Carried<'_>> = refines
+            .iter()
+            .map(|(witnessed, refinement)| Carried {
+                specialization: id(1),
+                forms: vec![CarriedForm {
+                    generic: &form,
+                    found: &found,
+                    selections: vec![Selection {
+                        requirement: id(2),
+                        witness: witnessed,
+                        refinement,
+                    }],
+                }],
+            })
+            .collect();
+        let mut consumer = lower(vec![advance(bound), implementation]).unwrap();
+        let before = searches();
+        let decided = discharge_carrying(&mut consumer, &offered).unwrap();
+        let started = searches() - before;
+        (consumer, decided, started)
+    }
+
+    #[test]
+    fn a_specialization_in_a_closure_takes_the_generic_proofs_without_a_search() {
+        // Shows: discharging a whole closure, `advance<Double>` decides its
+        // call requirement, the add's safety and its guarantee from the
+        // proofs the generic form found once, each decided by the kernel
+        // against the closure's own goals, and starts no prover for them:
+        // three fewer than the closed check, which searches each. `Double`
+        // itself, machine 2, is searched in both, and both accept the same
+        // obligations.
+        let (_, closed, searched) = closure(21, double(), None);
+        let (consumer, carried, started) = closure(21, double(), Some((21, double())));
+        assert_eq!(searched - started, 3);
+        for (obligation, verdict) in carried.machines.get(id(1)).unwrap().verdicts.iter() {
+            let kind = consumer
+                .tables
+                .machines
+                .get(id(1))
+                .unwrap()
+                .obligations
+                .get(obligation);
+            if matches!(
+                kind.map(|row| row.kind),
+                Some(ObligationKind::PublishedGuarantee { .. })
+            ) {
+                assert!(verdict.is_ok());
+                continue;
+            }
+            assert_kernel_checked(&consumer, 1, obligation, certificate(verdict));
+        }
+        let accepted = |discharge: &Discharge| -> Vec<bool> {
+            discharge
+                .machines
+                .iter()
+                .flat_map(|(_, machine)| {
+                    machine.verdicts.iter().map(|(_, verdict)| verdict.is_ok())
+                })
+                .collect()
+        };
+        assert_eq!(accepted(&closed), accepted(&carried));
+    }
+
+    #[test]
+    fn a_specialization_with_nothing_to_carry_is_decided_as_a_closed_machine() {
+        // Shows: carrying never changes what a closure is judged to hold.
+        // The form of `advance` promising `result <= 18` proves no guarantee
+        // (`Step::apply` gives only `result <= 20`), so `advance<Shift>`
+        // has no proof to take for it and searches, accepting it as the
+        // closed check does; the generic form's own verdict is what rejects
+        // that body. The form of a body promising 21, offered to one
+        // promising 18, proves a guarantee the kernel refuses for this goal,
+        // and that obligation is searched too.
+        let (_, closed, _) = closure(18, shift(), None);
+        for offered in [(18, shift()), (21, shift())] {
+            let (_, carried, started) = closure(18, shift(), Some(offered));
+            assert!(started > 0);
+            for (machine, decided) in carried.machines.iter() {
+                let alone = &closed.machines.get(machine).unwrap().verdicts;
+                for ((_, mine), (_, theirs)) in decided.verdicts.iter().zip(alone.iter()) {
+                    assert_eq!(mine.is_ok(), theirs.is_ok());
+                }
+            }
+        }
     }
 
     #[test]

@@ -1,6 +1,8 @@
 /*
-Reusing a saved proof: an experiment the owner asked to see before anything is
-built on it. No production path calls this module.
+Reusing a saved proof. A consumer re-decides a proof found elsewhere instead of
+searching for one. The compile reaches this module in one place: a machine
+stage 04 generated from a generic machine takes its certificates from that
+machine's check form (`Carried`, decided in `discharge`).
 
 A consumer never trusts a saved proof's statement of what it proves. It
 computes the goal and the hypotheses from its own lowered program and tables,
@@ -623,6 +625,51 @@ pub struct Selection<'a> {
     pub refinement: &'a Discharge,
 }
 
+/// The check forms a machine stage 04 generated may take its certificates
+/// from: the forms of the generic machine it specializes, one, or one per
+/// alternative of a finite family. Machine 1 of each form is the generic
+/// body (`structure_elaboration::elaborate_generic`). The first form the
+/// specialization corresponds to is the one it is; which form that is is
+/// decided by the correspondence of the two lowered bodies
+/// (`Carry::corresponds`), never by a type's spelling.
+pub struct Carried<'a> {
+    pub specialization: MachineId,
+    pub forms: Vec<CarriedForm<'a>>,
+}
+
+/// One check form, discharged once against its requirements alone, and the
+/// selection made for each machine parameter it names.
+pub struct CarriedForm<'a> {
+    pub generic: &'a Elaboration,
+    pub found: &'a Discharge,
+    pub selections: Vec<Selection<'a>>,
+}
+
+impl Carried<'_> {
+    /// The carrier for this specialization from the first form it
+    /// corresponds to; `None` when it corresponds to none. Then nothing is
+    /// carried and the machine is decided as any closed machine is.
+    pub(crate) fn carrier<'s>(
+        &'s self,
+        tables: &'s MachineTables,
+        lowered: &'s TerminalMachine,
+    ) -> Option<Carry<'s>> {
+        let template = MachineId::new(1)?;
+        self.forms.iter().find_map(|form| {
+            Carry::new(
+                form.generic,
+                form.found,
+                template,
+                self.specialization,
+                &form.selections,
+                tables,
+                lowered,
+            )
+            .ok()
+        })
+    }
+}
+
 /// Carries the certificates of a generic body into one specialization of it
 /// and has the kernel decide each again there. No search runs.
 ///
@@ -692,86 +739,40 @@ pub fn reverify_specialization(
         tables,
         &prepared.types,
     )?;
-    let rigid = generic.value_parameters.get(template).copied().unwrap_or(0);
-    let instantiation = Instantiation::of(
-        crate::terminal_machine(&generic.module.machines, template, specialization)?,
-        terminal_check_tables::row(
-            &generic.tables.machines,
-            template,
-            specialization,
-            Construct::Machine,
-        )?,
-        rigid,
-        lowered,
-        tables,
-        specialization,
-    )?;
-    let carry = Carry {
-        specialization,
-        instantiation,
+    let carry = Carry::new(
         generic,
-        template: terminal_check_tables::row(
-            &generic.tables.machines,
-            template,
-            specialization,
-            Construct::Machine,
-        )?,
-        found: &terminal_check_tables::row(
-            &found.machines,
-            template,
-            specialization,
-            Construct::Machine,
-        )?
-        .verdicts,
+        found,
+        template,
+        specialization,
+        selections,
         tables,
         lowered,
-        selections,
-    };
-    carry.corresponds()?;
+    )?;
     let mut verdicts = Vec::new();
     for (obligation, row) in tables.obligations.iter() {
         if let ObligationKind::PublishedGuarantee { .. } = row.kind {
             continue;
         }
-        let verdict = (|| {
-            let goal = crate::goal(
-                module,
-                lowered,
-                &storage,
-                specialization,
+        let verdict = crate::goal(
+            module,
+            lowered,
+            &storage,
+            specialization,
+            obligation,
+            &row.kind,
+            tables,
+            &prepared.types,
+        )
+        .and_then(|goal| {
+            carry.certify(
+                &prepared.context,
+                &prepared.graph,
                 obligation,
                 &row.kind,
-                tables,
-                &prepared.types,
-            )?;
-            let hypotheses = crate::hypotheses(
-                &prepared.graph,
-                tables,
-                specialization,
-                obligation,
                 row.created_at,
-            )?;
-            let proof = carry.proof(obligation, &row.kind, &hypotheses)?;
-            let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
-                carry.refuse(
-                    RefusalReason::ForeignIdentity,
-                    Construct::Obligation(obligation),
-                    "obligation identity is not an evidence identity",
-                )
-            })?;
-            crate::verify(
-                &prepared.context,
-                specialization,
-                obligation,
                 goal,
-                hypotheses,
-                CertificateEnvelope {
-                    identity,
-                    proof_system_marker: ProofSystemMarker::CURRENT,
-                    proof,
-                },
             )
-        })();
+        });
         verdicts.push((obligation, verdict));
     }
     Ok(verdicts)
@@ -1019,7 +1020,7 @@ fn leaf_terms<'p>(proposition: &'p Proposition, out: &mut Vec<&'p ScalarTerm>) -
 
 /// The proofs a specialization takes from its generic body and from each
 /// selected implementation's conformance witness.
-struct Carry<'a> {
+pub(crate) struct Carry<'a> {
     specialization: MachineId,
     instantiation: Instantiation,
     generic: &'a Elaboration,
@@ -1041,6 +1042,95 @@ struct Witness<'a> {
     formals: usize,
     /// The value its call defines, when the member returns a scalar.
     result: Option<ValueId>,
+}
+
+impl<'a> Carry<'a> {
+    /// The carrier of `generic`'s certificates for its machine `template`
+    /// into `specialization`, whose tables and lowered form are given.
+    /// Refused as `Unsupported` when `specialization` is not that body
+    /// (`corresponds`) or its contract is not the body's at any value of the
+    /// body's parameters (`Instantiation::of`).
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        generic: &'a Elaboration,
+        found: &'a Discharge,
+        template: MachineId,
+        specialization: MachineId,
+        selections: &'a [Selection<'a>],
+        tables: &'a MachineTables,
+        lowered: &'a TerminalMachine,
+    ) -> Checked<Self> {
+        let rigid = generic.value_parameters.get(template).copied().unwrap_or(0);
+        let generic_tables = terminal_check_tables::row(
+            &generic.tables.machines,
+            template,
+            specialization,
+            Construct::Machine,
+        )?;
+        let instantiation = Instantiation::of(
+            crate::terminal_machine(&generic.module.machines, template, specialization)?,
+            generic_tables,
+            rigid,
+            lowered,
+            tables,
+            specialization,
+        )?;
+        let carry = Carry {
+            specialization,
+            instantiation,
+            generic,
+            template: generic_tables,
+            found: &terminal_check_tables::row(
+                &found.machines,
+                template,
+                specialization,
+                Construct::Machine,
+            )?
+            .verdicts,
+            tables,
+            lowered,
+            selections,
+        };
+        carry.corresponds()?;
+        Ok(carry)
+    }
+
+    /// Decides one obligation of the specialization from the carried
+    /// proof: the goal is the specialization's own, the hypotheses are
+    /// those its graph makes available at `point`, and the kernel decides
+    /// the moved certificate against them. No search runs.
+    pub(crate) fn certify(
+        &self,
+        context: &PropositionContext,
+        graph: &crate::graph::Graph,
+        obligation: ObligationId,
+        kind: &ObligationKind,
+        point: terminal_check_tables::ProgramPoint,
+        goal: Proposition,
+    ) -> Checked<Evidence> {
+        let hypotheses =
+            crate::hypotheses(graph, self.tables, self.specialization, obligation, point)?;
+        let proof = self.proof(obligation, kind, &hypotheses)?;
+        let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
+            self.refuse(
+                RefusalReason::ForeignIdentity,
+                Construct::Obligation(obligation),
+                "obligation identity is not an evidence identity",
+            )
+        })?;
+        crate::verify(
+            context,
+            self.specialization,
+            obligation,
+            goal,
+            hypotheses,
+            CertificateEnvelope {
+                identity,
+                proof_system_marker: ProofSystemMarker::CURRENT,
+                proof,
+            },
+        )
+    }
 }
 
 impl Carry<'_> {

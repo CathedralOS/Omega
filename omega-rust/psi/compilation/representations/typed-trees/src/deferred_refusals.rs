@@ -38,6 +38,19 @@ pub enum DeferredRequest {
     /// A literal assigned to a place whose declared type typing does not
     /// compute: the literal is left without the type it must be built at.
     AssignmentLiteralDestination,
+    /// A constructor whose field types typing does not select, such as one
+    /// of generic data applied at arguments before that data is specialized.
+    ConstructorFieldSelection,
+    /// A type applied through the sealed layout-storage declaration: its
+    /// layout is the result of evaluating a policy, and nothing evaluates
+    /// one yet.
+    LayoutPolicyStorage,
+    /// A type written as an expression to evaluate.
+    TypeExpressionEvaluation,
+    /// An array whose extent is an expression or a compile-time call.
+    ArrayExtentEvaluation,
+    /// An expression that stands for the evaluated form of another one.
+    MaterializedExpression,
 }
 
 impl DeferredRequest {
@@ -51,6 +64,21 @@ impl DeferredRequest {
             Self::UncallableCallTarget => "holding a call of a target that is not called this way",
             Self::AssignmentLiteralDestination => {
                 "holding a literal assigned to a place whose declared type is not computed yet"
+            }
+            Self::ConstructorFieldSelection => {
+                "holding a constructor whose field types no pass selects yet"
+            }
+            Self::LayoutPolicyStorage => {
+                "using a layout-policy storage type, which no pass evaluates yet"
+            }
+            Self::TypeExpressionEvaluation => {
+                "using a type written as an expression, which no pass evaluates yet"
+            }
+            Self::ArrayExtentEvaluation => {
+                "using an array with a computed extent, which no pass evaluates yet"
+            }
+            Self::MaterializedExpression => {
+                "holding a materialized expression, whose evaluation no pass records yet"
             }
         }
     }
@@ -79,7 +107,7 @@ impl TypedTrees {
         request: DeferredRequest,
         source_span: SourceSpan,
     ) {
-        let declaration = self.demanded_declaration(lexical_owner);
+        let declaration = self.refusal_declaration(lexical_owner);
         let key = (declaration.arena_index(), declaration.generation(), request);
         let position = self.deferred_refusals.binary_search_by_key(&key, |row| {
             (
@@ -103,16 +131,26 @@ impl TypedTrees {
     /// The first refusal recorded on `declaration`, if it holds any request
     /// that was never served.
     pub fn deferred_refusal(&self, declaration: SymbolHandle) -> Option<&DeferredRefusal> {
+        self.deferred_refusals_of(declaration).next()
+    }
+
+    /// Every refusal recorded on `declaration`, ordered by request.
+    pub fn deferred_refusals_of(
+        &self,
+        declaration: SymbolHandle,
+    ) -> impl Iterator<Item = &DeferredRefusal> {
         let start = self.deferred_refusals.partition_point(|row| {
             (row.declaration.arena_index(), row.declaration.generation())
                 < (declaration.arena_index(), declaration.generation())
         });
-        self.deferred_refusals
-            .get(start)
-            .filter(|row| row.declaration == declaration)
+        self.deferred_refusals[start..]
+            .iter()
+            .take_while(move |row| row.declaration == declaration)
     }
 
-    fn demanded_declaration(&self, lexical_owner: SymbolHandle) -> SymbolHandle {
+    /// The declaration a reader demands as one unit for anything owned by
+    /// `lexical_owner`: the machine of a state, the owner itself otherwise.
+    pub fn refusal_declaration(&self, lexical_owner: SymbolHandle) -> SymbolHandle {
         if !lexical_owner.is_valid() {
             return lexical_owner;
         }
