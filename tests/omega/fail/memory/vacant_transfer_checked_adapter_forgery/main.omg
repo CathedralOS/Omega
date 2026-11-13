@@ -1,8 +1,12 @@
 // Satisfying a boundary requirement does not grant its admitted authority to a
 // checked body. The body still owes absence of live content on its exact input.
-use omega::language::core::extent;
-use omega::language::core::content;
-use omega::language::core::nat;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::VacantContentTransfer;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Granted::content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 machine pretend(storage: Extent in Granted) -> Extent
 satisfies VacantContentTransfer::transfer
 ensures

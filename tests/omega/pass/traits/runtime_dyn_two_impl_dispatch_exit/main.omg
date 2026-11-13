@@ -2,7 +2,7 @@
 // Two selections must remain distinct: 9 * 10 + 4 == 94 -> exit 70.
 // The parameter name also checks that a local callable takes priority over
 // the builtin named `abs`. A fixed target or builtin call takes exit 71.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Shape<T> {
     machine code(subject: &mut T) -> i32;

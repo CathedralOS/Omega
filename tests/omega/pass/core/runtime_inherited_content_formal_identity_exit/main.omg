@@ -1,6 +1,7 @@
 // Regression: inherited content follows the exact retained formal, not an equal-typed neighbor.
 // Expected exit: 0
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
 data Units {}
 data Payload {}

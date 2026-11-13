@@ -1,5 +1,16 @@
 // This body must be resolved only when its module is compiled, or during review.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::Access;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 public machine unused() -> u64 {
     // Body-local builtin normalization is implementation work too.

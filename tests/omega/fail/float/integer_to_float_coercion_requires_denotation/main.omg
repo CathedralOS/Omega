@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 machine rounded32() -> f32 { 16777217i32 as f32 in Saturating as f32 }
 machine rounded64() -> f64 { 9007199254740993i64 as f64 in Trapping as f64 }

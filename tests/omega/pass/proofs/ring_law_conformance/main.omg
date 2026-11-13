@@ -6,7 +6,7 @@
 // denotational term, so that requirement publishes `terminates;` (the
 // omission publishes no guarantee); `plus` discharges the inherited promise
 // with its structural witness.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Peano {
     case Zero;

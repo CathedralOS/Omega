@@ -2,7 +2,7 @@
 // run/arithmetic/policy_operators_match_policy_domains with a count nothing
 // bounds. Saturating defines value overflow, not an invalid count, so both
 // shifts still owe the Exact proof that the count is below the width.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine clamped_left(value: u32, count: u32) -> u32 {

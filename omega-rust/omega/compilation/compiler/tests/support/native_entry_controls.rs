@@ -15,13 +15,14 @@ pub(super) fn inspect(
     if !oracle.exists() {
         return Ok(());
     }
-    if std::fs::read_to_string(oracle)
-        .map_err(|error| error.to_string())?
-        .trim()
-        != "required"
-    {
-        return Err("native entry control oracle must say required".into());
-    }
+    let expectation = std::fs::read_to_string(oracle).map_err(|error| error.to_string())?;
+    let generated_vector_control = match expectation.trim() {
+        "required" => false,
+        "generated-vector" => true,
+        _ => {
+            return Err("native entry control oracle must say required or generated-vector".into());
+        }
+    };
     let artifact = report
         .retained_native_artifact()
         .ok_or("native entry controls require a retained direct native image")?;
@@ -123,26 +124,33 @@ pub(super) fn inspect(
         }
         Ok(()) => return Err("native entry readback accepted a changed body-call target".into()),
     }
-    // This source's callback body uses no vector state. The adapter must still
-    // declare the vector save/restore it emits for the stronger inbound ABI.
+    // Keep the actual scalar and vector transports distinct. Scalar bodies
+    // no longer spill untouched vector registers; a vector control must use
+    // real generated transport rather than require those unnecessary spills.
     use calling_conventions::{MachineState as State, MachineStateSet};
     let vector = MachineStateSet::new([State::VectorRegisters]);
-    if !bridge
+    let generated_vector = bridge
         .generated()
         .effects
         .machine_state()
-        .contains_all(vector)
-        || bridge
-            .request()
-            .body_footprint
-            .as_ref()
-            .ok_or("native callback lost its body effects")?
-            .machine_state()
-            .contains_all(vector)
-    {
-        return Err(
-            "native state control needs a scalar body with generated vector preservation".into(),
-        );
+        .contains_all(vector);
+    let body_vector = bridge
+        .request()
+        .body_footprint
+        .as_ref()
+        .ok_or("native callback lost its body effects")?
+        .machine_state()
+        .contains_all(vector);
+    if generated_vector_control {
+        if !generated_vector {
+            return Err(format!(
+                "generated-vector control needs actual generated vector transport: generated={generated_vector} body={body_vector}"
+            ));
+        }
+    } else if generated_vector || body_vector {
+        return Err(format!(
+            "scalar entry control must not use or save vector state: generated={generated_vector} body={body_vector}"
+        ));
     }
     let mut missing = bridge.request().clone();
     missing.inbound.state.permitted_transitive_use = missing
@@ -156,7 +164,47 @@ pub(super) fn inspect(
             State::StackPointer,
             State::ControlState,
             State::SegmentState,
+            State::DebugState,
+            State::ExtendedState,
         ]));
+    let removed = bridge
+        .request()
+        .inbound
+        .state
+        .permitted_transitive_use
+        .bits()
+        ^ missing.inbound.state.permitted_transitive_use.bits();
+    if removed != vector.bits() {
+        return Err("native vector control must remove exactly vector permission".into());
+    }
+    if !generated_vector_control {
+        let scalar = machine_emission::native_entry_bridge::emit_native_entry_bridge(missing)
+            .map_err(|error| {
+                format!("scalar entry unexpectedly needs vector permission: {error:?}")
+            })?;
+        if scalar.bytes() != bridge.bytes()
+            || scalar.complete_effects() != bridge.complete_effects()
+        {
+            return Err("unused vector permission changed scalar callback transport".into());
+        }
+        return Ok(());
+    }
+    // This check isolates generated instructions from the callback body's
+    // effects. The complete-emission refusal below must survive as well.
+    bridge
+        .generated()
+        .effects
+        .validate(&bridge.request().inbound.state)
+        .map_err(|reason| format!("unchanged generated vector evidence: {reason}"))?;
+    match bridge.generated().effects.validate(&missing.inbound.state) {
+        Err("complete entry code uses machine state outside its declared ceiling") => {}
+        Err(reason) => {
+            return Err(format!(
+                "generated vector control rejected for an unrelated reason: {reason}"
+            ));
+        }
+        Ok(()) => return Err("generated entry accepted undeclared vector use".into()),
+    }
     match machine_emission::native_entry_bridge::emit_native_entry_bridge(missing) {
         Err(
             machine_emission::native_entry_bridge::NativeEntryBridgeError::GeneratedEntryEffects(

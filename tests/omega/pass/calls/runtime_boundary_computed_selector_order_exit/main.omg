@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 public boundary trait CText { machine length(text: &u8, limit: u64) -> u64 reaches; }
 data Cursor requires position < 4 { position: u64; calls: u64 in Wrapping; }
 machine choose(cursor: &mut Cursor) -> u64 ensures result < 4 {

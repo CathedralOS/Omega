@@ -1,5 +1,5 @@
 // An explicit format conversion gives comparisons one selected operand format.
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_f32;
 machine direct(left: f64, right: f32) -> bool {
     let wide: f64 = F64::from_f32(right);
     left == wide

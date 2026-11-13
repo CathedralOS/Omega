@@ -11,7 +11,7 @@
 // `climb`'s three `requires` conjuncts at that arrival. climb(4, 0, 0)
 // visits (4, 0, 0), (4, 1, 1), (4, 2, 2), (4, 3, 3), (4, 4, 4) and returns
 // 4; the program exits 70 on that value and 71 otherwise.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     limit: u64;

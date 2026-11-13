@@ -15,7 +15,7 @@
 // exit 0 = the countdown reached `n == 0` and returned it;
 // exit 1 = any other outcome.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Wrap requires 4 <= remaining, remaining <= 500 { remaining: u64; }
 data Indirect { target: &mut Wrap; }

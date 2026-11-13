@@ -1,8 +1,10 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
 module numeric_once;
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I32::from_f64;
 
 public data Counter { calls: u32 in Wrapping; }
 public data Main { counter: Counter; }

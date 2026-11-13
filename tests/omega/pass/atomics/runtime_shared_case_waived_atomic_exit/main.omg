@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Choice { case Cell(counter: AtomicU32, n: u64 in Wrapping); case Empty; }
 data Main { }

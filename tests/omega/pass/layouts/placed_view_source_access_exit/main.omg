@@ -1,6 +1,20 @@
 // Expected exit: 0
 // An externally installed placed view retains its exact backing through subordinate read/write calls and retirement.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::ExternalRead;
+use omega::language::core::FieldAccess;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::Access;
+use omega::language::core::read;
+use omega::language::core::write;
 
 public data Registers {
     status: u32;

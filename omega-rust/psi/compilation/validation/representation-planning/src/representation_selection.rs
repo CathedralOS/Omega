@@ -252,6 +252,185 @@ impl FormedOpaqueRepresentation<'_> {
     }
 }
 
+// A failed name lookup must show which checked source supplied its names.
+// These rows explain the refusal only; they never choose a declaration or
+// turn a dependency's private declaration into a visible one.
+fn representation_resolution_context(
+    typed: &TypedTrees,
+    path: &str,
+    occurrence: SourceSpan,
+) -> String {
+    use std::fmt::Write;
+
+    const ROW_LIMIT: usize = 4;
+    const TEXT_LIMIT: usize = 4096;
+    let program = typed.product_declarations();
+    let selected = program.symbols.rejoin_product_occurrence(occurrence);
+    let alias = path.split_once("::").map(|(alias, _)| alias);
+    let target = alias.and_then(|alias| program.symbols.product_dependency_target(selected, alias));
+    let author = program.symbols.source_file(selected);
+    let mut text = format!(
+        "\nrepresentation lookup context: occurrence={occurrence:?} rejoined={selected:?} alias={alias:?} target={target:?} lookup_conformances={} current_conformances={} requester={:?}",
+        program.conformances().len(),
+        typed.conformances().len(),
+        author.map(|file| (
+            file.package_identity,
+            file.dependency_scope,
+            file.resolution_stratum,
+            file.origin,
+            &file.path,
+        )),
+    );
+    let leaf = path.rsplit("::").next().unwrap_or(path);
+    let mut shown = 0;
+    let mut omitted = false;
+    let current = (!std::ptr::eq(program, typed)).then_some(("current", typed));
+    'tables: for (label, table) in std::iter::once(("lookup", program)).chain(current) {
+        for conformance in table.conformances() {
+            if !conformance
+                .alias
+                .as_ref()
+                .is_some_and(|name| name.as_str().rsplit("::").next() == Some(leaf))
+            {
+                continue;
+            }
+            if shown == ROW_LIMIT {
+                omitted = true;
+                break 'tables;
+            }
+            shown += 1;
+            let symbol = conformance.symbol;
+            let source = symbol
+                .is_valid()
+                .then(|| table.symbols.symbol_provenance_source_span(symbol))
+                .flatten()
+                .and_then(|span| table.symbols.source_file(span));
+            let _ = write!(
+                text,
+                "\ncandidate table={label} symbol={symbol:?} path={:?} public={} source_selected={} product_package={:?} source={:?}",
+                table.symbols.display_path(symbol, "::"),
+                conformance.is_public,
+                symbol.is_valid() && table.symbols.symbol_source_is_selected(symbol),
+                symbol
+                    .is_valid()
+                    .then(|| table.symbols.symbol_product_package_identity(symbol))
+                    .flatten(),
+                source.map(|file| (
+                    file.package_identity,
+                    file.dependency_scope,
+                    file.resolution_stratum,
+                    file.origin,
+                    &file.path,
+                )),
+            );
+        }
+    }
+    let candidate_rows = shown;
+    let mut inventory_counts = String::new();
+    // A declaration can be missing because its source was never opened or
+    // because a later declaration projection omitted it. Report the retained
+    // source and symbol inventories without loading or resolving anything.
+    let source_stem = path
+        .rsplit_once("::")
+        .map(|(namespace, _)| namespace.rsplit("::").next().unwrap_or(namespace));
+    let current = (!std::ptr::eq(program, typed)).then_some(("current", typed));
+    for (label, table) in std::iter::once(("lookup", program)).chain(current) {
+        let mut package_sources = 0;
+        let mut matching_sources = 0;
+        for file in table.symbols.source_files() {
+            if target.is_none() || file.package_identity != target {
+                continue;
+            }
+            package_sources += 1;
+            if file.path.file_stem().and_then(|stem| stem.to_str()) != source_stem {
+                continue;
+            }
+            matching_sources += 1;
+            if shown == ROW_LIMIT {
+                omitted = true;
+                continue;
+            }
+            shown += 1;
+            let _ = write!(
+                text,
+                "\nsource table={label} id={:?} package={:?} scope={:?} stratum={:?} origin={:?} path={:?}",
+                file.source_id,
+                file.package_identity,
+                file.dependency_scope,
+                file.resolution_stratum,
+                file.origin,
+                file.path,
+            );
+        }
+        let mut matching_symbols = 0;
+        for (symbol, declaration) in table.symbols.symbols().nodes().iter() {
+            if table.symbols.name(symbol) != leaf {
+                continue;
+            }
+            matching_symbols += 1;
+            if shown == ROW_LIMIT {
+                omitted = true;
+                continue;
+            }
+            shown += 1;
+            let active_rows = table
+                .conformances()
+                .iter()
+                .filter(|conformance| conformance.symbol == symbol)
+                .count();
+            let stored_rows = table
+                .tables
+                .conformances
+                .iter()
+                .filter(|(_, conformance)| conformance.symbol == symbol)
+                .count();
+            let _ = write!(
+                inventory_counts,
+                "\nconformance_membership table={label} symbol={symbol:?} active_rows={active_rows} stored_rows={stored_rows}"
+            );
+            let source = table
+                .symbols
+                .symbol_provenance_source_span(symbol)
+                .and_then(|span| table.symbols.source_file(span));
+            let _ = write!(
+                text,
+                "\nsymbol table={label} handle={symbol:?} kind={:?} parent={:?} generated_from={:?} path={:?} source_selected={} source={:?}",
+                declaration.kind,
+                declaration.parent,
+                declaration.generated_from,
+                table.symbols.display_path(symbol, "::"),
+                table.symbols.symbol_source_is_selected(symbol),
+                source.map(|file| (
+                    file.source_id,
+                    file.package_identity,
+                    file.dependency_scope,
+                    &file.path
+                )),
+            );
+        }
+        let _ = write!(
+            inventory_counts,
+            "\ninventory table={label} target_selected_sources={package_sources} matching_sources={matching_sources} exact_leaf_symbols={matching_symbols}"
+        );
+    }
+    let _ = write!(
+        text,
+        "\ncandidate_rows={candidate_rows} inventory_and_candidate_rows={shown} row_limit={ROW_LIMIT} additional_rows_omitted={omitted}"
+    );
+    // Keep the complete counts visible even when detailed rows fill the text limit.
+    text.insert_str(0, &inventory_counts);
+    if text.len() > TEXT_LIMIT {
+        const MARKER: &str = "\n[representation lookup context text truncated]";
+        let mut end = TEXT_LIMIT - MARKER.len();
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text.truncate(end);
+        text.push_str(MARKER);
+    }
+    text
+}
+
 pub fn form_opaque_representation_request<'p>(
     typed: &'p TypedTrees,
     request: &ProductDeclarationRequest,
@@ -287,8 +466,13 @@ pub fn form_opaque_representation_request<'p>(
     )
     .ok_or_else(|| {
         Diagnostic::error(format!(
-            "opaque representation `{}` does not resolve to one visible named conformance",
-            conformance_operand.path
+            "opaque representation `{}` does not resolve to one visible named conformance{}",
+            conformance_operand.path,
+            representation_resolution_context(
+                typed,
+                &conformance_operand.path,
+                conformance_operand.source_span,
+            )
         ))
         .with_source_span(conformance_operand.source_span)
     })?;

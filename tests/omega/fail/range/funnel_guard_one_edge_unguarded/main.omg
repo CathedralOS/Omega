@@ -1,6 +1,6 @@
 // The unguarded entry to push cannot justify copying sp into bounded Main.y.
 // Runtime input keeps both entries live; only the guarded entry proves 0..=15.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main requires y >= 0 && y <= 15 {
     sp: i32;

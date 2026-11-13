@@ -1,7 +1,14 @@
 // An unconditional policy enters a helper whose later state premise is
 // discharged by a real guard; reflected policy admission must retain it.
-use omega::language::core::layout;
-use omega::language::core::float_operations;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::Access;
 
 public data Register { value: u64; }
 public data CheckedPolicy {}

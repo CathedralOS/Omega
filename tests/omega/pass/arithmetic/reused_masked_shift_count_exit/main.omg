@@ -1,5 +1,6 @@
 // Expected exit: 0. Finite stdin is empty for this corpus fixture.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 data Main { }
 
 machine read_value(context: &mut Main) -> i32 reaches Console {

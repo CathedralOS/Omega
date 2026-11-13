@@ -7,7 +7,7 @@
 // fell through every route with `SourceCustodyMismatch`
 // (samples/cli/simulation/game_of_life_glider's `live_neighbors(grid, ..)`).
 // Cells 3 and 5 hold 30 and 40, both read back -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     grid: [i32; 8];

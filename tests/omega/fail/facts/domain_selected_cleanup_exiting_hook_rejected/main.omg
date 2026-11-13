@@ -1,4 +1,4 @@
-use omega::language::core::process_exit;
+use omega::language::core::ProcessExit;
 data Owner dropped by finish { value: u64; }
 machine finish(value: &mut Owner) reaches ProcessExit { ProcessExit::exit_process(0); }
 machine main() reaches ProcessExit { let value: Owner = Owner { value: 0 }; }

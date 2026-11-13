@@ -2,8 +2,15 @@
 // true value. Binary64's nearest result sits above sqrt(2); binary32's sits
 // below it. A perfect square stays exact in every mode.
 
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::square_root;
+use omega::language::core::F64::square_root;
+use omega::language::core::F32::square_root_toward_zero;
+use omega::language::core::F64::square_root_toward_zero;
+use omega::language::core::F32::square_root_toward_positive;
+use omega::language::core::F64::square_root_toward_positive;
+use omega::language::core::F32::square_root_toward_negative;
+use omega::language::core::F64::square_root_toward_negative;
+use omega_language_std::Console;
 
 data Main { }
 

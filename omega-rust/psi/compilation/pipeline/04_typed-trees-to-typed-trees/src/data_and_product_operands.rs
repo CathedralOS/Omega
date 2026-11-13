@@ -672,7 +672,9 @@ pub(crate) mod product_operands {
         ProductDeclarationOperand, ProductOperandRole, product_operands::*,
     };
     use symbols::SymbolHandle;
-    use typed_trees::product_operand::resolve_product_path;
+    use typed_trees::product_operand::{
+        ProductApplicationDemand, ProductOperandApplication, resolve_product_path,
+    };
     use typed_trees::static_applications::StaticMachineLifetimeBinding;
     use typed_trees::{
         TypedTrees, expression as expr,
@@ -1957,6 +1959,7 @@ pub(crate) mod product_operands {
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct PreparedProductRequirement {
+        pub application: Option<Handle<ProductOperandApplication>>,
         pub requirement: SymbolHandle,
         pub closed_requirement: Option<SymbolHandle>,
         pub trait_scope: Option<RetainedTraitScope>,
@@ -1968,6 +1971,24 @@ pub(crate) mod product_operands {
         author: SymbolHandle,
         static_environment: Option<&ProductStaticEnvironment>,
     ) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
+        prepare_requirement_operand(program, operand, author, static_environment, None)
+    }
+
+    pub fn prepare_retained_product_requirement_operand(
+        program: &mut TypedTrees,
+        operand: &ProductDeclarationOperand,
+        requirement: SymbolHandle,
+    ) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
+        prepare_requirement_operand(program, operand, requirement, None, Some(requirement))
+    }
+
+    fn prepare_requirement_operand(
+        program: &mut TypedTrees,
+        operand: &ProductDeclarationOperand,
+        author: SymbolHandle,
+        static_environment: Option<&ProductStaticEnvironment>,
+        retained_requirement: Option<SymbolHandle>,
+    ) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
         let refuse =
             |reason: &str| vec![Diagnostic::error(reason).with_source_span(operand.source_span)];
         let Some(graph) = operand.application.as_deref() else {
@@ -1978,6 +1999,7 @@ pub(crate) mod product_operands {
                 ProductOperandRole::Requirement,
             )
             .map(|requirement| PreparedProductRequirement {
+                application: None,
                 requirement,
                 closed_requirement: None,
                 trait_scope: None,
@@ -1988,6 +2010,9 @@ pub(crate) mod product_operands {
         };
         let author = environment::supplier_owner(program, static_environment, author)?;
         let mut lower = Lower::new(program, graph, author, static_environment);
+        if retained_requirement.is_some() {
+            lower.naming = OperandNaming::RetainedDeclarations;
+        }
         if !graph.operands.is_valid(graph.root) {
             return Err(refuse("designated requirement has no owned root operand"));
         }
@@ -1996,17 +2021,59 @@ pub(crate) mod product_operands {
             return Err(refuse("designated requirement has no owned application"));
         }
         let root_application = graph.applications.get(root.application).clone();
+        if let Some(application) = lower.program.prepared_product_operand(
+            operand,
+            static_environment,
+            author,
+            ProductOperandRole::Requirement,
+        ) {
+            let prepared = lower.program.product_operand_applications.get(application);
+            let closed = lower
+                .program
+                .closed_requirement_application(prepared.declaration);
+            return Ok(PreparedProductRequirement {
+                application: Some(application),
+                requirement: closed
+                    .as_ref()
+                    .map_or(prepared.declaration, |closed| closed.template),
+                closed_requirement: closed.map(|_| prepared.declaration),
+                trait_scope: graph
+                    .applications
+                    .get(graph.operands.get(graph.root).application)
+                    .member
+                    .is_valid()
+                    .then_some(prepared.scope),
+            });
+        }
+
+        lower
+            .input_path
+            .push(typed_trees::product_operand::ProductArgumentStep::Argument(
+                0,
+            ));
+        let mut outer_argument = None;
         let (requirement, environment, method) = if root_application.member.is_valid() {
             let path = lower.path(root.path)?;
-            let owner = resolve_product_path(
-                lower.program,
-                &path,
-                operand.source_span,
-                ProductOperandRole::BoundarySubject,
-            )
-            .ok_or_else(|| {
-                refuse("applied native requirement owner is not one visible boundary declaration")
-            })?;
+            let owner = retained_requirement
+                .and_then(|requirement| {
+                    lower
+                        .program
+                        .trait_machine_signature(requirement)
+                        .map(|(owner, _)| owner.symbol)
+                })
+                .or_else(|| {
+                    resolve_product_path(
+                        lower.program,
+                        &path,
+                        operand.source_span,
+                        ProductOperandRole::BoundarySubject,
+                    )
+                })
+                .ok_or_else(|| {
+                    refuse(
+                        "applied native requirement owner is not one visible boundary declaration",
+                    )
+                })?;
             let application = lower.application_arguments(root.application)?;
             let mut owner_argument = expr::StaticMachineArgument {
                 path: Box::from([Identifier::generated(path)]),
@@ -2052,18 +2119,19 @@ pub(crate) mod product_operands {
                 .require_receiving_trait_operands(&scope)
                 .map_err(refuse)?;
             let environment = scope.environment();
+            outer_argument = Some(owner_argument);
             let member = lower.graph.operands.get(root_application.member).clone();
             let member_path = lower.path(member.path)?;
             let joined = format!(
                 "{}::{member_path}",
                 lower.program.symbols.display_path(owner, "::")
             );
-            let requirement = resolve_product_path(
+            let requirement = retained_requirement.or_else(|| resolve_product_path(
                 lower.program,
                 &joined,
                 operand.source_span,
                 ProductOperandRole::Requirement,
-            )
+            ))
             .ok_or_else(|| {
                 refuse(
                     "applied native requirement has no exact visible member in its selected owner",
@@ -2080,15 +2148,18 @@ pub(crate) mod product_operands {
             }
             (requirement, Some(environment), member.application)
         } else {
-            let requirement = resolve_product_path(
-                lower.program,
-                &operand.path,
-                operand.source_span,
-                ProductOperandRole::Requirement,
-            )
-            .ok_or_else(|| {
-                refuse("native binding must name one exact visible package-owned requirement")
-            })?;
+            let requirement = retained_requirement
+                .or_else(|| {
+                    resolve_product_path(
+                        lower.program,
+                        &operand.path,
+                        operand.source_span,
+                        ProductOperandRole::Requirement,
+                    )
+                })
+                .ok_or_else(|| {
+                    refuse("native binding must name one exact visible package-owned requirement")
+                })?;
             (requirement, None, root.application)
         };
         let signatures = lower
@@ -2102,8 +2173,17 @@ pub(crate) mod product_operands {
                 "an applied native declaration must be a public requirement member",
             ));
         };
+        if !root_application.member.is_valid()
+            && (!lower.program.trait_type_parameters(owner).is_empty()
+                || !owner.lifetime_parameters.is_empty())
+        {
+            return Err(refuse(
+                "native binding requires a closed static boundary application",
+            ));
+        }
         let environment =
             environment.unwrap_or_else(|| AppliedTraitScope::abstract_scope(owner).environment());
+        let parameter_span = signature.type_parameters;
         let parameters = lower
             .program
             .state_signature_type_parameters(signature)
@@ -2115,11 +2195,19 @@ pub(crate) mod product_operands {
             .materialize_trait_application_arguments(&environment)
             .map_err(refuse)?;
 
+        if root_application.member.is_valid() {
+            lower
+                .input_path
+                .push(typed_trees::product_operand::ProductArgumentStep::Member);
+        }
         let supplied = if method.is_valid() {
             Some(lower.application(method)?)
         } else {
             None
         };
+        if root_application.member.is_valid() {
+            lower.input_path.pop();
+        }
         let has_outer = root_application.member.is_valid();
         if let Some(supplied) = &supplied
             && (supplied.member.is_valid()
@@ -2130,10 +2218,10 @@ pub(crate) mod product_operands {
                 "native requirement application requires its complete exact member telescope",
             ));
         }
-        let retained_scope = has_outer
-            .then(|| environment.retain(lower.program))
-            .transpose()
-            .map_err(refuse)?;
+        let scope = environment.retain(lower.program).map_err(refuse)?;
+        let retained_scope = has_outer.then_some(scope);
+        let mut captured_method = supplied.clone();
+        let mut closed_requirement = None;
         if supplied.is_some() || (has_outer && parameters.is_empty()) {
             let mut supplied = supplied.unwrap_or(expr::StaticSymbolApplication {
                 lifetime_arguments: Box::new([]),
@@ -2143,6 +2231,7 @@ pub(crate) mod product_operands {
             let authored_arguments = supplied.arguments.clone();
             normalize_const_arguments(lower.program, author, &mut supplied.arguments)
                 .map_err(|reason| refuse(&reason))?;
+            captured_method = Some(supplied.clone());
             let bindings = crate::monomorphization::requirement_applications::invocation_bindings(
                 lower.program,
                 author,
@@ -2159,7 +2248,7 @@ pub(crate) mod product_operands {
                 .collect::<Vec<_>>();
             let application = expressions_of_mut(lower.program).retain_static_machine_application(
                 requirement,
-                name,
+                name.clone(),
                 &authored_arguments,
             );
             let source =
@@ -2182,15 +2271,70 @@ pub(crate) mod product_operands {
                     application,
                 )
                 .map_err(refuse)?;
-            return Ok(PreparedProductRequirement {
-                requirement,
-                closed_requirement: Some(instance),
-                trait_scope: retained_scope,
-            });
+            closed_requirement = Some(instance);
         }
-        Ok(PreparedProductRequirement {
+        // Keep the checked operand with the typed Product applications so package
+        // capture and later planning use the same complete outer and member arguments.
+        let member = expr::StaticMachineArgument {
+            symbol: requirement,
+            path: Box::from([name.clone()]),
+            application: captured_method.map(Box::new),
+            ..Default::default()
+        };
+        let mut argument = if let Some(mut outer) = outer_argument {
+            let member = expressions_of_mut(lower.program).insert_static_member(member);
+            outer
+                .application
+                .as_mut()
+                .expect("outer application prepared above")
+                .member = member;
+            outer
+        } else {
+            member
+        };
+        normalize_const_arguments(lower.program, author, std::slice::from_mut(&mut argument))
+            .map_err(|reason| refuse(&reason))?;
+        let supplying = expressions_of_mut(lower.program).retain_static_machine_application(
             requirement,
-            closed_requirement: None,
+            name,
+            std::slice::from_ref(&argument),
+        );
+        let source = expressions_of_mut(lower.program).static_machine_application_mut(supplying);
+        source.lexical_owner = author;
+        source.binding_declaration = requirement;
+        let input_selections = lower
+            .program
+            .product_input_selections
+            .insert_many(std::mem::take(&mut lower.input_selections));
+        expressions_of_mut(lower.program)
+            .static_machine_application_mut(supplying)
+            .input_selections = input_selections;
+        let application =
+            lower
+                .program
+                .retain_product_operand_application(ProductOperandApplication {
+                    operand: operand.clone(),
+                    environment: static_environment.cloned().map(std::sync::Arc::new),
+                    owner: author,
+                    role: Some(ProductOperandRole::Requirement),
+                    declaration: closed_requirement.unwrap_or(requirement),
+                    declaration_parameters: parameter_span,
+                    declaration_lifetime_count: u32::try_from(lifetime_parameters.len())
+                        .map_err(|_| refuse("native requirement lifetime telescope exceeds u32"))?,
+                    demand: ProductApplicationDemand::Selected,
+                    argument,
+                    input_selections: Default::default(),
+                    scope,
+                    supplying_application: supplying,
+                    implementation: None,
+                });
+        lower
+            .program
+            .retain_dependency_product_application(application);
+        Ok(PreparedProductRequirement {
+            application: Some(application),
+            requirement,
+            closed_requirement,
             trait_scope: retained_scope,
         })
     }

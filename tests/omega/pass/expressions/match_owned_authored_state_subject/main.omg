@@ -2,7 +2,7 @@
 // selects one live owner while an interleaved owner stays live; the selected
 // result and the interleaved owner cross the transition into the successor's
 // owned parameters, and the displaced source dies on the selected edge.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Choice {
     case Empty;

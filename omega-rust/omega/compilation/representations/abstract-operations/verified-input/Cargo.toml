@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 abstract-operations = { path = ".." }
+target-operations = { path = "../../target-operations" }
 effects = { path = "../../../backend/plans/effects" }
 installation-evidence = { path = "../../../backend/runtime/installation-evidence" }
 provider-admission = { path = "../../../realization/provider-admission" }
@@ -17,3 +18,17 @@ semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabular
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-installation = { path = "../../../../../psi/compilation/validation/terminal-installation" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
+calling-conventions = { path = "../../../backend/calling-conventions" }
+backend-plan = { path = "../../../backend/plans/backend-plan" }
+target = { path = "../../../backend/target" }
+terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
+program-entry-plan = { path = "../../../backend/plans/program-entry-plan" }
+diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
+boundary-applications = { path = "../../../backend/artifacts/boundary-applications" }
+provider-selection = { path = "../../../realization/provider-selection" }
+function-identity = { path = "../../../../foundation/function-identity" }
+optimization-core = { path = "../../../../foundation/optimization-core" }
+component-description = { path = "../../../backend/artifacts/component-description" }
+task-plans = { path = "../../../backend/runtime/task-plans" }
+language-semantics = { path = "../../../../../psi/foundation/language-semantics" }
+numerics = { path = "../../../../../psi/foundation/numerics" }

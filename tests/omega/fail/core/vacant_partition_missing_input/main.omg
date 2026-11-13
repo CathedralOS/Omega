@@ -1,6 +1,9 @@
-use omega::language::core::extent;
-use omega::language::core::content;
-use omega::language::core::nat;
+use omega::language::core::Extent;
+use omega::language::core::VacantExtentParts;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Granted::content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 machine invalid(whole: Extent in Granted) -> VacantExtentParts
 requires whole.length == 48
 ensures core::Identity<IntervalSet<Nat>>(

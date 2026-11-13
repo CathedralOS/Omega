@@ -5,8 +5,8 @@
 // At{16,8} at [2] gives 24, exit 36. Native must match the interpreter (the
 // interpreter is the L0 build-time engine, so this also gates the structured
 // Plan work).
-use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega_language_std::Console;
+use omega::language::core::narrow_i64_to_i32_trapping;
 data FieldPlan {
     case At(offset: i64, width: i64);
     case Skip;

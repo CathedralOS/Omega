@@ -1,6 +1,8 @@
 // Both same-spelled policy/schema declarations retain exact module owners.
 // No execution entry: each helper consumes a separately established view.
-use omega::language::core::layout;
+use omega::language::core::Access;
+use omega::language::core::read;
+use omega::language::core::Accessor;
 use first;
 use second;
 

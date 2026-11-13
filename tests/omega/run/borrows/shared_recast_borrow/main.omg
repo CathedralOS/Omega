@@ -3,7 +3,7 @@
 // node; the arm peels the RecastShared cast to its operand place and
 // skips referent equality (the §5b judgment already proved the shapes
 // compatible).
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Desc {
     tag: u32;

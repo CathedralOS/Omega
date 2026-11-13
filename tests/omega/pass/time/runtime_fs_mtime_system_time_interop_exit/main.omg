@@ -1,4 +1,8 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 // fs <-> time INTEROP (TASKS_TIME #9's ready leg, claimed by the fs lane
 // 2026-07-10g): a real file's Metadata mtime, decoded at the darwin stat
 // offset (st_mtimespec.tv_sec, i64 @48 -- the native_metadata_modified
@@ -16,12 +20,19 @@ use omega::language::core::filesystem_authority;
 // differential-excluded with a reason (the windows leg waits on fs
 // open-work #2's stat rows, exactly as TASKS_TIME #9 records).
 // Expected exit: 70.
-use omega_language_std::posix_filesystem_host;
-use omega_language_std::time;
-use omega_language_std::time_host;
+use omega_language_std::PosixFilesystemHost;
+use omega_language_std::Duration;
+use omega_language_std::SystemTime;
+use omega_language_std::SystemTimeDifference;
+use omega_language_std::SystemTime::from_unix_seconds;
+use omega_language_std::SystemTime::duration_since;
+use omega_language_std::Time;
+use omega_language_std::Time::system_time_now;
+use omega_language_std::TimeHost;
 
-use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega_language_std::Console;
+use omega::language::core::widen_u8_to_u64;
+use omega::language::core::narrow_u64_to_i64_wrapping;
 
 data Main {
     time: Time;

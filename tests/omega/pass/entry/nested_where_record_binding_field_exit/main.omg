@@ -2,7 +2,7 @@
 // nested record whose data `where` facts its zero value satisfies. The facts
 // constrain the record's scalar field; they do not hide the record's service
 // field from establishment. Exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Session requires retries <= 3 {
     retries: u64;

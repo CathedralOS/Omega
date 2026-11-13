@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 data Observation [copy] {
     maximum: f32 in Finite & Saturating;

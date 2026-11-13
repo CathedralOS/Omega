@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // Equality permits the sum to equal addr::Bound, which is not an address.
 machine offset(base: addr, length: u64, requested: u64) -> addr

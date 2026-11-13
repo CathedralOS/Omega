@@ -1135,7 +1135,7 @@ crashes Trap
     }
 
     machine copy(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping)
-    requires cursor < 8
+    requires cursor < 8, parser.output.argument_count < 65536
     {
         parser.output.arguments[parser.output.argument_count] = parser.ranked_subjects[cursor] as u64 in Trapping;
         parser.output.argument_count = parser.output.argument_count + 1;

@@ -1,7 +1,7 @@
 // A boundary receives an owned primitive array between scalar arguments.
 // The later scalar operand mutates the source; the provider must observe the
 // array snapshot captured earlier, while the caller observes the later write.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Thing {
     machine take(first: u64, values: [u8; 4], last: u64) -> i32 reaches;

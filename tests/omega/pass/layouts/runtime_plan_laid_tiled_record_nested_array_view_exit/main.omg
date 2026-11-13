@@ -2,8 +2,14 @@
 // compiler-sized element when its outer array is tiled through `At`. The
 // physical outer stride is plan-derived; the record-member offset and inner
 // array stride remain compiler-derived between and below two runtime indices.
-use omega_language_std::console;
-use omega::language::core::layout;
+use omega_language_std::Console;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 
 TiledRecordNestedArray satisfies FixedLayout<Samples> {

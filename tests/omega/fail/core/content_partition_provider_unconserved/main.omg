@@ -4,7 +4,8 @@
 // theorem is judged over the body's normal-return value, so a provider cannot
 // claim a partition it never computes; the mismatch is a checking error, not
 // an admitted trust row.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
 
 public data ByteUnit {}

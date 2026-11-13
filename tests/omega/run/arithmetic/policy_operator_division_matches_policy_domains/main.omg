@@ -3,7 +3,7 @@
 // unless the contract rules both out. `/%`, `/|`, `%%` and `%|` are total
 // over the unrepresentable quotient but still owe a nonzero divisor, and on
 // an unsigned carrier they equal `/` and `%`.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine trapping_signed(value: i32, divisor: i32) -> bool crashes Trap {

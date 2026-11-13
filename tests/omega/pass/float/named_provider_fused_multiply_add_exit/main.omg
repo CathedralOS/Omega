@@ -4,8 +4,9 @@
 // result ulp. A separate multiply and add would round the product first and
 // produce zero after cancellation; one FMADD must preserve the residual.
 
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::fused_multiply_add;
+use omega::language::core::F64::fused_multiply_add;
+use omega_language_std::Console;
 
 data Main {
     result64: f64;

@@ -3,7 +3,7 @@
 // a scalar range suffix or persistent scratch fields.
 // exits: 0 = the write reached the element; 1 = it did not.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine stamp(buffer: &mut [u8; 48], offset: u32) {
     transition offset < 48 {

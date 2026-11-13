@@ -735,6 +735,17 @@ fn runner_for(
     }
 }
 
+/// Keep every baseline consumer on the same explicit source boundary. The
+/// executable's compile-time repo_root is the caller, never this baseline.
+fn with_baseline_source<T>(
+    caller: &Path,
+    revision: &str,
+    operation: impl FnOnce(&Path) -> Result<T, String>,
+) -> Result<T, String> {
+    let source = crate::worktree::BaselineSource::acquire(caller, revision)?;
+    operation(&source.root)
+}
+
 /// The value after each `--flag` in `flags`, in order; any other argument is
 /// a usage error. For the subcommands whose options all take one value.
 fn flag_values(args: &[String], flags: &[&str]) -> Result<Vec<Option<String>>, String> {
@@ -752,9 +763,8 @@ fn flag_values(args: &[String], flags: &[&str]) -> Result<Vec<Option<String>>, S
 /// Build the corpus runner once, for other jobs to run.
 ///
 /// Writes the runner and its receipt into `--out`. With `--at <rev>` the
-/// runner is built from that commit instead: the checkout moves there for the
-/// build and back afterwards, which is how a run builds the base commit's
-/// runner for the shards that must tell main's losses from the change's.
+/// runner is built from that commit in an isolated pool slot with its own
+/// target directory. The caller's checkout is never switched, even on failure.
 fn run_build(args: &[String]) -> Result<(), u8> {
     let root = repo_root();
     let values = flag_values(args, &["--out", "--at"]).map_err(|e| usage_error(&e))?;
@@ -768,26 +778,17 @@ fn run_build(args: &[String]) -> Result<(), u8> {
             out.display()
         )));
     }
-    let head = git(&root, &["rev-parse", "HEAD"]).map_err(infra)?;
     let evidence = execution::reserve_directory(&root.join("build/corpus-gate")).map_err(infra)?;
     let receipts = evidence.join("producer");
-    let build = || {
-        let producer = producer::prepare(&root, &receipts, true, false)?;
+    let build = |source: &Path, target: Option<&Path>| {
+        let producer = producer::prepare_in_target(source, &receipts, true, false, target)?;
         producer::export_runner(&producer, &receipts, &out)
     };
     let result = match at {
-        Some(rev) => {
-            let commit = git(
-                &root,
-                &["rev-parse", "--verify", &format!("{rev}^{{commit}}")],
-            )
-            .map_err(infra)?;
-            git(&root, &["checkout", "-q", "--detach", &commit]).map_err(infra)?;
-            let result = build();
-            git(&root, &["checkout", "-q", "--detach", &head]).map_err(infra)?;
-            result
-        }
-        None => build(),
+        Some(rev) => with_baseline_source(&root, rev, |source| {
+            build(source, Some(&source.join("target")))
+        }),
+        None => build(&root, None),
     };
     result.map_err(infra)?;
     println!(
@@ -802,6 +803,7 @@ struct Observer<'a> {
     root: &'a Path,
     out: &'a Path,
     runs: usize,
+    target: Option<&'a Path>,
 }
 
 impl Observer<'_> {
@@ -816,7 +818,13 @@ impl Observer<'_> {
     ) -> Result<BTreeMap<String, CorpusRecord>, String> {
         self.runs += 1;
         let evidence = self.out.join(format!("{}-{label}", self.runs));
-        let producer = runner_for(self.root, prebuilt, &evidence.join("producer"))?;
+        let receipts = evidence.join("producer");
+        let producer = match (prebuilt, self.target) {
+            (None, Some(target)) => {
+                producer::prepare_in_target(self.root, &receipts, true, false, Some(target))?
+            }
+            _ => runner_for(self.root, prebuilt, &receipts)?,
+        };
         let binary = producer
             .runner
             .as_deref()
@@ -946,6 +954,7 @@ fn run_check(args: &[String]) -> Result<(), u8> {
         root: &root,
         out: &out,
         runs: 0,
+        target: None,
     };
     let observed = observer
         .observe("head", names, runner.as_deref())
@@ -1016,13 +1025,20 @@ fn run_check(args: &[String]) -> Result<(), u8> {
             .collect();
         let mut at_base = BTreeMap::new();
         if !excusable.is_empty() {
-            // The base's fixtures and library sources are read from the
-            // checkout, so it moves to the base even when the base's runner
-            // was built ahead; only the compile is saved.
-            git(&root, &["checkout", "-q", "--detach", &plan.base]).map_err(infra)?;
-            let result = observer.observe("base", &excusable, base_runner.as_deref());
-            git(&root, &["checkout", "-q", "--detach", &head]).map_err(infra)?;
-            at_base = result.map_err(infra)?;
+            // Even a prebuilt runner reads baseline fixtures and library
+            // sources, so observation uses the same isolated source lease as
+            // baseline builds. Never switch the candidate under other readers.
+            at_base = with_baseline_source(&root, &plan.base, |source| {
+                let target = source.join("target");
+                let mut baseline = Observer {
+                    root: source,
+                    out: &out,
+                    runs: observer.runs,
+                    target: Some(&target),
+                };
+                baseline.observe("base", &excusable, base_runner.as_deref())
+            })
+            .map_err(infra)?;
         }
         remaining.retain(|fixture| {
             let row = &observed[fixture];
@@ -1388,6 +1404,174 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn baseline_build_and_observation_preserve_live_caller_even_on_failure() {
+        struct Scratch(PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let scratch = Scratch(
+            execution::reserve_directory(&std::env::temp_dir().join("omega-baseline-tests"))
+                .unwrap(),
+        );
+        let repository = scratch.0.join("repository");
+        fs::create_dir(&repository).unwrap();
+        git(&repository, &["init", "-q"]).unwrap();
+        let hooks = scratch.0.join("hooks");
+        fs::create_dir(&hooks).unwrap();
+        for (key, value) in [
+            ("user.name", "Baseline test"),
+            ("user.email", "test@example.invalid"),
+            ("commit.gpgsign", "false"),
+            ("core.hooksPath", hooks.to_str().unwrap()),
+        ] {
+            git(&repository, &["config", key, value]).unwrap();
+        }
+        fs::write(
+            repository.join(".gitignore"),
+            "/.agents/worktree/\n/target/\n",
+        )
+        .unwrap();
+        fs::write(repository.join("fixture.omg"), "baseline fixture").unwrap();
+        git(&repository, &["add", "."]).unwrap();
+        git(&repository, &["commit", "-qm", "baseline"]).unwrap();
+        let base = git(&repository, &["rev-parse", "HEAD"]).unwrap();
+        fs::write(repository.join("fixture.omg"), "candidate fixture").unwrap();
+        git(&repository, &["commit", "-qam", "candidate"]).unwrap();
+        let head = git(&repository, &["rev-parse", "HEAD"]).unwrap();
+        git(
+            &repository,
+            &["update-ref", "refs/remotes/origin/main", &head],
+        )
+        .unwrap();
+        let caller = repository.join(".agents/worktree/worker-1");
+        let held = repository.join(".agents/worktree/worker-2");
+        for path in [&caller, &held] {
+            git(
+                &repository,
+                &["worktree", "add", "--detach", path.to_str().unwrap(), &head],
+            )
+            .unwrap();
+        }
+        let held_git = PathBuf::from(git(&held, &["rev-parse", "--absolute-git-dir"]).unwrap());
+        fs::write(held_git.join("topic"), "tools-other-active-build\n").unwrap();
+        let before = producer::source_identity(&caller).unwrap();
+        assert_eq!(before["tracked_changes"], ""); // Caller is a released, clean pool slot.
+        let exported = scratch.0.join("runner");
+        fs::create_dir(&exported).unwrap();
+        let mut first_source = PathBuf::new();
+        let receipt = with_baseline_source(&caller, &base, |source| {
+            first_source = source.to_owned();
+            assert_ne!(source, caller);
+            assert_ne!(source, held);
+            // Simulate a concurrent fixture build reading the caller while the
+            // baseline consumer reads its own source. No polling or timing race.
+            std::thread::scope(|scope| {
+                let reader = scope.spawn(|| {
+                    assert_eq!(producer::source_identity(&caller).unwrap(), before);
+                    assert_eq!(
+                        fs::read_to_string(caller.join("fixture.omg")).unwrap(),
+                        "candidate fixture"
+                    );
+                });
+                assert_eq!(
+                    fs::read_to_string(source.join("fixture.omg")).unwrap(),
+                    "baseline fixture"
+                );
+                reader.join().unwrap();
+            });
+            let identity = producer::source_identity(source)?;
+            assert_eq!(identity["revision"], base);
+            assert_eq!(identity["tracked_changes"], "");
+            // Synthetic artifact exercises the real exporter and loader without
+            // a compiler build. Its bytes come from the requested source.
+            let runner = source.join("fixture.omg");
+            let digest = execution::digest(&runner)?;
+            let receipt = serde_json::json!({"source": identity, "host": producer::host_target(),
+                "executables": [{"path": runner, "sha256": digest,
+                "cargo_artifact": {"target": {"name": "corpus_runner"}, "executable": runner}}]});
+            let receipts = scratch.0.join("build-receipts");
+            fs::create_dir(&receipts).unwrap();
+            execution::write_json(&receipts.join("producer.json"), &receipt)?;
+            execution::write_json(&receipts.join("build-inputs.json"), &serde_json::json!({}))?;
+            let prepared = producer::Producer {
+                runner: Some(runner),
+                cli: None,
+                executables: receipt["executables"].as_array().unwrap().clone(),
+            };
+            producer::export_runner(&prepared, &receipts, &exported)?;
+            Ok(receipt)
+        })
+        .unwrap();
+        assert_eq!(producer::source_identity(&caller).unwrap(), before);
+        // Hold that idle baseline slot to force observation into a different
+        // checkout: receipts authenticate revision/tree/bytes, never slot paths.
+        let first_git =
+            PathBuf::from(git(&first_source, &["rev-parse", "--absolute-git-dir"]).unwrap());
+        assert!(!first_git.join("topic").exists());
+        fs::write(first_git.join("topic"), "tools-retained-other-work\n").unwrap();
+        let mut second_source = PathBuf::new();
+        let error = with_baseline_source(&caller, &base, |source| -> Result<(), String> {
+            second_source = source.to_owned();
+            assert_ne!(source, first_source);
+            let loaded = producer::load_prebuilt(source, &exported, &scratch.0.join("receipts"))?;
+            loaded.verify()?;
+            assert_eq!(producer::source_identity(source)?, receipt["source"]);
+            assert!(
+                producer::load_prebuilt(&caller, &exported, &scratch.0.join("wrong-source"))
+                    .is_err()
+            );
+            Err("simulated baseline build or observation failure".to_owned())
+        })
+        .unwrap_err();
+        assert_eq!(error, "simulated baseline build or observation failure");
+        let second_git =
+            PathBuf::from(git(&second_source, &["rev-parse", "--absolute-git-dir"]).unwrap());
+        assert!(!second_git.join("topic").exists());
+        assert!(
+            !git(&repository, &["worktree", "list", "--porcelain"])
+                .unwrap()
+                .contains("locked")
+        );
+        assert_eq!(producer::source_identity(&caller).unwrap(), before);
+        assert_eq!(git(&held, &["rev-parse", "HEAD"]).unwrap(), head);
+        assert_eq!(
+            fs::read_to_string(held_git.join("topic")).unwrap(),
+            "tools-other-active-build\n"
+        );
+        assert!(with_baseline_source(&caller, "absent-revision", |_| Ok(())).is_err());
+        assert_eq!(producer::source_identity(&caller).unwrap(), before);
+        #[cfg(unix)]
+        {
+            let alias = scratch.0.join("caller-alias");
+            std::os::unix::fs::symlink(&caller, &alias).unwrap();
+            with_baseline_source(&alias, &base, |source| {
+                assert_ne!(
+                    fs::canonicalize(source).unwrap(),
+                    fs::canonicalize(&alias).unwrap()
+                );
+                assert_eq!(producer::source_identity(&caller)?, before);
+                Ok(())
+            })
+            .unwrap();
+        }
+        fs::write(caller.join("fixture.omg"), "uncommitted caller edit").unwrap();
+        let dirty = producer::source_identity(&caller).unwrap();
+        with_baseline_source(&caller, &base, |source| {
+            assert_eq!(source, second_source); // Reuse the released slot, not caller.
+            assert_eq!(producer::source_identity(source)?, receipt["source"]);
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(producer::source_identity(&caller).unwrap(), dirty);
+        assert_eq!(
+            fs::read_to_string(caller.join("fixture.omg")).unwrap(),
+            "uncommitted caller edit"
+        );
+    }
 
     fn row(text: &str) -> CorpusRecord {
         corpus::parse_records(text).unwrap().remove(0)

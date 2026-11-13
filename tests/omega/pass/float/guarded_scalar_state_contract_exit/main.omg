@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::I64::from_f64;
 
 // Complete executable reproduction of the state-contract lowering provision.
 // The ordinary checked guard establishes the same authored arrival contract.

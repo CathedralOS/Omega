@@ -1,4 +1,6 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
 use alloc::bump;
 
 // An accurate capacity count does not justify a request larger than the tail.

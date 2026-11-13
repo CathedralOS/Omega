@@ -1,6 +1,6 @@
 // Run: omega run --both tests/omega/run/nested_mut_alias_assignment_return/main.omg
 // Nested mutable calls preserve the seeded generator state and print "yes".
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data RandomState {
     seed: u64 in Wrapping;

@@ -6,8 +6,9 @@ On Windows every environment read takes the process environment lock, and an
 unconditional read in `captured_reference_result` alone cost about 0.75 CPU
 seconds of a one-line `omega --check`. The switches only add `eprintln!`
 output and nothing sets them mid-process, so reading each once cannot change
-what the compiler produces. Each function answers whether its switch is set at
-all; string-valued filters keep their exact matching behind that test.
+what the compiler produces. Most switches test presence. The structural
+switch also supports a selected contract; all readers use the same captured
+value so unrelated traces stay disabled for that mode.
 */
 
 use std::sync::OnceLock;
@@ -39,7 +40,24 @@ fn struct_trace_value() -> Option<&'static std::ffi::OsStr> {
 }
 
 pub fn struct_trace() -> bool {
-    struct_trace_value().is_some()
+    let value = struct_trace_value();
+    full_struct_trace(value.and_then(std::ffi::OsStr::to_str), value.is_some())
+}
+
+fn full_struct_trace(value: Option<&str>, present: bool) -> bool {
+    present && !value.is_some_and(|value| value.starts_with("contract="))
+}
+
+/// Limit existing contract diagnostics to one machine's declaration name.
+/// Other values keep the ordinary presence-only structural trace behavior.
+pub fn struct_contract_selection() -> Option<&'static str> {
+    selected_contract(struct_trace_value()?.to_str()?)
+}
+
+fn selected_contract(value: &str) -> Option<&str> {
+    value
+        .strip_prefix("contract=")
+        .filter(|name| !name.is_empty())
 }
 
 /// Select one whole-call consumer without changing the existing presence switch.
@@ -120,6 +138,35 @@ mod struct_call_consumer_tests {
             "read@other->consume@1:1",
         ] {
             assert_eq!(parse_struct_call_consumer_selection(value), None, "{value}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod contract_trace_tests {
+    use super::{full_struct_trace, selected_contract};
+
+    #[test]
+    fn contract_selection_does_not_enable_the_global_trace() {
+        assert_eq!(
+            selected_contract("contract=cauchy_at_reflexive"),
+            Some("cauchy_at_reflexive")
+        );
+        assert!(!full_struct_trace(
+            Some("contract=cauchy_at_reflexive"),
+            true
+        ));
+        assert_eq!(selected_contract("contract="), None);
+        assert!(!full_struct_trace(Some("contract="), true));
+    }
+
+    #[test]
+    fn existing_presence_values_keep_their_meaning() {
+        assert!(!full_struct_trace(None, false));
+        assert!(full_struct_trace(None, true));
+        for value in ["", "1", "true", "outer::read->outer::consume@17:1"] {
+            assert!(full_struct_trace(Some(value), true));
+            assert_eq!(selected_contract(value), None);
         }
     }
 }

@@ -1,7 +1,20 @@
 // Expected exit: 0. Directory enumeration filters exact dot names, not their
 // positions or all dot-prefixed children. Recursive deletion uses that reader.
-use omega_language_std::filesystem;
-use omega_language_std::console;
+use omega_language_std::IoResult;
+use omega_language_std::DirEntry;
+use omega_language_std::DirEntryResult;
+use omega_language_std::UnitResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::write_all;
+use omega_language_std::Filesystem::exists;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::create_dir;
+use omega_language_std::Filesystem::create_dir_all;
+use omega_language_std::Filesystem::symlink;
+use omega_language_std::Filesystem::read_dir_count;
+use omega_language_std::Filesystem::read_dir_nth;
+use omega_language_std::Filesystem::remove_dir_all;
+use omega_language_std::Console;
 data Main { filesystem: Filesystem; index: u64 in Wrapping; seen: u32; }
 machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "omega_directory_names/notes/current");

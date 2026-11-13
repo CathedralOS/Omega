@@ -2,7 +2,7 @@
 // mathematical result. The Exact operations that follow rely on that: the
 // operands carry no bound of their own, and `sum - left` fits `u64` only
 // because `sum` is known to be `left + right`.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine regained(left: u64, right: u64) -> u64 crashes Trap {

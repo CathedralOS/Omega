@@ -1,8 +1,13 @@
 // Raw Windows requirements publish operation capabilities, not family identity.
 // Cursor, durability, handle custody and last-error access have no filesystem
 // content/metadata/namespace reach; their physical authority stays separate.
-use omega_language_std::windows_filesystem_host;
-use omega::language::core::filesystem_authority;
+use omega_language_std::WindowsFileTimeResult;
+use omega_language_std::WindowsFilesystemHost;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 
 machine read_only(handle: u64, buffer: &mut [u8], count: u64) -> i64
 reaches FilesystemContentRead

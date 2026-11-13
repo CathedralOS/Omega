@@ -1,6 +1,5 @@
 // The completed copy keeps its old value only until this destination is written.
 // The source's surviving normal guarantee cannot justify the replacement value.
-use omega::language::core::float_operations;
 
 data Saved [copy] { amount: i32; }
 data Holder { amount: i32; }

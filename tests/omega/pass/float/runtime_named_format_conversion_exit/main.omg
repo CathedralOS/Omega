@@ -1,8 +1,10 @@
 // Public destination-owned format conversion. The f64 halfway value ties to
 // even at 1.0f32; the value just above it rounds to the next binary32 number.
 // Widening back to binary64 is exact, and infinity remains ordinary and total.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::from_f64;
+use omega::language::core::F64::from_f32;
+use omega::language::core::F32::is_infinite;
+use omega_language_std::Console;
 
 data Main { }
 

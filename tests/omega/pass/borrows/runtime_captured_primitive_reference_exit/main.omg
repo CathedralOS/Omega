@@ -1,5 +1,5 @@
 // A loan freezes its selected address before the selector changes.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main
 requires position < 2;

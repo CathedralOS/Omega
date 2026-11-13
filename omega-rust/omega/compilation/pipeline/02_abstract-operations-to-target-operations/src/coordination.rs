@@ -482,7 +482,7 @@ pub(crate) fn lower_to_target_operations_with_settlements_and_installation(
     settlement_bindings: &[BoundarySettlementBinding],
     installation: Option<&dyn ProviderInstallationEvidence>,
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
-    verified_input: Option<&provider_admission::AdmittedLoweringFacts>,
+    verified_input: Option<&verified_optimization_input::AdmittedLoweringFacts>,
 ) -> Result<TargetOperationPlan, LoweringError> {
     if !plan
         .functions

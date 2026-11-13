@@ -7,7 +7,7 @@
 // local's own storage rather than written through image storage.
 // exits: 70 = all three read back their stored bytes; 71 = the zeroed local;
 // 72 = the array-literal local; 73 = the byte-string local.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine pad(title: [u8; 3]) -> u8 {
     let mut padded: [u8; 4];

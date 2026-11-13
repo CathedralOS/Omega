@@ -11,7 +11,7 @@
 // own guard: an implementation name qualifies its row and is never a
 // runtime receiver. Exits 70 only when every face agrees.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Equatable<T> {
     machine equals(left: &T, right: &T) -> bool;

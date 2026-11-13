@@ -1,5 +1,5 @@
 // Expected exit: 0.
-use omega::language::core::option;
+use omega::language::core::Optional;
 data Window<'input> { bytes: &'input [u8]; }
 data Envelope<'input> { found: Optional<Window<'input>>; }
 

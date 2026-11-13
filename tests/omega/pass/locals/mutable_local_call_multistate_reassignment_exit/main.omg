@@ -6,7 +6,7 @@
 // that, before the transition guard reads it. The composed body has to rejoin
 // both whole stores to the local it established rather than look for a
 // parameter destination. A lost reassignment leaves 71 and exits 71.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

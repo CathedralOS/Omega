@@ -217,8 +217,8 @@ pub struct ReviewedFixtureCompilation {
     pub session: orchestration::BuildSession,
     pub completed: Vec<compiler::CompletedBuild>,
     product: compiler::CompilationProduct,
-    plans: Vec<(TargetProfile, compiler::PackageCompilationRequest)>,
-    completion: Option<package_manager::operations::ProjectCompilationCompletion>,
+    pub(super) plans: Vec<(TargetProfile, compiler::PackageCompilationRequest)>,
+    pub(super) completion: Option<package_manager::operations::ProjectCompilationCompletion>,
 }
 
 /// Compile the complete admitted target cohort, then let package management

@@ -9,9 +9,8 @@
 //
 // Both legs exit 70 after printing exactly one line; `Console` and
 // `ProcessExit` are separate provider-backed carriers on the same root.
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
+use omega::language::core::ProcessExit;
+use omega_language_std::Console;
 
 data Main {
 }

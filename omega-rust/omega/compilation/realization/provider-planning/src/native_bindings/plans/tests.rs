@@ -3,11 +3,11 @@
 
 use super::*;
 use crate::native_bindings::NativeBuildEvaluation;
+use build_time_evaluation::native_bindings::NativeBindingSelection;
 use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
     TerminalStorageScheduleIdentity,
 };
-use language_semantics::declaration_selection::NativeBindingSelection;
 use language_semantics::declaration_selection::{NativeBindingProducer, ProductTarget};
 use semantic_vocabulary::{PackageKeyIdentity, WorkScheduleIdentity};
 
@@ -29,6 +29,7 @@ fn supply(target: ProductTarget, locator: NativeBindingLocator) -> NativeBuildSu
         .record();
     NativeBuildSupply {
         selection: NativeBindingSelection {
+            application: None,
             subject: Default::default(),
             requirement: Default::default(),
             target,
@@ -60,9 +61,12 @@ fn prepared(supplies: &[NativeBuildSupply]) -> PreparedNativeBuildBindings {
             .map(|supply| PreparedNativeBuildBinding {
                 selection: supply.selection.clone(),
                 requirement: Ok(PreparedNativeRequirement {
+                    application: None,
                     owner: Default::default(),
                     signature: Default::default(),
                     identity: REQUIREMENT.into(),
+                    declared_identity: REQUIREMENT.into(),
+                    calling_signature: None,
                     method: "now".into(),
                     surface: None,
                 }),

@@ -3,7 +3,6 @@
 // the instruction needs. This replaces an earlier fence that expected port
 // reads to be unlowered; the missing-reach twin is
 // fail/ports/asm_port_in_missing_reach.
-use omega::language::core::assembly;
 
 data Main {
     byte: u8;

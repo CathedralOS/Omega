@@ -9,7 +9,6 @@
 //
 // Compile-checked only: freestanding target.
 
-use omega::language::core::assembly;
 
 data Main {
     value: u64;

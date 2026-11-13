@@ -11,7 +11,7 @@
 //
 // Exits 24 only when all four pops see their pushed values.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Stack {
     items: [i32; 4];

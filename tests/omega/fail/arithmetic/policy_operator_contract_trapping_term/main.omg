@@ -2,7 +2,7 @@
 // in place of `+%` in its `requires`. A trapping operation can transfer
 // control, so it forms no specification term
 // (wiki/spec/proofs/contracts.md#total-arithmetic).
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine small_sum(a: u32, b: u32) -> u32

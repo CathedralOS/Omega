@@ -1,12 +1,19 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 // NATIVE MetadataExt::blocks/blksize via stat (Rust os::unix::fs::MetadataExt).
 // st_blksize (@112) is the filesystem's preferred I/O block size -- a real,
 // nonzero value (typically 4096). st_blocks (@104) is the 512-byte block count.
 // Proves both fields decode from the real stat record on macOS. (blksize is the
 // robust assertion; blocks is filesystem-dependent, so it is only decoded.)
 
-use omega_language_std::posix_filesystem_host;
-use omega::language::core::numeric_conversion;
+use omega_language_std::PosixFilesystemHost;
+use omega::language::core::widen_u8_to_u32;
+use omega::language::core::widen_u8_to_u64;
+use omega::language::core::narrow_u32_to_i32_wrapping;
+use omega::language::core::narrow_u64_to_i64_wrapping;
 
 data Main {
     discard: i32;

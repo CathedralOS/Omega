@@ -1,5 +1,5 @@
 // A computed scalar survives a provider call and is returned through the ABI.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine computed(input: i32 in Wrapping) -> i32 in Wrapping reaches Console {
     let result: i32 in Wrapping = input * 3 + 7;

@@ -1,4 +1,9 @@
-use omega::language::core::interrupt;
+use omega::language::core::InterruptMaskGuard;
+use omega::language::core::InterruptAcknowledgement;
+use omega::language::core::InterruptMaskGuard::Active;
+use omega::language::core::InterruptAcknowledgement::Pending;
+use omega::language::core::InterruptMaskRestore;
+use omega::language::core::InterruptAcknowledgementCompletion;
 
 // Provider code supplies the opaque values. Checked handlers can only settle
 // them through the consuming operations whose reaches remain explicit. Each

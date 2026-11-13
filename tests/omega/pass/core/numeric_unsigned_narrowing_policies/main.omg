@@ -11,7 +11,30 @@
 // Exit 0 when every result holds; a wrong result executes `crash Trap;`.
 // `main` takes no arguments and reaches no service, so the Terminal
 // interpreter runs the same program beside the native product.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u16_to_u8_exact;
+use omega::language::core::narrow_u16_to_u8_wrapping;
+use omega::language::core::narrow_u16_to_u8_saturating;
+use omega::language::core::narrow_u16_to_u8_trapping;
+use omega::language::core::narrow_u32_to_u8_exact;
+use omega::language::core::narrow_u32_to_u8_wrapping;
+use omega::language::core::narrow_u32_to_u8_saturating;
+use omega::language::core::narrow_u32_to_u8_trapping;
+use omega::language::core::narrow_u32_to_u16_exact;
+use omega::language::core::narrow_u32_to_u16_wrapping;
+use omega::language::core::narrow_u32_to_u16_saturating;
+use omega::language::core::narrow_u32_to_u16_trapping;
+use omega::language::core::narrow_u64_to_u8_exact;
+use omega::language::core::narrow_u64_to_u8_wrapping;
+use omega::language::core::narrow_u64_to_u8_saturating;
+use omega::language::core::narrow_u64_to_u8_trapping;
+use omega::language::core::narrow_u64_to_u16_exact;
+use omega::language::core::narrow_u64_to_u16_wrapping;
+use omega::language::core::narrow_u64_to_u16_saturating;
+use omega::language::core::narrow_u64_to_u16_trapping;
+use omega::language::core::narrow_u64_to_u32_exact;
+use omega::language::core::narrow_u64_to_u32_wrapping;
+use omega::language::core::narrow_u64_to_u32_saturating;
+use omega::language::core::narrow_u64_to_u32_trapping;
 
 data Inputs {
     max_u16: u16;

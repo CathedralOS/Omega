@@ -149,6 +149,24 @@ impl<'t> Program<'t> {
         }
     }
 
+    /// Whether `qualifier` is the data type the machine `target` enters is
+    /// declared under, so that it only completes the callee's name:
+    /// `Counter::clear(&mut counter)` names the machine `Counter::clear` and
+    /// passes it one argument. machines.md, "Static declarations and
+    /// explicit state": "Every argument, including context and
+    /// capabilities, is ordinary and explicit." The two are compared as
+    /// symbols, and the qualifier is the data declaration itself, never a
+    /// value of the type, so no receiver is passed. Any other qualifier or
+    /// receiver stays refused.
+    pub(super) fn names_carrier(&self, target: SymbolHandle, qualifier: SymbolHandle) -> bool {
+        qualifier.is_valid()
+            && target.is_valid()
+            && self
+                .entered_machine(target)
+                .and_then(|machine| self.typed.machine_by_symbol(machine))
+                .is_some_and(|machine| machine.attached_data_symbol == qualifier)
+    }
+
     /// A call is direct only when its authored selection, if recorded,
     /// resolved to exactly the called machine, and its call binding, if
     /// recorded, neither rebinds it nor reaches it through another
@@ -229,10 +247,16 @@ impl<'t> Program<'t> {
             &call.machine_arguments,
         )?;
         self.direct_selection(id, call.target_symbol, call.authored_call_selection, None)?;
-        if call.receiver_root_symbol.is_valid()
+        // A receiver that is the callee's data type by name, and nothing
+        // beneath it, is part of the callee's name (`names_carrier`); any
+        // other is a value passed outside the argument list.
+        let receiver = call.receiver_root_symbol.is_valid()
             || call.receiver_symbol.is_valid()
-            || !call.receiver.is_empty()
-        {
+            || !call.receiver.is_empty();
+        let qualified = call.receiver_root_symbol == call.receiver_symbol
+            && call.receiver.len() == 1
+            && self.names_carrier(call.target_symbol, call.receiver_symbol);
+        if receiver && !qualified {
             return unserved("receiver call");
         }
         if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
@@ -317,7 +341,15 @@ impl<'t> Program<'t> {
         {
             return unserved("compiler operation call");
         }
-        if call.receiver.is_valid()
+        // A receiver that is the callee's data type by name is part of the
+        // callee's name (`names_carrier`); any other is a value passed
+        // outside the argument list.
+        let qualified = call.receiver.is_valid()
+            && matches!(
+                self.node(id, call.receiver)?,
+                ExpressionNode::Name(path) if self.names_carrier(call.target_symbol, path.symbol)
+            );
+        if (call.receiver.is_valid() && !qualified)
             || call.requirement_application.is_valid()
             || call.exact_coercion_target.is_valid()
         {

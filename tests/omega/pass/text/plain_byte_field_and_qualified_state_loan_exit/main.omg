@@ -4,7 +4,7 @@
 // structural plan whichever body is planned first: the field is read by one
 // helper declared before the state loan and one declared after it.
 // "G..E" stored and read through the field, "gate" through the loan: exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8]::Utf8
 requires

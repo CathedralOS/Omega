@@ -1,9 +1,7 @@
 /*
-  The `ProgramEntry` call that native admission selected for an artifact: the
-  boundary the program's storage entry crosses, the checked entry receipt, the
-  machine target selection resolved it to, and the provider plan that bound
-  it. Omega 00 settles it (`bind_selected_program_entry_call`); realization
-  stages read it from `VerifiedPsiOptimizationInput`.
+  Keep the program's entry call tied to the exact artifact and provider that
+  established it. Checked entry settlement records the crossed boundary, target
+  machine and provider plan; realization reads them from the verified input.
 */
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 
@@ -16,7 +14,7 @@ pub struct SelectedProgramEntryCall {
 }
 
 impl SelectedProgramEntryCall {
-    pub const fn settled(
+    pub(crate) const fn settled(
         boundary: BoundaryMachineId,
         entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
         callee: MachineId,

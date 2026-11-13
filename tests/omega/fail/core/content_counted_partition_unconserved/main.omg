@@ -1,8 +1,9 @@
 // Invalid quantity conservation must still reject under the shared judge
 // with interval conservation, without granting address identity or backing.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
-use omega::language::core::nat;
+use omega::language::core::Nat;
 data Region [linear] dropped by drop_region { remaining: u64; }
 machine drop_region(region: &mut Region) {}
 domain Region::Owned;

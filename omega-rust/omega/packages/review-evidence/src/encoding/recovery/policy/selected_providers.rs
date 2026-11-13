@@ -77,6 +77,7 @@ pub(in crate::encoding::recovery) fn row(
     Ok(PackagePolicyProviderRow {
         method: reader.string()?,
         requirement: nominal(reader)?,
+        requirement_application: reader.option(Reader::string)?,
         realization: reader.option(nominal)?,
         native_build: reader.option(super::external::producer)?,
         requirement_lifetime_partition: reader.sequence(4, Reader::u32)?,

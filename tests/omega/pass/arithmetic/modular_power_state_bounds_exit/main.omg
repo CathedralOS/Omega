@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // Exercise odd and even bits, negative exponents, and reduction before products.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine modular_power(base: i32, exponent: i32) -> i32
 requires base >= 0

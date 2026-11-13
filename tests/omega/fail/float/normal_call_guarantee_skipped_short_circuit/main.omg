@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::is_finite;
 
 // Its guarantee holds only after a normal return. The false path crashes.
 machine only_true(value: bool) -> bool

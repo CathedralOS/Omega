@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Buffer { input: [u8; 2]; }
 data Main { }

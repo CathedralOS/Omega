@@ -1,7 +1,8 @@
 // A pending mapping is not installed translations: unmapping requires the
 // exact `Installed` state, so `unmap` on a `Pending` carrier rejects
 // (wiki/spec/resources/extents.md "Mapping and reclamation").
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 
 public data TranslationActivationFact {
     identity: u64;

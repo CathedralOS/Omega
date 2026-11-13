@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::from_f64;
 
 machine narrow(value: f64 in Trapping, allow: bool) -> f32 in Trapping
 crashes Trap allow {

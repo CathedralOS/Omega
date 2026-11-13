@@ -4,7 +4,8 @@
 // nonzero values make stale pre-call reads observable: the zero-initialized
 // fields cannot satisfy the arrival checks. Both native and interpreted runs
 // must exit 70; empty or short input takes the failure exit 72.
-use omega_language_std::console;
+use omega_language_std::LineReadResult;
+use omega_language_std::Console;
 
 data Loader requires cursor <= 16383 {
     line: [u8; 8];

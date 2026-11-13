@@ -1,5 +1,6 @@
 // An external-content write cannot excuse replacing the descriptor itself.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 
 machine change_descriptor(storage: &mut Extent in Granted) { storage.base = 0; }
 machine keep(root: Extent in Granted) -> Extent in Granted {

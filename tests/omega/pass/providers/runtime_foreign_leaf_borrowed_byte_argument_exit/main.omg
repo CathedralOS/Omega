@@ -8,7 +8,7 @@
 // only then, and Main exits 70 when it did and its bytes are unchanged,
 // 71 otherwise.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait CText {
     machine length(text: &u8) -> u64 reaches;

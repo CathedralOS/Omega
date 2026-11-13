@@ -1,5 +1,5 @@
 // Expected exit: 0.
-use omega::language::core::option;
+use omega::language::core::Optional;
 machine inspect(bytes: [u8; 3]) -> Optional<u64> {
  Optional::Some { value: bytes.len }
 }

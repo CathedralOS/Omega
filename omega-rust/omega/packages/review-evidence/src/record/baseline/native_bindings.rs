@@ -6,13 +6,21 @@ use crate::record::{
 };
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackagePolicyNativeBinding {
+    pub application: Option<String>,
     pub method: PackagePolicyServiceMethod,
     pub binding: PackagePolicyProviderBinding,
 }
 impl PackagePolicyNativeBinding {
-    pub fn key(&self) -> (&crate::record::PackageReviewNominalIdentity, &str) {
+    pub fn key(
+        &self,
+    ) -> (
+        &crate::record::PackageReviewNominalIdentity,
+        Option<&str>,
+        &str,
+    ) {
         (
             &self.method.requirement,
+            self.application.as_deref(),
             self.producer().map_or("", |p| p.callable_identity.as_str()),
         )
     }
@@ -31,6 +39,9 @@ impl PackagePolicyNativeBinding {
         package: semantic_vocabulary::PackageKeyIdentity,
         target: target::TargetProfile,
     ) -> Result<(), &'static str> {
+        if self.application.as_ref().is_some_and(String::is_empty) {
+            return Err("native inventory has an empty application identity");
+        }
         let producer = self
             .producer()
             .ok_or("native inventory has no evaluated Build producer")?;

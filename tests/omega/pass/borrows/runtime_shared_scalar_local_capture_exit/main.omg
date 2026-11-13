@@ -1,6 +1,6 @@
 // Both loans observe the one completed helper result. Taking an address
 // must not execute its initializer again or replace its original storage.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Counter { calls: u32 in Wrapping; }
 data Main { counter: Counter; }

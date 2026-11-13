@@ -44,7 +44,7 @@ pub(crate) mod arithmetic_judgment {
                 decisions: &mut ApplicationDecisions,
             ) -> Option<Polynomial> {
                 let call = expression_table(program).call_node(expression)?;
-                if super::super::super::struct_trace() {
+                if super::super::super::struct_trace_owner(program, engine.source_owner) {
                     eprintln!(
                         "STRUCT declaration-call begin expression={expression:?} owner={:?} owned={} reads={}",
                         engine.source_owner,
@@ -106,7 +106,7 @@ pub(crate) mod arithmetic_judgment {
                         Some((*argument, input))
                     })
                     .collect::<Option<Vec<_>>>()?;
-                if super::super::super::struct_trace() {
+                if super::super::super::struct_trace_owner(program, engine.source_owner) {
                     eprintln!(
                         "STRUCT declaration-call inputs expression={expression:?} actuals={actuals:?}"
                     );
@@ -9695,6 +9695,12 @@ pub(crate) mod citations {
         runtime_invocation: bool,
     ) -> bool {
         let Some(owner) = selected_citation_contract(program, target.symbol) else {
+            if super::struct_trace_owner(program, machine.symbol) {
+                eprintln!(
+                    "CITE eligibility machine={} target={:?} owner=missing",
+                    machine.name, target.symbol
+                );
+            }
             return false;
         };
         let self_citation = citation_is_self(program, machine, target);
@@ -9704,10 +9710,21 @@ pub(crate) mod citations {
                 .type_reference(owner_return_type(&owner)),
             typed_trees::types::TypeReferenceNode::Unit
         );
+        let owner_is_proof = (!runtime_invocation && (!self_citation || resultless_entry))
+            .then(|| owner_is_proof(program, classification, &owner));
+        if super::struct_trace_owner(program, machine.symbol) {
+            eprintln!(
+                "CITE eligibility machine={} target={:?} invoked={:?} callee={} runtime={runtime_invocation} self={self_citation} static={} owner_proof={owner_is_proof:?} resultless={resultless_entry} arguments={arguments_len}",
+                machine.name,
+                target.symbol,
+                target.invoked_symbol,
+                owner_name(program, &owner),
+                target.has_static_selection
+            );
+        }
         if (runtime_invocation && (self_citation || target.has_static_selection))
             || (!runtime_invocation
-                && ((self_citation && !resultless_entry)
-                    || !owner_is_proof(program, classification, &owner)))
+                && ((self_citation && !resultless_entry) || owner_is_proof != Some(true)))
         {
             return false;
         }
@@ -9838,6 +9855,18 @@ pub(crate) mod citations {
         let Some(entry) = program.machine_states(machine).first() else {
             return predicates;
         };
+        let trace = super::struct_trace_owner(program, machine.symbol);
+        if trace {
+            eprintln!(
+                "CITE entry machine={} runtime={} parameters={:?} result={:?}",
+                machine.name,
+                site_judge
+                    .as_ref()
+                    .is_some_and(StructuralJudge::has_runtime_body_values),
+                program.state_parameters(entry),
+                entry.return_type
+            );
+        }
         let mut environment: Vec<(String, StructuralTerm)> = program
             .state_parameters(entry)
             .iter()
@@ -9848,21 +9877,38 @@ pub(crate) mod citations {
             .collect();
         for statement in program.statement_table.statements(entry.statement_nodes) {
             if let Some(local) = statement.as_local_data() {
-                if let Some(judge) = site_judge.as_ref()
-                    && let Some(term) = judge.callee_term_in_scope(
+                if let Some(judge) = site_judge.as_ref() {
+                    let term = judge.callee_term_in_scope(
                         Some((machine, entry, local.type_reference)),
                         local.initial_value,
                         &environment,
                         0,
-                    )
-                {
-                    environment.push((local.name.as_str().to_owned(), term));
+                    );
+                    if trace {
+                        eprintln!(
+                            "CITE local machine={} name={} type={:?} relevance={:?} initializer={:?} term={term:?}",
+                            machine.name,
+                            local.name,
+                            local.type_reference,
+                            local.relevance,
+                            program.expression_table.expression(local.initial_value)
+                        );
+                    }
+                    if let Some(term) = term {
+                        environment.push((local.name.as_str().to_owned(), term));
+                    }
                 }
                 continue;
             }
             let Some((target, argument_handles)) =
                 citation_call_in_statement(program, machine.symbol, statement)
             else {
+                if trace {
+                    eprintln!(
+                        "CITE statement machine={} no-call={statement:?}",
+                        machine.name
+                    );
+                }
                 continue;
             };
             if !can_establish_citation(
@@ -9896,6 +9942,14 @@ pub(crate) mod citations {
                         None,
                     ),
                 };
+                if trace {
+                    eprintln!(
+                        "CITE argument machine={} target={:?} expression={:?} term={term:?}",
+                        machine.name,
+                        target.symbol,
+                        program.expression_table.expression(*argument)
+                    );
+                }
                 let Some(term) = term else {
                     arguments_termify = false;
                     break;
@@ -9915,12 +9969,18 @@ pub(crate) mod citations {
                 site_judge.as_ref(),
                 false,
             );
+            if trace {
+                eprintln!(
+                    "CITE instantiated machine={} target={:?} arguments={argument_terms:?} predicates={:?}",
+                    machine.name, target.symbol, established.predicates
+                );
+            }
             if let Some(judge) = &mut site_judge {
                 established.intake(judge);
             }
             predicates.extend(established.predicates);
         }
-        if super::struct_trace() {
+        if super::struct_trace_owner(program, machine.symbol) {
             eprintln!("CITE machine={} predicates={predicates:?}", machine.name);
         }
         predicates
@@ -10236,6 +10296,7 @@ pub(crate) mod citations {
             },
         ));
         for fact in &ensures_facts {
+            let predicate_start = established.predicates.len();
             collect_instantiated_predicates(
                 program,
                 scope,
@@ -10244,6 +10305,14 @@ pub(crate) mod citations {
                 &map,
                 &mut established.predicates,
             );
+            if super::struct_trace_owner(program, machine.symbol) {
+                eprintln!(
+                    "CITE predicate machine={} callee={callee_name} fact={} map={map:?} formed={:?}",
+                    machine.name,
+                    program.expression_table.display_name(*fact),
+                    &established.predicates[predicate_start..]
+                );
+            }
         }
         // Mathematical results keep the same selected application identity for
         // predicates and tags. A saved local's environment contains that value,
@@ -49884,6 +49953,12 @@ pub(crate) mod structural_judgment {
                 right: StructuralTerm,
                 depth: usize,
             ) -> StructuralJudgment {
+                if self.trace_contract() {
+                    eprintln!(
+                        "STRUCT identity caller={:?} left={left:?} right={right:?} rewrites={:?}",
+                        self.machine_symbol, self.rewrites,
+                    );
+                }
                 let mut remaining = IDENTITY_QUERY_WORK_LIMIT;
                 self.judge_identity_with_budget(left, right, depth, &mut remaining)
             }
@@ -56925,8 +57000,26 @@ pub(crate) mod structural_judgment {
                         self.resolve_identity_context(right, depth, remaining, &mut substitutions)?,
                     ]))
                 })();
+                if crate::trace_flags::struct_contract_selection().is_some()
+                    && self.trace_contract()
+                {
+                    match result.as_ref() {
+                        Ok(IdentityNormalization::Proven) => eprintln!(
+                            "identity-normalization owner={:?}: proven",
+                            self.machine_symbol
+                        ),
+                        Ok(IdentityNormalization::Values(values)) => eprintln!(
+                            "identity-normalization owner={:?} values={values:?}",
+                            self.machine_symbol
+                        ),
+                        Err(reason) => eprintln!(
+                            "identity-normalization owner={:?}: {reason}",
+                            self.machine_symbol
+                        ),
+                    }
+                }
                 if let Err(reason) = result.as_ref()
-                    && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                    && crate::trace_flags::struct_trace()
                 {
                     eprintln!(
                         "identity-normalization owner={:?}: {reason}",
@@ -57276,7 +57369,7 @@ pub(crate) mod structural_judgment {
                 let resolved = match self.prepare_induction_value(machine, value) {
                     Ok(resolved) => resolved,
                     Err(reason) => {
-                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        if crate::trace_flags::struct_trace() {
                             eprintln!("induction-value owner={:?}: {reason}", self.machine_symbol);
                         }
                         return;
@@ -82454,6 +82547,10 @@ pub(crate) mod structural_judgment {
     }
 
     impl<'program> StructuralJudge<'program> {
+        pub(crate) fn trace_contract(&self) -> bool {
+            super::struct_trace_owner(self.program, self.machine_symbol)
+        }
+
         pub(crate) fn from_case_requires(
             program: &'program dyn crate::CheckingInput,
             judged_machine: &Machine,
@@ -83108,7 +83205,7 @@ pub(crate) mod structural_judgment {
         ) -> Option<ObservedEqualityTerms> {
             let source_term = |expression, side| {
                 let term = self.declaration_term(expression);
-                if super::struct_trace() && term.is_none() {
+                if self.trace_contract() && term.is_none() {
                     eprintln!(
                         "STRUCT equality-part-refused caller={:?} side={side} expression={}",
                         self.machine_symbol,
@@ -83137,7 +83234,7 @@ pub(crate) mod structural_judgment {
                     reference,
                     &resolved,
                 ) {
-                    if super::struct_trace() {
+                    if self.trace_contract() {
                         eprintln!(
                             "STRUCT equality-observation-refused caller={:?} reference={reference:?} source={term:?} resolved={resolved:?}",
                             self.machine_symbol
@@ -83908,7 +84005,7 @@ pub(crate) mod structural_judgment {
                 return None;
             };
             let target = *target;
-            if super::struct_trace() {
+            if self.trace_contract() {
                 eprintln!("STRUCT unfold? {machine_name} args {arguments:?} depth {depth}");
             }
             if depth >= 32 {
@@ -84244,10 +84341,27 @@ pub(crate) mod structural_judgment {
                 call,
             };
             let closed = |signature: &typed_trees::signature::StateSignature| {
-                crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
-                    self.program,
-                    signature,
-                )
+                let closed =
+                    crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
+                        self.program,
+                        signature,
+                    );
+                if self.trace_contract() {
+                    eprintln!(
+                        "STRUCT signature caller={:?} name={} closed={closed} termination={:?} deferred_reach={} services={:?} invokes={:?} suspends={} blocks={}",
+                        self.machine_symbol,
+                        signature.name,
+                        signature.termination_guarantee,
+                        signature.service_reach_is_installation_bound,
+                        self.program
+                            .service_reach_rows
+                            .services(signature.service_reach_row),
+                        self.program.state_signature_invokes(signature),
+                        signature.suspends,
+                        signature.blocks
+                    );
+                }
+                closed
             };
             // A proposition may use a call as a value term only when the call is
             // total and pure (domains.md, "eligible total, pure machine calls";
@@ -84293,7 +84407,7 @@ pub(crate) mod structural_judgment {
                 &call.machine_arguments,
                 self.frame_resolver(),
             );
-            if super::struct_trace()
+            if self.trace_contract()
                 && let Err(reason) = candidate
             {
                 eprintln!(
@@ -84846,7 +84960,7 @@ pub(crate) mod structural_judgment {
                         None
                     };
                     if let Some(reason) = refusal {
-                        if super::struct_trace() {
+                        if self.trace_contract() {
                             eprintln!(
                                 "STRUCT term-call-refused caller={:?} expression={} target={:?} reason={reason}",
                                 self.machine_symbol,
@@ -85249,7 +85363,7 @@ pub(crate) mod structural_judgment {
                     }
                     }
                     if !self.has_identity_equality_meaning(fact) {
-                        if super::struct_trace() {
+                        if self.trace_contract() {
                             eprintln!(
                                 "STRUCT equality-refused caller={:?} fact={} reason=identity-authority",
                                 self.machine_symbol,
@@ -85259,7 +85373,7 @@ pub(crate) mod structural_judgment {
                         return StructuralJudgment::Unknown;
                     }
                     let Some(terms) = self.declaration_term_pair(binary) else {
-                        if super::struct_trace() {
+                        if self.trace_contract() {
                             eprintln!(
                                 "STRUCT equality-refused caller={:?} fact={} reason=term-formation",
                                 self.machine_symbol,
@@ -85270,7 +85384,7 @@ pub(crate) mod structural_judgment {
                     };
                     let [left, right] = terms.resolved;
                     let [source_left, source_right] = terms.source;
-                    if super::struct_trace() {
+                    if self.trace_contract() {
                         eprintln!(
                             "STRUCT equality caller={:?} left={left:?} right={right:?} rewrites={:?}",
                             self.machine_symbol, self.rewrites,
@@ -88735,13 +88849,29 @@ pub(crate) mod structural_terms {
         ) -> Option<StructuralTerm> {
             let view = program.prepared_mathematics()?;
             let application = view.application(expression)?;
+            let owner = program
+                .machine_holding_state(application.owner)
+                .map_or(application.owner, |machine| machine.symbol);
+            let trace = super::super::struct_trace_owner(program, owner);
+            if trace {
+                eprintln!(
+                    "MATH application={application:?} identities={:?}",
+                    view.applications
+                        .identity_values
+                        .span_or_empty(application.identity_values)
+                );
+            }
             let captures = view
                 .applications
                 .captures
                 .span_or_empty(application.captures)
                 .iter()
                 .map(|capture| {
-                    let mut value = observe(capture)?;
+                    let observed = observe(capture);
+                    if trace {
+                        eprintln!("MATH capture={capture:?} observed={observed:?}");
+                    }
+                    let mut value = observed?;
                     let mut value_type = capture.source_type;
                     if crate::reference_shell(program, capture.source_type).is_some()
                         && program
@@ -88792,7 +88922,15 @@ pub(crate) mod structural_terms {
                     Some(Some(value))
                 })
                 .collect::<Option<Vec<_>>>()?;
-            read_term(program, view, application, application.term, &captures, 0)
+            read_term(
+                program,
+                view,
+                application,
+                application.term,
+                &captures,
+                0,
+                trace,
+            )
         }
 
         fn read_term(
@@ -88802,11 +88940,13 @@ pub(crate) mod structural_terms {
             term: TermHandle,
             captures: &[Option<StructuralTerm>],
             depth: usize,
+            trace: bool,
         ) -> Option<StructuralTerm> {
             if depth >= 128 {
                 return None;
             }
-            let read = |term| read_term(program, view, application, term, captures, depth + 1);
+            let read =
+                |term| read_term(program, view, application, term, captures, depth + 1, trace);
             let source_captures = view
                 .applications
                 .captures
@@ -88814,9 +88954,14 @@ pub(crate) mod structural_terms {
                 .len();
             let inserted_binders =
                 u32::try_from(captures.len().checked_sub(source_captures)?).ok()?;
-            if let Some((carrier, [left, right])) =
-                view.identity_value(application, term, inserted_binders)
-            {
+            let identity = view.identity_value(application, term, inserted_binders);
+            if trace {
+                eprintln!(
+                    "MATH read term={term:?} depth={depth} node={:?} identity={identity:?}",
+                    view.arena.get(term)
+                );
+            }
+            if let Some((carrier, [left, right])) = identity {
                 return Some(StructuralTerm::Identity {
                     carrier: carrier.type_identity,
                     left: Box::new(read(left)?),
@@ -88889,6 +89034,7 @@ pub(crate) mod structural_terms {
                                 zero_branch,
                                 &extended,
                                 depth + 1,
+                                trace,
                             )?,
                             read_term(
                                 program,
@@ -88897,18 +89043,33 @@ pub(crate) mod structural_terms {
                                 one_branch,
                                 &extended,
                                 depth + 1,
+                                trace,
                             )?,
                         ));
                     }
                     Some(binary(
                         BinaryOperator::And,
                         read(domain)?,
-                        read_term(program, view, application, codomain, &extended, depth + 1)?,
+                        read_term(
+                            program,
+                            view,
+                            application,
+                            codomain,
+                            &extended,
+                            depth + 1,
+                            trace,
+                        )?,
                     ))
                 }
                 _ => {
                     let (declaration, arguments) =
                         crate::mathematical_applications::application_spine(view, term)?;
+                    if trace {
+                        eprintln!(
+                            "MATH constant declaration={declaration} meaning={:?} arguments={arguments:?}",
+                            view.constant(declaration)
+                        );
+                    }
                     match (view.constant(declaration)?, arguments.as_slice()) {
                         (PreparedConstantMeaning::Integer(value), []) => {
                             Some(StructuralTerm::Integer(value.clone()))
@@ -88987,7 +89148,7 @@ pub(crate) mod structural_terms {
                             ) {
                                 Ok(value) => Some(value),
                                 Err(reason) => {
-                                    if super::super::struct_trace() {
+                                    if trace || super::super::struct_trace() {
                                         eprintln!(
                                             "source value {:?} under {:?} cannot be read: {reason}",
                                             expression, owner
@@ -91546,10 +91707,28 @@ pub(crate) mod structural_terms {
             }
             ExpressionNode::Float(value) => Some(StructuralTerm::Float(value.clone())),
             ExpressionNode::Call(call) => {
-                if crate::mathematical_applications::is_mathematical_call(program, call) {
-                    return mathematical_application_term(program, expression, |capture| {
+                let mathematical =
+                    crate::mathematical_applications::is_mathematical_call(program, call);
+                let trace = frame
+                    .map(|(owner, _)| owner)
+                    .or_else(|| scope.map(|(machine, _, _)| machine.symbol))
+                    .is_some_and(|owner| super::struct_trace_owner(program, owner));
+                if trace {
+                    let prepared = program.prepared_mathematics();
+                    eprintln!(
+                        "MATH source expression={expression:?} call={call:?} mathematical={mathematical} prepared={} application={:?}",
+                        prepared.is_some(),
+                        prepared.and_then(|view| view.application(expression))
+                    );
+                }
+                if mathematical {
+                    let value = mathematical_application_term(program, expression, |capture| {
                         structural_term(program, scope, frame, capture.expression, bindings)
                     });
+                    if trace {
+                        eprintln!("MATH value expression={expression:?} result={value:?}");
+                    }
+                    return value;
                 }
                 let target = structural_call_target_in_frame(program, call, frame);
                 let realization = realized_requirement_state(call);
@@ -92304,6 +92483,15 @@ pub(crate) fn struct_trace() -> bool {
     crate::trace_flags::struct_trace()
 }
 
+fn struct_trace_owner(program: &dyn crate::CheckingInput, owner: SymbolHandle) -> bool {
+    let Some(selected) = crate::trace_flags::struct_contract_selection() else {
+        return struct_trace();
+    };
+    program
+        .machine_by_symbol(owner)
+        .is_some_and(|machine| machine.name.as_str() == selected)
+}
+
 const RESULT_BINDER: &str = "result";
 
 pub fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
@@ -92519,7 +92707,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
                 (bound.judge_proposition(program, fact), None)
             };
-            if struct_trace() {
+            if struct_trace_owner(program, machine.symbol) {
                 eprintln!(
                     "STRUCT normal-return machine={} value={value:?} fact={} verdict={}",
                     machine.name,
@@ -92711,7 +92899,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                     .as_ref()
                     .map(|name| name.as_str().to_owned())
             });
-            if struct_trace() {
+            if struct_trace_owner(program, machine.symbol) {
                 eprintln!(
                     "ROUTE machine={} fact=`{}` mention={:?} zero_value={}",
                     machine.name,

@@ -6,7 +6,7 @@
 // writes land in the lent array.
 //
 // Exit 71 = the field loan missed its writes, 72 = the local loan did.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     bytes: [u8; 4];

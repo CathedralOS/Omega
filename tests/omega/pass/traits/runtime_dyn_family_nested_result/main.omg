@@ -1,6 +1,6 @@
 // Common record results retain the selected implementation across runtime
 // family dispatch, local binding, forwarding, field storage and call operands.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Packet { value: u32; stamp: u32; }
 

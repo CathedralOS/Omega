@@ -1,7 +1,7 @@
 /*
-We projectPsi-owned boundary service declarations (`service_declarations`) and
-provider declaration contexts (`provider_declarations`) from `TypedTrees`,
-keeping semantic service requirements independent of target calling plans.
+Boundary service declarations say which calls a provider promises to implement.
+We keep those contracts independent of target calling plans, retaining each exact
+typed declaration and application for later provider selection.
 */
 
 pub mod provider_declarations {
@@ -1457,6 +1457,23 @@ pub(crate) mod catalog {
             })
         }
 
+        pub fn retain_application(
+            self,
+            scope: AppliedTraitScope<'_>,
+        ) -> Option<RetainedServiceSurface> {
+            let origin = ServiceOrigin::Application {
+                declaration: scope.declaration.symbol,
+                argument_owner: scope.argument_owner,
+                application: scope.application_identity(self.context.typed)?,
+            };
+            let record = self.catalog.record(origin);
+            self.catalog.view(self.catalog.records.get(record))?;
+            Some(RetainedServiceSurface {
+                catalog: Arc::clone(self.catalog),
+                record,
+            })
+        }
+
         pub fn named_application(
             self,
             declaration: SymbolHandle,
@@ -1474,18 +1491,25 @@ pub(crate) mod catalog {
             self.catalog.declared_traits()
         }
 
-        pub fn retain_named_application(
+        // Calling must keep the exact declaration used to form the candidate.
+        // Looking it up again by its authored name would discard applied
+        // arguments. Only the same catalog-owned declaration can name its
+        // retained source and requirement correspondence.
+        pub fn retain_surface(
             self,
-            declaration: SymbolHandle,
-            capture: Handle<crate::CapturedMachineApplication>,
-            receiver: SymbolHandle,
+            declaration: &Arc<ServiceSurface>,
         ) -> Option<RetainedServiceSurface> {
-            let record = self.catalog.record(ServiceOrigin::Named {
-                declaration,
-                capture,
-                receiver,
+            let mut matching = self.catalog.records.iter().filter(|(_, record)| {
+                record
+                    .declaration
+                    .as_ref()
+                    .is_some_and(|owned| Arc::ptr_eq(owned, declaration))
             });
-            self.catalog.view(self.catalog.records.get(record))?;
+            let (record, retained) = matching.next()?;
+            if matching.next().is_some() {
+                return None;
+            }
+            self.catalog.view(retained)?;
             Some(RetainedServiceSurface {
                 catalog: Arc::clone(self.catalog),
                 record,

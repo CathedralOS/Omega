@@ -3,7 +3,7 @@
 // ordinary store of `storage.raw`. Nothing reseats the binding, so the loan
 // carries no runtime value of its own. Reading the field back afterwards
 // proves the store reached the loaned storage and not a copy.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

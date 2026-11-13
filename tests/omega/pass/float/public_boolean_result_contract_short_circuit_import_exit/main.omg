@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::is_finite;
 
 // Each selected expression outcome retains only its own normal-call facts.
 machine finite(value: f32) -> bool

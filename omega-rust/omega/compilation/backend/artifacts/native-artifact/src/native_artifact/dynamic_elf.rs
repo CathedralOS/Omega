@@ -128,13 +128,18 @@ impl DynamicElfNativeArtifact {
         }
         let module = self.parts.psi_artifact.semantic_module();
         mixed_structural_scalar::validate(module, &self.parts.object)?;
+        let execution_scope = self.parts.object.native_execution_scope(
+            &self.parts.psi_artifact,
+            *self.parts.selected_provider_closure_digest.as_bytes(),
+        )?;
         validate_boundary_application_coverage(
             module,
             semantic,
             self.parts.boundary_application_coverage.as_ref(),
             &self.parts.physical_evidence_scope,
+            execution_scope,
         )?;
-        validate_ieee_float_fma_occurrences(module)?;
+        validate_ieee_float_fma_occurrences(module, execution_scope)?;
         self.parts
             .object
             .validate_terminal_entry(&self.parts.psi_artifact)?;

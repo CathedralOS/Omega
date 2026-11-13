@@ -5,7 +5,7 @@
 // `scalar computation needs one checked expression and one source binding`.
 module guard_call_scalar_argument_exit;
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine callee(v: u64) -> bool {
     transition v {

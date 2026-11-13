@@ -10,7 +10,7 @@
 // carried through the cycle and forwarded to `module.set_module_name(...)`,
 // where the arg place is the block parameter of the machine's `&mut` input.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Sink {
     value: u64 in Wrapping;

@@ -1,7 +1,7 @@
 // A subslice passed around a state cycle retains every incoming storage root.
 // Guarded reads observe the progressively shortened view, including a cut
 // initial argument and a literal-backed argument to the same machine.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { bytes: [u8; 4]; }
 machine sum(bytes: &[u8]) -> i32 in Wrapping {
     transition { _ -> scan(bytes, 0) }

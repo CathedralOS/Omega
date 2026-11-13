@@ -2,7 +2,7 @@
 // Both arguments keep their authored positions; there is no hidden receiver.
 // Seven bytes plus the empty window add 80 to count and produce exit 70.
 // Control: termination/runtime_shrinking_slice_recursion_exit uses element views.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     count: u32 in Wrapping;

@@ -9,7 +9,6 @@
 // Compile-checked only: freestanding target, port I/O is
 // privileged.
 
-use omega::language::core::assembly;
 
 data Main { port: u16; status: u8; ready: bool; }
 

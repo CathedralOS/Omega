@@ -2,8 +2,8 @@
 // `widen_u8_to_u16(value) << 8` stays within u16 (at most 65280), but `<< 9`
 // can reach 130560. The Exact shift owes a representability proof the
 // published postcondition cannot discharge, so it rejects.
-use omega::language::core::numeric_conversion;
-use omega_language_std::console;
+use omega::language::core::widen_u8_to_u16;
+use omega_language_std::Console;
 
 machine scale(value: u8) -> u16 {
     widen_u8_to_u16(value) << 9

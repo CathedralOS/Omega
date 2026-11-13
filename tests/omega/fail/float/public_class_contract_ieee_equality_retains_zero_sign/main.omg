@@ -1,4 +1,5 @@
-use omega::language::core::float_operations;
+use omega::language::core::FloatClass;
+use omega::language::core::F32::classify;
 
 // IEEE equality admits either signed zero. It supplies no positive-sign
 // identity with which to replace the original classification subject.

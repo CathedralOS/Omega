@@ -1,5 +1,5 @@
 // Repeating an affine payload preserves its provider-bearing element layout.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Task { count: u64; }
 data Slot { case Empty; case Held(task: Task); }

@@ -1,4 +1,8 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::VacantExtentParts;
+use omega::language::core::split_vacant_extent;
+use omega::language::core::Extent::Granted;
 use alloc::bump;
 
 // Truncation keeps a prefix of the live buffer, so its bound is the buffer's

@@ -1,4 +1,4 @@
-use omega::language::core::assembly_model;
+use omega::language::core::atomic_release_written;
 data Cell { value: AtomicU64; }
 data Envelope [linear] { invocation: u64; acknowledgement: &Cell; }
 domain Envelope::Pending established by Entry::enter;

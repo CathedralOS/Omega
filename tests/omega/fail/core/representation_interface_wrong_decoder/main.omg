@@ -1,6 +1,13 @@
 // Expected error: an echo cannot establish the selected conversion contracts
-use omega::language::core::conversion;
-use omega::language::core::representation;
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
+use omega::language::core::RepresentationRequest;
+use omega::language::core::RepresentationDecodeRequest;
+use omega::language::core::RepresentationError;
+use omega::language::core::RepresentationModel;
+use omega::language::core::RepresentationEncoding;
+use omega::language::core::RepresentationDecoding;
+use omega::language::core::Representation;
 
 data NoResources [copy] { }
 data Frame [copy] { tag: u8; value: u8; }

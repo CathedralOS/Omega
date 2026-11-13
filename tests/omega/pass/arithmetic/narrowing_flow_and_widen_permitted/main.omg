@@ -3,7 +3,7 @@
 // What `as` buys back is exactly the old permissive case: a cast through a
 // proven-in-range source compiles, so real code migrates by spelling the
 // conversion rather than restructuring. All three stores below compile.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Operands { a: i8; b: i64; r: i32; s: i8; }
 data Main { }
 machine Main::main(context: &mut Main) reaches Console {

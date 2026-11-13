@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Reading<T> { value: T; }
 machine read(values: &[Reading<f64>; 2]) -> f64
 crashes Trap values[1].value < 0.0 {

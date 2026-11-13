@@ -1,4 +1,7 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::multiply_then_add;
+use omega::language::core::F32::from_f64;
+use omega::language::core::F32::is_nan;
+use omega::language::core::F32::is_infinite;
 
 // Named operations retain result policy from both implicit and computed inputs.
 // Every original input participates in overflow eligibility, in its own format.

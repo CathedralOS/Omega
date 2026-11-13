@@ -8,7 +8,6 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::assembly;
 
 machine helper() reaches MachineControl {
     asm { hlt }

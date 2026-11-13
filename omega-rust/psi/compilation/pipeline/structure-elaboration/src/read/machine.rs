@@ -114,6 +114,58 @@ impl<'t> Program<'t> {
         Ok(private)
     }
 
+    /// The machines whose callers in this compilation may rely on what the
+    /// body returns beyond its written `ensures`. state_contracts.md, "Local
+    /// call summaries": "An exact checked call inside the same fingerprinted
+    /// verification unit may use the callee's written contract plus checked
+    /// body-derived result and state facts", and across that boundary
+    /// "ordinary calls use the published contract".
+    ///
+    /// The unit here is the subject package. A private subject machine can
+    /// only be called from it (`visible_to`), so a fact derived from its body
+    /// reaches no other unit. A public machine is left out: the route states
+    /// a summary as a clause of the machine's contract, and a public
+    /// contract is what independent clients are given. A reached dependency
+    /// is another unit. An entry, a Build selection, a requirement and a
+    /// selected implementation are boundaries ("An abstract requirement,
+    /// unknown callable or replaceable boundary uses its interface
+    /// contract"), and a machine stage 04 generated keeps exactly the
+    /// contract its generic form was checked against.
+    pub(crate) fn local_result_bodies(&self, entry: MachineId) -> Checked<Vec<MachineId>> {
+        let mut boundary = self.symbols.map(|_, _| false);
+        for id in std::iter::once(&entry)
+            .chain(&self.fixed_inputs)
+            .chain(&self.requirements)
+            .chain(
+                self.selections
+                    .iter()
+                    .map(|selection| &selection.implementation),
+            )
+        {
+            *boundary.get_mut(*id).ok_or_else(|| {
+                refuse(
+                    *id,
+                    Construct::Machine,
+                    Unserved::Machine("result boundary without a machine"),
+                )
+            })? = true;
+        }
+        let mut local = Vec::new();
+        for &id in &self.subject_machines {
+            if boundary.get(id) == Some(&true) {
+                continue;
+            }
+            let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+            let Some(machine) = self.typed.machine_by_symbol(symbol) else {
+                continue;
+            };
+            if !machine.is_public && crate::template_of(self.typed, symbol).is_none() {
+                local.push(id);
+            }
+        }
+        Ok(local)
+    }
+
     fn next_identity(&self) -> Checked<MachineId> {
         MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
             refuse(
@@ -344,8 +396,36 @@ impl<'t> Program<'t> {
         {
             return unserved("assembly target");
         }
-        if machine.attached_data_symbol.is_valid() || machine.attached_data_application.is_valid() {
-            return unserved("attached data");
+        // A machine declared under a data type's name, `machine
+        // Counter::clear(counter: &mut Counter)`, is an ordinary static
+        // machine whose name has two parts. machines.md, "Static
+        // declarations and explicit state": "All machines are static
+        // declarations independent of data", and qualification "never binds
+        // code to a data type". So the data type gives the machine no
+        // parameter, no storage and no `self`: its formals and body are read
+        // like any other machine's, and a caller passes every argument
+        // (`calls`, `names_carrier`). That page also retires the spelling;
+        // the typed trees still hold it, and refusing it here would only
+        // send the same program to the current checker, which accepts it.
+        //
+        // What stays refused is a data type that could give the machine
+        // something after all: one applied at type arguments, or a generic
+        // one, whose parameters the body would be read under.
+        if machine.attached_data_application.is_valid() {
+            return unserved("attached data applied at type arguments");
+        }
+        if machine.attached_data_symbol.is_valid() {
+            let plain = self
+                .data_declaration(machine.attached_data_symbol)
+                .is_some_and(|data| {
+                    data.lifetime_parameters.is_empty()
+                        && data.type_parameters.is_empty()
+                        && data.generic_instance.is_none()
+                        && data.conformance_bounds.is_empty()
+                });
+            if !plain {
+                return unserved("attached generic data");
+            }
         }
         if machine.generic_data_template.is_valid() {
             return unserved("generic data template");

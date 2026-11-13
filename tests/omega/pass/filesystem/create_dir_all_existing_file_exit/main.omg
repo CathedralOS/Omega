@@ -1,7 +1,13 @@
 // Expected exit: 0. Recursive directory creation accepts an existing directory,
 // but must not report success for an ordinary file at the requested leaf.
-use omega_language_std::filesystem;
-use omega_language_std::console;
+use omega_language_std::ErrorKind;
+use omega_language_std::UnitResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::write_all;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::create_dir_all;
+use omega_language_std::Filesystem::remove_dir_all;
+use omega_language_std::Console;
 
 data Main { filesystem: Filesystem; }
 

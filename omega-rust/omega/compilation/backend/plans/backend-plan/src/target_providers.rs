@@ -774,9 +774,10 @@ fn receiving_application_matches(
         };
         Some(receiving)
     };
-    plan.schema
-        .declaration
-        .matches_receiving_application(plan.identity_text(row.requirement_identity), receiving)
+    plan.schema.declaration.matches_receiving_application(
+        plan.identity_text(row.declared_requirement_identity),
+        receiving,
+    )
 }
 
 #[cfg(test)]
@@ -844,6 +845,8 @@ mod tests {
                 rows: vec![ProviderPlanRow {
                     method: "read".into(),
                     requirement_identity: requirement,
+                    declared_requirement_identity: requirement,
+                    calling_signature: None,
                     requirement_lifetime_partition: Vec::new(),
                     admitted_same_stack_bytes: 0,
                     binding: ProviderBinding::CheckedAdapter {

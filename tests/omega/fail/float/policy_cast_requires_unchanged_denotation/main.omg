@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 machine fractional_saturating() -> i32 in Saturating { 3.75f64 as i32 in Saturating }
 machine fractional_trapping() -> i32 in Trapping { 3.75f64 as i32 in Trapping }

@@ -1,8 +1,23 @@
 // Checking probe: whole-value placement retains all represented fields,
 // including inaccessible children, independently of accessor discovery.
 // This does not assert that initialization has executed.
-use omega::language::core::extent;
-use omega::language::core::layout;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Resident;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::ResourceProfileSupply;
+use omega::language::core::AccessOutcome;
+use omega::language::core::AccessReturn;
+use omega::language::core::AccessInitializationFailure;
+use omega::language::core::AccessExtraction;
 
 data TestMemory {}
 

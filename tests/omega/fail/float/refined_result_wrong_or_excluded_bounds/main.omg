@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // The Exact conversions are legal. The independently demanded result bounds
 // are false; no receiving postcondition changes the source's value.

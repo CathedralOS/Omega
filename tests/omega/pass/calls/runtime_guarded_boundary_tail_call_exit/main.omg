@@ -1,7 +1,7 @@
 // Value::read is a one-member boundary trait with an empty reach. The
 // guarded call returns 70 on the matching arm and 71 on the fallback.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 public boundary trait Value {
     machine read(value: i32) -> i32
     reaches;

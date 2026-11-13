@@ -6,7 +6,7 @@
 // 71 = a wrong value.
 // Records and cases share the construction contents rule, including the
 // bounded carrier and its independently checked member range obligation.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain i32::Ten requires 0 <= self && self <= 10;
 

@@ -1,5 +1,4 @@
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // Provider-dependent array lengths and independent layout queries close
 // together under the selected target. Expected native exit: 70.

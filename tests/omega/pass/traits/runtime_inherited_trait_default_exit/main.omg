@@ -3,7 +3,7 @@
 // each reset ran its own resolution: 30 from the first child's default, 30
 // through the second, and 10 from the authored override that settles the two
 // conflicting defaults.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Resettable<T> {
     machine set(subject: &mut T, value: i32);

@@ -1,5 +1,5 @@
 // libc lldiv returns two 64-bit fields in separate Darwin result registers.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data Division {
     quotient: i64;

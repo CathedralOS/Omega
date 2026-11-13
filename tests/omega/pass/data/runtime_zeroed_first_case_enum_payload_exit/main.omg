@@ -3,7 +3,7 @@
 // initialization). Here that payload is itself a sum: the zero `Token` is
 // `Integer { base: Base::Decimal, empty: false }` with `start` zero, in a
 // state-local array and in a caller-owned field.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Base [copy] { case Decimal; case Hex; }
 data Token [copy] {

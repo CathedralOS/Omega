@@ -1,9 +1,8 @@
-use omega::language::core::float_operations;
 
 // F3a: `Finite` is a compiler-known core value domain, not a user-declared
 // carrier domain. The data's ordinary where clause retains the ranged field's
 // finite interval while its value flows to a Finite transition parameter.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main requires ranged >= 0.0 && ranged <= 1.0 {
     direct: f64 in Finite;

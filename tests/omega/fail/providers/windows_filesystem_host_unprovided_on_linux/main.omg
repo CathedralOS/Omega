@@ -1,8 +1,8 @@
 // A linux_x86_64 program must not call WindowsFilesystemHost: the family
 // trait declares the kernel32 HANDLE seam and only the windows_x86_64 target
 // supplies a provider for it. Provider supply must refuse the call.
-use omega_language_std::windows_filesystem_host;
-use omega_language_std::console;
+use omega_language_std::WindowsFilesystemHost;
+use omega_language_std::Console;
 
 data Main { }
 

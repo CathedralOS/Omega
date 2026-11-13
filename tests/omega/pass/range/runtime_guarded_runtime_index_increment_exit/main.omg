@@ -2,7 +2,7 @@
 // ZII tallies[2] is incremented to1 under the saved element guard. The owner
 // retains all four signed0..16 element predicates and its standing k<=3 bound;
 // bump's admission carries both bounds on the detached scalar across the call.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main
 requires self.tallies[0] >= 0 && self.tallies[0] <= 16,
     self.tallies[1] >= 0 && self.tallies[1] <= 16,

@@ -1,5 +1,7 @@
-use omega::language::core::extent;
-use omega::language::core::assembly;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::ProgramStorageEntry;
+use omega::language::core::ExtentRootProvider;
 use entry_support::targets::uefi_x86_64::entry;
 
 TestRoots satisfies ExtentRootProvider {

@@ -1,5 +1,18 @@
 // A package-qualified call selects the imported operation and preserves its access rules.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::FieldAccess;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::Access;
+use omega::language::core::Access::view_mut;
+use omega::language::core::write;
 
 public data Value { before: u64; number: u64; after: u64; }
 public data StablePlacement {}

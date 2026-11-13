@@ -8,7 +8,7 @@
 // Only the declaring machine assigns an evidence output: the nested
 // `succeed` declares the same guarantee and assigns its own output, and
 // `pick`'s terminal call to it discharges `pick`'s guarantee.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Outcome [copy] {
     case Success;

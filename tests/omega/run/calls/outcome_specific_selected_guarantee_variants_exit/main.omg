@@ -3,7 +3,7 @@
 // is scalar and from a later state of the entry machine. Each selection rides
 // the caller's structural call and is erased before native code: exit 0 means
 // both selected arms ran.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Outcome [copy] {
     case Success;

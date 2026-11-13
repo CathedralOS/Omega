@@ -78,6 +78,7 @@ fn component_assumption(
 
 fn native_binding(reader: &mut Reader<'_>) -> Result<PackagePolicyNativeBinding, Error> {
     Ok(PackagePolicyNativeBinding {
+        application: reader.option(|reader| reader.string())?,
         method: selected_providers::service_method(reader)?,
         binding: selected_providers::bindings::binding(reader)?,
     })

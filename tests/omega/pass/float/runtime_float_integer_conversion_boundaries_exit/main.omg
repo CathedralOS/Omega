@@ -1,7 +1,11 @@
 // Integer truncation is valid below the signed minimum by less than one.
 // U64 conversion must also preserve values above the signed hardware range.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::from_u64;
+use omega::language::core::F64::from_u64;
+use omega::language::core::I8::from_f32;
+use omega::language::core::I32::from_f64;
+use omega::language::core::U64::from_f64;
+use omega_language_std::Console;
 
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

@@ -2,8 +2,8 @@
 // Offset-one views challenge native alignment; an oversized count cannot touch
 // canaries. Darwin's private four-byte directory suffix stays caller-owned on
 // success and failure. Empty requests still report real native errors.
-use omega_language_std::posix_filesystem_host;
-use omega_language_std::console;
+use omega_language_std::PosixFilesystemHost;
+use omega_language_std::Console;
 
 data Main { bytes: [u8; 1026]; descriptor: i32; position: i64; }
 machine Main::main(main: &mut Main)

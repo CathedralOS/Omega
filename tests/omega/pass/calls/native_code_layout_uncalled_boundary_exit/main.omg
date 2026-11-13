@@ -1,6 +1,6 @@
 // The exact selected executable application supplies a nonzero native entry and finite attributed code regions at runtime.
 // Expected exit: 0
-use omega::language::core::code_layout;
+use omega::language::core::CodeLayout;
 public boundary trait Observation { machine observe(value: u64) -> u64 reaches crashes Trap; }
 ObservationImplementation satisfies Observation { machine observe(value: u64) -> u64 crashes Trap { implementation(value) } }
 machine implementation(value: u64) -> u64 crashes Trap { crash Trap; }

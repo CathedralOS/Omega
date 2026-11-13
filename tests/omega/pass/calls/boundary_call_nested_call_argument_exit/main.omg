@@ -5,8 +5,8 @@
 // The zero-initialized handle is invalid, so CloseHandle returns 0 and the
 // program exits 70 (71 otherwise). Target checking alone does not establish
 // that native result.
-use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega_language_std::Console;
+use omega::language::core::narrow_u64_to_i64_wrapping;
 
 
 boundary trait Io {

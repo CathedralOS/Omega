@@ -4,7 +4,7 @@
 // declared-type zero mint. Reads back one array element's leaf, a nested
 // leaf, and a trailing member. Exits 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Point {
     x: i32 in Trapping;

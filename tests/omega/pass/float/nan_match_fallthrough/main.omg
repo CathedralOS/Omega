@@ -1,7 +1,6 @@
 // Float match equality is semantic IEEE equality: `-0.0f32` matches the
 // `0.0f32` pattern, and NaN matches NOTHING — a NaN subject falls to
 // the wildcard even when every pattern is NaN itself.
-use omega::language::core::float_operations;
 
 machine choose32(value: f32, first: f32, second: f32) -> i64 {
     match value { first -> 7, second -> 9, _ -> 11 }

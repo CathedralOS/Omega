@@ -1,4 +1,12 @@
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::scalar_field;
+use omega::language::core::ScalarBound;
+use omega::language::core::CompactBinary::scalar_bound;
+use omega::language::core::CompactBinary::max_scalar_field;
 use omega::language::core::reflect;
 // `second::Counter` encodes two fields (13 bytes worst case); the
 // same-named `first::Counter` encodes one (7 bytes). The out buffer is

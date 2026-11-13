@@ -118,7 +118,7 @@ impl StagedOptimizedFunctionFragmentEmission {
         self.custody
     }
 
-    pub fn lowering_facts(&self) -> &provider_admission::AdmittedLoweringFacts {
+    pub fn lowering_facts(&self) -> &verified_optimization_input::AdmittedLoweringFacts {
         self.source.lowering_facts()
     }
 
@@ -453,7 +453,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
         self.optimized_target().optimized().pre_physical_manifest()
     }
 
-    pub fn lowering_facts(&self) -> &provider_admission::AdmittedLoweringFacts {
+    pub fn lowering_facts(&self) -> &verified_optimization_input::AdmittedLoweringFacts {
         self.optimized_target().lowering_facts()
     }
 

@@ -46,6 +46,8 @@ pub(crate) struct TerminalProductionView<'a> {
     plan_facts: &'a effects::SelectedProviderPlanFacts,
     native_sources: &'a Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     callbacks: &'a psi_compiler::PreparedTerminalRoots,
+    callback_declarations: &'a psi_compiler::PreparedExternalProviderDeclarations,
+    callback_calling_requirements: Vec<terminal_psi::CallbackRequirementId>,
     timings: &'a mut CompileTimings,
     native_components:
         Option<&'a Result<Vec<compilation_products::SelectedIndependentComponent>, String>>,
@@ -82,6 +84,10 @@ impl<'a> TerminalProductionView<'a> {
             plan_facts: selection.execution.plans(),
             native_sources: &selection.execution.native_provider_sources,
             callbacks: &selection.execution.callback_roots,
+            callback_declarations: &selection.execution.external_providers,
+            callback_calling_requirements: selection
+                .settlement
+                .callback_calling_requirements(&selection.execution.external_providers.callbacks),
             timings: &mut selection.timings,
             native_components,
         }
@@ -105,6 +111,10 @@ impl<'a> TerminalProductionView<'a> {
             plan_facts: checked.execution().plans(),
             native_sources: &checked.execution().native_provider_sources,
             callbacks: &checked.execution().callback_roots,
+            callback_declarations: &checked.execution().external_providers,
+            callback_calling_requirements: checked
+                .providers()
+                .callback_calling_requirements(&checked.execution().external_providers.callbacks),
             timings,
             native_components: None,
         }
@@ -170,6 +180,10 @@ impl<'a> TerminalProductRequest<'a> {
             plan_facts: selection.execution.plans(),
             native_sources: &selection.execution.native_provider_sources,
             callbacks: &selection.execution.callback_roots,
+            callback_declarations: &selection.execution.external_providers,
+            callback_calling_requirements: selection
+                .settlement
+                .callback_calling_requirements(&selection.execution.external_providers.callbacks),
             timings: &mut selection.timings,
             native_components: None,
         };
@@ -420,6 +434,9 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     program.artifact().view(),
                                     application.request.selections.identity(),
                                     &realization_scopes,
+                                    &application.request.view.callback_declarations.identities,
+                                    &application.request.view.callback_declarations.callbacks,
+                                    &application.request.view.callback_calling_requirements,
                                 ),
                                 program: Arc::clone(&program),
                             });
@@ -464,6 +481,9 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     program.artifact().view(),
                                     application.request.selections.identity(),
                                     &realization_scopes,
+                                    &application.request.view.callback_declarations.identities,
+                                    &application.request.view.callback_declarations.callbacks,
+                                    &application.request.view.callback_calling_requirements,
                                 ),
                                 artifact: Arc::clone(program.artifact()),
                                 receipt,

@@ -1,7 +1,7 @@
 // A stored machine selected from a named implementation calls that exact
 // member. `Item::code` is a deliberate look-alike that returns 4. The selected
 // member reads the explicitly passed item's value, 0 -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Shape<T> {
     machine code(subject: &T) -> i32;

@@ -1,7 +1,7 @@
 // Inline shared byte and record views retain their captured backing window.
 // Scalar observations through the record slice replay their exact field and
 // index while independent bounds proofs retain the live descriptor extent.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Pair {
     low: u16;

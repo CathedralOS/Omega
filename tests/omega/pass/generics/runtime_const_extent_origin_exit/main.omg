@@ -1,7 +1,7 @@
 // A literal 0 fits 0..N when the machine requires N >= 1.
 // The const parameter does not change, so that requires stays a premise
 // of the symbolic return range.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine origin<const N: u64>() -> u64
 requires N >= 1 && N <= 8

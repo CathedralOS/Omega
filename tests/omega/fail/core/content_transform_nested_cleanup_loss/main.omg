@@ -1,6 +1,7 @@
 // An affine child's designated cleanup cannot disappear behind a conserved
 // wrapper count. The transformation provides no disposition for the child.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 data Units {}
 data Ticket dropped by drop_ticket { value: u64; }
 machine drop_ticket(ticket: &mut Ticket) {}

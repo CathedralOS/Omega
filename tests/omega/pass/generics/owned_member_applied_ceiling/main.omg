@@ -1,8 +1,9 @@
 // Expected exit: 0. The selected map's numeric actual has no hidden borrow;
 // forwarding a distinct linear grant must not require an invented loan origin.
-use omega::language::core::extent;
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::ExtentRootProvider;
+use omega::language::core::ProcessExit;
 
 SyntheticRoot satisfies ExtentRootProvider {
     machine grant(storage: Extent) -> Extent { storage }

@@ -4,7 +4,7 @@
 // index. The loan names the view's backing byte, so a write through it lands
 // in the caller's array and a read sees the byte the view selects.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { bytes: [u8; 6]; }
 

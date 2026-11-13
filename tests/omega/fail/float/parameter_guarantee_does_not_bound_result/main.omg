@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // A guarantee on the first input says nothing about the returned second one.
 machine source(known: f64, returned: f64) -> f64

@@ -110,18 +110,34 @@ pub(crate) fn check_product_source(
             .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
     );
     demanded.extend(selected.iter().copied());
-    // A dependency's provider-default machines run for every product that
-    // depends on it, and settlement finds them by their purpose rather than a
-    // name, so they are preparation entries of this check.
-    demanded.extend(
-        typed
-            .machines()
-            .iter()
-            .filter(|machine| {
-                machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
-            })
-            .map(|machine| machine.symbol),
-    );
+    // A dependency's provider-default machine chooses the provider for a
+    // boundary trait, and settlement finds it by its purpose rather than a
+    // name. Its choice is used only where the program reaches that trait, so
+    // it stays with the trait it names: demanding all of them checked every
+    // target's console, filesystem and window providers for a program that
+    // calls none of them. One that names no trait stays unconditionally. A
+    // target family's interface has no body to name one; the projection keeps
+    // it with any member it keeps.
+    let mut defaults_by_slot = Vec::new();
+    for machine in typed.machines().iter().filter(|machine| {
+        machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+            && !machine.target_family_interface
+    }) {
+        let before = defaults_by_slot.len();
+        defaults_by_slot.extend(
+            typed_trees::references::collect_selected_program_references(
+                &typed,
+                &typed_trees::references::DeclarationSelection::from_symbols([machine.symbol]),
+            )
+            .symbols
+            .into_iter()
+            .filter(|symbol| typed.symbols.get(*symbol).kind == symbols::SymbolKind::Trait)
+            .map(|slot| (slot, machine.symbol)),
+        );
+        if defaults_by_slot.len() == before {
+            demanded.push(machine.symbol);
+        }
+    }
     // Each accepted semantic binding names a service declaration of the
     // package it was accepted for, and selected execution rejoins it by that
     // name, so the admitted bindings are obligations of this check whether or
@@ -167,6 +183,7 @@ pub(crate) fn check_product_source(
                 })
         },
         &demanded,
+        &defaults_by_slot,
     );
     let source_admission = psi_compiler::SourceAdmission {
         external_roots: &external_roots,
@@ -223,12 +240,13 @@ pub(crate) fn check_product_source(
         bindings: &bindings,
     };
     let mut judged = None;
-    let mut route = None;
+    let mut accepted = false;
     let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
         let started = std::time::Instant::now();
-        // The checker on the lowered form judges the same trees Psi 05 is
-        // given, by reference, before Psi 05 takes them; its verdict may
-        // govern this compilation (`lowered_route`).
+        // The checker on the lowered form judges the trees by reference
+        // before Psi 05 would take them. Its verdict is this compilation's:
+        // unless it accepts, the check stops here with its diagnostics and
+        // Psi 05 never sees the program (`lowered_route`).
         let keep = frontier.is_some();
         let result = psi_compiler::CheckRequest {
             program: typed,
@@ -240,10 +258,12 @@ pub(crate) fn check_product_source(
             checked_slices: None,
         }
         .check_inspecting_typed_frontier(&mut |trees| {
-            route = Some(route_scope.judge(trees));
             if keep {
                 judged = Some(trees.clone());
             }
+            let verdict = route_scope.judge(trees).verdict();
+            accepted = verdict.is_ok();
+            verdict
         });
         if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
             artifacts::compile_timings::counters::record_product_source_check(started.elapsed());
@@ -258,7 +278,7 @@ pub(crate) fn check_product_source(
     });
     let outcome = super::lowered_route::govern(
         outcome,
-        route,
+        accepted,
         &super::lowered_route::CurrentScope {
             sources: symbol_sources.as_deref(),
             build_program,

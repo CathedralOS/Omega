@@ -1,9 +1,12 @@
 // Expected exit: 70 (Windows only). Offset I/O leaves the original/duplicate
 // cursor at six. An append-only handle cannot acquire random-write/read rights
 // through reopening, but its ordinary write still appends through the OS.
-use omega_language_std::windows_filesystem_host;
-use omega_language_std::console;
-use omega::language::core::filesystem_authority;
+use omega_language_std::WindowsFilesystemHost;
+use omega_language_std::Console;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 
 data Main { original: u64; alias: u64; appending: u64; buffer: [u8; 8]; }
 

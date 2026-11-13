@@ -23,8 +23,8 @@ pub use reachable::{
     reachable_callable_invocations_with_roots,
 };
 pub use terminal::{
-    installed_interrupt_helper_roots, project_callable_invocation,
-    project_nominal_cleanup_invocation, stored_callable_definition, terminal_callable_values,
+    project_callable_invocation, project_nominal_cleanup_invocation, stored_callable_definition,
+    terminal_callable_values,
 };
 
 pub type CallableValueResult<T> = Result<T, &'static str>;

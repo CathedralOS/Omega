@@ -3,7 +3,7 @@
 // The record's byte field is ordinary storage. Reading one byte through that
 // field, a parameter, and the call result must observe the bytes written into
 // the local: 20 on the dynamic arm and 22 on the fixed arm.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell { bytes: [u8; 4]; }
 

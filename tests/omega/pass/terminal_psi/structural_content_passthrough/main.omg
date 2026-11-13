@@ -2,9 +2,10 @@
 // The same existing owned claims pass through direct and nested returns, with
 // ordinary scratch arguments and locals, before the entry observes their fields
 // and discharges each claim exactly once through the owner's cleanup.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data ByteUnit {}
 

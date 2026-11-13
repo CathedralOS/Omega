@@ -1,8 +1,14 @@
 // Expected exit: 70 (Windows only). Truncation preserves the shared cursor;
 // handle/path read-only updates preserve unrelated observed attributes.
-use omega_language_std::windows_filesystem_host;
-use omega_language_std::console;
-use omega::language::core::filesystem_authority;
+use omega_language_std::WindowsFileMetadata;
+use omega_language_std::WindowsMetadataResult;
+use omega_language_std::WindowsFilesystemHost;
+use omega_language_std::Console;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 
 data Main {}
 

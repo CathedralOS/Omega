@@ -1,6 +1,6 @@
-use omega::language::core::wire;
 use omega::language::core::reflect;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u64_to_i64_wrapping;
+use omega::language::core::narrow_i64_to_u64_wrapping;
 
 // FAIL canary (mint arc rung 2b): the authored plan is LOAD-BEARING -- a
 // `AuthoredCompactBinary::plan` that frames every field LengthPrefixed (the schema's

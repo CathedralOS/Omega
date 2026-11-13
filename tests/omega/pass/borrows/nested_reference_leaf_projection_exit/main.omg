@@ -1,5 +1,5 @@
 // Descriptor offsets restart at each crossing; the final borrow selects one field.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell { stamp: i32; value: i32; }
 data Message { body: &Cell; }

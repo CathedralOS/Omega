@@ -762,16 +762,18 @@ a cast such as `as -Trapping` removes it; later arithmetic on the bare carrier
 is Exact.
 
 Selection follows the general [result-domain overload rule](domains.md#result-domain-overloads).
-Predicate-only facts do not dispatch; they remain obligations after selecting
-the exact result-domain projection. Operator syntax remains operand-directed.
+Named predicate domains in the declared expected result participate in that
+exact domain-set key; proved membership and other flow facts do not. Selection
+does not establish a predicate. Operator syntax remains operand-directed.
 Without an expected result type, the unqualified overload is selected; a failed
 finite/range proof diagnostic lists the available qualified overloads.
 
 Directed one-step conversions are separately named and cannot consult an
 ambient rounding mode. A wrapper composing rounding and conversion must prove
 equivalent meaning; it cannot substitute two roundings for a required one-step
-conversion. Bare format conversion is total, including infinity. Refinements
-such as `Finite` are later predicates, not extra conversion variants.
+conversion. Bare format conversion is total, including infinity. The standard
+conversion roster does not synthesize extra variants for refinements such as
+`Finite`; prove and explicitly add that qualification to the ordinary result.
 Same-format qualification belongs to `as`. Failure-returning conversions change
 result shape; their public name/carrier remain unsettled with checked-result
 arithmetic.

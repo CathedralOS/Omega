@@ -1,5 +1,4 @@
 // Expected exit: 0. The assertions observe extent, stored value and copy.
-use omega::language::core::float_operations;
 public machine area(rows: u64, columns: u64) -> u64
 requires rows >= 1 && rows <= 4 && columns >= 1 && columns <= 4 { rows * columns }
 public data Matrix<const Rows: u64, const Columns: u64> [copy]

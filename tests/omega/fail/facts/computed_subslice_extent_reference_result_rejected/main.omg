@@ -1,5 +1,4 @@
 // Forbidden input or result authority does not become a repeatable value.
-use omega::language::core::slice;
 machine identity<'a>(items: &'a [u8]) -> &'a [u8] { items }
 machine inspect(items: &[u8])
 requires identity(items).len == items.len

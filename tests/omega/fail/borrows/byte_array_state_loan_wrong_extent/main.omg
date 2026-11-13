@@ -1,5 +1,5 @@
 // A three-byte backing cannot supply a four-byte fixed view state loan.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let bytes: [u8; 3] = "ABC";

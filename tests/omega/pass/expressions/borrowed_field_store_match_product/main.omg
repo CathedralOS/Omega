@@ -28,7 +28,7 @@ machine Holder::replace(holder: &mut Holder, code: u64) {
     holder.category = match code { 2 -> Category::Missing, _ -> Category::Other };
 }
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

@@ -2,7 +2,7 @@
 // A `dyn` selector is u64 storage too, so the captured field destination must
 // resolve to the checked u64 declaration rather than to an equal-shaped row.
 // Bump counts two visits; Skip leaves the count alone; exit 70 needs both.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally { count: u64; limit: u64; }
 

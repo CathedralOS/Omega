@@ -1,11 +1,37 @@
 // Initialization preserves backing length; it cannot establish a different length.
-use omega::language::core::extent;
-use omega::language::core::layout;
-use omega::language::core::process_exit;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::VacantContentTransfer;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Granted::content;
+use omega::language::core::ExtentRootProvider;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::FieldAccess;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::RelativeRange;
+use omega::language::core::StableCapability;
+use omega::language::core::ExternalCapability;
+use omega::language::core::AtomicCapability;
+use omega::language::core::PeerWritability;
+use omega::language::core::ResourceRegion;
+use omega::language::core::ResourceProfile;
+use omega::language::core::ResourceProfileSupply;
+use omega::language::core::AccessOutcome;
+use omega::language::core::AccessExtraction;
+use omega::language::core::ProcessExit;
 use omega::language::core::drop;
-use omega::language::core::run;
-use omega::language::core::content;
-use omega::language::core::nat;
+use omega::language::core::Run;
+use omega::language::core::Run::initialize_cell;
+use omega::language::core::Run::extract_cell;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 
 // This fixture explicitly assumes finite, normal completion of one byte write
 // from its reviewed external provider. It does not strengthen std::Console.

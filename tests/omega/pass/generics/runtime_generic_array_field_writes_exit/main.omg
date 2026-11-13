@@ -2,7 +2,7 @@
 // parameter: a type-generic pair written through a reference and through a
 // local, and a const-generic nested record. Each array indexes builtin by its
 // shape, so writing through the mutable receiver needs no applied operator.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Pair<T> { items: [T; 2]; }
 data Outer<const N: u64> requires N >= 1 { inner: Inner<N>; }
 data Inner<const N: u64> requires N >= 1 { cells: [u8; N]; }

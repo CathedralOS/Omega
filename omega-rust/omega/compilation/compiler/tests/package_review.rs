@@ -6,10 +6,58 @@ mod build_sequence;
 mod external_provider_reload;
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[path = "support/native_entry_controls.rs"]
+mod native_entry_controls;
 mod target_constant_custody;
 
 use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
+
+#[test]
+fn reusable_package_checks_declarations_without_deploying_unused_float_bodies() {
+    // These libraries have no program entry. Their UEFI target request belongs
+    // to this package check; the positive also covers ordinary source checking.
+    let target = "uefi_x86_64";
+    for (fixture, refusal) in [
+        ("pass/float/rootless_target_realization_scope", None),
+        (
+            "packages/selected-provider-unsupported-target",
+            Some("the target declares no floating-point realization table"),
+        ),
+        (
+            "fail/constants/unused_scalar_constant_range",
+            Some("scalar constant `VALUE` is invalid"),
+        ),
+        (
+            "fail/proofs/ordinary_denotational_call_requires_normal_return",
+            Some("has no observation-free, reach-free, crash-free value denotation"),
+        ),
+    ] {
+        let source = fixture_package_inputs::repo_root()
+            .join("tests/omega")
+            .join(fixture)
+            .join("main.omg");
+        let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+            &source,
+            Some(target),
+        )
+        .and_then(|mut prepared| {
+            fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
+        });
+        match (result, refusal) {
+            (Ok(_), None) => {}
+            (Err(diagnostics), Some(fragment)) => assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(fragment)),
+                "{fixture}: expected {fragment:?}, got {diagnostics:?}"
+            ),
+            (Ok(_), Some(fragment)) => panic!("{fixture}: accepted instead of {fragment:?}"),
+            (Err(diagnostics), None) => panic!("{fixture}: {diagnostics:?}"),
+        }
+    }
+}
 
 #[test]
 fn callback_review_rejoins_candidate_types_reports_and_target_members() {
@@ -46,38 +94,58 @@ fn callback_review_rejoins_candidate_types_reports_and_target_members() {
         indirect.shapes()[usize::from(parameter)].class,
         calling_conventions::BoundaryValueClass::Reference
     );
-    let signature = checked
+    // The fixture supplies 33 paths. Keep its complete roster while testing
+    // the distinct fixed and target-dependent fields that started this control.
+    let registrars = checked
         .providers()
         .boundary_calling_plan_realizations
         .iter()
-        .map(|row| row.materialized_signature())
-        .find(|signature| signature.callback_layout_catalog().len() == 2)
-        .expect("registrar retains both private inline paths");
-    let entries = signature.callback_layout_catalog();
-    let fixed = entries
-        .iter()
-        .find(|entry| {
-            let source = entry.review_source();
-            let data = checked
-                .typed
-                .data_definition_by_symbol(source.root.declaration)
-                .unwrap();
+        .filter(|row| {
             checked
                 .typed
-                .data_field(data, source.fields.last().unwrap().declaration)
-                .unwrap()
-                .name
-                .as_str()
-                == "first"
+                .trait_definition_by_symbol(row.boundary_trait)
+                .is_some_and(|owner| {
+                    owner.name.as_str() == "Registrar"
+                        && checked
+                            .typed
+                            .trait_machine_signature_by_symbol(owner, row.requirement_machine)
+                            .is_some_and(|requirement| requirement.name.as_str() == "register")
+                })
         })
-        .expect("fixed-layout callback path");
-    let variable = entries
-        .iter()
-        .find(|entry| {
-            entry.review_source().fields.last().unwrap().declaration
-                != fixed.review_source().fields.last().unwrap().declaration
-        })
-        .expect("target-member callback path");
+        .map(|row| row.materialized_signature())
+        .collect::<Vec<_>>();
+    assert_eq!(registrars.len(), 1, "one checked Registrar::register ABI");
+    let signature = registrars[0];
+    let entries = signature.callback_layout_catalog();
+    assert_eq!(entries.len(), 33, "all authored inline callback paths");
+    assert_eq!(signature.callback_binders().len(), 33);
+    assert_eq!(signature.callback_demands().len(), 33);
+    let field_entry = |name: &str| {
+        let matching = entries
+            .iter()
+            .filter(|entry| {
+                let source = entry.review_source();
+                let data = checked
+                    .typed
+                    .data_definition_by_symbol(source.root.declaration)
+                    .expect("callback root data");
+                checked
+                    .typed
+                    .data_field(
+                        data,
+                        source.fields.last().expect("inline field").declaration,
+                    )
+                    .expect("checked inline field")
+                    .name
+                    .as_str()
+                    == name
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(matching.len(), 1, "one exact callback field {name}");
+        matching[0]
+    };
+    let fixed = field_entry("first");
+    let variable = field_entry("second");
     let fixed_source = fixed.review_source();
     let variable_source = variable.review_source();
     let fixed_field = fixed_source.fields.last().unwrap();
@@ -957,4 +1025,848 @@ fn completed_scalar_call_preserves_wrapping_index_guard() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+// The foreign contract keeps its authored method identity, while its closed
+// outer and local arguments control exactly which call instances it can supply.
+#[test]
+fn native_binding_keeps_applied_boundary_scopes_through_package_reload() {
+    check_native_binding_applications(false);
+}
+
+#[test]
+fn native_binding_keeps_distinct_local_bindings_in_one_boundary_plan() {
+    check_native_binding_applications(true);
+}
+
+fn check_native_binding_applications(select_second_local: bool) {
+    use checked_trees::provider_declarations::{
+        ProviderApplicationView, ProviderDeclarationOrigin, ProviderDeclarationRequest,
+        ProviderDeclarationRow,
+    };
+    let root = fixture_package_inputs::repo_root();
+    let fixture =
+        root.join("tests/omega/fail/calls/foreign_applied_callback_requires_selected_entry_plan");
+    let scratch = root.join("build").join(format!(
+        "omega-applied-native-binding-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&scratch).unwrap();
+    let original = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
+    let (declarations, _) = original
+        .split_once("machine main()")
+        .expect("fixture entry");
+    let callback = &declarations[declarations.find("data CallbackBody").unwrap()..];
+    let mut source = format!(
+        "{declarations}\n{}\npublic boundary trait Getter<Value> {{ machine read() -> i32 reaches; }}\nmachine main() {{}}\n",
+        callback.replace("CallbackBody", "SpareCallbackBody")
+    );
+    if select_second_local {
+        source.push_str(&callback.replace("CallbackBody", "DormantCallbackBody"));
+    }
+    std::fs::write(scratch.join("main.omg"), source).unwrap();
+    let build = std::fs::read_to_string(fixture.join("build.omg")).unwrap();
+    let start = build
+        .find("    Build::bind<Registrar<u64>::install>")
+        .expect("exact applied binding");
+    let end = start + build[start..].find("    });").unwrap() + "    });".len();
+    let binding = &build[start..end];
+    let second = binding.replace("Registrar<u64>", "Registrar<u32>");
+    let closed = binding.replace(
+        "Registrar<u64>::install",
+        "Registrar<u16>::install<CallbackBody::notify>",
+    );
+    let getter = binding
+        .replace("Registrar<u64>::install", "Getter<u8>::read")
+        .replace("atexit", "getpid");
+    let spare = closed
+        .replace("CallbackBody", "SpareCallbackBody")
+        .replace("libc.so.6", "/lib/x86_64-linux-gnu/libc.so.6");
+    let dormant = closed.replace(
+        "CallbackBody",
+        if select_second_local {
+            "DormantCallbackBody"
+        } else {
+            "SpareCallbackBody"
+        },
+    );
+    let mut build = build;
+    build.insert_str(
+        end,
+        &format!(
+            "\n{second}\n{closed}\n{getter}{}",
+            if select_second_local {
+                format!("\n{spare}")
+            } else {
+                String::new()
+            }
+        ),
+    );
+    build.push_str(&format!(
+        "\nmachine unused(builder: &mut Build) {{\n{dormant}\n}}\n"
+    ));
+    std::fs::write(scratch.join("build.omg"), build).unwrap();
+    let mut prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        &scratch.join("main.omg"),
+        Some("linux_x86_64"),
+    )
+    .expect("closed native applications form without executing callbacks");
+    let checked =
+        fixture_package_inputs::check_fixture(&mut prepared, "linux_x86_64", Default::default())
+            .expect("declared and selected native applications check");
+    let package = checked.sources().package_identity().unwrap();
+    let native = checked
+        .providers()
+        .native_build_plans
+        .iter()
+        .filter(|candidate| candidate.plan.origin_package_identity == Some(package))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        native.len(),
+        4,
+        "all selected locals remain inside their one outer boundary plan"
+    );
+    let mut applications = native
+        .iter()
+        .map(|candidate| {
+            candidate
+                .plan
+                .identities
+                .text(candidate.plan.provider_application)
+        })
+        .collect::<Vec<_>>();
+    applications.sort_unstable();
+    applications.dedup();
+    assert_eq!(
+        applications.len(),
+        4,
+        "no static application may merge into another"
+    );
+    let mut aliases = Vec::new();
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+    for candidate in &native {
+        assert!(
+            candidate
+                .plan
+                .validate_candidate_against_schema()
+                .is_empty()
+        );
+        let rows = candidate
+            .plan
+            .rows
+            .iter()
+            .zip(&candidate.provenance.row_realizations)
+            .map(|(row, realization)| {
+                let origin = realization.native().expect("actual native row");
+                let application = checked
+                    .typed
+                    .product_operand_applications
+                    .get(origin.application.expect("prepared native application"));
+                let scope = application.scope.scope(&checked.typed).unwrap();
+                let outer = scope
+                    .portable_application_identity(&checked.typed)
+                    .and_then(|identity| checked.typed.type_identity_text(identity))
+                    .expect("exact portable outer application");
+                assert_eq!(
+                    candidate.plan.schema.root_application_identity(),
+                    Some(outer.as_str()),
+                    "native schema must retain its checked boundary application; selected application: {}; receivers: {:?}",
+                    candidate.plan.identities.text(candidate.plan.provider_application),
+                    candidate.plan.schema.declaration.receiver_applications,
+                );
+                ProviderDeclarationRow {
+                    requirement: origin.requirement,
+                    origin: ProviderDeclarationOrigin::BuildNative {
+                        requirement: origin.requirement,
+                        application: origin.application,
+                    },
+                    requirement_identity: candidate.plan.identities.text(row.requirement_identity),
+                    declared_requirement_identity: candidate.plan.identities.text(row.declared_requirement_identity),
+                    application: ProviderApplicationView::External,
+                }
+            })
+            .collect::<Vec<_>>();
+        let declarations = checked.provider_declarations(ProviderDeclarationRequest {
+            rows: &rows,
+            named_application: None,
+            provider_application_identity: Some(
+                candidate
+                    .plan
+                    .identities
+                    .text(candidate.plan.provider_application),
+            ),
+            installation_reach: false,
+        });
+        for (row, declaration) in candidate.plan.rows.iter().zip(declarations.rows) {
+            for application in declaration
+                .external_applications
+                .applications
+                .expect("authenticated native application aliases")
+            {
+                aliases.push(effects::SelectedExternalRequirementApplication {
+                    provider_plan_report_identity: candidate.plan.report_fingerprint(),
+                    provider_plan_digest: candidate.plan.identity_digest(),
+                    selected_requirement_identity: identities
+                        .intern(candidate.plan.identities.text(row.requirement_identity)),
+                    requirement_identity: identities.intern(&application),
+                });
+            }
+        }
+    }
+    let facts = effects::SelectedProviderPlanFacts::from_selected_plans(
+        native
+            .iter()
+            .map(|candidate| candidate.plan.clone())
+            .collect(),
+    )
+    .unwrap()
+    .with_external_requirement_applications(aliases, &identities.build())
+    .unwrap();
+    let closed = checked
+        .typed
+        .closed_requirement_applications()
+        .filter(|application| {
+            checked
+                .typed
+                .trait_machine_signature(application.template)
+                .is_some_and(|(owner, _)| checked.symbols.name(owner.symbol) == "Registrar")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        closed.len(),
+        if select_second_local { 3 } else { 2 },
+        "selected and dormant callback instances are both formed"
+    );
+    let selected_closed = native
+        .iter()
+        .flat_map(|candidate| &candidate.provenance.row_realizations)
+        .filter_map(|realization| realization.native())
+        .filter_map(|origin| origin.application)
+        .map(|application| {
+            checked
+                .typed
+                .product_operand_applications
+                .get(application)
+                .declaration
+        })
+        .filter(|selected| {
+            closed
+                .iter()
+                .any(|application| application.signature.symbol == *selected)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        selected_closed.len(),
+        if select_second_local { 2 } else { 1 },
+        "only executed Registrar binding intents are selected"
+    );
+    for application in closed {
+        let (owner, _) = checked
+            .typed
+            .trait_machine_signature(application.template)
+            .unwrap();
+        let identity = checked
+            .typed
+            .trait_requirement_callable_identity_text(owner, application.signature);
+        assert_eq!(
+            facts.selected_requirement_row(&identity).is_some(),
+            selected_closed.contains(&application.signature.symbol),
+            "selected origin must supply its own local instance and refuse the dormant sibling: {identity}"
+        );
+        if let Some((plan, row)) = facts.selected_requirement_row(&identity) {
+            let origin = native
+                .iter()
+                .find(|candidate| candidate.plan == *plan)
+                .unwrap()
+                .provenance
+                .row_realizations
+                .iter()
+                .filter_map(|realization| realization.native())
+                .find(|origin| {
+                    origin.application.is_some_and(|handle| {
+                        checked
+                            .typed
+                            .product_operand_applications
+                            .get(handle)
+                            .declaration
+                            == application.signature.symbol
+                    })
+                })
+                .expect("selected row retains its own checked application");
+            assert_eq!(
+                row.binding,
+                origin.origin.primary.evaluated.provider_binding(),
+                "each exact local must keep its own locator"
+            );
+            assert_eq!(plan.identities.text(row.requirement_identity), identity);
+            assert_ne!(row.requirement_identity, row.declared_requirement_identity);
+            assert!(row.calling_signature.is_some());
+        }
+    }
+    let handoff = checked
+        .package_build_handoff()
+        .expect("capture checked applications");
+    let bytes = package_compilation::native_output_codec::encode(&handoff);
+    let restored = package_compilation::native_output_codec::decode(&bytes, handoff.clone())
+        .expect("reload exact application graphs");
+    assert_eq!(
+        package_compilation::native_output_codec::digest(&restored),
+        package_compilation::native_output_codec::digest(&handoff)
+    );
+    assert_eq!(
+        (
+            restored.native_declarations().len(),
+            restored.native_intents().len()
+        ),
+        if select_second_local { (6, 5) } else { (5, 4) }
+    );
+    let mut typed = checked.typed.clone().into_inner();
+    let selections = build_time_evaluation::native_bindings::collect_captured(
+        &mut typed,
+        restored.native_declarations(),
+        restored.native_intents(),
+    )
+    .expect("authenticate receiving applications");
+    assert_eq!(selections.len(), if select_second_local { 5 } else { 4 });
+    let mut outer = selections
+        .iter()
+        .map(|selection| {
+            typed
+                .product_operand_application_identity(selection.application.unwrap())
+                .unwrap()
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    outer.sort_unstable();
+    outer.dedup();
+    assert_eq!(
+        outer.len(),
+        4,
+        "different method locals share their outer boundary"
+    );
+    let mut expected_receiving = native
+        .iter()
+        .flat_map(|candidate| {
+            candidate
+                .plan
+                .rows
+                .iter()
+                .zip(&candidate.provenance.row_realizations)
+                .map(move |(row, realization)| {
+                    let origin = realization
+                        .native()
+                        .expect("actual selected native binding");
+                    let effects::provider_plan::EvaluatedNativeBinding::Import(import) =
+                        &origin.origin.primary.evaluated
+                    else {
+                        panic!("this fixture retains actual libc imports");
+                    };
+                    (
+                        candidate
+                            .plan
+                            .schema
+                            .root_application_identity()
+                            .unwrap()
+                            .to_owned(),
+                        candidate
+                            .plan
+                            .identities
+                            .text(row.requirement_identity)
+                            .to_owned(),
+                        import.locator().identity_digest().as_bytes().to_owned(),
+                    )
+                })
+        })
+        .collect::<Vec<_>>();
+    let mut actual_receiving = selections
+        .iter()
+        .map(|selection| {
+            let outer = typed
+                .product_operand_application_identity(selection.application.unwrap())
+                .unwrap()
+                .unwrap();
+            let outer = typed
+                .type_identity_text(outer)
+                .expect("portable receiving outer scope");
+            let closed = typed.closed_requirement_application(selection.requirement);
+            let (owner, declared) = typed
+                .trait_machine_signature(
+                    closed
+                        .as_ref()
+                        .map_or(selection.requirement, |closed| closed.template),
+                )
+                .unwrap();
+            let selected = typed.trait_requirement_callable_identity_text(
+                owner,
+                closed.as_ref().map_or(declared, |closed| closed.signature),
+            );
+            let semantic_vocabulary::NativeBindingLocator::Import(locator) = &selection.locator
+            else {
+                panic!("this fixture reloads actual libc imports");
+            };
+            let locator =
+                target::normalize_foreign_locator(locator.clone(), target::TargetProfile::LinuxX64)
+                    .unwrap();
+            (
+                outer,
+                selected,
+                locator.identity_digest().as_bytes().to_owned(),
+            )
+        })
+        .collect::<Vec<_>>();
+    expected_receiving.sort();
+    actual_receiving.sort();
+    assert_eq!(
+        actual_receiving, expected_receiving,
+        "package reload must preserve every exact outer/method/locator association"
+    );
+    for missing in [false, true] {
+        let mut declarations = restored.native_declarations().to_vec();
+        if missing {
+            declarations[0].application = None;
+        } else {
+            declarations[0]
+                .application
+                .as_mut()
+                .unwrap()
+                .identity
+                .push_str("changed");
+        }
+        let errors = build_time_evaluation::native_bindings::collect_captured(
+            &mut checked.typed.clone().into_inner(),
+            &declarations,
+            restored.native_intents(),
+        )
+        .expect_err("a saved binding cannot erase or substitute its application");
+        let expected = if missing {
+            "closed static boundary application"
+        } else {
+            "complete outer application identity"
+        };
+        assert!(
+            errors.iter().any(|error| error.message.contains(expected)),
+            "{errors:?}"
+        );
+    }
+    std::fs::remove_dir_all(scratch).unwrap();
+}
+
+// Restrict an existing working registrar to the callback it actually receives.
+// Its program, C provider, layout and exit oracle remain the original control.
+#[test]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
+    use std::sync::Arc;
+    let root = fixture_package_inputs::repo_root();
+    let fixture = root.join("tests/omega/pass/layouts/private_callback_inherited_policy_exit");
+    let scratch = root.join("build").join(format!(
+        "omega-closed-native-callback-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&scratch).unwrap();
+    for entry in std::fs::read_dir(&fixture).unwrap() {
+        let entry = entry.unwrap();
+        if entry.file_type().unwrap().is_file() {
+            std::fs::copy(entry.path(), scratch.join(entry.file_name())).unwrap();
+        }
+    }
+    assert_eq!(
+        std::fs::read(scratch.join("main.omg")).unwrap(),
+        std::fs::read(fixture.join("main.omg")).unwrap()
+    );
+    let original = std::fs::read_to_string(scratch.join("build.omg")).unwrap();
+    assert_eq!(
+        original.matches("Build::bind<Registrar::register>").count(),
+        1
+    );
+    let build = original
+        .replace(
+            "Build::bind<Registrar::register>",
+            "Build::bind<Registrar::register<TimerHandler::call>>",
+        )
+        .replace(
+            "location: \"../../../../../source/library/std\"",
+            &format!("location: {:?}", root.join("source/library/std")),
+        );
+    std::fs::write(scratch.join("build.omg"), build).unwrap();
+    let provider = scratch.join("provider");
+    let prepared_provider = std::process::Command::new("python3")
+        .arg(fixture.join("fixture/prepare.py"))
+        .arg("--output")
+        .arg(&provider)
+        .output()
+        .expect("prepare the existing authored C provider");
+    assert!(
+        prepared_provider.status.success(),
+        "C provider: {:?}",
+        prepared_provider
+    );
+    eprintln!(
+        "C_PROVIDER_PREPARATION {}",
+        String::from_utf8_lossy(&prepared_provider.stdout)
+    );
+    let source = scratch.join("main.omg");
+    let discovered = fixture_package_inputs::discover_fixture(
+        &source,
+        package_compilation::BuildExecutionInputs {
+            snapshot: fixture_package_inputs::fixture_build_snapshot(&source).unwrap(),
+            ..Default::default()
+        },
+    )
+    .expect("discover the exact closed registrar binding");
+    let product =
+        compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+            installation_assumptions: Vec::new(),
+            retain_native_inputs: true,
+            image: Default::default(),
+            private_entry_ram: Vec::new(),
+            terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
+            terminal_authority_permission_policy: None,
+            optimization_rollback: Default::default(),
+        });
+    let mut prepared = fixture_package_inputs::review_fixture(
+        discovered,
+        &[target::TargetProfile::MacosArm64],
+        product,
+    )
+    .expect("admit the closed native product without weakening its callback contract");
+    // Stop at the ordinary package producer's pending native result so saved
+    // inputs can be recovered before native completion consumes them.
+    assert_eq!(prepared.plans.len(), 1);
+    let (profile, request) = prepared.plans.pop().unwrap();
+    assert_eq!(profile, target::TargetProfile::MacosArm64);
+    let root_occurrence = request.occurrences.len() - 1;
+    let build = orchestration::prepare_package(
+        prepared.session.compiler(),
+        request.occurrences,
+        &mut prepared.completed,
+    )
+    .unwrap_or_else(|error| {
+        panic!(
+            "prepare the admitted package's exact source closure at occurrence {}: {:?}",
+            error.occurrence,
+            error.failure.into_diagnostics()
+        )
+    });
+    let mut outcomes = prepared
+        .session
+        .compiler()
+        .complete_package_products(vec![(
+            (),
+            compiler::PreparedPackageProduct {
+                build,
+                product: request.product,
+                permissions: request.terminal_permissions,
+            },
+        )])
+        .expect("produce the native product and saved inputs");
+    assert_eq!(outcomes.len(), 1);
+    let ((), output) = outcomes.pop().unwrap();
+    let mut output = output.expect("produce the admitted native application");
+    let compiler::CompilationOutput::Native(pending) = &output else {
+        panic!("expected native application work");
+    };
+    let bytes = pending
+        .retained_native_inputs
+        .as_ref()
+        .expect("save the exact native derivation inputs");
+    let artifact = Arc::new(
+        terminal_codec::CanonicalTerminalArtifact::from_bytes(
+            &pending.terminal.artifact().to_bytes(),
+        )
+        .unwrap(),
+    );
+    let (recovered, recovered_permissions, installation_assumptions) =
+        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(artifact, bytes)
+            .expect("reload the closed binding from its canonical artifact and saved inputs");
+    assert_eq!(recovered, pending.terminal);
+    assert_eq!(recovered_permissions, pending.accepted_package_permissions);
+    assert!(installation_assumptions.is_empty());
+    // Keep the already retained coordinates with a failure so a missing choice
+    // can be distinguished from a different closed call without another probe.
+    let proposal = recovered.native_realization_proposal().unwrap();
+    let module = recovered.artifact().semantic_module();
+    let mut binding_context = format!(
+        "target={} selected_plans={} declarations={} direct_leaves={} callbacks={}\n",
+        proposal.target_profile().target_name(),
+        proposal.providers().selection.plans().len(),
+        proposal.providers().declarations.len(),
+        proposal.providers().direct_boundary_leaves.len(),
+        module.callback_applications.len(),
+    );
+    for callback in &module.callback_applications {
+        let operation = module
+            .operations()
+            .find(|operation| operation.id == callback.registrar)
+            .expect("retained callback registrar operation");
+        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
+            panic!("retained registrar must be a boundary call");
+        };
+        let declaration = module.boundary_machine(boundary).unwrap();
+        let abi = module.calling_abi_identity(boundary).unwrap();
+        binding_context.push_str(&format!(
+            "registrar={:?} boundary={boundary:?} owner={:?} required={:?} abi={abi:?}\n",
+            callback.registrar,
+            module.identities.text(declaration.owner.identity()),
+            module.identities.text(declaration.identity),
+        ));
+        for (label, plans) in [
+            (
+                "selected",
+                proposal
+                    .providers()
+                    .selection
+                    .plans()
+                    .iter()
+                    .collect::<Vec<_>>(),
+            ),
+            (
+                "declarations",
+                proposal
+                    .providers()
+                    .declarations
+                    .iter()
+                    .map(|row| &row.plan)
+                    .collect(),
+            ),
+        ] {
+            for plan in plans {
+                for row in plan.rows.iter().filter(|row| {
+                    plan.identities.text(row.declared_requirement_identity)
+                        == abi.requirement_identity
+                }) {
+                    binding_context.push_str(&format!(
+                        "{label} target={} root={:?} selected={:?} declared={:?} abi={:?}\n",
+                        plan.target,
+                        plan.schema.root_application_identity(),
+                        plan.identities.text(row.requirement_identity),
+                        plan.identities.text(row.declared_requirement_identity),
+                        row.calling_signature,
+                    ));
+                }
+            }
+        }
+    }
+    for target in proposal.target_provider_proposals() {
+        match &target.selection {
+            Ok(selection) => {
+                binding_context.push_str(&format!(
+                    "publication target={} plans={}\n",
+                    target.target,
+                    selection.plans.len()
+                ));
+                for selected in &selection.plans {
+                    for row in &selected.plan.rows {
+                        if row.calling_signature.is_some() {
+                            binding_context.push_str(&format!(
+                                "publication selected={:?} declared={:?} abi={:?}\n",
+                                selected.plan.identities.text(row.requirement_identity),
+                                selected
+                                    .plan
+                                    .identities
+                                    .text(row.declared_requirement_identity),
+                                row.calling_signature,
+                            ));
+                        }
+                    }
+                }
+            }
+            Err(errors) => binding_context.push_str(&format!(
+                "publication target={} refused={errors:?}\n",
+                target.target
+            )),
+        }
+    }
+    let context_path = scratch.join("native-binding-context.txt");
+    std::fs::write(&context_path, &binding_context).unwrap();
+    let source_selection = proposal.providers().selection.clone();
+    // Std can retain unrelated direct imports. Keep these source-free records
+    // so the final reached registrar can still be checked for an extra stub.
+    let direct_boundary_leaves = proposal.providers().direct_boundary_leaves.clone();
+    // Native completion now has only recovered semantic inputs, not a source
+    // compiler that could supply a missing declaration or calling decision.
+    drop(std::mem::take(prepared.session.compiler()));
+    drop(std::mem::take(&mut prepared.completed));
+    let compiler::CompilationOutput::Native(pending) = &mut output else {
+        unreachable!()
+    };
+    pending.terminal = recovered;
+    pending.accepted_package_permissions = recovered_permissions;
+    let completed =
+        orchestration::complete_product(output).map_err(|error| compiler::PackageCompileFailure {
+            occurrence: root_occurrence,
+            failure: error.into_diagnostics().into(),
+        });
+    let mut outcomes = prepared
+        .completion
+        .take()
+        .expect("the original package admission must still close its outcome")
+        .complete(vec![completed], prepared.session.resources());
+    assert_eq!(outcomes.len(), 1);
+    let outcome = outcomes.pop().unwrap();
+    assert_eq!(outcome.target, profile);
+    let report = outcome
+        .result
+        .unwrap_or_else(|error| {
+            panic!(
+                "complete recovered native work through ordinary package reconciliation: {error:?}\nretained native binding coordinates: {}\n{binding_context}",
+                context_path.display()
+            )
+        })
+        .into_report()
+        .expect("complete actual native lowering after saved-input recovery");
+    drop(prepared);
+    // The emitted call must use the exact saved native row. Its checked scope
+    // and completed image also show that this callback was actually reached.
+    let artifact = report.retained_native_artifact().unwrap();
+    let module = artifact.psi_artifact().semantic_module();
+    let scope = artifact
+        .object()
+        .native_execution_scope(
+            artifact.psi_artifact(),
+            *artifact.selected_provider_closure_digest().as_bytes(),
+        )
+        .expect("rejoin the actual image's artifact, target, entry and provider choices")
+        .expect("the checked native image must retain its execution scope");
+    assert!(
+        !scope.callbacks().is_empty(),
+        "the existing descriptor callback must actually be selected for execution"
+    );
+    for occurrence in scope.callbacks() {
+        let callback = module
+            .callback_application(occurrence.application_index())
+            .expect("the executed callback must retain its exact application");
+        assert_eq!(callback.registrar, occurrence.terminal_operation());
+        let operation = module
+            .operations()
+            .find(|operation| operation.id == callback.registrar)
+            .expect("actual emitted registrar operation");
+        let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind else {
+            panic!("registrar must retain its exact boundary call");
+        };
+        assert!(scope.contains_boundary(boundary));
+        let declaration = module
+            .boundary_machines
+            .iter()
+            .find(|declaration| declaration.id == boundary)
+            .unwrap();
+        let requirement = module.identities.text(declaration.identity).unwrap();
+        let source = &declaration
+            .declaration
+            .as_ref()
+            .expect("the executed registrar retains its checked declaration")
+            .source;
+        let semantic = module
+            .identities
+            .text(source.semantic_declaration)
+            .expect("the registrar has its canonical semantic declaration");
+        let callable = module
+            .identities
+            .text(source.callable)
+            .expect("the registrar has its complete checked callable");
+        assert!(
+            direct_boundary_leaves.iter().all(|leaf| {
+                !leaf
+                    .plan
+                    .rows
+                    .iter()
+                    .any(|row| leaf.plan.identities.text(row.requirement_identity) == requirement)
+                    && !(leaf.declaration_identity == semantic
+                        && leaf.callable_identity == callable)
+            }),
+            "the reached bare native registrar must not acquire a forwarding-machine leaf"
+        );
+        let (plan, row) = source_selection
+            .selected_requirement_row(requirement)
+            .expect("the reached closed registrar must retain its exact native binding");
+        assert_ne!(row.requirement_identity, row.declared_requirement_identity);
+        let selected = artifact
+            .selected_provider_plans()
+            .iter()
+            .filter(|plan| {
+                plan.requirement_identities()
+                    .iter()
+                    .any(|id| id == requirement)
+            })
+            .collect::<Vec<_>>();
+        let [selected] = selected.as_slice() else {
+            panic!(
+                "executed registrar {requirement} must select exactly one completed plan; got {}",
+                selected.len()
+            );
+        };
+        assert_eq!(selected.report_identity(), plan.report_fingerprint());
+        assert_eq!(
+            selected.plan_digest().as_bytes(),
+            plan.identity_digest().as_bytes()
+        );
+        let abi = module.calling_abi_identity(boundary).unwrap();
+        assert_eq!(row.calling_signature, Some(abi.id()));
+        assert_eq!(
+            plan.identities.text(row.declared_requirement_identity),
+            abi.requirement_identity
+        );
+        let matching = plan
+            .schema
+            .calling_applications
+            .iter()
+            .enumerate()
+            .filter(|(_, application)| application.abi == abi)
+            .collect::<Vec<_>>();
+        let [(calling_index, original)] = matching.as_slice() else {
+            panic!("the exact ABI must retain exactly one original checked boundary contract");
+        };
+        assert_eq!(plan.schema.calling_application(&abi), Some(&original.plan));
+        assert_eq!(
+            plan.schema.identity_text(original.requirement),
+            abi.requirement_identity
+        );
+        assert!(!original.plan.commitment.is_zero());
+        assert_ne!(original.plan.report_fingerprint, 0);
+        let wrong = module
+            .calling_abi_signatures
+            .iter()
+            .find(|declaration| {
+                declaration.id != abi.id()
+                    && module.identities.text(declaration.requirement_identity)
+                        != Some(abi.requirement_identity.as_str())
+            })
+            .expect("another actual declaration ABI must provide a substitution falsifier")
+            .identity(&module.identities)
+            .unwrap();
+        assert!(plan.schema.calling_application(&wrong).is_none());
+        let mut changed = plan.schema.clone();
+        // The original requirement coordinate must reject another real
+        // declaration's ABI, independently of its supplied calling policy.
+        changed.calling_applications[*calling_index].abi = wrong;
+        assert_eq!(
+            changed.validate_calling_applications().unwrap_err(),
+            "calling evidence ABI key differs from its requirement coordinate"
+        );
+    }
+    native_entry_controls::inspect(&report, &scratch)
+        .expect("preserve the original native entry readback falsifiers");
+    let published = compilation_products::publication::publish_compilation(
+        report,
+        &scratch.join("native-output"),
+    )
+    .expect("publish the checked native executable");
+    let observed = std::process::Command::new(published.checked_native_executable_path().unwrap())
+        .env("DYLD_LIBRARY_PATH", &provider)
+        .output()
+        .expect("run the unchanged descriptor callback program");
+    assert_eq!(
+        observed.status.code(),
+        Some(0),
+        "native callback oracle: {observed:?}"
+    );
+    std::fs::remove_dir_all(scratch).unwrap();
 }

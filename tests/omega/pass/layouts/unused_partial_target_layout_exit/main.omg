@@ -1,7 +1,15 @@
 // Retaining a policy catalog does not demand its geometry on another target.
 // The macOS member reads its actual authored offset; Windows and Linux never use it.
 // Expected exit: 0. The bad physical observation traps.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutTargetFacts;
+use omega::language::core::layout_target_facts;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 data Payload [copy] { value: u32; }
 data View { payload: LayoutStorage<Payload, Policy>; }

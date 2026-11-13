@@ -646,7 +646,7 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
     // An uncalled machine that depends on a library declaration.
     (
         "dependency_call",
-        "use omega::language::core::wire;\n\
+        "use omega::language::core::CompactBinary;\n\
          machine spare(word: u64) -> i64 { CompactBinary::signed_from_word(word) }",
     ),
 ];

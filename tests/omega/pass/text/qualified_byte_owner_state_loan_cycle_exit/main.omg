@@ -5,7 +5,7 @@
 // bounded owner is otherwise unknown to Terminal. The store keeps UTF-8
 // because checking proves every stored byte ASCII over an all-ASCII carrier.
 // "HELLO" shifted by 3 is "KHOOR": exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8]::Utf8
 requires

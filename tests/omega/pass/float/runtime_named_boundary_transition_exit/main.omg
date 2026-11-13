@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 data Value { integer: i32; }
 machine guarded(value: i32) -> f64 {
     transition value > 0 { true -> F64::from_i32(value) false -> (F64::from_i32(value)) }

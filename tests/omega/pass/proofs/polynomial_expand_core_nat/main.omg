@@ -4,8 +4,10 @@
 // sides into monomial multisets: mul distributes through add, factors and
 // monomials sort, and (a+b)(c+d) = ac+ad+bc+bd is one normal form on
 // every inductive arm.
-use omega::language::core::nat;
-use omega_language_std::console;
+use omega::language::core::Nat;
+use omega::language::core::add;
+use omega::language::core::mul;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console { Console::exit_process(70); }
 

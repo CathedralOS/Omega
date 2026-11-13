@@ -1,5 +1,5 @@
 // The caller observes array-leaf and field writes into an owned state arrival.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Cells { values: [i32; 3]; checksum: i32; }
 machine update(cells: Cells, value: i32) -> Cells {
     transition { _ -> change(cells, value) }

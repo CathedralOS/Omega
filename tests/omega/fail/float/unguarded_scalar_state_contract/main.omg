@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // Retaining a closed IEEE predicate cannot authorize an unchecked arrival.
 machine unchecked(value: f64) -> f64 {

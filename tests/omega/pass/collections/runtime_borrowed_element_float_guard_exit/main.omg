@@ -18,8 +18,7 @@
 // Elements 1 and 2 share `reading` and elements 2 and 3 share `scale`, so a
 // read of the wrong element, field, format or stride changes at least one
 // classification. All four classifications as tabulated -> exit 70.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Probe {
     tag: u8;

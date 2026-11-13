@@ -3,8 +3,8 @@
 // rejects. The caller's own argument (70) does not reach inside `narrow`;
 // a dominating guard, a `requires`, or a policy-bearing conversion is the
 // escape.
-use omega::language::core::numeric_conversion;
-use omega_language_std::console;
+use omega::language::core::narrow_u32_to_u16_exact;
+use omega_language_std::Console;
 
 machine narrow(value: u32) -> u16 {
     narrow_u32_to_u16_exact(value)

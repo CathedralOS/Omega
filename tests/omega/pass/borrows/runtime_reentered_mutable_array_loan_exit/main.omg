@@ -1,7 +1,7 @@
 // A machine that recurses through its entry with a mutable fixed-array loan
 // rebinds the loan at the loop header on every iteration, as it does a
 // record loan.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { values: [i32; 6]; }
 

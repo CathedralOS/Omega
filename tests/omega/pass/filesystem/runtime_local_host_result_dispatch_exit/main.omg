@@ -1,4 +1,7 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 // RUN CANARY (exit 70, differential): a host-call RESULT bound to a LOCAL
 // (`let fd = PosixFilesystemHost::open(..)`) in a DISPATCHING state now gets a frame
 // slot. Before the fix the dispatch-body storage builder had no HostCall arm,
@@ -11,8 +14,8 @@ use omega::language::core::filesystem_authority;
 // definitely-absent path returns -1 on both the native seam and the
 // interpreter's virtual fs, so `fd < 0` is deterministic -- a missed result
 // slot would read ZII 0 and take the wrong arm (exit 71).
-use omega_language_std::posix_filesystem_host;
-use omega_language_std::console;
+use omega_language_std::PosixFilesystemHost;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let fd: i32 = PosixFilesystemHost::open("omega_definitely_absent_9x7.dat", 0);

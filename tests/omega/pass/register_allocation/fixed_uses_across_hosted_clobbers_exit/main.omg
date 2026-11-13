@@ -1,7 +1,8 @@
 // Runtime decimal formatting keeps one operand for multiple fixed-view
 // divisions, across hosted byte writes that clobber those views. A validated
 // spill must split the operand's uses rather than drop a fixed-view constraint.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 
 data Main { }
 

@@ -2,7 +2,7 @@
 // of the guaranteed case. `pick` assigns `selected` before deciding between
 // `Success` and `Failure`, so the `Failure` exit carries a witness its case
 // never promised; checking rejects the assignment.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Outcome [copy] {
     case Success;

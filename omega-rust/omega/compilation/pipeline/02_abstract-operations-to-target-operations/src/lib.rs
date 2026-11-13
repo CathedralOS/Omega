@@ -282,10 +282,11 @@ pub(crate) mod function {
 pub(crate) mod optimized {
     use optimization_core::OptimizationExecutionPhase;
     use optimization_unit::OptimizedAbstractProgram;
-    use provider_admission::{AdmittedLoweringFacts, AdmittedProviderInstallation};
+    use provider_admission::AdmittedProviderInstallation;
     use std::sync::Arc;
     use target::NativeTarget;
     use target_operations::TargetOperationPlan;
+    use verified_optimization_input::AdmittedLoweringFacts;
 
     use crate::{AdmittedBoundarySettlement, LoweringError};
 
@@ -430,6 +431,9 @@ pub(crate) mod optimized {
         if !optimized.selections().for_phase(phase).is_empty() {
             return Err(LoweringError::UnconsumedOptimizationPhase(phase));
         }
+        lowering_facts
+            .require_lowering_context(optimized.plan(), target)
+            .map_err(LoweringError::ForeignLoweringFacts)?;
         if lowering_facts.native_callbacks().psi() != optimized.plan().psi {
             return Err(LoweringError::ForeignNativeCallbackCohort);
         }
@@ -543,7 +547,7 @@ pub(crate) mod selected_boundary_calls {
             (MachineId, InvocationSite, BoundaryMachineId),
             InstalledProviderCallEvidence,
         >,
-        input: Option<&provider_admission::AdmittedLoweringFacts>,
+        input: Option<&verified_optimization_input::AdmittedLoweringFacts>,
     ) -> Result<SelectedCallsByCall, LoweringError> {
         let mut selected = SelectedCallsByCall::new();
         for function in &plan.functions {

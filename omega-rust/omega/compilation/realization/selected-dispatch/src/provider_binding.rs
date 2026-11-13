@@ -31,6 +31,31 @@ pub struct PreparedBindingDeclarations {
 }
 
 impl PreparedBindingDeclarations {
+    pub fn callback_declarations<'declarations>(
+        &'declarations self,
+        program: &provider_planning::calling_policy_plans::CallingProgram,
+        sources: &[(source::SourceId, [u8; 32])],
+    ) -> Result<
+        &'declarations Arc<psi_terminal_production::PreparedExternalProviderDeclarations>,
+        Vec<Diagnostic>,
+    > {
+        self.owner.clone()?;
+        if !std::sync::Weak::ptr_eq(&self.source_owner, &program.source_owner) {
+            return Err(vec![Diagnostic::error(
+                "callback demand belongs to another checked source owner",
+            )]);
+        }
+        let declarations = self.external.as_ref().map_err(Clone::clone)?;
+        declarations
+            .require_prepared_owner(&program.source_owner, sources)
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "callback demand declarations: {reason:?}"
+                ))]
+            })?;
+        Ok(declarations)
+    }
+
     pub fn capture(
         program: &Arc<checked_trees::CheckedTrees>,
         inventory: &Arc<psi_terminal_production::PreparedProviderInventory>,
@@ -94,6 +119,7 @@ pub struct ProviderBindingRequest<'a> {
     pub calling_program: &'a provider_planning::calling_policy_plans::CallingProgram,
     pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
+    pub callback_roots: Result<terminal_psi::PreparedTerminalRoots, Vec<Diagnostic>>,
     pub root_grants: &'a [String],
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub authored_root_grants: &'a [trust_model::AuthoredRootGrant],
@@ -173,39 +199,9 @@ pub fn prepare_selected_execution(
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
     let selected_provider_plan_facts = Arc::new(selected_provider_plan_facts);
-    let calling_requirements = external_providers.callbacks.calling_requirements(
-        settlement
-            .boundary_calling_plan_realizations
-            .iter()
-            .map(|realization| {
-                (
-                    realization.calling_owner_application(),
-                    realization.requirement_machine,
-                )
-            }),
-    );
-    let callback_roots = {
-        let providers = provider_selection::CallbackProviderDeclarations::prepare(
-            &selected_provider_plan_facts,
-            &external_providers.callbacks.declarations,
-            settlement.provider_declarations,
-            settlement.calling_program.artifact.semantic_module(),
-        )?;
-        let mut selected = provider_selection::select_callback_declarations(
-            &external_providers.callbacks.declarations,
-            &calling_requirements,
-            &providers,
-        )?;
-        for installed in external_providers
-            .callbacks
-            .installed_roots(&calling_requirements)?
-        {
-            if !selected.contains(&installed) {
-                selected.push(installed);
-            }
-        }
-        external_providers.selected_callback_roots(selected)
-    };
+    // The source choice already classified these exact occurrences. Preserve
+    // its deferred error here, after the original grant and declaration checks.
+    let callback_roots = settlement.callback_roots?;
     let service_declarations = Arc::new(ServiceDeclarations::prepare(
         settlement.declarations.services.declared_traits(),
         settlement.boundary_calling_plan_realizations,

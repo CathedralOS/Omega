@@ -1,7 +1,9 @@
 // Proving the payload absent discharges its conditional custody, including
 // obligations inside a closed generic field. Missing tag evidence cannot.
-use omega::language::core::content;
-use omega::language::core::extent;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 data Units {}
 data Box<T> { value: T; }
 data Envelope [linear] {

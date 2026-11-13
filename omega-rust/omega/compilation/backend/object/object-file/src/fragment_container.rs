@@ -204,7 +204,7 @@ impl StagedOptimizedRelocationFreeObjectContainer {
         self.custody
     }
 
-    pub fn lowering_facts(&self) -> &provider_admission::AdmittedLoweringFacts {
+    pub fn lowering_facts(&self) -> &verified_optimization_input::AdmittedLoweringFacts {
         self.source.source().source().lowering_facts()
     }
 

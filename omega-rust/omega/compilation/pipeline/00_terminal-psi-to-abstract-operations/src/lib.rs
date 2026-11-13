@@ -1,49 +1,15 @@
 #![forbid(unsafe_code)]
 
 /*
-  Omega Stage 00 (`00_terminal-psi-to-abstract-operations`): canonical Terminal
-  Psi admission, native execution-scope closure, boundary/callback/entry
-  settlement, Psi optimization-unit construction, and lowering into
-  `AbstractOperationPlan`.
+  Check the selected code before lowering it, so unused library functions do
+  not demand unavailable target operations. Omega 00 lowers those functions,
+  establishes access to their inputs, and admits their native realization.
 
-  We admit canonical Terminal artifacts once at the Psi-to-Omega boundary and
-  produce the source-free inputs required by downstream pipeline stages.
-  `artifact_admission` decodes loose canonical section bytes (`lower_artifact`)
-  or reads a `CanonicalTerminalArtifact`'s retained module, enforces access-view
-  establishment custody, and separates native realization authority from
-  optimizer-only custody. `native_execution_scope` computes the reachable
-  machine, boundary, callback, cleanup, and interrupt closure and sequences
-  provider admission (`admit_native_realization`). `retained_terminal` and its
-  `retained_terminal_codec` / `retained_terminal_vocabulary` companions join and
-  persist compiler-private native derivation proposals without replaying source
-  joins. `settlement`, `callback_settlement`, and `entry_settlement` validate
-  boundary applications, comparisons, callback placements, and `ProgramEntry`
-  sidecars, and `lowering` (`lowering_scalars`, `lowering_storage`) lowers each
-  machine into `AbstractOperationPlan`, retained with its admitted selections as
-  the `VerifiedPsiOptimizationInput` that Omega 01 builds its unit from.
-*/
-
-/*
-  Decoding and verifying a canonical Terminal module is expensive, and source
-  trees must never cross into the native backend. By decoding the canonical
-  module at a single byte entrance (pinned by `terminal_decode_once`) and
-  joining provider, callback, comparison, and entry evidence once in
-  `retained_terminal`, we avoid redundant module decodes and prevent later
-  stages from re-running source-level provider or boundary selection. Pruning
-  unreachable machines and unused target bodies in `native_execution_scope`
-  before lowering ensures that abstract optimization, target lowering, and
-  instruction selection operate only on the executable closure of the selected
-  entry.
-*/
-
-/*
-  Consumes `CanonicalTerminalArtifact` (`PSITERM\0`) from Psi Stage 08 alongside
-  build-evaluated target selections, calling plans, and provider evidence from
-  `provider-admission` and `terminal-installation`. Produces
-  `AdmittedNativeRealization`, `VerifiedNativeArtifactInput`,
-  `VerifiedPsiOptimizationInput`, and `AbstractOperationPlan` for Omega Stage 01
-  (`01_abstract-operations-to-abstract-operations`) and Omega Stage 02
-  (`02_abstract-operations-to-target-operations`).
+  The shared verified-input owner supplies the complete checked native proposal
+  and its execution scope. This stage retains source-free native inputs through
+  `retained_terminal` and its codec, lowers canonical Psi with `lowering`, and
+  passes the resulting plan and selections to subsequent stages. Loose bytes
+  enter through `artifact_admission`; an existing canonical artifact is reused.
 */
 mod artifact_admission;
 mod lowering;
@@ -53,7 +19,6 @@ pub use ::provider_admission::AdmittedInstalledEntryExecution;
 pub use ::provider_admission::provider_admission;
 pub(crate) use native_execution_scope::native_admission;
 mod retained_terminal;
-mod settlement;
 pub use installation_evidence::{
     BootstrapAssumptionInterval, BootstrapEnvironmentAssumption, InstallationEnvironmentAssumption,
     InterruptDeliveryInterval, X86InterruptDeliveryAssumption, X86InterruptDeliveryProfile,
@@ -75,9 +40,10 @@ pub use retained_terminal::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
     TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProposalRequest,
     TerminalNativeProviders, TerminalNativeRealizationProposal, TerminalTargetProviderProposal,
-    decode_installation_assumptions, encode_installation_assumptions,
-    project_terminal_native_realization_proposal, recover_native_derivation_inputs,
-    retain_native_derivation_inputs,
+    decode_installation_assumptions, encode_installation_assumptions, lower_native_callable,
+    prepare_native_callable_execution, prepare_native_execution_with_components,
+    prepare_native_providers, project_terminal_native_realization_proposal,
+    recover_native_derivation_inputs, retain_native_derivation_inputs,
 };
 
 pub(crate) use artifact_admission::ArtifactLoweringError;
@@ -91,17 +57,15 @@ pub use providers::provider_installation::SelectedProviderAdapter;
 pub use providers::provider_installation::{
     AdmittedProviderInstallation, ProviderInstallationError,
 };
-pub use settlement::boundary_application_settlement::BoundaryApplicationSettlement;
-pub use settlement::callback_settlement::settle_native_callback_placements;
-pub(crate) use settlement::callback_settlement::{
-    CallbackRegistrarOccurrence, settle_callback_registrar_imports,
-};
-pub use settlement::entry_settlement::{
+pub use verified_optimization_input::callback_settlement::settle_native_callback_placements;
+pub use verified_optimization_input::entry_settlement::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError, SelectedProgramEntryCall,
     ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
+pub use verified_optimization_input::settlement::boundary_application_settlement::BoundaryApplicationSettlement;
 pub use verified_optimization_input::{
-    ObligationEvidence, VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput,
+    AdmittedLoweringFacts, NativeExecutionScope, ObligationEvidence,
+    VerifiedPsiOptimizationContext, VerifiedPsiOptimizationInput,
 };
 
 #[cfg(test)]

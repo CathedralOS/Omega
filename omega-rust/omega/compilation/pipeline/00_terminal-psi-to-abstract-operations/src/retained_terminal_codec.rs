@@ -1450,7 +1450,7 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI21";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI22";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1590,9 +1590,9 @@ fn capture(
         semantic_schema.write(&mut output)?;
         output.sequence(row_executions.len())?;
         for execution in *row_executions {
-            execution
-                .filter(|execution| !execution.is_numeric())
-                .write(&mut output)?;
+            // Transport cannot erase a supplied meaning before native
+            // preparation reconciles it with the canonical declaration.
+            execution.write(&mut output)?;
         }
         write_values(row_numeric_realizations, &mut output)?;
     }

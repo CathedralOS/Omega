@@ -1,7 +1,7 @@
 // A structural-returning call borrows only the selected payload. The result
 // owns fresh contents, the original stays readable, and the empty arm never
 // evaluates the payload call.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Payload { value: u64 in Wrapping; }
 machine Payload::clone(source: &Payload) -> Payload {

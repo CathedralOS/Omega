@@ -1,6 +1,10 @@
-use omega::language::core::extent;
-use omega::language::core::content;
-use omega::language::core::nat;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Resident;
+use omega::language::core::ResidentContentTransfer;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Granted::content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 machine pretend<P, T>(storage: Extent in Granted) -> Extent
 satisfies ResidentContentTransfer<P, T>::transfer
 ensures result in Granted & Resident<P, T>,

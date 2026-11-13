@@ -1,5 +1,4 @@
-use numbers;
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     write_scaled(90000.0);

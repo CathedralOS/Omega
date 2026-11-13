@@ -1,6 +1,6 @@
 // N6: formation binds the sealed core Equivalence interface and one exact
 // named, closed, checked conformance. No proof-machine discovery participates.
-use omega::language::core::relation;
+use omega::language::core::Equivalence;
 
 data Representative {
     case Zero;

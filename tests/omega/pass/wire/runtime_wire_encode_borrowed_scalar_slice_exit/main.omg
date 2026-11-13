@@ -1,4 +1,9 @@
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::packed_slice_field;
 use omega::language::core::reflect;
 // A borrowed scalar slice carries its runtime element count in the fat
 // descriptor. compact_binary measures the exact packed-varint body, proves
@@ -13,7 +18,7 @@ use omega::language::core::reflect;
 //   -65           81 01
 // Total: 8 bytes.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Telemetry {
     #0 readings: &[i32];

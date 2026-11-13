@@ -7,7 +7,7 @@
 // loan is lent directly from a local, forwarded through a second local, and
 // lent again from a later state before the value is consumed.
 use omega::language::core::drop;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data Token [linear] dropped by drop_token { value: u64; }
 machine drop_token(token: &mut Token) {}

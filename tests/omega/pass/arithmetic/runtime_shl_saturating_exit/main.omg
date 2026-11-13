@@ -3,7 +3,7 @@
 // right shift, and a wider count carrier must preserve their own semantics.
 // Counts are proven in range; saturation does not admit invalid counts.
 // Exit 71 is a wrong result; 72 is the original unsigned wrapping result.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(context: &mut Main) reaches Console {
     let value: u8 in Saturating = 17;

@@ -3,8 +3,8 @@ We publish portable Terminal Psi code for a Checked Product once and attach each
 target's selected entry, provider plans, and behavior-exclusion policy.
 
 When target provider selection needs boundary calling plans, `retain_calling_program`
-captures the source calling relationships (`CallingSourcePreparation`) in parallel
-with publishing the shared `PortableTerminalProgram` (`product_code.rs`) and caches
+captures the source calling relationships (`CallingSourcePreparation`) before
+publishing the shared `PortableTerminalProgram` (`product_code.rs`) and caches
 the immutable `CallingProgram` on `CheckedProductSource` so target children never
 reopen Checked Psi after publication.
 */
@@ -49,23 +49,14 @@ fn prepare(
     source: &CheckedProductSource,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<Arc<CallingProgram>, Vec<Diagnostic>> {
-    let (program, source_preparation) = std::thread::scope(|scope| {
-        let capture = crate::checked::checking::compile_thread::spawn_compile_worker(scope, || {
-            capture_source_preparation(source)
-        });
-        let code = product_code::ProductCodeSource::checked(source);
-        let program = code.publish(
-            source.terminal_publication.optimizations(),
-            &mut crate::observations::PsiStageTimings::new(timings),
-        );
-        let source_preparation = match capture {
-            Ok(worker) => worker
-                .join()
-                .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
-            Err(_) => capture_source_preparation(source),
-        };
-        (program, source_preparation)
-    });
+    // Save the checked relationships before publishing code, so subsequent
+    // targets consume the same immutable metadata beside the shared artifact.
+    let source_preparation = capture_source_preparation(source);
+    let code = product_code::ProductCodeSource::checked(source);
+    let program = code.publish(
+        source.terminal_publication.optimizations(),
+        &mut crate::observations::PsiStageTimings::new(timings),
+    );
     let program = program?;
     let source_preparation = source_preparation?;
     Ok(Arc::new(CallingProgram {

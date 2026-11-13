@@ -173,27 +173,27 @@ pub(crate) mod authored_selections {
                         }
                     }
                     BuildSelectionRequest::Declaration(binding) => {
-                        use language_semantics::declaration_selection::BuildOperation;
                         binding
                             .validate_shape()
                             .map_err(|reason| Diagnostic::error(reason).with_source_span(span))?;
-                        match operation {
-                            "prepare" | "select" => 1,
-                            "prepare_tests" if binding.operation.uses_tests_facet() => 1,
-                            "bind_native" if binding.operation == BuildOperation::NativeBinding => {
-                                3
-                            }
-                            "select_provider"
-                                if binding.operation == BuildOperation::ProviderSelection =>
-                            {
-                                3
-                            }
-                            _ => {
-                                return Err(Diagnostic::error(
-                                    "Product selection commit disagrees with its declaration operation",
-                                )
-                                .with_source_span(span));
-                            }
+                        let preparation = if binding.operation.uses_tests_facet() {
+                            "prepare_tests"
+                        } else {
+                            "prepare"
+                        };
+                        if operation == preparation {
+                            1
+                        } else if let Some((_, arity)) = binding
+                            .operation
+                            .product_recording_operation()
+                            .filter(|(name, _)| *name == operation)
+                        {
+                            arity
+                        } else {
+                            return Err(Diagnostic::error(
+                                "Product selection commit disagrees with its declaration operation",
+                            )
+                            .with_source_span(span));
                         }
                     }
                 };
@@ -1014,14 +1014,18 @@ pub(crate) mod authored_selections {
 
             super::static_inputs::collect(program, &mut resolutions)?;
 
-            let product_operands =
+            // Materialized inputs were resolved from their checked arguments
+            // above; descriptors remain owned by Build. Neither should be
+            // inferred again from the call that records the Product request.
+            let mut separately_owned_inputs =
                 validation::execution_projection::product_request_operand_occurrences(program);
+            separately_owned_inputs.extend(resolutions.iter().map(|row| row.occurrence));
             {
                 let rows = expressions.iter_expressions().collect::<Vec<_>>();
                 let generic_operator_values =
                     std::sync::OnceLock::<GenericOperatorValueOrigins>::new();
                 let owner_index = &owner_index;
-                let product_operands = &product_operands;
+                let separately_owned_inputs = &separately_owned_inputs;
                 let facts: &CheckFacts = facts;
                 let resolved: Vec<Vec<OccurrenceResolution>> =
                     validation::checking_thread_pool().install(|| {
@@ -1048,7 +1052,7 @@ pub(crate) mod authored_selections {
                             return Ok((found, None));
                         };
 
-                        if product_operands.contains(&occurrence) {
+                        if separately_owned_inputs.contains(&occurrence) {
                             return Ok((found, None));
                         }
                         if binding == LateBinding::CheckedOperator {

@@ -1,6 +1,25 @@
-use omega::language::core::wire;
+use omega::language::core::DecodeResult;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::scalar_field;
+use omega::language::core::ScalarSlot;
+use omega::language::core::ScalarPlanContext;
+use omega::language::core::FrameRead;
+use omega::language::core::CompactBinary::plan_scalar;
+use omega::language::core::CompactBinary::read_payload_fields;
+use omega::language::core::CompactBinary::decode_record;
+use omega::language::core::CompactBinary::blob_field;
+use omega::language::core::CompactBinary::plan_payload;
+use omega::language::core::PackedRead;
+use omega::language::core::CompactBinary::read_packed;
+use omega::language::core::CompactBinary::signed_from_word;
+use omega::language::core::CompactBinary::fixed_vec_field;
 use omega::language::core::reflect;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u64_to_i64_wrapping;
+use omega::language::core::narrow_i64_to_u64_wrapping;
 // Wire protocol sample: encode a sensor packet containing a nested header,
 // a repeated (packed) sample array, and a scalar depth field; then decode
 // it back and verify all fields round-trip correctly. The wire format is
@@ -21,8 +40,8 @@ use omega::language::core::numeric_conversion;
 //
 // Expected exit: 70.
 
-use omega::language::core::fixed_vec;
-use omega_language_std::console;
+use omega::language::core::FixedVec;
+use omega_language_std::Console;
 
 data RoomHeader {
     #0 room_id: u32;

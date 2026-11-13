@@ -1851,7 +1851,7 @@ pub(crate) fn lower_selected_module(
     module: &TerminalModule,
     entry: semantic_vocabulary::MachineId,
     structural_types: Vec<terminal_psi::StructuralTypeDeclaration>,
-    scope: Option<&crate::native_execution_scope::NativeExecutionScope>,
+    scope: Option<&crate::NativeExecutionScope>,
     scalar_applications: Option<&terminal_installation::AdmittedScalarApplications>,
     layouts: Option<&terminal_installation::AdmittedTargetLayouts>,
 ) -> Result<AbstractOperationPlan, LoweringError> {

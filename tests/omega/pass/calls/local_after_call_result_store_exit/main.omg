@@ -7,7 +7,7 @@
 // result: `second` is 4 and `third` is 7 while the stored value is 1. Counting
 // the store in that key rejected the program, and a read that resolved
 // `second` to the stored result would see 1 and exit 71.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

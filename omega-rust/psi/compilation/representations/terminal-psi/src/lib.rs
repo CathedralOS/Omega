@@ -797,6 +797,9 @@ pub use calling_policies::{
 pub use unoptimized_behavior::{UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
 pub mod callback_declarations {
 
+    mod prepared;
+    pub use prepared::PreparedCallbackDeclarations;
+
     use crate::{CheckedMachineDeclaration, NominalDeclarationIdentity};
     use arena::{Arena, Handle};
     use language_semantics::callback_declarations::{
@@ -920,7 +923,7 @@ pub mod callback_declarations {
 pub use callback_declarations::{
     CallbackContractEnvelope, CallbackContractRefinement, CallbackDeclarationRoster,
     CallbackEntryResources, CallbackRequirementDeclaration, CallbackRequirementId,
-    CallbackUseDeclaration, CallbackUseId,
+    CallbackUseDeclaration, CallbackUseId, PreparedCallbackDeclarations,
 };
 
 #[cfg(test)]

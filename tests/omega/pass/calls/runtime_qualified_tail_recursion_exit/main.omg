@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 data Walker {}
 machine Walker::walk(position: u64) -> u64 {
     transition position < 3 {

@@ -2,7 +2,9 @@
 // with NUL and CR stored literally (LineComplete(4), exit 14), and stdout
 // carries the four raw bytes plus the next unread byte exactly.
 // Variant of runtime_console_bounded_line_full_exit covering NUL and CRLF.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::LineReadResult;
+use omega_language_std::Console;
 
 data Main {
     line: [u8; 4];

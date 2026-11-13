@@ -3,7 +3,7 @@
 // with no parameters, so the loop counter it sees is the one its
 // predecessor rebound after the call, not the header's; the ranked cycle
 // keeps exactly the one authored descent.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { values: [i32; 6]; }
 

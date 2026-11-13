@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 // Complete target-neutral reproducer. Expected main result: 42.
 // The local byte owner must remain live across the selected case edge.
 data ReadOutcome {

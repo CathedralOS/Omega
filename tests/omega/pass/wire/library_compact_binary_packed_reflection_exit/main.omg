@@ -1,6 +1,11 @@
 // Expected exit: 0
 // Independent packed bytes: zigzag(150)=300 -> AC 02, zigzag(-2)=3.
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::packed_field;
 use omega::language::core::reflect;
 data Packet { #0 items: [i32; 2]; }
 machine fields(value: &Packet, context: &mut EncodeContext) {

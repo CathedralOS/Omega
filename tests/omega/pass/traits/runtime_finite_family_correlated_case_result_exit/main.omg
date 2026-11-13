@@ -1,6 +1,6 @@
 // Expected exit 70. Complete (width, depth) tuples govern both the case
 // and its packet fields; rebinding selects another complete implementation.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Packet { width: u32; depth: u32; provider: u32; }
 data Choice { case Narrow(packet: Packet); case Wide(packet: Packet); }
 data Item { marker: u32; }

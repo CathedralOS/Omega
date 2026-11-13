@@ -7,7 +7,7 @@
 // (The nested mix `(a || b) && c` is a documented separate gap; flat logic works.)
 // With a = true, b = false, c = true. Exits 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     a: bool;

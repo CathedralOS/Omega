@@ -1,6 +1,8 @@
 // Conserving the wrapper's count cannot dispose of a possibly occupied grant.
-use omega::language::core::content;
-use omega::language::core::extent;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 
 data Units {}
 data Envelope [linear] {

@@ -88,11 +88,19 @@ pub(super) fn validate_boundary_application_coverage(
     terminal: terminal_psi::TerminalPsiIdentity,
     coverage: Option<&TerminalBoundaryApplicationCoverage>,
     physical_evidence_scope: &NativePhysicalEvidenceScope,
+    execution_scope: Option<&terminal_psi_to_abstract_operations::NativeExecutionScope>,
 ) -> Result<(), &'static str> {
+    // A retained native scope establishes which calls must have selected rows.
+    // Without that custody, keep the full-module obligation; absence is not an
+    // empty executable closure.
+    let expected = execution_scope
+        .map(|scope| scope.boundary_application_demands(module))
+        .transpose()?;
+    let demands = expected
+        .as_deref()
+        .unwrap_or(&module.boundary_application_demands);
     let Some(coverage) = coverage else {
-        if !module.boundary_application_demands.is_empty()
-            || physical_evidence_scope.requires_boundary_application_coverage()
-        {
+        if !demands.is_empty() || physical_evidence_scope.requires_boundary_application_coverage() {
             return Err(
                 "native artifact claims an exact empty D29 scope without retained coverage",
             );
@@ -100,8 +108,8 @@ pub(super) fn validate_boundary_application_coverage(
         return Ok(());
     };
     coverage.validate_for_terminal(terminal)?;
-    if coverage.demands().rows() != module.boundary_application_demands {
-        return Err("native boundary coverage does not match canonical Terminal demands");
+    if coverage.demands().rows() != demands {
+        return Err("native boundary coverage does not match canonical executable demands");
     }
     for reference in coverage.references() {
         let matching_operations = module
@@ -537,13 +545,18 @@ impl NativeArtifact {
             .map_err(NativeArtifactValidationError::ImageReplay)?;
         let module = self.parts.psi_artifact.semantic_module();
         mixed_structural_scalar::validate(module, &self.parts.object)?;
+        let execution_scope = self.parts.object.native_execution_scope(
+            &self.parts.psi_artifact,
+            *self.parts.selected_provider_closure_digest.as_bytes(),
+        )?;
         validate_boundary_application_coverage(
             module,
             self.parts.psi_artifact.manifest().semantic(),
             self.parts.boundary_application_coverage.as_ref(),
             &self.parts.physical_evidence_scope,
+            execution_scope,
         )?;
-        validate_ieee_float_fma_occurrences(module)?;
+        validate_ieee_float_fma_occurrences(module, execution_scope)?;
         self.parts
             .object
             .validate_terminal_entry(&self.parts.psi_artifact)?;
@@ -1073,15 +1086,23 @@ impl ProviderExecutionEvidence for NativeProviderExecution {
     }
 }
 
-fn validate_ieee_float_fma_occurrences(module: &TerminalModule) -> Result<(), &'static str> {
-    if module.machines.iter().any(|machine| {
-        machine.operations().any(|operation| {
-            matches!(
-                operation.kind,
-                terminal_psi::OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
-            )
+fn validate_ieee_float_fma_occurrences(
+    module: &TerminalModule,
+    execution_scope: Option<&terminal_psi_to_abstract_operations::NativeExecutionScope>,
+) -> Result<(), &'static str> {
+    if module
+        .machines
+        .iter()
+        .filter(|machine| execution_scope.is_none_or(|scope| scope.contains_machine(machine.id)))
+        .any(|machine| {
+            machine.operations().any(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+                )
+            })
         })
-    }) {
+    {
         return Err(
             "native artifact does not retain every Terminal nearest-FMA occurrence exactly once",
         );
