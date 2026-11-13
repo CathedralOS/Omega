@@ -1,9 +1,259 @@
 {
   "cluster_id": "pin-c2",
   "witness": "pass/build/explicit_provider_storage_extent_exit",
-  "good": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+  "members": [
+    "pass/build/explicit_provider_storage_extent_exit"
+  ],
+  "fixture_add": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+  "outcome_walk": [
+    {
+      "sha": "51e8c45c793007f211d0d9baee7de16767172444",
+      "pr": "2505",
+      "subject": "psi: check a body over a const value parameter once and carry its proofs (#2505)",
+      "exit": 1,
+      "reason": "ran",
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true
+    },
+    {
+      "sha": "e2e7876a03e415c6aad2defbbe743e0ec24e7caa",
+      "pr": "2463",
+      "subject": "repo: gate pull requests on the corpus rows they can affect, sweep the ledger nightly (#2463)",
+      "exit": 1,
+      "reason": "ran",
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true
+    },
+    {
+      "sha": "dfece9ee0666386d0fceb27ede2549b3302d82c8",
+      "pr": "2502",
+      "subject": "psi: cover crash routes restricted by their call path and by float guards (#2502)",
+      "exit": 1,
+      "reason": "ran",
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true
+    },
+    {
+      "sha": "182a33b423f50a54760c53cae43861af0f95f63f",
+      "pr": "2492",
+      "subject": "repo: read required landing checks from exact commit jobs (#2492)",
+      "exit": 1,
+      "reason": "ran",
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true
+    },
+    {
+      "sha": "a24aae8c0d708d76cd47894a5f0eaf9afe414899",
+      "pr": "2496",
+      "subject": "psi: recognize core interrupt, segment and service declarations from one vocabulary (#2496)",
+      "exit": 1,
+      "reason": "ran",
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true
+    },
+    {
+      "sha": "4561f923e68883df47e1262496a492034b1816d1",
+      "pr": "2486",
+      "subject": "docs: make provider-selection-after-terminal acceptance measure the migration (#2486)",
+      "exit": 125,
+      "reason": "ledger-only",
+      "status": null,
+      "diag": null,
+      "diag_equals_pin": null
+    },
+    {
+      "sha": "3bbe5c131a15666f68a700f499783f04910e8143",
+      "pr": "2460",
+      "subject": "docs: ratify ordinary trait records and resulting-value identity (#2460)",
+      "exit": 125,
+      "reason": "ledger-only",
+      "status": null,
+      "diag": null,
+      "diag_equals_pin": null
+    },
+    {
+      "sha": "d14bba6d178e0c6e02f62065ad601cd65656bd2b",
+      "pr": "2429",
+      "subject": "psi: prove a field's data requires for a whole-slice view of that field (#2429)",
+      "exit": 1,
+      "reason": "ran",
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true
+    },
+    {
+      "sha": "7b3a04c7c5056b020dca66b45ab5cfd6184a4dce",
+      "pr": "2365",
+      "subject": "psi: bound divide, remainder, shift and bitwise results on the lowered form (#2365)",
+      "exit": 1,
+      "reason": "ran",
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true
+    },
+    {
+      "sha": "ca85a279ff090b7204dd45f3f522ba8d79505d4c",
+      "pr": "2236",
+      "subject": "tools: keep the worktree pool usable when a registered worktree's directory is gone (#2236)",
+      "exit": 1,
+      "reason": "ran",
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true
+    },
+    {
+      "sha": "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30",
+      "pr": "1880",
+      "subject": "compiler: preserve array contracts across calls and state changes (#1880)",
+      "exit": 1,
+      "reason": "ran",
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true
+    },
+    {
+      "sha": "a48219f5cf97b2d7d766d07c48e1d8946a2b6477",
+      "pr": "1401",
+      "subject": "compiler: complete Windows raw filesystem metadata (#1401)",
+      "exit": 1,
+      "reason": "ran",
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true
+    },
+    {
+      "sha": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+      "pr": "1023",
+      "subject": "psi: give callable headers explicit delimiter ownership (#1023)",
+      "exit": 0,
+      "reason": "ran",
+      "status": "checked",
+      "diag": "",
+      "diag_equals_pin": false
+    }
+  ],
+  "outcome_good": "6966f21a71342fa6725fb12763e3a7250b8761e7",
+  "outcome_nearest_bad": "a48219f5cf97b2d7d766d07c48e1d8946a2b6477",
   "breaking_commit": "55f4a84e523c0f1b64f7d72d80f4cb83e84e7017",
+  "breaking_parent": "e888ffb81d847e6cbc5472f74164131b4f3d2af6",
   "pr": "1074",
-  "mechanism": "psi: preserve indexed observations through normal call completion (#1074)",
-  "status": "bisected"
+  "subject": "psi: preserve indexed observations through normal call completion (#1074)",
+  "parent_pr": "1078",
+  "parent_subject": "loc: twelve-crate qualified-path collapse (batch X, \u22122919) (#1078)",
+  "confirm_bad": [
+    {
+      "run": 1,
+      "exit": 1,
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true,
+      "diag_same_class": true,
+      "members": {
+        "pass/build/explicit_provider_storage_extent_exit": {
+          "status": "rejected",
+          "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value"
+        }
+      },
+      "reason": null
+    },
+    {
+      "run": 2,
+      "exit": 1,
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true,
+      "diag_same_class": true,
+      "members": {
+        "pass/build/explicit_provider_storage_extent_exit": {
+          "status": "rejected",
+          "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value"
+        }
+      },
+      "reason": null
+    },
+    {
+      "run": 3,
+      "exit": 1,
+      "status": "rejected",
+      "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+      "diag_equals_pin": true,
+      "diag_same_class": true,
+      "members": {
+        "pass/build/explicit_provider_storage_extent_exit": {
+          "status": "rejected",
+          "diag": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value"
+        }
+      },
+      "reason": null
+    }
+  ],
+  "confirm_parent": [
+    {
+      "run": 1,
+      "exit": 0,
+      "status": "checked",
+      "diag": "",
+      "diag_equals_pin": false,
+      "diag_same_class": false,
+      "members": {
+        "pass/build/explicit_provider_storage_extent_exit": {
+          "status": "checked",
+          "diag": ""
+        }
+      },
+      "reason": null
+    },
+    {
+      "run": 2,
+      "exit": 0,
+      "status": "checked",
+      "diag": "",
+      "diag_equals_pin": false,
+      "diag_same_class": false,
+      "members": {
+        "pass/build/explicit_provider_storage_extent_exit": {
+          "status": "checked",
+          "diag": ""
+        }
+      },
+      "reason": null
+    },
+    {
+      "run": 3,
+      "exit": 0,
+      "status": "checked",
+      "diag": "",
+      "diag_equals_pin": false,
+      "diag_same_class": false,
+      "members": {
+        "pass/build/explicit_provider_storage_extent_exit": {
+          "status": "checked",
+          "diag": ""
+        }
+      },
+      "reason": null
+    }
+  ],
+  "confirm_bad_exits": [
+    1,
+    1,
+    1
+  ],
+  "confirm_parent_exits": [
+    0,
+    0,
+    0
+  ],
+  "diag_at_bad": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+  "diag_at_pin": "anonymous address value cannot prove fit in `addr::Bound` in machine `SelectedImage::retained_suffix_start` state `retained_suffix_start` return value",
+  "diag_equals_pin": true,
+  "bisect_log_first_bad_line": "55f4a84e523c0f1b64f7d72d80f4cb83e84e7017 is the first bad commit",
+  "note": "Walk and bisect reused from /tmp/part10_c2_trace.jsonl and /tmp/part10_c2_bisect.log. Confirmation is three fresh builds at each edge.",
+  "outcome_edge_confirmed": true,
+  "status": "measured"
 }
