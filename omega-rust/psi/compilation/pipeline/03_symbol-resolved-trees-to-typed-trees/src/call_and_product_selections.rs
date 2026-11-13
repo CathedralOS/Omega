@@ -1242,6 +1242,7 @@ pub(crate) mod construction_destinations {
         let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle, SymbolHandle)>::new();
         let mut calls = Vec::new();
         let mut constructors = Vec::new();
+        let mut assignment_receivers = Vec::new();
 
         for (handle, expression) in program.expression_table.expression_entries() {
             if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier)
@@ -1297,7 +1298,9 @@ pub(crate) mod construction_destinations {
             }
             for state in program.machine_states(machine) {
                 let statements = program.statement_table.statements(state.statement_nodes);
-                for (statement_index, statement) in statements.iter().enumerate() {
+                for (statement_index, (handle, statement)) in
+                    state.statement_nodes.handles().zip(statements).enumerate()
+                {
                     match statement {
                         StatementNode::Assembly(_) => {}
                         StatementNode::LocalData(local)
@@ -1311,18 +1314,45 @@ pub(crate) mod construction_destinations {
                             ));
                         }
                         StatementNode::Assignment(assignment) => {
-                            if needs_destination(program, assignment.value) {
-                                if !assignment.receiving_type.is_valid() {
-                                    return Err(crate::unavailable_judgment(
-                                        "assignment literal receiving type",
+                            // A declared destination supplies a receiving type,
+                            // not permission to write or evidence for its value.
+                            // The lowered reader reconstructs both from the exact
+                            // target before admitting the assignment.
+                            let receiving =
+                                crate::typing_queries::scoped_expression_type_reference(
+                                    program,
+                                    program.state_parameters(state),
+                                    state.return_type,
+                                    assignment.target,
+                                )?
+                                .filter(|reference| reference.is_valid())
+                                .or_else(|| {
+                                    assignment
+                                        .receiving_type
+                                        .is_valid()
+                                        .then_some(assignment.receiving_type)
+                                });
+                            if let Some(receiving) = receiving {
+                                if !program
+                                    .type_reference_table
+                                    .contains_type_reference(receiving)
+                                {
+                                    return Err(Diagnostic::error(
+                                        "assignment receiving type lost its declaration custody",
                                     ));
                                 }
-                                destinations.push((
-                                    assignment.value,
-                                    assignment.receiving_type,
-                                    SymbolHandle::invalid(),
-                                ));
+                                assignment_receivers.push((handle, receiving));
+                                if needs_destination(program, assignment.value) {
+                                    destinations.push((
+                                        assignment.value,
+                                        receiving,
+                                        machine.symbol,
+                                    ));
+                                }
                             }
+                            // A source projection may await ordinary type/cast
+                            // formation. Keep its target and value intact so
+                            // the lowered assignment owner can supply the type.
                         }
                         StatementNode::Call(call) => collect_call_destinations(
                             program,
@@ -1373,6 +1403,17 @@ pub(crate) mod construction_destinations {
                     }
                 }
             }
+        }
+
+        for (handle, receiving) in assignment_receivers {
+            let StatementNode::Assignment(assignment) =
+                program.statement_table.statement_mut(handle)
+            else {
+                return Err(Diagnostic::error(
+                    "assignment changed while retaining its receiving type",
+                ));
+            };
+            assignment.receiving_type = receiving;
         }
 
         for call in calls {
@@ -1788,6 +1829,146 @@ pub(crate) mod construction_destinations {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn assignment_receivers_preserve_declared_types_without_inventing_unknown_types() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::{
+                data::DataDefinition,
+                expression::{TableNamePath, TableStructLiteral},
+                machine::Machine,
+                signature::StateParameter,
+                state::State,
+                statement::TableAssignment,
+            };
+
+            let mut symbols = SymbolTableBuilder::default();
+            let data = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Record"));
+            let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+            let state = symbols
+                .insert_children(owner, [(SymbolKind::State, SymbolNameRef::Static("entry"))])
+                .handles()
+                .next()
+                .unwrap();
+            let formal = symbols
+                .insert_children(
+                    state,
+                    [(SymbolKind::Parameter, SymbolNameRef::Static("target"))],
+                )
+                .handles()
+                .next()
+                .unwrap();
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            program.push_data_definition(DataDefinition {
+                symbol: data,
+                name: "Record".into(),
+                ..Default::default()
+            });
+            let declared = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: data,
+                    name: "Record".into(),
+                });
+            let parameters = program.state_parameters.insert_many([StateParameter {
+                symbol: formal,
+                name: "target".into(),
+                type_reference: declared,
+                is_mutable: true,
+                ..Default::default()
+            }]);
+            let mut names = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut names, "target".into());
+            let target = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members: names,
+                    head_symbol: formal,
+                    symbol: formal,
+                    ..Default::default()
+                }));
+            let mut missing_names = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut missing_names, "missing".into());
+            let missing = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members: missing_names,
+                    ..Default::default()
+                }));
+            let mut literal = || {
+                program
+                    .expression_table
+                    .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                        type_symbol: data,
+                        type_name: "Record".into(),
+                        ..Default::default()
+                    }))
+            };
+            let value = literal();
+            let unknown_value = literal();
+            let body = program.statement_table.insert_statements([
+                StatementNode::Assignment(TableAssignment {
+                    target,
+                    value,
+                    receiving_type: Default::default(),
+                }),
+                StatementNode::Assignment(TableAssignment {
+                    target: missing,
+                    value: unknown_value,
+                    receiving_type: Default::default(),
+                }),
+            ]);
+            let states = program.machine_states.insert_many([State {
+                symbol: state,
+                name: "entry".into(),
+                parameters,
+                statement_nodes: body,
+                ..Default::default()
+            }]);
+            program.push_machine(Machine {
+                symbol: owner,
+                name: "owner".into(),
+                states,
+                ..Default::default()
+            });
+
+            prepare(&mut program, 0, 0, &[])
+                .expect("retaining source destinations grants no assignment verdict");
+            let statements = program.statement_table.statements(body);
+            let StatementNode::Assignment(known) = statements[0] else {
+                panic!("known assignment changed kind");
+            };
+            let StatementNode::Assignment(unknown) = statements[1] else {
+                panic!("unknown assignment changed kind");
+            };
+            assert_eq!(
+                (known.target, known.value, known.receiving_type),
+                (target, value, declared)
+            );
+            assert_eq!((unknown.target, unknown.value), (missing, unknown_value));
+            assert!(
+                !unknown.receiving_type.is_valid(),
+                "an unresolved destination owes its real lowered receiving judgment"
+            );
+            let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value)
+            else {
+                panic!("source constructor changed kind");
+            };
+            assert_eq!(literal.application_type, declared);
+            assert_eq!(
+                program
+                    .expression_table
+                    .construction_required_type_reference(value),
+                declared
+            );
+        }
 
         #[test]
         fn deferred_destinations_do_not_complete_or_hide_expression_identity() {

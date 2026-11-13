@@ -199,7 +199,7 @@ fn callable_signatures_do_not_hide_pending_extent_work() {
     let errors = pending
         .clone()
         .evaluate(&mut typed)
-        .expect_err("the nested return type still owes its extent evaluation");
+        .expect_err("the nested return type still needs array-length evaluation");
     assert!(
         errors.iter().any(
             |error| error.message.contains("source array-extent evaluation")
@@ -222,7 +222,7 @@ fn callable_signatures_do_not_hide_pending_extent_work() {
         .return_type = closed_array;
     pending
         .evaluate(&mut typed)
-        .expect("a closed nested callable signature requests no evaluation");
+        .expect("a nested signature with literal array length needs no evaluation");
 }
 
 #[test]
@@ -262,21 +262,43 @@ fn orphan_result_rows_do_not_make_a_source_frontier_empty() {
 
 #[test]
 fn ordinary_contract_sources_reach_typed_preparation_without_being_evaluated() {
-    // These existing fixtures include an allowed branch computation and one
-    // whose arithmetic promise is unproved. Preparation retains each source;
-    // only the later checker judges its body.
+    // These retained controls include an allowed branch computation and one
+    // whose subtraction is unproved. Inline text keeps the test independent of
+    // the retired fixture tree. Preparation retains both for the later checker.
     for (path, text) in [
         (
             "tests/fixtures/pass/contracts/consistent_branches_quiet_exit/main.omg",
-            include_str!(
-                "../../../../../tests/fixtures/pass/contracts/consistent_branches_quiet_exit/main.omg"
-            ),
+            r#"// Both branches can run under `count >= 10`, so neither is reported and each
+// subtraction is proved from its own branch's facts.
+machine pick(count: u64) -> u64
+requires count >= 10
+{
+    transition count < 50 {
+        true -> (count - 10u64)
+        false -> (count - 50u64)
+    }
+}
+machine main() crashes Trap {
+    transition pick(12) == 2 && pick(80) == 30 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#,
         ),
         (
             "tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction/main.omg",
-            include_str!(
-                "../../../../../tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction/main.omg"
-            ),
+            r#"// `count >= 10` and `count < 50` are consistent: failing to prove
+// `count >= 100` on that branch is not evidence the branch is impossible.
+machine pick(count: u64) -> u64
+requires count >= 10
+{
+    transition count < 50 {
+        true -> (count - 100u64)
+        false -> (count - 10u64)
+    }
+}
+machine main() {}
+"#,
         ),
     ] {
         let mut sources = source::SourceMap::from_files(Vec::new());

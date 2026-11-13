@@ -1454,9 +1454,10 @@ pub(crate) fn close_typed_cohort(
         cohort.typed_expressions,
         &cast_destinations,
     )?;
-    // A projected assignment can acquire its receiving type only after a
-    // domain cast on its reference has settled. Keep the ordinary landing
-    // pass here as well; already prepared constructors retain their identity.
+    // Cast normalization can complete a destination's declared type. Reuse
+    // the receiving-type walk so its value retains the complete constructor
+    // application; assignment authority and value obligations stay with the
+    // lowered checker.
     crate::expressions::construction_destinations::prepare(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,

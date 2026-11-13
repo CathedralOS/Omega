@@ -65,6 +65,15 @@ call binding and callable transition normalization—refuse with `no product rou
 yet` until their surviving owner supplies the required judgment or correspondence.
 Typing does not create empty facts or reuse an old checker verdict.
 
+Assignments retain their target and declared receiving type as source metadata.
+The shared destination walk uses exact binding, field and element declarations
+for literals and named machine values, including applied record types. When a
+source projection has not acquired its type yet, the target and value remain
+intact for the lowered reader. That reader reconstructs the destination, checks
+write authority and proves the replacement's obligations; the retained type is
+not an assignment judgment.
+
+
 The matching post-typing evaluator consumes the completed candidate; wire-plan
 publication starts at the extension wire-schema frontier. The structural prefix
 gate returns the owned base unchanged on failure, and orchestration rejects.

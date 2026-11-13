@@ -86,9 +86,9 @@ fn require_no_source_jobs(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         if typed.layout_storage_arguments(reference).is_some() {
             return Err(unsupported("source layout-policy evaluation"));
         }
-        // The reference owner already traversed every carrier, including a
-        // callable's complete signature and contracts. Classify only the
-        // evaluation work it found; a carrier is not a second leaf inventory.
+        // The shared walk includes a machine value's parameters, result,
+        // bounds and contracts. Check every reached type for pending work
+        // rather than keeping another list of types that can contain it.
         let node = typed.type_reference_table.type_reference(reference);
         if matches!(node, TypeReferenceNode::ConstExpression(_)) {
             return Err(unsupported("source type-expression evaluation"));
