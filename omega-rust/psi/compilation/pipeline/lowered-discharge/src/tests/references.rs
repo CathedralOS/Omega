@@ -89,7 +89,10 @@ pub(super) fn lower_lending(machines: Vec<Lending>) -> Checked<structure_elabora
             termination: Termination::Silent,
         });
     }
-    structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &records())
+    let mut elaboration =
+        structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &records())?;
+    declare_body_models(&mut elaboration, &signatures);
+    Ok(elaboration)
 }
 
 fn of(kind: ExpressionKind, result: ValueType) -> Expression {

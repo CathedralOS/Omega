@@ -186,15 +186,13 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
             terminal_psi::TerminalMachineResult::Structural(required),
             terminal_psi::TerminalMachineResult::Structural(supplied),
         ) = (&candidate.required.result, &candidate.supplied.result)
-        {
-            if required.qualifications != supplied.qualifications
+            && (required.qualifications != supplied.qualifications
                 || required.projected_qualifications != supplied.projected_qualifications
-                || required.reference_sources != supplied.reference_sources
-            {
-                return Err(refuse(
-                    "native conformance changes its result qualification or reference origin",
-                ));
-            }
+                || required.reference_sources != supplied.reference_sources)
+        {
+            return Err(refuse(
+                "native conformance changes its result qualification or reference origin",
+            ));
         }
         let required_view = view(&candidate.required);
         let goals = contract_refinement_goals(module, required_view, view(&candidate.supplied))

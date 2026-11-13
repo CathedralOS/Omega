@@ -4419,12 +4419,11 @@ pub(crate) mod primitive_storage {
                     &path[..path.len() - 1],
                 )?;
             }
-            if let Some(restriction) = restriction {
-                if !crate::engine::scalar_operations::terminal_scalar_belongs_to_type(scalar)
-                    || !scalar.satisfies_field(&restriction)
-                {
-                    return Err(malformed());
-                }
+            if let Some(restriction) = restriction
+                && (!crate::engine::scalar_operations::terminal_scalar_belongs_to_type(scalar)
+                    || !scalar.satisfies_field(&restriction))
+            {
+                return Err(malformed());
             }
             self.store_primitive_place(destination, path, scalar)
         }

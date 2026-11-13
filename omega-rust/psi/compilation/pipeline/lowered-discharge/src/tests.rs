@@ -189,7 +189,10 @@ fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> 
             termination: Termination::Silent,
         });
     }
-    structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+    let mut elaboration =
+        structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())?;
+    declare_body_models(&mut elaboration, &signatures);
+    Ok(elaboration)
 }
 
 /// Lowers `machines` (machine 1 is the entry) and discharges them.
@@ -1859,7 +1862,71 @@ fn elaborate_over(
             termination: Termination::Silent,
         });
     }
-    structure_elaboration::lower_bodies(id(1), &bodies, &signatures, records).unwrap()
+    let mut elaboration =
+        structure_elaboration::lower_bodies(id(1), &bodies, &signatures, records).unwrap();
+    declare_body_models(&mut elaboration, &signatures);
+    elaboration
+}
+
+/// Raw-body units model declarations explicitly; they do not test source custody.
+/// These models grant no services, synchronous entries, suspension or blocking.
+/// The checker must still establish that each body fits those permissions.
+fn declare_body_models(
+    elaboration: &mut structure_elaboration::Elaboration,
+    signatures: &IdTable<MachineId, Signature>,
+) {
+    use optimization::digest_encoder::DomainDigestEncoder;
+    use terminal_psi::{
+        CheckedMachineDeclaration, NominalDeclarationIdentity, TerminalCallableEnvelope,
+        TerminalCallableTermination, TerminalMachineEnvelope,
+    };
+
+    let module = &mut elaboration.module;
+    assert!(module.callables.machine_envelopes.is_empty());
+    let mut identities = std::mem::take(&mut module.identities).into_builder();
+    for machine in &mut module.machines {
+        let signature = signatures.get(machine.id).unwrap();
+        assert_eq!(signature.termination, Termination::Silent);
+        assert!(machine.declaration.is_none());
+        assert!(machine.published_service_ceiling.is_empty());
+        assert!(machine.published_synchronous_entries.is_empty());
+        let callable = identities.intern(&format!("lowered-body-model::{}", machine.id.get()));
+        let parameter_types = signature
+            .parameters
+            .iter()
+            .map(|value_type| identities.intern(&format!("{value_type:?}")))
+            .collect();
+        let result_type = identities.intern(&format!("{:?}", signature.result));
+        let mut commitment = DomainDigestEncoder::new(b"omega.lowered-body-test-model.v1\0");
+        commitment.bytes(format!("{signature:?}").as_bytes());
+        let contract = commitment.finish();
+        machine.declaration = Some(CheckedMachineDeclaration {
+            machine: NominalDeclarationIdentity::new(callable),
+            state: NominalDeclarationIdentity::new(callable),
+            semantic_declaration: callable,
+            parameter_types,
+            callable,
+            result_type,
+            contract,
+            published_may_suspend: false,
+            published_may_block: false,
+            specialization: None,
+        });
+        module
+            .callables
+            .machine_envelopes
+            .push(Some(TerminalMachineEnvelope {
+                machine: machine.id,
+                envelope: TerminalCallableEnvelope {
+                    service_reach: Vec::new(),
+                    invocations: Vec::new(),
+                    suspends: false,
+                    blocks: false,
+                    termination: TerminalCallableTermination::NotGuaranteed,
+                },
+            }));
+    }
+    module.identities = identities.build();
 }
 
 fn run_places(machines: Vec<Shaped>) -> (structure_elaboration::Elaboration, Discharge) {

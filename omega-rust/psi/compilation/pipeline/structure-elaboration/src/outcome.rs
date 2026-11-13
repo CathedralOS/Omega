@@ -394,10 +394,10 @@ impl Walk<'_> {
             ExpressionKind::Call {
                 callee, arguments, ..
             } => {
-                if let Some(operand) = callee.operand() {
-                    if !self.expression(machine, operand)? {
-                        return Ok(false);
-                    }
+                if let Some(operand) = callee.operand()
+                    && !self.expression(machine, operand)?
+                {
+                    return Ok(false);
                 }
                 for argument in arguments {
                     if !self.expression(machine, argument)? {

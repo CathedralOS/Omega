@@ -140,15 +140,15 @@ fn schema_context(
     let mut scalars = Vec::new();
     let mut places = Vec::new();
     for (position, value_type) in signature.parameters.iter().enumerate() {
-        if let ValueType::Rigid(rigid) = value_type {
-            if rigid.0 >= abstract_types || signature.borrowed(position).is_none() {
-                return Err(crate::refusal(
-                    RefusalReason::Unsupported,
-                    machine,
-                    Construct::Machine,
-                    "abstract schema values are supported only through borrowed carriers",
-                ));
-            }
+        if let ValueType::Rigid(rigid) = value_type
+            && (rigid.0 >= abstract_types || signature.borrowed(position).is_none())
+        {
+            return Err(crate::refusal(
+                RefusalReason::Unsupported,
+                machine,
+                Construct::Machine,
+                "abstract schema values are supported only through borrowed carriers",
+            ));
         }
         if signature.is_place(position) {
             let place = u64::try_from(places.len())

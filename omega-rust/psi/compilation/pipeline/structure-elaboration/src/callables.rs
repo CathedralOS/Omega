@@ -182,9 +182,9 @@ impl CallableNamespace {
                 structural_parameters: header.structural_parameters,
                 result,
                 proof_result: header.result,
-                // The shared reader currently serves unrestricted data and
-                // erased scalar formals. It refuses owned claims, proof
-                // formals and returned-reference types before this point.
+                // The shared header retains affine data and erased scalar
+                // formals. Owned linear claims, proof formals and returned
+                // references still refuse before this point.
                 entry_claim_paths: Vec::new(),
                 result_claim_paths: Vec::new(),
                 result_reference_regions: Vec::new(),

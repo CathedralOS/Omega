@@ -497,11 +497,9 @@ pub(crate) fn follow_the_lowered_form(
                 }
             }
         }
-        let site = match block.terminator {
-            Terminator::ExternalCompletion { edge, .. } => InvocationSite::ExternalCompletion(edge),
-            _ => InvocationSite::InvokeNoNormal(block.terminator.edge()),
-        };
-        if let Some(inputs) = call_contracts::inputs_at(lowered, site)? {
+        if let Some(site) = call_contracts::terminator_site(&block.terminator)
+            && let Some(inputs) = call_contracts::inputs_at(lowered, site)?
+        {
             let routes = minted.call(site, inputs, before, Construct::Block(block.id))?;
             for bucket in routes {
                 minted.owed(

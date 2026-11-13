@@ -99,10 +99,8 @@ fn a_source_boundary_requires_an_explicit_reach_ceiling() {
 
 #[test]
 fn source_boundary_calls_keep_their_actual_input_obligations() {
-    assert!(matches!(
-        judge(boundary("reaches none", 7)).unwrap(),
-        RouteVerdict::Accepted(_)
-    ));
+    let valid = judge(boundary("reaches none", 7)).unwrap();
+    assert!(matches!(valid, RouteVerdict::Accepted(_)), "{valid:?}");
     let verdict = judge(boundary("reaches none", 11)).unwrap();
     assert!(
         matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
@@ -147,7 +145,8 @@ machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
         ));
         invocation(typed)
     };
-    assert!(matches!(judge(call(1)).unwrap(), RouteVerdict::Accepted(_)));
+    let valid = judge(call(1)).unwrap();
+    assert!(matches!(valid, RouteVerdict::Accepted(_)), "{valid:?}");
     let verdict = judge(call(0)).unwrap();
     assert!(
         matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }

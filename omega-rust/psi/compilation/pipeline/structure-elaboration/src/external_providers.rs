@@ -91,7 +91,6 @@ impl ExternalProviderNamespace {
                 crate::lower::signature_header(
                     context, signature, signatures, outcomes, records, callables, boundaries,
                 )
-                .map(ProviderContractHeader::from)
             };
             let supplied = header(&source.signature)?;
             let required_header = header(&required.signature)?;

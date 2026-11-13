@@ -111,9 +111,10 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
             invokes: structure_elaboration::Ceiling::Inferred,
         });
     }
-    let elaboration =
+    let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &affine_records())
             .unwrap();
+    declare_body_models(&mut elaboration, &signatures);
     let caller = &elaboration.module.machines[0];
     assert!(
         caller

@@ -1012,12 +1012,7 @@ fn terminal_build_filesystem() {
     let generated = build.build_handoff().sources();
     assert_eq!(generated.len(), 1);
     assert_eq!(generated[0].relative_path(), b"generated.omg");
-    assert_eq!(
-        generated[0].bytes(),
-        include_bytes!(
-            "../../../../../tests/fixtures/pass/build/captured_source_generated_constant/asset.txt"
-        )
-    );
+    assert_eq!(generated[0].bytes(), b"public const ANSWER: u32 = 73;\n");
     let checked = session
         .check_package_build(build)
         .expect("generated source joins Product");

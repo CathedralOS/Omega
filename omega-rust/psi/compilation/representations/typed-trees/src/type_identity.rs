@@ -4178,6 +4178,9 @@ pub(crate) mod package_policy_reading_tests {
                 use crate::state::State;
                 use crate::statement::{StatementNode, TableTransition, TransitionTargetNode};
 
+                // Allocate the closed reaches-none row before signatures
+                // retain its actual handle.
+                let service_reach_row = self.program.service_reach_rows.intern(Vec::new());
                 let payload = self.named("Payload");
                 let subject_type = self.type_node(TypeReferenceNode::Reference {
                     referee: payload,
@@ -4257,8 +4260,7 @@ pub(crate) mod package_policy_reading_tests {
                                 parameters: callback_parameters,
                                 return_type: self.u64_type,
                                 contracts: callback_contracts,
-                                service_reach_row:
-                                    language_semantics::ServiceReachRowTable::EMPTY_ROW,
+                                service_reach_row,
                                 declares_no_crash_route: true,
                                 ..Default::default()
                             },
@@ -4305,7 +4307,7 @@ pub(crate) mod package_policy_reading_tests {
                     contracts: selected_contracts,
                     body_is_present: true,
                     body_status: MachineBodyStatus::Complete,
-                    service_reach_row: language_semantics::ServiceReachRowTable::EMPTY_ROW,
+                    service_reach_row,
                     declares_no_crash_route: true,
                     ..Default::default()
                 });

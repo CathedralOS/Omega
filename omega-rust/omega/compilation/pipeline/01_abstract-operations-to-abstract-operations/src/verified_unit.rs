@@ -540,7 +540,8 @@ mod evidence_seal_tests {
         let mut elaboration =
             structure_elaboration::lower_bodies(entry, &bodies, &signatures, &IdTable::default())
                 .unwrap();
-        let discharge = lowered_discharge::discharge(&mut elaboration).unwrap();
+        let discharge =
+            lowered_discharge::discharge(&mut elaboration, &mut Default::default()).unwrap();
         let seals = discharge.operation_seals(&elaboration).unwrap();
         assert_eq!(seals.len(), 1, "the add's safety obligation is discharged");
         (elaboration.module, seals)

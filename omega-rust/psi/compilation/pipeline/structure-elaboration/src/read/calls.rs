@@ -1533,10 +1533,10 @@ fn mentions<'a>(
         ExpressionKind::Call {
             callee, arguments, ..
         } => {
-            if let Some(operand) = callee.operand() {
-                if mentions(id, operand, slots, captures)? {
-                    return Ok(true);
-                }
+            if let Some(operand) = callee.operand()
+                && mentions(id, operand, slots, captures)?
+            {
+                return Ok(true);
             }
             for argument in arguments {
                 if mentions(id, argument, slots, captures)? {

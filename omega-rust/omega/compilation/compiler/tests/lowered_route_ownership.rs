@@ -180,7 +180,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     let invoke = |callee, arguments, result| {
         expression(
             ExpressionKind::Call {
-                callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+                callee: id::<semantic_vocabulary::MachineId>(callee).into(),
                 arguments,
                 designated: None,
             },

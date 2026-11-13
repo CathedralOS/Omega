@@ -522,14 +522,12 @@ impl typed_trees::references::TypedReferences for SignatureReferences<'_> {
         }
         if let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
             self.typed.type_reference_table.type_reference(reference)
-        {
-            if !self.typed.symbols.symbols().nodes().is_valid(*symbol)
+            && (!self.typed.symbols.symbols().nodes().is_valid(*symbol)
                 || (self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
-                    && !self.binders.contains(symbol))
-            {
-                self.error = Some("static signature has an unresolved or out-of-scope type binder");
-                return false;
-            }
+                    && !self.binders.contains(symbol)))
+        {
+            self.error = Some("static signature has an unresolved or out-of-scope type binder");
+            return false;
         }
         enter(&mut self.types, reference)
     }

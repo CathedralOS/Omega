@@ -2506,17 +2506,15 @@ pub(crate) mod execution {
                 contract,
                 descriptor,
             } = scalar
-            {
-                if self.program.catalogs.callables.contract(contract).is_none()
+                && (self.program.catalogs.callables.contract(contract).is_none()
                     || self
                         .program
                         .catalogs
                         .callables
                         .descriptor(descriptor)
-                        .is_none_or(|selected| selected.contract != contract)
-                {
-                    return Err(malformed());
-                }
+                        .is_none_or(|selected| selected.contract != contract))
+            {
+                return Err(malformed());
             }
             Ok(scalar)
         }

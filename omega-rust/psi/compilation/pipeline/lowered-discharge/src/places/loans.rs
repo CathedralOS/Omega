@@ -126,21 +126,17 @@ impl Storage<'_> {
                 )?;
                 before = ProgramPoint::AfterOperation(operation.id);
             }
-            let site = match block.terminator {
-                terminal_psi::Terminator::ExternalCompletion { edge, .. } => {
-                    InvocationSite::ExternalCompletion(edge)
-                }
-                _ => InvocationSite::InvokeNoNormal(block.terminator.edge()),
-            };
-            self.form_call(
-                module,
-                tables,
-                site,
-                before,
-                Construct::Block(block.id),
-                &mut claimed,
-                &mut formed,
-            )?;
+            if let Some(site) = crate::call_contracts::terminator_site(&block.terminator) {
+                self.form_call(
+                    module,
+                    tables,
+                    site,
+                    before,
+                    Construct::Block(block.id),
+                    &mut claimed,
+                    &mut formed,
+                )?;
+            }
         }
         for (obligation, row) in tables.obligations.iter() {
             if matches!(row.kind, ObligationKind::Loan { .. }) && !claimed[index(obligation.get())]

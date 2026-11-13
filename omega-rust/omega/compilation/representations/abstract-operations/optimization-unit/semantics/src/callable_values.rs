@@ -83,24 +83,26 @@ fn project<'a>(
             .iter()
             .find(|row| row.id == function.machine)
             .ok_or("callable provenance function lost its current Abstract storage flow")?;
-        let mut body = CallableValueBody::default();
-        body.attachment = function.attachment;
-        body.nominal_cleanup_subject = function.nominal_cleanup_subject;
-        body.unit_result = matches!(
-            function.result,
-            abstract_operations::AbstractFunctionResult::Unit
-        );
-        body.structural_formals = function.structural_parameters.clone();
-        body.scalar_result = function.result.scalar().map(|result| result.scalar_type);
-        body.structural_result = function
-            .result
-            .structural()
-            .map(|result| result.structural_type);
-        body.structural_parameters = function
-            .structural_parameters
-            .iter()
-            .map(|parameter| (parameter.structural_type, parameter.access))
-            .collect();
+        let mut body = CallableValueBody {
+            attachment: function.attachment,
+            nominal_cleanup_subject: function.nominal_cleanup_subject,
+            unit_result: matches!(
+                function.result,
+                abstract_operations::AbstractFunctionResult::Unit
+            ),
+            structural_formals: function.structural_parameters.clone(),
+            scalar_result: function.result.scalar().map(|result| result.scalar_type),
+            structural_result: function
+                .result
+                .structural()
+                .map(|result| result.structural_type),
+            structural_parameters: function
+                .structural_parameters
+                .iter()
+                .map(|parameter| (parameter.structural_type, parameter.access))
+                .collect(),
+            ..Default::default()
+        };
         for (position, parameter) in function.parameters.iter().enumerate() {
             body.scalar_parameters
                 .push((parameter.value, parameter.scalar_type));

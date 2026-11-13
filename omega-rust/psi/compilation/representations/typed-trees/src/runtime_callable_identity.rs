@@ -338,14 +338,14 @@ fn normalize_signature(
                     TypeParameterKind::Implementation => scalar("kind", "implementation"),
                     TypeParameterKind::Const { type_reference } => record(
                         "const",
-                        [typed("type", type_text(program, *type_reference, &nested)?)],
+                        [typed("type", type_text(program, *type_reference, nested)?)],
                     ),
                     TypeParameterKind::Value { type_reference } => record(
                         "value",
-                        [typed("type", type_text(program, *type_reference, &nested)?)],
+                        [typed("type", type_text(program, *type_reference, nested)?)],
                     ),
                     TypeParameterKind::Machine { contract } => {
-                        machine_contract(program, contract, &nested)?
+                        machine_contract(program, contract, nested)?
                     }
                     TypeParameterKind::Proposition { contract } => {
                         let formals = program.state_parameters.span_or_empty(contract.parameters);
@@ -379,25 +379,22 @@ fn normalize_signature(
             .collect::<IdentityResult<Vec<_>>>()?;
         let parameter_shapes = parameters
             .iter()
-            .map(|parameter| parameter_shape(program, parameter, &nested))
+            .map(|parameter| parameter_shape(program, parameter, nested))
             .collect::<IdentityResult<Vec<_>>>()?;
         let mut parts = vec![
             record("static-binders", static_binders),
             record("parameters", parameter_shapes),
-            typed(
-                "result",
-                type_text(program, signature.return_type, &nested)?,
-            ),
+            typed("result", type_text(program, signature.return_type, nested)?),
         ];
         if !nested.callable_operand_shape {
             parts.push(scalar(
                 "lifetime-binders",
                 &signature.lifetime_parameters.len().to_string(),
             ));
-            parts.push(conformances(program, signature, &nested)?);
-            parts.push(clauses(program, signature, &nested)?);
-            parts.push(reach(program, signature, &nested)?);
-            parts.push(invocations(program, signature, &nested)?);
+            parts.push(conformances(program, signature, nested)?);
+            parts.push(clauses(program, signature, nested)?);
+            parts.push(reach(program, signature, nested)?);
+            parts.push(invocations(program, signature, nested)?);
             parts.push(scalar(
                 "suspends",
                 if signature.suspends { "yes" } else { "no" },
@@ -406,8 +403,8 @@ fn normalize_signature(
                 "blocks",
                 if signature.blocks { "yes" } else { "no" },
             ));
-            parts.push(termination(program, signature, &nested)?);
-            parts.push(callbacks(program, signature, &nested)?);
+            parts.push(termination(program, signature, nested)?);
+            parts.push(callbacks(program, signature, nested)?);
         }
         Ok(record("signature", parts))
     })
@@ -1025,7 +1022,7 @@ fn proposition(
         |nested| match &declaration.body {
             PropositionBody::Primitive => Ok(record("primitive-proposition", parts)),
             PropositionBody::Witness { evidence } => {
-                parts.push(typed("evidence", type_text(program, *evidence, &nested)?));
+                parts.push(typed("evidence", type_text(program, *evidence, nested)?));
                 Ok(record("witness-proposition", parts))
             }
             PropositionBody::Transparent { proposition: body } => {
@@ -1039,12 +1036,12 @@ fn proposition(
                             substitution::index_argument(
                                 program,
                                 IndexIdentityArgument::Expression(*expression),
-                                &nested,
+                                nested,
                             ),
                         )],
                     )),
                     PropositionFormula::Application(expansion) => {
-                        proposition(program, expansion, &nested, &active)
+                        proposition(program, expansion, nested, &active)
                     }
                 }
             }

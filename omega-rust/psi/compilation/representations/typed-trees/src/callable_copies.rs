@@ -472,7 +472,11 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
             self.symbols,
             &mut self.expressions,
         );
-        for expression in self.expressions[frontier..].to_vec() {
+        // Recursive payload remapping may append expressions. Keep the
+        // just-visited range and its original order fixed for this pass.
+        let end = self.expressions.len();
+        for index in frontier..end {
+            let expression = self.expressions[index];
             expression_type_payloads(self, expression);
         }
     }
@@ -649,10 +653,10 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
             }
             call.visit_static_arguments_mut(|argument| static_argument_types(owner, argument));
             application_types(owner, call.authored_machine_application);
-            if let Some(dispatch) = &call.static_requirement_dispatch {
-                if dispatch.selection_application != call.authored_machine_application {
-                    application_types(owner, dispatch.selection_application);
-                }
+            if let Some(dispatch) = &call.static_requirement_dispatch
+                && dispatch.selection_application != call.authored_machine_application
+            {
+                application_types(owner, dispatch.selection_application);
             }
         }
         ExpressionNode::Cast(cast) => {

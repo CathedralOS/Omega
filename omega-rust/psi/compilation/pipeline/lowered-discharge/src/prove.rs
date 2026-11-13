@@ -260,8 +260,9 @@ pub(crate) struct Prover<'a> {
     /// subject `v` is a Boolean value, or whose definition is a literal, with
     /// its proof.
     equations: Vec<(Proposition, ProofNode)>,
-    /// `[upper, lower]` per value, indexed by `ValueId - 1`.
-    bounds: Vec<[Slot; 2]>,
+    /// `[upper, lower]` in the exact declared value namespace. A contract
+    /// witness may begin at any real formal ID, not only at value one.
+    bounds: IdTable<ValueId, [Slot; 2]>,
     /// Whether relations between values are searched (off only to measure
     /// what they buy).
     relations: bool,
@@ -281,10 +282,6 @@ fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
 
 fn primitive(conclusion: Proposition, judgment: PrimitiveJudgment) -> ProofNode {
     node(conclusion, ProofRule::Primitive(judgment))
-}
-
-fn value_index(value: ValueId) -> usize {
-    usize::try_from(value.get() - 1).unwrap_or(usize::MAX)
 }
 
 fn step(value: IntegerValue, increase: bool) -> Option<IntegerValue> {
@@ -402,9 +399,7 @@ impl<'a> Prover<'a> {
             values,
             facts,
             equations,
-            bounds: (0..values.len())
-                .map(|_| [Slot::Unknown, Slot::Unknown])
-                .collect(),
+            bounds: values.map(|_, _| [Slot::Unknown, Slot::Unknown]),
             relations,
             case_split: true,
             remaining_case_branches: CASE_BRANCH_BUDGET,
@@ -992,14 +987,14 @@ impl<'a> Prover<'a> {
     /// subtract results ordered against their left operand. Each step is a
     /// node the kernel checks; the path is chained by order transitivity.
     fn relation(&mut self, from: &ScalarTerm, to: &ScalarTerm, strict: bool) -> Option<ProofNode> {
-        let mut visited: Vec<[bool; 2]> = vec![[false; 2]; self.values.len()];
+        let mut visited = self.values.map(|_, _| [false; 2]);
         let mut queue: std::collections::VecDeque<(ScalarTerm, ProofNode, bool)> =
             self.steps(from).into_iter().collect();
         while let Some((at, proof, at_strict)) = queue.pop_front() {
             let ScalarTerm::Value { id, .. } = &at else {
                 continue;
             };
-            let seen = visited.get_mut(value_index(*id))?;
+            let seen = visited.get_mut(*id)?;
             if seen[usize::from(at_strict)] {
                 continue;
             }
@@ -1173,10 +1168,7 @@ impl<'a> Prover<'a> {
 
     /// The best bound on `value` in `direction`, memoized for this goal set.
     fn bound(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
-        let slot = self
-            .bounds
-            .get(value_index(value))?
-            .get(direction.index())?;
+        let slot = self.bounds.get(value)?.get(direction.index())?;
         match slot {
             Slot::Done(bound) => return bound.clone(),
             // A relation cycle among hypotheses: this branch contributes
@@ -1184,9 +1176,9 @@ impl<'a> Prover<'a> {
             Slot::InProgress => return None,
             Slot::Unknown => {}
         }
-        self.bounds[value_index(value)][direction.index()] = Slot::InProgress;
+        self.bounds.get_mut(value)?[direction.index()] = Slot::InProgress;
         let best = self.search(value, direction);
-        self.bounds[value_index(value)][direction.index()] = Slot::Done(best.clone());
+        self.bounds.get_mut(value)?[direction.index()] = Slot::Done(best.clone());
         best
     }
 

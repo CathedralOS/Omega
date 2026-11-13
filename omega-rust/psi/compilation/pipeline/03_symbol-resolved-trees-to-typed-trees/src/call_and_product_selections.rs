@@ -1936,6 +1936,10 @@ pub(crate) mod construction_destinations {
                     symbol: data,
                     name: "Record".into(),
                 });
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(declared, state)
+                .expect("the formal's declared type retains its actual state scope");
             let parameters = program.state_parameters.insert_many([StateParameter {
                 symbol: formal,
                 name: "target".into(),
@@ -2036,6 +2040,13 @@ pub(crate) mod construction_destinations {
                 panic!("source constructor changed kind");
             };
             assert_eq!(literal.application_type, declared);
+            assert_eq!(
+                program
+                    .type_reference_table
+                    .operand_lifetime_owner(literal.application_type),
+                state,
+                "constructor landing preserves the supplying formal's lifetime scope"
+            );
             assert_eq!(
                 program
                     .expression_table

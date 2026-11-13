@@ -17,21 +17,23 @@ pub fn terminal_callable_values(
             .iter()
             .find(|row| row.id == machine.id)
             .ok_or("callable provenance machine lost its current Terminal storage flow")?;
-        let mut body = CallableValueBody::default();
-        body.attachment = machine.attachment;
-        body.nominal_cleanup_subject = machine.nominal_cleanup_subject;
-        body.unit_result = matches!(machine.result, terminal_psi::TerminalMachineResult::Unit);
-        body.structural_formals = machine.structural_parameters.clone();
-        body.scalar_result = machine.result.scalar().map(|result| result.scalar_type);
-        body.structural_result = machine
-            .result
-            .structural()
-            .map(|result| result.structural_type);
-        body.structural_parameters = machine
-            .structural_parameters
-            .iter()
-            .map(|parameter| (parameter.structural_type, parameter.access))
-            .collect();
+        let mut body = CallableValueBody {
+            attachment: machine.attachment,
+            nominal_cleanup_subject: machine.nominal_cleanup_subject,
+            unit_result: matches!(machine.result, terminal_psi::TerminalMachineResult::Unit),
+            structural_formals: machine.structural_parameters.clone(),
+            scalar_result: machine.result.scalar().map(|result| result.scalar_type),
+            structural_result: machine
+                .result
+                .structural()
+                .map(|result| result.structural_type),
+            structural_parameters: machine
+                .structural_parameters
+                .iter()
+                .map(|parameter| (parameter.structural_type, parameter.access))
+                .collect(),
+            ..Default::default()
+        };
         for (position, parameter) in machine.parameters.iter().enumerate() {
             body.scalar_parameters
                 .push((parameter.id, parameter.scalar_type));

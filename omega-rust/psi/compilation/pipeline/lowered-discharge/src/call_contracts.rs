@@ -10,7 +10,7 @@ use terminal_check_tables::{Checked, Construct, InvocationId, MachineTables, Ref
 use terminal_psi::{
     BoundaryParameterKind, ContractClause, CrashRouteBucket, ErasedProofFormal, MachineContract,
     StructuralArgument, StructuralParameterDeclaration, TerminalMachine, TerminalModule,
-    ValueDeclaration,
+    Terminator, ValueDeclaration,
 };
 
 #[derive(Clone, Copy)]
@@ -25,6 +25,24 @@ pub(crate) struct Inputs<'a> {
     pub claim_transfers: &'a [terminal_psi::ClaimTransfer],
     pub completion_receipts: &'a [terminal_psi::CompletionReceipt],
     pub crash_continuations: Option<&'a [CrashRouteBucket]>,
+}
+
+/// Only invocation terminators form calls. A branch has several successor
+/// edges, and its edge obligations belong to the ordinary control-flow walk.
+pub(crate) fn terminator_site(terminator: &Terminator) -> Option<InvocationSite> {
+    match terminator {
+        Terminator::InvokeNoNormal { edge, .. } => Some(InvocationSite::InvokeNoNormal(*edge)),
+        Terminator::ExternalCompletion { edge, .. } => {
+            Some(InvocationSite::ExternalCompletion(*edge))
+        }
+        Terminator::Jump { .. }
+        | Terminator::Conditional { .. }
+        | Terminator::StructuralCase { .. }
+        | Terminator::Return { .. }
+        | Terminator::ReturnUnit { .. }
+        | Terminator::ReturnStructural { .. }
+        | Terminator::Crash { .. } => None,
+    }
 }
 
 /// Guarantees have the same propositions whether their owner also assigns

@@ -1750,109 +1750,6 @@ pub mod evidence {
             argument.path.joined_path()
         }
 
-        #[cfg(test)]
-        mod proof_label_tests {
-            use super::*;
-            use crate::callable_values::RuntimeCallBinding;
-            use crate::expression::{ExpressionNode, TableCallExpression};
-            use crate::runtime_callable_identity::RuntimeCallableIdentityError;
-            use crate::type_identity::package_policy_reading_tests::fixture::Fixture;
-            use crate::types::TypeReferenceNode;
-
-            #[test]
-            fn callable_labels_keep_selection_identity_and_refuse_unresolved_children() {
-                let mut fixture = Fixture::new();
-                let expression = fixture.machine_value();
-                let ExpressionNode::MachineValue(value) = fixture
-                    .program
-                    .expression_table
-                    .expression(expression)
-                    .clone()
-                else {
-                    panic!("fixture must retain a machine selection");
-                };
-                let expected = fixture
-                    .program
-                    .runtime_machine_value_identity(&value, &[])
-                    .unwrap();
-                assert_eq!(
-                    fixture
-                        .program
-                        .try_render_proof_expression(expression, ProofSubstitutions::None,),
-                    Ok(expected)
-                );
-                let amount = fixture.integer(9);
-                assert_eq!(
-                    fixture
-                        .program
-                        .try_render_proof_expression(amount, ProofSubstitutions::None,),
-                    Ok(fixture.program.expression_table.display_name(amount))
-                );
-
-                let TypeReferenceNode::Callable { contract } = *fixture
-                    .program
-                    .type_reference_table
-                    .type_reference(value.type_reference)
-                else {
-                    panic!("fixture must retain its exact callable contract");
-                };
-                let mut unresolved = value;
-                unresolved.selected.symbol = SymbolHandle::invalid();
-                let unresolved = fixture.expression(ExpressionNode::MachineValue(unresolved));
-                let call = fixture.expression(ExpressionNode::Call(TableCallExpression {
-                    runtime_call: Some(RuntimeCallBinding {
-                        callee: unresolved,
-                        contract,
-                    }),
-                    ..Default::default()
-                }));
-                let error = RuntimeCallableIdentityError::UnresolvedSymbol;
-                assert_eq!(
-                    fixture
-                        .program
-                        .try_render_proof_expression(call, ProofSubstitutions::None,),
-                    Err(error)
-                );
-                let arguments = fixture
-                    .program
-                    .expression_table
-                    .insert_expression_handles([call]);
-                let application = PropositionApplication {
-                    proposition: SymbolHandle::invalid(),
-                    name: Identifier::generated("invalid_selection"),
-                    binder_arguments: Box::new([]),
-                    arguments,
-                };
-                let supplied_arguments = ["caller supplied label".to_owned()];
-                for labels in [
-                    None,
-                    Some(PropositionLabels {
-                        binder_labels: &[],
-                        argument_labels: &supplied_arguments,
-                    }),
-                ] {
-                    assert_eq!(
-                        fixture
-                            .program
-                            .try_normalize_proposition_application(&application, labels,),
-                        Err(error)
-                    );
-                    assert_eq!(
-                        fixture
-                            .program
-                            .try_normalize_nominal_proposition_application(&application, labels,),
-                        Err(error)
-                    );
-                }
-                assert!(
-                    fixture
-                        .program
-                        .normalize_proposition_application(&application, None)
-                        .is_none()
-                );
-            }
-        }
-
         // Display helpers accept total callbacks. Discard their complete output
         // when a child cannot be normalized, preserving the original failure.
         fn with_fallible_children<T>(
@@ -2043,6 +1940,108 @@ pub mod evidence {
                     )
                 }
             })
+        }
+        #[cfg(test)]
+        mod proof_label_tests {
+            use super::*;
+            use crate::callable_values::RuntimeCallBinding;
+            use crate::expression::{ExpressionNode, TableCallExpression};
+            use crate::runtime_callable_identity::RuntimeCallableIdentityError;
+            use crate::type_identity::package_policy_reading_tests::fixture::Fixture;
+            use crate::types::TypeReferenceNode;
+
+            #[test]
+            fn callable_labels_keep_selection_identity_and_refuse_unresolved_children() {
+                let mut fixture = Fixture::new();
+                let expression = fixture.machine_value();
+                let ExpressionNode::MachineValue(value) = fixture
+                    .program
+                    .expression_table
+                    .expression(expression)
+                    .clone()
+                else {
+                    panic!("fixture must retain a machine selection");
+                };
+                let expected = fixture
+                    .program
+                    .runtime_machine_value_identity(&value, &[])
+                    .unwrap();
+                assert_eq!(
+                    fixture
+                        .program
+                        .try_render_proof_expression(expression, ProofSubstitutions::None,),
+                    Ok(expected)
+                );
+                let amount = fixture.integer(9);
+                assert_eq!(
+                    fixture
+                        .program
+                        .try_render_proof_expression(amount, ProofSubstitutions::None,),
+                    Ok(fixture.program.expression_table.display_name(amount))
+                );
+
+                let TypeReferenceNode::Callable { contract } = *fixture
+                    .program
+                    .type_reference_table
+                    .type_reference(value.type_reference)
+                else {
+                    panic!("fixture must retain its exact callable contract");
+                };
+                let mut unresolved = value;
+                unresolved.selected.symbol = SymbolHandle::invalid();
+                let unresolved = fixture.expression(ExpressionNode::MachineValue(unresolved));
+                let call = fixture.expression(ExpressionNode::Call(TableCallExpression {
+                    runtime_call: Some(RuntimeCallBinding {
+                        callee: unresolved,
+                        contract,
+                    }),
+                    ..Default::default()
+                }));
+                let error = RuntimeCallableIdentityError::UnresolvedSymbol;
+                assert_eq!(
+                    fixture
+                        .program
+                        .try_render_proof_expression(call, ProofSubstitutions::None,),
+                    Err(error)
+                );
+                let arguments = fixture
+                    .program
+                    .expression_table
+                    .insert_expression_handles([call]);
+                let application = PropositionApplication {
+                    proposition: SymbolHandle::invalid(),
+                    name: Identifier::generated("invalid_selection"),
+                    binder_arguments: Box::new([]),
+                    arguments,
+                };
+                let supplied_arguments = ["caller supplied label".to_owned()];
+                for labels in [
+                    None,
+                    Some(PropositionLabels {
+                        binder_labels: &[],
+                        argument_labels: &supplied_arguments,
+                    }),
+                ] {
+                    assert_eq!(
+                        fixture
+                            .program
+                            .try_normalize_proposition_application(&application, labels,),
+                        Err(error)
+                    );
+                    assert_eq!(
+                        fixture
+                            .program
+                            .try_normalize_nominal_proposition_application(&application, labels,),
+                        Err(error)
+                    );
+                }
+                assert!(
+                    fixture
+                        .program
+                        .normalize_proposition_application(&application, None)
+                        .is_none()
+                );
+            }
         }
     }
 

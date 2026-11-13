@@ -40,7 +40,7 @@ in as `unreached` (`crate::Unreached`).
 
 use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
 
-use super::{Prover, value_index};
+use super::Prover;
 
 impl Prover<'_> {
     /// Whether deciding `goal` needs the interval of a value the rules do
@@ -60,9 +60,9 @@ impl Prover<'_> {
     }
 
     fn any_beyond_rules(&self, mut pending: Vec<ValueId>, unreached: &[ValueId]) -> bool {
-        let mut seen = vec![false; self.values.len()];
+        let mut seen = self.values.map(|_, _| false);
         while let Some(value) = pending.pop() {
-            let Some(seen) = seen.get_mut(value_index(value)) else {
+            let Some(seen) = seen.get_mut(value) else {
                 continue;
             };
             if std::mem::replace(seen, true) {

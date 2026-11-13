@@ -1299,7 +1299,23 @@ pub(crate) mod tests {
                 IntegerLiteral::from_value(0),
             ));
         let argument = file.statements.append_expression_handle(argument);
+        let self_name = file
+            .expressions
+            .append_identifier_path_member(Identifier::generated("self"));
+        let self_value = file.expressions.insert(ExpressionNode::Name {
+            members: HandleSpan::from_parts(self_name, 1),
+            application: None,
+        });
+        let callee = file
+            .expressions
+            .insert(ExpressionNode::Member(TableMemberExpression {
+                receiver: self_value,
+                access_source_span: Default::default(),
+                member: Identifier::generated("take_non_negative"),
+                case_variant: None,
+            }));
         let call = file.statements.insert(StatementNode::Call(TableCall {
+            callee,
             target_is_static: false,
             receiver,
             target: Identifier::generated("take_non_negative"),
@@ -1324,6 +1340,10 @@ pub(crate) mod tests {
         let StatementNode::Call(call) = assembled.statements.statement(statement_handle) else {
             panic!("expected call statement");
         };
+        assert_eq!(
+            assembled.display_expression_name(call.callee),
+            "self.take_non_negative"
+        );
         assert_eq!(
             assembled
                 .statements
@@ -1361,9 +1381,18 @@ pub(crate) mod tests {
             }));
 
         let nested_arguments = file.expressions.insert_expression_handles([player_level]);
+        let nested_callee =
+            file.expressions
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: player,
+                    access_source_span: Default::default(),
+                    member: Identifier::generated("xp_required"),
+                    case_variant: None,
+                }));
         let nested_call = file
             .expressions
             .insert(ExpressionNode::Call(TableCallExpression {
+                callee: nested_callee,
                 target_is_static: false,
                 receiver: player,
                 target: Identifier::generated("xp_required"),
@@ -1379,9 +1408,17 @@ pub(crate) mod tests {
         let max_arguments = file
             .expressions
             .insert_expression_handles([zero, nested_call]);
+        let max_name = file
+            .expressions
+            .append_identifier_path_member(Identifier::generated("max"));
+        let max_callee = file.expressions.insert(ExpressionNode::Name {
+            members: HandleSpan::from_parts(max_name, 1),
+            application: None,
+        });
         let max_call = file
             .expressions
             .insert(ExpressionNode::Call(TableCallExpression {
+                callee: max_callee,
                 target_is_static: false,
                 receiver: ExpressionHandle::invalid(),
                 target: Identifier::generated("max"),

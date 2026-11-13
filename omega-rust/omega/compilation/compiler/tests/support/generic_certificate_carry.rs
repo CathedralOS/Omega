@@ -7,7 +7,7 @@
 
 use std::path::Path;
 
-use lowered_discharge::{Selection, discharge, reverify_specialization};
+use lowered_discharge::{ProofSearchActivity, Selection, discharge, reverify_specialization};
 use semantic_vocabulary::MachineId;
 use structure_elaboration::Elaboration;
 use terminal_check_tables::obligations::ObligationKind;
@@ -80,6 +80,7 @@ fn report(
 }
 
 pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
+    let mut proof_activity = ProofSearchActivity::default();
     use crate::fixture_package_inputs::{self, FixtureFrontierCheck};
     let (frontier, current) =
         match fixture_package_inputs::check_fixture_keeping_typed_frontier(main, "linux_x86_64") {
@@ -176,7 +177,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             };
             let mut checked = Vec::new();
             for mut form in forms {
-                let found = match discharge(&mut form) {
+                let found = match discharge(&mut form, &mut proof_activity) {
                     Ok(found) => found,
                     Err(refusal) => {
                         return format!(
@@ -211,7 +212,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         // does not yet serve every machine of the whole program.
         if let Some(symbol) = consumer.machines.get(specialization).copied()
             && let Ok(mut alone) = structure_elaboration::elaborate_closure(typed, symbol)
-            && let Ok(searched) = discharge(&mut alone)
+            && let Ok(searched) = discharge(&mut alone, &mut proof_activity)
         {
             report(
                 "concrete",
@@ -273,7 +274,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                         );
                     }
                 };
-                let refinement = match discharge(&mut witness) {
+                let refinement = match discharge(&mut witness, &mut proof_activity) {
                     Ok(refinement) => refinement,
                     Err(refusal) => {
                         return format!(
@@ -309,6 +310,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 &mut consumer,
                 specialization,
                 &selections,
+                &mut proof_activity,
             );
             let corresponds = carried.is_ok();
             outcome = Some(carried);

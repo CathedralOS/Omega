@@ -384,12 +384,13 @@ fn judge_elaboration(
             );
         }
     };
+    let mut proof_activity = lowered_discharge::ProofSearchActivity::default();
     let for_verdict = elaboration.clone();
     let mut without_branches = elaboration.clone();
     let mut intervals_only = elaboration.clone();
     let mut consumer = elaboration.clone();
     let discharge_started = Instant::now();
-    let discharged = discharge_with(&mut elaboration, Knowledge::All);
+    let discharged = discharge_with(&mut elaboration, Knowledge::All, &mut proof_activity);
     let discharge_us = discharge_started.elapsed().as_micros();
     let route_us = started.elapsed().as_micros();
     let discharged = match discharged {
@@ -402,8 +403,18 @@ fn judge_elaboration(
             );
         }
     };
-    let without = discharge_with(&mut without_branches, Knowledge::WithoutBranchConditions).ok();
-    let intervals = discharge_with(&mut intervals_only, Knowledge::LiteralIntervals).ok();
+    let without = discharge_with(
+        &mut without_branches,
+        Knowledge::WithoutBranchConditions,
+        &mut proof_activity,
+    )
+    .ok();
+    let intervals = discharge_with(
+        &mut intervals_only,
+        Knowledge::LiteralIntervals,
+        &mut proof_activity,
+    )
+    .ok();
     // Re-verifying the saved certificates in a consumer elaborated from the
     // same typed trees: goal and hypotheses recomputed, no search.
     let reverify_started = Instant::now();
@@ -416,6 +427,7 @@ fn judge_elaboration(
                     machine,
                     obligation,
                     &evidence.certificate,
+                    &mut proof_activity,
                 )
                 .is_ok()
             {

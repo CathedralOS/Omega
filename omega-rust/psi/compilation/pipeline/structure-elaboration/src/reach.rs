@@ -417,13 +417,12 @@ pub(crate) fn publish(
             .machine_envelopes
             .get_mut(at)
             .and_then(Option::as_mut)
+            && (named.machine != machine.id || named.envelope.service_reach != *row)
         {
-            if named.machine != machine.id || named.envelope.service_reach != *row {
-                return Err(unavailable(
-                    machine.id,
-                    "source and lowered reach projections disagree",
-                ));
-            }
+            return Err(unavailable(
+                machine.id,
+                "source and lowered reach projections disagree",
+            ));
         }
     }
     elaboration.module.root_service_reach.concrete = published

@@ -33,6 +33,12 @@ pub(crate) fn call_target_parameters(
     program: &TypedTrees,
     target: SymbolHandle,
 ) -> Result<&[StateParameter], Diagnostic> {
+    if !program.symbols.symbols().nodes().is_valid(target) {
+        return Err(crate::unavailable_judgment("selected call parameter types"));
+    }
+    if let Some(application) = program.closed_requirement_application(target) {
+        return Ok(program.state_signature_parameters(application.signature));
+    }
     if let Some(slot) = program.dynamic_slot_by_symbol(target) {
         return Ok(&slot.parameters);
     }
@@ -59,6 +65,12 @@ pub(crate) fn call_target_parameters(
         .filter(|signature| signature.symbol == target);
     if let Some(signature) = signatures.next()
         && signatures.next().is_none()
+    {
+        return Ok(program.state_signature_parameters(signature));
+    }
+    if let Some(signature) = program
+        .evidence_requirement_declaration(target)
+        .map_err(Diagnostic::error)?
     {
         return Ok(program.state_signature_parameters(signature));
     }

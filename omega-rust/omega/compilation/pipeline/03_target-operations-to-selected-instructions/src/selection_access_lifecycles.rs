@@ -4629,8 +4629,20 @@ pub(crate) mod tests {
             entry: MachineId::new(1).unwrap(),
             scalar_functions: vec![],
         };
-        let backings =
-            crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(&program);
+        // This single-instruction fixture has no functions or call occurrences.
+        assert!(program.scalar_functions.is_empty());
+        let callable_invocations =
+            terminal_semantics::callable_values::ReachableCallableInvocations {
+                roots: std::collections::BTreeSet::new(),
+                reached_machines: std::collections::BTreeSet::new(),
+                invocations: std::collections::BTreeMap::new(),
+                inputs: std::collections::BTreeMap::new(),
+            };
+        let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(
+            &program,
+            &callable_invocations,
+        )
+        .expect("the instruction fixture has no foreign scalar call backings");
         let installed_interrupts =
             provider_admission::AdmittedInstalledInterruptCohort::empty(program.psi);
         let interrupt_helpers =

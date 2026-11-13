@@ -1965,6 +1965,8 @@ pub fn derive_contract_obligation(
     context
         .validate(goal)
         .map_err(|_| "contract obligation escapes its formal namespace")?;
+    let mut declarations = declarations.to_vec();
+    declarations.sort_unstable_by_key(|(id, _)| *id);
     let values = IdTable::from_rows(
         declarations
             .iter()
