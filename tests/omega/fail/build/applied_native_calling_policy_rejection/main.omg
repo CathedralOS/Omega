@@ -6,8 +6,12 @@
 // application, this program was accepted and called `abs` through the target
 // default. Without the `Calling` relationship it is
 // pass/capabilities/windows_applied_requirement_import_exit.
-use omega_language_std::console;
-use omega_language_std::calling;
+use omega_language_std::Console;
+use omega_language_std::BoundarySignature;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::CallingPolicy;
+use omega_language_std::Calling;
 public data LocalPolicy { }
 public LocalPolicyCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult { LocalPolicy::plan(signature) }

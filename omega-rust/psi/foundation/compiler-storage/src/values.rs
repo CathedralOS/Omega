@@ -324,9 +324,24 @@ tuple!(A:0,B:1,C:2,D:3,E:4,F:5);
 tuple!(A:0,B:1,C:2,D:3,E:4,F:5,G:6);
 tuple!(A:0,B:1,C:2,D:3,E:4,F:5,G:6,H:7);
 
+/*
+    An ordered collection iterates in its keys' `Ord`, which for an interned
+    number is the order it was minted in. Under a renumbering those numbers are
+    written canonically, so entries are written in their keys' written order
+    too (`canonical_order`); otherwise the iteration order already is that.
+*/
 impl<K: Record + Ord, V: Record> Record for BTreeMap<K, V> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(self.len())?;
+        if output.is_renumbering() {
+            let entries: Vec<(&K, &V)> = self.iter().collect();
+            for index in canonical_order(entries.iter().map(|(key, _)| *key), output)? {
+                let (key, value) = entries[index];
+                key.write(output)?;
+                value.write(output)?;
+            }
+            return Ok(());
+        }
         for (key, value) in self {
             key.write(output)?;
             value.write(output)?;
@@ -350,6 +365,13 @@ impl<K: Record + Ord, V: Record> Record for BTreeMap<K, V> {
 impl<T: Record + Ord> Record for BTreeSet<T> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(self.len())?;
+        if output.is_renumbering() {
+            let values: Vec<&T> = self.iter().collect();
+            for index in canonical_order(values.iter().copied(), output)? {
+                values[index].write(output)?;
+            }
+            return Ok(());
+        }
         for value in self {
             value.write(output)?;
         }
@@ -367,10 +389,34 @@ impl<T: Record + Ord> Record for BTreeSet<T> {
     }
 }
 
+/*
+    A hashed collection iterates in an order chosen per instance, so writing it
+    in that order gave equal values different bytes, and a key over a record's
+    bytes never matched again. Entries are written ordered by each key's own
+    encoding instead. That order depends only on the keys, so equal collections
+    write equal bytes. Reading does not depend on the order.
+*/
+fn canonical_order<'value, K: Record + 'value>(
+    keys: impl Iterator<Item = &'value K>,
+    output: &RecordWriter,
+) -> Result<Vec<usize>, RecordError> {
+    let mut encoded = Vec::new();
+    for key in keys {
+        let mut scratch = output.scratch();
+        key.write(&mut scratch)?;
+        encoded.push(scratch.finish());
+    }
+    let mut order: Vec<usize> = (0..encoded.len()).collect();
+    order.sort_by(|left, right| encoded[*left].cmp(&encoded[*right]));
+    Ok(order)
+}
+
 impl<K: Record + Hash + Eq, V: Record, S: BuildHasher + Default> Record for HashMap<K, V, S> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(self.len())?;
-        for (key, value) in self {
+        let entries: Vec<(&K, &V)> = self.iter().collect();
+        for index in canonical_order(entries.iter().map(|(key, _)| *key), output)? {
+            let (key, value) = entries[index];
             key.write(output)?;
             value.write(output)?;
         }
@@ -393,8 +439,9 @@ impl<K: Record + Hash + Eq, V: Record, S: BuildHasher + Default> Record for Hash
 impl<T: Record + Hash + Eq, S: BuildHasher + Default> Record for HashSet<T, S> {
     fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
         output.sequence(self.len())?;
-        for value in self {
-            value.write(output)?;
+        let values: Vec<&T> = self.iter().collect();
+        for index in canonical_order(values.iter().copied(), output)? {
+            values[index].write(output)?;
         }
         Ok(())
     }

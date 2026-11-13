@@ -1,0 +1,35 @@
+// The negative twin of `run/testing/private_filesystem_group_runs_on_both_engines`:
+// the same group names std's raw `PosixFilesystemHost` slot instead of the
+// portable `FilesystemService`. That slot is the host's own descriptor surface,
+// which the test runner does not back, so naming it cannot widen a test group
+// to the real filesystem; the build refuses before any test runs.
+use omega_language_std::filesystem;
+
+trait Tests {
+    machine journal()
+        crashes Trap
+        blocks
+        reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration
+        invokes FilesystemService;
+}
+
+machine journal_starts_empty()
+satisfies Tests::journal
+crashes Trap
+blocks
+reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration
+{
+    let mut fs: Filesystem;
+    transition block Filesystem::exists(&mut fs, "/etc") {
+        true -> failed()
+        _ -> passed()
+    }
+
+    machine failed() crashes Trap {
+        crash Trap;
+    }
+
+    machine passed() { }
+}
+
+machine main() { }

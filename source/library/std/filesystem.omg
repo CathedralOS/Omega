@@ -4,10 +4,12 @@
 // windows_x86_64. Runtime acceptance is recorded per host, not inferred from
 // the availability of a provider or a foreign-target image.
 
-use filesystem_host;
-use windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 
 
 public data File [copy] {
@@ -254,8 +256,6 @@ public data MetadataResult {
     case Ok(meta: Metadata);
 }
 
-use posix_filesystem_adapter;
-use targets::windows_x86_64::filesystem_impl;
 
 public data Filesystem {}
 

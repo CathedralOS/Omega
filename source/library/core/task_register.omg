@@ -5,7 +5,6 @@
 // admitted scope excluding asynchronous use. False reports a rejected check;
 // mapping and architectural faults are not converted into false. Success does
 // not grant installed-root authority or release the caller's lifetime duties.
-use omega::language::core::assembly;
 
 public boundary trait TaskRegisterControl {
     machine activate<const Entries: u64>(

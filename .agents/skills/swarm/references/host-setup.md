@@ -136,9 +136,10 @@ waits with 25-45 waiters. Batch them instead:
    true by construction. After psi landings, re-roll the generation for the next
    sub-batch: one build per batch, not per slot. Re-point the generation
    worktree (`git reset --hard G`) rather than creating a new one.
-5. Slots never build for verification. A demonstrated red place needing a source
-   repair may build at most once for that repair. Golden record legs still need
-   a runner built at the revision the record must stamp.
+5. Reuse a generation only while its relevant producer inputs remain applicable.
+   A source repair needs a producer built from the changed source for its focused
+   checks. Post-merge verification owns corpus ledger recording; workers do not
+   run record legs.
 
 Observed on a 16 GiB, 10-CPU macOS ARM64 host (2026-10-23): per-slot runner
 builds queued 20-60 minutes each; after generations, an 11-slot sub-batch landed
@@ -159,8 +160,9 @@ landing re-verify paid that wait several times.
 Run a lane's local check, crate tests and scoped corpus gate as strictly
 sequential steps in one shell under one
 [host build budget](../../../../tools/build_slot.md#one-hold-for-a-whole-chain).
-Finish before submitting or waiting for GitHub's merge queue; integration
-builds run on GitHub.
+Finish before submitting or waiting for GitHub admission, and release local
+build resources while waiting. Validation follows
+[testing](../../../../tools/testing.md); main is checked after merge.
 
 Two habits keep a killed lane cheap to resume, learned across two host
 restarts in one day:
@@ -173,23 +175,21 @@ restarts in one day:
 This is per machine. Worktrees of one checkout share its MBX action cache and
 scheduler pool; separate computers — cloud executors, another host — have their
 own and cannot lend, batch or upload builds to each other. Cross-machine
-coordination is the claims registry and the serialized landing queue.
+coordination uses the claims registry and publication evidence.
 
 The fix loop is not the chain. Repairing a compile error or a red test is a
 minutes-scale check-edit-check loop: iterate with single-crate checks until
 green, then run the chain once
 ([diagnostics](../../../../tools/build_slot.md#diagnostics-dont-queue-with-chains)).
 
-## Submit once to the merge queue
+## Publish through the current landing route
 
-After focused validation and required review, push the source branch, open or
-update its draft PR, and follow [landing](../../../../tools/landing.md). Mark it
-ready only at enqueue. GitHub checks the integrated
-candidate and serializes publication. Main advancing does not send the author
-back through a rebase/build/review loop. Resolve actual conflicts or failed
-checks, and verify the merged PR's source head and published squash commit.
-Do not keep local build slots occupied while waiting. The old `lane_land`
-lease driver is retired; do not recreate it in per-lane scripts.
+After focused validation and self-review, follow
+[landing](../../../../tools/landing.md) through a ready PR, admission and a
+squash merge, then verify the submitted source and published commit on remote
+main. Keep local build resources available to other workers while waiting.
+Use that canonical procedure for main movement, conflicts and failed checks
+rather than copying a landing controller into each lane.
 
 ## Bound the shared disk safely
 

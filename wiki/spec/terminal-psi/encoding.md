@@ -16,7 +16,38 @@ stable nonzero identities, full-width integer payloads, and explicit closed-sum
 tags. Unordered sets are strictly sorted by stable identity or canonical bytes
 and reject duplicates; symmetric terms use the same ordering. Parameters,
 operations, jump arguments, and other execution-significant sequences retain
-their declared order. Recursive terms have a fixed supported depth bound.
+their declared order. Recursive terms are encoded as flat tables whose entries
+refer only to earlier entries, so nesting depth is unbounded: only the encoded
+size and count limits stated for each section bound a term.
+
+### Term tables
+
+Scalar terms, integer math terms, propositions, proof terms, capacity scalars
+and static bindings each encode as one term table: a `u32` entry count followed
+by the entries in postorder. An entry is the node's row, its form tag and
+non-recursive fields as the form's table lists them, followed by one `u32`
+handle per recursive operand, in declared operand order. A handle is the
+zero-based position of an earlier entry in the same table. Operands of another
+term family (a scalar term inside a proposition, say) are that family's own
+table inside the row, not handles.
+
+A term table is a tree. Each entry is consumed by exactly one later entry, and a
+row with `k` operand handles names exactly the `k` most recent unconsumed entries,
+in order; the entries left unconsumed after the last row are the
+table's roots. A single term has exactly one root; a static binding list's
+roots are its bindings. Decoding rejects a handle to the current or a later
+entry (`TermTableForwardReference`), any other handle (`NonCanonicalTermTable`),
+and a single-term table with other than one root, so a term has exactly one
+table spelling. An entry count larger than the remaining bytes rejects as
+truncation before any entry is read. Encoding and decoding walk a table with an
+explicit stack; nesting depth never consumes host stack.
+
+Marker 255 introduces term tables. Marker 254, which nested these terms inline,
+and older modules reject at the header.
+
+Content terms do not nest: a separation's members are projections, so a
+separated member that is itself a separation rejects, and content terms keep
+their inline encoding.
 
 Decode rejects stale markers, unknown tags, invalid identities/values,
 noncanonical order/forms, structurally invalid modules, truncation, and trailing
@@ -59,7 +90,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 253 even when every table
+order below. This layout uses semantic format marker 255 even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -97,7 +128,7 @@ polynomial representation or executable wire operation.
 Mathematical proof-term tags 5 and 6, indexed theorem roots, carrier keys and
 the `PSICORE` framing remain supported canonical encodings. Their presence grants
 no truth, producer trust, execution permission or provider authority. Decoding
-checks their representation under shared count, depth, byte and work limits;
+checks their representation under shared count, byte and work limits;
 it does not re-decide the encoded judgment. The
 [inspection/preparation split](../build/embedding.md#loading-and-preparation)
 preserves canonical and structural validation while assigning execution-only
@@ -243,7 +274,10 @@ provider candidates; and operational call summaries. Each summary retains calls,
 recursive static argument bindings, and cleanup dependencies. Every repeated
 collection is counted; spans encode their contents, never arena generations.
 Machine summaries may be absent, which differs from a present empty summary.
-Static binding nesting has the ordinary 256-level encoding bound.
+A call's static bindings are one [term table](#term-tables) whose roots are the
+call's bindings; each row is the `u32` parameter declaration, the `u32` selected
+declaration and a `u32` argument count, followed by one handle per argument
+binding. Static binding nesting has no depth bound.
 
 Each emitted callable association contains a proof-declaration coordinate and
 the ordinary tagged machine/boundary callable coordinate. Both directions are
@@ -462,7 +496,8 @@ classes:
 
 ## Scalar terms
 
-A scalar term is a `u8` form tag followed by its fields.
+A scalar term is a [term table](#term-tables) of scalar rows. Each row is a
+`u8` form tag followed by its fields; `scalar term` below is an operand handle.
 
 <!-- scalar-term-tags -->
 | Tag | Scalar term | Fields after the tag |
@@ -515,8 +550,9 @@ exact byte field. The term has Boolean type and supplies no assertion that its
 predicate holds.
 
 A scalar-read projection is a tag followed by its payload: `1` selects a field
-id, `2` a fixed `u64` index, `3` a case id, and `4` a recursively encoded scalar
-index term. Tag `5` is `Referent`, has no payload, and crosses one readable
+id, `2` a fixed `u64` index, `3` a case id, and `4` a dynamic index whose
+scalar index term is an operand handle; the row lists one handle per tag-4
+projection, in path order, after the whole path. Tag `5` is `Referent`, has no payload, and crosses one readable
 first-class reference; it does not select inline storage in the carrier.
 Canonical predicate paths retain their separate `Referent` segment; conversion
 into a scalar read produces this explicit tag. A nested static-reference
@@ -527,12 +563,14 @@ fixed-array leaf cannot supply a live descriptor extent.
 The path is nonempty. Dynamic indices keep their own fixed-integer
 carriers, excluding addresses; they do not become static geometry. The exact
 root declaration and each selected member or element determine the leaf type.
-Selector terms participate in ordinary depth limits, value substitution and
-structural-root substitution. A term supplies no bounds, access or truth evidence.
+Selector terms participate in value substitution and structural-root
+substitution. A term supplies no bounds, access or truth evidence.
 
 ## Integer math terms
 
-The proof-only unbounded integer syntax.
+The proof-only unbounded integer syntax. An integer math term is a
+[term table](#term-tables); `integer math term` below is an operand handle, and
+an embedded scalar term (tag 7) is a scalar term table inside the row.
 
 <!-- integer-math-term-tags -->
 | Tag | Integer math term | Fields after the tag |
@@ -543,23 +581,26 @@ The proof-only unbounded integer syntax.
 | 4 | Subtract | integer math term + integer math term |
 | 5 | Multiply | integer math term + integer math term |
 | 6 | ShiftLeft | integer math term + integer math term |
+| 7 | Embed | scalar term table |
 
 ## Proof terms
 
-A proof term is a `u8` form tag followed by its fields. Proof terms are
+A proof term is a [term table](#term-tables) of rows, each a `u8` form tag
+followed by its fields; `proof term` below is an operand handle written after
+the row's other fields. Proof terms are
 proof-only erased actuals — they carry semantic identities for the erased
 proof-formal lane, not runtime values. They appear only inside a proof term
-list in the semantic module, and their nesting shares the scalar-term depth
-bound. A Scalar leaf embeds a scalar term; it records one scalar field of a
+list in the semantic module, and like scalar terms their nesting has no depth
+bound. A Scalar leaf embeds a scalar term table; it records one scalar field of a
 record/enum carrier construction and never stands in for a runtime operand.
 
 <!-- proof-term-tags -->
 | Tag | Proof term | Fields after the tag |
 | --- | --- | --- |
-| 1 | Construction | type identity string + `bool` case-identity flag (+ case identity string when set) + counted fields (field identity string + proof term) |
+| 1 | Construction | type identity string + `bool` case-identity flag (+ case identity string when set) + counted field identity strings + one proof term per field |
 | 2 | Formal (block scope) | `u32` position |
-| 3 | Scalar | scalar term |
-| 4 | Array | type identity string + counted proof terms |
+| 3 | Scalar | scalar term table |
+| 4 | Array | type identity string + `u32` element count + one proof term per element |
 | 5 | Mathematical | type identity string + counted canonical mathematical-certificate bytes |
 | 6 | MathematicalApplication | result type identity string + counted canonical mathematical-function certificate bytes + `u8` formal namespace (0 block, 1 invocation) + counted `u32` caller proof-formal positions |
 | 7 | InvocationFormal | `u32` position in the machine contract proof roster |
@@ -593,11 +634,13 @@ by itself.
 | Tag | Content term | Fields after the tag |
 | --- | --- | --- |
 | 1 | Projection | domain id + `u64` projection report fingerprint + content structural place |
-| 2 | Separate | counted content terms |
+| 2 | Separate | counted projections (tag 1 rows); a nested separation rejects |
 
 ## Propositions
 
-A proposition is a `u8` form tag followed by its fields.
+A proposition is a [term table](#term-tables) of rows, each a `u8` form tag
+followed by its fields. `proposition` below is an operand handle; scalar,
+integer math and content operands are their own encodings inside the row.
 
 <!-- proposition-tags -->
 | Tag | Proposition | Fields after the tag |
@@ -608,10 +651,10 @@ A proposition is a `u8` form tag followed by its fields.
 | 4 | Equal | scalar term + scalar term |
 | 5 | LessThan | scalar term + scalar term |
 | 6 | LessOrEqual | scalar term + scalar term |
-| 7 | Conjunction | counted propositions |
+| 7 | Conjunction | `u32` conjunct count + one proposition per conjunct |
 | 8 | Implication | premise proposition + conclusion proposition |
 | 9 | ContentConservation | content algebra + content term + content term |
-| 10 | Disjunction | counted propositions |
+| 10 | Disjunction | `u32` disjunct count + one proposition per disjunct |
 | 11 | IeeeFloatComparison | IEEE float comparison kind + IEEE float format + canonical structural field + canonical structural field |
 | 12 | ByteSequenceEqual | canonical structural field + canonical structural field |
 | 13 | StructuralCaseMembership | canonical structural field + case id |
@@ -892,7 +935,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 253 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 255 + `u16` vocabulary
 marker 133 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -1499,15 +1542,15 @@ BlockParameter places are machine-local and reject at content positions:
 | Tag | Content term | Fields after the tag |
 | --- | --- | --- |
 | 1 | Projection | domain id + `u64` projection report fingerprint + content structural place |
-| 2 | Separate | counted content terms; nesting deeper than 256 rejects |
+| 2 | Separate | counted content terms |
 
 A closed reach application is a `bool` presence flag; when present it carries
-the template identity index, the 32-byte template commitment, the 32-byte
-specialization commitment, a counted declaration-kind roster, a counted
+the template identity index, the 32-byte template commitment, its operational
+contract payload (below), the 32-byte specialization commitment, a counted declaration-kind roster, a counted
 invocation telescope, the fixed service ceiling, a
 counted `u32` dependency binder list, and counted call rows. After the invocation
 telescope, a `bool` marks a distinct capture receipt: template identity, 32-byte
-template commitment, 32-byte capture commitment, a counted declaration-kind
+template commitment, operational contract payload, 32-byte capture commitment, a counted declaration-kind
 roster, and its counted telescope.
 Dependency positions traverse capture slots before method-local invocation slots;
 method invocation tuple comparisons use only the latter. A call row is an
@@ -1518,7 +1561,7 @@ when present, by the call application.
 
 | Closed reach row | Fields |
 | --- | --- |
-| machine binding | `bool` nominal-requirement presence + requirement string when present + counted requirement declaration kinds + counted argument identity indices + upper-bound service ceiling + selected identity index + 32-byte selected contract commitment + selected-reach service ceiling + optional callee machine identity + `bool` schema presence + schema template identity index and 32-byte schema template commitment when present |
+| machine binding | `bool` nominal-requirement presence + requirement string when present + counted requirement declaration kinds + counted argument identity indices + upper-bound service ceiling + `bool` upper-bound suspension + `bool` upper-bound blocking + `bool` selected suspension + `bool` selected blocking + selected identity index + 32-byte selected contract commitment + selected-reach service ceiling + optional callee machine identity + `bool` schema presence + schema template identity index and 32-byte schema template commitment when present |
 | call application | callee machine id + 32-byte specialization commitment + counted reach arguments |
 
 <!-- reach-parameter-tags -->
@@ -1563,13 +1606,54 @@ and the normalized suspension-dependency expression. Expressions use the existin
 fixed Boolean contributions and exact callback projections; they may name several
 binders. Forwarding retains substitutions for subjects as well as conditions.
 
+Marker 254 adds this payload to both invocation and capture receipts. A checked
+machine declaration also retains its published suspension and blocking Booleans
+immediately after its 32-byte contract, before the specialization-presence flag.
+These describe the selected public contract, independently of private-body
+inference. A closed machine binding retains both its requirement upper bounds
+and the selected public Booleans. Admission compares selected callees with these
+retained public contracts and evaluates callback projections in the complete
+capture-then-invocation telescope. Marker 253 and older modules reject.
+
+| Operational contract payload | Fields |
+| --- | --- |
+| contract | 32-byte base template commitment + suspension dependency + blocking dependency + counted conditional carry rows |
+| dependency | `bool` fixed contribution + counted strictly increasing `u32` machine-binder positions; a true fixed contribution has no positions |
+| conditional carry | `u32` declaration-state position + `u64` statement position + `u64` call ordinal + subject + canonical value-type string + counted claim arrivals + dependency |
+| parameter subject | `u8` 0 + scoped declaration identity string + `u64` parameter position |
+| local subject | `u8` 1 + scoped declaration identity string + `u64` declaration statement position + `u64` environment position |
+| call argument subject | `u8` 2 + `u64` argument position |
+| claim arrival | receiving claim + acquisition provenance |
+| receiving claim | scoped machine identity string + scoped state identity string + acquisition event + `u32` claim ordinal |
+| established provenance | `u8` 1 + scoped machine identity string + scoped state identity string + acquisition event |
+| joined provenance | `u8` 2 + scoped machine identity string + scoped state identity string + acquisition event + `u32` claim ordinal |
+| entry acquisition | `u8` 0 |
+| statement acquisition | `u8` 1 + `u64` statement position |
+| call acquisition | `u8` 2 + `u64` statement position + `u64` call ordinal + scoped target identity string |
+| instruction acquisition | `u8` 3 + `u64` statement position |
+| instruction-exit acquisition | `u8` 4 + `u64` statement position |
+| exit acquisition | `u8` 5 |
+
+The receiving claim and its acquisition provenance are distinct: a local call
+result receives a statement claim whose joined provenance identifies the exact
+acquisition call and target. Both survive publication. Unknown subject, acquisition
+or provenance tags reject. Claims cannot encode unknown identity or provenance. Carry rows and each row's claims are strictly ordered and unique;
+a carry guard has at least one exact projection and no true fixed contribution.
+The `omega.machine-template.v4` commitment binds the base template identity,
+complete telescope size, both dependencies, and every scoped subject, acquisition
+and guard. Dropping or altering a row without changing its checked commitment
+rejects. The payload retains requirements; it grants no carry permission or
+runtime authority. False guards discharge only suspension permission. Closed
+true guards still require the ordinary suspension call plan and its complete
+live frontier.
+
 These rows participate in canonical interface identity and dependency checking.
 A decoder cannot interpret a missing row as permission. Closed applications
 discharge or satisfy their obligations before lowering, while ordinary call and
 outcome obligations remain enforced. Runtime callable types and installation-bound
-service rows gain no new form. The [implementation plan](../../drafts/designs/conditional_callback_carry.md#implementation)
-owns the coordinated schema, wire-table and codec update; it must verify that
-closed suspension call plans preserve the specialized live frontier and policies.
+service rows gain no new form. Closed suspension call plans preserve the
+specialized live frontier and policies under the governing
+[carry requirements](../language/effects.md#conditional-suspension-carry).
 
 ## Module declaration tables
 
@@ -1729,7 +1813,9 @@ path segments.
 | 1 | IntervalSet | counted (start capacity scalar + end capacity scalar) bounds |
 | 2 | CountedQuantity | capacity scalar |
 
-A capacity scalar inside a domain declaration is a `u8` tag:
+A capacity scalar inside a domain declaration is a [term table](#term-tables)
+of rows, each a `u8` tag followed by its fields; `capacity scalar` below is an
+operand handle:
 
 <!-- content-projection-scalar-tags -->
 
@@ -2424,8 +2510,8 @@ postorder DAG whose nodes are keyed by their own wire bytes, so two encoders
 of the same judgment emit the same table and producer-local aliases collapse
 onto one entry. Signature statements and bodies enter the table first, in
 signature order, then the context, then the judgment roots. A `Dummy` term
-reachable from any root rejects the certificate. Decoding bounds term nesting
-and level nesting at 256 each, requires every child index to precede its
+reachable from any root rejects the certificate. Decoding places no bound on term
+or level nesting, requires every child index to precede its
 parent, rejects trailing bytes, and requires the decoded certificate to
 re-encode byte-for-byte — unreachable nodes and alternate tables cannot alias
 one certificate.
@@ -2498,7 +2584,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 253 | yes |
+| semantic module | `PSITERM\0` | 255 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

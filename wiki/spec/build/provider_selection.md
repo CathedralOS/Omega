@@ -130,6 +130,24 @@ foreign locator need not be realizable on the selected target, but its source
 must still be checked. Missing, duplicate, incompatible, or unadmitted selected
 supply rejects rather than choosing a body by spelling or source order.
 
+Under `applied-provider-cycle-selection` (settled 2026-11-12), independent
+source checking records a requirement call as a dependency on that exact
+requirement application. It does not choose all eligible providers as possible
+targets. Generic and nongeneric bodies remain checked against their complete
+contracts; an unused implementation's existence does not change the wiring of
+another product. Concrete direct calls remain concrete and follow the ordinary
+recursion rules.
+
+Composition resolves provider-controlled edges through the actual selected
+provider for each exact application and target, then checks the complete
+possible synchronous graph under [the invocation rules](../language/effects.md#direct-synchronous-invocation).
+Helpers, callbacks, runtime alternatives and native envelopes retain all possible
+behavior allowed by their admitted contracts. Unknown behavior is not an empty
+edge set, and observed execution is not graph coverage. A library may retain
+symbolic requirements before consumer selection; executable composition must
+resolve its demanded supply. This does not grant an unproved termination or
+progress promise from a favorable selection.
+
 Concrete layout evaluation follows
 [layout demand](../layouts/plans.md#layout-demand-and-validation), not a pre-pass
 over all supplied bodies. Every declared target row demands the layouts of its
@@ -199,6 +217,15 @@ does not manufacture source routing values. Source that needs another static
 role names a distinct exact requirement application; runtime multiplicity uses
 the protocol's ordinary data.
 
+Keep concrete generic arguments in the closure keys rather than collapsing
+`Stage<1>` and `Stage<2>` to one trait or provider declaration. Eligibility
+contributes no edge until selected or explicitly called. A selected dependency
+cycle rejects even without an authored `terminates` promise; an acyclic selected
+graph does not prove that a provider's internal computation terminates.
+Provider replacement revalidates the affected composed graph and existing
+`invokes`, resource, stack, authority, trust, lifecycle and admission obligations
+before use. It cannot inherit safety from the previously selected provider.
+
 After selection, [behavior exclusions](behavior_exclusions.md) may require stronger
 absence properties of the complete selected product than its ordinary callable
 contracts promise. A no-op body can contribute evidence for that independent
@@ -248,6 +275,13 @@ or consumes a dependency-selected default. Multiple exported implementations
 are unambiguous because the caller names one. An already-installed different
 backing does not satisfy this request or get silently replaced; distinct static
 roles require distinct exact requirement applications.
+
+Named decision `build-declared-requirement-provider`, settled 2026-11-12: a
+Build program has no form that selects a provider for a requirement declared in
+its own `build.omg`. Such a file wrote the requirement, every implementation
+and every caller, so an ordinary checked helper or a branch expresses the same
+computation. A concrete need for replaceable Build-time services may propose a
+form later.
 
 After installation, calls use the exact static `R::operation(arguments)` slot.
 Readiness returns no routing value and resumes the same Terminal continuation

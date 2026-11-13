@@ -504,7 +504,7 @@ mod evidence_seal_tests {
     };
     use structure_elaboration::{
         Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
-        Target, Unpositioned,
+        Target, Termination, Unpositioned,
     };
     use terminal_codec::{EvidenceSeals, ObligationEvidenceSeal};
 
@@ -563,10 +563,13 @@ mod evidence_seal_tests {
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
         signatures.push(Signature {
             parameters: vec![u32_type().into(), u32_type().into()],
+            erased: Vec::new(),
+            borrowed: Vec::new(),
             result: Some(u32_type().into()),
             requires: vec![at_most(1), at_most(2)],
             ensures: Vec::new(),
             crashes: CrashCeiling::Authored(Vec::new()),
+            termination: Termination::Silent,
         });
         let entry = MachineId::new(1).unwrap();
         let mut elaboration =

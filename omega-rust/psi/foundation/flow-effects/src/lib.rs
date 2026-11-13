@@ -190,6 +190,432 @@ pub mod flow_effects {
         }
     }
 
+    pub mod dependencies {
+        use arena::{Arena, HandleSpan};
+        use symbols::SymbolHandle;
+
+        // A helper adds its own effects and those of its exact callback
+        // parameters. The same expression is built with local vectors, retained
+        // in checked arenas, and normalized to binder positions for publication.
+        // Reach and operational effects differ only in the fixed value's type.
+        #[derive(
+            Debug,
+            Clone,
+            Copy,
+            Default,
+            PartialEq,
+            Eq,
+            PartialOrd,
+            Ord,
+            Hash,
+            compiler_storage::Record,
+        )]
+        pub struct ContractDependency<Contribution, Parameters = HandleSpan<SymbolHandle>> {
+            pub concrete: Contribution,
+            pub parameters: Parameters,
+        }
+
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
+        // Keep the same live subject and acquisition when a helper is selected.
+        // Each row requires suspension permission under its condition; the row
+        // grants no permission and changes none of the other carry obligations.
+        pub struct ConditionalCarryRequirement {
+            pub state: u32,
+            pub statement_index: u64,
+            pub call_ordinal: u64,
+            pub subject: language_semantics::SuspensionValueOrigin<String>,
+            pub value_type: String,
+            pub claims: Vec<language_semantics::PermissionArrival<String>>,
+            pub condition: ContractDependency<bool, Vec<u32>>,
+        }
+
+        pub fn validate_published_dependency(
+            dependency: &ContractDependency<bool, Vec<u32>>,
+            parameter_count: usize,
+        ) -> Result<(), &'static str> {
+            if (dependency.concrete && !dependency.parameters.is_empty())
+                || dependency
+                    .parameters
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+                || dependency
+                    .parameters
+                    .iter()
+                    .any(|parameter| *parameter as usize >= parameter_count)
+            {
+                return Err(
+                    "published callback dependency is not a normalized term over its telescope",
+                );
+            }
+            Ok(())
+        }
+
+        pub fn template_contract_commitment(
+            base: [u8; 32],
+            parameter_count: usize,
+            suspension: &ContractDependency<bool, Vec<u32>>,
+            blocking: &ContractDependency<bool, Vec<u32>>,
+            carry: &[ConditionalCarryRequirement],
+        ) -> Result<[u8; 32], &'static str> {
+            // The published identity binds the retained subjects as well as the
+            // callback condition. Removing a private acquisition or changing its
+            // origin must not leave an apparently unchanged generic interface.
+            validate_published_dependency(suspension, parameter_count)?;
+            validate_published_dependency(blocking, parameter_count)?;
+            if carry.windows(2).any(|pair| pair[0] >= pair[1]) {
+                return Err("conditional carry requirements are not uniquely ordered");
+            }
+            let mut digest = optimization::digest_encoder::DomainDigestEncoder::new(
+                b"omega.machine-template.v4\0",
+            );
+            digest.raw(&base);
+            digest.len(parameter_count);
+            fn term(
+                digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+                dependency: &ContractDependency<bool, Vec<u32>>,
+            ) {
+                digest.byte(u8::from(dependency.concrete));
+                digest.len(dependency.parameters.len());
+                for parameter in &dependency.parameters {
+                    digest.u64(u64::from(*parameter));
+                }
+            }
+            term(&mut digest, suspension);
+            term(&mut digest, blocking);
+            digest.len(carry.len());
+            for row in carry {
+                validate_published_dependency(&row.condition, parameter_count)?;
+                if row.value_type.is_empty()
+                    || row.condition.concrete
+                    || row.condition.parameters.is_empty()
+                    || row.claims.windows(2).any(|pair| pair[0] >= pair[1])
+                {
+                    return Err(
+                        "conditional carry requirement lost its subject, provenance or guard",
+                    );
+                }
+                digest.u64(u64::from(row.state));
+                digest.u64(row.statement_index);
+                digest.u64(row.call_ordinal);
+                subject(&mut digest, &row.subject)?;
+                digest.bytes(row.value_type.as_bytes());
+                digest.len(row.claims.len());
+                for claim in &row.claims {
+                    arrival(&mut digest, claim)?;
+                }
+                term(&mut digest, &row.condition);
+            }
+            Ok(digest.finish())
+        }
+
+        fn identity(
+            digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+            identity: &str,
+        ) -> Result<(), &'static str> {
+            if identity.is_empty() {
+                return Err("conditional carry provenance has an empty declaration identity");
+            }
+            digest.bytes(identity.as_bytes());
+            Ok(())
+        }
+
+        fn subject(
+            digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+            subject: &language_semantics::SuspensionValueOrigin<String>,
+        ) -> Result<(), &'static str> {
+            use language_semantics::SuspensionValueOrigin;
+            match subject {
+                SuspensionValueOrigin::Parameter { symbol, position } => {
+                    digest.byte(0);
+                    identity(digest, symbol)?;
+                    digest.len(*position);
+                }
+                SuspensionValueOrigin::Local {
+                    symbol,
+                    statement_index,
+                    environment_position,
+                } => {
+                    digest.byte(1);
+                    identity(digest, symbol)?;
+                    digest.len(*statement_index);
+                    digest.len(*environment_position);
+                }
+                SuspensionValueOrigin::CallArgument { position } => {
+                    digest.byte(2);
+                    digest.len(*position);
+                }
+            }
+            Ok(())
+        }
+
+        fn permission_source(
+            digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+            source: &language_semantics::ScopedPermissionEventSource<String>,
+        ) -> Result<(), &'static str> {
+            use language_semantics::ScopedPermissionEventSource;
+            match source {
+                ScopedPermissionEventSource::StateEntry => digest.byte(0),
+                ScopedPermissionEventSource::Statement { statement_index } => {
+                    digest.byte(1);
+                    digest.len(*statement_index);
+                }
+                ScopedPermissionEventSource::Call {
+                    statement_index,
+                    call_ordinal,
+                    target_symbol,
+                } => {
+                    digest.byte(2);
+                    digest.len(*statement_index);
+                    digest.len(*call_ordinal);
+                    identity(digest, target_symbol)?;
+                }
+                ScopedPermissionEventSource::InstructionDisposition { statement_index } => {
+                    digest.byte(3);
+                    digest.len(*statement_index);
+                }
+                ScopedPermissionEventSource::InstructionExitDisposition { statement_index } => {
+                    digest.byte(4);
+                    digest.len(*statement_index);
+                }
+                ScopedPermissionEventSource::StateExit => digest.byte(5),
+            }
+            Ok(())
+        }
+
+        fn arrival(
+            digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+            arrival: &language_semantics::PermissionArrival<String>,
+        ) -> Result<(), &'static str> {
+            use language_semantics::{ScopedPermissionClaimIdentity, ScopedPermissionProvenance};
+            let ScopedPermissionClaimIdentity::Established {
+                machine_symbol,
+                state_symbol,
+                source,
+                ordinal,
+            } = &arrival.claim_identity
+            else {
+                return Err("conditional carry requires an exact receiving claim identity");
+            };
+            identity(digest, machine_symbol)?;
+            identity(digest, state_symbol)?;
+            permission_source(digest, source)?;
+            digest.u64(u64::from(*ordinal));
+            match &arrival.provenance {
+                ScopedPermissionProvenance::Unknown => {
+                    return Err("conditional carry requires its exact acquisition join");
+                }
+                ScopedPermissionProvenance::Established {
+                    machine_symbol,
+                    state_symbol,
+                    source,
+                } => {
+                    digest.byte(1);
+                    identity(digest, machine_symbol)?;
+                    identity(digest, state_symbol)?;
+                    permission_source(digest, source)?;
+                }
+                ScopedPermissionProvenance::Joined {
+                    machine_symbol,
+                    state_symbol,
+                    source,
+                    ordinal,
+                } => {
+                    digest.byte(2);
+                    identity(digest, machine_symbol)?;
+                    identity(digest, state_symbol)?;
+                    permission_source(digest, source)?;
+                    digest.u64(u64::from(*ordinal));
+                }
+            }
+            Ok(())
+        }
+
+        impl<Parameters: Default> From<bool> for ContractDependency<bool, Parameters> {
+            fn from(concrete: bool) -> Self {
+                Self {
+                    concrete,
+                    parameters: Parameters::default(),
+                }
+            }
+        }
+
+        impl<Parameter> ContractDependency<bool, Vec<Parameter>> {
+            pub fn parameter(parameter: Parameter, possible: bool) -> Self {
+                Self {
+                    concrete: false,
+                    parameters: possible.then_some(parameter).into_iter().collect(),
+                }
+            }
+
+            pub fn possible(&self) -> bool {
+                self.concrete || !self.parameters.is_empty()
+            }
+        }
+
+        impl ContractDependency<bool, Vec<SymbolHandle>> {
+            pub fn retain(&self, parameters: &mut Arena<SymbolHandle>) -> ContractDependency<bool> {
+                ContractDependency {
+                    concrete: self.concrete,
+                    parameters: parameters.insert_many(self.parameters.clone()),
+                }
+            }
+        }
+
+        impl std::ops::BitOrAssign<bool> for ContractDependency<bool, Vec<SymbolHandle>> {
+            fn bitor_assign(&mut self, contribution: bool) {
+                *self |= &Self::from(contribution);
+            }
+        }
+
+        impl std::ops::BitOrAssign<&Self> for ContractDependency<bool, Vec<SymbolHandle>> {
+            fn bitor_assign(&mut self, contribution: &Self) {
+                self.concrete |= contribution.concrete;
+                if self.concrete {
+                    self.parameters.clear();
+                    return;
+                }
+                self.parameters.extend_from_slice(&contribution.parameters);
+                self.parameters
+                    .sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+                self.parameters.dedup();
+            }
+        }
+
+        impl std::ops::BitOrAssign for ContractDependency<bool, Vec<SymbolHandle>> {
+            fn bitor_assign(&mut self, contribution: Self) {
+                *self |= &contribution;
+            }
+        }
+
+        impl std::ops::BitOr for ContractDependency<bool, Vec<SymbolHandle>> {
+            type Output = Self;
+            fn bitor(mut self, contribution: Self) -> Self {
+                self |= contribution;
+                self
+            }
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::ContractDependency;
+            type Condition = ContractDependency<bool, Vec<symbols::SymbolHandle>>;
+
+            #[test]
+            fn published_carry_commits_exact_guard_subject_and_acquisition() {
+                use super::{ConditionalCarryRequirement, template_contract_commitment};
+                use language_semantics::{
+                    PermissionArrival, ScopedPermissionClaimIdentity, ScopedPermissionEventSource,
+                    ScopedPermissionProvenance, SuspensionValueOrigin,
+                };
+                let condition = super::ContractDependency {
+                    concrete: false,
+                    parameters: vec![0],
+                };
+                let row = ConditionalCarryRequirement {
+                    state: 0,
+                    statement_index: 2,
+                    call_ordinal: 1,
+                    subject: SuspensionValueOrigin::Local {
+                        symbol: "helper::kept".into(),
+                        statement_index: 0,
+                        environment_position: 1,
+                    },
+                    value_type: "Kept".into(),
+                    claims: vec![PermissionArrival {
+                        claim_identity: ScopedPermissionClaimIdentity::Established {
+                            machine_symbol: "helper".into(),
+                            state_symbol: "helper::entry".into(),
+                            source: ScopedPermissionEventSource::Statement { statement_index: 0 },
+                            ordinal: 3,
+                        },
+                        provenance: ScopedPermissionProvenance::Joined {
+                            machine_symbol: "helper".into(),
+                            state_symbol: "helper::entry".into(),
+                            source: ScopedPermissionEventSource::Call {
+                                statement_index: 0,
+                                call_ordinal: 0,
+                                target_symbol: "acquire".into(),
+                            },
+                            ordinal: 3,
+                        },
+                    }],
+                    condition: condition.clone(),
+                };
+                let commit = |rows: &[ConditionalCarryRequirement]| {
+                    template_contract_commitment([7; 32], 2, &condition, &false.into(), rows)
+                };
+                let expected = commit(std::slice::from_ref(&row)).unwrap();
+                assert_ne!(expected, commit(&[]).unwrap());
+                let mut changed = row.clone();
+                changed.condition.parameters = vec![1];
+                assert_ne!(expected, commit(&[changed]).unwrap());
+                let mut changed = row.clone();
+                changed.subject = SuspensionValueOrigin::CallArgument { position: 1 };
+                assert_ne!(expected, commit(&[changed]).unwrap());
+                let mut changed = row.clone();
+                let ScopedPermissionClaimIdentity::Established { ordinal, .. } =
+                    &mut changed.claims[0].claim_identity
+                else {
+                    unreachable!()
+                };
+                *ordinal += 1;
+                assert_ne!(expected, commit(&[changed]).unwrap());
+                let mut changed = row.clone();
+                changed.condition.parameters = vec![2];
+                assert!(commit(&[changed]).is_err());
+                let mut changed = row.clone();
+                changed.claims[0].claim_identity = ScopedPermissionClaimIdentity::Unknown;
+                assert!(commit(&[changed]).is_err());
+                let mut changed = row.clone();
+                changed.claims[0].provenance = ScopedPermissionProvenance::Unknown;
+                assert!(commit(&[changed]).is_err());
+                for change_target in [false, true] {
+                    let mut changed = row.clone();
+                    let ScopedPermissionProvenance::Joined {
+                        source:
+                            ScopedPermissionEventSource::Call {
+                                target_symbol,
+                                call_ordinal,
+                                ..
+                            },
+                        ..
+                    } = &mut changed.claims[0].provenance
+                    else {
+                        unreachable!()
+                    };
+                    if change_target {
+                        *target_symbol = "other_acquire".into();
+                    } else {
+                        *call_ordinal += 1;
+                    }
+                    assert_ne!(expected, commit(&[changed]).unwrap());
+                }
+                assert!(commit(&[row.clone(), row]).is_err());
+            }
+
+            #[test]
+            fn callback_conditions_are_finite_normalized_or_expressions() {
+                let a = Condition::parameter(symbols::SymbolHandle::from_parts(2, 1), true);
+                let b = Condition::parameter(symbols::SymbolHandle::from_parts(1, 1), true);
+                let c = Condition::parameter(symbols::SymbolHandle::from_parts(3, 1), true);
+                assert_eq!(
+                    (a.clone() | b.clone()) | c.clone(),
+                    a.clone() | (b.clone() | c.clone())
+                );
+                assert_eq!(a.clone() | b.clone(), b | a.clone());
+                assert_eq!(a.clone() | a.clone(), a);
+                let mut fixed = a | c;
+                fixed |= true;
+                assert!(fixed.concrete);
+                assert!(fixed.parameters.is_empty());
+                assert!(
+                    !Condition::parameter(symbols::SymbolHandle::from_parts(9, 1), false)
+                        .possible()
+                );
+            }
+        }
+    }
+
     pub mod operational {
         use arena::{Arena, Handle, HandleSpan, RevisionIndex};
         use semantic_vocabulary::proof_applications::{
@@ -210,6 +636,7 @@ pub mod flow_effects {
             pub captured_selector_calls: CapturedSelectorCalls, // Complete selected-row alternatives at captured selector calls.
             pub selected_call_contexts: SelectedCallContexts, // Calls resolved under known selector arguments.
             pub static_machine_bindings: Arena<StaticMachineCallBinding>,
+            pub dependency_parameters: Arena<SymbolHandle>,
             pub machine_index: OperationalMachineIndex, // Revision-guarded `symbol -> machine index` lookup.
         }
 
@@ -310,8 +737,10 @@ pub mod flow_effects {
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct MachineOperational {
             pub symbol: SymbolHandle,
-            pub published_may_suspend: bool, // Authored suspension ceiling.
-            pub published_may_block: bool,   // Authored blocking ceiling.
+            pub suspension_dependency: super::dependencies::ContractDependency<bool>,
+            pub blocking_dependency: super::dependencies::ContractDependency<bool>,
+            pub published_may_suspend: bool, // Selected contract after checked generic substitution.
+            pub published_may_block: bool, // Selected contract after checked generic substitution.
             pub transitive_may_suspend: bool, // Effective recursive suspension summary consumed by callers.
             pub transitive_may_block: bool, // Effective recursive blocking summary consumed by callers.
             pub body_may_suspend: bool,     // Declaration-free recursive body suspension summary.
@@ -339,6 +768,8 @@ pub mod flow_effects {
             pub static_machine_bindings: HandleSpan<StaticMachineCallBinding>,
             pub target_machine_symbol: SymbolHandle,
             pub target_operator_symbol: SymbolHandle, // Named-operator declaration when not a machine/state call.
+            pub suspension_dependency: super::dependencies::ContractDependency<bool>,
+            pub blocking_dependency: super::dependencies::ContractDependency<bool>,
             pub direct_may_suspend: bool,
             pub direct_may_block: bool,
             pub transitive_may_suspend: bool,
@@ -446,11 +877,8 @@ pub mod flow_effects {
         };
         use symbols::SymbolHandle;
 
-        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
-        pub struct ServiceReachDependency {
-            pub concrete: ServiceReachRowId,
-            pub parameters: HandleSpan<SymbolHandle>,
-        }
+        pub type ServiceReachDependency =
+            super::dependencies::ContractDependency<ServiceReachRowId>;
 
         #[derive(Debug, Clone, Default, PartialEq, Eq)]
         pub struct MachineServiceReachInference {
@@ -550,6 +978,10 @@ pub mod flow_effects {
     }
 
     pub use capabilities::{CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan};
+    pub use dependencies::{
+        ConditionalCarryRequirement, ContractDependency, template_contract_commitment,
+        validate_published_dependency,
+    };
     pub use invocations::{
         InvocationInferencePlan, InvocationTarget, MachineInvocationInference,
         RealizedInvocationTarget,
@@ -569,10 +1001,11 @@ pub mod flow_effects {
 pub use flow_effects::{
     CallOperational, CallServiceReachInference, CapabilityFlowFact, CapabilityFlowKind,
     CapabilityFlowPlan, CapturedSelectorArgument, CapturedSelectorCall, CapturedSelectorCalls,
-    CapturedSelectorOrigin, CleanupDependency, InstallationReachRequirement,
-    InvocationInferencePlan, InvocationTarget, MachineInvocationInference, MachineOperational,
-    MachineServiceReachInference, OperationalPlan, RealizedInvocationTarget, SelectedCallContext,
-    SelectedCallContexts, SelectedContextCall, SelectedContextTarget, ServiceReachDependency,
-    ServiceReachInferencePlan, StateOperational, StateServiceReachInference,
-    StaticMachineCallBinding, capabilities, invocations, operational, service_reach,
+    CapturedSelectorOrigin, CleanupDependency, ConditionalCarryRequirement, ContractDependency,
+    InstallationReachRequirement, InvocationInferencePlan, InvocationTarget,
+    MachineInvocationInference, MachineOperational, MachineServiceReachInference, OperationalPlan,
+    RealizedInvocationTarget, SelectedCallContext, SelectedCallContexts, SelectedContextCall,
+    SelectedContextTarget, ServiceReachDependency, ServiceReachInferencePlan, StateOperational,
+    StateServiceReachInference, StaticMachineCallBinding, capabilities, invocations, operational,
+    service_reach, template_contract_commitment, validate_published_dependency,
 };

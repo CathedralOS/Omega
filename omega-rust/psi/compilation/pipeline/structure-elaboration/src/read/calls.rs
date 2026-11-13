@@ -4,14 +4,16 @@ application and authored selection it must leave unused, and the call itself
 with its arguments.
 */
 
+use language_core::ReferenceAccess;
 use semantic_vocabulary::MachineId;
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
-use typed_trees::expression::{ExpressionHandle, TableCallExpression};
+use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::statement::TableCall;
 
+use super::expressions::names_storage;
 use super::{Program, Slot, symbol_kind};
-use crate::body::{Expression, ExpressionKind};
+use crate::body::{Expression, ExpressionKind, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl<'t> Program<'t> {
@@ -99,12 +101,14 @@ impl<'t> Program<'t> {
     }
 
     /// Whether every generic parameter of `declared`, a machine or its entry
-    /// state, is an implementation parameter or a value parameter. Only
-    /// such a declaration's generated machines are read: selecting an
-    /// implementation changes which machine a call names, and binding a
-    /// value parameter puts a literal where the body named the binder,
-    /// while a type argument changes the body's types and operations, which
-    /// the lowered form cannot yet state once.
+    /// state, is an implementation, value or type parameter. Only such a
+    /// declaration's generated machines are read. Each is a closed machine:
+    /// selecting an implementation changes which machine a call names,
+    /// binding a value parameter puts a literal where the body named the
+    /// binder, and a type argument puts a concrete type where it named the
+    /// parameter. What such a machine still holds that the subset does not
+    /// serve (a type equation in a clause, for one) is refused where it is
+    /// read.
     fn closes_rigid_parameters_only(&self, declared: SymbolHandle) -> bool {
         let owner = match self.typed.symbols.get(declared).kind {
             SymbolKind::State => self.typed.symbols.get(declared).parent,
@@ -120,10 +124,29 @@ impl<'t> Program<'t> {
                         parameter.kind,
                         typed_trees::data::TypeParameterKind::Implementation
                             | typed_trees::data::TypeParameterKind::Const { .. }
+                            | typed_trees::data::TypeParameterKind::Type
                     )
                 })
                 && machine.lifetime_parameters.is_empty()
         })
+    }
+
+    /// The machine a symbol enters: a machine itself, or the machine whose
+    /// one state the symbol is. `None` for anything else, including a state
+    /// of a machine with several.
+    fn entered_machine(&self, symbol: SymbolHandle) -> Option<SymbolHandle> {
+        match self.typed.symbols.get(symbol).kind {
+            SymbolKind::Machine => Some(symbol),
+            SymbolKind::State => {
+                let parent = self.typed.symbols.get(symbol).parent;
+                let machine = self.typed.machine_by_symbol(parent)?;
+                match self.typed.machine_states.span(machine.states)? {
+                    [state] if state.symbol == symbol => Some(parent),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
     }
 
     /// A call is direct only when its authored selection, if recorded,
@@ -154,8 +177,16 @@ impl<'t> Program<'t> {
                 return unserved("authored selection missing from its ledger");
             };
             match selected.target() {
+                // The selection names the callee's machine or its one
+                // entry state, and so does the call; a call of the machine
+                // being read records the two differently.
                 AuthoredDeclarationSelectionTarget::Resolved(resolved)
-                    if names_target(resolved.selected_symbol()) => {}
+                    if names_target(resolved.selected_symbol())
+                        || self
+                            .entered_machine(resolved.selected_symbol())
+                            .is_some_and(|selected| {
+                                Some(selected) == self.entered_machine(target)
+                            }) => {}
                 AuthoredDeclarationSelectionTarget::Resolved(_) => {
                     return unserved("selection resolved to another declaration");
                 }
@@ -253,6 +284,12 @@ impl<'t> Program<'t> {
                 }
                 Ok(None) => {}
                 Err(_) => return unserved("implementation parameter child with no requirement"),
+            }
+            // A call of another generic machine at this body's own type
+            // parameters, `same<T>(left, right)`: held to that machine's
+            // contract at them.
+            if let Some(arguments) = self.type_arguments(id, call)? {
+                return self.generic_call(id, slots, call, arguments, source);
             }
         }
         self.applies_nothing(
@@ -465,6 +502,131 @@ impl<'t> Program<'t> {
         Ok(literals)
     }
 
+    /// The types a call in a generic check form's entry applies its callee's
+    /// type parameters at, in the callee's declaration order, when the call
+    /// is a type application: every binding of its static application gives
+    /// one type parameter of the callee a type. `None` for any other call.
+    /// Each type must be one of the entry's own rigid type parameters: a
+    /// generic machine applied at a concrete type inside a generic body is
+    /// not generated by stage 04 and has no closed machine to call.
+    fn type_arguments(
+        &mut self,
+        id: MachineId,
+        call: &TableCallExpression,
+    ) -> Checked<Option<Vec<crate::body::ValueType>>> {
+        use typed_trees::static_applications::StaticMachineBindingValue;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if !call.authored_machine_application.is_valid() {
+            return Ok(None);
+        }
+        let typed = self.typed;
+        let table = &typed.expression_table;
+        let bindings = table.static_machine_application_bindings(call.authored_machine_application);
+        if bindings.is_empty()
+            || bindings
+                .iter()
+                .any(|binding| !matches!(binding.value, StaticMachineBindingValue::Type(_)))
+        {
+            return Ok(None);
+        }
+        let application = table.static_machine_application(call.authored_machine_application);
+        if !application.selected_machine_arguments.is_empty()
+            || !application.input_selections.is_empty()
+            || !application.lifetime_bindings.is_empty()
+            || application.conformance_selection.is_some()
+            || application.callable_contract_source.is_valid()
+        {
+            return unserved("type application with another static feature");
+        }
+        let owner = match typed.symbols.get(call.target_symbol).kind {
+            SymbolKind::State => typed.symbols.get(call.target_symbol).parent,
+            SymbolKind::Machine => call.target_symbol,
+            other => return unserved(symbol_kind(other)),
+        };
+        let Some(callee) = typed.machine_by_symbol(owner) else {
+            return unserved("type application of something that is not a machine");
+        };
+        let parameters = typed.machine_type_parameters(callee);
+        if parameters.len() != bindings.len() {
+            return unserved("type application that does not bind every parameter");
+        }
+        let mut arguments = Vec::with_capacity(parameters.len());
+        for parameter in parameters {
+            let mut bound = bindings
+                .iter()
+                .filter(|binding| binding.parameter == parameter.symbol);
+            let (Some(binding), None) = (bound.next(), bound.next()) else {
+                return unserved("type parameter without exactly one binding");
+            };
+            let StaticMachineBindingValue::Type(type_reference) = &binding.value else {
+                return unserved("type parameter bound to something other than a type");
+            };
+            let argument = self.value_type(id, *type_reference)?;
+            if !matches!(argument, crate::body::ValueType::Rigid(_)) {
+                return unserved("generic call at a concrete type inside a generic body");
+            }
+            arguments.push(argument);
+        }
+        Ok(Some(arguments))
+    }
+
+    /// The entry of a generic check form calling another generic machine at
+    /// its own type parameters: a direct call of that machine's contract at
+    /// them (`application`).
+    fn generic_call(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCallExpression,
+        type_arguments: Vec<crate::body::ValueType>,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if call.installed_interrupt_operation.is_some()
+            || call.static_requirement_dispatch.is_some()
+            || call.build_selection.is_valid()
+            || call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+            || call.layout_query.is_some()
+            || call.native_code_layout.is_some()
+            || call.receiver.is_valid()
+            || call.requirement_application.is_valid()
+            || call.exact_coercion_target.is_valid()
+            || call.static_machine_parameter.is_valid()
+            || !call.evidence_arguments.is_empty()
+            || call.operational_acknowledgement.acknowledges_suspend
+            || call.operational_acknowledgement.acknowledges_block
+        {
+            return unserved("type application with another call feature");
+        }
+        self.direct_selection(
+            id,
+            call.target_symbol,
+            call.authored_call_selection,
+            call.authored_call_binding,
+        )?;
+        // A call names its callee's entry state; the machine is that
+        // state's parent, and must have exactly that one state.
+        let machine = match self.typed.symbols.get(call.target_symbol).kind {
+            SymbolKind::Machine => call.target_symbol,
+            SymbolKind::State => {
+                let parent = self.typed.symbols.get(call.target_symbol).parent;
+                let (_, state) = self.declaration(id, parent)?;
+                if state.symbol != call.target_symbol {
+                    return unserved("state other than the entry");
+                }
+                parent
+            }
+            other => return unserved(symbol_kind(other)),
+        };
+        let callee = self.application(machine, type_arguments)?;
+        let arguments = self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments);
+        self.call_of(id, slots, callee, arguments, source)
+    }
+
     /// The entry of a generic check form calling through a rigid
     /// implementation parameter: a direct call of the requirement.
     fn rigid_call(
@@ -549,10 +711,46 @@ impl<'t> Program<'t> {
                 ));
             }
         };
+        self.visible_to(id, machine)?;
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
         let callee = self.machine(machine)?;
         self.call_of(id, slots, callee, arguments, source)
+    }
+
+    /// Refuses a call from machine `id` to a machine of another package that
+    /// is not public. Which package a declaration belongs to is the package
+    /// of the source file its symbol was declared in, as for subjects
+    /// (`subjects`); a declaration with no source file cannot be placed and
+    /// is refused. The typed trees can hold such a call: the current checker
+    /// rejects it after them, where a product selects the callee, so a
+    /// reader that took every resolved call as permitted would accept a
+    /// program that reaches into a dependency's private machine.
+    fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let Some(declaration) = self.typed.machine_by_symbol(callee) else {
+            return unserved("target is not a machine declaration");
+        };
+        if declaration.is_public {
+            return Ok(());
+        }
+        let symbols = &self.typed.symbols;
+        // A machine stage 04 generated belongs where its declaration does.
+        let package = |symbol: SymbolHandle| {
+            let symbol = crate::template_of(self.typed, symbol).unwrap_or(symbol);
+            symbol
+                .is_valid()
+                .then(|| symbols.symbol_provenance_source_span(symbol))
+                .flatten()
+                .and_then(|span| symbols.source_file(span))
+                .map(|file| (file.origin, file.package_identity))
+        };
+        let caller = self.symbols.get(id).copied().and_then(package);
+        match (caller, package(callee)) {
+            (Some(caller), Some(callee)) if caller == callee => Ok(()),
+            (Some(_), Some(_)) => unserved("private machine of another package"),
+            _ => unserved("call between declarations without a source file"),
+        }
     }
 
     /// The call of `callee`, a machine or a requirement already read.
@@ -564,10 +762,20 @@ impl<'t> Program<'t> {
         arguments: &[ExpressionHandle],
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        self.calls.push((id, callee));
-        let formals = terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?
+        let signature =
+            terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;
+        let formals: Vec<_> = signature
             .parameters
-            .clone();
+            .iter()
+            .enumerate()
+            .map(|(position, formal)| {
+                (
+                    *formal,
+                    signature.is_erased(position),
+                    signature.borrowed(position).cloned(),
+                )
+            })
+            .collect();
         if formals.len() != arguments.len() {
             return Err(refuse(
                 id,
@@ -585,8 +793,34 @@ impl<'t> Program<'t> {
             names.calls.push((span, shown));
         }
         let mut read = Vec::with_capacity(arguments.len());
-        for (argument, formal) in arguments.iter().zip(&formals) {
-            read.push(self.expression(id, slots, *argument, formal.scalar())?);
+        let mut lenders = Vec::new();
+        for (argument, (formal, erased, borrowed)) in arguments.iter().zip(&formals) {
+            // The argument for an erased formal is a term, not a
+            // computation; the argument for a borrowed formal is a loan of
+            // a place.
+            read.push(if *erased {
+                self.erased_term(id, slots, *argument, formal.scalar())?
+            } else if let Some(borrowed) = borrowed {
+                let (lent, lender) = self.lent(id, slots, *argument, borrowed)?;
+                // Its position among the runtime actuals, as the invocation
+                // row counts them: erased arguments are not actuals.
+                let actual = formals[..read.len()]
+                    .iter()
+                    .filter(|(_, erased, _)| !erased)
+                    .count();
+                lenders.push((actual, lender));
+                lent
+            } else {
+                self.expression(id, slots, *argument, formal.scalar())?
+            });
+        }
+        lent_storage_is_untouched(id, &read)?;
+        if let SourceOrigin::Authored(span) = source
+            && let Some(names) = self.names.get_mut(id)
+        {
+            for (position, lender) in lenders {
+                names.loans.push((span, position, lender));
+            }
         }
         let signature =
             terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;
@@ -603,6 +837,15 @@ impl<'t> Program<'t> {
                 Unserved::Typing("argument types"),
             ));
         }
+        // A value a call returns is the result of an operation, and no
+        // operation of the lowered form has a result of a rigid type.
+        if matches!(signature.result, Some(crate::body::ValueType::Rigid(_))) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("call that returns a value of a type parameter"),
+            ));
+        }
         Ok(Expression {
             kind: ExpressionKind::Call {
                 callee,
@@ -611,5 +854,173 @@ impl<'t> Program<'t> {
             result: signature.result,
             source,
         })
+    }
+
+    /// The argument for a borrowed formal: `&place` or `&mut place`, or a
+    /// borrowed formal of this machine named whole, which lends its
+    /// referent on (a reborrow). The place is a slot or a field path
+    /// beneath one. ownership.md, "Owned local mutability": "modifying an
+    /// established ordinary local's owned storage requires a `mut` binding.
+    /// This covers ... formation of `&mut` or `&write` loans to those
+    /// places. A callee cannot grant writable access that the caller's place
+    /// lacks."
+    fn lent(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        argument: ExpressionHandle,
+        formal: &crate::body::Borrowed,
+    ) -> Checked<(Expression, String)> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
+        let (target, access) = match self.node(id, argument)? {
+            ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
+            ExpressionNode::Name(path) => {
+                let slot = self.slot_of(id, slots, path)?;
+                match slots[slot].borrowed {
+                    Some(_) => (argument, formal.access),
+                    None => return unserved("argument for a borrowed formal that is not a borrow"),
+                }
+            }
+            _ => return unserved("argument for a borrowed formal that is not a borrow"),
+        };
+        if access != formal.access {
+            return unserved("borrow whose access differs from its formal's");
+        }
+        // What a diagnostic calls the lender: the binding at the root of
+        // the place, as the current checker names it.
+        let mut root = target;
+        while let ExpressionNode::Member(member) = self.node(id, root)? {
+            root = member.receiver;
+        }
+        let lender_text = self.typed.expression_table.display_name(root);
+        let place = self.expression(id, slots, target, None)?;
+        if !names_storage(&place) {
+            return unserved("borrow of a value that is not a place");
+        }
+        let mut at = &place;
+        let slot = loop {
+            match &at.kind {
+                ExpressionKind::Slot(slot) => break *slot,
+                ExpressionKind::Field { base, .. } => at = base,
+                _ => return unserved("borrow of a case payload"),
+            }
+        };
+        // A binding's mutability is a source rule the lowered form does not
+        // keep, so it is decided here; a reborrow's access against its
+        // parent's is the checker's judgment (`lowered-discharge`, loans).
+        let lender = &slots[slot];
+        if access == ReferenceAccess::Mutable && lender.borrowed.is_none() && !lender.assignable {
+            return unserved("exclusive loan of an immutable binding");
+        }
+        // A scalar local that is an SSA value here gets a home for the loan;
+        // its type's identity is the formal's referent identity, the same
+        // scalar type.
+        let home = match (&place.kind, lender.value_type) {
+            (ExpressionKind::Slot(_), ValueType::Scalar(_)) if !lender.homed => {
+                Some(formal.home.clone().ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Spelling("scalar referent without a type identity"),
+                    )
+                })?)
+            }
+            _ => None,
+        };
+        Ok((
+            Expression {
+                result: place.result,
+                kind: ExpressionKind::Borrow {
+                    access,
+                    place: Box::new(place),
+                    home,
+                },
+                source,
+            },
+            lender_text,
+        ))
+    }
+}
+
+/// The slot whose storage a place expression names.
+pub(super) fn root_slot(place: &Expression) -> Option<usize> {
+    match &place.kind {
+        ExpressionKind::Slot(slot) => Some(*slot),
+        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+            root_slot(base)
+        }
+        _ => None,
+    }
+}
+
+/// Refuses a call whose other arguments name storage one of its arguments
+/// lends. Arguments are evaluated left to right and each loan is formed
+/// where its argument stands (expressions.md, "Evaluation schedule";
+/// loans.md: "Loan formation captures a place"), so a read of a lent slot
+/// in a later argument would run while the loan is live, and a loan in an
+/// earlier argument's own call would end before this one forms. The
+/// lowered form forms every loan of a call at the call, which says neither,
+/// so such a call is left to the current checker. Two loans of one call are
+/// both at the call, and the checker judges them (`lowered-discharge`).
+fn lent_storage_is_untouched(id: MachineId, arguments: &[Expression]) -> Checked<()> {
+    let lent: Vec<usize> = arguments
+        .iter()
+        .filter_map(|argument| match &argument.kind {
+            ExpressionKind::Borrow { place, .. } => root_slot(place),
+            _ => None,
+        })
+        .collect();
+    if lent.is_empty() {
+        return Ok(());
+    }
+    for argument in arguments {
+        if matches!(argument.kind, ExpressionKind::Borrow { .. }) {
+            continue;
+        }
+        if mentions(argument, &lent) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("argument that names storage another argument lends"),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Whether an expression names any of `slots`, anywhere inside it.
+fn mentions(expression: &Expression, slots: &[usize]) -> bool {
+    match &expression.kind {
+        ExpressionKind::Slot(slot) => slots.contains(slot),
+        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) => false,
+        ExpressionKind::Not(operand)
+        | ExpressionKind::BitwiseNot(operand)
+        | ExpressionKind::Cast(operand)
+        | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::Payload { base: operand, .. }
+        | ExpressionKind::IsCase {
+            subject: operand, ..
+        }
+        | ExpressionKind::Borrow { place: operand, .. } => mentions(operand, slots),
+        ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+            fields.iter().any(|(_, operand)| mentions(operand, slots))
+        }
+        ExpressionKind::Match {
+            subject,
+            arms,
+            default,
+        } => {
+            mentions(subject, slots)
+                || arms.iter().any(|(_, arm)| mentions(arm, slots))
+                || default.as_ref().is_some_and(|arm| mentions(arm, slots))
+        }
+        ExpressionKind::Strict { left, right, .. }
+        | ExpressionKind::ShortCircuit { left, right, .. } => {
+            mentions(left, slots) || mentions(right, slots)
+        }
+        ExpressionKind::Call { arguments, .. } => {
+            arguments.iter().any(|argument| mentions(argument, slots))
+        }
     }
 }

@@ -13,6 +13,8 @@ path = "src/lib.rs"
 # It must never depend on Psi 05, validation, Psi 06 or checked trees.
 [dependencies]
 diagnostics = { path = "../../../foundation/diagnostics" }
+language-core = { path = "../../../foundation/language-core" }
+optimization = { path = "../../../foundation/optimization" }
 proof-admission = { path = "../../proof/admission" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 structure-elaboration = { path = "../structure-elaboration" }
@@ -20,3 +22,4 @@ terminal-check-tables = { path = "../../representations/terminal-psi/check-table
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
+typed-trees = { path = "../../representations/typed-trees" }

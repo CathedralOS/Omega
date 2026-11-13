@@ -921,6 +921,7 @@ mod product {
                         | super::BuildOperation::AssumedBindingContract
                         | super::BuildOperation::WireCompatibilityRequest
                         | super::BuildOperation::TestGroupRegistration
+                        | super::BuildOperation::TestGroupService
                 ),
                 Self::Entry(_) | Self::ProviderReadiness(_) => false,
             }
@@ -1058,7 +1059,10 @@ mod product {
                 (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
                     Some(Role::Requirement)
                 }
-                (Self::TestGroupRegistration, 0) => Some(Role::TestRequirement),
+                (Self::TestGroupRegistration | Self::TestGroupService, 0) => {
+                    Some(Role::TestRequirement)
+                }
+                (Self::TestGroupService, 1) => Some(Role::BoundarySubject),
                 (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
                     Some(Role::Data)
                 }
@@ -1073,7 +1077,8 @@ mod product {
                 Self::NativeBinding => count == 1,
                 Self::ProviderSelection
                 | Self::RepresentationSelection
-                | Self::AssumedBindingContract => count == 2,
+                | Self::AssumedBindingContract
+                | Self::TestGroupService => count == 2,
                 Self::ServiceExclusion
                 | Self::ServiceAudit
                 | Self::BoundaryAcceptance
@@ -1901,6 +1906,9 @@ pub enum BuildOperation {
     // `builder.tests.group<Requirement>()` (wiki/spec/build/testing.md): one
     // exact trait machine requirement registered as a test group.
     TestGroupRegistration,
+    // `builder.tests.service<Group, Slot>()` (wiki/spec/build/testing.md): a
+    // registered group's runner-supplied backing for one exact service slot.
+    TestGroupService,
 }
 pub fn is_unresolved_provider_selection_call(
     target: &str,
@@ -1911,6 +1919,12 @@ pub fn is_unresolved_provider_selection_call(
 }
 
 impl BuildOperation {
+    /// The operations authored on the Build's `tests` facet
+    /// (`builder.tests.group<…>()`, `builder.tests.service<…>()`), which that
+    /// facet, not the Build value, authorizes.
+    pub const fn uses_tests_facet(self) -> bool {
+        matches!(self, Self::TestGroupRegistration | Self::TestGroupService)
+    }
     pub const fn has_designated_operands(self) -> bool {
         self.selects_product_declarations() || matches!(self, Self::ProviderReadiness)
     }
@@ -1926,10 +1940,11 @@ impl BuildOperation {
                 | Self::RepresentationSelection
                 | Self::AssumedBindingContract
                 | Self::TestGroupRegistration
+                | Self::TestGroupService
         )
     }
 
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::ProviderReadiness,
         Self::ProviderSelection,
         Self::AssumedBindingContract,
@@ -1944,6 +1959,7 @@ impl BuildOperation {
         Self::LogWriteLine,
         Self::NativeBinding,
         Self::TestGroupRegistration,
+        Self::TestGroupService,
     ];
 
     pub const fn authored_spelling(self) -> &'static str {
@@ -1962,6 +1978,7 @@ impl BuildOperation {
             Self::IncludedSourceHandoff => "include_source",
             Self::LogWriteLine => "write_line",
             Self::TestGroupRegistration => "group",
+            Self::TestGroupService => "service",
         }
     }
 
@@ -2007,6 +2024,7 @@ impl BuildOperation {
             Self::TestGroupRegistration => {
                 AuthoredDeclarationSelectionIntrinsic::BuildTestGroupRegistration
             }
+            Self::TestGroupService => AuthoredDeclarationSelectionIntrinsic::BuildTestGroupService,
         }
     }
 }
@@ -2032,6 +2050,7 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildServiceExclusion,
     BuildServiceAudit,
     BuildTestGroupRegistration,
+    BuildTestGroupService,
     BuildOptimizationSelection,
     BuildOptimizationReportRequest,
     BuildBoundaryAcceptance,
@@ -3012,8 +3031,8 @@ mod tests {
             "assume_binding_contract#WritableMemory::claim",
             "enable#Fast",
             "exclude_crash",
-            "depend",
-            "depend_as",
+            "dependency",
+            "build_dependency",
             "as_slice",
             "len",
             "select_providers",
@@ -3031,4 +3050,41 @@ mod tests {
             );
         }
     }
+}
+
+// Build's settled selection rows for assumed bindings, native bindings and
+// program-entry roots. They are plain records over symbols, spans and the
+// selection vocabulary above, so they live with that vocabulary: the Psi
+// collectors that produce them and the Omega planners that consume them both
+// name them here, and neither has to import the other to share a row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssumedBindingContract {
+    pub required: SymbolHandle,
+    pub supplied: SymbolHandle,
+    pub selecting_machine: SymbolHandle,
+    pub source_span: SourceSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeBindingSelection {
+    pub subject: SymbolHandle,
+    pub requirement: SymbolHandle,
+    /// Portable identity of the owning boundary's closed application
+    /// (`Owner<Arguments>`); `None` for a boundary without parameters.
+    /// Provider planning keys the supplied slot on it, so a use at
+    /// another application finds no supply from this row.
+    pub application_identity: Option<String>,
+    pub target: ProductTarget,
+    pub locator: semantic_vocabulary::NativeBindingLocator,
+    pub producer: NativeBindingProducer,
+    pub source_occurrence_digest: [u8; 32],
+    pub supplier_package: semantic_vocabulary::PackageKeyIdentity,
+    pub source_span: SourceSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RootBinding {
+    pub slot: String,
+    pub implementation: String,
+    pub implementation_symbol: SymbolHandle,
 }

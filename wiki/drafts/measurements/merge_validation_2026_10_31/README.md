@@ -67,7 +67,7 @@ progress PRs. Pinned qualification is conditional rather than a universal
 per-PR ceremony. Reviews stay focused on changed meaning and controls; evidence
 lives in the existing PR/claim rather than accumulating another framework.
 
-[Landing instructions](../../../../tools/landing.md#mark-ready-and-enqueue-when-the-change-can-merge)
+[Landing instructions](../../../../tools/landing.md#squash-merge-after-admission)
 require proceeding to the normal queue when the scoped checks and required
 review pass. Incoming main or queue movement alone never starts another local
 build. Extended failures stay visible, with their actual identities and scope.

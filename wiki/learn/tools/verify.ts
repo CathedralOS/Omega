@@ -16,7 +16,7 @@
 // `accept`, and `omega update --resume` publishes the lock. That ceremony
 // re-runs only when a check reports missing or stale acceptance.
 //
-// Compiles run in parallel (cap 4): a cold fixture that `depend`s on std takes
+// Compiles run in parallel (cap 4): a cold fixture that registers a dependency on std takes
 // minutes because each fresh package location re-checks the whole dependency
 // closure, so serial is the slow way to pay that cost.
 
@@ -24,8 +24,9 @@ import { chapters } from "../src/chapters";
 import { mkdirSync, writeFileSync, existsSync, rmSync, readFileSync } from "fs";
 import { join } from "path";
 
-const OMEGA = process.env.OMEGA_EXE ?? "C:/SoftwareDevelopmentKits/Omega/target/debug/omega.exe";
-const STD = process.env.OMEGA_STD ?? "C:/SoftwareDevelopmentKits/Omega/source/library/std";
+const REPO = join(import.meta.dir, "..", "..", "..");
+const OMEGA = process.env.OMEGA_EXE ?? join(REPO, "target", "debug", process.platform === "win32" ? "omega.exe" : "omega");
+const STD = process.env.OMEGA_STD ?? join(REPO, "source", "library", "std");
 if (!process.env.OMEGA_LIBRARY_ROOT) process.env.OMEGA_LIBRARY_ROOT = join(STD, "..");
 const JOBS = 4;
 const FIXTURES = join(import.meta.dir, "..", "scratch", "verify");
@@ -87,6 +88,7 @@ for (const ch of chapters) {
     const where = `${ch.id} staff ${si + 1}${staff.title ? ` "${staff.title}"` : ""}`;
     const fig = staff.figure;
     if (fig.kind !== "code") return;
+    if (process.env.ONLY && !where.includes(process.env.ONLY)) return;
 
     const lines = fig.code.split("\n");
     for (const n of staff.notes) {
@@ -127,8 +129,9 @@ for (const ch of chapters) {
       buildCode =
         `machine build(builder: &mut Build) {\n` +
         `    Build::application(builder, "omegalearn_fixture");\n` +
-        `    Build::depend(builder, Source::Path { location: ${JSON.stringify(STD).replace(/\\/g, "/")} });\n` +
-        `    Build::bind(builder, windows_x86_64::ProgramEntry, ${entry});\n` +
+        `    let package_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: ${JSON.stringify(STD).replace(/\\/g, "/")} }));\n` +
+        ["windows_x86_64", "linux_x86_64", "linux_arm64", "macos_arm64"]
+          .map((t) => `    Build::bind(builder, ${t}::ProgramEntry, ${entry});\n`).join("") +
         `}\n`;
       writeFileSync(buildPath, buildCode);
     } else if (existsSync(buildPath)) {

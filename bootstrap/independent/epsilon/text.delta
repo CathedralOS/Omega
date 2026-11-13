@@ -1,0 +1,36 @@
+; Small source constructors keep syntax visible without numeric token codes.
+(def epsilon_emit_spaced ((left Bytes) (right Bytes)) Bytes
+  (bytes_concat left (bytes_concat " " right)))
+
+(def epsilon_emit_call ((name Bytes) (arguments Bytes)) Bytes
+  (bytes_concat "(" (bytes_concat name (bytes_concat " " (bytes_concat arguments ")")))))
+
+(def epsilon_emit_case ((pattern Bytes) (body Bytes)) Bytes
+  (bytes_concat "(" (bytes_concat pattern (bytes_concat " " (bytes_concat body ")\n")))))
+
+(def epsilon_emit_match ((subject Bytes) (cases Bytes)) Bytes
+  (bytes_concat "(match " (bytes_concat subject (bytes_concat "\n" (bytes_concat cases ")")))))
+
+(def epsilon_emit_generated ((role Bytes) (coordinate Int)) Bytes
+  (bytes_concat "ep_" (bytes_concat role (bytes_concat "_" (epsilon_emit_decimal coordinate)))))
+
+(def epsilon_emit_if ((condition Bytes) (yes Bytes) (no Bytes)) Bytes
+  (epsilon_emit_call "if" (epsilon_emit_spaced condition (epsilon_emit_spaced yes no))))
+
+(def epsilon_emit_scalar ((value Bytes)) Bytes
+  (epsilon_emit_call "EpsilonCompiledScalar" value))
+
+(def epsilon_emit_internal_at ((coordinate Int)) Bytes
+  (epsilon_emit_call "EpsilonCompiledInternal" (epsilon_emit_decimal coordinate)))
+
+; Typed scalar evaluation has no generic value/category or store to unpack.
+; A resultless callee in a scalar context contradicts the checked source.
+(def epsilon_emit_scalar_continuation ((coordinate Int)
+  (expression Bytes) (continuation Bytes)) Bytes
+  (let success Bytes (epsilon_emit_case
+    (epsilon_emit_call "EpsilonCompiledScalar" (epsilon_emit_generated "scalar" coordinate))
+    continuation)
+    (let resultless Bytes (epsilon_emit_case "EpsilonCompiledResultless"
+      (epsilon_emit_internal_at coordinate))
+      (epsilon_emit_match expression (bytes_concat success (bytes_concat resultless
+        "((EpsilonCompiledTrap ep_trap) (EpsilonCompiledTrap ep_trap))\n((EpsilonCompiledInternal ep_offset) (EpsilonCompiledInternal ep_offset))\n"))))))

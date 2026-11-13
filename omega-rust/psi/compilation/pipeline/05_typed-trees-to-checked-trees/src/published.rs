@@ -2094,14 +2094,15 @@ pub(crate) mod proof {
             validation.
         */
         use crate::published::proof::outcome_arms::{
-            exact_result_case, outcome_specific_assignment_matches_result,
+            exact_result_case, fact_label, outcome_specific_assignment_matches_result,
             outcome_specific_fact_is_proved,
         };
         use crate::published::proof::proof_output_calls::{
-            intake_call_ensures_propositions, intake_checked_proof_output_propositions,
+            call_parameter_substitutions, intake_call_ensures_propositions,
+            intake_checked_proof_output_propositions,
         };
         use crate::published::proof::proposition_vocabulary::{
-            contract_proposition_labels, lower_checked_proposition_application,
+            contract_proposition_labels, fact_handles, lower_checked_proposition_application,
         };
         use checked_trees::{
             CheckedEvidenceTerm, ContractProofFactKind, ContractProofFactOwner, ProofFacts,
@@ -2587,7 +2588,9 @@ pub(crate) mod proof {
                         if transition.exit == TransitionExit::Ordinary {
                             for target_handle in transition.targets() {
                                 match program.statement_table.transition_target(target_handle) {
-                                    TransitionTargetNode::Named { path, .. } => {
+                                    TransitionTargetNode::Named {
+                                        path, arguments, ..
+                                    } => {
                                         let target = if path.symbol == machine.symbol {
                                             entry.symbol
                                         } else {
@@ -2609,7 +2612,17 @@ pub(crate) mod proof {
                                                 state,
                                                 &unconditional_outputs,
                                                 &assigned,
-                                                None,
+                                                ExitResult::TerminalCall(
+                                                    terminal_call_guarantees(
+                                                        program,
+                                                        proof,
+                                                        path.symbol,
+                                                        program
+                                                            .statement_table
+                                                            .expression_handles(*arguments),
+                                                    )
+                                                    .as_ref(),
+                                                ),
                                                 &known,
                                                 &mut diagnostic_messages,
                                             );
@@ -2624,14 +2637,18 @@ pub(crate) mod proof {
                                             state,
                                             &unconditional_outputs,
                                             &assigned,
-                                            match program
-                                                .statement_table
-                                                .transition_target(target_handle)
-                                            {
-                                                TransitionTargetNode::Value(value) => Some(*value),
-                                                TransitionTargetNode::Terminal => None,
-                                                _ => unreachable!(),
-                                            },
+                                            ExitResult::Value(
+                                                match program
+                                                    .statement_table
+                                                    .transition_target(target_handle)
+                                                {
+                                                    TransitionTargetNode::Value(value) => {
+                                                        Some(*value)
+                                                    }
+                                                    TransitionTargetNode::Terminal => None,
+                                                    _ => unreachable!(),
+                                                },
+                                            ),
                                             &known,
                                             &mut diagnostic_messages,
                                         );
@@ -2662,10 +2679,12 @@ pub(crate) mod proof {
                             state,
                             &unconditional_outputs,
                             &assigned,
-                            statements.last().and_then(|statement| match statement {
-                                StatementNode::Expression(expression) => Some(*expression),
-                                _ => None,
-                            }),
+                            ExitResult::Value(statements.last().and_then(
+                                |statement| match statement {
+                                    StatementNode::Expression(expression) => Some(*expression),
+                                    _ => None,
+                                },
+                            )),
                             &known,
                             &mut diagnostic_messages,
                         );
@@ -2690,10 +2709,42 @@ pub(crate) mod proof {
             state: &typed_trees::state::State,
             outputs: &[arena::Handle<CheckedEvidenceTerm>],
             assigned: &std::collections::BTreeMap<u32, Option<arena::Handle<CheckedEvidenceTerm>>>,
-            result: Option<typed_trees::expression::ExpressionHandle>,
+            exit: ExitResult<'_>,
             known: &std::collections::BTreeSet<String>,
             messages: &mut std::collections::BTreeSet<String>,
         ) {
+            // A call in result position is a terminal call: the callee, not
+            // this machine, produces the result case.
+            let call_value = match exit {
+                ExitResult::Value(Some(value)) => {
+                    match program.expression_table.expression(value) {
+                        typed_trees::expression::ExpressionNode::Call(call) => {
+                            terminal_call_guarantees(
+                                program,
+                                proof,
+                                call.target_symbol,
+                                program.expression_table.expression_handles(call.arguments),
+                            )
+                        }
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+            let exit = match &call_value {
+                Some(callee) => ExitResult::TerminalCall(Some(callee)),
+                None => exit,
+            };
+            let result = match exit {
+                ExitResult::Value(result) => result,
+                ExitResult::TerminalCall(Some(callee)) => {
+                    append_terminal_call_discharge_diagnostics(
+                        program, proof, machine, state, outputs, assigned, callee, messages,
+                    );
+                    return;
+                }
+                ExitResult::TerminalCall(None) => None,
+            };
             for output in outputs {
                 if !assigned.contains_key(&output.arena_index()) {
                     messages.insert(format!(
@@ -2764,6 +2815,272 @@ pub(crate) mod proof {
                     messages.insert(format!(
                         "outcome-specific evidence `{}` is assigned on a nonmatching ordinary exit through {}::{}",
                         term.name, machine.name, state.name
+                    ));
+                }
+            }
+        }
+
+        /// How an ordinary exit produces the machine's result: an expression
+        /// evaluated in this machine, or a terminal call whose callee produces
+        /// it. `TerminalCall(None)` is a call to something that is not a
+        /// checked machine, which publishes no guarantees to discharge from.
+        #[derive(Clone, Copy)]
+        enum ExitResult<'a> {
+            Value(Option<typed_trees::expression::ExpressionHandle>),
+            TerminalCall(Option<&'a TerminalCallGuarantees>),
+        }
+
+        /// The guarantees a terminal call's callee publishes, instantiated at
+        /// the call's arguments. Only the declaring machine assigns its named
+        /// evidence outputs (wiki/spec/language/machines.md,
+        /// `nested-evidence-output-establishment`), so a caller whose exit is a
+        /// terminal call discharges its own guarantees from these and the
+        /// callee's result case. The call's result is the caller's result, so
+        /// `result` stays unsubstituted on both sides.
+        struct TerminalCallGuarantees {
+            callee_name: String,
+            rows: Vec<TerminalCallGuarantee>,
+            /// The result cases the callee's ordinary exits can produce, or
+            /// `None` when some exit is not classifiable. A caller guarantee
+            /// on a case outside this set holds vacuously at this call.
+            result_cases: Option<Vec<(SymbolHandle, SymbolHandle)>>,
+        }
+
+        struct TerminalCallGuarantee {
+            /// `None` for an unconditional guarantee, which holds for every
+            /// result case.
+            result_case: Option<(SymbolHandle, SymbolHandle)>,
+            label: String,
+            /// The guarantee names an evidence output the callee assigns.
+            supplies_evidence: bool,
+        }
+
+        fn terminal_call_guarantees(
+            program: &dyn ::validation::CheckingInput,
+            proof: &ProofFacts,
+            target_symbol: SymbolHandle,
+            arguments: &[typed_trees::expression::ExpressionHandle],
+        ) -> Option<TerminalCallGuarantees> {
+            let (callee, entry) = program
+                .machine_by_symbol(target_symbol)
+                .and_then(|machine| {
+                    program
+                        .machine_states(machine)
+                        .first()
+                        .map(|state| (machine, state))
+                })
+                .or_else(|| validation::find_state(program, target_symbol))?;
+            let substitutions = call_parameter_substitutions(program, entry, arguments);
+            let mut rows = proof
+                .outcome_specific_guarantees
+                .iter()
+                .filter(|(_, row)| row.machine_symbol == callee.symbol)
+                .filter_map(|(_, row)| {
+                    Some(TerminalCallGuarantee {
+                        result_case: Some((row.result_data, row.result_case)),
+                        label: fact_label(program, row.fact, &substitutions)?,
+                        supplies_evidence: row.evidence_term.is_some(),
+                    })
+                })
+                .collect::<Vec<_>>();
+            for contract in program.machine_contracts(callee) {
+                if !matches!(
+                    contract.kind,
+                    typed_trees::signature::SignatureContractKind::Ensures
+                ) {
+                    continue;
+                }
+                rows.extend(fact_handles(contract.facts).filter_map(|fact| {
+                    Some(TerminalCallGuarantee {
+                        result_case: None,
+                        label: fact_label(program, fact, &substitutions)?,
+                        supplies_evidence: contract.binding.is_some(),
+                    })
+                }));
+            }
+            Some(TerminalCallGuarantees {
+                callee_name: callee.name.as_str().to_owned(),
+                rows,
+                result_cases: possible_result_cases(program, callee, &mut Vec::new()),
+            })
+        }
+
+        /// Over-approximate the nominal result cases a machine's ordinary
+        /// exits can produce: every transition target value and trailing
+        /// expression of every state counts, and a terminal call contributes
+        /// its callee's cases. This is a body-derived summary of a callee in
+        /// the same verification unit (`callee-result-body-summary`). Any exit
+        /// that is neither an exact constructor nor a call to a checked machine
+        /// makes the set unknown, so the caller falls back to requiring a
+        /// guarantee for every case. A machine already being summarized adds
+        /// no cases of its own: cases only come from constructors.
+        fn possible_result_cases(
+            program: &dyn ::validation::CheckingInput,
+            machine: &typed_trees::machine::Machine,
+            visiting: &mut Vec<SymbolHandle>,
+        ) -> Option<Vec<(SymbolHandle, SymbolHandle)>> {
+            use typed_trees::expression::ExpressionNode;
+            use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+
+            if visiting.contains(&machine.symbol) {
+                return Some(Vec::new());
+            }
+            visiting.push(machine.symbol);
+            let states = program.machine_states(machine);
+            let mut cases = Vec::new();
+            let call_cases = |target_symbol: SymbolHandle,
+                              cases: &mut Vec<(SymbolHandle, SymbolHandle)>,
+                              visiting: &mut Vec<SymbolHandle>|
+             -> Option<()> {
+                if target_symbol == machine.symbol
+                    || typed_trees::state::state_by_symbol(states, target_symbol).is_some()
+                {
+                    return Some(());
+                }
+                let callee = program.machine_by_symbol(target_symbol).or_else(|| {
+                    validation::find_state(program, target_symbol).map(|(machine, _)| machine)
+                })?;
+                for case in possible_result_cases(program, callee, visiting)? {
+                    if !cases.contains(&case) {
+                        cases.push(case);
+                    }
+                }
+                Some(())
+            };
+            let value_cases = |value: typed_trees::expression::ExpressionHandle,
+                               cases: &mut Vec<(SymbolHandle, SymbolHandle)>,
+                               visiting: &mut Vec<SymbolHandle>|
+             -> Option<()> {
+                if let ExpressionNode::Call(call) = program.expression_table.expression(value) {
+                    return call_cases(call.target_symbol, cases, visiting);
+                }
+                let case = exact_result_case(program, value)?;
+                if !cases.contains(&case) {
+                    cases.push(case);
+                }
+                Some(())
+            };
+            let summary = states.iter().try_for_each(|state| {
+                let statements = program.statement_table.statements(state.statement_nodes);
+                for statement in statements {
+                    let Some(transition) = statement.as_transition() else {
+                        continue;
+                    };
+                    if transition.exit != TransitionExit::Ordinary {
+                        continue;
+                    }
+                    for target in transition.targets() {
+                        match program.statement_table.transition_target(target) {
+                            TransitionTargetNode::Named { path, .. } => {
+                                call_cases(path.symbol, &mut cases, visiting)?
+                            }
+                            TransitionTargetNode::Value(value) => {
+                                value_cases(*value, &mut cases, visiting)?
+                            }
+                            TransitionTargetNode::Terminal => {}
+                        }
+                    }
+                }
+                if let Some(StatementNode::Expression(expression)) = statements.last() {
+                    value_cases(*expression, &mut cases, visiting)?;
+                }
+                Some(())
+            });
+            visiting.pop();
+            summary.map(|()| cases)
+        }
+
+        /// Discharge each guarantee the caller owes on a terminal-call exit
+        /// from a callee guarantee with the same instantiated fact on the same
+        /// result case (or on every case). A caller output that the callee
+        /// does not guarantee stays unassigned: the caller cannot assign it
+        /// either, because the callee alone decides the result case.
+        #[allow(clippy::too_many_arguments)]
+        fn append_terminal_call_discharge_diagnostics(
+            program: &dyn ::validation::CheckingInput,
+            proof: &ProofFacts,
+            machine: &typed_trees::machine::Machine,
+            state: &typed_trees::state::State,
+            outputs: &[arena::Handle<CheckedEvidenceTerm>],
+            assigned: &std::collections::BTreeMap<u32, Option<arena::Handle<CheckedEvidenceTerm>>>,
+            callee: &TerminalCallGuarantees,
+            messages: &mut std::collections::BTreeSet<String>,
+        ) {
+            let discharged =
+                |case: Option<(SymbolHandle, SymbolHandle)>, label: &str, needs_evidence: bool| {
+                    callee.rows.iter().any(|row| {
+                        (row.result_case.is_none() || row.result_case == case)
+                            && row.label == label
+                            && (row.supplies_evidence || !needs_evidence)
+                    })
+                };
+            for output in outputs {
+                if assigned.contains_key(&output.arena_index()) {
+                    continue;
+                }
+                let term = proof.evidence_terms.get(*output);
+                let facts = program
+                    .machine_contracts(machine)
+                    .iter()
+                    .filter(|contract| {
+                        matches!(
+                            contract.kind,
+                            typed_trees::signature::SignatureContractKind::Ensures
+                        ) && contract
+                            .binding
+                            .as_ref()
+                            .is_some_and(|binding| binding.as_str() == term.name)
+                    })
+                    .flat_map(|contract| fact_handles(contract.facts))
+                    .collect::<Vec<_>>();
+                let supplied = !facts.is_empty()
+                    && facts.iter().all(|fact| {
+                        fact_label(program, *fact, &[])
+                            .is_some_and(|label| discharged(None, &label, true))
+                    });
+                if !supplied {
+                    messages.insert(format!(
+                        "named ensures evidence `{}` is not definitely assigned on the ordinary exit through {}::{}; the terminal call to `{}` does not guarantee it",
+                        term.name, machine.name, state.name, callee.callee_name
+                    ));
+                }
+            }
+            for (_, row) in proof
+                .outcome_specific_guarantees
+                .iter()
+                .filter(|(_, row)| row.machine_symbol == machine.symbol)
+            {
+                let case_is_unreachable = callee
+                    .result_cases
+                    .as_ref()
+                    .is_some_and(|cases| !cases.contains(&(row.result_data, row.result_case)));
+                if case_is_unreachable {
+                    continue;
+                }
+                if let Some(output) = row.evidence_term
+                    && assigned.contains_key(&output.arena_index())
+                {
+                    messages.insert(format!(
+                        "outcome-specific evidence `{}` is assigned before the terminal call to `{}` on exit through {}::{}; the callee's result case decides it",
+                        proof.evidence_terms.get(output).name,
+                        callee.callee_name,
+                        machine.name,
+                        state.name
+                    ));
+                    continue;
+                }
+                let supplied = row.fact_is_truth && row.evidence_term.is_none()
+                    || fact_label(program, row.fact, &[]).is_some_and(|label| {
+                        discharged(
+                            Some((row.result_data, row.result_case)),
+                            &label,
+                            row.evidence_term.is_some(),
+                        )
+                    });
+                if !supplied {
+                    messages.insert(format!(
+                        "cannot discharge outcome-specific guarantee on exit through {}::{} from the terminal call to `{}`; the callee must guarantee the same fact on that result case",
+                        machine.name, state.name, callee.callee_name
                     ));
                 }
             }
@@ -4940,6 +5257,31 @@ pub(crate) mod proof {
                 .then_some((data_symbol, case_symbol))
         }
 
+        /// The normalized label of a proof fact with `substitutions` applied,
+        /// in the vocabulary `known` uses: `boolean:` plus the rendered
+        /// expression, or the normalized proposition identity. Membership
+        /// facts have no label.
+        pub(crate) fn fact_label(
+            program: &dyn ::validation::CheckingInput,
+            fact: arena::Handle<typed_trees::domain::ProofFact>,
+            substitutions: &[(SymbolHandle, String, String)],
+        ) -> Option<String> {
+            use typed_trees::domain::ProofFact;
+            match program.proof_facts.get(fact) {
+                ProofFact::Expression(expression) => Some(format!(
+                    "boolean:{}",
+                    program.render_proof_expression(
+                        *expression,
+                        ProofSubstitutions::ByParameter(substitutions)
+                    )
+                )),
+                ProofFact::Proposition(application) => {
+                    proposition_application_label(program, application, substitutions)
+                }
+                ProofFact::Membership(_) => None,
+            }
+        }
+
         pub(crate) fn outcome_specific_fact_is_proved(
             program: &dyn ::validation::CheckingInput,
             fact: arena::Handle<typed_trees::domain::ProofFact>,
@@ -6058,6 +6400,34 @@ pub(crate) mod proof {
             }
         }
 
+        /// Substitute each of a callee entry state's parameters by the rendered
+        /// argument a call passes for it, so the callee's contracts read in the
+        /// caller's terms. A parameter without an argument keeps its name.
+        pub(crate) fn call_parameter_substitutions(
+            program: &dyn ::validation::CheckingInput,
+            state: &typed_trees::state::State,
+            arguments: &[typed_trees::expression::ExpressionHandle],
+        ) -> Vec<(SymbolHandle, String, String)> {
+            program
+                .state_parameters(state)
+                .iter()
+                .enumerate()
+                .map(|(index, parameter)| {
+                    let replacement = arguments
+                        .get(index)
+                        .map(|argument| {
+                            program.render_proof_expression(*argument, ProofSubstitutions::None)
+                        })
+                        .unwrap_or_else(|| parameter.name.as_str().to_owned());
+                    (
+                        parameter.symbol,
+                        parameter.name.as_str().to_owned(),
+                        replacement,
+                    )
+                })
+                .collect()
+        }
+
         pub(crate) fn intake_call_ensures_propositions(
             program: &dyn ::validation::CheckingInput,
             call: &typed_trees::statement::TableCall,
@@ -6075,33 +6445,11 @@ pub(crate) mod proof {
             else {
                 return;
             };
-            let parameters = program.state_parameters(state);
-            let arguments = program.statement_table.expression_handles(call.arguments);
-            let _receiver = typed_trees::expression::display_name_path(
-                program.statement_table.name_path_members(call.receiver),
-                "::",
+            let substitutions = call_parameter_substitutions(
+                program,
+                state,
+                program.statement_table.expression_handles(call.arguments),
             );
-            let mut argument_index = 0usize;
-            let substitutions = parameters
-                .iter()
-                .map(|parameter| {
-                    let replacement = {
-                        let label = arguments
-                            .get(argument_index)
-                            .map(|argument| {
-                                program.render_proof_expression(*argument, ProofSubstitutions::None)
-                            })
-                            .unwrap_or_else(|| parameter.name.as_str().to_owned());
-                        argument_index = argument_index.saturating_add(1);
-                        label
-                    };
-                    (
-                        parameter.symbol,
-                        parameter.name.as_str().to_owned(),
-                        replacement,
-                    )
-                })
-                .collect::<Vec<_>>();
             known.extend(contract_proposition_labels(
                 program,
                 program.machine_contracts(callee),
@@ -8847,6 +9195,13 @@ pub(crate) mod semantic {
                     initializer enters here; a type annotation or a borrowed zero pointer is
                     never a source of value observations. Normal mutation invalidation owns the
                     lifetime of each independent tag, just as it does constructor-written tags.
+
+                    A fixed array forms every element alike, so its tags are one
+                    `ZeroCaseElements` fact per case position inside the element rather than
+                    one `CaseValue` per element: a 131,072-element table costs the same as a
+                    single value. Only an array nested inside such an element still spells
+                    its own indices, because the element path of the outer fact is one
+                    static suffix.
                 */
                 use facts::{
                     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceSegment, ProgramPoint,
@@ -8861,6 +9216,8 @@ pub(crate) mod semantic {
                 struct ZeroCase {
                     path: Vec<PlaceSegment>,
                     variant: SymbolHandle,
+                    /* Element count and in-element path when `path` names a whole array. */
+                    elements: Option<(usize, Vec<PlaceSegment>)>,
                 }
 
                 pub(super) fn append(
@@ -8883,6 +9240,7 @@ pub(crate) mod semantic {
                         reference,
                         &mut Vec::new(),
                         &mut Vec::new(),
+                        false,
                         &mut rows,
                     );
                     for row in rows {
@@ -8890,15 +9248,30 @@ pub(crate) mod semantic {
                         for segment in row.path {
                             facts.push_place_segment(place, segment);
                         }
+                        let payload = match row.elements {
+                            None => FactPayload::CaseValue {
+                                variant: row.variant,
+                                value: true,
+                            },
+                            Some((length, element_path)) => {
+                                let mut element = arena::HandleSpan::empty();
+                                for segment in element_path {
+                                    facts.place_segments.append_to_span(&mut element, segment);
+                                }
+                                FactPayload::ZeroCaseElements {
+                                    first: 0,
+                                    end: length,
+                                    element,
+                                    variant: row.variant,
+                                }
+                            }
+                        };
                         facts.append_fact_context(Fact {
                             place: FactPlace::Place(place),
                             point,
                             origin: FactOrigin::StatementTransfer,
                             evidence,
-                            payload: FactPayload::CaseValue {
-                                variant: row.variant,
-                                value: true,
-                            },
+                            payload,
                         });
                     }
                 }
@@ -8908,6 +9281,7 @@ pub(crate) mod semantic {
                     reference: TypeReferenceHandle,
                     path: &mut Vec<PlaceSegment>,
                     visited: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+                    inside_array_element: bool,
                     rows: &mut Vec<ZeroCase>,
                 ) {
                     let carrier = validation::peel_declared_constraints(program, reference);
@@ -8926,9 +9300,15 @@ pub(crate) mod semantic {
                             *element_type,
                             &mut Vec::new(),
                             visited,
+                            true,
                             &mut element_rows,
                         );
-                        if element_rows.is_empty() {
+                        if !inside_array_element {
+                            rows.extend(element_rows.into_iter().map(|row| ZeroCase {
+                                path: path.clone(),
+                                variant: row.variant,
+                                elements: Some((*length, row.path)),
+                            }));
                             return;
                         }
                         for index in 0..*length {
@@ -8941,6 +9321,7 @@ pub(crate) mod semantic {
                                 rows.push(ZeroCase {
                                     path: placed,
                                     variant: row.variant,
+                                    elements: None,
                                 });
                             }
                         }
@@ -8975,7 +9356,14 @@ pub(crate) mod semantic {
                         {
                             let prefix = path.len();
                             validation::push_field_place_segments(program, path, field.symbol);
-                            collect(program, field.type_reference, path, visited, rows);
+                            collect(
+                                program,
+                                field.type_reference,
+                                path,
+                                visited,
+                                inside_array_element,
+                                rows,
+                            );
                             path.truncate(prefix);
                         }
                     }
@@ -8987,6 +9375,7 @@ pub(crate) mod semantic {
                         rows.push(ZeroCase {
                             path: path.clone(),
                             variant: variant.symbol,
+                            elements: None,
                         });
                         for field in program.data_payload_fields(variant) {
                             if field.relevance.is_erased() {
@@ -8994,7 +9383,14 @@ pub(crate) mod semantic {
                             }
                             let prefix = path.len();
                             validation::push_field_place_segments(program, path, field.symbol);
-                            collect(program, field.type_reference, path, visited, rows);
+                            collect(
+                                program,
+                                field.type_reference,
+                                path,
+                                visited,
+                                inside_array_element,
+                                rows,
+                            );
                             path.truncate(prefix);
                         }
                     }

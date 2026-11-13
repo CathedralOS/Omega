@@ -18,28 +18,28 @@ There is deliberately no wrapper that relabels that one command as a complete
 chain run or prints ceremonial status for compiler edges that do not exist.
 
 `tools/bootstrap/alpha/seed_env.sh` binds the exact size and SHA-256 of the
-selected audited Alpha container from the `bootstrap/0_alpha/README.md`
+selected audited Alpha container from the `bootstrap/interpreted/0_alpha/README.md`
 retention inventory; `stamp_seed` refuses to carry any other bytes.
 `tools/bootstrap/beta/artifact_env.sh` binds the exact size and SHA-256 of
 `beta_compiler.beta` and `beta_compiler_bytecode.tape` and refuses to
 materialize any other bytes; those identities are those audited in
-`bootstrap/1_beta/AUDIT.md` and decoded by `tests/beta/compiler/root-audit.py`.
+`bootstrap/interpreted/1_beta/AUDIT.md` and decoded by `tests/beta/compiler/root-audit.py`.
 `tools/bootstrap/gamma/evaluator_env.sh` binds `gamma_evaluator.beta` and
 `gamma_evaluator_bytecode.tape` the same way against
-`bootstrap/2_gamma/EVALUATOR_PROFILE.md`. A digest match is an identity check,
+`bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md`. A digest match is an identity check,
 not a proof.
 
 `tools/bootstrap/delta/compiler_env.sh` binds the Delta edge's request entry,
 source manifest, ordered support-member manifest, `GammaComposedV2` record,
 and repacked canonical closure and packed support section the same way
-against `bootstrap/3_delta/README.md` and `delta_compiler.composed`;
+against `bootstrap/interpreted/3_delta/README.md` and `delta_compiler.composed`;
 it also checks the record names the selected evaluator tape, packed
 closure, and packed support section. The same env binds the staged-compiler
 gate's `development_driver.gamma` diagnostic entry that packs on top of the
 bound member bytes; `tests/bootstrap/delta-identity.sh` covers its refusals.
 `tools/bootstrap/epsilon/evaluator_env.sh` binds the
 `epsilon_compiler.delta.sources` manifest and repacked evaluator closure
-against `bootstrap/4_epsilon/README.md`. Both refuse before writing when the
+against `bootstrap/interpreted/4_epsilon/README.md`. Both refuse before writing when the
 bound bytes differ, including a changed manifest or member. The same env binds
 the canonical `execution_driver.delta` slice adapter and the evaluator receipt
 identity that the bound Delta edge reconstructs from the bound evaluator,
@@ -48,13 +48,13 @@ driver and receipt refusals and every consuming gate's record.
 
 `tools/bootstrap/omega/compiler_env.sh` binds the
 `omega_compiler.epsilon.sources` manifest and repacked D closure against
-`bootstrap/5_omega/README.md` the same way, plus the gate-local customer
+`bootstrap/interpreted/5_omega/README.md` the same way, plus the gate-local customer
 entries the omega-parser, omega-outcome, omega-request, and omega-executable
 gates append on top of the bound member bytes, and the omega-request gate's
 canonical sealed request fixture, each recorded in its gate's README.
 The same env binds D's OCREQ request entry — `program.omg`, the canonical
-174-byte Omega source the request names as the compilation subject, SHA-256
-`b880031336a824e41ce6021dda44e1a64aaa9e849a6b25ab658ea6fc612c1b2e` — a
+180-byte Omega source the request names as the compilation subject, SHA-256
+`9cc2d065cf33e3a9de241d061f407665892f7171a431936a0e5ad9e5d3eeea85` — a
 separate input fed to the bound customer as sealed bytes, not a manifested
 member.
 `tools/bootstrap/proofs/sources_env.sh` binds the

@@ -1,12 +1,3 @@
-use psi::resolution::resolution;
-use psi::source::source;
-use psi::syntax::syntax;
-use psi::types::types;
-use psi::typing::binders;
-use psi::typing::landing;
-use psi::typing::references;
-use psi::typing::typer;
-
 // Generic substitution and inference over the interned type table
 // (wiki/spec/language/generics.md). Bindings map generic-parameter handles to
 // types; a binding is live while its stamp equals the typer's binding
@@ -19,11 +10,11 @@ use psi::typing::typer;
 // subtree once.
 
 // A fresh binding set.
-public machine Typer::begin_bindings(typer: &mut Typer) {
+public machine begin_bindings(typer: &mut Typer) {
     typer.binding_generation = typer.binding_generation + 1;
 }
 
-public machine Typer::bind(typer: &mut Typer, parameter: u64 in Trapping, handle: u64 in Trapping)
+public machine typer_bind(typer: &mut Typer, parameter: u64 in Trapping, handle: u64 in Trapping)
 crashes Trap
 {
     transition parameter < 256 {
@@ -42,7 +33,7 @@ crashes Trap
 }
 
 // The type bound to `parameter` in the live set, or zero.
-public machine Typer::bound_type(typer: &Typer, parameter: u64 in Trapping) -> u64 in Trapping
+public machine bound_type(typer: &Typer, parameter: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition parameter < 256 {
@@ -70,7 +61,7 @@ crashes Trap
 
 // Bind the generic parameters of data type `owner`'s declaration to its
 // arguments, in the order an application spells them (lifetimes aside).
-public machine Typer::bind_data_arguments(typer: &mut Typer, syntax: &SyntaxTrees, owner: TypeRow)
+public machine bind_data_arguments(typer: &mut Typer, syntax: &SyntaxTrees, owner: TypeRow)
 crashes Trap
 {
     transition owner.kind == TypeKind::Data && owner.argument_count > 0 {
@@ -79,7 +70,7 @@ crashes Trap
     }
 
     machine declared(typer: &mut Typer, syntax: &SyntaxTrees, owner: TypeRow) {
-        let item: DataItem = SyntaxTrees::data_item(syntax, owner.item);
+        let item: DataItem = syntax_trees_data_item(syntax, owner.item);
         transition { _ -> next(typer, syntax, owner, item, 0, 0) }
     }
 
@@ -92,7 +83,7 @@ crashes Trap
 
     machine parameter(typer: &mut Typer, syntax: &SyntaxTrees, owner: TypeRow, item: DataItem, offset: u64 in Trapping, position: u64 in Trapping) {
         let handle: u64 in Trapping = item.first_generic_parameter + offset;
-        let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, handle);
+        let generic: GenericParameter = syntax_trees_generic_parameter(syntax, handle);
         transition generic.kind == GenericParameterKind::Lifetime {
             true -> next(typer, syntax, owner, item, offset + 1, position)
             _ -> bound(typer, syntax, owner, item, offset, position, handle)
@@ -100,8 +91,8 @@ crashes Trap
     }
 
     machine bound(typer: &mut Typer, syntax: &SyntaxTrees, owner: TypeRow, item: DataItem, offset: u64 in Trapping, position: u64 in Trapping, handle: u64 in Trapping) {
-        let argument: u64 in Trapping = TypeTable::argument(&typer.output.types, owner.first_argument + position);
-        Typer::bind(typer, handle, argument);
+        let argument: u64 in Trapping = type_table_argument(&typer.output.types, owner.first_argument + position);
+        typer_bind(typer, handle, argument);
         transition { _ -> next(typer, syntax, owner, item, offset + 1, position + 1) }
     }
 
@@ -111,7 +102,7 @@ crashes Trap
 // Whether every non-lifetime generic parameter in `first .. first + count`
 // is bound in the live set: a machine binder to a static argument
 // (binders.omg), any other to a type.
-public machine Typer::all_bound(typer: &Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
+public machine all_bound(typer: &Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> next(typer, syntax, first, count, 0) }
@@ -124,10 +115,10 @@ crashes Trap
     }
 
     machine parameter(typer: &Typer, syntax: &SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) -> bool {
-        let generic: GenericParameter = SyntaxTrees::generic_parameter(syntax, first + offset);
-        let bound: u64 in Trapping = Typer::bound_type(typer, first + offset);
-        let argument: MachineArgument = Typer::machine_bound(typer, first + offset);
-        let selected: bool = Typer::selects_machine_argument(argument);
+        let generic: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
+        let bound: u64 in Trapping = bound_type(typer, first + offset);
+        let argument: MachineArgument = machine_bound(typer, first + offset);
+        let selected: bool = selects_machine_argument(argument);
         let machine: bool = generic.kind == GenericParameterKind::Machine && selected;
         transition generic.kind == GenericParameterKind::Lifetime || bound > 0 || machine {
             true -> next(typer, syntax, first, count, offset + 1)
@@ -146,11 +137,11 @@ crashes Trap
 
 // `handle` with every generic parameter bound in the live set replaced.
 // Unbound parameters stay as written.
-public machine Typer::substitute_bound(typer: &mut Typer, handle: u64 in Trapping, source_span: SourceSpan) -> u64 in Trapping
+public machine substitute_bound(typer: &mut Typer, handle: u64 in Trapping, source_span: SourceSpan) -> u64 in Trapping
 crashes Trap
 {
     typer.memo_generation = typer.memo_generation + 1;
-    Typer::work_store(typer, 0, handle * 2);
+    work_store(typer, 0, handle * 2);
     transition { _ -> next(typer, handle, source_span, 1) }
 
     machine next(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping) -> u64 in Trapping {
@@ -161,10 +152,10 @@ crashes Trap
     }
 
     machine visit(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping) -> u64 in Trapping {
-        let entry: u64 in Trapping = Typer::work_load(typer, depth);
+        let entry: u64 in Trapping = work_load(typer, depth);
         let current: u64 in Trapping = entry / 2;
         let expanded: bool = entry % 2 == 1;
-        let memoized: bool = Typer::memoized(typer, current);
+        let memoized: bool = typer_memoized(typer, current);
         transition memoized {
             true -> next(typer, root, source_span, depth)
             _ -> examine(typer, root, source_span, depth, current, expanded)
@@ -172,7 +163,7 @@ crashes Trap
     }
 
     machine examine(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, expanded: bool) -> u64 in Trapping {
-        let row: TypeRow = TypeTable::row(&typer.output.types, current);
+        let row: TypeRow = type_table_row(&typer.output.types, current);
         transition row.kind {
             TypeKind::GenericParameter -> parameter(typer, root, source_span, depth, current, row)
             TypeKind::Reference -> wrapper(typer, root, source_span, depth, current, row, expanded)
@@ -184,7 +175,7 @@ crashes Trap
     }
 
     machine parameter(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
-        let bound: u64 in Trapping = Typer::bound_type(typer, row.item);
+        let bound: u64 in Trapping = bound_type(typer, row.item);
         transition bound > 0 {
             true -> remember(typer, root, source_span, depth, current, bound)
             _ -> remember(typer, root, source_span, depth, current, current)
@@ -192,7 +183,7 @@ crashes Trap
     }
 
     machine remember(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, mapped: u64 in Trapping) -> u64 in Trapping {
-        Typer::memo_store(typer, current, mapped);
+        memo_store(typer, current, mapped);
         transition { _ -> next(typer, root, source_span, depth) }
     }
 
@@ -205,20 +196,20 @@ crashes Trap
     }
 
     machine expand_array(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
-        Typer::work_store(typer, depth, current * 2 + 1);
-        Typer::work_store(typer, depth + 1, row.inner * 2);
-        Typer::work_store(typer, depth + 2, row.length * 2);
+        work_store(typer, depth, current * 2 + 1);
+        work_store(typer, depth + 1, row.inner * 2);
+        work_store(typer, depth + 2, row.length * 2);
         transition { _ -> next(typer, root, source_span, depth + 3) }
     }
 
     machine rearray(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
-        let inner: u64 in Trapping = Typer::memo_load(typer, row.inner);
-        let length: u64 in Trapping = Typer::memo_load(typer, row.length);
-        let mut wrapped: TypeRow = TypeRow::of(row.kind);
+        let inner: u64 in Trapping = memo_load(typer, row.inner);
+        let length: u64 in Trapping = memo_load(typer, row.length);
+        let mut wrapped: TypeRow = type_row_of(row.kind);
         wrapped.domain = row.domain;
         wrapped.length = length;
         wrapped.inner = inner;
-        let handle: u64 in Trapping = Typer::intern(typer, wrapped, source_span);
+        let handle: u64 in Trapping = typer_intern(typer, wrapped, source_span);
         transition { _ -> remember(typer, root, source_span, depth, current, handle) }
     }
 
@@ -231,18 +222,18 @@ crashes Trap
     }
 
     machine expand_wrapper(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
-        Typer::work_store(typer, depth, current * 2 + 1);
-        Typer::work_store(typer, depth + 1, row.inner * 2);
+        work_store(typer, depth, current * 2 + 1);
+        work_store(typer, depth + 1, row.inner * 2);
         transition { _ -> next(typer, root, source_span, depth + 2) }
     }
 
     machine rewrap(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
-        let inner: u64 in Trapping = Typer::memo_load(typer, row.inner);
-        let mut wrapped: TypeRow = TypeRow::of(row.kind);
+        let inner: u64 in Trapping = memo_load(typer, row.inner);
+        let mut wrapped: TypeRow = type_row_of(row.kind);
         wrapped.access = row.access;
         wrapped.domain = row.domain;
         wrapped.inner = inner;
-        let handle: u64 in Trapping = Typer::intern(typer, wrapped, source_span);
+        let handle: u64 in Trapping = typer_intern(typer, wrapped, source_span);
         transition { _ -> remember(typer, root, source_span, depth, current, handle) }
     }
 
@@ -255,7 +246,7 @@ crashes Trap
     }
 
     machine expand_data(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
-        Typer::work_store(typer, depth, current * 2 + 1);
+        work_store(typer, depth, current * 2 + 1);
         transition { _ -> push_arguments(typer, root, source_span, depth + 1, row, 0) }
     }
 
@@ -267,8 +258,8 @@ crashes Trap
     }
 
     machine push_argument(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, row: TypeRow, offset: u64 in Trapping) -> u64 in Trapping {
-        let argument: u64 in Trapping = TypeTable::argument(&typer.output.types, row.first_argument + offset);
-        Typer::work_store(typer, depth, argument * 2);
+        let argument: u64 in Trapping = type_table_argument(&typer.output.types, row.first_argument + offset);
+        work_store(typer, depth, argument * 2);
         transition { _ -> push_arguments(typer, root, source_span, depth + 1, row, offset + 1) }
     }
 
@@ -287,9 +278,9 @@ crashes Trap
     }
 
     machine reapply_push(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow, first: u64 in Trapping, offset: u64 in Trapping) -> u64 in Trapping {
-        let argument: u64 in Trapping = TypeTable::argument(&typer.output.types, row.first_argument + offset);
-        let mapped: u64 in Trapping = Typer::memo_load(typer, argument);
-        let kept: bool = TypeTable::push_argument(&mut typer.output.types, mapped);
+        let argument: u64 in Trapping = type_table_argument(&typer.output.types, row.first_argument + offset);
+        let mapped: u64 in Trapping = memo_load(typer, argument);
+        let kept: bool = type_table_push_argument(&mut typer.output.types, mapped);
         transition kept {
             true -> reapply_argument(typer, root, source_span, depth, current, row, first, offset + 1)
             _ -> full(typer, source_span)
@@ -297,16 +288,16 @@ crashes Trap
     }
 
     machine reapplied(typer: &mut Typer, root: u64 in Trapping, source_span: SourceSpan, depth: u64 in Trapping, current: u64 in Trapping, row: TypeRow, first: u64 in Trapping) -> u64 in Trapping {
-        let mut applied: TypeRow = TypeRow::of(TypeKind::Data);
+        let mut applied: TypeRow = type_row_of(TypeKind::Data);
         applied.item = row.item;
         applied.first_argument = first;
         applied.argument_count = row.argument_count;
-        let handle: u64 in Trapping = Typer::intern(typer, applied, source_span);
+        let handle: u64 in Trapping = typer_intern(typer, applied, source_span);
         transition { _ -> remember(typer, root, source_span, depth, current, handle) }
     }
 
     machine full(typer: &mut Typer, source_span: SourceSpan) -> u64 in Trapping {
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, source_span);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::TypeCapacityExceeded, source_span);
         transition { _ -> failed() }
     }
 
@@ -315,7 +306,7 @@ crashes Trap
     }
 
     machine result(typer: &mut Typer, root: u64 in Trapping) -> u64 in Trapping {
-        let mapped: u64 in Trapping = Typer::memo_load(typer, root);
+        let mapped: u64 in Trapping = memo_load(typer, root);
         mapped
     }
 }
@@ -325,11 +316,11 @@ crashes Trap
 // shared-reference parameter matches an owned argument by its referent, as
 // implicit lending admits it. Conflicts are not reported here: the caller
 // admits each argument at the substituted parameter type afterwards.
-public machine Typer::unify(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, parameter: u64 in Trapping, argument: u64 in Trapping)
+public machine typer_unify(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, parameter: u64 in Trapping, argument: u64 in Trapping)
 crashes Trap
 {
-    Typer::work_store(typer, 0, parameter);
-    Typer::work_store(typer, 1, argument);
+    work_store(typer, 0, parameter);
+    work_store(typer, 1, argument);
     transition { _ -> next(typer, first, count, 2) }
 
     machine next(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping) {
@@ -340,10 +331,10 @@ crashes Trap
     }
 
     machine pair(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping) {
-        let wanted: u64 in Trapping = Typer::work_load(typer, depth);
-        let given: u64 in Trapping = Typer::work_load(typer, depth + 1);
-        let wanted_row: TypeRow = TypeTable::row(&typer.output.types, wanted);
-        let given_row: TypeRow = TypeTable::row(&typer.output.types, given);
+        let wanted: u64 in Trapping = work_load(typer, depth);
+        let given: u64 in Trapping = work_load(typer, depth + 1);
+        let wanted_row: TypeRow = type_table_row(&typer.output.types, wanted);
+        let given_row: TypeRow = type_table_row(&typer.output.types, given);
         transition wanted_row.kind {
             TypeKind::GenericParameter -> parameter(typer, first, count, depth, wanted_row, given)
             TypeKind::Reference -> reference(typer, first, count, depth, wanted_row, given_row, given)
@@ -355,8 +346,8 @@ crashes Trap
     }
 
     machine parameter(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping, wanted_row: TypeRow, given: u64 in Trapping) {
-        let bound: u64 in Trapping = Typer::bound_type(typer, wanted_row.item);
-        let unlanded: bool = Typer::unlanded(typer, given);
+        let bound: u64 in Trapping = bound_type(typer, wanted_row.item);
+        let unlanded: bool = typer_unlanded(typer, given);
         let concrete: bool = given > 0 && !unlanded;
         transition wanted_row.item >= first && wanted_row.item < first + count && bound == 0 && concrete {
             true -> bind(typer, first, count, depth, wanted_row, given)
@@ -365,7 +356,7 @@ crashes Trap
     }
 
     machine bind(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping, wanted_row: TypeRow, given: u64 in Trapping) {
-        Typer::bind(typer, wanted_row.item, given);
+        typer_bind(typer, wanted_row.item, given);
         transition { _ -> next(typer, first, count, depth) }
     }
 
@@ -393,8 +384,8 @@ crashes Trap
     }
 
     machine extents(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping, wanted_row: TypeRow, given_row: TypeRow) {
-        Typer::work_store(typer, depth, wanted_row.length);
-        Typer::work_store(typer, depth + 1, given_row.length);
+        work_store(typer, depth, wanted_row.length);
+        work_store(typer, depth + 1, given_row.length);
         transition { _ -> push(typer, first, count, depth + 2, wanted_row.inner, given_row.inner) }
     }
 
@@ -414,16 +405,16 @@ crashes Trap
     }
 
     machine data_argument(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping, wanted_row: TypeRow, given_row: TypeRow, offset: u64 in Trapping) {
-        let wanted: u64 in Trapping = TypeTable::argument(&typer.output.types, wanted_row.first_argument + offset);
-        let given: u64 in Trapping = TypeTable::argument(&typer.output.types, given_row.first_argument + offset);
-        Typer::work_store(typer, depth, wanted);
-        Typer::work_store(typer, depth + 1, given);
+        let wanted: u64 in Trapping = type_table_argument(&typer.output.types, wanted_row.first_argument + offset);
+        let given: u64 in Trapping = type_table_argument(&typer.output.types, given_row.first_argument + offset);
+        work_store(typer, depth, wanted);
+        work_store(typer, depth + 1, given);
         transition { _ -> data(typer, first, count, depth + 2, wanted_row, given_row, offset + 1) }
     }
 
     machine push(typer: &mut Typer, first: u64 in Trapping, count: u64 in Trapping, depth: u64 in Trapping, wanted: u64 in Trapping, given: u64 in Trapping) {
-        Typer::work_store(typer, depth, wanted);
-        Typer::work_store(typer, depth + 1, given);
+        work_store(typer, depth, wanted);
+        work_store(typer, depth + 1, given);
         transition { _ -> next(typer, first, count, depth + 2) }
     }
 
@@ -431,7 +422,7 @@ crashes Trap
 }
 
 // Guarded scratch access for substitution and unification.
-machine Typer::work_store(typer: &mut Typer, depth: u64 in Trapping, value: u64 in Trapping)
+machine work_store(typer: &mut Typer, depth: u64 in Trapping, value: u64 in Trapping)
 crashes Trap
 {
     transition depth < 4096 {
@@ -448,7 +439,7 @@ crashes Trap
     }
 }
 
-machine Typer::work_load(typer: &Typer, depth: u64 in Trapping) -> u64 in Trapping
+machine work_load(typer: &Typer, depth: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition depth < 4096 {
@@ -465,7 +456,7 @@ crashes Trap
     }
 }
 
-machine Typer::memoized(typer: &Typer, handle: u64 in Trapping) -> bool
+machine typer_memoized(typer: &Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     transition handle < 8192 {
@@ -483,10 +474,10 @@ crashes Trap
     }
 }
 
-machine Typer::memo_load(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
+machine memo_load(typer: &Typer, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    let memoized: bool = Typer::memoized(typer, handle);
+    let memoized: bool = typer_memoized(typer, handle);
     transition memoized && handle < 8192 {
         true -> read(typer, handle)
         _ -> unchanged(handle)
@@ -501,7 +492,7 @@ crashes Trap
     }
 }
 
-machine Typer::memo_store(typer: &mut Typer, handle: u64 in Trapping, mapped: u64 in Trapping)
+machine memo_store(typer: &mut Typer, handle: u64 in Trapping, mapped: u64 in Trapping)
 crashes Trap
 {
     transition handle < 8192 {

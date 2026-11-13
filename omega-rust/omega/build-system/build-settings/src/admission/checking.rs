@@ -8,10 +8,9 @@ toggling whether checking runs.
 
 How we project, fold, and check the `Build` slice without corrupting the Product
 continuation:
-1. Rejoin completed toolchain provider defaults (`toolchain_defaults.rejoin_build(typed)`)
-   against the canonical `TypedTrees` arena before projecting, and collect only
-   the `SymbolHandle`s of actually selected providers and boundary requirements
-   (describing an unselected implementation never imports its body).
+1. Retain the canonical float catalog and public requirements supplied by the
+   target realization table when projecting the Build slice. Ordinary provider
+   defaults remain declared by their supplying package.
 2. Project the `Build` slice (`project_build_program`) and verify that source
    code cannot manufacture a counterfeit `Build` value
    (`admit_toolchain_build_activation`) before ordinary borrow checking runs.
@@ -27,12 +26,21 @@ continuation:
    on an owned copy of `CheckedTrees`, and discharge the completed `Build`
    pre-checks from `pre_checks` so the subsequent Product compilation only
    evaluates its complement.
+
+Steps 1-3 are `settle_build_slice` and the discharge is `discharge_build_slice`,
+because the Product is not always completed from the frontier Build ran on.
+When Product sources were deferred until Build finished, they are typed as a
+new frontier that holds the Build source again with its constants unsettled.
+`settle_rejoined_build_slice` runs the same settlement and discharge there, so
+a Build constant that needs Build's providers is folded under them and never
+left for the Product's targets to evaluate. The caller asks for it when
+admission reports such a fold (`provider_folded_constants`) or when package
+inputs joined after Build ran; a constant that needs no provider folds the
+same way on either frontier.
 */
 
 use artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES;
-use build_time_evaluation::{
-    PreparedBuildMachineProgram, provider_declarations::ProviderSelectionSubject,
-};
+use build_time_evaluation::PreparedBuildMachineProgram;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use provider_planning::{ProviderPlanDerivation, ProviderPlanningContext};
@@ -40,50 +48,59 @@ use psi_compiler::RetainedCheck;
 use source::DependencyScope;
 use target::TargetProfile;
 
-pub(crate) fn prepare_checked_build(
+/*
+The `Build` slice of one typed frontier with its constants folded under the
+admitted `Build` provider plans. The plans and their review provenance belong
+to the same settlement and must not be re-derived separately.
+*/
+pub(crate) struct SettledBuildSlice {
+    // For admission, the slice as it stands after settlement, ready to check.
+    // For a rejoined slice, the slice its pre-checks were evaluated over,
+    // which is exactly the work to discharge: nothing checks a rejoined slice
+    // again, so a declaration settlement did not evaluate must stay with the
+    // Product's pre-checks rather than be discharged unevaluated.
+    program: typed_trees::TypedTrees,
+    plans: Option<SettledBuildPlans>,
+    // Whether a constant waited for the provider plans. Only such a constant
+    // needs `Build`'s authority; the rest fold the same way wherever the
+    // source is typed.
+    folded_under_plans: bool,
+}
+
+struct SettledBuildPlans {
+    facts: effects::SelectedProviderPlanFacts,
+    provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
+}
+
+/*
+Who reads the slice's provider plans. Admission executes `Build` under them, so
+it always needs them. A rejoined slice was already admitted and executed; it
+needs them only to fold a constant that is still pending, and deriving them for
+every deferred Product would repeat provider planning on each compilation.
+*/
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BuildPlanDemand {
+    Admission,
+    PendingConstants,
+}
+
+pub(crate) fn settle_build_slice(
     typed: &mut typed_trees::TypedTrees,
-    pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
+    pre_checks: &[build_time_evaluation::PreCheckEvaluation],
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
     dependency_activation: bool,
-    toolchain_defaults: Option<&package_compilation::CompletedProviderDefaults>,
     execution_profile: Option<target::TargetProfile>,
-    timings: &mut artifacts::compile_timings::CompileTimings,
-    priors: &[&RetainedCheck],
-    retain: bool,
-) -> Result<
-    (
-        PreparedBuildMachineProgram,
-        super::provider_execution::BuildProviderPlans,
-        Option<RetainedCheck>,
-    ),
-    Vec<Diagnostic>,
-> {
-    let completed_defaults = toolchain_defaults
-        .map(|defaults| defaults.rejoin_build(typed))
-        .transpose()?
-        .unwrap_or_default();
+    demand: BuildPlanDemand,
+) -> Result<SettledBuildSlice, Vec<Diagnostic>> {
     // The target realization table supplies canonical float operations, so
     // the activation keeps the sealed catalog map and its public requirements
     // in its projection whether or not any Build selection names them.
-    let mut selected_declarations =
+    let selected_declarations =
         typed_trees::float_providers::catalog_realization_declarations(typed);
-    for selection in &completed_defaults {
-        selected_declarations.push(selection.provider_type.symbol);
-        match &selection.subject {
-            ProviderSelectionSubject::BoundaryTrait(identity)
-            | ProviderSelectionSubject::BoundaryRequirement(identity) => {
-                selected_declarations.push(identity.symbol);
-            }
-            ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
-                selected_declarations.extend(family.coordinates().iter().map(|row| row.symbol));
-            }
-        }
-    }
     // Validation subjects are the request's root package, as on the product
-    // side: the core Build that settles provider defaults, or a dependency's
-    // own Build executed for its consumer, checks only what its entry and
-    // selections reach.
+    // side. A dependency's Build executed for its consumer checks only what
+    // its entry and selections reach.
     let is_subject = |file: &source::SourceFile| {
         !dependency_activation && PackageCompilationInputs::is_validation_subject(packages, file)
     };
@@ -101,28 +118,28 @@ pub(crate) fn prepare_checked_build(
             pending.push(continuation);
         }
     }
-    let provisional = if pre_checks.is_empty() {
-        projection
+    if pending.is_empty() && demand == BuildPlanDemand::PendingConstants {
+        return Ok(SettledBuildSlice {
+            program: projection,
+            plans: None,
+            folded_under_plans: false,
+        });
+    }
+    // Evaluation can materialize declarations, so provider planning reads the
+    // slice as it stands now; `projection` stays the slice that was evaluated.
+    let reprojected = if pre_checks.is_empty() {
+        None
     } else {
-        validation::execution_projection::project_build_program(
+        Some(validation::execution_projection::project_build_program(
             typed,
             entry,
             &selected_declarations,
             is_subject,
-        )?
+        )?)
     };
-    let context = ProviderPlanningContext::new(&provisional, DependencyScope::Build);
-    let mut defaults =
-        build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
-    defaults.extend(completed_defaults.into_iter().map(|selection| {
-        build_time_evaluation::provider_declarations::TargetProviderDefaults {
-            target: selection
-                .target
-                .map(|target| target.canonical_name().to_owned()),
-            machines: Vec::new(),
-            selections: vec![selection],
-        }
-    }));
+    let provisional = reprojected.as_ref().unwrap_or(&projection);
+    let context = ProviderPlanningContext::new(provisional, DependencyScope::Build);
+    let defaults = build_time_evaluation::provider_declarations::retain_provider_defaults(context)?;
     let declarations = provider_planning::target_machines::settle_provider_defaults(
         &typed_trees::provider_declarations::provider_target_declarations(
             context.typed,
@@ -131,11 +148,8 @@ pub(crate) fn prepare_checked_build(
         &defaults,
         execution_profile.unwrap_or_else(TargetProfile::host),
     );
-    let bindings = provider_planning::evaluated_via_bindings::evaluate_via_bindings(
-        context,
-        execution_profile,
-        packages,
-    )?;
+    let bindings =
+        crate::via_binding_evaluation::evaluate_via_bindings(context, execution_profile, packages)?;
     let body_declarations = typed_trees::direct_calls::collect(context.typed, context.scope);
     let service_catalog = std::sync::Arc::new(
         typed_trees::service_declarations::PreparedServiceCatalog::prepare(context, &[]),
@@ -180,18 +194,133 @@ pub(crate) fn prepare_checked_build(
         )?
         .evaluate_pending(typed, pending)?;
     }
-    let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
-        let started = std::time::Instant::now();
-        let program = if had_pending {
+    let program = match demand {
+        BuildPlanDemand::PendingConstants => projection,
+        BuildPlanDemand::Admission if had_pending => {
             validation::execution_projection::project_build_program(
                 typed,
                 entry,
                 &selected_declarations,
                 is_subject,
             )?
-        } else {
-            provisional
-        };
+        }
+        BuildPlanDemand::Admission => reprojected.unwrap_or(projection),
+    };
+    Ok(SettledBuildSlice {
+        program,
+        plans: Some(SettledBuildPlans {
+            facts: selected_provider_plan_facts,
+            provenance,
+        }),
+        folded_under_plans: had_pending,
+    })
+}
+
+/*
+Remove the settled `Build` slice from the pre-checks that remain for the
+Product, so Product completion evaluates only what `Build` did not.
+*/
+fn discharge_build_slice(
+    typed: &typed_trees::TypedTrees,
+    pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
+    completed: &typed_trees::TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    *pre_checks = pre_checks
+        .iter()
+        .map(|continuation| continuation.exclude_completed_work(typed, completed))
+        .collect::<Result<_, _>>()?;
+    Ok(())
+}
+
+/*
+Settle and discharge the `Build` slice of a frontier that replaced the one
+`Build` was admitted and executed on. `entry` is the executed build machine
+rejoined onto this frontier. The slice was already checked on its original
+frontier, so this folds its constants and discharges it without a second check.
+Any failure rejects the compilation: the caller never continues with the
+slice's constants still pending.
+*/
+pub fn settle_rejoined_build_slice(
+    input: psi_compiler::BuildSourceInput<'_>,
+    entry: symbols::SymbolHandle,
+    packages: Option<&PackageCompilationInputs>,
+    dependency_activation: bool,
+    execution_profile: Option<target::TargetProfile>,
+) -> Result<(), Vec<Diagnostic>> {
+    let psi_compiler::BuildSourceInput { typed, pre_checks } = input;
+    let settled = settle_build_slice(
+        typed,
+        pre_checks,
+        entry,
+        packages,
+        dependency_activation,
+        execution_profile,
+        BuildPlanDemand::PendingConstants,
+    )?;
+    discharge_build_slice(typed, pre_checks, &settled.program)
+}
+
+pub(crate) fn prepare_checked_build(
+    typed: &mut typed_trees::TypedTrees,
+    pre_checks: &mut Vec<build_time_evaluation::PreCheckEvaluation>,
+    entry: symbols::SymbolHandle,
+    packages: Option<&PackageCompilationInputs>,
+    dependency_activation: bool,
+    execution_profile: Option<target::TargetProfile>,
+    timings: &mut artifacts::compile_timings::CompileTimings,
+    priors: &[&RetainedCheck],
+    retain: bool,
+    checked_slices: Option<&dyn psi_compiler::CheckedSliceStore>,
+) -> Result<
+    (
+        PreparedBuildMachineProgram,
+        super::provider_execution::BuildProviderPlans,
+        Option<RetainedCheck>,
+        bool, // A constant was folded under the provider plans.
+    ),
+    Vec<Diagnostic>,
+> {
+    let SettledBuildSlice {
+        program,
+        plans,
+        folded_under_plans,
+    } = settle_build_slice(
+        typed,
+        pre_checks,
+        entry,
+        packages,
+        dependency_activation,
+        execution_profile,
+        BuildPlanDemand::Admission,
+    )?;
+    let SettledBuildPlans {
+        facts: selected_provider_plan_facts,
+        provenance,
+    } = plans.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Build admission settled its slice without provider plans",
+        )]
+    })?;
+    // A dependency's Build holds no source of its consumer, so its whole
+    // check may be reused; any other Build program only when it holds no
+    // source of the root package.
+    let target = execution_profile
+        .or_else(target::TargetProfile::host_if_supported)
+        .map(|profile| profile.target_name());
+    let checked_slices =
+        checked_slices
+            .zip(target)
+            .map(|(store, target)| psi_compiler::CheckedSliceReuse {
+                store,
+                target,
+                owner: if dependency_activation {
+                    psi_compiler::CheckedSliceOwner::Dependency
+                } else {
+                    psi_compiler::CheckedSliceOwner::Consumer(packages.map(|inputs| inputs.root()))
+                },
+            });
+    let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
+        let started = std::time::Instant::now();
         let result = psi_compiler::CheckRequest {
             program,
             admission: psi_compiler::SourceAdmission {
@@ -204,6 +333,7 @@ pub(crate) fn prepare_checked_build(
             library_slice: psi_compiler::LibrarySliceRequest {
                 root_package: packages.map(|inputs| inputs.root()),
             },
+            checked_slices,
         }
         .check();
         artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
@@ -224,10 +354,7 @@ pub(crate) fn prepare_checked_build(
         DependencyScope::Build,
         &provenance,
     )?;
-    *pre_checks = pre_checks
-        .iter()
-        .map(|continuation| continuation.exclude_completed_work(typed, &checked))
-        .collect::<Result<_, _>>()?;
+    discharge_build_slice(typed, pre_checks, &checked)?;
     let providers = super::provider_execution::BuildProviderPlans::capture(
         &checked,
         selected_provider_plan_facts,
@@ -237,5 +364,6 @@ pub(crate) fn prepare_checked_build(
         PreparedBuildMachineProgram::from_checked(checked),
         providers,
         retained,
+        folded_under_plans,
     ))
 }

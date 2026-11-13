@@ -38,7 +38,7 @@ try:
             assert hashlib.sha256(destination.read_bytes()).hexdigest()==source_hashes[filename]
         (directory/'build.omg').write_text('machine build(builder: &mut Build) {\n'
             ' Build::application(builder, "landcover_area_resampling");\n'
-            ' Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });\n'
+            ' let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));\n'
             ' Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);\n}\n')
         (directory/'input.txt').write_bytes(payload)
         (directory/'expected_stdout.txt').write_bytes(expected)

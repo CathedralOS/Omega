@@ -154,7 +154,7 @@ source identity is pinned before any observation. The gate implements the
 bounded checks above, not full resource conformance, arbitrary emission-depth
 closure, or closure of the Delta bootstrap edge.
 
-The phase order is fixed by the [Delta language](../../../bootstrap/3_delta/LANGUAGE.md#program-form)
-and [request-boundary contract](../../../bootstrap/3_delta/implementation/boundary/README.md).
-See also the [Delta language](../../../bootstrap/3_delta/LANGUAGE.md) and the
+The phase order is fixed by the [Delta language](../../../bootstrap/interpreted/3_delta/LANGUAGE.md#program-form)
+and [request-boundary contract](../../../bootstrap/interpreted/3_delta/implementation/boundary/README.md).
+See also the [Delta language](../../../bootstrap/interpreted/3_delta/LANGUAGE.md) and the
 adjacent [request-boundary gate](../request-boundary/README.md).

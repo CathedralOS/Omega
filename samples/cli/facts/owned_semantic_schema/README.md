@@ -1,7 +1,5 @@
 # Owned semantic schema descriptions
 
-Parent: WIRE-CODEC-LIBRARY / SEMANTIC-REFLECTION.
-
 Fact: Owned semantic schemas retain complete numbered mixed-data descriptions and graph-local relationships under the query author's authority.
 
 The nearest row is `typed_reflection/generic_owner`, which elaborates typed

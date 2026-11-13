@@ -90,7 +90,7 @@ controls cover computed arguments and traps before the effect. The explicit
 and sealed input in its trailing `stdin_hex` column. Empty input is written as
 the quoted empty TSV field `""`. The gate rejects missing or unlisted fixtures.
 
-All nine [closed trap identities](../../../bootstrap/4_epsilon/LANGUAGE.md#9-closed-rejection-and-trap-identities)
+All nine [closed trap identities](../../../bootstrap/interpreted/4_epsilon/LANGUAGE.md#9-closed-rejection-and-trap-identities)
 have an ordinary-source control that preserves output written before the trap:
 
 | Code | Trap | Prefix control |
@@ -393,7 +393,7 @@ in records/arrays, payload ByteRange and argument traps, once-only subjects,
 wildcards, snapshots before later argument effects, binder copies and receiver
 places, ordinary calls/returns, recursion, state transfers, and retained views
 of binder-owned arrays. The three `sum_byte_before_*` controls exercise
-[immediate payload establishment](../../../bootstrap/4_epsilon/LANGUAGE.md#epsilon-constructor-payload-establishment-order):
+[immediate payload establishment](../../../bootstrap/interpreted/4_epsilon/LANGUAGE.md#epsilon-constructor-payload-establishment-order):
 `ByteRange` preserves the preceding output, including output from evaluating
 the failing argument, and suppresses later mutation/output, Assertion, or exit.
 Existing successful snapshot and later-argument-trap controls ensure valid

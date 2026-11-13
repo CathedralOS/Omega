@@ -291,7 +291,18 @@ pub mod completed_storage {
                         .operand_referent_segments
                         .span(destination.segments)?;
                     (destination.root == source.root
-                        && crate::storage_path_relations::contents_overlap(program, source, path))
+                        && match observation {
+                            StoredObservation::Binding => {
+                                crate::storage_path_relations::binding_overwrite(
+                                    program, source, path,
+                                )
+                            }
+                            StoredObservation::InlineContents | StoredObservation::Contents => {
+                                crate::storage_path_relations::contents_overlap(
+                                    program, source, path,
+                                )
+                            }
+                        })
                     .then_some(Resolution::Unavailable)
                 }
                 FlowStorageOperation::Store {
@@ -593,7 +604,9 @@ pub mod completed_storage {
     }
     pub use query::{at_snapshot, contents_preserved_from, sources_at_snapshot};
     pub mod versions {
-        use super::{StoredObservation, StoredOperand, at_snapshot, contents_preserved_from};
+        use super::{
+            StoredObservation, StoredOperand, contents_preserved_from, sources_at_snapshot,
+        };
         use crate::CanonicalPlace;
         use arena::Handle;
         use checked_trees::{
@@ -750,26 +763,19 @@ pub mod completed_storage {
             at: Snapshot,
             place: &CanonicalPlace,
             anchor: Snapshot,
+            observation: StoredObservation,
         ) -> bool {
+            if !anchor.is_valid() {
+                return matches!(
+                    sources_at_snapshot(program, graph, at, place, observation),
+                    Some(StoredOperand::Incoming(_))
+                );
+            }
             if anchor == at {
                 return true;
             }
-            if !anchor.is_valid() {
-                return !at.is_valid()
-                    || matches!(
-                        at_snapshot(program, graph, at, place, StoredObservation::Contents),
-                        None | Some(StoredOperand::Incoming(_))
-                    );
-            }
             at.is_valid()
-                && contents_preserved_from(
-                    program,
-                    graph,
-                    at,
-                    place,
-                    &[anchor],
-                    StoredObservation::Contents,
-                )
+                && contents_preserved_from(program, graph, at, place, &[anchor], observation)
         }
     }
 
@@ -786,7 +792,7 @@ pub mod completed_storage {
         },
     }
 
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, PartialEq, Eq)]
     pub enum StoredObservation {
         Binding,
         InlineContents,
@@ -6926,7 +6932,7 @@ pub mod content_projections {
             .map_or(declaration, |specialization| specialization.template);
         match program.symbols.symbol_source_origin(authored) {
             Some(source::SourceOrigin::Toolchain) => true,
-            Some(source::SourceOrigin::User) => false,
+            Some(source::SourceOrigin::User | source::SourceOrigin::ToolchainContract) => false,
             None => !program.symbols.has_source_metadata(),
         }
     }

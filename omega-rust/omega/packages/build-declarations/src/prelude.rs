@@ -237,13 +237,13 @@ public data Build<'storage> {
     product: BuildProduct;
     tests: BuildTests;
 }
-public data PackageSelection {
+public data PackageSelection<'storage> {
     case Root;
-    case Named(package: &[u8]);
+    case Named(package: &'storage [u8]);
 }
-public data Source {
-    case Path(location: &[u8]);
-    case Git(repository: &[u8], revision: &[u8], selection: PackageSelection);
+public data Source<'storage> {
+    case Path(location: &'storage [u8]);
+    case Git(repository: &'storage [u8], revision: &'storage [u8], selection: PackageSelection<'storage>);
 }
 // Executed project requests cross one compiler-issued host protocol. Source
 // variants are decomposed by ordinary Omega code, not a host syntax visitor.
@@ -252,21 +252,41 @@ public boundary trait BuildRequestOperations {
     machine application(builder: &Build, name: &[u8]) reaches none;
     machine member(builder: &Build, path: &[u8]) reaches none;
     machine artifact_only(builder: &Build) reaches none;
-    machine depend_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches none;
-    machine depend_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches none;
+    machine register_path_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches none;
+    machine register_git_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches none;
     machine write_log(log: &BuildLog, text: &[u8]) reaches none;
 }
-public machine Build::depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, false, false, "", source);
+// Configured dependency description
+// (wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding).
+// Ordinary helpers prepare it before registration; `Build::dependency` or
+// `Build::build_dependency` consumes it, so no alias can change afterwards.
+// Constructing one grants no host or package authority.
+public data DependencyDescription<'storage> {
+    source: Source<'storage>;
+    explicit_alias: bool;
+    alias: &'storage [u8];
 }
-public machine Build::depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, false, true, alias, source);
+// The exact registration one executed request fixed. Retaining or copying it
+// grants nothing; it names the registered edge for later Build operations.
+public data DependencyRegistration [copy] {
 }
-public machine Build::build_depend(builder: &mut Build, source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, true, false, "", source);
+// Namespace for ordinary dependency-description helpers.
+public data dependency {
 }
-public machine Build::build_depend_as(builder: &mut Build, alias: &[u8], source: Source) reaches BuildRequestOperations invokes BuildRequestOperations {
-    Build::request_dependency(builder, true, true, alias, source);
+public machine dependency::from_source<'storage>(source: Source<'storage>) -> DependencyDescription<'storage> {
+    DependencyDescription { source: source, explicit_alias: false, alias: "" }
+}
+public machine dependency::with_alias<'storage>(description: &mut DependencyDescription<'storage>, alias: &'storage [u8]) {
+    description.explicit_alias = true;
+    description.alias = alias;
+}
+public machine Build::dependency(builder: &mut Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+    Build::request_dependency(builder, false, description.explicit_alias, description.alias, description.source);
+    DependencyRegistration {}
+}
+public machine Build::build_dependency(builder: &mut Build, description: DependencyDescription) -> DependencyRegistration reaches BuildRequestOperations invokes BuildRequestOperations {
+    Build::request_dependency(builder, true, description.explicit_alias, description.alias, description.source);
+    DependencyRegistration {}
 }
 machine Build::request_dependency(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], source: Source) reaches BuildRequestOperations {
     transition source {
@@ -275,7 +295,7 @@ machine Build::request_dependency(builder: &Build, build_scope: bool, explicit_a
     }
 }
 machine Build::request_path(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], location: &[u8]) reaches BuildRequestOperations {
-    BuildRequestOperations::depend_path(builder, build_scope, explicit_alias, alias, location);
+    BuildRequestOperations::register_path_dependency(builder, build_scope, explicit_alias, alias, location);
 }
 machine Build::request_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], selection: PackageSelection) reaches BuildRequestOperations {
     transition selection {
@@ -284,7 +304,7 @@ machine Build::request_git(builder: &Build, build_scope: bool, explicit_alias: b
     }
 }
 machine Build::request_selected_git(builder: &Build, build_scope: bool, explicit_alias: bool, alias: &[u8], repository: &[u8], revision: &[u8], named_package: bool, package: &[u8]) reaches BuildRequestOperations {
-    BuildRequestOperations::depend_git(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package);
+    BuildRequestOperations::register_git_dependency(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package);
 }
 public machine Build::package(builder: &mut Build, name: &[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::package(builder, name);

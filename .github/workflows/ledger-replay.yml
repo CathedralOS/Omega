@@ -1,0 +1,114 @@
+name: Rebuild corpus ledger
+
+# Rebuilds the published corpus ledger when the published copy is lost. Each
+# post-merge run keeps its shards' measurements as `post-merge-shard-*`
+# artifacts for 7 days, and the published ledger is exactly those
+# measurements spliced in run order onto a starting file. This workflow
+# replays that: it starts from tests/omega/corpus_outcomes.txt at `base`,
+# splices the measurements of every finished post-merge run created at or
+# after `since`, oldest first, each with the checkout at that run's commit so
+# every row carries the stamp the ledger job gave it, and publishes the result
+# on the project site through pages.yml.
+#
+# It shares the post-merge check's concurrency group, so no ledger job reads
+# or publishes the ledger while the replay runs.
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: Replay post-merge runs created at or after this UTC time, such as 2026-11-12T06:30:00Z.
+        required: true
+        type: string
+      base:
+        description: Commit whose tests/omega/corpus_outcomes.txt the replay starts from.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: post-merge-check
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      LEDGER: tests/omega/corpus_outcomes.txt
+      SINCE: ${{ inputs.since }}
+      BASE: ${{ inputs.base }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install verified mbx
+        shell: bash
+        run: bash tools/xtask/bootstrap-mbx.sh
+      - name: Build xtask once
+        run: |
+          # Built at main and run against each run's checkout: sweep-report
+          # reads only the ledger and the records, and stamps rows with the
+          # checkout's commit.
+          mbx build -p xtask < /dev/null
+          cp target/debug/xtask "$RUNNER_TEMP/xtask"
+      - name: List the runs to replay
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/post-merge-check.yml/runs?per_page=100&created=>=$SINCE" \
+            --jq '.workflow_runs[] | select(.status == "completed" and (.conclusion == "success" or .conclusion == "failure")) | [.run_number, .id, .head_sha] | @tsv' |
+            sort -n > "$RUNNER_TEMP/runs.tsv"
+          cat "$RUNNER_TEMP/runs.tsv"
+      - name: Replay the measurements
+        run: |
+          git show "$BASE:$LEDGER" > "$RUNNER_TEMP/ledger.txt"
+          echo "Starting from $LEDGER at $BASE: $(wc -l < "$RUNNER_TEMP/ledger.txt") lines." >> "$GITHUB_STEP_SUMMARY"
+          while IFS=$'\t' read -r number id sha; do
+            records="$RUNNER_TEMP/records-$number"
+            mkdir -p "$records"
+            if ! gh run download "$id" --repo "$GITHUB_REPOSITORY" --pattern 'post-merge-shard-*' --dir "$records" 2>/dev/null ||
+              ! find "$records" -name records.txt | grep -q .; then
+              echo "- run $number: no shard measurements" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            # One flat directory, one file per shard, as the ledger job builds it.
+            flat="$RUNNER_TEMP/flat-$number"
+            mkdir -p "$flat"
+            n=0
+            while read -r file; do
+              n=$((n + 1))
+              cp "$file" "$flat/shard-$n.txt"
+            done < <(find "$records" -name records.txt | sort)
+            git checkout -q -f --detach "$sha"
+            cp "$RUNNER_TEMP/ledger.txt" "$LEDGER"
+            "$RUNNER_TEMP/xtask" corpus-gate sweep-report --records "$flat" \
+              --body "$RUNNER_TEMP/body-$number.md" --observed "$RUNNER_TEMP/observed-$number.txt" < /dev/null > /dev/null
+            cp "$LEDGER" "$RUNNER_TEMP/ledger.txt"
+            echo "- run $number ($sha): $n shard files spliced" >> "$GITHUB_STEP_SUMMARY"
+          done < "$RUNNER_TEMP/runs.tsv"
+          git checkout -q -f --detach "$GITHUB_SHA"
+      - name: Stage the ledger for the site
+        run: |
+          mkdir -p "$RUNNER_TEMP/site-ledger"
+          cp "$RUNNER_TEMP/ledger.txt" "$RUNNER_TEMP/site-ledger/corpus_outcomes.txt"
+          echo "Corpus ledger rebuilt by replaying the post-merge runs created since $SINCE onto the ledger at $BASE. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            > "$RUNNER_TEMP/site-ledger/measured.txt"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: corpus-ledger
+          path: ${{ runner.temp }}/site-ledger/
+          if-no-files-found: error
+          retention-days: 7
+
+  pages:
+    needs: [replay]
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
+    with:
+      ledger-artifact: corpus-ledger

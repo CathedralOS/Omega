@@ -6,8 +6,8 @@ holds it.
 */
 
 use semantic_vocabulary::{
-    BlockId, CrashCause, EdgeId, ObligationId, PlaceId, Proposition, ScalarTerm, ScalarType,
-    ValueId,
+    BlockId, CrashCause, EdgeId, MachineId, ObligationId, PlaceId, Proposition, ScalarTerm,
+    ScalarType, ValueId,
 };
 use terminal_check_tables::edges::{Destination, Disposition, EdgeRow};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
@@ -17,7 +17,7 @@ use terminal_psi::{CrashPredicateTerm, Terminator};
 
 use super::places::Bound;
 use super::{Draft, Lowering, Value, declaration, successor};
-use crate::body::{Expression, Statement, Target, ValueType};
+use crate::body::{Expression, ExpressionKind, Statement, Target, ValueType};
 use crate::canonical;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -117,6 +117,54 @@ impl Lowering<'_> {
         })
     }
 
+    /// An arrival at a member's loop head: the jump with the member's scalar
+    /// formals as its arguments, and, when the head has an invariant, the
+    /// one `ArrivalInvariant` obligation this edge owes it.
+    /// control_flow.md: "Every arrival proves the predicate under
+    /// simultaneous destination-parameter to actual-argument substitution,
+    /// before destination hypotheses become available."
+    pub(super) fn arrive(
+        &mut self,
+        member: MachineId,
+        arguments: Vec<ValueId>,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let Some(head) = self.heads.iter().find(|head| head.member == member) else {
+            return Err(self.internal("an arrival at a machine outside the call component"));
+        };
+        let target = head.block;
+        if head.parameters.len() != arguments.len() {
+            return Err(self.internal("an arrival does not match the head's parameters"));
+        }
+        let edge = self.edge(Destination::Block(target), source)?;
+        self.terminate(Terminator::Jump {
+            edge,
+            target,
+            arguments,
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            cleanup_actions: Vec::new(),
+        })?;
+        // The edge's `ArrivalInvariant` is minted with every other arrival's
+        // (`Lowering::arrivals`), which also lists it on the head's
+        // invariant row.
+        Ok(())
+    }
+
+    /// The member and arguments of a call in terminal position whose callee
+    /// lies in this machine's call component: such a call is a jump back.
+    fn loops<'e>(&self, expression: &'e Expression) -> Option<(MachineId, &'e [Expression])> {
+        match &expression.kind {
+            ExpressionKind::Call { callee, arguments }
+                if self.heads.iter().any(|head| head.member == *callee) =>
+            {
+                Some((*callee, arguments))
+            }
+            _ => None,
+        }
+    }
+
     /// One `NormalGuarantee` per `ensures` clause on this normal exit.
     fn guarantee(&mut self, exit: EdgeId, source: SourceOrigin) -> Checked<()> {
         for (position, published) in self.published.clone().into_iter().enumerate() {
@@ -178,9 +226,16 @@ impl Lowering<'_> {
             Statement::Bind { slot, value } => {
                 let bound = match value.result {
                     Some(ValueType::Record(_)) => Bound::Record(self.record(value)?),
-                    Some(ValueType::Scalar(_)) | None => Bound::Scalar(self.scalar(value)?),
+                    Some(ValueType::Scalar(_) | ValueType::Rigid(_)) | None => {
+                        Bound::Scalar(self.scalar(value)?)
+                    }
                 };
                 *self.slot_mut(*slot)? = Some(bound);
+                Ok(())
+            }
+            Statement::Witness { slot, term } => {
+                let witness = self.witness(term)?;
+                *self.slot_mut(*slot)? = Some(Bound::Erased(witness));
                 Ok(())
             }
             Statement::Declare { slot, source, .. } => self.declare_local(*slot, *source),
@@ -198,17 +253,22 @@ impl Lowering<'_> {
             } => {
                 let cases: Vec<usize> = arms.iter().map(|(case, _, _)| *case).collect();
                 let (blocks, rest) = self.select(subject, &cases, default.is_some(), *source)?;
+                // Each arm completes the machine, so what one binds (the home
+                // a loan gives a local) is no other arm's.
+                let bound = self.slots.clone();
                 for ((_, target, source), (block, chosen)) in arms.iter().zip(blocks) {
                     self.enter(block);
                     self.selected.push(chosen);
                     self.complete(target, *source)?;
                     self.selected.pop();
+                    self.slots.clone_from(&bound);
                 }
                 if let (Some((target, source)), Some((block, chosen))) = (default, rest) {
                     self.enter(block);
                     self.selected.push(chosen);
                     self.complete(target, *source)?;
                     self.selected.pop();
+                    self.slots.clone_from(&bound);
                 }
                 Ok(())
             }
@@ -236,10 +296,14 @@ impl Lowering<'_> {
                 )?;
                 let taken = self.decision(condition, true)?;
                 let not_taken = self.decision(condition, false)?;
+                // The arm completes the machine, so what it binds (the home a
+                // loan gives a local) is not the continuation's.
+                let bound = self.slots.clone();
                 self.enter(arm);
                 self.path.push(taken);
                 self.complete(target, *source)?;
                 self.path.pop();
+                self.slots = bound;
                 self.enter(rest);
                 self.path.push(not_taken);
                 Ok(())
@@ -257,6 +321,15 @@ impl Lowering<'_> {
             Target::Unit => self.return_unit(source),
             Target::Crash(cause) => self.crash(*cause, source),
             Target::Value(expression) => match self.no_normal(expression)? {
+                // A member's arguments are scalars, evaluated left to right
+                // like any call's, and the edge carries them.
+                _ if let Some((member, arguments)) = self.loops(expression) => {
+                    let mut values = Vec::with_capacity(arguments.len());
+                    for argument in arguments {
+                        values.push(self.scalar(argument)?);
+                    }
+                    self.arrive(member, values, expression.source)
+                }
                 Some((callee, arguments)) => {
                     self.invoke_no_normal(callee, arguments, expression.source)
                 }
@@ -286,9 +359,13 @@ impl Lowering<'_> {
     /// successor. A crash abandons them (effects.md: "Crashes have explicit
     /// no-successor abandonment, not a missing cleanup list"; `Fate::Abandoned`),
     /// and a no-normal invocation consumes or transfers them. The subset
-    /// mints no conserved obligation, and this lowering does not track which
-    /// are live, so one existing here is refused rather than given a guessed
-    /// fate; with none, the edge has no dispositions.
+    /// mints no conserved obligation live across an edge, and this lowering
+    /// does not track which are live, so one existing here is refused rather
+    /// than given a guessed fate; with none, the edge has no dispositions.
+    ///
+    /// A `Loan` is the one conserved kind the subset mints, and none is live
+    /// here: each is formed for one call that returns, and ends when it does
+    /// (`calls`; a call that never returns may not lend).
     fn no_successor_dispositions(&self) -> Checked<Vec<Disposition>> {
         for raw in 1..=self.tables.obligations.len() as u64 {
             let obligation = ObligationId::new(raw).ok_or_else(|| self.internal("obligation"))?;
@@ -298,7 +375,7 @@ impl Lowering<'_> {
                 self.id,
                 Construct::Obligation(obligation),
             )?;
-            if row.kind.is_conserved() {
+            if row.kind.is_conserved() && !matches!(row.kind, ObligationKind::Loan { .. }) {
                 return Err(refuse(
                     self.id,
                     Construct::Obligation(obligation),
@@ -392,7 +469,10 @@ impl Lowering<'_> {
         for (value, (block, chosen)) in bodies {
             self.enter(block);
             self.selected.push(chosen);
-            let value = self.scalar(value)?;
+            self.joining += 1;
+            let value = self.scalar(value);
+            self.joining -= 1;
+            let value = value?;
             self.selected.pop();
             self.jump(
                 join,
@@ -454,7 +534,10 @@ impl Lowering<'_> {
         };
         self.branch(decided, when_true, when_false, left.source)?;
         self.enter(evaluate_right);
-        let right_value = self.scalar(right)?;
+        self.joining += 1;
+        let right_value = self.scalar(right);
+        self.joining -= 1;
+        let right_value = right_value?;
         self.jump(
             join,
             vec![right_value],

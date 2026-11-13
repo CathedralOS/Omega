@@ -2,12 +2,11 @@
 // 100-ns ticks from 1601; portable timestamps use signed Unix seconds. A real
 // zero timestamp is distinct from unavailable POSIX metadata. Only the known
 // symlink/junction tags become Symlink; an unknown reparse tag stays Other.
-use filesystem;
-use filesystem_host;
-use windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use omega::language::core::numeric_conversion;
-use targets::windows_x86_64::filesystem::errors;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::widen_u32_to_u64;
+use omega::language::core::narrow_u64_to_i64_exact;
+use omega::language::core::narrow_i64_to_u64_exact;
 
 machine windows_filesystem_seconds(ticks: u64) -> i64 {
     narrow_u64_to_i64_exact(ticks / 10000000) - 11644473600

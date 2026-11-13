@@ -23,6 +23,54 @@ pub fn reserve_directory(parent: &Path) -> Result<std::path::PathBuf, String> {
 }
 
 pub fn run(command: &mut Command, directory: &Path, name: &str) -> Result<ExitStatus, String> {
+    run_with_timeout(command, directory, name, Duration::from_secs(1800))
+}
+
+/// Runs with no time limit, and copies the command's stderr to this process's
+/// stderr while it runs, so a long command reports as it goes instead of
+/// only in the file read after it ends.
+pub fn run_echoing_stderr(
+    command: &mut Command,
+    directory: &Path,
+    name: &str,
+) -> Result<ExitStatus, String> {
+    run_bounded(command, directory, name, Duration::MAX, true)
+}
+
+pub fn run_with_timeout(
+    command: &mut Command,
+    directory: &Path,
+    name: &str,
+    timeout: Duration,
+) -> Result<ExitStatus, String> {
+    run_bounded(command, directory, name, timeout, false)
+}
+
+/// Copies what `path` gained since `offset` to this process's stderr.
+fn echo_growth(path: &Path, offset: &mut u64) {
+    use std::io::{Seek, SeekFrom, Write};
+    let Ok(mut file) = fs::File::open(path) else {
+        return;
+    };
+    let mut bytes = Vec::new();
+    if file.seek(SeekFrom::Start(*offset)).is_ok()
+        && let Ok(read) = file.read_to_end(&mut bytes)
+    {
+        *offset += read as u64;
+        let _ = std::io::stderr().write_all(&bytes);
+    }
+}
+
+fn run_bounded(
+    command: &mut Command,
+    directory: &Path,
+    name: &str,
+    timeout: Duration,
+    echo_stderr: bool,
+) -> Result<ExitStatus, String> {
+    if timeout.is_zero() {
+        return Err(format!("{name} requires a positive command timeout"));
+    }
     fs::create_dir_all(directory).map_err(|e| format!("create {}: {e}", directory.display()))?;
     let stdout = directory.join(format!("{name}.stdout"));
     let stderr = directory.join(format!("{name}.stderr"));
@@ -32,6 +80,7 @@ pub fn run(command: &mut Command, directory: &Path, name: &str) -> Result<ExitSt
         "directory": command.get_current_dir(),
         "environment_overrides": command.get_envs().map(|(key, value)| (key.to_string_lossy().into_owned(), value.map(|v| v.to_string_lossy().into_owned()))).collect::<std::collections::BTreeMap<_, _>>(),
         "stdout": stdout, "stderr": stderr,
+        "timeout_ms": u64::try_from(timeout.as_millis()).ok(), "timed_out": false,
     });
     let receipt_path = directory.join(format!("{name}.json"));
     let receipt_file = fs::File::create_new(&receipt_path)
@@ -46,16 +95,38 @@ pub fn run(command: &mut Command, directory: &Path, name: &str) -> Result<ExitSt
     let started = Instant::now();
     let result = (|| {
         let mut child = command.spawn().map_err(|e| format!("start {name}: {e}"))?;
+        receipt["child_id"] = serde_json::json!(child.id());
+        let mut echoed = 0;
         loop {
-            if let Some(status) = child.try_wait().map_err(|e| format!("wait {name}: {e}"))? {
+            let finished = child.try_wait().map_err(|e| format!("wait {name}: {e}"))?;
+            if echo_stderr {
+                echo_growth(&stderr, &mut echoed);
+            }
+            if let Some(status) = finished {
                 return Ok(status);
             }
             // The workflow also bounds the whole job. Kill a stuck individual
             // command so its original files can still be uploaded on failure.
-            if started.elapsed() > Duration::from_secs(1800) {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(format!("{name} exceeded 1800 seconds"));
+            if started.elapsed() > timeout {
+                let killed = child.kill();
+                let reaped = child.wait();
+                receipt["timed_out"] = serde_json::json!(true);
+                receipt["timeout_cleanup"] = serde_json::json!({
+                    "kill_error": killed.as_ref().err().map(|error| error.to_string()),
+                    "wait_error": reaped.as_ref().err().map(|error| error.to_string()),
+                    "reaped": reaped.is_ok(),
+                });
+                if let Ok(status) = &reaped {
+                    receipt["exit_code"] = serde_json::json!(status.code());
+                }
+                let mut reason = format!("{name} exceeded {} seconds", timeout.as_secs_f64());
+                if let Err(error) = killed {
+                    reason.push_str(&format!("; stopping child failed: {error}"));
+                }
+                if let Err(error) = reaped {
+                    reason.push_str(&format!("; reaping child failed: {error}"));
+                }
+                return Err(reason);
             }
             std::thread::sleep(Duration::from_millis(100));
         }
@@ -125,6 +196,139 @@ pub fn digest(path: &Path) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
+
+    fn test_directory(label: &str) -> std::path::PathBuf {
+        let parent = std::env::temp_dir().join(format!(
+            "omega-command-{label}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir(&parent).unwrap();
+        parent
+    }
+
+    fn fixture_command(mode: &str) -> Command {
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                "execution::tests::command_fixture",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("OMEGA_XTASK_EXECUTION_TEST_MODE", mode)
+            .stdin(Stdio::null());
+        command
+    }
+
+    fn receipt(directory: &Path, name: &str) -> serde_json::Value {
+        serde_json::from_slice(&fs::read(directory.join(format!("{name}.json"))).unwrap()).unwrap()
+    }
+
+    #[test]
+    #[ignore = "child process used by command budget tests"]
+    fn command_fixture() {
+        let Ok(mode) = std::env::var("OMEGA_XTASK_EXECUTION_TEST_MODE") else {
+            return;
+        };
+        println!("original command stdout");
+        eprintln!("original command stderr");
+        std::io::stdout().flush().unwrap();
+        std::io::stderr().flush().unwrap();
+        match mode.as_str() {
+            "delayed" => std::thread::sleep(Duration::from_millis(500)),
+            "hung" => std::thread::sleep(Duration::from_secs(10)),
+            "failure" => std::process::exit(23),
+            _ => panic!("unknown command fixture mode"),
+        }
+    }
+
+    #[test]
+    fn a_longer_explicit_budget_allows_the_same_command_to_complete() {
+        let directory = test_directory("explicit-budget");
+        let mut command = fixture_command("delayed");
+        let error = run_with_timeout(
+            &mut command,
+            &directory,
+            "short",
+            Duration::from_millis(150),
+        )
+        .unwrap_err();
+        assert!(error.contains("exceeded"));
+        assert_eq!(receipt(&directory, "short")["timed_out"], true);
+        let status =
+            run_with_timeout(&mut command, &directory, "prepared", Duration::from_secs(2)).unwrap();
+        assert!(status.success());
+        let recorded = receipt(&directory, "prepared");
+        assert_eq!(recorded["timeout_ms"], 2000);
+        assert_eq!(recorded["timed_out"], false);
+        assert_eq!(recorded["exit_code"], 0);
+        drop(command);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_hung_command_is_reaped_without_losing_its_original_output() {
+        let directory = test_directory("hung-command");
+        let mut command = fixture_command("hung");
+        let started = Instant::now();
+        let error = run_with_timeout(&mut command, &directory, "build", Duration::from_secs(2))
+            .unwrap_err();
+        assert!(started.elapsed() < Duration::from_secs(8));
+        assert!(error.contains("exceeded 2 seconds"));
+        let recorded = receipt(&directory, "build");
+        assert_eq!(recorded["timed_out"], true);
+        assert_eq!(recorded["timeout_cleanup"]["reaped"], true);
+        assert!(recorded["timeout_cleanup"]["kill_error"].is_null());
+        assert!(recorded["timeout_cleanup"]["wait_error"].is_null());
+        assert!(
+            fs::read_to_string(directory.join("build.stdout"))
+                .unwrap()
+                .contains("original command stdout")
+        );
+        assert!(
+            fs::read_to_string(directory.join("build.stderr"))
+                .unwrap()
+                .contains("original command stderr")
+        );
+        drop(command);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn the_default_budget_preserves_failure_even_with_a_build_label() {
+        let directory = test_directory("command-failure");
+        let mut command = fixture_command("failure");
+        let status = run(&mut command, &directory, "runner-build").unwrap();
+        assert_eq!(status.code(), Some(23));
+        let recorded = receipt(&directory, "runner-build");
+        assert_eq!(recorded["timeout_ms"], 1_800_000);
+        assert_eq!(recorded["exit_code"], 23);
+        assert_eq!(recorded["timed_out"], false);
+        assert!(recorded.get("error").is_none());
+        drop(command);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_zero_budget_refuses_before_starting_a_command() {
+        let directory = test_directory("zero-budget");
+        let error = run_with_timeout(
+            &mut fixture_command("failure"),
+            &directory,
+            "invalid-budget",
+            Duration::ZERO,
+        )
+        .unwrap_err();
+        assert!(error.contains("positive command timeout"));
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 0);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
     #[test]
     fn separate_runs_and_repeated_commands_cannot_overwrite_evidence() {
         let parent = std::env::temp_dir().join(format!(

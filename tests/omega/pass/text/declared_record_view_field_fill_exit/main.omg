@@ -16,7 +16,7 @@ machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> observe(main) }
 
     machine observe(main: &mut Main) {
-        let room: Room;
+        let mut room: Room;
         room.label = main.source.label;
         transition room.label == "Gate" {
             true -> good(main)

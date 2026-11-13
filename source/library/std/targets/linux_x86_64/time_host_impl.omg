@@ -21,8 +21,8 @@
 // asm-generic table), so neither Linux file is the other with the target
 // renamed.
 //
-use omega::language::core::numeric_conversion;
-use time_host;
+use omega::language::core::narrow_u32_to_i32_wrapping;
+use omega::language::core::narrow_i64_to_u64_saturating;
 
 // The kernel's 64-bit timespec, in declaration order. Both fields are SIGNED;
 // a CLOCK_MONOTONIC read or a post-1970 CLOCK_REALTIME read is nonnegative,

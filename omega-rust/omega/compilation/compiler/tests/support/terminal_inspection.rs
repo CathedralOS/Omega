@@ -60,6 +60,7 @@ enum InspectionControls<'selection> {
     DynamicImage,
     ClosedReach,
     ClosedReachCaptures,
+    ConditionalCarry,
     TaskActivations,
     SynchronousProviders,
     DeclaredInvocations,
@@ -133,6 +134,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 false,
                 Some(InspectionControls::ClosedReachCaptures),
             ),
+            [machine, "conditional-carry-controls"] => {
+                (*machine, false, Some(InspectionControls::ConditionalCarry))
+            }
             [machine, "closed-reach-controls"] => {
                 (*machine, false, Some(InspectionControls::ClosedReach))
             }
@@ -204,7 +208,7 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
             }
             _ => {
                 return Err(format!(
-                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `indexed-family-controls`, `identity-formation-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls`, `ownership-claim-controls`, `invocation-value-controls`, `result-claim-controls`, `optimization-catalog-controls` or `dynamic-image-controls`"
+                    "{ORACLE} needs a machine name and optional `debug`, `closed-conformance-controls`, `closed-reach-controls`, `closed-reach-capture-controls`, `conditional-carry-controls`, `indexed-family-controls`, `identity-formation-controls`, `mathematical-actuals`, `task-activation-controls`, `synchronous-provider-controls`, `ownership-claim-controls`, `invocation-value-controls`, `result-claim-controls`, `optimization-catalog-controls` or `dynamic-image-controls`"
                 ));
             }
         };
@@ -429,6 +433,9 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                 InspectionControls::OwnershipClaims => ownership_claim_controls::inspect(&decoded)?,
                 InspectionControls::InvocationValues => {
                     invocation_value_controls::inspect(&decoded)?
+                }
+                InspectionControls::ConditionalCarry => {
+                    closed_reach_controls::inspect_conditional_carry(&decoded)?
                 }
                 InspectionControls::ClosedReach => closed_reach_controls::inspect(&decoded)?,
                 InspectionControls::ClosedReachCaptures => {

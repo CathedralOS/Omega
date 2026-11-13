@@ -548,6 +548,18 @@ mod builder {
                     .sum::<usize>()
             })
             .sum::<usize>();
+        /*
+            A replayed part is not rebuilt here, so no pass could confirm or
+            withdraw an assumption about it; its rows stay absent as before.
+        */
+        pass_limit = pass_limit.saturating_add(build.normal_return_predicates.assume_all(
+            program,
+            machines.iter().copied().filter(|position| {
+                !replays
+                    .iter()
+                    .any(|replay| replay.machines.binary_search(position).is_ok())
+            }),
+        ));
         let mut pass = 0;
         while pass < pass_limit {
             if pass != 0 {
@@ -1026,6 +1038,65 @@ mod normal_returns {
                             })
                     })
             })
+        }
+
+        /*
+            Start a group's solve by assuming every class on every exclusive entry
+            formal, so a body that hands its referent back to itself, directly or
+            through another member, is not refused for lack of the row it is about
+            to earn. Starting empty can never admit such a body: its recursive exit
+            needs the row before any pass has published it.
+
+            The assumption is only a starting point. Each complete pass replaces the
+            table with what the bodies prove under it, callers of a withdrawn row
+            are rebuilt, and a result is accepted only from a complete pass whose
+            own table it reproduces. A surviving row therefore holds at every normal
+            return by induction on call depth; whether the calls return at all is
+            ranked separately. Exceeding the pass bound discards the table.
+
+            The seeded cells count as discovered here, so the returned height
+            extends the bound once for the passes that withdraw them.
+        */
+        pub(super) fn assume_all(
+            &mut self,
+            program: &dyn validation::CheckingInput,
+            machines: impl Iterator<Item = usize>,
+        ) -> usize {
+            let mut rows = Vec::new();
+            for position in machines {
+                let machine = &program.machines()[position];
+                let Some(entry) = program.machine_states(machine).first() else {
+                    continue;
+                };
+                if !machine.body_is_present {
+                    continue;
+                }
+                let mut cells: Vec<_> = program
+                    .state_parameters(entry)
+                    .iter()
+                    .filter(|formal| {
+                        validation::reference_shell(program, formal.type_reference)
+                            .is_some_and(|shell| shell.access.is_exclusive())
+                    })
+                    .flat_map(|formal| {
+                        ByteSequencePredicate::ALL
+                            .into_iter()
+                            .map(|predicate| ReturnedPredicate {
+                                parameter: formal.symbol,
+                                reference_type: formal.type_reference,
+                                predicate,
+                            })
+                    })
+                    .collect();
+                if cells.is_empty() {
+                    continue;
+                }
+                cells.sort_unstable_by_key(ReturnedPredicate::key);
+                cells.dedup();
+                rows.push((position, cells));
+            }
+            rows.sort_unstable_by_key(|row| row.0);
+            self.replace(rows).1
         }
 
         fn replace(&mut self, rows: Vec<(usize, Vec<ReturnedPredicate>)>) -> (Vec<usize>, usize) {
@@ -4187,6 +4258,7 @@ mod operator_calls {
                     &mut mutated_places,
                 );
             }
+            let mut restated = crate::flow::RestatedContexts::default();
             *active_contexts = crate::flow::filter_contexts_after_place_mutations(
                 program,
                 semantic,
@@ -4198,12 +4270,14 @@ mod operator_calls {
                 &mutated_places,
                 FlowInvalidationSource::Statement { statement_index },
                 (caller_state_symbol, statement_index),
+                &mut restated,
             );
-            *active_constraints = crate::flow::project_constraint_refs_to_active_contexts(
+            *active_constraints = crate::flow::project_constraint_refs_after_invalidation(
                 &mut build.contexts.constraint_refs,
                 *active_constraints,
                 *active_contexts,
                 &build.contexts.semantic_context_refs,
+                &restated,
             );
         }
         append_operator_ensures_context(
@@ -5593,6 +5667,7 @@ mod statements {
                     statement_index,
                     &mut mutated_places,
                 );
+                let mut restated = crate::flow::RestatedContexts::default();
                 *active_contexts = filter_contexts_after_place_mutations(
                     program,
                     semantic,
@@ -5604,12 +5679,14 @@ mod statements {
                     &mutated_places,
                     FlowInvalidationSource::Statement { statement_index },
                     (state.symbol, statement_index),
+                    &mut restated,
                 );
-                *active_constraints = project_constraint_refs_to_active_contexts(
+                *active_constraints = crate::flow::project_constraint_refs_after_invalidation(
                     &mut build.contexts.constraint_refs,
                     *active_constraints,
                     *active_contexts,
                     &build.contexts.semantic_context_refs,
+                    &restated,
                 );
             }
 
@@ -5800,6 +5877,7 @@ mod statements {
         if written_places.is_empty() {
             return;
         }
+        let mut restated = crate::flow::RestatedContexts::default();
         let retained = crate::flow::retire_occurrence_contexts_after_statement(
             program,
             semantic,
@@ -5810,16 +5888,18 @@ mod statements {
             *active_contexts,
             &written_places,
             FlowInvalidationSource::Statement { statement_index },
+            &mut restated,
         );
         if retained == *active_contexts {
             return;
         }
         *active_contexts = retained;
-        *active_constraints = project_constraint_refs_to_active_contexts(
+        *active_constraints = crate::flow::project_constraint_refs_after_invalidation(
             &mut build.contexts.constraint_refs,
             *active_constraints,
             *active_contexts,
             &build.contexts.semantic_context_refs,
+            &restated,
         );
     }
 
@@ -7071,6 +7151,7 @@ mod domain {
                 }
                 matching_mutation_for_canonical_place(
                     program,
+                    semantic,
                     domain_dependencies,
                     fact,
                     place.root,
@@ -7115,6 +7196,7 @@ mod domain {
                 segments.extend_from_slice(semantic.place_segments.span_or_empty(place.segments));
                 matching_mutation_for_canonical_place(
                     program,
+                    semantic,
                     domain_dependencies,
                     fact,
                     storage.root,
@@ -7191,8 +7273,89 @@ mod domain {
                 }
             }
 
+            /*
+                The elements of a `ZeroCaseElements` range whose tag one write can
+                replace, as the half-open index range it removes. Each element
+                answers to the law of its own `CaseValue`: `case_overwrite` at
+                `array[index].element`. Only the write's selector at the array
+                distinguishes one element from another, so that selector bounds
+                the candidates and one representative element decides them all.
+            */
+            pub(in crate::flow) fn zero_case_elements_written(
+                program: &dyn ::validation::CheckingInput,
+                semantic: &FactPlan,
+                fact: &Fact,
+                array_root: facts::PlaceRoot,
+                array_segments: &[facts::PlaceSegment],
+                mutation: &CanonicalPlace,
+            ) -> Option<std::ops::Range<usize>> {
+                let facts::FactPayload::ZeroCaseElements {
+                    first,
+                    end,
+                    element,
+                    ..
+                } = fact.payload
+                else {
+                    return None;
+                };
+                if array_root != mutation.root || first >= end {
+                    return None;
+                }
+                let unresolved_prefix =
+                    array_segments
+                        .iter()
+                        .zip(&mutation.segments)
+                        .any(|(array, written)| {
+                            crate::flow::place_segment_has_unresolved_identity(*array)
+                                || crate::flow::place_segment_has_unresolved_identity(*written)
+                        });
+                let selected = match mutation.segments.get(array_segments.len()) {
+                    _ if unresolved_prefix => first..end,
+                    Some(facts::PlaceSegment::FixedIndex { index }) => {
+                        *index..index.saturating_add(1)
+                    }
+                    Some(facts::PlaceSegment::FixedRange { start, end }) => *start..*end,
+                    Some(facts::PlaceSegment::Index { expression })
+                        if program.expression_table.expression_is_valid(*expression) =>
+                    {
+                        match program
+                            .expression_table
+                            .constant_integer_value(*expression)
+                            .and_then(|value| usize::try_from(value).ok())
+                        {
+                            Some(index) => index..index.saturating_add(1),
+                            None => first..end,
+                        }
+                    }
+                    _ => first..end,
+                };
+                let written = selected.start.max(first)..selected.end.min(end);
+                if written.is_empty() {
+                    return None;
+                }
+                let representative = CanonicalPlace {
+                    root: array_root,
+                    segments: array_segments
+                        .iter()
+                        .copied()
+                        .chain([facts::PlaceSegment::FixedIndex {
+                            index: written.start,
+                        }])
+                        .chain(
+                            semantic
+                                .place_segments
+                                .span_or_empty(element)
+                                .iter()
+                                .copied(),
+                        )
+                        .collect(),
+                };
+                case_overwrite(program, &representative, &mutation.segments).then_some(written)
+            }
+
             fn matching_mutation_for_canonical_place<'a, 'b>(
                 program: &dyn ::validation::CheckingInput,
+                semantic: &FactPlan,
                 domain_dependencies: &'a DomainFacts,
                 fact: &Fact,
                 fact_root: facts::PlaceRoot,
@@ -7204,6 +7367,19 @@ mod domain {
                     .any(|mutation| mutation.root == fact_root)
                 {
                     return None;
+                }
+                if matches!(fact.payload, facts::FactPayload::ZeroCaseElements { .. }) {
+                    return mutated_places.iter().find_map(|mutation| {
+                        zero_case_elements_written(
+                            program,
+                            semantic,
+                            fact,
+                            fact_root,
+                            fact_segments,
+                            mutation,
+                        )
+                        .map(|_| (mutation, &[][..]))
+                    });
                 }
                 let is_case_value = matches!(fact.payload, facts::FactPayload::CaseValue { .. });
                 let mut case_canonical: Option<CanonicalPlace> = None;
@@ -7283,6 +7459,7 @@ mod domain {
         pub(in crate::flow) use self::matching::matching_mutation_for_fact_place;
         use self::matching::matching_mutation_for_occurrence_place;
         pub(in crate::flow) use self::matching::matching_mutation_for_settled_occurrence;
+        use self::matching::zero_case_elements_written;
 
         /*
             Query the same storage/dependent-domain invalidation law without publishing
@@ -7358,17 +7535,20 @@ mod domain {
             mutated_places: &[CanonicalPlace],
             invalidation_source: FlowInvalidationSource,
             current_statement: (symbols::SymbolHandle, usize),
+            restated: &mut RestatedContexts,
         ) -> HandleSpan<FlowSemanticContextRef> {
             if mutated_places.is_empty() {
                 return source;
             }
             filter_contexts_after_mutations(
+                program,
                 semantic,
                 semantic_context_refs,
                 invalidation_segments,
                 invalidations,
                 source,
                 invalidation_source,
+                restated,
                 |semantic, fact, place| {
                     matching_mutation_for_fact_place(
                         program,
@@ -7408,17 +7588,20 @@ mod domain {
             source: HandleSpan<FlowSemanticContextRef>,
             written_places: &[CanonicalPlace],
             invalidation_source: FlowInvalidationSource,
+            restated: &mut RestatedContexts,
         ) -> HandleSpan<FlowSemanticContextRef> {
             if written_places.is_empty() {
                 return source;
             }
             filter_contexts_after_mutations(
+                program,
                 semantic,
                 semantic_context_refs,
                 invalidation_segments,
                 invalidations,
                 source,
                 invalidation_source,
+                restated,
                 |semantic, fact, place| {
                     matching_mutation_for_occurrence_place(
                         program,
@@ -7437,12 +7620,14 @@ mod domain {
             one law for declared storage and separately authorized content.
         */
         pub(in crate::flow) fn filter_contexts_after_mutations<'mutation, 'dependency>(
+            program: &dyn ::validation::CheckingInput,
             semantic: &mut FactPlan,
             semantic_context_refs: &mut PagedArenaSet<FlowSemanticContextRef>,
             invalidation_segments: &mut PagedArenaSet<PlaceSegment>,
             invalidations: &mut PagedArenaSet<FlowInvalidationFact>,
             source: HandleSpan<FlowSemanticContextRef>,
             invalidation_source: FlowInvalidationSource,
+            restated: &mut RestatedContexts,
             matching_mutation: impl Fn(
                 &FactPlan,
                 &Fact,
@@ -7481,7 +7666,24 @@ mod domain {
                         semantic_context_refs.append_to_span(&mut filtered, reference);
                     }
                     ContextSurvival::Dropped => {}
-                    ContextSurvival::Reduced(retained) => {
+                    ContextSurvival::Reduced {
+                        mut retained,
+                        narrowed,
+                    } => {
+                        let restates = !narrowed.is_empty();
+                        for (fact, mutation) in narrowed {
+                            narrow_zero_case_elements(
+                                program,
+                                semantic,
+                                fact,
+                                mutation,
+                                &matching_mutation,
+                                &mut retained,
+                            );
+                        }
+                        if retained.is_empty() {
+                            continue;
+                        }
                         let point = semantic.contexts.get(reference.context).point;
                         let mut refs = HandleSpan::empty();
                         for fact in retained {
@@ -7490,16 +7692,121 @@ mod domain {
                         let context = semantic.append_context(point, refs);
                         semantic_context_refs
                             .append_to_span(&mut filtered, FlowSemanticContextRef { context });
+                        if restates {
+                            restated.0.push((reference.context, context));
+                        }
                     }
                 }
             }
             filtered
         }
 
-        enum ContextSurvival {
+        /*
+            Contexts a filter replaced because a `ZeroCaseElements` range was
+            narrowed, as (before, after). The narrowed range is the same zero
+            formation minus the written elements, so wherever the original
+            context stood as a constraint the restated one stands too. A context
+            that only lost facts has no entry: its remaining facts stay live
+            contexts, as they did before ranges existed.
+        */
+        #[derive(Default)]
+        pub(crate) struct RestatedContexts(Vec<(FactContextHandle, FactContextHandle)>);
+
+        impl RestatedContexts {
+            pub(crate) fn is_empty(&self) -> bool {
+                self.0.is_empty()
+            }
+
+            pub(crate) fn after(
+                &self,
+                before: FactContextHandle,
+            ) -> impl Iterator<Item = FactContextHandle> + '_ {
+                self.0
+                    .iter()
+                    .filter(move |(restated, _)| *restated == before)
+                    .map(|(_, after)| *after)
+            }
+        }
+
+        /*
+            Exact projected-path scoping for a zero-formed array: a write that can
+            retag some elements removes those elements only. The fact is restated
+            for the indices on either side, and each remainder meets the other
+            writes of the same step before it is retained.
+        */
+        fn narrow_zero_case_elements<'mutation, 'dependency>(
+            program: &dyn ::validation::CheckingInput,
+            semantic: &mut FactPlan,
+            fact: FactHandle,
+            mutation: &'mutation CanonicalPlace,
+            matching_mutation: &impl Fn(
+                &FactPlan,
+                &Fact,
+                PlaceHandle,
+            ) -> Option<(
+                &'mutation CanonicalPlace,
+                &'dependency [PlaceSegment],
+            )>,
+            retained: &mut Vec<FactHandle>,
+        ) {
+            let mut pending = vec![(*semantic.facts.get(fact), mutation)];
+            while let Some((whole, mutation)) = pending.pop() {
+                let (
+                    FactPayload::ZeroCaseElements {
+                        first,
+                        end,
+                        element,
+                        variant,
+                    },
+                    Some(place),
+                ) = (whole.payload, whole.place.as_place())
+                else {
+                    continue;
+                };
+                let array = *semantic.places.get(place);
+                let Some(written) = zero_case_elements_written(
+                    program,
+                    semantic,
+                    &whole,
+                    array.root,
+                    semantic.place_segments.span_or_empty(array.segments),
+                    mutation,
+                ) else {
+                    /*
+                        The step's matcher reported this write against a place this
+                        law does not read, such as a call's own write region. Nothing
+                        here can say which elements stand, so none do.
+                    */
+                    continue;
+                };
+                for (first, end) in [(first, written.start), (written.end, end)] {
+                    if first >= end {
+                        continue;
+                    }
+                    let remainder = Fact {
+                        payload: FactPayload::ZeroCaseElements {
+                            first,
+                            end,
+                            element,
+                            variant,
+                        },
+                        ..whole
+                    };
+                    match matching_mutation(semantic, &remainder, place) {
+                        Some((next, _)) => pending.push((remainder, next)),
+                        None => retained.push(semantic.append_fact(remainder)),
+                    }
+                }
+            }
+        }
+
+        enum ContextSurvival<'mutation> {
             Unchanged,
             Dropped,
-            Reduced(Vec<FactHandle>),
+            Reduced {
+                retained: Vec<FactHandle>,
+                narrowed: Vec<(FactHandle, &'mutation CanonicalPlace)>,
+            },
         }
 
         /*
@@ -7519,7 +7826,7 @@ mod domain {
                 &'dependency [PlaceSegment],
             )>,
             invalidated: &mut impl FnMut(FactHandle, &CanonicalPlace, &[PlaceSegment]),
-        ) -> ContextSurvival {
+        ) -> ContextSurvival<'mutation> {
             let fact_refs = semantic
                 .refs
                 .span_or_empty(semantic.contexts.get(context).facts);
@@ -7531,6 +7838,7 @@ mod domain {
                 return ContextSurvival::Dropped;
             }
             let mut dropped = Vec::new();
+            let mut narrowed = Vec::new();
             for reference in fact_refs {
                 let handle = reference.fact;
                 let fact = semantic.facts.get(handle);
@@ -7541,6 +7849,11 @@ mod domain {
                 else {
                     continue;
                 };
+                if matches!(fact.payload, FactPayload::ZeroCaseElements { .. })
+                    && !dropped.contains(&handle)
+                {
+                    narrowed.push((handle, mutation));
+                }
                 crate::shared::collections::push_unique(&mut dropped, handle);
                 if let FactPayload::StorageDependency { dependent } = fact.payload
                     && !dropped.contains(&dependent)
@@ -7569,16 +7882,17 @@ mod domain {
                     }
                 }
             }
-            if dropped.len() == fact_refs.len() {
+            if dropped.len() == fact_refs.len() && narrowed.is_empty() {
                 ContextSurvival::Dropped
             } else {
-                ContextSurvival::Reduced(
-                    fact_refs
+                ContextSurvival::Reduced {
+                    retained: fact_refs
                         .iter()
                         .map(|reference| reference.fact)
                         .filter(|handle| !dropped.contains(handle))
                         .collect(),
-                )
+                    narrowed,
+                }
             }
         }
 
@@ -7605,11 +7919,214 @@ mod domain {
             dependent_segments.len() > dependency_segments.len()
                 && dependent_segments.starts_with(dependency_segments)
         }
+
+        #[cfg(test)]
+        mod zero_case_element_tests {
+            /*
+                `root.table` is a zero-formed array of eight elements whose tag
+                sits at `root.table[index].kind`. These pin which elements one
+                write removes, and that a step writing two elements leaves the
+                three ranges around them.
+            */
+            use super::{filter_contexts_after_place_mutations, zero_case_elements_written};
+            use arena::PagedArenaSet;
+            use checked_trees::{DomainFacts, FlowInvalidationSource, FlowSemanticContextRef};
+            use facts::{
+                Fact, FactOrigin, FactPayload, FactPlace, FactPlan, PlaceRoot, PlaceSegment,
+                ProgramPoint, QualificationEvidence,
+            };
+            use symbols::SymbolHandle;
+            use validation::CanonicalPlace;
+
+            fn symbol(index: u32) -> SymbolHandle {
+                SymbolHandle::from_parts(index, 1)
+            }
+
+            fn field(index: u32) -> PlaceSegment {
+                PlaceSegment::Field {
+                    symbol: symbol(index),
+                }
+            }
+
+            fn at(index: usize) -> PlaceSegment {
+                PlaceSegment::FixedIndex { index }
+            }
+
+            const TABLE: u32 = 2;
+            const KIND: u32 = 3;
+            const OTHER: u32 = 4;
+            const FIRST_CASE: u32 = 5;
+            const PAYLOAD: u32 = 6;
+
+            fn zero_formed_table(semantic: &mut FactPlan) -> facts::FactHandle {
+                let place = semantic.append_symbol_place(symbol(1));
+                semantic.push_place_segment(place, field(TABLE));
+                let mut element = arena::HandleSpan::empty();
+                semantic
+                    .place_segments
+                    .append_to_span(&mut element, field(KIND));
+                semantic.append_fact_context(Fact {
+                    place: FactPlace::Place(place),
+                    point: ProgramPoint::Global,
+                    origin: FactOrigin::StatementTransfer,
+                    evidence: QualificationEvidence::default(),
+                    payload: FactPayload::ZeroCaseElements {
+                        first: 0,
+                        end: 8,
+                        element,
+                        variant: symbol(FIRST_CASE),
+                    },
+                })
+            }
+
+            fn write(segments: &[PlaceSegment]) -> CanonicalPlace {
+                CanonicalPlace {
+                    root: PlaceRoot::Symbol(symbol(1)),
+                    segments: segments.to_vec(),
+                }
+            }
+
+            #[test]
+            fn a_write_removes_only_the_elements_whose_tag_it_can_replace() {
+                let program = typed_trees::TypedTrees::default();
+                let mut semantic = FactPlan::default();
+                let handle = zero_formed_table(&mut semantic);
+                let fact = *semantic.facts.get(handle);
+                let written = |segments: &[PlaceSegment]| {
+                    zero_case_elements_written(
+                        &program,
+                        &semantic,
+                        &fact,
+                        PlaceRoot::Symbol(symbol(1)),
+                        &[field(TABLE)],
+                        &write(segments),
+                    )
+                };
+                assert_eq!(written(&[field(TABLE), at(3), field(KIND)]), Some(3..4));
+                assert_eq!(written(&[field(TABLE), at(3)]), Some(3..4));
+                assert_eq!(written(&[field(TABLE)]), Some(0..8));
+                assert_eq!(written(&[]), Some(0..8));
+                assert_eq!(
+                    written(&[field(TABLE), PlaceSegment::FixedRange { start: 2, end: 5 }]),
+                    Some(2..5)
+                );
+                assert_eq!(
+                    written(&[field(TABLE), PlaceSegment::FixedRange { start: 6, end: 20 }]),
+                    Some(6..8)
+                );
+                let runtime_index = PlaceSegment::Index {
+                    expression: typed_trees::expression::ExpressionHandle::invalid(),
+                };
+                assert_eq!(written(&[field(TABLE), runtime_index]), Some(0..8));
+                assert_eq!(
+                    written(&[field(TABLE), PlaceSegment::OpaqueRange]),
+                    Some(0..8)
+                );
+                // A resolved write below the tag fills a payload; the tag stands.
+                assert_eq!(
+                    written(&[
+                        field(TABLE),
+                        at(3),
+                        field(KIND),
+                        PlaceSegment::Case {
+                            variant: symbol(FIRST_CASE),
+                        },
+                        field(PAYLOAD),
+                    ]),
+                    None
+                );
+                assert_eq!(written(&[field(TABLE), at(3), field(OTHER)]), None);
+                assert_eq!(written(&[field(TABLE), at(8), field(KIND)]), None);
+                assert_eq!(written(&[field(OTHER)]), None);
+                assert_eq!(
+                    zero_case_elements_written(
+                        &program,
+                        &semantic,
+                        &fact,
+                        PlaceRoot::Symbol(symbol(1)),
+                        &[field(TABLE)],
+                        &CanonicalPlace {
+                            root: PlaceRoot::Symbol(symbol(9)),
+                            segments: vec![field(TABLE)],
+                        },
+                    ),
+                    None
+                );
+            }
+
+            #[test]
+            fn one_step_writing_two_elements_keeps_the_ranges_around_them() {
+                let program = typed_trees::TypedTrees::default();
+                let mut semantic = FactPlan::default();
+                zero_formed_table(&mut semantic);
+                let context = semantic
+                    .contexts
+                    .iter()
+                    .map(|(context, _)| context)
+                    .next()
+                    .expect("the formation context");
+                let mut context_refs = PagedArenaSet::default();
+                let source = context_refs.insert_many([FlowSemanticContextRef { context }]);
+                let mut restated = super::RestatedContexts::default();
+                let retained = filter_contexts_after_place_mutations(
+                    &program,
+                    &mut semantic,
+                    &DomainFacts::default(),
+                    &mut context_refs,
+                    &mut PagedArenaSet::default(),
+                    &mut PagedArenaSet::default(),
+                    source,
+                    &[
+                        write(&[field(TABLE), at(5), field(KIND)]),
+                        write(&[field(TABLE), at(3)]),
+                        write(&[field(OTHER)]),
+                    ],
+                    FlowInvalidationSource::Statement { statement_index: 0 },
+                    (SymbolHandle::invalid(), 0),
+                    &mut restated,
+                );
+                assert_eq!(restated.after(context).count(), 1);
+                let mut ranges: Vec<_> = retained
+                    .handles()
+                    .flat_map(|reference| {
+                        let context = semantic.contexts.get(context_refs.get(reference).context);
+                        semantic
+                            .refs
+                            .span_or_empty(context.facts)
+                            .iter()
+                            .map(|reference| semantic.facts.get(reference.fact).payload)
+                            .collect::<Vec<_>>()
+                    })
+                    .map(|payload| match payload {
+                        FactPayload::ZeroCaseElements { first, end, .. } => first..end,
+                        other => panic!("unexpected retained fact {other:?}"),
+                    })
+                    .collect();
+                ranges.sort_by_key(|range| range.start);
+                assert_eq!(ranges, [0..3, 4..5, 6..8]);
+
+                let whole = filter_contexts_after_place_mutations(
+                    &program,
+                    &mut semantic,
+                    &DomainFacts::default(),
+                    &mut context_refs,
+                    &mut PagedArenaSet::default(),
+                    &mut PagedArenaSet::default(),
+                    retained,
+                    &[write(&[field(TABLE)])],
+                    FlowInvalidationSource::Statement { statement_index: 1 },
+                    (SymbolHandle::invalid(), 1),
+                    &mut super::RestatedContexts::default(),
+                );
+                assert!(whole.is_empty());
+            }
+        }
     }
 
     pub(crate) use dependencies::build_domain_facts;
     pub(in crate::flow) use dependencies::qualification_is_content_independent;
     pub(crate) use dependencies::relative_place_segments_from_expression;
+    pub(crate) use invalidation::RestatedContexts;
     pub(crate) use invalidation::context_survives_place_mutations;
     pub(in crate::flow) use invalidation::filter_contexts_after_mutations;
     pub(crate) use invalidation::filter_contexts_after_place_mutations;
@@ -9612,6 +10129,45 @@ mod reference_spans {
         )
     }
 
+    /*
+        Project constraints after an invalidation filter. A constraint on a
+        context the filter restated follows it to the restated context.
+    */
+    pub(crate) fn project_constraint_refs_after_invalidation(
+        constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
+        source: arena::HandleSpan<FlowConstraintRef>,
+        active_contexts: arena::HandleSpan<FlowSemanticContextRef>,
+        semantic_context_refs: &arena::PagedArenaSet<FlowSemanticContextRef>,
+        restated: &crate::flow::RestatedContexts,
+    ) -> arena::HandleSpan<FlowConstraintRef> {
+        let mut projected = project_constraint_refs_to_active_contexts(
+            constraint_refs,
+            source,
+            active_contexts,
+            semantic_context_refs,
+        );
+        if restated.is_empty() {
+            return projected;
+        }
+        let followed: Vec<_> = constraint_refs
+            .span_or_empty(source)
+            .iter()
+            .filter_map(|reference| match reference.kind {
+                FlowConstraintKind::SemanticContext { context } => Some(context),
+                _ => None,
+            })
+            .flat_map(|context| restated.after(context))
+            .collect();
+        for context in followed {
+            append_constraint_ref(
+                constraint_refs,
+                &mut projected,
+                FlowConstraintKind::SemanticContext { context },
+            );
+        }
+        projected
+    }
+
     pub(crate) fn filter_constraint_refs(
         constraint_refs: &mut arena::PagedArenaSet<FlowConstraintRef>,
         source: arena::HandleSpan<FlowConstraintRef>,
@@ -10704,7 +11260,7 @@ mod cleanup_case_evidence {
         fn excludes(&self, path: &[PlaceSegment]) -> bool {
             self.inactive
                 .iter()
-                .any(|inactive| path.starts_with(inactive))
+                .any(|inactive| crate::flow::lies_under_observed_case(inactive, path))
         }
 
         fn proves_case(
@@ -11045,7 +11601,7 @@ mod cleanup_effect_dependencies {
             &|path| {
                 inactive_cases
                     .iter()
-                    .any(|inactive| path.starts_with(inactive))
+                    .any(|inactive| crate::flow::lies_under_observed_case(inactive, path))
             },
         )
         .is_some();
@@ -12057,6 +12613,7 @@ pub(crate) use context::{
     active_context_handles, call_flows, contract_returned_value, expressions, indexed_statements,
     state_returned_value, state_statements,
 };
+pub(crate) use domain::RestatedContexts;
 pub(crate) use domain::build_domain_facts;
 pub(crate) use domain::context_survives_place_mutations;
 pub(crate) use domain::filter_contexts_after_place_mutations;
@@ -12083,8 +12640,8 @@ pub(crate) use receiver_reads::{StateReceiverReadCache, call_receiver_read_acces
 pub(crate) use reference_spans::append_constraint_ref;
 use reference_spans::{
     append_flow_contexts, append_flow_contexts_for_points, append_place_segments,
-    appended_span_since, project_constraint_refs_to_active_contexts, retained_constraint_refs,
-    retained_flow_contexts,
+    appended_span_since, project_constraint_refs_after_invalidation,
+    project_constraint_refs_to_active_contexts, retained_constraint_refs, retained_flow_contexts,
 };
 
 /*
@@ -12142,16 +12699,17 @@ pub(crate) use ownership::{
 };
 pub(crate) use place::{
     CaseEvidence, LiteralExpressionProjection, LiteralValueSource, MembershipEvidence,
-    canonical_place_from_semantic_place, canonical_place_from_symbol,
+    ZeroCaseBelow, canonical_place_from_semantic_place, canonical_place_from_symbol,
     canonical_place_joined_segments_may_overlap, canonical_place_segments_equal,
     canonical_place_segments_may_overlap, canonical_places_agree, case_tag_segments_may_overlap,
-    compose_captured_view_segments, fixed_selection_segment, literal_argument_access_places,
-    literal_expression_projections, literal_value_path_is_inactive, literal_value_projections,
-    narrow_pinned_index_segments, narrow_pinned_index_segments_with_values, place_case_has_value,
-    place_case_path_is_inactive, place_cases_are_selected, place_cases_are_selected_after,
-    place_segment_has_static_identity, place_segment_has_unresolved_identity, projected_leaf_place,
-    reference_source_place, segments_cover_subject, source_independent_place, stable_case_subject,
-    static_place_segment_pair_equal,
+    compose_captured_view_segments, contains_observed_case, fixed_selection_segment,
+    lies_under_observed_case, literal_argument_access_places, literal_expression_projections,
+    literal_value_path_is_inactive, literal_value_projections, narrow_pinned_index_segments,
+    narrow_pinned_index_segments_with_values, place_case_has_value, place_case_path_is_inactive,
+    place_cases_are_selected, place_cases_are_selected_after, place_segment_has_static_identity,
+    place_segment_has_unresolved_identity, projected_leaf_place, reference_source_place,
+    segments_cover_subject, source_independent_place, stable_case_subject,
+    static_place_segment_pair_equal, zero_case_at, zero_case_below,
 };
 pub(crate) use reach::attach_reach_summaries;
 use state::build_state_flow_fact;
@@ -12223,9 +12781,11 @@ mod terminal_invocation {
     /*
         The invocation that completes one authored transition arm.
 
-        This identifies argument transport, not caller-scope retirement. Entering
-        another machine still keeps caller storage and loans alive until ordinary
-        completion; only `local_jump` can establish an internal block boundary.
+        This identifies argument transport, not caller-scope retirement: only
+        `local_jump` establishes an internal block boundary, and entering another
+        machine keeps caller storage alive until ordinary completion. A loan the
+        caller carries into it still closes at its last derived use, inside the
+        target's terminal chain too (`state_contracts.md`, terminal calls).
     */
     pub(crate) struct TerminalInvocation<'program> {
         pub(crate) target: &'program typed_trees::state::State,

@@ -42,15 +42,6 @@ pub struct PreparedCompilation {
 }
 
 impl PreparedCompilation {
-    pub fn advance(
-        &mut self,
-        returned: Result<Option<build_settings::ReturnedBuild>, crate::CompileFailure>,
-    ) -> Result<crate::BuildAdvance, crate::CompileFailure> {
-        match self.source.as_mut() {
-            Some(Ok(source)) => source.advance(returned),
-            _ => Ok(crate::BuildAdvance::Complete(returned)),
-        }
-    }
     pub fn product_queries(&self) -> Option<crate::ProductQueries> {
         Some(self.source.as_ref()?.as_ref().ok()?.product_queries())
     }

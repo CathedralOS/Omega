@@ -18,21 +18,23 @@ checks that the rows to decide are the ones the lowered form owes;
 it, from the stores [places/log.rs](src/places/log.rs) derives from the
 operations; [prove.rs](src/prove.rs) is the one prover.
 [joins.rs](src/joins.rs) infers and checks join predicates;
-[crashes.rs](src/crashes.rs) states crash-site coverage.
+[crashes.rs](src/crashes.rs) states crash-site coverage;
+[arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
 
 ## What it decides
 
 | Kind | Goal | Hypotheses available at its point |
 | --- | --- | --- |
-| `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract or multiply, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
+| `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract, multiply or cast, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
 | `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
 | `NormalGuarantee` | this machine's `ensures` clause at that position, with `result` replaced by the value that exit returns | the same, on the exit edge |
 | `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)); when a store or a zero establishment leaves it unproved, the same clause over what the place holds at each consumption point the [invariant window](#invariant-windows) reaches open | the same, before the operation or the consumption point |
 | `PublishedGuarantee` | not proved: held when every return edge's `NormalGuarantee` for the clause is discharged | - |
-| `ArrivalInvariant` | the destination join's inferred predicate, its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
+| `ArrivalInvariant` | the destination block's predicate (a loop head's declared invariant, its member's `requires`, or a join's inferred predicate), its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
 | `CrashCoverage` | at a `Crash` terminator, its guard's clauses and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none); at a call, the callee's route for the cause with the call's actuals implies that disjunction | the same, before the crashing terminator or call |
 
-Any other kind is refused as `Unsupported`; elaboration mints none yet.
+A `Loan` is not proved: it is judged by structure ([Loans](#loans)). Any
+other kind is refused as `Unsupported`.
 
 Beside the obligations it makes two structural judgments, which share one
 verdict per operation and terminator that touches storage
@@ -69,6 +71,29 @@ see [What a dispatch binds](#what-a-dispatch-binds)). Each row's proposition is 
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
+
+## Erased formals at a call
+
+A callee clause may name an `[erased]` scalar formal
+([proof contracts](../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+the binding "remains in checking and semantic identity"). At a call, each
+such formal is replaced by the term the call supplies for it, in the
+callee's `requires` (the `CallRequirement` goal) and in its `ensures` (the
+`CalleeGuarantee` knowledge), by the same `substitute` that replaces a
+runtime formal by its actual. The term is read from the call in the lowered
+form (`erased_arguments`), paired by position with the callee's
+`MachineContract::erased_scalar_formals`: an invocation row's actual is a
+value or a place, and an erased actual is neither. A term is a value of the
+caller or a literal; any other form, and a callee with an erased proof
+formal, is refused as `Unsupported`. Inside the callee the erased formal is
+an ordinary value identity, so its entry `requires` is knowledge there with
+no special case. The prover is unchanged.
+
+An erased formal has no runtime lane, so the lowered form does not say where
+among the formals it was written; `values_are_declared` takes each erased
+formal's position from its row, requires those positions to increase in
+contract order, and gives the runtime formals the remaining positions in
+their own order. A row that breaks either is `ForeignIdentity`.
 
 ## The rows are checked against the lowered form
 
@@ -554,6 +579,103 @@ scalar lane: the callee's `k`-th scalar formal by the caller's `k`-th scalar
 actual. A record actual is a place and no clause term can name it, because
 elaboration refuses a clause that names or projects a record formal.
 
+## Loans
+
+A call that passes a place to a borrowed formal lends it for the call
+([structure-elaboration](../structure-elaboration/README.md#references)):
+the structural argument names the place with the loan's access, and one
+`Loan` row stands for it. [places/loans.rs](src/places/loans.rs) recomputes
+the rows from the lowered form, as every other row is
+([The rows are checked against the lowered form](#the-rows-are-checked-against-the-lowered-form)):
+one per borrowed structural argument of each call, created at the point
+before the call, whose captured place is the invocation row's actual at that
+position and the place the argument's storage path names, and whose lender
+is the incoming loan when the root is a borrowed formal (`Lender::Incoming`)
+and the owner otherwise. The access must be the callee formal's declared
+access. A row the lowered form does not owe, or owes otherwise, is
+`ForeignIdentity`.
+
+Each loan is formed for one call and ends when the call returns, so none is
+live on an edge and no edge disposes of one; a call that never returns may
+not lend. What an exclusive loan's callee did is a store of its own: the
+lent place holds contents its callee established, with no value identity
+here, from the call's normal continuation on (`Stored::Returned`), and
+nothing outside it changes. A sibling field keeps what it held, so a read of
+it still has its read equation; a read of the lent field has none. A shared
+loan stores nothing.
+
+Whether a loan may be formed is a resource judgment, not a proposition
+([loans](../../../../../wiki/spec/terminal-psi/loans.md): "Loan descent,
+access attenuation, temporal containment and restoration are resource
+judgments. Logical facts cannot create, amplify, transfer, extend, return,
+consume or duplicate authority."), so it has no certificate. A loan that may
+be formed is `Discharged::Lent`; one that may not is refused with
+`RefusalReason::Conflict`, a compile error of the program:
+
+- **Two loans of one call that may share storage**, when either is
+  exclusive: the later one conflicts. The places' overlap is the one
+  relation the place walk uses (`overlap`): two different fields of one
+  record are disjoint, anything else beneath one root may share storage.
+  ownership.md, "Borrows and aliases": "exclusive loans must not overlap
+  incompatibly"; loans.md: "A live exclusive loan does not prove projections
+  disjoint."
+- **An exclusive reborrow of storage held shared**: a loan beneath a
+  borrowed formal declared `&T` with mutable access (loans.md, "Reborrow
+  lineage and access": a `Read` parent rejects a mutable child).
+
+`judge` reports each as a `ConflictingUse` in `RouteVerdict::Rejected`
+beside the unproved obligations and unestablished uses, in the current
+checker's words: `state `two` receives `y` as mutable more than once
+(conflicting loans)`, `... as both mutable and read-only`, placed at the
+call.
+
+## Loops
+
+Elaboration lowers a call cycle as a loop: one head block per machine of the
+cycle, the machine's formals as the head's parameters, and a jump to the
+head for each call
+([structure elaboration](../structure-elaboration/README.md#call-cycles-as-loops)).
+A machine's `requires` is its head's invariant, a row of the module's
+`scalar_block_invariants`. [arrivals.rs](src/arrivals.rs) does three things
+with a row, and the prover does the rest unchanged.
+
+- **Admits it.** The predicate may name only machine formals and the head's
+  own parameters, the head is not the machine's entry, and every edge into
+  the head is one of the row's arrivals exactly once with an
+  `ArrivalInvariant` obligation of its own
+  ([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress):
+  "Missing or duplicate arrivals, wrong scope or carriers, and stale edge
+  coordinates reject."). A row that fails refuses the machine: its predicate
+  would otherwise be a hypothesis nobody proved.
+- **States each arrival's goal:** the predicate with each head parameter
+  replaced by the argument that edge carries, all at once (control flow:
+  "Every arrival proves the predicate under simultaneous
+  destination-parameter to actual-argument substitution, before destination
+  hypotheses become available."). It is decided at the edge, so a jump back
+  out of the loop has the invariant of the iteration it leaves, and the
+  entry's jump has the machine's own `requires`.
+- **Makes it known:** one knowledge row, the predicate over the head's
+  parameters, available from the head's entry and justified as
+  `BlockInvariant`.
+
+That row is all that is known about a head's parameters. A parameter is a
+value of its own on every arrival, so what a caller knew about an argument
+says nothing about it, which is the specification's "At a cyclic scheduling
+cut, only checked invariant predicates enter as induction hypotheses; prefix
+facts are discarded" in a model where knowledge names values. A row about a
+value evaluated before the loop stays available inside it by dominance: that
+value does not change.
+
+The invariant is used before it is proved, as an induction hypothesis must
+be. That is sound only because a closure is accepted whole: `judge` accepts
+when every obligation is discharged, every arrival among them
+([fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md#premise-availability):
+"Every arrival must check before the destination predicate can justify
+downstream obligations."). A single discharged obligation inside a loop is
+not evidence on its own while an arrival of its head is unproved.
+
+An unranked loop proves nothing about ending, and nothing here says it ends.
+
 ## The prover
 
 One goal-directed prover serves all three kinds. It carries interval bounds as
@@ -572,7 +694,10 @@ that is a value, cites the result equation as its only definition and lands
 the other operand on the earlier equation that fixes it to a literal, and the
 kernel replays the step on the root's bound. This is the range propagation
 that [required automatic discharge](../../../../../wiki/spec/proofs/contracts.md#required-automatic-discharge)
-asks of every checker. An unsigned remainder is also below a divisor known
+asks of every checker. A cast's result takes its operand's bounds restated
+in the result's carrier (`IntegerCastBound`), and an exact cast's
+representability goal is the operand's bound, restated over its mathematical
+value, against the target carrier's limit. An unsigned remainder is also below a divisor known
 positive, whatever the divisor is. A
 comparison closes by chaining the two sides' bounds through a closed literal
 relation. An arithmetic safety goal closes through `IntegerAffineBound`, whose
@@ -602,6 +727,34 @@ literals, whose denotation is `Falsehood`, and the goal follows
 ([integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md#elementary-certificate-rules):
 "closes an impossible arrival without pruning that arrival").
 
+Two orders between values with no literal contradict through the guard's own
+value instead. After `requires low <= high`, the arm of `high < low` knows
+`c == true`, where `c` is the comparison's result. Chaining the two orders
+reaches only `high < high`, and the kernel calls a relation false only between
+two literals. But `c == false` denotes `low <= high` under `c`'s result
+equation, and that is known. So `c == false` is proved
+(`ValueEqualityTransport`), `true == c` and `c == false` give `true == false`
+(`EqualitySymmetry`, `EqualityTransitivity`), and the denotation of that is
+`Falsehood`. The negated guard's denotation may be any goal the direct search
+proves, not only a known fact: `requires low < high` rules out `high < low`
+by weakening. No kernel rule was added for this, and the mathematical core
+judges the whole certificate.
+
+An exact remainder by a divisor that is not a literal takes a bound from its
+dividend: it lies between zero and the dividend, so `-7 <= value <= 7` gives
+`-7 <= value % divisor <= 7` once `divisor` is proved positive or below
+minus one (`remainder_within_dividend`). This is the one step here that
+rests on a provisional kernel rule: the kernel trusts the statement
+(`IntegerRemainderWithinDividend` in
+[classicality](../../../../../wiki/spec/proofs/classicality.md)), and its
+mathematical core does not derive it.
+
+An exact quotient is at most its dividend when the dividend is nonnegative and
+the divisor positive (`quotient_at_most_dividend`): `value / 2 <= value`, an
+order step between two values, which also carries the dividend's upper bound
+to the quotient. This too rests on a provisional kernel rule
+(`IntegerQuotientAtMostDividend`).
+
 `verify_obligation` then decides the whole certificate. Its acceptance records
 whether the mathematical core judged it as well. Most certificates are
 `Judged`; a discreteness step from a transported strict guard (`a < 10` to
@@ -615,22 +768,20 @@ Each of these is true in the programs that need it and has no derivation in
 the rules of [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md),
 so the obligation is `Unproved`. None is worked around here.
 
-- *A contradiction between two values with no literal.* `low <= high`
-  under the guard `high < low` chains to `high < high`. A closed false
-  relation has the denotation `Falsehood` only between two literals, so
-  nothing follows. Required automatic discharge counts "contradiction of
-  an unreachable path" among order atoms as floor
-  (`pass/contracts/contradictory_relational_branch_exit`).
-- *A quotient or remainder by a divisor that is not a literal.* The
-  endpoint chain replays a divide or remainder only by a literal or
-  landed divisor. `value / divisor` with `divisor >= 2`, and
-  `value % divisor` bounded by the dividend's own bounds, get only what
-  the relational unsigned remainder form gives (`result < divisor`)
-  (`pass/arithmetic/runtime_full_width_unsigned_quotient_exit`,
-  `runtime_bounded_dividend_remainder_exit`).
-- *A quotient related to its dividend.* `value / 2 <= value` is a
-  relation between two values; the chain maps literal endpoints only
-  (`run/contracts/scalar_crash_route_exit`).
+- *A contradiction between two order facts when neither is a taken guard.*
+  Two bare facts `low <= high` and `high < low` (two `requires`, or a
+  split alternative against a requirement) chain to `high < high`, and no
+  rule calls that false without a literal. It would take irreflexivity of
+  `<` on a value as a kernel rule. None of the programs in
+  [route one measures](../../../../../wiki/drafts/designs/route_one_measures.md#2-verdict-agreement)
+  needs it: a guard that contradicts an order is closed through the
+  guard's value, above.
+- *A quotient bounded through its divisor's bound.* `value / divisor` with
+  `divisor >= 2` is at most half the carrier's maximum. The endpoint chain
+  replays a divide only by a literal or landed divisor, and the relation
+  `value / divisor <= value` gives only the dividend's own bound. It would
+  take endpoint propagation with the divisor's interval
+  (`pass/arithmetic/runtime_full_width_unsigned_quotient_exit`).
 - *A bitwise operation of two known operands.* A mask bounds its result
   in `[0, mask]`, but `-9 & 15 == 7` needs the operation evaluated, and
   closed evaluation covers add, subtract, multiply and left shift only.
@@ -788,6 +939,8 @@ route's decision from. It discharges an elaborated closure and returns:
 - `Accepted`: every obligation of every machine was discharged by a
   certificate the kernel accepted and every use of storage is established,
   with the operation seals for Omega 00.
+- `Rejected`, for a loan: one `ConflictingUse` per loan that may not be
+  formed ([Loans](#loans)), with the call's site.
 - `Rejected`, for a use of storage: one `UnestablishedUse` per operation or
   edge that some path reaches with nothing stored into what it reads, or
   that observes the zeroed storage of a gated type, with its source site
@@ -801,8 +954,11 @@ route's decision from. It discharges an elaborated closure and returns:
   The statement ([describe.rs](src/describe.rs)) says what was not proved in
   the current checker's words for the same obligation, from the lowered form
   and elaboration's names table (`MachineNames`): `cannot prove requires
-  contract for call bounded from probe: xored >= 1 && xored <= 2` (the
-  callee's clause over the caller's actuals), `cannot prove ensures contract
+  contract for call bounded from probe: xored >= 1 && xored <= 2 (needs fact
+  `value >= 1 && value <= 2` here; establish it before the call via a prior
+  contract guarantee, domain membership, or guard) in state `entry`` (the
+  callee's clause over the caller's actuals, then the same clause as the
+  callee wrote it, and the caller's state), `cannot prove ensures contract
   for exit from shifted at statement 0: result <= value` (the exit's
   statement position, counted as the current checker counts it), `exact
   arithmetic in machine `tally` state `entry` return value may overflow
@@ -894,12 +1050,17 @@ memory.
 
 A generic machine is proved once, against the contracts its parameters
 require, and each specialization of it re-checks those proofs instead of
-searching again. This section covers two kinds of parameter: an
+searching again. This section covers three kinds of parameter: an
 implementation parameter such as `Selected satisfies Step`, whose body calls
-`Selected::apply(..)`, and a [value parameter](#value-parameters) such as
-`const Units: u64`. No production path calls any of it. Type parameters are
-not served; [what is missing](#what-the-lowered-form-does-not-carry) says
-why.
+`Selected::apply(..)`, a [value parameter](#value-parameters) such as
+`const Units: u64`, and an opaque [type parameter](#type-parameters) `T`,
+whose values a body can only pass on. No production path calls any of it. A
+type parameter the body branches on (`requires T == u32 || T == u64`) has no
+generic form yet: each machine generated from one is read and judged as a
+closed machine, under its own type
+([structure-elaboration](../structure-elaboration/README.md#generic-machines)),
+and [what is missing](#what-the-lowered-form-does-not-carry) says what a
+generic form of it needs.
 
 The example the tests and the corpus fixture use:
 
@@ -1075,14 +1236,151 @@ Limits:
   the machine itself: a value parameter used in a type (`&[u8; N]`) waits
   for arrays.
 
+### Type parameters
+
+A body over an opaque `T` is proved once for every type, and the machine
+stage 04 generates for `<u8>` takes those proofs unchanged. The example:
+
+```omega
+machine forward<T>(item: T, limit: u32) -> u32
+requires limit <= 10 ensures result <= 10
+{ limit }
+machine relay<T>(item: T, limit: u32) -> u32
+requires limit <= 10 ensures result <= 11
+{ forward<T>(item, limit) + 1 }
+```
+
+**A value of a rigid type.** In the generic check form `item` is a value:
+it has an identity, the call passes it, and a machine may return it. Its row
+says which type parameter it is of (`ValueRow::rigid`). The lowered form can
+declare a value only with a `ScalarType`, so it is declared there with a
+stand-in, `RigidType::DECLARED_AS`, which is not its type and from which
+nothing may be concluded.
+[lowered type generics](../../../../../wiki/drafts/designs/lowered_type_generics.md#opaque-type-parameters-a-rigid-sort)
+proposes a sort beside `ScalarType`; `ScalarType` is matched at 263 places
+across the compiler and its back ends, so the sort lives in the check
+tables, which only this route reads.
+
+**No proposition names a rigid value.** Under
+[generics.md](../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)
+a body can move, pass and return a value of an opaque `T`; no operator or
+comparison selects on it, and the reader refuses one applied to it, because
+a rigid type is neither a scalar nor a record. So no goal and no knowledge
+row of a well-typed body names such a value. That is enforced, not assumed:
+`concrete` ([lib.rs](src/lib.rs)) refuses, as outside the route, any goal and
+any hypothesis that names one, and the kernel's context does not list rigid
+values. The design's rule that a kernel rule over a rigid value needs an
+"any sort" premise is met by having no such rule yet: the first rule that
+holds at every type (equality transport, say) is where that premise is
+added.
+
+**A value of `T` is used at most once.** A type parameter not declared
+`[copy]` is affine
+([ownership.md](../../../../../wiki/spec/language/ownership.md#property-declarations):
+"every use of `T` receives the property fixed by `T`'s declaration"). The
+route has no judgment of moves, so the reader refuses a generic body that
+names such a slot twice, on any paths, and refuses a `[linear]` parameter,
+whose values must be used exactly once. An unused value is discarded, which
+is legal for an affine type; its cleanup is the specialization's.
+
+**A call of another generic machine at the body's own type.**
+`forward<T>(item, limit)` is held, in `relay`'s generic form, to `forward`'s
+contract at `T`: a machine with that signature and contract and no body
+(`Elaboration::applications`). `forward`'s own body is checked once as the
+entry of its own generic form. In `relay<u8>` the call names the machine
+generated from `forward` for `u8`, whose contract is the same clauses, so a
+proof that cites `forward`'s guarantee finds it there like any callee's, and
+no refinement proof stands between.
+
+**Carrying.** `reverify_specialization` checks that the specialization has
+the generic body's values and calls, where each value of a rigid type is a
+value of one concrete type, the same at every value of that parameter
+(`Instantiation::types`, read off the two value tables). The certificates
+are moved as they are: none names a rigid value, so none changes. The
+kernel decides each against the specialization's own goal and hypotheses.
+
+**What the tests show.**
+[tests/type_parameters.rs](src/tests/type_parameters.rs):
+
+| Test | Shows |
+| --- | --- |
+| `a_body_over_a_type_parameter_is_checked_once_and_carried_to_two_types` | three proofs of `relay`, found once, accepted in `relay<i32>` and `relay<bool>`, no prover started |
+| `a_bound_the_callee_does_not_give_is_refused_for_every_type` | `ensures result <= 10` refused generically; nothing to carry, no search |
+| `nothing_is_proved_from_the_type_a_rigid_value_is_declared_with` | a clause over the item at its stand-in type is no hypothesis and no goal: every obligation it would touch is refused as outside the route |
+| `one_type_parameter_is_one_type_in_a_specialization` | a machine whose two `T` values have different types takes no proof |
+
+Limits:
+
+- **Only where `T` is a scalar type.** A specialization at a data type
+  holds its `T` values in places, not values, so it does not correspond to
+  the generic form and takes no proof. That needs a rigid place type.
+- **No operation has a rigid result.** A call that returns a `T`, a local
+  of type `T` and a field of type `T` are refused by the reader. A formal
+  may be returned.
+- **`[copy]` is read; cleanup is not stated.** The generic form says
+  nothing of the cleanup an unused affine value owes; the route states no
+  cleanup for any value yet.
+- **Contracts cannot mention a `T` value.** A requirement such as
+  `premise<T>(kept)` is a proposition over a call term, which this subset
+  does not read.
+
+### Finite families
+
+A machine whose one type parameter is listed by a `requires` clause, `requires
+T == u8 || T == u16`, is checked once per listed type, with `T` fixed to that
+type. generics.md, "Static type equality": "Checking the body once per listed
+alternative, each with `T` fixed to that type, satisfies this rule for a
+finite family; the list is closed, so those checks cover every admissible
+use." Each check is an ordinary closed check of the body
+(`structure_elaboration::elaborate_alternatives`): the family's `requires` is
+decided true and states nothing, a branch on `T == u8` is decided and its
+other arm is never read, and a contract clause is read left to right with
+each type equation guarding the conjuncts after it, so in the `u16` check
+the disjunct `T == u8 && result == 7u8` contributes nothing and
+`result == 7u8` is never typed. A disjunct whose type equation is false is
+treated as false there; a clause that type equations decide false outright
+is refused.
+
+A machine stage 04 generated for one alternative is that alternative's
+body. Its certificates are carried by `reverify_specialization` from the
+alternative it corresponds to; which one is decided by `Carry::corresponds`
+on the two lowered bodies, never by the type's spelling, and the kernel
+decides each carried certificate against the generated machine's own goals.
+An obligation an alternative's check refuses rejects the body whether or not
+any caller uses that alternative.
+
+The pair is `run/generics/finite_family_contract`, where `pick<T>` promises
+`(T == u8 && result == 7u8) || (T == u16 && result == 9u16)` and both
+alternatives are proved and carried, and
+`fail/generics/finite_family_contract_wrong_alternative`, which differs only
+in what `pick` returns at `u16`: that alternative is refused, and
+`pick<u16>` has nothing to carry. The design's witness,
+`pass/contracts/generic_effective_result_comparison_exit`, lowers per
+alternative and corresponds, and proves nothing: `threshold<T>` owns no
+contract clause beyond its family. Compiler test `lowered_route_generics`
+pins all three.
+
+Limits: one type parameter, listed by one `requires` clause of type
+equations against builtin scalar types; a family that also has an
+implementation or value parameter is not checked this way; a generic
+machine called from inside an alternative's body at that alternative's type
+is not read.
+
 ### What the lowered form does not carry
 
 Read from the types, not built:
 
-- **A value of a rigid type.** A value row has a `ScalarType`, which is
-  `Boolean`, `Integer(sign, width)` or `IeeeFloat(format)`, and a place has a
-  declared `StructuralTypeId`. There is no row for a value whose type is a
-  parameter, so a body over `T` cannot be lowered once.
+- **A place of a rigid type.** A value of an opaque `T` is served
+  ([type parameters](#type-parameters)); a place has a declared
+  `StructuralTypeId`, and there is no entry for one whose type is a
+  parameter, so generic data and a `T` instantiated at a data type are not.
+- **A branch on a type equation in one form.** The lowered form has no
+  terminator that selects an arm by a type, and the arms of a finite family
+  return values of different types into one result, so such a body has no
+  single lowered form. It does not need one: the owner ruled that checking
+  the body once per listed type satisfies the rule for a finite family
+  (generics.md, "Static type equality"), and that is how it is checked
+  ([finite families](#finite-families)).
 - **An operation on it.** Terminal operations are selected per type
   (`ExactIntegerAdd` holds its `IntegerType`), and the safety goal of each
   comes from that type's range. One generic body has no single operation.

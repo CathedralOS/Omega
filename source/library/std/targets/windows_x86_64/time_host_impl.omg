@@ -32,8 +32,7 @@
 // a windows_x86_64 product. The evidence for this file is Psi checking plus
 // the native artifact's terminal-authority closure review resolving every
 // `TimeHost` requirement to a selected provider row.
-use omega::language::core::numeric_conversion;
-use time_host;
+use omega::language::core::narrow_i64_to_u64_saturating;
 
 // LARGE_INTEGER's QuadPart is a signed LONGLONG, so the counter and frequency
 // out-parameters are `i64`. FILETIME's two DWORDs form one little-endian

@@ -1387,7 +1387,7 @@ pub(crate) mod contract_plans {
             CheckedCrashCallSite, CheckedCrashSite, CrashCause, CrashInterface, CrashRouteBucketId,
             CrashRouteGuard, CrashSiteLocation,
         };
-        use language_semantics::PermissionClaimIdentity::Unknown;
+        use language_semantics::ScopedPermissionClaimIdentity::Unknown;
         use std::hash::Hash;
         use symbols::SymbolHandle;
 

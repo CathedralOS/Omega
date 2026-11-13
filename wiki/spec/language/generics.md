@@ -163,8 +163,7 @@ observations may be arguments and retain their exact
 [target dependencies](evaluation.md#target-dependent-applications).
 
 Substitution is declaration-identity based throughout bodies, contracts, field
-types, and nested applications. A local shadowing declaration does not rename
-another binder. Const values retain their declared width and arithmetic policy.
+types, and nested applications. Const values retain their declared width and arithmetic policy.
 Static data applications retain their generic base and exact tuple; substituted
 fields determine layout, not rendered names or provenance encodings. Runtime
 indices retain the same declaration identity plus exact value-subject bindings;
@@ -291,7 +290,24 @@ as static branch conditions: a branch with established `T == u32` may use that
 equality to check its operations and values as u32. On leaving the branch, only
 facts common to its surviving predecessors remain. An unspecialized body checks
 every admitted alternative; one consumer cannot authorize an otherwise invalid
-generic body. Type parameters remain static even when their admissible set has
+generic body.
+
+Outside such a branch, an operation on a value of type `T` is well-typed when
+every alternative the body admits supports it, and its obligations are owed for
+every alternative: `requires T == u32 || T == u64` with `{ left + right }`
+checks the addition as `u32` and as `u64`, whichever a caller uses. Checking the
+body once per listed alternative, each with `T` fixed to that type, satisfies
+this rule for a finite family; the list is closed, so those checks cover every
+admissible use. An open `T` has no such list and uses only what its bounds
+promise.
+
+A type equation in a contract guards the conjuncts after it in the same
+conjunction, as a case test does: in
+`(T == u8 && result == 0u8) || (T == u16 && result == 0u16)`, each conjunct
+after `T == u8` is typed once with `T` fixed to `u8`. Conjuncts are read left
+to right. For an instantiation where the equation is false, that conjunction is
+false and its later conjuncts are not evaluated, so in `min<u16>` the clause
+reduces to `result == 0u16`. Type parameters remain static even when their admissible set has
 several alternatives. No runtime type objects or RTTI are introduced.
 
 A [case-dependent default domain](data_and_literals.md#case-constraints) can

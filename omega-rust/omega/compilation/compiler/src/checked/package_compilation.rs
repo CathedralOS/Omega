@@ -164,12 +164,6 @@ impl CompletedBuild {
 }
 
 impl PackageBuildInvocation {
-    pub fn advance(
-        &mut self,
-        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-    ) -> Result<super::checking::BuildAdvance, CompileFailure> {
-        self.source.advance(returned)
-    }
     pub fn product_queries(&self) -> super::checking::ProductQueries {
         self.source.product_queries()
     }

@@ -49,7 +49,9 @@ pub mod publication;
 mod terminal_publication;
 mod test_products;
 pub use terminal_publication::ProductTerminalPublication;
-pub use test_products::{PendingTestProduct, TestRootIdentity, TestRosterEntry, TestRosterStatus};
+pub use test_products::{
+    PendingTestProduct, TestFilesystem, TestRootIdentity, TestRosterEntry, TestRosterStatus,
+};
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
@@ -89,8 +91,8 @@ pub use prepared_build::{
     SettledBuildSource, SettledPackageBuild,
 };
 pub use prepared_source::{
-    DeferredProductCompilation, PreparationFork, PreparedCheckedSource, PreparedSourceFrontier,
-    SourcePreparation, TypedCompilationFrontier,
+    DeferredProductCompilation, PreparedCheckedSource, PreparedSourceFrontier, SourcePreparation,
+    TypedCompilationFrontier,
 };
 pub use terminal_installation::PrivateEntryRamInitialization;
 pub use terminal_psi_to_abstract_operations::{

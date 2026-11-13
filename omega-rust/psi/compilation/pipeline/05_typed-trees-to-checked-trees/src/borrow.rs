@@ -1981,7 +1981,7 @@ mod last_uses {
     use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
     use symbols::SymbolHandle;
 
-    use super::tracker::StateLoanTracker;
+    use super::tracker::{LoanRetirement, StateLoanTracker};
     pub(crate) use usage::owner_path_overlaps_place_segments;
     use usage::{statement_uses_local_name, statement_uses_owner_path, statement_uses_symbol};
 
@@ -2294,12 +2294,29 @@ mod last_uses {
         loan_trackers: &[StateLoanTracker],
         loans: &mut arena::Arena<checked_trees::BorrowLoanFact>,
         loan_suppliers: &arena::Arena<arena::Handle<checked_trees::BorrowLoanFact>>,
+        retirements: &[LoanRetirement],
     ) {
         if loan_trackers.is_empty() {
             return;
         }
 
         let order = program.statement_table.admitted_execution_order(statements);
+        /*
+            A replaced carrier place holds a different value after its replacement
+            statement, so a later use of that place is a use of the replacing loan,
+            not of the retired one. Place-based uses therefore stop at retirement.
+            Explicit supplier lineage still extends a retired loan: a value already
+            detached from the place before the replacement keeps its backing live.
+        */
+        let place_use_counts = |handle: arena::Handle<checked_trees::BorrowLoanFact>,
+                                statement_index: usize| {
+            retirements
+                .iter()
+                .find(|retirement| retirement.loan == handle)
+                .is_none_or(|retirement| {
+                    !order.precedes(retirement.statement_index, statement_index)
+                })
+        };
 
         for borrow_call in borrow_calls {
             for access in argument_accesses.span_or_empty(borrow_call.accesses) {
@@ -2308,6 +2325,7 @@ mod last_uses {
                         continue;
                     }
                     if tracker.storage_owner == access.root
+                        && place_use_counts(tracker.handle, borrow_call.statement_index)
                         && owner_path_overlaps_place_segments(
                             program,
                             &tracker.owner_path,
@@ -2349,7 +2367,7 @@ mod last_uses {
                         &tracker.owner_path,
                     )
                 };
-                if used {
+                if used && place_use_counts(tracker.handle, statement_index) {
                     extend_last_use(
                         &order,
                         &mut loans.get_mut(tracker.handle).last_use_statement_index,
@@ -2416,6 +2434,7 @@ mod last_uses {
                         || (order.precedes(alias_statement, carrier_statement)
                             && order.precedes(carrier_statement, alias_last_use));
                     if !alias_reaches_carrier
+                        || !place_use_counts(carrier.handle, alias_statement)
                         || alias.place.root != carrier.storage_owner
                         || !owner_path_overlaps_place_segments(
                             program,
@@ -4458,9 +4477,27 @@ mod loans {
                     _ => return Ok(None),
                 };
                 let contract = available!(call_view_return_contract(program, state_symbol, call));
+                // The contract substitutes only a result that is itself a type
+                // parameter. An evidence-bound call such as `Operations::forward`
+                // reached through a supertrait returns `Envelope<Value>`, whose
+                // nested `Value` stays the trait's parameter. A local that binds
+                // an opaque call's result directly has that result's complete
+                // checked type, so its loans are read from the local's type.
+                let opaque_target = !validation::call_target_has_checked_body_contract(
+                    program,
+                    validation::call_target_symbol(program, call),
+                );
+                let result_type = if opaque_target
+                    && access_limits.is_empty()
+                    && local_data.type_reference.is_valid()
+                {
+                    local_data.type_reference
+                } else {
+                    contract.return_type_reference(program)
+                };
                 let completed = TableLocalData {
                     initial_value: expression,
-                    type_reference: contract.return_type_reference(program),
+                    type_reference: result_type,
                     ..local_data.clone()
                 };
                 if let Some(loans) =
@@ -4534,7 +4571,7 @@ mod loans {
                             local_data,
                             expression,
                             target,
-                            contract.return_type_reference(program),
+                            result_type,
                         )
                         .ok_or("completed result reference permissions are unavailable")?,
                     );
@@ -4914,6 +4951,13 @@ mod loans {
                     return Ok(Vec::new());
                 }
                 Err(validation::StoredReferenceRelationRefusal::Unavailable(reason)) => {
+                    // A callee without a complete relation of its own is
+                    // refused by `check_stored_output_relations`, which names
+                    // that callee and then this call. Failing the caller's
+                    // loan walk here would hide the callee's diagnostic.
+                    if crate::borrow::deferred_to_stored_output_check(frames, machine, statement) {
+                        return Ok(Vec::new());
+                    }
                     return Err(reason);
                 }
             };
@@ -7753,9 +7797,9 @@ mod loans {
         loan_trackers: &[StateLoanTracker],
         call_frames: Option<&validation::CallFrameResolver<'_>>,
     ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
-        if let Some(loans) = invocation_results::retain(program, local_data, loan_trackers)? {
-            return Ok(loans);
-        }
+        // A prepared descriptor read does not replace its producing operation's
+        // origins. Form the value through that operation; returned-carrier formation
+        // already retains completed call permissions at the call's exact boundary.
         let sources = BorrowFormationSources {
             statement_entry: loan_trackers,
             call_frames,
@@ -8624,7 +8668,7 @@ mod state {
     use super::last_uses::update_state_loan_last_uses;
     use super::loans::{StatementBorrowLoan, returned_value_loans, statement_borrow_loans};
     use super::roots::{append_state_writable_roots, mutable_parameter_count};
-    use super::tracker::StateLoanTracker;
+    use super::tracker::{LoanRetirement, StateLoanTracker};
 
     pub(super) struct BorrowFactArenas<'arenas> {
         pub(super) incoming_references: &'arenas mut Arena<ReferenceIdentity>,
@@ -8669,6 +8713,7 @@ mod state {
         let mut calls_span = HandleSpan::empty();
         let mut loans_span = HandleSpan::empty();
         let mut returned_loans_span = HandleSpan::empty();
+        let mut retirements = Vec::new();
         for (statement_index, statement) in program
             .statement_table
             .admitted_execution_statements(state.statement_nodes)
@@ -8818,9 +8863,11 @@ mod state {
                 program,
                 machine,
                 statement,
+                statement_index,
                 call_frames,
                 replacement.as_ref(),
                 &mut current_loans,
+                &mut retirements,
             );
             append_carrier_loans(
                 arenas,
@@ -8843,6 +8890,7 @@ mod state {
             state_loan_trackers,
             arenas.loans,
             arenas.loan_suppliers,
+            &retirements,
         );
 
         arenas.states.append(StateBorrowFact {
@@ -9127,21 +9175,39 @@ mod state {
         removes only the old leaves within that exact destination; earlier facts
         remain available to the flow lifetime ledger and already detached values.
     */
+    #[allow(clippy::too_many_arguments)]
     fn retire_replaced_carrier_loans(
         program: &dyn ::validation::CheckingInput,
         machine: &Machine,
         statement: &StatementNode,
+        statement_index: usize,
         call_frames: Option<&CallFrameResolver<'_>>,
         replacement: Option<&super::loans::CarrierReplacement>,
         current: &mut Vec<StateLoanTracker>,
+        retirements: &mut Vec<LoanRetirement>,
     ) {
+        let mut retire = |current: &mut Vec<StateLoanTracker>,
+                          replaced: &dyn Fn(&StateLoanTracker) -> bool| {
+            current.retain(|loan| {
+                if !replaced(loan) {
+                    return true;
+                }
+                if loan.handle.is_valid() {
+                    retirements.push(LoanRetirement {
+                        loan: loan.handle,
+                        statement_index,
+                    });
+                }
+                false
+            });
+        };
         if let Some(effects) = call_frames.and_then(|frames| {
             frames
                 .stored_reference_fallthrough_effects(machine, statement)
                 .ok()
         }) {
-            current.retain(|loan| {
-                !effects.iter().any(|effect| {
+            retire(current, &|loan| {
+                effects.iter().any(|effect| {
                     !effect.may_select
                         && loan.storage_owner == PlaceRoot::Symbol(effect.destination.local_symbol)
                         && super::loans::place_path_covers_owner(
@@ -9153,8 +9219,8 @@ mod state {
             });
         }
         if let Some(replacement) = replacement {
-            current.retain(|loan| {
-                !replacement.replaces(program, loan.storage_owner, &loan.owner_path)
+            retire(current, &|loan| {
+                replacement.replaces(program, loan.storage_owner, &loan.owner_path)
             });
         }
     }
@@ -9432,6 +9498,17 @@ mod tracker {
         pub(super) owner_symbol: SymbolHandle,
     }
 
+    /*
+        The statement at which a carrier replacement removed a loan from the
+        active roster. Liveness reads it so a later use of the replaced place
+        cannot extend the retired loan or the loans that supplied it.
+    */
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    pub(super) struct LoanRetirement {
+        pub(super) loan: Handle<checked_trees::BorrowLoanFact>,
+        pub(super) statement_index: usize,
+    }
+
     #[derive(Clone, PartialEq, Eq)]
     pub(super) struct StateLoanTracker {
         pub(super) handle: Handle<checked_trees::BorrowLoanFact>,
@@ -9563,4 +9640,17 @@ pub(crate) fn build_borrow_facts(
         returned_loans,
         states,
     ))
+}
+
+/// Whether a statement's stored-reference relation is missing only because a
+/// call in it has no complete invocation relation. The borrow walk leaves such
+/// a statement to `check_stored_output_relations`, which always refuses it.
+pub(crate) fn deferred_to_stored_output_check(
+    frames: &validation::CallFrameResolver<'_>,
+    machine: &typed_trees::machine::Machine,
+    statement: &checked_trees::statement::StatementNode,
+) -> bool {
+    frames
+        .stored_reference_call_failures(machine, statement)
+        .is_some_and(|failures| !failures.is_empty())
 }

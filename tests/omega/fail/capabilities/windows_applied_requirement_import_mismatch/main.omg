@@ -3,7 +3,7 @@
 // slot of the same generic boundary, so it has no supply and must be refused.
 // It differs from pass/capabilities/windows_applied_requirement_import_exit
 // only in the application named at the use site.
-use omega_language_std::console;
+use omega_language_std::Console;
 public boundary trait Magnitude<Value> { machine of(value: i32) -> i32 reaches; }
 data Main { m: i32; v: i32; }
 machine Main::main(main: &mut Main) reaches Magnitude + Console {

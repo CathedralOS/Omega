@@ -13,6 +13,10 @@ const REJECTION_FILES: &[&str] = &[
     "expected.txt",
 ];
 
+/// A program that must type-check and then be refused by native admission.
+/// Each non-empty line is a fragment the native build's output must contain.
+const NATIVE_REJECTION_FILE: &str = "expected_native_error.txt";
+
 #[derive(Debug, Clone)]
 pub struct SampleProject {
     pub directory: PathBuf,
@@ -22,6 +26,8 @@ pub struct SampleProject {
     pub rejection: Vec<String>,
     pub rejection_any: Vec<String>,
     pub rejection_casefold: bool,
+    /// Fragments from [`NATIVE_REJECTION_FILE`]; `None` when it is absent.
+    pub native_rejection: Option<Vec<String>>,
 }
 
 fn host_target() -> &'static str {
@@ -138,13 +144,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         } else if role == "intended-invalid"
             && let Some(df) = &diag_file
         {
-            fs::read_to_string(df)
-                .unwrap_or_default()
-                .lines()
-                .map(str::trim)
-                .filter(|l| !l.is_empty())
-                .map(str::to_owned)
-                .collect()
+            fragment_lines(&fs::read_to_string(df).unwrap_or_default())
         } else {
             Vec::new()
         };
@@ -164,6 +164,10 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    let native_rejection = fs::read_to_string(directory.join(NATIVE_REJECTION_FILE))
+        .ok()
+        .map(|text| fragment_lines(&text));
+
     Ok(SampleProject {
         directory: directory.to_path_buf(),
         rel_path,
@@ -172,6 +176,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         rejection,
         rejection_any,
         rejection_casefold,
+        native_rejection,
     })
 }
 
@@ -328,6 +333,71 @@ fn settle_review(
     retain_accepted_inputs(sample_dir, evidence)
 }
 
+/// The trimmed non-empty lines of a pinned-fragment file.
+fn fragment_lines(text: &str) -> Vec<String> {
+    text.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// A program pinned by [`NATIVE_REJECTION_FILE`] passes only when the
+/// checker accepts it and native admission then refuses it with every pinned
+/// fragment. An empty pin, a check failure, a native build that succeeds or a
+/// missing fragment each fail the sample.
+fn verify_native_rejection(
+    cli: &Path,
+    entry: &Path,
+    target: &str,
+    fragments: &[String],
+    evidence: &Path,
+) -> Result<String, String> {
+    if fragments.is_empty() {
+        return Err(format!("{NATIVE_REJECTION_FILE} pins no fragment"));
+    }
+    let check = execution::output(
+        Command::new(cli)
+            .arg("--check")
+            .arg(entry)
+            .stdin(Stdio::null()),
+        evidence,
+        "check",
+    )?;
+    if !check.status.success() {
+        return Err(format!(
+            "check-fail before native admission: {}{}",
+            String::from_utf8_lossy(&check.stdout),
+            String::from_utf8_lossy(&check.stderr)
+        ));
+    }
+    let build = execution::output(
+        Command::new(cli)
+            .args(["--target", target])
+            .arg(entry)
+            .stdin(Stdio::null()),
+        evidence,
+        "compile",
+    )?;
+    if build.status.success() {
+        return Err("native build succeeded; expected native admission to refuse it".to_owned());
+    }
+    let output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&build.stdout),
+        String::from_utf8_lossy(&build.stderr)
+    );
+    match fragments
+        .iter()
+        .find(|fragment| !output.contains(fragment.as_str()))
+    {
+        Some(missing) => Err(format!(
+            "missing native rejection fragment {missing:?} in: {output}"
+        )),
+        None => Ok("native-rejected".to_owned()),
+    }
+}
+
 pub fn parse_header_oracle(entry: &Path) -> (Option<i32>, Option<String>) {
     let text = fs::read_to_string(entry).unwrap_or_default();
     let mut expected_exit = None;
@@ -398,6 +468,21 @@ pub fn verify_sample(
         return Err("missing unambiguous entry".to_owned());
     };
     if project.role == "intended-invalid" {
+        // Exit 1 alone also describes unrelated compiler errors. A negative
+        // sample needs a diagnostic oracle before its refusal can earn credit.
+        if project.rejection.is_empty() && project.rejection_any.is_empty() {
+            return Err("intended-invalid sample requires diagnostic expectations".to_owned());
+        }
+        if project
+            .rejection
+            .iter()
+            .chain(&project.rejection_any)
+            .any(|fragment| fragment.trim().is_empty())
+        {
+            return Err(
+                "intended-invalid diagnostic expectations contain a blank fragment".to_owned(),
+            );
+        }
         let out = execution::output(
             Command::new(cli)
                 .args(["--check", "--target", target])
@@ -457,6 +542,10 @@ pub fn verify_sample(
     }
 
     settle_review(cli, &project.directory, target, evidence)?;
+
+    if let Some(fragments) = &project.native_rejection {
+        return verify_native_rejection(cli, entry, target, fragments, evidence);
+    }
 
     if matches!(project.role.as_str(), "check-only" | "library") {
         let out = execution::output(
@@ -695,6 +784,116 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn invalid_sample(directory: &Path) -> SampleProject {
+        fs::write(directory.join("main.omg"), "machine main() {}\n").unwrap();
+        fs::write(directory.join("build.omg"), "").unwrap();
+        fs::write(
+            directory.join("sample.json"),
+            r#"{"role":"intended-invalid"}"#,
+        )
+        .unwrap();
+        project_at(directory, directory).unwrap()
+    }
+
+    #[test]
+    fn intended_invalid_requires_a_nonblank_diagnostic_oracle_before_execution() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let cli = directory.join("missing-compiler");
+        let mut sample = invalid_sample(&directory);
+        for expected in [None, Some("  \n\t\n")] {
+            if let Some(text) = expected {
+                fs::write(directory.join("expected.txt"), text).unwrap();
+                sample = project_at(&directory, &directory).unwrap();
+            }
+            let error = verify_sample(&cli, &sample, host_target(), &directory.join("evidence"))
+                .unwrap_err();
+            assert!(
+                error.contains("requires diagnostic expectations"),
+                "{error}"
+            );
+        }
+        for meta in [
+            r#"{"role":"intended-invalid","rejection_contains":[]}"#,
+            r#"{"role":"intended-invalid","rejection_contains":[" "]}"#,
+            r#"{"role":"intended-invalid","rejection_any_contains":[""]}"#,
+            r#"{"role":"intended-invalid","rejection_contains":["wanted"],"rejection_any_contains":["wanted",""]}"#,
+        ] {
+            fs::write(directory.join("sample.json"), meta).unwrap();
+            sample = project_at(&directory, &directory).unwrap();
+            let error = verify_sample(&cli, &sample, host_target(), &directory.join("evidence"))
+                .unwrap_err();
+            assert!(error.contains("diagnostic expectations"), "{error}");
+        }
+        assert!(!directory.join("evidence").exists());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn intended_invalid_requires_the_pinned_reason_and_a_normal_rejection() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let mut sample = invalid_sample(&directory);
+        sample.rejection = vec!["required contract".to_owned()];
+        sample.rejection_any = vec!["bound too small".to_owned(), "missing evidence".to_owned()];
+        let cli = directory.join("compiler");
+        for (name, diagnostic, code, expected) in [
+            ("correct", "required contract: missing evidence", 1, None),
+            (
+                "unrelated",
+                "syntax error",
+                1,
+                Some("missing rejection fragment"),
+            ),
+            (
+                "missing-alternative",
+                "required contract",
+                1,
+                Some("missing any rejection fragment"),
+            ),
+            (
+                "crashed",
+                "required contract: missing evidence",
+                101,
+                Some("expected rejection exit 1"),
+            ),
+            (
+                "accepted",
+                "required contract: missing evidence",
+                0,
+                Some("expected rejection exit 1"),
+            ),
+        ] {
+            fs::write(
+                &cli,
+                format!("#!/bin/sh\nprintf '%s\\n' '{diagnostic}' >&2\nexit {code}\n"),
+            )
+            .unwrap();
+            fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+            let result = verify_sample(&cli, &sample, host_target(), &directory.join(name));
+            if let Some(fragment) = expected {
+                let error = result.unwrap_err();
+                assert!(error.contains(fragment), "{error}");
+            } else {
+                assert_eq!(result.unwrap(), "rejected");
+            }
+        }
+        // An any-of pin can stand alone, and authored case folding still applies.
+        sample.rejection.clear();
+        sample.rejection_casefold = true;
+        fs::write(
+            &cli,
+            "#!/bin/sh\nprintf 'MISSING EVIDENCE\\n' >&2\nexit 1\n",
+        )
+        .unwrap();
+        assert_eq!(
+            verify_sample(&cli, &sample, host_target(), &directory.join("casefold")).unwrap(),
+            "rejected"
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn compared_host_request_executes_both_without_compile_only_target() {

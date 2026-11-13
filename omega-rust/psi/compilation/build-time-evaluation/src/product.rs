@@ -22,26 +22,34 @@ pub mod test_groups {
         pub requirement: SymbolHandle,
         pub selecting_machine: SymbolHandle,
         pub source_span: source::SourceSpan,
+        /// Service slots this group's runner backs with private per-test state,
+        /// in selection order; empty runs the group without services.
+        pub services: Vec<TestGroupService>,
+    }
+
+    /*
+        A service slot one group asks its test runner to back
+        (wiki/spec/build/testing.md#group-configuration-and-authority).
+        `builder.tests.service<Group, Slot>()` names the exact boundary slot;
+        the runner, not a library provider, holds that service's state, as an
+        operating system holds a real filesystem's. Admission checks the slot
+        is a boundary trait; test-root selection, which knows each package's
+        name, decides whether this runner backs it.
+    */
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TestGroupService {
+        pub slot: SymbolHandle,
+        pub source_span: source::SourceSpan,
     }
 }
 pub mod assumed_bindings {
-    use symbols::SymbolHandle;
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct AssumedBindingContract {
-        pub required: SymbolHandle,
-        pub supplied: SymbolHandle,
-        pub selecting_machine: SymbolHandle,
-        pub source_span: source::SourceSpan,
-    }
+    pub use language_semantics::declaration_selection::AssumedBindingContract;
 }
 pub mod native_bindings {
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
         BuildOperation, ExecutedNativeBinding, ProductDeclarationRequest, ProductOperandRole,
-        ProductTarget,
     };
-    use semantic_vocabulary::{NativeBindingLocator, PackageKeyIdentity};
     use symbols::SymbolHandle;
     use typed_trees::product_operand::native_binding_formation;
     use typed_trees::{
@@ -49,22 +57,7 @@ pub mod native_bindings {
         product_operand::{resolve_build_request_author, resolve_product_path},
     };
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct NativeBindingSelection {
-        pub subject: SymbolHandle,
-        pub requirement: SymbolHandle,
-        /// Portable identity of the owning boundary's closed application
-        /// (`Owner<Arguments>`); `None` for a boundary without parameters.
-        /// Provider planning keys the supplied slot on it, so a use at
-        /// another application finds no supply from this row.
-        pub application_identity: Option<String>,
-        pub target: ProductTarget,
-        pub locator: NativeBindingLocator,
-        pub producer: language_semantics::declaration_selection::NativeBindingProducer,
-        pub source_occurrence_digest: [u8; 32],
-        pub supplier_package: PackageKeyIdentity,
-        pub source_span: source::SourceSpan,
-    }
+    pub use language_semantics::declaration_selection::NativeBindingSelection;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     struct ResolvedRequirement {
@@ -583,6 +576,7 @@ pub mod product_declarations {
                 | BuildOperation::AssumedBindingContract
                 | BuildOperation::WireCompatibilityRequest
                 | BuildOperation::TestGroupRegistration
+                | BuildOperation::TestGroupService
         )
     }
 
@@ -706,7 +700,40 @@ pub mod product_declarations {
                         requirement: subject,
                         selecting_machine: author,
                         source_span: typed.symbols.rejoin_product_occurrence(request.source_span),
+                        services: Vec::new(),
                     });
+                }
+                BuildOperation::TestGroupService => {
+                    // The selection configures a group this activation already
+                    // registered; it never registers one implicitly.
+                    let group = test_groups
+                        .iter_mut()
+                        .find(|group| group.requirement == subject)
+                        .ok_or_else(|| {
+                            refuse("test group service names a group this Build has not registered; register it with `builder.tests.group<…>()` first")
+                        })?;
+                    let slot = operand(typed, request, 1).map_err(|error| vec![error])?;
+                    if !typed
+                        .trait_definition_by_symbol(slot)
+                        .is_some_and(|declaration| declaration.is_boundary)
+                    {
+                        return Err(refuse(
+                            "test group service operand must name an exact visible boundary trait",
+                        ));
+                    }
+                    if group.services.iter().any(|service| service.slot == slot) {
+                        return Err(refuse(
+                            "test group service repeats the same slot for one group",
+                        ));
+                    }
+                    group
+                        .services
+                        .push(crate::product::test_groups::TestGroupService {
+                            slot,
+                            source_span: typed
+                                .symbols
+                                .rejoin_product_occurrence(request.source_span),
+                        });
                 }
                 BuildOperation::WireCompatibilityRequest => {
                     let path = |position| {
@@ -1930,14 +1957,22 @@ pub mod provider_declarations {
                     || !applications
                         .declarations()
                         .contains(&occurrence.lexical_owner)
-                    || work
-                        .iter()
-                        .any(|selection| selection.contains(occurrence.lexical_owner))
-                    || declaration_roots.contains(&occurrence.lexical_owner)
                 {
                     continue;
                 }
-                declaration_roots.push(occurrence.lexical_owner);
+                // A requirement's types are visited through its trait. Select that
+                // declaration while retaining the occurrence's exact lexical owner.
+                let owner = typed
+                    .trait_machine_signature(occurrence.lexical_owner)
+                    .map_or(occurrence.lexical_owner, |(declaration, _)| {
+                        declaration.symbol
+                    });
+                if work.iter().any(|selection| selection.contains(owner))
+                    || declaration_roots.contains(&owner)
+                {
+                    continue;
+                }
+                declaration_roots.push(owner);
             }
             for ((scope, request), work) in prepared.iter().zip(scopes).zip(&mut work) {
                 let roots = declaration_roots

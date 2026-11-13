@@ -135,6 +135,18 @@ pub(crate) mod boundary_applications {
                         machine,
                         state,
                         contract: candidate.contract,
+                        published_may_suspend: checked
+                            .facts
+                            .operational
+                            .machine_by_symbol(candidate.machine)
+                            .ok_or("boundary candidate lost its published operational contract")?
+                            .published_may_suspend,
+                        published_may_block: checked
+                            .facts
+                            .operational
+                            .machine_by_symbol(candidate.machine)
+                            .ok_or("boundary candidate lost its published operational contract")?
+                            .published_may_block,
                         specialization,
                     },
                 });
@@ -813,7 +825,9 @@ pub(crate) mod debug_map {
                 id,
                 origin: match source_file.origin {
                     source::SourceOrigin::User => DebugSourceOrigin::User,
-                    source::SourceOrigin::Toolchain => DebugSourceOrigin::Toolchain,
+                    source::SourceOrigin::Toolchain | source::SourceOrigin::ToolchainContract => {
+                        DebugSourceOrigin::Toolchain
+                    }
                 },
                 byte_len: u64::try_from(source_file.source.len())
                     .map_err(|_| LoweringError::DebugSourceLengthOverflow)?,
@@ -966,6 +980,18 @@ pub(crate) mod declarations {
             callable,
             result_type,
             contract: declaration.contract.as_bytes(),
+            published_may_suspend: checked
+                .facts
+                .operational
+                .machine_by_symbol(machine)
+                .ok_or("checked declaration lost its published operational contract")?
+                .published_may_suspend,
+            published_may_block: checked
+                .facts
+                .operational
+                .machine_by_symbol(machine)
+                .ok_or("checked declaration lost its published operational contract")?
+                .published_may_block,
             specialization,
         })
     }
@@ -1063,6 +1089,9 @@ pub(crate) mod declarations {
             result_type: identities
                 .intern(&program.package_qualified_type_identity_text(signature.return_type)),
             contract: contract.as_bytes(),
+            published_may_suspend: validation::signature_operational(checked, signature)
+                .may_suspend,
+            published_may_block: validation::signature_operational(checked, signature).may_block,
             specialization: None,
         }))
     }
@@ -1183,47 +1212,51 @@ pub(crate) mod guarded_exits {
     use checked_trees::CheckedTrees;
     use semantic_vocabulary::MachineId;
     use symbols::SymbolHandle;
-    use terminal_psi::{
-        OperationKind, OutcomeSpecificGuard, TerminalMachine, TerminalModule, Terminator,
-    };
+    use terminal_psi::{OperationKind, TerminalMachine, TerminalModule, Terminator};
 
     use crate::shared::lowering_error::{LoweringError, unsupported};
 
-    pub(crate) fn exact_payloadless_return_guards(
-        machine: &TerminalMachine,
-    ) -> Option<Vec<OutcomeSpecificGuard>> {
-        let result = machine.result.structural()?;
-        let mut guards = Vec::new();
+    /// Whether every structural return of a machine with outcome-specific
+    /// guarantees has a decided result case: either an exact payloadless
+    /// constructor established in the returning block, or the result of a
+    /// structural terminal call. Under `nested-evidence-output-establishment`
+    /// a terminal call's callee decides the case and Checked Psi has already
+    /// discharged the caller's guarantees from the callee's, so lowering only
+    /// confirms the return shape it can carry.
+    pub(crate) fn returns_have_decided_cases(machine: &TerminalMachine) -> bool {
+        let Some(result) = machine.result.structural() else {
+            return false;
+        };
+        let mut returns = 0usize;
         for block in &machine.blocks {
             let Terminator::ReturnStructural { source, .. } = block.terminator else {
                 continue;
             };
-            let operation = block.operations.iter().find(|operation| {
+            returns += 1;
+            let Some(operation) = block.operations.iter().find(|operation| {
                 operation
                     .result
                     .structural()
                     .is_some_and(|result| result.place == source)
-            })?;
-            let OperationKind::EstablishScalarCase {
-                result_case,
-                ref fields,
-            } = operation.kind
-            else {
-                return None;
+            }) else {
+                return false;
             };
-            if !fields.is_empty() {
-                return None;
+            let decided = match &operation.kind {
+                OperationKind::EstablishScalarCase { fields, .. } => fields.is_empty(),
+                OperationKind::CallStructural { .. }
+                | OperationKind::CallStructuralWithScalarArguments { .. } => true,
+                _ => false,
+            };
+            if !decided
+                || operation
+                    .result
+                    .structural()
+                    .is_none_or(|operation| operation.structural_type != result.structural_type)
+            {
+                return false;
             }
-            let operation_result = operation.result.structural()?;
-            if operation_result.structural_type != result.structural_type {
-                return None;
-            }
-            guards.push(OutcomeSpecificGuard {
-                result_type: result.structural_type,
-                result_case,
-            });
         }
-        (!guards.is_empty()).then_some(guards)
+        returns > 0
     }
 
     pub(crate) fn reject_unguarded_outcome_guarantees(
@@ -1236,8 +1269,7 @@ pub(crate) mod guarded_exits {
                 .iter()
                 .find(|(source, _)| *source == machine)
                 .and_then(|(_, terminal)| module.machine(*terminal))
-                .and_then(exact_payloadless_return_guards)
-                .is_some()
+                .is_some_and(returns_have_decided_cases)
         };
         if checked
             .facts

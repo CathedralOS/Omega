@@ -22,11 +22,13 @@ is not proof of falsehood"). So it never says "provably zero" or
 operand; the route has not decided it.
 */
 
-use semantic_vocabulary::{IntegerCarrier, IntegerSign, MachineId, OperationId, ScalarType};
+use semantic_vocabulary::{
+    CrashCause, IntegerCarrier, IntegerSign, InvocationSite, MachineId, OperationId, ScalarType,
+};
 use structure_elaboration::{Binder, Elaboration, MachineNames, SourceOrigin};
 use terminal_check_tables::MachineTables;
 use terminal_check_tables::edges::Callee;
-use terminal_check_tables::obligations::ObligationKind;
+use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_psi::{OperationKind, OperationResult};
 
 /// The statement of one unproved obligation of `machine`, which arises at
@@ -55,18 +57,25 @@ pub(crate) fn unproved(
                     SourceOrigin::Authored(span) => names.and_then(|names| names.arguments(span)),
                     SourceOrigin::Unpositioned(_) => None,
                 };
-                Some(clause.render(&|position| {
+                let over_actuals = clause.render(&|position| {
                     arguments
                         .and_then(|arguments| arguments.get(position))
                         .or_else(|| callee_names.formals.get(position))
                         .cloned()
                         .unwrap_or_else(|| String::from("?"))
-                }))
+                });
+                Some((over_actuals, callee_names.authored(clause)))
             });
             match (names, callee_names, text) {
-                (Some(names), Some(callee_names), Some(text)) => format!(
-                    "cannot prove requires contract for call {} from {}: {text}",
-                    callee_names.machine, names.machine
+                // The current checker follows the clause over the call's
+                // actuals with what the callee asked for in its own words,
+                // and names the caller's state (Psi 05,
+                // `explain_missing_boolean_fact`).
+                (Some(names), Some(callee_names), Some((text, fact))) => format!(
+                    "cannot prove requires contract for call {} from {}: {text} (needs fact \
+                     `{fact}` here; establish it before the call via a prior contract \
+                     guarantee, domain membership, or guard) in state `{}`",
+                    callee_names.machine, names.machine, names.state
                 ),
                 _ => format!(
                     "cannot prove requires clause {} of the called machine",
@@ -103,11 +112,13 @@ pub(crate) fn unproved(
             u64::from(clause) + 1,
             owner(names, site)
         ),
-        ObligationKind::ArrivalInvariant { .. } => {
-            format!("cannot prove block invariant in {}", owner(names, site))
+        ObligationKind::ArrivalInvariant { edge } => {
+            head_arrival(elaboration, machine, tables, edge, site).unwrap_or_else(|| {
+                format!("cannot prove block invariant in {}", owner(names, site))
+            })
         }
-        ObligationKind::CrashCoverage { .. } => {
-            format!("cannot prove crash coverage in {}", owner(names, site))
+        ObligationKind::CrashCoverage { site: crash, cause } => {
+            crash_coverage(elaboration, tables, names, crash, cause, site)
         }
         ObligationKind::WellFoundedness { .. } | ObligationKind::RankComparison { .. } => {
             format!("cannot prove termination in {}", owner(names, site))
@@ -122,6 +133,125 @@ pub(crate) fn unproved(
                 owner(names, site)
             )
         }
+    }
+}
+
+/// An arrival into a loop head is a call of the head's member, and the
+/// head's invariant is that member's `requires`
+/// (`wiki/spec/language/state_contracts.md`: "Machine `requires` applies at
+/// every invocation, including terminal and recursive calls."). It is stated
+/// as the current checker states that call's requirement: the clauses over
+/// the call's actuals, then as the member wrote them, and the calling
+/// machine's state. The calling machine is the one whose names record a
+/// call at the arrival's site. `None` for a join, whose predicate the
+/// checker inferred, and for the entry's jump, which no call made.
+fn head_arrival(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    tables: &MachineTables,
+    edge: semantic_vocabulary::EdgeId,
+    site: SourceOrigin,
+) -> Option<String> {
+    let terminal_check_tables::edges::Destination::Block(head) =
+        tables.edges.get(edge)?.destination
+    else {
+        return None;
+    };
+    let member = elaboration
+        .sources
+        .get(machine)?
+        .heads
+        .iter()
+        .find(|(block, _)| *block == head)?
+        .1;
+    let callee = elaboration.names.get(member)?;
+    let SourceOrigin::Authored(span) = site else {
+        return None;
+    };
+    let (caller, arguments) = elaboration
+        .names
+        .iter()
+        .find_map(|(_, names)| Some((names, names.arguments(span)?)))?;
+    if callee.requires.is_empty() {
+        return None;
+    }
+    let over_actuals: Vec<String> = callee
+        .requires
+        .iter()
+        .map(|clause| {
+            clause.render(&|position| {
+                arguments
+                    .get(position)
+                    .or_else(|| callee.formals.get(position))
+                    .cloned()
+                    .unwrap_or_else(|| String::from("?"))
+            })
+        })
+        .collect();
+    let authored: Vec<String> = callee
+        .requires
+        .iter()
+        .map(|clause| callee.authored(clause))
+        .collect();
+    Some(format!(
+        "cannot prove requires contract for call {} from {}: {} (needs fact `{}` here; \
+         establish it before the call via a prior contract guarantee, domain membership, or \
+         guard) in state `{}`",
+        callee.machine,
+        caller.machine,
+        over_actuals.join(" && "),
+        authored.join(" && "),
+        caller.state
+    ))
+}
+
+/// The current checker's statement of an uncovered crash (Psi 05,
+/// `check_published_ceiling_coverage`): a call's surviving route names the
+/// caller and callee, a `crash` statement names its machine, and both say
+/// what to publish. The current checker also gives a statement and call
+/// number, which count slots of its own statement layout; the lowered form
+/// has no such slots, and the statement is positioned at the site instead.
+fn crash_coverage(
+    elaboration: &Elaboration,
+    tables: &MachineTables,
+    names: Option<&MachineNames>,
+    crash: CrashSite,
+    cause: CrashCause,
+    site: SourceOrigin,
+) -> String {
+    let Some(names) = names else {
+        return format!("cannot prove crash coverage in {}", owner(names, site));
+    };
+    // A call site is an operation, or a block that ends in a call with no
+    // normal return; either way the invocation row names the callee.
+    let callee = tables
+        .invocations
+        .iter()
+        .find(|(_, row)| match (crash, row.site) {
+            (CrashSite::Operation(operation), InvocationSite::Operation(called)) => {
+                operation == called
+            }
+            (CrashSite::Block(block), InvocationSite::InvokeNoNormal(edge)) => tables
+                .edges
+                .get(edge)
+                .is_some_and(|row| row.source == block),
+            _ => false,
+        })
+        .and_then(|(_, row)| match row.callee {
+            Callee::Machine(callee) => elaboration.names.get(callee),
+            Callee::Selected { .. } => None,
+        });
+    match callee {
+        Some(callee) => format!(
+            "call from `{}` to `{}` has an uncovered {cause:?} crash route; publish a \
+             same-cause route whose guard covers this invocation",
+            names.machine, callee.machine
+        ),
+        None => format!(
+            "machine `{}` has an uncovered {cause:?} crash; publish a same-cause `crashes` \
+             route whose guard covers this site",
+            names.machine
+        ),
     }
 }
 
@@ -188,6 +318,14 @@ fn operation_safety(
                 "shift count in {owner} is not provably below the operand width for `{carrier}`"
             )
         }
+        // In the current checker's words, so a pinned fragment of its
+        // diagnostic matches; the operand's carrier is not named because
+        // the operation row holds only the operand's value identity.
+        OperationKind::IntegerExactCast { .. } => format!(
+            "Exact integer cast in {owner} to `{carrier}` is not provably representable; \
+             constrain the source with a range or dominating guard, or use a named Wrapping, \
+             Saturating, or Trapping conversion"
+        ),
         OperationKind::ExactIntegerDivide { .. } => partial("division"),
         OperationKind::ExactIntegerRemainder { .. } => partial("remainder"),
         _ => format!("cannot prove operation safety in {owner}"),

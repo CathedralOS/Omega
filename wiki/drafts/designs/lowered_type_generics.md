@@ -40,8 +40,39 @@ record a generated machine's argument only as its spelling. A requirement
 with value parameters is read at the literals of each call, so the fail
 twin is refused at `Units == 7`, where the member's refinement proof is
 missing, not "for every `Units`, before any specialization". And a body that
-reads the parameter as an operand is not carried yet. Steps 2 and 3 are not
-built.
+reads the parameter as an operand is not carried yet.
+
+Step 2, an opaque type parameter, is built and recorded as
+[condition 3's third result](check_on_lowered_form.md#condition-3-type-parameters).
+It differs from the text below in four ways. The sort is on the check
+tables' value row, not beside `ScalarType`, which is matched at 263 places
+across the compiler; the lowered form declares a rigid value with a stand-in
+type that nothing may read. No kernel rule has an "any sort" premise yet:
+no proposition may name a rigid value at all, which the checker enforces,
+and the premise arrives with the first rule that needs it. There is no
+rigid place type, so a `T` instantiated at a data type takes no proof, and
+no abstract cleanup step. And a `T` value may be used once unless `T` is
+`[copy]`, a restriction the text does not have, because the route has no
+judgment of moves.
+
+Step 3, a finite family, is built for generated machines only. The method
+below noted that "whether stage 04 folds a type-equation branch in a
+generated specialization was not checked"; it does not. The machine
+generated for `u32` keeps `u32 == u32`, both arms and the arm of the other
+type. The reader now decides closed type equations statically, so each
+generated machine is read under its own type and judged as a closed machine:
+`threshold<u32>` and `threshold<u64>` in
+`pass/contracts/generic_effective_result_comparison_exit`, and `choose<u32>`
+and `choose<u64>` in `fail/contracts/specialized_normal_call_wrong_type_contract`,
+are each accepted by the route (compiler test `lowered_route_generics`).
+The owner then ruled (generics.md, "Static type equality") that checking
+the body once per listed alternative, each with `T` fixed to that type,
+satisfies the rule for a finite family, and that a type equation in a
+contract guards the conjuncts after it. So the generic form with a
+check-only terminator is not needed and not built. Each listed type is
+checked, used or not, and each generated machine takes the certificates of
+the alternative whose body it is
+([lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#finite-families)).
 
 ## What the specification asks
 
@@ -316,15 +347,14 @@ S1 for the listed types at the cost of the whole body per alternative (eight
 for `core::integer`), cannot serve an opaque `T`, and whether it counts as
 "checked once" is the owner's reading (question 3).
 
-## Questions for OWNER_QUESTIONS.md
+## Questions the owner has ruled
 
-Not decided here. Each is a language or gate question; the lowered-form
-representation itself is delegated
-([OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md), Psi representation
-paragraph). They are filed there, in this order, as the decisions
+Each was a language or gate question; the lowered-form representation itself
+is delegated ([OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md), Psi
+representation paragraph). All three decisions are ruled:
 `type-family-operation-outside-arm`, `contract-conjunct-under-type-equation`
-and `finite-family-generic-check`, each with what the current checker does
-with a small program of that shape.
+and `finite-family-generic-check`. The rulings are stated in
+[static type equality](../../spec/language/generics.md#static-type-equality).
 
 1. **Operations on `T` outside an arm.** In a finite family, may a body apply
    an operator to a value of type `T` outside a branch that establishes one
@@ -360,7 +390,7 @@ Order, smallest change first, each with its pass and fail twin and `omega run
    and the rule premise.
 3. Finite family in `generic_effective_result_comparison_exit` and
    `specialized_normal_call_wrong_type_contract`: arms, the fold, and then
-   `core::integer::min` once question 2 is answered.
+   `core::integer::min` now that question 2 is ruled.
 
 ## Method
 

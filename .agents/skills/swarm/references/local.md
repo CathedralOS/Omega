@@ -1,13 +1,13 @@
 # Local Swarm (Shared Host Setup)
 
 This reference defines the local shared-machine transport for running concurrent agents on one host with a local Rust toolchain.
-- **Worker workflow:** Every worker follows [advance](../../advance/SKILL.md) (`/advance`) and [AGENTS.md](../../../../AGENTS.md#law-of-completion) for capability selection, validation, and board updates. Do not duplicate `/advance` rules in worker prompts; point the worker to `.agents/skills/advance/SKILL.md`.
-- **Coordinator review & landing:** Workers push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../../coordinator-review/SKILL.md) before running `cargo xtask land land <pr> --expected-head <sha>`.
+
+Session ownership, execution and publication follow the [swarm skill](../SKILL.md), [advance](../../advance/SKILL.md), and [landing](../../../../tools/landing.md).
 
 ## 1. Local Host Setup & Worktrees
 
 Local subagents share one physical machine (CPU, RAM, disk, and process table):
-1. **Preflight:** Fetch `origin/main` (`git fetch origin main`) and check live claims (`cargo xtask claims status`) and open PRs before dispatching. Reserve outcomes with [dispatch.md](../../../../tools/swarm/dispatch.md).
+1. **Preflight:** Complete `/advance` Step 1, including live claims and open PRs, and follow [claim registration](../../../../tools/claims.md) before dispatching.
 2. **One isolated `worker-N` pool slot per worker:** Never edit in the primary checkout and never run two editing agents in the same worktree:
    ```bash
    cargo xtask worktree acquire <lane>-<topic>
@@ -24,6 +24,6 @@ Local subagents share one physical machine (CPU, RAM, disk, and process table):
 2. **Self-contained dispatch prompt:** Give each worker:
    - Its isolated worktree path (`.agents/worktree/<short-name>`) and fixed base SHA.
    - Its assigned `TASKS.md` capability outcome, witness path, and requirement to discharge.
-   - Instruction to follow [advance](../../advance/SKILL.md) (`/advance`), stop at a **draft PR** (`gh pr create --draft`), and message the coordinator with `candidate_ready` for [coordinator-review](../../coordinator-review/SKILL.md).
+   - Instruction to follow `/advance` through verified landing and report the PR URL, submitted head, published commit and observed limits.
 3. **Reactive wakeup only (no timers or polling):** After spawning or messaging subagents or starting a background task, end the turn and wait for subagent messages or task-completion notifications to wake the coordinator. Never call `schedule`, cron, or status-polling loops.
-4. **Warm workbench continuation:** When a worker's PR passes [coordinator-review](../../coordinator-review/SKILL.md) and lands, message the same worker (`send_message`) on its warm worktree with the next requirement of its parent outcome. At the user's stopping condition, stop refilling, drain active workers, release owned claims, and report observed outcomes per [Explain the change](../../../../AGENTS.md#explain-the-change).
+4. **Warm workbench continuation:** After a worker verifies its landing, message the same worker (`send_message`) on its warm worktree with the next requirement of its parent outcome. At the user's stopping condition, stop refilling, drain active workers, release owned claims, and report observed outcomes per [Explain the change](../../../../AGENTS.md#explain-the-change).

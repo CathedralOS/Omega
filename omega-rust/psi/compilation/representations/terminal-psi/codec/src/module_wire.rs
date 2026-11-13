@@ -343,6 +343,8 @@ pub(crate) mod boundary_application_wire {
                         machine: nominal("owner::body"),
                         state: nominal("owner::entry"),
                         contract: [3; 32],
+                        published_may_suspend: false,
+                        published_may_block: false,
                         specialization,
                     },
                 };
@@ -414,6 +416,8 @@ pub(crate) mod callback_application_wire {
                         terminal_psi::TerminalIdentityIndex(12),
                     ),
                     contract: [5; 32],
+                    published_may_suspend: false,
+                    published_may_block: false,
                     specialization: None,
                 },
             };
@@ -3056,11 +3060,12 @@ pub(crate) mod proof_output_wire {
 }
 pub(crate) mod proof_scope_wire {
 
+    use super::super::CodecError;
     use super::super::machine_declaration_wire;
-    use super::super::wire::{Reader, Writer, decode_counted};
+    use super::super::wire::{Reader, Writer, bounded_count, decode_counted};
     use super::super::wire_fields::{Field, ProviderPackage};
-    use super::super::{CodecError, MAX_PROPOSITION_DEPTH};
     use super::boundary_application_wire::{decode_requirement, encode_requirement};
+    use crate::term_table::{decode_rows, encode_rows};
     use arena::{Arena, HandleSpan};
     use semantic_vocabulary::proof_applications::{
         ProofApplicationCall, ProofApplicationMachine, ProofApplicationTargetMember,
@@ -3174,6 +3179,9 @@ pub(crate) mod proof_scope_wire {
                         }
                         semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing => {
                             writer.u8(4)
+                        }
+                        semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract => {
+                            writer.u8(5)
                         }
                     }
                     writer.len("compiler-evaluation services", facts.effects.services.len())?;
@@ -3292,7 +3300,7 @@ pub(crate) mod proof_scope_wire {
                 writer.u32(call.callee.0);
                 writer.u32(call.state.0);
                 writer.u32(call.operator.0);
-                bindings(writer, graph, call.arguments, 0)?;
+                bindings(writer, graph, call.arguments)?;
             }
             references(writer, &graph.cleanup, row.cleanup)?;
         }
@@ -3324,47 +3332,61 @@ pub(crate) mod proof_scope_wire {
         Ok(())
     }
 
+    /// A call's static bindings form one postorder table (`crate::term_table`):
+    /// each row is the parameter, the selected declaration and its argument
+    /// count, then one handle per argument binding; the call's own bindings are
+    /// the table's roots.
     fn bindings(
         writer: &mut Writer,
         graph: &ProofCallGraph<ProofDeclarationId>,
         span: HandleSpan<ProofStaticBinding<ProofDeclarationId>>,
-        depth: usize,
     ) -> Result<(), CodecError> {
-        if depth > MAX_PROPOSITION_DEPTH {
-            return Err(CodecError::InvalidTag("ProofStaticBindingDepth", 0));
-        }
-        let entries =
+        let span_entries = |span| {
             graph
                 .bindings
                 .span(span)
                 .ok_or(CodecError::MalformedStructuralFoundation(
                     "proof scope lost its binding span",
-                ))?;
-        writer.len("proof scope static bindings", entries.len())?;
-        for entry in entries {
-            writer.u32(entry.parameter.0);
-            writer.u32(entry.selected.0);
-            bindings(writer, graph, entry.arguments, depth + 1)?;
-        }
-        Ok(())
+                ))
+        };
+        encode_rows(
+            writer,
+            "proof scope static binding",
+            span_entries(span)?,
+            |entry: &ProofStaticBinding<ProofDeclarationId>, children| {
+                children.extend(span_entries(entry.arguments)?);
+                Ok(())
+            },
+            |entry, writer| {
+                writer.u32(entry.parameter.0);
+                writer.u32(entry.selected.0);
+                let arguments = span_entries(entry.arguments)?;
+                writer.len("proof scope static bindings", arguments.len())
+            },
+        )
     }
 
     fn read_bindings(
         reader: &mut Reader<'_>,
         graph: &mut ProofCallGraph<ProofDeclarationId>,
-        depth: usize,
     ) -> Result<HandleSpan<ProofStaticBinding<ProofDeclarationId>>, CodecError> {
-        if depth > MAX_PROPOSITION_DEPTH {
-            return Err(CodecError::InvalidTag("ProofStaticBindingDepth", 0));
-        }
-        let entries = decode_counted(reader, |reader| {
-            Ok(ProofStaticBinding {
-                parameter: ProofDeclarationId(reader.u32()?),
-                selected: ProofDeclarationId(reader.u32()?),
-                arguments: read_bindings(reader, graph, depth + 1)?,
-            })
-        })?;
-        Ok(graph.bindings.insert_many(entries))
+        let roots = decode_rows(
+            reader,
+            "proof scope static binding",
+            12,
+            |reader, children| {
+                let parameter = ProofDeclarationId(reader.u32()?);
+                let selected = ProofDeclarationId(reader.u32()?);
+                let count = bounded_count(reader, 4)?;
+                let arguments = children.take(reader, count)?;
+                Ok(ProofStaticBinding {
+                    parameter,
+                    selected,
+                    arguments: graph.bindings.insert_many(arguments),
+                })
+            },
+        )?;
+        Ok(graph.bindings.insert_many(roots))
     }
 
     pub(crate) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, CodecError> {
@@ -3406,6 +3428,7 @@ pub(crate) mod proof_scope_wire {
                     2 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain,
                     3 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::UnownedUser,
                     4 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
+                    5 => semantic_vocabulary::compiler_evaluation::DeclarationCustody::ToolchainContract,
                     tag => return Err(CodecError::InvalidTag("compiler-evaluation custody", tag)),
                 };
                 Ok(
@@ -3531,7 +3554,7 @@ pub(crate) mod proof_scope_wire {
                     callee: ProofDeclarationId(reader.u32()?),
                     state: ProofDeclarationId(reader.u32()?),
                     operator: ProofDeclarationId(reader.u32()?),
-                    arguments: read_bindings(reader, graph, 0)?,
+                    arguments: read_bindings(reader, graph)?,
                 })
             })?;
             let calls = graph.calls.insert_many(calls);

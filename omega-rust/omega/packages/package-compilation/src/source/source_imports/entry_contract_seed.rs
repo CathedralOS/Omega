@@ -21,12 +21,23 @@ pub(crate) struct EntryContractSeed {
 }
 
 impl EntryContractSeed {
-    pub(crate) fn register_custody(self, storage: &mut SourceStorage) -> PathBuf {
-        if self.closed_subtree {
-            storage.register_toolchain_contract_root(self.source.clone(), self.root.clone());
-            storage.register_toolchain_contract_dir(self.root);
+    pub(crate) fn register_custody(
+        self,
+        storage: &mut SourceStorage,
+    ) -> Result<PathBuf, Vec<diagnostics::Diagnostic>> {
+        if !self.closed_subtree {
+            return Ok(self.source);
         }
-        self.source
+        let relative = self.source.strip_prefix(&self.root).map_err(|_| {
+            vec![diagnostics::Diagnostic::error(
+                "entry contract escapes its issued root",
+            )]
+        })?;
+        let root = storage.capture_toolchain_contract(&self.root)?;
+        let source = root.join(relative);
+        storage.register_toolchain_contract_root(source.clone(), root.clone());
+        storage.register_toolchain_contract_dir(root);
+        Ok(source)
     }
 }
 
@@ -137,5 +148,51 @@ impl EntryContractSource {
                 .filter(|accepted| suppliers.contains(accepted))
                 .map_or(Self::Unavailable, Self::Package),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn repeated_entry_seeding_reuses_the_first_captured_namespace() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "omega-entry-contract-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&root).unwrap();
+        let source = root.join("entry.omg");
+        std::fs::write(&source, "public data Original {}").unwrap();
+        let mut storage = SourceStorage::default();
+        let seed = || EntryContractSeed {
+            source: source.clone(),
+            root: root.clone(),
+            closed_subtree: true,
+        };
+        let admitted = seed().register_custody(&mut storage).unwrap();
+        std::fs::write(&source, "public data Changed {}").unwrap();
+        std::fs::write(root.join("late.omg"), "public data Late {}").unwrap();
+        assert_eq!(seed().register_custody(&mut storage).unwrap(), admitted);
+        assert_eq!(
+            storage
+                .filesystem
+                .read_to_string(&admitted)
+                .unwrap()
+                .as_ref(),
+            "public data Original {}"
+        );
+        assert_eq!(
+            storage
+                .filesystem
+                .captured_files(admitted.parent().unwrap())
+                .unwrap(),
+            vec![admitted]
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

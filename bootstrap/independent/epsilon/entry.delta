@@ -1,0 +1,64 @@
+; One complete checked-source request yields source text or a distinct refusal.
+; The newline after success is framing, not part of the emitted Delta module.
+(def main ((source Bytes)) Bytes
+  (match (epsilon_delta_compile source)
+    ((EpsilonDeltaProgramCompiled runtime text)
+      (match runtime
+        (EpsilonDeltaPureRuntime (bytes_concat "compiled\n" text))
+        (EpsilonDeltaStoredRuntime (bytes_concat "compiled-storage\n" text))))
+    ((EpsilonDeltaProgramRejected reason offset)
+      (bytes_concat "rejected " (epsilon_emit_spaced
+        (epsilon_emit_decimal (epsilon_reject_reason_identity reason))
+        (epsilon_emit_decimal offset))))
+    ((EpsilonDeltaProgramUnsupported offset)
+      (bytes_concat "unsupported " (epsilon_emit_decimal offset)))
+    ((EpsilonDeltaProgramInternal offset)
+      (bytes_concat "internal " (epsilon_emit_decimal offset)))))
+
+; Main::main is Epsilon's language-defined entry, not a selected source name
+; supplied by an invocation script. Its ordinary callable remains distinct
+; from this adapter, which alone turns resultless completion into exit zero.
+(def epsilon_delta_program_entry ((source EpsilonSourceView)
+  (declarations EpsilonDeclarationList)) EpsilonDeltaCompilation
+  (match declarations
+    (NoEpsilonDeclarations (EpsilonDeltaCompiled ""))
+    ((MoreEpsilonDeclarations declaration rest)
+      (match declaration
+        ((EpsilonBoundaryDeclaration start end name members) (epsilon_delta_program_entry source rest))
+        ((EpsilonDataDeclaration start end name members) (epsilon_delta_program_entry source rest))
+        ((EpsilonMachineDeclaration start end name inputs returnType body)
+          (if (epsilon_qualified_name_is_main_entry source name)
+            (match name
+              ((EpsilonUnqualifiedName nameStart nameEnd member) (EpsilonDeltaInternal start))
+              ((EpsilonQualifiedNameSyntax nameStart nameEnd owner member)
+                (epsilon_delta_emit_entry source owner name inputs body)))
+            (epsilon_delta_program_entry source rest)))))))
+
+(def epsilon_delta_emit_entry ((source EpsilonSourceView) (owner EpsilonName)
+  (name EpsilonQualifiedName) (inputs EpsilonMachineInputs)
+  (body EpsilonMachineBody)) EpsilonDeltaCompilation
+  (let typeValue Bytes (epsilon_delta_type_descriptor
+    (EpsilonNamedType (epsilon_name_start owner) (epsilon_name_end owner) owner))
+    (let receiver Bytes (epsilon_emit_call "EpsilonRuntimePlaceAt"
+      (epsilon_emit_spaced "1 NoEpsilonRuntimePath" typeValue))
+      (let roots Bytes (epsilon_emit_call "MoreEpsilonRuntimeRoots"
+        (epsilon_emit_spaced "1" (epsilon_emit_spaced
+          (epsilon_emit_call "epsilon_runtime_zero_value" typeValue) "NoEpsilonRuntimeRoots")))
+        (let store Bytes (epsilon_emit_call "EpsilonRuntimeStoreState"
+          (epsilon_emit_spaced "2" (epsilon_emit_spaced roots "(EpsilonRuntimeConsoleInputAt ep_input 0)")))
+          (let call Bytes
+            (match (epsilon_delta_machine_runtime inputs body)
+              (EpsilonDeltaPureRuntime
+                (epsilon_emit_call "epsilon_compiled_from_pure" (epsilon_emit_spaced
+                  (epsilon_emit_call (epsilon_compiled_function_name source name) "")
+                  "ep_entry_store \"\"")))
+              (EpsilonDeltaStoredRuntime
+                (epsilon_emit_call (epsilon_compiled_function_name source name)
+                  "ep_entry_receiver ep_entry_store \"\"")))
+            (EpsilonDeltaCompiled (bytes_concat
+              "(def epsilon_compiled_entry ((ep_input Bytes)) Bytes\n"
+              (bytes_concat (epsilon_emit_call "let" (epsilon_emit_spaced
+                "ep_entry_receiver EpsilonRuntimePlace" (epsilon_emit_spaced receiver
+                  (epsilon_emit_call "let" (epsilon_emit_spaced "ep_entry_store EpsilonRuntimeStore"
+                    (epsilon_emit_spaced store (epsilon_emit_call "epsilon_compiled_observation" call)))))))
+                ")\n")))))))))

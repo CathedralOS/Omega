@@ -634,7 +634,7 @@ mod cyclic_headers {
             AdmittedGuarantee, Header, exit_return_expression, fixed_integer, is_result_reference,
         };
         use arena::Handle;
-        use checked_trees::{CheckFacts, CheckedScalarExpression, FlowExitFact};
+        use checked_trees::{CheckFacts, CheckedScalarExpression, FlowCallFact, FlowExitFact};
         use numerics::arithmetic::ArithmeticDomain;
         use symbols::SymbolHandle;
         use typed_trees::{
@@ -968,6 +968,301 @@ mod cyclic_headers {
             }
         }
 
+        /*
+            A completion goal keeps its immutable scalar subjects separate from
+            each helper's parameter frame. An association is admitted only when a
+            receiving argument denotes that exact value. It carries no storage
+            contents or recursive postcondition.
+        */
+        #[derive(Clone, PartialEq, Eq, Hash)]
+        struct ScalarAssociation {
+            source: SymbolHandle,
+            parameter: SymbolHandle,
+        }
+
+        struct ScalarSubject {
+            parameter: SymbolHandle,
+            type_reference: typed_trees::types::TypeReferenceHandle,
+            value: ScopedArithmeticValue,
+        }
+
+        struct ScalarGoal {
+            subjects: Vec<ScalarSubject>,
+            initial: Vec<Vec<ScalarAssociation>>,
+        }
+
+        impl ScalarGoal {
+            fn new(
+                header: &Header<'_, '_>,
+                expression: ExpressionHandle,
+                remaining: &mut usize,
+            ) -> Option<Self> {
+                if !header.proposition_is_admitted(expression) {
+                    return None;
+                }
+                let mut tree = Vec::new();
+                validation::expression_traversal::collect_expression_tree(
+                    header.program,
+                    expression,
+                    &mut tree,
+                );
+                let formals = header.formal_roster();
+                let mut subjects: Vec<ScalarSubject> = Vec::new();
+                for operand in tree {
+                    super::demands::charge(remaining)?;
+                    let ExpressionNode::Name(path) =
+                        header.program.expression_table.expression(operand)
+                    else {
+                        continue;
+                    };
+                    if is_result_reference(header.program, header.machine, operand)
+                        || subjects
+                            .iter()
+                            .any(|subject| subject.parameter == path.symbol)
+                    {
+                        continue;
+                    }
+                    let parameter = header.formals.iter().find(|p| p.symbol == path.symbol)?;
+                    let value = formals.iter().find(|binding| {
+                        binding.binder == ScopedArithmeticBinder::Symbol(parameter.symbol)
+                    })?;
+                    subjects.push(ScalarSubject {
+                        parameter: parameter.symbol,
+                        type_reference: parameter.type_reference,
+                        value: value.value.clone(),
+                    });
+                }
+                let mut initial = Vec::new();
+                for (index, state) in header
+                    .program
+                    .machine_states(header.machine)
+                    .iter()
+                    .enumerate()
+                {
+                    let mut associations = Vec::new();
+                    for subject in &subjects {
+                        let before = associations.len();
+                        for parameter in header.program.state_parameters(state) {
+                            super::demands::charge(remaining)?;
+                            if parameter.is_mutable
+                                || parameter.is_const
+                                || fixed_integer(header.program, parameter.type_reference)
+                                    != fixed_integer(header.program, subject.type_reference)
+                            {
+                                continue;
+                            }
+                            let exact_origin = if state.symbol == header.entry.symbol {
+                                parameter.symbol == subject.parameter
+                            } else {
+                                let mut origins = header
+                                    .origins
+                                    .get(index)?
+                                    .iter()
+                                    .filter(|(_, current)| *current == parameter.symbol);
+                                origins
+                                    .next()
+                                    .is_some_and(|(entry, _)| *entry == subject.parameter)
+                                    && origins.all(|(entry, _)| *entry == subject.parameter)
+                            };
+                            if exact_origin {
+                                associations.push(ScalarAssociation {
+                                    source: subject.parameter,
+                                    parameter: parameter.symbol,
+                                });
+                            }
+                        }
+                        if before == associations.len() {
+                            return None;
+                        }
+                    }
+                    initial.push(associations);
+                }
+                Some(Self { subjects, initial })
+            }
+
+            fn bindings(
+                &self,
+                header: &Header<'_, '_>,
+                state: &State,
+                associations: &[ScalarAssociation],
+                remaining: &mut usize,
+            ) -> Option<(Vec<ScopedArithmeticBinding>, Vec<ScopedArithmeticBinding>)> {
+                let current = header.caller_atoms(state);
+                let formals = header.formal_roster();
+                // A recursive invocation can reuse declaration symbols while
+                // receiving different values. Keep its unassociated formals
+                // distinct from the original goal's immutable subjects.
+                let frame = header.atoms_of(
+                    &header.formals,
+                    format!("completion:{:?}:{:?}", header.machine.symbol, state.symbol),
+                );
+                let freshening = formals
+                    .iter()
+                    .zip(&frame)
+                    .map(|(old, fresh)| (&old.value, &fresh.value))
+                    .collect::<Vec<_>>();
+                let current =
+                    super::demands::substitute_bindings(&current, &freshening, remaining)?;
+                let formals =
+                    super::demands::substitute_bindings(&formals, &freshening, remaining)?;
+                let mut replacements: Vec<(ScopedArithmeticValue, ScopedArithmeticValue)> =
+                    Vec::new();
+                for association in associations {
+                    super::demands::charge(remaining)?;
+                    let subject = self
+                        .subjects
+                        .iter()
+                        .find(|s| s.parameter == association.source)?;
+                    let parameter = header
+                        .roster
+                        .iter()
+                        .find(|p| p.symbol == association.parameter)?;
+                    if fixed_integer(header.program, parameter.type_reference)
+                        != fixed_integer(header.program, subject.type_reference)
+                    {
+                        return None;
+                    }
+                    let current = current.iter().find(|binding| {
+                        binding.binder == ScopedArithmeticBinder::Symbol(association.parameter)
+                    })?;
+                    if let Some((_, value)) = replacements
+                        .iter()
+                        .find(|(value, _)| *value == current.value)
+                    {
+                        if value != &subject.value {
+                            return None;
+                        }
+                    } else {
+                        replacements.push((current.value.clone(), subject.value.clone()));
+                    }
+                }
+                if self
+                    .subjects
+                    .iter()
+                    .any(|subject| !associations.iter().any(|a| a.source == subject.parameter))
+                {
+                    return None;
+                }
+                let replacements = replacements
+                    .iter()
+                    .map(|(from, to)| (from, to))
+                    .collect::<Vec<_>>();
+                Some((
+                    super::demands::substitute_bindings(&current, &replacements, remaining)?,
+                    super::demands::substitute_bindings(&formals, &replacements, remaining)?,
+                ))
+            }
+
+            fn forward(
+                &self,
+                header: &Header<'_, '_>,
+                call: &FlowCallFact,
+                target: &State,
+                bindings: &[ScopedArithmeticBinding],
+                remaining: &mut usize,
+            ) -> Option<Vec<ScalarAssociation>> {
+                if self.subjects.is_empty() {
+                    return Some(Vec::new());
+                }
+                let program = header.program;
+                let machine = header.machine;
+                let state = header.header;
+                if validation::call_target_state(program, call.target_symbol)?.symbol
+                    != target.symbol
+                {
+                    return None;
+                }
+                let site = validation::find_call_site(
+                    program,
+                    machine.symbol,
+                    state.symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )?;
+                let arguments = validation::call_site_argument_expressions(program, &site);
+                let parameters = program.state_parameters(target);
+                if arguments.len() != parameters.len() {
+                    return None;
+                }
+                let arguments = super::scalar_argument_roster(
+                    program,
+                    parameters,
+                    arguments,
+                    machine.symbol,
+                    bindings,
+                );
+                let mut next = Vec::new();
+                for subject in &self.subjects {
+                    let before = next.len();
+                    for binding in &arguments {
+                        super::demands::charge(remaining)?;
+                        let ScopedArithmeticBinder::Symbol(symbol) = &binding.binder else {
+                            return None;
+                        };
+                        let parameter = parameters.iter().find(|p| p.symbol == *symbol)?;
+                        if fixed_integer(program, parameter.type_reference)
+                            != fixed_integer(program, subject.type_reference)
+                        {
+                            continue;
+                        }
+                        let ScopedArithmeticValue::Term(argument) = &binding.value else {
+                            return None;
+                        };
+                        let Some(term) = header.term_reference(argument.expression) else {
+                            continue;
+                        };
+                        if term.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                            && !header.is_leaf_term(argument.expression)
+                        {
+                            continue;
+                        }
+                        // This equality establishes the value association. No caller
+                        // postcondition or recursive guarantee is a premise for it.
+                        if validation::scoped_arithmetic_values_relation(
+                            program,
+                            machine,
+                            &[],
+                            typed_trees::expression::BinaryOperator::Equal,
+                            &binding.value,
+                            &subject.value,
+                        ) == validation::StrictArithmeticImplicationJudgment::Proven
+                        {
+                            next.push(ScalarAssociation {
+                                source: subject.parameter,
+                                parameter: *symbol,
+                            });
+                        }
+                    }
+                    if before == next.len() {
+                        return None;
+                    }
+                }
+                Some(next)
+            }
+
+            fn source_bindings(&self) -> Vec<ScopedArithmeticBinding> {
+                self.subjects
+                    .iter()
+                    .map(|subject| ScopedArithmeticBinding {
+                        binder: ScopedArithmeticBinder::Symbol(subject.parameter),
+                        value: subject.value.clone(),
+                    })
+                    .collect()
+            }
+        }
+
+        fn origin_rows(
+            program: &dyn validation::CheckingInput,
+            machine: &Machine,
+        ) -> Vec<Vec<(SymbolHandle, SymbolHandle)>> {
+            let solved = crate::flow::activation_parameter_origins(program, machine);
+            program
+                .machine_states(machine)
+                .iter()
+                .map(|state| crate::flow::state_parameter_origins(program, machine, state, &solved))
+                .collect()
+        }
+
         pub(super) fn proves(
             program: &dyn validation::CheckingInput,
             facts: &CheckFacts,
@@ -984,31 +1279,15 @@ mod cyclic_headers {
             let Some(guarantee) = program.proof_facts.get(contract).as_expression() else {
                 return false;
             };
-            let origins = crate::flow::activation_parameter_origins(program, machine);
-            let origins = program
-                .machine_states(machine)
-                .iter()
-                .map(|state| {
-                    crate::flow::state_parameter_origins(program, machine, state, &origins)
-                })
-                .collect::<Vec<_>>();
-            let Some(header) = Header::new(program, facts, machine, entry, &origins) else {
+            let mut machine_origins = symbols::SymbolMap::default();
+            let origins = machine_origins
+                .entry(owner)
+                .or_insert_with(|| origin_rows(program, machine));
+            let Some(header) = Header::new(program, facts, machine, entry, origins) else {
                 return false;
             };
-            let mut expressions = Vec::new();
-            validation::expression_traversal::collect_expression_tree(
-                program,
-                *guarantee,
-                &mut expressions,
-            );
-            let result_only = header.proposition_is_admitted(*guarantee)
-                && expressions.iter().all(|expression| {
-                    !matches!(
-                        program.expression_table.expression(*expression),
-                        ExpressionNode::Name(_)
-                    ) || is_result_reference(program, machine, *expression)
-                });
             let mut remaining = super::demands::TRANSPORT_WORK;
+            let scalar_goal = ScalarGoal::new(&header, *guarantee, &mut remaining);
             let referent_goal =
                 referents::ReferentGoal::new(program, facts, machine, *guarantee, &mut remaining);
             let frames = referent_goal
@@ -1025,22 +1304,33 @@ mod cyclic_headers {
                         referent_goal
                             .as_ref()
                             .map(|goal| goal.initial[index].clone()),
+                        scalar_goal.as_ref().map(|goal| goal.initial[index].clone()),
                     )
                 })
                 .collect::<Vec<_>>();
             let mut visited = std::collections::HashSet::new();
             let mut observed_return = false;
-            while let Some((machine_symbol, state_symbol, subjects)) = pending.pop() {
+            while let Some((machine_symbol, state_symbol, subjects, scalar_subjects)) =
+                pending.pop()
+            {
                 let work = subjects.as_ref().map_or(Some(1usize), |subjects| {
                     subjects.iter().try_fold(1usize, |work, subject| {
                         work.checked_add(subject.segments.len().checked_add(1)?)
                     })
                 });
+                let work = work.and_then(|work| {
+                    work.checked_add(scalar_subjects.as_ref().map_or(0, Vec::len))
+                });
                 let Some(left) = work.and_then(|work| remaining.checked_sub(work)) else {
                     return false;
                 };
                 remaining = left;
-                if !visited.insert((machine_symbol, state_symbol, subjects.clone())) {
+                if !visited.insert((
+                    machine_symbol,
+                    state_symbol,
+                    subjects.clone(),
+                    scalar_subjects.clone(),
+                )) {
                     continue;
                 }
                 let Some((current_machine, state)) =
@@ -1050,6 +1340,29 @@ mod cyclic_headers {
                 };
                 let Some(state_flow) = Header::state_flow(facts, current_machine, state) else {
                     return false;
+                };
+                // All outgoing edges share this state and its exact subjects.
+                // Prepare their bindings once, borrowing one origin solve for
+                // each machine reached by this completion question.
+                let scalar_frame = if let Some(goal) = &scalar_goal {
+                    let Some(subjects) = scalar_subjects.as_deref() else {
+                        return false;
+                    };
+                    let origins = machine_origins
+                        .entry(machine_symbol)
+                        .or_insert_with(|| origin_rows(program, current_machine));
+                    let Some(header) = Header::new(program, facts, current_machine, state, origins)
+                    else {
+                        return false;
+                    };
+                    let Some((bindings, formals)) =
+                        goal.bindings(&header, state, subjects, &mut remaining)
+                    else {
+                        return false;
+                    };
+                    Some((header, bindings, formals))
+                } else {
+                    None
                 };
                 let mut outgoing_found = false;
                 for outgoing in facts
@@ -1080,10 +1393,11 @@ mod cyclic_headers {
                             path.symbol,
                         )
                     {
-                        let next_subjects = if referent_goal.is_some() {
-                            let Some(frames) = &frames else {
-                                return false;
-                            };
+                        let call = if referent_goal.is_some()
+                            || scalar_goal
+                                .as_ref()
+                                .is_some_and(|goal| !goal.subjects.is_empty())
+                        {
                             let mut calls = facts
                                 .flow
                                 .control
@@ -1106,6 +1420,17 @@ mod cyclic_headers {
                             if calls.next().is_some() {
                                 return false;
                             }
+                            Some(call)
+                        } else {
+                            None
+                        };
+                        let next_subjects = if referent_goal.is_some() {
+                            let Some(frames) = &frames else {
+                                return false;
+                            };
+                            let Some(call) = call else {
+                                return false;
+                            };
                             let Some(subjects) = subjects.as_deref().and_then(|subjects| {
                                 referents::ReferentGoal::forward(
                                     program,
@@ -1123,10 +1448,33 @@ mod cyclic_headers {
                         } else {
                             None
                         };
+                        let next_scalars = if let Some(goal) = &scalar_goal {
+                            if goal.subjects.is_empty() {
+                                Some(Vec::new())
+                            } else {
+                                let Some(next) = call.zip(scalar_frame.as_ref()).and_then(
+                                    |(call, (header, bindings, _))| {
+                                        goal.forward(
+                                            header,
+                                            call,
+                                            &program.machine_states(current_machine)[destination],
+                                            bindings,
+                                            &mut remaining,
+                                        )
+                                    },
+                                ) else {
+                                    return false;
+                                };
+                                Some(next)
+                            }
+                        } else {
+                            None
+                        };
                         pending.push((
                             machine_symbol,
                             program.machine_states(current_machine)[destination].symbol,
                             next_subjects,
+                            next_scalars,
                         ));
                         continue;
                     }
@@ -1177,7 +1525,7 @@ mod cyclic_headers {
                             };
                             Some(subjects)
                         } else {
-                            if (!result_only && callee.symbol != owner)
+                            if (scalar_goal.is_none() && callee.symbol != owner)
                                 || fixed_integer(program, entry.return_type).is_none()
                                 || fixed_integer(program, entry.return_type)
                                     != fixed_integer(program, callee_entry.return_type)
@@ -1186,11 +1534,44 @@ mod cyclic_headers {
                             }
                             None
                         };
-                        pending.push((callee.symbol, callee_entry.symbol, next_subjects));
+                        let next_scalars = if let Some(goal) = &scalar_goal {
+                            let Some(next) =
+                                scalar_frame.as_ref().and_then(|(header, bindings, _)| {
+                                    goal.forward(
+                                        header,
+                                        call,
+                                        callee_entry,
+                                        bindings,
+                                        &mut remaining,
+                                    )
+                                })
+                            else {
+                                return false;
+                            };
+                            Some(next)
+                        } else {
+                            None
+                        };
+                        pending.push((
+                            callee.symbol,
+                            callee_entry.symbol,
+                            next_subjects,
+                            next_scalars,
+                        ));
                         continue;
                     }
                     if referent_goal.is_none()
                         && machine_symbol == owner
+                        // An admitted component proves its original frame's goal,
+                        // not that goal under an arbitrary later permutation.
+                        && scalar_goal.as_ref().is_none_or(|goal| {
+                            let Some(index) = typed_trees::state::state_position(
+                                program.machine_states(machine), state_symbol,
+                            ) else { return false; };
+                            scalar_subjects.as_deref().is_some_and(|subjects| {
+                                goal.initial[index].iter().all(|expected| subjects.contains(expected))
+                            })
+                        })
                         && admitted.contains(&AdmittedGuarantee {
                             state_symbol,
                             statement_index: exit.statement_index,
@@ -1215,16 +1596,13 @@ mod cyclic_headers {
                             },
                         )
                     } else {
-                        result_only
-                            && proves_value(
-                                program,
-                                facts,
-                                owner,
-                                *guarantee,
-                                current_machine,
-                                state,
-                                exit,
-                            )
+                        scalar_goal.as_ref().zip(scalar_frame.as_ref()).is_some_and(
+                            |(goal, (header, bindings, formals))| {
+                                proves_value(
+                                    header, owner, *guarantee, exit, goal, bindings, formals,
+                                )
+                            },
+                        )
                     };
                     if !proven {
                         return false;
@@ -1239,33 +1617,24 @@ mod cyclic_headers {
         }
 
         fn proves_value(
-            program: &dyn validation::CheckingInput,
-            facts: &CheckFacts,
+            header: &Header<'_, '_>,
             owner: SymbolHandle,
             guarantee: ExpressionHandle,
-            machine: &Machine,
-            state: &State,
             exit: &FlowExitFact,
+            scalar_goal: &ScalarGoal,
+            bindings: &[ScopedArithmeticBinding],
+            formals: &[ScopedArithmeticBinding],
         ) -> bool {
-            let origins = crate::flow::activation_parameter_origins(program, machine);
-            let origins = program
-                .machine_states(machine)
-                .iter()
-                .map(|state| {
-                    crate::flow::state_parameter_origins(program, machine, state, &origins)
-                })
-                .collect::<Vec<_>>();
-            let Some(header) = Header::new(program, facts, machine, state, &origins) else {
-                return false;
-            };
+            let program = header.program;
+            let facts = header.facts;
+            let state = header.header;
             let returned = exit_return_expression(program, exit);
-            let bindings = header.caller_atoms(state);
-            let Some(value) = return_value(&header, state, exit, returned, &bindings) else {
+            let Some(value) = return_value(header, state, exit, returned, bindings) else {
                 return false;
             };
-            let mut hypotheses = header.requirements(header.formal_roster());
+            let mut hypotheses = header.requirements(formals.to_vec());
             if state.symbol == header.entry.symbol {
-                hypotheses.extend(header.requirements(bindings.clone()));
+                hypotheses.extend(header.requirements(bindings.to_vec()));
             }
             for context in facts
                 .flow
@@ -1279,17 +1648,19 @@ mod cyclic_headers {
                     .facts()
                 {
                     for (expression, holds) in header.arm_facts(fact) {
-                        hypotheses.push(header.hypothesis(expression, bindings.clone(), holds));
+                        hypotheses.push(header.hypothesis(expression, bindings.to_vec(), holds));
                     }
                 }
             }
+            let mut bindings = scalar_goal.source_bindings();
+            bindings.push(ScopedArithmeticBinding {
+                binder: ScopedArithmeticBinder::Result,
+                value,
+            });
             let goal = ScopedArithmeticExpression {
                 owner,
                 expression: guarantee,
-                bindings: vec![ScopedArithmeticBinding {
-                    binder: ScopedArithmeticBinder::Result,
-                    value,
-                }],
+                bindings,
             };
             header.proves(&hypotheses, &goal)
         }
@@ -1673,6 +2044,23 @@ mod cyclic_headers {
             expression(demand, &substitutions, remaining, SUBSTITUTION_DEPTH)
         }
 
+        pub(super) fn substitute_bindings(
+            bindings: &[ScopedArithmeticBinding],
+            substitutions: &[(&ScopedArithmeticValue, &ScopedArithmeticValue)],
+            remaining: &mut usize,
+        ) -> Option<Vec<ScopedArithmeticBinding>> {
+            bindings
+                .iter()
+                .map(|binding| {
+                    charge(remaining)?;
+                    Some(ScopedArithmeticBinding {
+                        binder: binding.binder.clone(),
+                        value: value(&binding.value, substitutions, remaining, SUBSTITUTION_DEPTH)?,
+                    })
+                })
+                .collect()
+        }
+
         fn expression(
             source: &ScopedArithmeticExpression,
             substitutions: &[(&ScopedArithmeticValue, &ScopedArithmeticValue)],
@@ -1868,6 +2256,32 @@ mod cyclic_headers {
         caller_atoms: Vec<ScopedArithmeticBinding>,
         arguments: Vec<ExpressionHandle>,
         hypotheses: Vec<(ExpressionHandle, bool)>,
+    }
+
+    fn scalar_argument_roster(
+        program: &dyn validation::CheckingInput,
+        parameters: &[typed_trees::signature::StateParameter],
+        arguments: &[ExpressionHandle],
+        caller_owner: SymbolHandle,
+        caller: &[ScopedArithmeticBinding],
+    ) -> Vec<ScopedArithmeticBinding> {
+        parameters
+            .iter()
+            .zip(arguments)
+            .filter(|(parameter, _)| {
+                !parameter.is_mutable
+                    && !parameter.is_const
+                    && fixed_integer(program, parameter.type_reference).is_some()
+            })
+            .map(|(parameter, argument)| ScopedArithmeticBinding {
+                binder: ArithmeticBinder::Symbol(parameter.symbol),
+                value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+                    owner: caller_owner,
+                    expression: *argument,
+                    bindings: caller.to_vec(),
+                }),
+            })
+            .collect()
     }
 
     struct RosterParameter {
@@ -2353,24 +2767,13 @@ mod cyclic_headers {
             arguments: &[ExpressionHandle],
             caller: Vec<ScopedArithmeticBinding>,
         ) -> Vec<ScopedArithmeticBinding> {
-            self.program
-                .state_parameters(self.header)
-                .iter()
-                .zip(arguments)
-                .filter(|(parameter, _)| {
-                    self.roster
-                        .iter()
-                        .any(|bound| bound.symbol == parameter.symbol)
-                })
-                .map(|(parameter, argument)| ScopedArithmeticBinding {
-                    binder: ArithmeticBinder::Symbol(parameter.symbol),
-                    value: ScopedArithmeticValue::Term(ScopedArithmeticExpression {
-                        owner: self.machine.symbol,
-                        expression: *argument,
-                        bindings: caller.clone(),
-                    }),
-                })
-                .collect()
+            scalar_argument_roster(
+                self.program,
+                self.program.state_parameters(self.header),
+                arguments,
+                self.machine.symbol,
+                &caller,
+            )
         }
 
         /*
@@ -7755,9 +8158,9 @@ mod scalars {
         use validation::field_domains::readable_type_reference;
         use validation::{
             CanonicalPlace, closed_collection_length, closed_collection_length_under_matches,
-            collection_length_receiver, find_state_on_machine,
-            has_builtin_bound_expression_meaning, project_type_reference_from_segments,
-            reserved_result_owner, reserved_result_place,
+            collection_length_equals_under_matches, collection_length_receiver,
+            find_state_on_machine, has_builtin_bound_expression_meaning,
+            project_type_reference_from_segments, reserved_result_owner, reserved_result_place,
         };
 
         mod descriptor_lengths {
@@ -8208,7 +8611,11 @@ mod scalars {
                 let comparison = self.program.expression_table.binary_node(expression)?;
                 let state =
                     find_state_on_machine(self.program, self.machine, self.exit.state_symbol)?;
-                let (receiver, expected, operator) = self.length_comparison(state, comparison)?;
+                let Some((receiver, expected, operator)) =
+                    self.length_comparison(state, comparison)
+                else {
+                    return self.symbolic_length_equality(state, comparison);
+                };
                 let lengths = self.result_collection_lengths(state, receiver)?;
                 if lengths.is_empty() {
                     return None;
@@ -8261,6 +8668,54 @@ mod scalars {
                         | BinaryOperator::GreaterOrEqual
                 )
                 .then_some((receiver, expected, operator))
+            }
+
+            /*
+                `result.len == Count` where the other side is not a literal: every
+                selected arm's length must equal that expression, with const
+                parameters as rigid values. A generic body is proved once under its
+                own contract, so its extents may only be named, not evaluated.
+            */
+            fn symbolic_length_equality(
+                &self,
+                state: &State,
+                comparison: &TableBinaryExpression,
+            ) -> Option<bool> {
+                if comparison.operator != BinaryOperator::Equal {
+                    return None;
+                }
+                let receiver = |expression| {
+                    collection_length_receiver(self.program, self.machine, Some(state), expression)
+                };
+                let (receiver, expected) =
+                    match (receiver(comparison.left), receiver(comparison.right)) {
+                        (Some(receiver), None) => (receiver, comparison.right),
+                        (None, Some(receiver)) => (receiver, comparison.left),
+                        _ => return None,
+                    };
+                let segments = self.result_receiver_segments(receiver)?;
+                if !stable_segments(&segments) {
+                    return None;
+                }
+                let returned = exit_return_expression(self.program, self.exit);
+                let entry = self.program.machine_states(self.machine).first()?;
+                let verdicts = self.collection_lengths_through(
+                    returned,
+                    entry.return_type,
+                    &segments,
+                    &[],
+                    &|collection, matched| {
+                        Some(collection_length_equals_under_matches(
+                            self.program,
+                            self.machine,
+                            state,
+                            collection,
+                            matched,
+                            expected,
+                        ))
+                    },
+                )?;
+                (!verdicts.is_empty()).then(|| verdicts.iter().all(|equal| *equal))
             }
 
             fn integer_literal(&self, expression: ExpressionHandle) -> Option<BigInt> {
@@ -8328,7 +8783,21 @@ mod scalars {
                 }
                 let returned = exit_return_expression(self.program, self.exit);
                 let entry = self.program.machine_states(self.machine).first()?;
-                self.collection_lengths_through(state, returned, entry.return_type, &segments, &[])
+                self.collection_lengths_through(
+                    returned,
+                    entry.return_type,
+                    &segments,
+                    &[],
+                    &|collection, matched| {
+                        closed_collection_length_under_matches(
+                            self.program,
+                            self.machine,
+                            state,
+                            collection,
+                            matched,
+                        )
+                    },
+                )
             }
 
             /*
@@ -8423,14 +8892,20 @@ mod scalars {
                     })
             }
 
-            fn collection_lengths_through(
+            /*
+                Walk the arms and record fields that select the returned slice and
+                judge each selected collection with `leaf`, under the integer each
+                enclosing arm matched. Every arm contributes; one unjudged arm
+                fails the walk.
+            */
+            fn collection_lengths_through<Length>(
                 &self,
-                state: &State,
                 expression: ExpressionHandle,
                 reference: TypeReferenceHandle,
                 segments: &[PlaceSegment],
                 matched: &[MatchedReturnInteger],
-            ) -> Option<Vec<u64>> {
+                leaf: &dyn Fn(ExpressionHandle, &[(ExpressionHandle, BigInt)]) -> Option<Length>,
+            ) -> Option<Vec<Length>> {
                 if let ExpressionNode::Match(dispatch) =
                     self.program.expression_table.expression(expression)
                 {
@@ -8455,11 +8930,11 @@ mod scalars {
                             });
                         }
                         lengths.extend(self.collection_lengths_through(
-                            state,
                             arm.value,
                             reference,
                             segments,
                             &arm_matched,
+                            leaf,
                         )?);
                     }
                     return (!lengths.is_empty()).then_some(lengths);
@@ -8480,14 +8955,7 @@ mod scalars {
                         })
                         .map(|binding| (binding.subject, binding.value.clone()))
                         .collect();
-                    return closed_collection_length_under_matches(
-                        self.program,
-                        self.machine,
-                        state,
-                        expression,
-                        &current_matches,
-                    )
-                    .map(|length| vec![length]);
+                    return leaf(expression, &current_matches).map(|length| vec![length]);
                 }
                 let projections = flow::literal_expression_projections(
                     self.program,
@@ -8505,11 +8973,11 @@ mod scalars {
                         return None;
                     }
                     lengths.extend(self.collection_lengths_through(
-                        state,
                         projection.expression,
                         reference,
                         &[],
                         matched,
+                        leaf,
                     )?);
                 }
                 (!lengths.is_empty()).then_some(lengths)
@@ -8563,7 +9031,10 @@ mod scalars {
                             *primitive_type,
                         ),
                         Scalar::StructuralParameterField {
-                            parameter_position,
+                            root:
+                                checked_trees::CheckedStorageRoot::Parameter {
+                                    index: parameter_position,
+                                },
                             path,
                             primitive_type,
                             ..

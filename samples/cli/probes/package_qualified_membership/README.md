@@ -1,8 +1,8 @@
 # package qualified membership
 
 Compile-scope probe; FIRST depend-package sample —
-`Build::depend_as(builder, "leaf", Source::Path { location:
-"leaf" })` with the sibling package under `leaf/` (own build.omg +
+a `Build::dependency` registration of `Source::Path { location:
+"leaf" }` aliased `"leaf"` with the sibling package under `leaf/` (own build.omg +
 module file).
 
 - `use leaf::outcomes;` imports the depend's module;

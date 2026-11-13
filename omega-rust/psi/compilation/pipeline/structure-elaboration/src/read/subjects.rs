@@ -6,8 +6,10 @@ therefore means exactly: every declaration of the subject packages is valid,
 and every declaration they depend on is valid", and the closure "starts from
 every declaration of every subject, including unused ones".
 
-So every subject declaration is a root here, used or not. A machine becomes a
-`MachineId` and is read, lowered and judged like a called one; its callees
+So every subject declaration is a root here, used or not. A generic machine
+is set aside for its own check form (`Elaboration::generic_templates`). Any
+other machine becomes a `MachineId` and is read, lowered and judged like a
+called one; its callees
 follow as they do from an entry, whichever package declares them. A data
 declaration is resolved as a record. Every other kind of declaration is
 refused as `Unsupported`, because this route judges none of them yet and a
@@ -26,7 +28,7 @@ its symbol was declared in, never from a path or a name:
 */
 
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
-use source::{DependencyScope, SourceOrigin};
+use source::DependencyScope;
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
 
@@ -61,7 +63,7 @@ impl Program<'_> {
                     Unserved::Declaration("declaration without a source file"),
                 )
             })?;
-        let dependency = file.origin == SourceOrigin::Toolchain
+        let dependency = file.origin.is_toolchain()
             || file.dependency_scope == DependencyScope::Build
             || file
                 .package_identity
@@ -86,7 +88,8 @@ impl Program<'_> {
         let typed = self.typed;
         for symbol in selected {
             if typed.machine_by_symbol(*symbol).is_some() {
-                self.machine(*symbol)?;
+                let machine = self.machine(*symbol)?;
+                self.fixed_inputs.push(machine);
             } else if self.data_declaration(*symbol).is_some() {
                 self.record(entry, *symbol)?;
             } else {
@@ -110,8 +113,16 @@ impl Program<'_> {
     ) -> Checked<()> {
         let typed = self.typed;
         for machine in typed.machines() {
-            if self.owner(entry, machine.symbol, subject)? == Owner::Subject {
-                self.machine(machine.symbol)?;
+            if self.owner(entry, machine.symbol, subject)? != Owner::Subject {
+                continue;
+            }
+            // A generic machine is checked once as written, as its own check
+            // form, not as a closed body (`Elaboration::generic_templates`).
+            if machine.type_parameters.is_empty() {
+                let id = self.machine(machine.symbol)?;
+                self.subject_machines.push(id);
+            } else {
+                self.generic_templates.push(machine.symbol);
             }
         }
         for data in typed.data_definitions() {

@@ -11,7 +11,7 @@ capacity judgment at all.
 
 The classification contract is derived from two owners' published vocabularies:
 
-* Canonical compiler outcomes (bootstrap/3_delta/LANGUAGE.md): success is
+* Canonical compiler outcomes (bootstrap/interpreted/3_delta/LANGUAGE.md): success is
   status 0 with the receipt bytes on stdout; every failure is status 1..3
   carrying one exact 40-byte DCOUT frame whose tag agrees with the halt value:
 
@@ -28,8 +28,8 @@ The classification contract is derived from two owners' published vocabularies:
   Those frames are the only compiler-owned outcomes; the compiler never emits
   a raw evaluator status for an owned refusal.
 
-* Evaluator / generated-program statuses (bootstrap/3_delta/LANGUAGE.md and
-  bootstrap/2_gamma/EVALUATOR_PROFILE.md): when the evaluator hosting the
+* Evaluator / generated-program statuses (bootstrap/interpreted/3_delta/LANGUAGE.md and
+  bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md): when the evaluator hosting the
   compiler (or executing a produced receipt) is itself the failing owner, the
   observation is a bare process status — 132 Alpha illegal-instruction trap,
   248 InternalFailure, 249 AuthoredTrap, 250 StackExhausted,

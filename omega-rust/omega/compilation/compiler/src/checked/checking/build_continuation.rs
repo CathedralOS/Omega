@@ -9,15 +9,6 @@ consume its retained Build once, complete the authored module closure, and parse
 and type any generated source extension without replaying Build effects.
 */
 
-/*
-For the core Build (`BuildSourcePurpose::Defaults`), we speculatively type its
-Product sources on a forked `SourcePreparation` (`SpeculativeProduct`) in
-parallel with Build evaluation preparation. The fork is adopted on the compile
-thread when the core Build completes iff no intervening Product query modified
-the preparation; if refused or failed, the ordinary sequential typing path runs
-unchanged.
-*/
-
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::{
     BuildAdmission, BuiltTypedProgram, CheckedExecutionRequest, CompileFailure,
@@ -37,59 +28,9 @@ pub(super) struct BuildSourceInvocation {
     package_inputs: Option<PackageCompilationInputs>,
     selected_target_profile: Option<target::TargetProfile>,
     build_execution_profile: Option<target::TargetProfile>,
+    dependency_activation: bool,
     timings: CompileTimings,
     started: std::time::Instant,
-    speculative_product: Option<SpeculativeProduct>,
-}
-
-struct SpeculativeProduct {
-    pending: compilation_products::DeferredProductCompilation,
-    fork: compilation_products::PreparationFork,
-    frontier: TypedCompilationFrontier,
-}
-
-static REFUSE_SPECULATION: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
-static SPECULATIONS: [std::sync::atomic::AtomicU64; 2] = [
-    std::sync::atomic::AtomicU64::new(0),
-    std::sync::atomic::AtomicU64::new(0),
-];
-
-#[doc(hidden)]
-pub fn refuse_core_product_speculation(refuse: bool) {
-    REFUSE_SPECULATION.store(refuse, std::sync::atomic::Ordering::Relaxed);
-}
-
-#[doc(hidden)]
-pub fn core_product_speculations() -> (u64, u64) {
-    let load = |index: usize| SPECULATIONS[index].load(std::sync::atomic::Ordering::Relaxed);
-    (load(0), load(1))
-}
-
-fn type_core_product(
-    pending: compilation_products::DeferredProductCompilation,
-    fork: compilation_products::PreparationFork,
-    build_execution_profile: Option<target::TargetProfile>,
-) -> Result<SpeculativeProduct, Vec<Diagnostic>> {
-    let mut timings = CompileTimings::default();
-    let preparation = &fork.preparation;
-    let (count, syntax) =
-        pending
-            .sources()
-            .assemble(None, &mut timings, &mut *preparation.catalogue()?)?;
-    let frontier = lower_typed_frontier(
-        preparation.clone(),
-        count,
-        syntax,
-        build_execution_profile,
-        None,
-        &mut timings,
-    )?;
-    Ok(SpeculativeProduct {
-        pending,
-        fork,
-        frontier,
-    })
 }
 
 pub(super) fn prepare_build_invocation(
@@ -99,20 +40,8 @@ pub(super) fn prepare_build_invocation(
     frontier: TypedCompilationFrontier,
     mut timings: CompileTimings,
     pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
-    purpose: super::source_build::BuildSourcePurpose<'_>,
 ) -> Result<BuildSourceInvocation, CompileFailure> {
     let started = std::time::Instant::now();
-    let core_defaults = matches!(purpose, super::source_build::BuildSourcePurpose::Defaults);
-    let (execution_purpose, toolchain_defaults) = match purpose {
-        super::source_build::BuildSourcePurpose::Defaults => (
-            artifacts::compile_timings::counters::BuildExecutionPurpose::ProviderDefaults,
-            None,
-        ),
-        super::source_build::BuildSourcePurpose::Source(defaults) => (
-            artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
-            Some(defaults),
-        ),
-    };
     let CheckedExecutionRequest {
         selected_target_profile,
         package_inputs,
@@ -121,6 +50,7 @@ pub(super) fn prepare_build_invocation(
         settled_check_reuse,
     } = child;
     let build_execution_profile = build.profile;
+    let dependency_activation = build.dependency_activation;
     let execution_contract = build.contract();
     let TypedCompilationFrontier {
         preparation,
@@ -133,49 +63,32 @@ pub(super) fn prepare_build_invocation(
         base_sources,
     } = frontier;
     let build_input = source.build_input();
-    let speculation = product_sources
-        .as_ref()
-        .filter(|_| core_defaults && package_inputs.is_none())
-        .and_then(|pending| Some((pending.clone(), preparation.fork().ok()?)));
-    let (evaluation, speculative_product) = std::thread::scope(|scope| {
-        let speculation = speculation.and_then(|(pending, fork)| {
-            super::compile_thread::spawn_compile_worker(scope, move || {
-                type_core_product(pending, fork, build_execution_profile)
-            })
-            .ok()
-        });
-        let evaluation = build_settings::prepare_build_evaluation(
-            build_settings::BuildEvaluationRequest {
-                execution_purpose,
-                pure_build_compilation,
-                toolchain_defaults,
-                root_path,
-                typed: build_input.typed,
-                pre_checks: build_input.pre_checks,
-                build_source,
-                sources: &base_sources,
-                package_inputs,
-                anonymous_source: anonymous_source.as_ref(),
-                generated_source_custody: &generated_source_custody,
-                execution: build,
-                artifact_only: false,
-                prior_checks: settled_check_reuse
-                    .prior
-                    .build
-                    .as_ref()
-                    .into_iter()
-                    .chain(settled_check_reuse.prior.sibling_build_checks.iter())
-                    .collect(),
-                retain_check: settled_check_reuse.retain,
-            },
-            &mut timings,
-        );
-        let speculative_product = speculation
-            .and_then(|worker| worker.join().ok())
-            .and_then(Result::ok);
-        (evaluation, speculative_product)
-    });
-    let evaluation = evaluation?;
+    let evaluation = build_settings::prepare_build_evaluation(
+        build_settings::BuildEvaluationRequest {
+            execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
+            pure_build_compilation,
+            root_path,
+            typed: build_input.typed,
+            pre_checks: build_input.pre_checks,
+            build_source,
+            sources: &base_sources,
+            package_inputs,
+            anonymous_source: anonymous_source.as_ref(),
+            generated_source_custody: &generated_source_custody,
+            execution: build,
+            artifact_only: false,
+            prior_checks: settled_check_reuse
+                .prior
+                .build
+                .as_ref()
+                .into_iter()
+                .chain(settled_check_reuse.prior.sibling_build_checks.iter())
+                .collect(),
+            retain_check: settled_check_reuse.retain,
+            checked_slices: crate::checked::checked_slice_store::shared(),
+        },
+        &mut timings,
+    )?;
     Ok(BuildSourceInvocation {
         execution_contract,
         parsed,
@@ -193,17 +106,13 @@ pub(super) fn prepare_build_invocation(
         package_inputs: package_inputs.cloned(),
         selected_target_profile,
         build_execution_profile,
+        dependency_activation,
         timings,
         started,
-        speculative_product,
     })
 }
 
 impl BuildSourceInvocation {
-    pub(super) fn anonymous_source(&self) -> Option<&package_compilation::AnonymousSourceCapture> {
-        self.frontier.anonymous_source.as_ref()
-    }
-
     pub(super) fn product_queries(&self) -> super::ProductQueries {
         super::ProductQueries::new(
             &self.frontier,
@@ -227,29 +136,8 @@ impl BuildSourceInvocation {
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
     ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
-        let mut invocation = self;
-        let speculative = invocation.speculative_product.take();
-        let settled = invocation.settle(returned, joined_inputs, product_target)?;
+        let settled = self.settle(returned, joined_inputs, product_target)?;
         let inputs = settled.package_inputs.clone();
-        if let Some(speculative) = speculative
-            && inputs.is_none()
-        {
-            let preparation = &settled.frontier.preparation;
-            let adopted = !REFUSE_SPECULATION.load(std::sync::atomic::Ordering::Relaxed)
-                && preparation.adopt(&speculative.fork)?;
-            SPECULATIONS[usize::from(!adopted)].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            if adopted {
-                let mut frontier = speculative.frontier;
-                frontier.preparation = preparation.clone();
-                speculative.pending.retain(
-                    package_compilation::ProductSourceInputs::new(
-                        None,
-                        settled.build_execution_profile,
-                    ),
-                    &frontier,
-                )?;
-            }
-        }
         prepare_settled_product(settled, inputs.as_ref())
     }
 
@@ -267,9 +155,9 @@ impl BuildSourceInvocation {
             package_inputs,
             selected_target_profile,
             build_execution_profile,
+            dependency_activation,
             timings,
             started,
-            speculative_product: _,
         } = self;
         let original_assembly = package_compilation::SourceAssemblyInputs::new(
             package_inputs.as_ref(),
@@ -339,7 +227,7 @@ impl BuildSourceInvocation {
             package_inputs: package_inputs.cloned(),
             original_assembly,
             build_execution_profile,
-            toolchain_provider_defaults: None,
+            dependency_activation,
             timings,
             build_elapsed_micros: started.elapsed().as_micros(),
         })
@@ -363,12 +251,9 @@ pub(super) fn prepare_settled_product(
     }
     let started = std::time::Instant::now();
     let mut timings = settled.timings;
-    let frontier = if settled.frontier.product_sources.is_some()
-        || settled.original_assembly
-            == package_compilation::SourceAssemblyInputs::new(
-                inputs,
-                settled.build_execution_profile,
-            ) {
+    let inputs_joined_after_build = settled.original_assembly
+        != package_compilation::SourceAssemblyInputs::new(inputs, settled.build_execution_profile);
+    let frontier = if settled.frontier.product_sources.is_some() || !inputs_joined_after_build {
         settled.frontier
     } else {
         let (frontier, prepared_timings) =
@@ -380,9 +265,10 @@ pub(super) fn prepare_settled_product(
     let completed = complete_build_source(
         frontier,
         settled.evaluated,
-        settled.toolchain_provider_defaults,
         inputs,
         settled.build_execution_profile,
+        settled.dependency_activation,
+        inputs_joined_after_build,
         &mut timings,
     )
     .map_err(|failure| super::attribute_failure(failure, &initial_sources, inputs))?;
@@ -402,9 +288,10 @@ pub(super) fn prepare_settled_product(
 fn complete_build_source(
     frontier: TypedCompilationFrontier,
     evaluated: build_settings::EvaluatedBuild,
-    toolchain_provider_defaults: Option<package_compilation::CompletedProviderDefaults>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_execution_profile: Option<target::TargetProfile>,
+    dependency_activation: bool,
+    inputs_joined_after_build: bool,
     timings: &mut CompileTimings,
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
     let TypedCompilationFrontier {
@@ -422,6 +309,7 @@ fn complete_build_source(
         restricted_build_requests,
         base_source_consumption_commitment,
         retained_check: retained_build_check,
+        provider_folded_constants,
     } = evaluated;
     if let Some(pending) = product_sources {
         let inputs =
@@ -465,6 +353,28 @@ fn complete_build_source(
         source_file_count = product.source_file_count;
         generated_source_custody = product.generated_source_custody;
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
+        // This frontier holds the Build source again, typed afresh, so a
+        // constant Build admission folded under its own provider plans is
+        // pending here. Repeat that settlement and discharge it before the
+        // Product completes; left pending, the constant would be retained as
+        // a Product application and evaluated by the Product's targets.
+        // Constants that need no provider fold the same way on either
+        // frontier, so only a provider fold, or package inputs that joined
+        // after Build ran and may change what defers, calls for it.
+        if provider_folded_constants || inputs_joined_after_build {
+            let entry = selected.ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "deferred Product lost the Build entry whose constants it must settle",
+                )]
+            })?;
+            build_settings::settle_rejoined_build_slice(
+                source.build_input(),
+                entry,
+                package_inputs,
+                dependency_activation,
+                build_execution_profile,
+            )?;
+        }
     }
     if computed_build_config
         .declared_product_selections
@@ -479,8 +389,6 @@ fn complete_build_source(
         source = source
             .materialize_authored_bodies(&mut crate::observations::PsiStageTimings::new(timings))?;
     }
-    Arc::make_mut(&mut computed_build_config).toolchain_provider_defaults =
-        toolchain_provider_defaults;
     super::product_selections::admit(
         &mut source,
         Arc::make_mut(&mut computed_build_config),

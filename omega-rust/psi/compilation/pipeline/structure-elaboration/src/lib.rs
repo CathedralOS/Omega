@@ -47,14 +47,16 @@ Gaps found against the contract are listed in the crate README, "Findings".
 
 mod body;
 mod canonical;
+mod components;
+mod declare;
 mod lower;
 mod names;
 mod outcome;
 mod read;
 
 pub use body::{
-    Body, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
-    Statement, Strict, Target, ValueType, self_place,
+    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType,
+    Signature, Statement, Strict, Target, Termination, ValueType, self_place,
 };
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
@@ -93,6 +95,8 @@ pub enum Unpositioned {
     DispatchContinuation,
     /// The join block of a value-position `match` and the jumps into it.
     MatchJoin,
+    /// The head block of one member of a call component lowered as a loop.
+    LoopHead,
     /// The Unit completion after a unit machine's last statement.
     ImplicitReturn,
     /// The block a call continues in after the edge that retires the homes
@@ -120,6 +124,11 @@ pub struct MachineSources {
     pub operations: IdTable<OperationId, SourceOrigin>,
     pub edges: IdTable<EdgeId, SourceOrigin>,
     pub obligations: IdTable<ObligationId, SourceOrigin>,
+    /// The member of the call component each loop head stands for, in
+    /// block order (`lower`, `component`). The lowered form does not say
+    /// which machine's body a head begins; a diagnostic about an arrival
+    /// names it as the callee.
+    pub heads: Vec<(BlockId, MachineId)>,
 }
 
 /// What one compilation asks to have judged. This is request information: the
@@ -145,8 +154,10 @@ pub struct Compilation<'a> {
 /// and every machine those call.
 #[derive(Debug, Clone)]
 pub struct Elaboration {
-    /// Unsealed: no proof fields and no evidence. Its only declarations are
-    /// the record types its machines name and the subject declares.
+    /// Unsealed: no proof fields and no evidence. Its only type declarations
+    /// are the record types its machines name and the subject declares. In a
+    /// compilation's module (`elaborate`) each machine also states the
+    /// declaration identity of the typed-tree machine it lowers (`declare`).
     pub module: TerminalModule,
     /// One `MachineTables` per machine. `summaries` stays empty; see the
     /// README, "Findings".
@@ -159,6 +170,12 @@ pub struct Elaboration {
     /// The typed-tree machine each `MachineId` elaborates. The first entry
     /// is 1.
     pub machines: IdTable<MachineId, SymbolHandle>,
+    /// Private checked helpers in the complete verification subject whose
+    /// input clause was omitted. Every inferred condition must
+    /// become a requirement at every invocation before the module is judged.
+    /// Written `requires true` is complete even though it leaves no clause.
+    /// Entries, selected providers and abstract requirements never appear here.
+    pub private_inputs: Vec<MachineId>,
     /// The `requires` clauses of each data type the module declares, by the
     /// type's identity and in authored order, as `RecordType::requires`
     /// states them: the checker's restatement of each type declaration's
@@ -176,6 +193,14 @@ pub struct Elaboration {
     /// Every call through an implementation parameter that a static
     /// application closed, with the member it selects.
     pub selections: Vec<Selected>,
+    /// The requirements that are another generic machine's own contract, at
+    /// the type arguments one call in this generic check form's entry
+    /// applies it at (`same<T>(left, right)` inside `compare<T>`). A
+    /// specialization of the entry calls the machine stage 04 generated
+    /// from that machine for the same arguments, whose contract is this one
+    /// at them, so no refinement proof stands between the two. Each is
+    /// also in `requirements`. Empty for every concrete module.
+    pub applications: Vec<MachineId>,
     /// How many of each machine's scalar formals are value parameters
     /// (`const Units: u64`) left rigid by a generic check form: they are the
     /// machine's last scalar formals, in declaration order, and no caller
@@ -188,6 +213,19 @@ pub struct Elaboration {
     /// check form or as a conformance witness. Empty for every other
     /// machine, and for bodies lowered without typed trees.
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
+    /// The subject's generic machines. Each is a declaration the compilation
+    /// must judge, and none is a machine of this module: a generic body is
+    /// checked once as written, with its parameters rigid, or once per
+    /// alternative of a finite family it lists (`elaborate_generic_forms`).
+    /// The machines stage 04 generated from them for the program's own
+    /// applications are closed machines of this module. Empty outside
+    /// `elaborate`.
+    pub generic_templates: Vec<SymbolHandle>,
+    /// The machines of a compilation's module that were given no declaration
+    /// identity, each with the reason (`declare`). A module that lists one is
+    /// judged like any other and is never published. Empty outside
+    /// `elaborate`, whose forms are not programs.
+    pub undeclared: Vec<(MachineId, &'static str)>,
 }
 
 /// One call through an implementation parameter in a machine stage 04
@@ -303,12 +341,14 @@ pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<El
         ));
     };
     let entry = program.machine(*entry)?;
+    program.fixed_inputs.push(entry);
     for other in others {
-        program.machine(*other)?;
+        let other = program.machine(*other)?;
+        program.fixed_inputs.push(other);
     }
     program.selected_declarations(entry, compilation.selected)?;
     program.subject_declarations(entry, compilation.subject)?;
-    finish_reading(program, entry, IdTable::default())
+    finish_reading(program, entry, IdTable::default(), Some(typed))
 }
 
 /// Elaborates one machine and the closure of machines it calls, in discovery
@@ -331,6 +371,56 @@ pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Ela
 /// run.
 pub fn elaborate_generic(typed: &TypedTrees, template: SymbolHandle) -> Checked<Elaboration> {
     elaborate_form(typed, template, true)
+}
+
+/// Elaborates a generic machine over a finite type family once per
+/// alternative it lists, each with its type parameter fixed to that
+/// alternative's type, in the order the family lists them. generics.md,
+/// "Static type equality": "Checking the body once per listed alternative,
+/// each with `T` fixed to that type, satisfies this rule for a finite
+/// family; the list is closed, so those checks cover every admissible use."
+/// Each is an ordinary closed check of the body: a branch on `T == u32` is
+/// decided there and the other arm is never read. A machine stage 04
+/// generated for one alternative is that alternative's body, so its
+/// certificates carry into it (`lowered_discharge::reverify_specialization`).
+/// Refused unless `template` lists a finite family (`family_alternatives`).
+pub fn elaborate_alternatives(
+    typed: &TypedTrees,
+    template: SymbolHandle,
+) -> Checked<Vec<Elaboration>> {
+    let first = MachineId::new(1).expect("1 is nonzero");
+    let alternatives = read::Program::new(typed, false).family_alternatives(first, template)?;
+    alternatives
+        .into_iter()
+        .map(|arguments| {
+            let mut program = read::Program::new(typed, false);
+            program.alternative = Some(arguments);
+            let entry = program.machine(template)?;
+            finish_reading(program, entry, IdTable::default(), None)
+        })
+        .collect()
+}
+
+/// The check forms of the generic machines `templates`, in order: for each,
+/// the machine checked once as written with its parameters rigid
+/// (`elaborate_generic`), or, when it lists a finite type family, once per
+/// alternative (`elaborate_alternatives`). Refused when either form refuses
+/// one of them; a refusal names the template's own form.
+pub fn elaborate_generic_forms(
+    typed: &TypedTrees,
+    templates: &[SymbolHandle],
+) -> Checked<Vec<Elaboration>> {
+    let mut forms = Vec::new();
+    for template in templates {
+        match elaborate_generic(typed, *template) {
+            Ok(form) => forms.push(form),
+            Err(rigid) => match elaborate_alternatives(typed, *template) {
+                Ok(alternatives) => forms.extend(alternatives),
+                Err(_) => return Err(rigid),
+            },
+        }
+    }
+    Ok(forms)
 }
 
 /// The declaration a machine was generated from, when stage 04 generated it
@@ -376,7 +466,6 @@ pub fn elaborate_witness(
     let mut program = read::Program::new(typed, false);
     let entry = program.witnessed(declaring_trait, requirement, arguments)?;
     let callee = program.machine(implementation)?;
-    program.forwards(entry, callee);
     let required =
         terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?;
     let supplied =
@@ -418,21 +507,24 @@ pub fn elaborate_witness(
             None => Statement::Evaluate(call),
         }],
     });
-    finish_reading(program, entry, bodies)
+    finish_reading(program, entry, bodies, None)
 }
 
 fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, rigid);
     let entry = program.machine(entry)?;
-    finish_reading(program, entry, IdTable::default())
+    finish_reading(program, entry, IdTable::default(), None)
 }
 
 /// Reads every body not yet in `bodies`, callees as they are discovered,
-/// and lowers the closure.
+/// and lowers the closure. `declared` is the typed trees when the closure is a
+/// compilation's program, whose machines are then given their declaration
+/// identities (`declare`).
 fn finish_reading(
     mut program: read::Program<'_>,
     entry: MachineId,
     mut bodies: IdTable<MachineId, Body>,
+    declared: Option<&TypedTrees>,
 ) -> Checked<Elaboration> {
     // `program.machine` appends callees while bodies are read, so the bound
     // is re-read on every step.
@@ -447,7 +539,7 @@ fn finish_reading(
         let body = program.body(next)?;
         bodies.push(body);
     }
-    program.refuse_recursion()?;
+    let private_inputs = program.private_input_contracts(entry)?;
     let mut elaboration = lower_generic(
         entry,
         &bodies,
@@ -455,11 +547,22 @@ fn finish_reading(
         &program.records,
         &program.requirements,
     )?;
+    if let Some(typed) = declared {
+        declare::declare(
+            typed,
+            &program.symbols,
+            &program.signatures,
+            &mut elaboration,
+        );
+    }
     elaboration.machines = program.symbols;
+    elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
     elaboration.selections = program.selections;
+    elaboration.applications = program.applications;
     elaboration.value_parameters = program.value_parameters;
     elaboration.value_arguments = program.value_arguments;
+    elaboration.generic_templates = program.generic_templates;
     Ok(elaboration)
 }
 
@@ -467,9 +570,8 @@ fn finish_reading(
 /// `elaborate` reads typed trees and then calls this; a checker's tests call
 /// it directly to state programs. `records` holds every record type the
 /// bodies and signatures name, a nested record before its owner; a scalar
-/// program passes an empty table. The reader refuses recursion first; a
-/// cycle passed here directly is refused by the outcome pass, which walks
-/// callees first. `machines` is left empty: these bodies have no typed-tree
+/// program passes an empty table. A call cycle is lowered as a loop when
+/// `components` serves it and refused by name otherwise. `machines` is left empty: these bodies have no typed-tree
 /// machine.
 pub fn lower_bodies(
     entry: MachineId,
@@ -512,12 +614,13 @@ pub fn lower_generic(
             ));
         }
     }
+    let components = components::components(bodies, signatures)?;
     let outcomes = outcome::outcomes(bodies, signatures, requirements)?;
     let mut module = TerminalModule::for_entry(entry);
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
-    let declared = lower::places::declare(entry, records, bodies)?;
+    let declared = lower::places::declare(entry, records, bodies, signatures)?;
     if !declared.structural_types.is_empty() {
         module.identities = declared.identities;
         module.structural_types = declared.structural_types;
@@ -533,16 +636,20 @@ pub fn lower_generic(
                 Unserved::Machine("identity overflow"),
             )
         })?;
-        let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
+        let component = terminal_check_tables::row(&components, id, id, Construct::Machine)?;
         let lowered = lower::machine(
             id,
-            body,
+            bodies,
+            component,
             signatures,
             &outcomes,
             &declared.records,
             requirements.contains(&id),
         )?;
         module.machines.push(lowered.machine);
+        // Machines are lowered in identity order and each machine's heads in
+        // block order, which is the order the module's roster requires.
+        module.scalar_block_invariants.extend(lowered.invariants);
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
     }
@@ -556,11 +663,15 @@ pub fn lower_generic(
         sources,
         names: IdTable::default(),
         machines: IdTable::default(),
+        private_inputs: Vec::new(),
         domains,
         requirements: requirements.to_vec(),
         selections: Vec::new(),
+        applications: Vec::new(),
         value_parameters: IdTable::default(),
         value_arguments: IdTable::default(),
+        generic_templates: Vec::new(),
+        undeclared: Vec::new(),
     })
 }
 

@@ -1,11 +1,13 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 // Linux arm64 POSIX filesystem service: the same kernel-shaped
 // requirements and adapters as linux_x86_64 (`targets/linux_x86_64/
 // posix_filesystem_impl.omg`), satisfied with arm64 system call numbers.
-use posix_filesystem_host;
-use omega::language::core::math;
-use posix_byte_view_calling;
-use calling;
+use omega::language::core::min_u64;
 
 // This native requirement application fixes its kernel calling convention.
 boundary trait PosixFilesystemLinuxArm64ByteViews: Calling<LinuxArm64ByteViewCalling> {
@@ -26,8 +28,6 @@ boundary trait PosixFilesystemLinuxArm64Metadata {
     reaches FilesystemMetadataQuery;
 }
 
-use filesystem_host;
-use targets::linux_x86_64::posix_filesystem_impl;
 
 linux_arm64 machine PosixFilesystemNativeProvider::open(path: &[u8] in Path, flags: i32) -> i32
     satisfies PosixFilesystemHost::open

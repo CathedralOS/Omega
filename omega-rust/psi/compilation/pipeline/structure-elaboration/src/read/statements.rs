@@ -5,8 +5,9 @@ scalar value, or the fresh root of a whole record value); an assignment to a
 member path is a store into that exact field of a mutable local's record; an
 assignment to a scalar local declared without an initializer is a store into
 its home. Formals are immutable here: a `mut` formal is refused where the
-signature is read, and a store through a `&mut` formal belongs to the
-references lane.
+signature is read. A formal passed by `&mut` is stored into in place: a
+scalar referent like a home, a field of a record referent like a field of a
+mutable local.
 */
 
 use semantic_vocabulary::MachineId;
@@ -39,6 +40,12 @@ impl Program<'_> {
                 let slot = self.slot_of(id, slots, path)?;
                 if !slots[slot].assignable {
                     return Err(unserved("assignment to an immutable binding"));
+                }
+                // A whole record stored through a reference replaces the
+                // caller's storage in place, a store no slice lowers yet; a
+                // record local's assignment rebinds its slot instead.
+                if slots[slot].borrowed.is_some() && !slots[slot].homed {
+                    return Err(unserved("whole assignment through a reference"));
                 }
                 let value_type = slots[slot].value_type;
                 let value = self.expression(id, slots, assignment.value, value_type.scalar())?;
@@ -89,7 +96,9 @@ impl Program<'_> {
                         | ExpressionKind::Strict { .. }
                         | ExpressionKind::Not(_)
                         | ExpressionKind::BitwiseNot(_)
+                        | ExpressionKind::Cast(_)
                         | ExpressionKind::ShortCircuit { .. }
+                        | ExpressionKind::Borrow { .. }
                         | ExpressionKind::Call { .. } => {
                             return Err(unserved("store into a value that is not a local"));
                         }
@@ -166,7 +175,7 @@ impl Program<'_> {
             return unserved("operand capture or reflected query");
         }
         if local.relevance != language_core::BindingRelevance::Relevant {
-            return unserved("erased local");
+            return self.erased_local(id, slots, local);
         }
         if !local.initial_value.is_valid() {
             // `let x: T;`: the declared type is all there is. Storage is
@@ -177,6 +186,7 @@ impl Program<'_> {
             }
             let value_type = self.value_type(id, local.type_reference)?;
             let home = match value_type {
+                ValueType::Rigid(_) => return unserved("local of a rigid type"),
                 ValueType::Record(_) => None,
                 ValueType::Scalar(_) => Some(
                     self.typed
@@ -197,6 +207,8 @@ impl Program<'_> {
                 value_type,
                 assignable: local.is_mutable,
                 homed: value_type.scalar().is_some(),
+                erased: false,
+                borrowed: None,
             };
             return Ok((
                 slot,
@@ -227,6 +239,15 @@ impl Program<'_> {
                 Unserved::Typing("local bound to a Unit call"),
             ));
         };
+        // `let r = reference;` with no declared type: whether the local is
+        // a copy of the referent or the reference itself, the typed trees
+        // do not say here, and a reference local belongs to a later slice.
+        if declared.is_none()
+            && let ExpressionKind::Slot(named) = value.kind
+            && slots[named].borrowed.is_some()
+        {
+            return unserved("local bound to a reference without a declared type");
+        }
         if declared.is_some_and(|declared| declared != value_type) {
             return Err(refuse(
                 id,
@@ -239,12 +260,68 @@ impl Program<'_> {
             value_type,
             assignable: local.is_mutable,
             homed: false,
+            erased: false,
+            borrowed: None,
         };
         Ok((
             slot,
             Statement::Bind {
                 slot: slots.len(),
                 value,
+            },
+        ))
+    }
+
+    /// `let x [erased]: T = term;`. The initializer is the term the binding
+    /// names (contracts.md, "Explicit erased bindings": "Construction
+    /// supplies the erased term"); nothing is evaluated.
+    fn erased_local(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        local: &TableLocalData,
+    ) -> Checked<(Slot, Statement)> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
+        if !local.initial_value.is_valid() {
+            return unserved("erased local without an initializer");
+        }
+        let declared = if local.type_reference.is_valid() {
+            Some(self.value_type(id, local.type_reference)?)
+        } else {
+            None
+        };
+        if declared.is_some_and(|declared| declared.scalar().is_none()) {
+            return unserved("erased local of a data type");
+        }
+        let term = self.erased_term(
+            id,
+            slots,
+            local.initial_value,
+            declared.and_then(ValueType::scalar),
+        )?;
+        let Some(value_type) = term.result else {
+            return unserved("erased local of a data type");
+        };
+        if declared.is_some_and(|declared| declared != value_type) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("local initializer type"),
+            ));
+        }
+        let slot = Slot {
+            symbol: local.symbol,
+            value_type,
+            assignable: false,
+            homed: false,
+            erased: true,
+            borrowed: None,
+        };
+        Ok((
+            slot,
+            Statement::Witness {
+                slot: slots.len(),
+                term,
             },
         ))
     }

@@ -1615,6 +1615,31 @@ pub(crate) mod bindings {
                 }
             }
 
+            /// The field binding of a whole established home, with this
+            /// frame's declarations.
+            pub(crate) fn binding_at(
+                &self,
+                home: &terminal_psi::StructuralArgument,
+                structural_type: StructuralTypeId,
+            ) -> Result<StructuralScalarFieldBinding, LoweringError> {
+                // Psi 05 forms a rooted field observation only over a whole
+                // local, so a projected home is a broken plan.
+                if !home.path.is_empty() {
+                    return Err(LoweringError::MissingDependencyRosterEntry {
+                        identity_kind: "structural local place",
+                        role: "field observation at a local's place",
+                    });
+                }
+                Ok(StructuralScalarFieldBinding {
+                    source_position: 0,
+                    source: home.place,
+                    access: home.access,
+                    structural_type,
+                    declarations: self.declarations.clone(),
+                    case_payloads: Vec::new(),
+                })
+            }
+
             pub(crate) fn storage_home(
                 &self,
                 root: checked_trees::CheckedStorageRoot,
@@ -1788,36 +1813,6 @@ pub(crate) mod bindings {
             }
         }
 
-        /*
-            Observe one scalar field at the place of a caller's immutable
-            structural local. The same typed path resolution as a formal's field
-            is used; only the root is the local's own place. An erased call
-            actual is the sole producer of this observation.
-        */
-        pub(crate) fn resolve_local(
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            fields: &StructuralFieldBindings,
-            (source, access, structural_type): (PlaceId, StructuralAccess, StructuralTypeId),
-            path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-            scalar_type: ScalarType,
-        ) -> Result<LoweredDirectExpression, LoweringError> {
-            let binding = StructuralScalarFieldBinding {
-                source_position: 0,
-                source,
-                access,
-                structural_type,
-                declarations: fields.declarations.clone(),
-                case_payloads: Vec::new(),
-            };
-            resolve(
-                identities,
-                std::slice::from_ref(&binding),
-                0,
-                path,
-                scalar_type,
-            )
-        }
-
         pub(crate) fn resolve(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             fields: &[StructuralScalarFieldBinding],
@@ -1838,8 +1833,6 @@ pub(crate) mod bindings {
             position: u32,
             path: &[checked_trees::CheckedStructuralPredicatePathSegment],
         ) -> Result<LoweredDirectExpression, LoweringError> {
-            use super::structural_paths::PreparedStructuralPathSegment as Prepared;
-
             let mut matching = fields
                 .iter()
                 .filter(|field| field.source_position == position);
@@ -1849,6 +1842,21 @@ pub(crate) mod bindings {
             if matching.next().is_some() {
                 return unsupported("runtime field observation has ambiguous bindings");
             }
+            resolve_at(identities, binding, path)
+        }
+
+        /*
+            Observe one scalar field below a readable home. The home decides
+            only the root place: a formal's collected binding, or the
+            established place of the root a field observation names.
+        */
+        pub(crate) fn resolve_at(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            binding: &StructuralScalarFieldBinding,
+            path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+        ) -> Result<LoweredDirectExpression, LoweringError> {
+            use super::structural_paths::PreparedStructuralPathSegment as Prepared;
+
             let projection = observation_paths::explicit_path(
                 identities,
                 binding.structural_type,
@@ -5261,7 +5269,6 @@ pub(crate) mod bindings {
 
         fn scalar(&self, expression: &mut CheckedScalarExpression) -> Result<(), LoweringError> {
             match expression {
-                CheckedScalarExpression::StructuralLocalField { .. } => {}
                 CheckedScalarExpression::StructuralSequenceLength { path, .. } => {
                     for step in path {
                         if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) =

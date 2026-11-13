@@ -19,7 +19,7 @@ emits no Gamma or Alpha code.
 ## Measurements
 
 ```text
-1,666-line / 47,756-byte canonical addressed Beta with named control targets
+1,673-line / 48,077-byte canonical addressed Beta with named control targets
 8,575-byte evaluator tape
 ```
 
@@ -81,7 +81,7 @@ The evaluator keeps physical function rows in authored order and searches a
 sorted pointer index by exact name. The index occupies
 `0x09000000..0x0a000000` inside the function partition, under the selected
 2,097,152-row preflight. The request cannot contain that many declarations;
-the [profile](../../../bootstrap/2_gamma/EVALUATOR_PROFILE.md) gives the
+the [profile](../../../bootstrap/interpreted/2_gamma/EVALUATOR_PROFILE.md) gives the
 source-byte bound and row/index containment argument. No synthetic count is
 injected to manufacture an unreachable physical refusal.
 The 21 lookup/census controls pin row payloads and
@@ -117,7 +117,7 @@ The remaining admission work is outside evaluator semantics:
 - The Beta root and the eventual Gamma derivation checker retain their own
   independent admission obligations.
 
-The measured margin remains: the direct evaluator is 1,666 Beta lines versus
+The measured margin remains: the direct evaluator is 1,673 Beta lines versus
 2,337 lines across the former concatenative route. More importantly, its state
 is held in documented registers and explicit memory regions rather than hidden
 behind a generic stack-machine expansion.
@@ -126,7 +126,7 @@ behind a generic stack-machine expansion.
 
 The former concatenative Gamma is not retained as a permanent bootstrap rung.
 Direct Beta already executes the high-level Gamma-authored augmentation workflow
-with 1,666 authored Beta lines rather than 2,337 across the former route.
+with 1,673 authored Beta lines rather than 2,337 across the former route.
 Proper-tail execution, whole-program static
 validation, private pair provenance, and exact resource outcomes preserve that
 local auditability without another semantic layer.

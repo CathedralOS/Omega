@@ -1,6 +1,10 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "named_policy_result");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
+    Build::select_provider<F32::qualify, Provider>(builder, windows_x86_64);
+    Build::select_provider<F32::qualify, Provider>(builder, linux_x86_64);
+    Build::select_provider<F32::qualify, Provider>(builder, linux_arm64);
+    Build::select_provider<F32::qualify, Provider>(builder, macos_arm64);
     Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_x86_64::ProgramEntry, entry_start);
     Build::bind(builder, linux_arm64::ProgramEntry, entry_start);

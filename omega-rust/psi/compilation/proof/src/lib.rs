@@ -463,9 +463,76 @@ pub(crate) mod proof_surface {
                     collect_bounded_type_site(report, syntax_trees, *argument, owner);
                 }
             }
+            TypeReferenceNode::StaticSelection(selection) => {
+                collect_bounded_static_selection(report, syntax_trees, selection, owner);
+            }
             TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {}
             TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => {}
         }
+    }
+
+    fn collect_bounded_static_selection(
+        report: &mut ProofSurfaceReport,
+        syntax: &SyntaxTrees,
+        selection: &syntax_trees::expression::StaticMachineArgument,
+        owner: &str,
+    ) {
+        if selection.type_reference.is_valid() {
+            collect_bounded_type_site(report, syntax, selection.type_reference, owner);
+        }
+        if let Some(application) = &selection.application {
+            for argument in &application.arguments {
+                collect_bounded_static_selection(report, syntax, argument, owner);
+            }
+            if let Some(member) = syntax.expressions.static_member(application.member) {
+                collect_bounded_static_selection(report, syntax, member, owner);
+            }
+        }
+    }
+
+    fn static_selection_name(
+        syntax: &SyntaxTrees,
+        selection: &syntax_trees::expression::StaticMachineArgument,
+    ) -> String {
+        if selection.type_reference.is_valid() {
+            return type_reference_name(syntax, selection.type_reference);
+        }
+        if let Some(literal) = &selection.const_literal {
+            return literal.to_string();
+        }
+        if let Some(projection) = &selection.evidence_projection {
+            return format!(
+                "{}.{}",
+                projection.term.as_str(syntax),
+                projection.member.as_str(syntax)
+            );
+        }
+        let mut name = selection
+            .path
+            .iter()
+            .map(|part| part.as_str(syntax))
+            .collect::<Vec<_>>()
+            .join("::");
+        if let Some(application) = &selection.application {
+            let arguments = application
+                .lifetime_arguments
+                .iter()
+                .map(|region| format!("'{}", region.as_str(syntax)))
+                .chain(
+                    application
+                        .arguments
+                        .iter()
+                        .map(|argument| static_selection_name(syntax, argument)),
+                )
+                .collect::<Vec<_>>()
+                .join(", ");
+            name.push_str(&format!("<{arguments}>"));
+            if let Some(member) = syntax.expressions.static_member(application.member) {
+                name.push_str("::");
+                name.push_str(&static_selection_name(syntax, member));
+            }
+        }
+        name
     }
 
     fn type_reference_name(
@@ -511,6 +578,9 @@ pub(crate) mod proof_surface {
                     "{base_name}<{arguments}>",
                     base_name = base_name.as_str(syntax_trees)
                 )
+            }
+            TypeReferenceNode::StaticSelection(selection) => {
+                static_selection_name(syntax_trees, selection)
             }
             TypeReferenceNode::ConstExpression(expression) => {
                 format!(

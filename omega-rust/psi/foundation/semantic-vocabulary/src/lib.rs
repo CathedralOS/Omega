@@ -874,6 +874,8 @@ pub mod compiler_evaluation {
         Toolchain,
         UnownedUser,
         Missing,
+        // Issued contract closure, never an ambient package-selection exemption.
+        ToolchainContract,
     }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

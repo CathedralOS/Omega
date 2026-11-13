@@ -9,7 +9,7 @@
 // two locators do not conflict, and nothing here uses it. The twin
 // fail/capabilities/windows_applied_requirement_import_conflict gives one
 // application both locators and must be refused.
-use omega_language_std::console;
+use omega_language_std::Console;
 public boundary trait Magnitude<Value> { machine of(value: i32) -> i32 reaches; }
 data Main { m: i32; v: i32; }
 machine Main::main(main: &mut Main) reaches Magnitude + Console {

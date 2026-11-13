@@ -28,33 +28,6 @@ impl SourcePreparation {
             .lock()
             .map_err(|_| vec![Diagnostic::error("source catalogue owner is poisoned")])
     }
-
-    pub fn fork(&self) -> Result<PreparationFork, Vec<Diagnostic>> {
-        let catalogue = self.catalogue()?;
-        let frontends = self.frontends.retained_count()?;
-        Ok(PreparationFork {
-            from: (catalogue.len(), frontends),
-            preparation: SourcePreparation {
-                catalogue: Arc::new(Mutex::new(catalogue.fork())),
-                frontends: self.frontends.fork()?,
-            },
-        })
-    }
-
-    pub fn adopt(&self, fork: &PreparationFork) -> Result<bool, Vec<Diagnostic>> {
-        let mut catalogue = self.catalogue()?;
-        if (catalogue.len(), self.frontends.retained_count()?) != fork.from {
-            return Ok(false);
-        }
-        *catalogue = fork.preparation.catalogue()?.fork();
-        self.frontends.replace_with(&fork.preparation.frontends)?;
-        Ok(true)
-    }
-}
-
-pub struct PreparationFork {
-    from: (usize, usize),
-    pub preparation: SourcePreparation,
 }
 
 #[derive(Clone)]
@@ -133,14 +106,15 @@ pub struct PreparedCheckedSource {
     preparation: SourcePreparation,
     source_checkpoint: ImmutableSourceParseCheckpoint,
     shared_timings: CompileTimings,
-    toolchain_defaults: Option<package_compilation::CompletedProviderDefaults>,
+    toolchain_capture: Option<package_compilation::CapturedLocalSource>,
     frontiers: Arc<Mutex<Vec<(SourceFrontierInputs, TypedCompilationFrontier)>>>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
 struct SourceFrontierInputs {
     assembly: SourceAssemblyInputs,
-    toolchain_defaults: Option<package_compilation::CompletedProviderDefaults>,
+    // A retained frontier is valid only for the exact core bytes it typed.
+    toolchain_capture: Option<package_compilation::CapturedLocalSource>,
 }
 
 pub enum PreparedSourceFrontier {
@@ -167,7 +141,7 @@ impl PreparedCheckedSource {
             preparation: self.preparation.clone(),
             source_checkpoint: self.source_checkpoint.fork(),
             shared_timings: self.shared_timings.clone(),
-            toolchain_defaults: self.toolchain_defaults.clone(),
+            toolchain_capture: self.toolchain_capture.clone(),
             frontiers: self.frontiers.clone(),
         }
     }
@@ -181,17 +155,17 @@ impl PreparedCheckedSource {
             preparation,
             source_checkpoint,
             shared_timings,
-            toolchain_defaults: None,
+            toolchain_capture: None,
             frontiers: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
-    pub fn with_toolchain_defaults(
+    pub fn with_toolchain_capture(
         mut self,
-        defaults: &package_compilation::CompletedProviderDefaults,
+        capture: package_compilation::CapturedLocalSource,
     ) -> Result<Self, Vec<Diagnostic>> {
-        self.source_checkpoint = self.source_checkpoint.with_toolchain_defaults(defaults)?;
-        self.toolchain_defaults = Some(defaults.clone());
+        self.source_checkpoint = self.source_checkpoint.with_toolchain_capture(&capture)?;
+        self.toolchain_capture = Some(capture);
         Ok(self)
     }
 
@@ -206,7 +180,7 @@ impl PreparedCheckedSource {
     ) -> Result<PreparedSourceFrontier, Vec<Diagnostic>> {
         let inputs = SourceFrontierInputs {
             assembly: SourceAssemblyInputs::new(package_inputs, build_execution_profile),
-            toolchain_defaults: self.toolchain_defaults,
+            toolchain_capture: self.toolchain_capture,
         };
         let retain = Arc::strong_count(&self.frontiers) > 1;
         let retained = self

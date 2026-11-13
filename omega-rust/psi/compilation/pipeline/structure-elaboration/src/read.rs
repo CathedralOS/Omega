@@ -24,6 +24,7 @@ serve is refused when it is set, never ignored.
 */
 
 mod calls;
+mod casts;
 mod contracts;
 mod expressions;
 mod machine;
@@ -50,15 +51,41 @@ pub(crate) struct Program<'t> {
     /// What diagnostics call each machine's constructs, pushed with its
     /// signature and completed as its body is read.
     pub names: IdTable<MachineId, crate::MachineNames>,
-    /// Every direct call read so far, as (caller, callee).
-    calls: Vec<(MachineId, MachineId)>,
     /// Whether this is a generic check form: the entry's implementation
     /// parameters stay rigid, and a call through one names the requirement.
     rigid: bool,
     /// The machines that are a requirement's contract with no body.
     pub requirements: Vec<MachineId>,
+    /// Entries and selected providers keep their declared input contract.
+    pub fixed_inputs: Vec<MachineId>,
+    /// Every declaration in these machines' verification subject is rooted;
+    /// reaching one dependency helper alone does not close its possible uses.
+    pub subject_machines: Vec<MachineId>,
     /// Every call through an implementation parameter read so far.
     pub selections: Vec<crate::Selected>,
+    /// What each type parameter in scope stands for while one machine's
+    /// signature or body is read: a type parameter of a generic check
+    /// form's entry is rigid, and a type parameter of a generic machine the
+    /// entry calls is the type the call applies it at. A type that names
+    /// such a parameter by its symbol is that type (`value_type`). Empty
+    /// while a closed machine is read.
+    scope: Vec<(SymbolHandle, ValueType)>,
+    /// `scope` of each machine, pushed with its signature and restored
+    /// when its body is read.
+    scopes: IdTable<MachineId, Vec<(SymbolHandle, ValueType)>>,
+    /// The generic machines a generic check form's entry calls at its own
+    /// type parameters, each read once per tuple of type arguments as its
+    /// contract with no body (`Elaboration::applications`).
+    pub applications: Vec<MachineId>,
+    /// The type arguments each of those was read at.
+    applied: Vec<(MachineId, Vec<ValueType>)>,
+    /// The types a finite family's alternative fixes the entry's type
+    /// parameters to, in declaration order, when this program is that
+    /// alternative's check (`Reading::Alternative`).
+    pub alternative: Option<Vec<ValueType>>,
+    /// The locals of the body being read whose value is decided statically
+    /// by closed type equations (`static_truth`), by the local's symbol.
+    static_truths: Vec<(SymbolHandle, bool)>,
     /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
@@ -82,6 +109,8 @@ pub(crate) struct Program<'t> {
         arena::Handle<typed_trees::expression::CompletedValueCapture>,
         crate::body::Expression,
     )>,
+    /// The subject's generic machines, set aside by `subject_declarations`.
+    pub generic_templates: Vec<SymbolHandle>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
@@ -92,6 +121,13 @@ struct Slot {
     /// A scalar local declared without an initializer: it is a storage home
     /// written by a store, not an SSA value rebound by assignment.
     homed: bool,
+    /// An `[erased]` formal or local. A contract clause and an erased
+    /// position may name it; a runtime expression may not.
+    erased: bool,
+    /// A formal passed by reference, and its access. Its `value_type` is
+    /// the referent's: the slot names the caller's storage, read and (for
+    /// `&mut`) written in place, never an SSA value or a root of its own.
+    borrowed: Option<language_core::ReferenceAccess>,
 }
 /// The closed crash cause of a `crashes` clause or `crash` statement.
 fn crash_cause(cause: typed_trees::signature::CrashCause) -> CrashCause {
@@ -120,10 +156,17 @@ impl<'t> Program<'t> {
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             names: IdTable::default(),
-            calls: Vec::new(),
             rigid,
             requirements: Vec::new(),
+            fixed_inputs: Vec::new(),
+            subject_machines: Vec::new(),
             selections: Vec::new(),
+            scope: Vec::new(),
+            scopes: IdTable::default(),
+            applications: Vec::new(),
+            applied: Vec::new(),
+            alternative: None,
+            static_truths: Vec::new(),
             value_parameters: IdTable::default(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
@@ -132,6 +175,7 @@ impl<'t> Program<'t> {
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
+            generic_templates: Vec::new(),
         }
     }
 }
@@ -268,25 +312,6 @@ mod tests {
     }
 
     #[test]
-    fn a_call_cycle_is_refused_as_recursion() {
-        let typed = TypedTrees::default();
-        let mut program = Program::new(&typed, false);
-        for _ in 0..3 {
-            program.symbols.push(SymbolHandle::invalid());
-        }
-        let m = |raw| MachineId::new(raw).unwrap();
-        program.calls = vec![(m(1), m(2)), (m(2), m(3)), (m(1), m(3))];
-        assert_eq!(program.refuse_recursion(), Ok(()));
-        program.calls.push((m(3), m(2)));
-        assert_eq!(
-            program.refuse_recursion().unwrap_err().detail,
-            "call recursion"
-        );
-        program.calls = vec![(m(1), m(1))];
-        assert_eq!(program.refuse_recursion().unwrap_err().machine, m(1));
-    }
-
-    #[test]
     fn case_membership_is_refused_after_its_operands_read() {
         let mut typed = TypedTrees::default();
         let left = typed.expression_table.insert(ExpressionNode::Boolean(true));
@@ -377,6 +402,25 @@ mod tests {
         }
     }
 
+    #[test]
+    fn a_suffixed_operator_is_refused_before_its_operands_are_read() {
+        use numerics::arithmetic::ArithmeticDomain;
+        let typed = TypedTrees::default();
+        for policy in [
+            ArithmeticDomain::Wrapping,
+            ArithmeticDomain::Saturating,
+            ArithmeticDomain::Trapping,
+        ] {
+            let node = ExpressionNode::Binary(TableBinaryExpression {
+                policy,
+                left: ExpressionHandle::invalid(),
+                operator: BinaryOperator::Add,
+                right: ExpressionHandle::invalid(),
+            });
+            assert_eq!(refused(&typed, node), "expression policy operator");
+        }
+    }
+
     /// `result` in a contract is taken by the owner identity stage 02
     /// recorded, never by its spelling: a name spelled `result` with no
     /// identity is refused as a spelling, the result of another callable and
@@ -410,6 +454,7 @@ mod tests {
             subject: None,
             formal_fields: false,
             slots: &[],
+            values: &[],
             bound: &[],
             owner,
             result: ResultTerm::Named(result, u32_type),
@@ -602,6 +647,8 @@ mod tests {
             value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
             assignable: true,
             homed: false,
+            erased: false,
+            borrowed: None,
         }];
         let mut program = Program::new(&typed, false);
         let mut assigned = |target| {
@@ -630,6 +677,8 @@ mod tests {
             value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
             assignable: false,
             homed: false,
+            erased: false,
+            borrowed: None,
         }];
         assert_eq!(
             program
@@ -693,10 +742,17 @@ mod tests {
         );
         // A contract clause can neither name a record formal whole nor
         // project it: clauses over places belong to a later slice.
+        let values = crate::body::formal_values(
+            slots
+                .iter()
+                .map(|slot| (slot.value_type, slot.erased, slot.borrowed.is_some())),
+            None,
+        );
         let scope = ClauseScope {
             subject: None,
             formal_fields: false,
             slots: &slots,
+            values: &values,
             bound: &[],
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in an entry clause"),
@@ -793,6 +849,8 @@ mod tests {
             value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
             assignable: false,
             homed: false,
+            erased: false,
+            borrowed: None,
         }];
         let mut program = Program::new(&typed, false);
         program.record_sources.push(places::RecordSource {

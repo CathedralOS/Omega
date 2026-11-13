@@ -11,7 +11,7 @@ ensures result == index
 machine exercise(from_index: u64) -> bool
 requires from_index < 2
 {
-    let rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
+    let mut rooms: [Room; 2] = [Room { exit_count: 0 }, Room { exit_count: 10 }];
     let selected: u64 = select_index(from_index);
     let held: &mut Room = &mut rooms[selected];
     bump(&mut rooms[selected]);

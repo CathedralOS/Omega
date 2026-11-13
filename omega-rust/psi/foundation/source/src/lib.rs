@@ -99,6 +99,15 @@ pub enum SourceOrigin {
     #[default]
     User,
     Toolchain,
+    // Compiler-issued contract sources retain custody without joining the core prelude.
+    ToolchainContract,
+}
+
+impl SourceOrigin {
+    /// Provenance only: closed contracts do not gain ambient name visibility.
+    pub const fn is_toolchain(self) -> bool {
+        matches!(self, Self::Toolchain | Self::ToolchainContract)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -348,6 +357,7 @@ pub mod source_identity {
         PackageGenerated(crate::DependencyScope),
         ToolchainVirtual,
         ToolchainOwned,
+        ToolchainContract,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -375,7 +385,8 @@ pub mod source_identity {
                 | ConsumedSourceUnitKind::PackageGenerated(_) => {
                     package.is_some() && toolchain_namespace.is_none()
                 }
-                ConsumedSourceUnitKind::ToolchainOwned => {
+                ConsumedSourceUnitKind::ToolchainOwned
+                | ConsumedSourceUnitKind::ToolchainContract => {
                     package.is_none()
                         && toolchain_namespace
                             .as_deref()
@@ -466,7 +477,7 @@ pub mod source_identity {
                     canonical_path_components(relative, &source.path)?,
                 )
             }
-            SourceOrigin::Toolchain if generated => {
+            origin if origin.is_toolchain() && generated => {
                 return Err(format!(
                     "generated-source custody cannot name toolchain source `{}`",
                     source.path.display()
@@ -478,7 +489,10 @@ pub mod source_identity {
                 None,
                 canonical_path_components(&source.path, &source.path)?,
             ),
-            SourceOrigin::Toolchain => {
+            SourceOrigin::ToolchainContract if is_virtual_toolchain_path(&source.path) => {
+                return Err("closed toolchain contracts require an owned source path".into());
+            }
+            SourceOrigin::Toolchain | SourceOrigin::ToolchainContract => {
                 let namespace = source
                     .package_root
                     .file_name()
@@ -500,7 +514,11 @@ pub mod source_identity {
                         )
                     })?;
                 (
-                    ConsumedSourceUnitKind::ToolchainOwned,
+                    if source.origin == SourceOrigin::ToolchainContract {
+                        ConsumedSourceUnitKind::ToolchainContract
+                    } else {
+                        ConsumedSourceUnitKind::ToolchainOwned
+                    },
                     None,
                     Some(namespace.to_owned()),
                     canonical_path_components(relative, &source.path)?,
@@ -540,6 +558,7 @@ pub mod source_identity {
             ConsumedSourceUnitKind::PackageGenerated(crate::DependencyScope::Build) => 4,
             ConsumedSourceUnitKind::ToolchainVirtual => 2,
             ConsumedSourceUnitKind::ToolchainOwned => 3,
+            ConsumedSourceUnitKind::ToolchainContract => 5,
         });
         match unit.package {
             None => bytes.push(0),
@@ -603,7 +622,7 @@ pub mod source_identity {
     ) -> Result<Vec<(crate::SourceId, [u8; 32])>, String> {
         let mut identities = sources
             .into_iter()
-            .filter(|source| source.origin == SourceOrigin::Toolchain)
+            .filter(|source| source.origin.is_toolchain())
             .map(|source| Ok((source.source_id, toolchain_source_identity_digest(source)?)))
             .collect::<Result<Vec<_>, String>>()?;
         identities.sort_by_key(|(source_id, _)| source_id.0);
@@ -612,7 +631,7 @@ pub mod source_identity {
 
     #[doc(hidden)]
     pub fn toolchain_source_identity_digest(source: &SourceFile) -> Result<[u8; 32], String> {
-        if source.origin != SourceOrigin::Toolchain {
+        if !source.origin.is_toolchain() {
             return Err(format!(
                 "toolchain source identity requested for non-toolchain source `{}`",
                 source.path.display(),
@@ -697,6 +716,51 @@ pub mod source_identity {
                 digest,
                 toolchain_source_identity_digest(&relocated).expect("changed identity")
             );
+        }
+
+        #[test]
+        fn closed_contract_identity_retains_role_without_granting_core_exposure() {
+            let mut file = toolchain("toolchain");
+            let core = toolchain_source_identity_digest(&file).expect("core identity");
+            file.origin = SourceOrigin::ToolchainContract;
+            let contract = consumed_source_unit(&file, false).expect("contract identity");
+            assert_eq!(contract.kind(), ConsumedSourceUnitKind::ToolchainContract);
+            let encoded = canonical_source_entry(&file).expect("canonical contract");
+            assert_eq!(encoded[0], 5);
+            let digest = toolchain_source_identity_digest(&file).expect("contract digest");
+            assert_ne!(core, digest, "changing exposure changes admission identity");
+            assert_eq!(
+                toolchain_source_identities([&file]).unwrap(),
+                vec![(file.source_id, digest)]
+            );
+            assert_eq!(
+                ConsumedSourceUnit::from_retained(
+                    contract.kind(),
+                    contract.package(),
+                    contract.toolchain_namespace().map(str::to_owned),
+                    contract.relative_path().to_vec(),
+                    contract.byte_count(),
+                    contract.content_digest(),
+                )
+                .unwrap(),
+                contract,
+            );
+            assert!(consumed_source_unit(&file, true).is_err());
+            file.path = "<build-prelude>".into();
+            assert!(consumed_source_unit(&file, false).is_err());
+        }
+
+        #[test]
+        fn changing_toolchain_role_does_not_share_an_unbound_namespace() {
+            let core = toolchain("toolchain");
+            let mut contract = core.clone();
+            contract.source_id = crate::SourceId(1);
+            contract.origin = SourceOrigin::ToolchainContract;
+            let core_span = core.source_span(crate::Span::new(0, 4));
+            let contract_span = contract.source_span(crate::Span::new(0, 4));
+            let sources = crate::SourceMap::from_files(vec![core, contract]);
+            assert!(!sources.same_package(core_span, contract_span));
+            assert!(!sources.same_checked_instance(core_span, contract_span));
         }
 
         #[test]
@@ -1221,7 +1285,9 @@ impl SourceMap {
                 left.dependency_scope == right.dependency_scope
                     && match (left.package_identity, right.package_identity) {
                         (Some(left), Some(right)) => left == right,
-                        (None, None) => left.package_root == right.package_root,
+                        (None, None) => {
+                            left.origin == right.origin && left.package_root == right.package_root
+                        }
                         _ => false,
                     }
             }
@@ -1323,6 +1389,23 @@ impl SourceMap {
         self.files.iter()
     }
 
+    /*
+        This map with every unselected file's path and text removed. Two
+        compiles whose selected files, identities and routing agree have equal
+        views, whatever else the invocation's catalogue holds.
+    */
+    pub fn selection_view(&self) -> Self {
+        let mut view = self.clone();
+        for file in &mut view.files {
+            if !self.selection.includes(file.source_id) {
+                file.path = PathBuf::new();
+                file.package_root = PathBuf::new();
+                file.source = Arc::from("");
+            }
+        }
+        view
+    }
+
     pub fn selected_files(&self) -> impl Iterator<Item = &SourceFile> {
         self.files
             .iter()
@@ -1339,7 +1422,7 @@ impl SourceMap {
 fn same_package_files(left: &SourceFile, right: &SourceFile) -> bool {
     match (left.package_identity, right.package_identity) {
         (Some(left), Some(right)) => left == right,
-        (None, None) => left.package_root == right.package_root,
+        (None, None) => left.origin == right.origin && left.package_root == right.package_root,
         _ => false,
     }
 }

@@ -5134,9 +5134,14 @@ pub(crate) mod division_definedness {
                     )
             });
         if let Some(state) = state {
-            let excludes = |excluded| {
-                crate::proof_contracts::contract_entailment::integer_operands_exclude_at_occurrence(
-                    program, machine, state, expression, primitive, excluded,
+            let excludes = |excluded: [Option<i64>; 2]| {
+                crate::proof_contracts::contract_entailment::integer_operands_compare_at_occurrence(
+                    program,
+                    machine,
+                    state,
+                    expression,
+                    primitive,
+                    excluded.map(|value| value.map(|value| (BinaryOperator::NotEqual, value))),
                 )
             };
             let conditions = definedness_conditions(binary.operator, domain);
@@ -5610,7 +5615,7 @@ pub(crate) mod expression_analysis {
             // it the bare Exact meaning, so it rejects instead.
             if binary.policy != ArithmeticDomain::Exact {
                 diagnostics.push(Diagnostic::error(format!(
-                    "the policy operator `{}{}` in {} was not typed against its operand carrier; a suffixed operator is supported only in executable machine code",
+                    "the policy operator `{}{}` in {} was not typed against its operand carrier",
                     arithmetic_operator_spelling(binary.operator),
                     binary.policy.operator_suffix(),
                     walk.owner,
@@ -6727,6 +6732,16 @@ pub(crate) mod expression_analysis {
                 if relationally_in_range {
                     return true;
                 }
+                // A private nested machine that omits `requires` owes its
+                // shift-count proof to its arrivals, like its exact additions:
+                // the walk above sees only this state's own facts, so ask the
+                // occurrence route, which replays every arrival, whether the
+                // count operand stays inside `0..width` on all of them. An
+                // unproven or unreadable arrival answers false and the
+                // diagnostic below is still emitted.
+                if self.count_within_width_at_occurrence(width) {
+                    return true;
+                }
                 let always_out = matches!(count.low, Some(low) if low >= width)
                     || matches!(count.high, Some(high) if high < 0);
                 let verdict = if always_out {
@@ -6752,6 +6767,31 @@ pub(crate) mod expression_analysis {
             mask = width - 1,
         )));
                 false
+            }
+
+            fn count_within_width_at_occurrence(&self, width: i64) -> bool {
+                let walk = self.walk;
+                if !walk.checks_occurrence_fit || walk.specification_facts.is_some() {
+                    return false;
+                }
+                let Some(((machine, state), carrier)) =
+                    walk.machine.zip(walk.state).zip(self.right.primitive)
+                else {
+                    return false;
+                };
+                let holds = |operator, bound| {
+                    crate::proof_contracts::contract_entailment::integer_operands_compare_at_occurrence(
+                        walk.program,
+                        machine,
+                        state,
+                        self.expression,
+                        carrier,
+                        [None, Some((operator, bound))],
+                    )
+                };
+                (matches!(self.right.interval.low, Some(low) if low >= 0)
+                    || holds(BinaryOperator::GreaterOrEqual, 0))
+                    && holds(BinaryOperator::Less, width)
             }
 
             fn policy_result_interval(
@@ -18871,6 +18911,7 @@ pub(crate) mod ordered_values {
         PrimitiveType, State, ValueEnvironment, declared_place_type_raw, place_path,
     };
     use crate::CheckingInput;
+    use crate::machine_calls::calls::write_frames::place_paths::frame_length_path;
     use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze_meaning;
     use crate::proof_contracts::arithmetic_domains::integer_ranges::{
         literal_interval, primitive_range,
@@ -21110,7 +21151,12 @@ pub(crate) mod ordered_values {
                     .all(|value| value.survives_paths_by(overlaps)),
                 #[cfg(test)]
                 Self::CompletedCall { .. } => false,
-                Self::CollectionLength(collection) => collection.survives_paths_by(overlaps),
+                // The typed length observation reads the descriptor. Its
+                // elements may change while that observation remains the same.
+                Self::CollectionLength(collection) => collection.static_path().map_or_else(
+                    || collection.survives_paths_by(overlaps),
+                    |path| !overlaps(&frame_length_path(path)),
+                ),
                 Self::Indexed {
                     collection, index, ..
                 } => collection.survives_paths_by(overlaps) && index.survives_paths_by(overlaps),
@@ -22810,7 +22856,12 @@ pub(crate) mod selected_scalar_intervals {
             } => (*primitive_type, source.binding(*position, *primitive_type)?),
             Expression::ConstantApplication { .. }
             | Expression::ErasedParameter { .. }
-            | Expression::StructuralLocalField { .. } => {
+            | Expression::StructuralParameterField {
+                root:
+                    checked_trees::CheckedStorageRoot::OwnedLocal { .. }
+                    | checked_trees::CheckedStorageRoot::ViewLocal { .. },
+                ..
+            } => {
                 return None;
             }
             Expression::StorageRead {
@@ -22818,7 +22869,10 @@ pub(crate) mod selected_scalar_intervals {
                 primitive_type,
             } => (*primitive_type, source.storage(*symbol, *primitive_type)?),
             Expression::StructuralParameterField {
-                parameter_position,
+                root:
+                    checked_trees::CheckedStorageRoot::Parameter {
+                        index: parameter_position,
+                    },
                 path,
                 primitive_type,
                 ..
@@ -26982,7 +27036,7 @@ pub(crate) fn visit_binary_operators(
     crate::queries::expression_traversal::visit_post_order(
         program,
         expression,
-        &mut Vec::new(),
+        &mut crate::queries::expression_traversal::EnteredExpressions::default(),
         &mut visit,
     );
 }

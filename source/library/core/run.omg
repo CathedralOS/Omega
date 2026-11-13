@@ -1,8 +1,6 @@
 // Dense ownership over caller-supplied backing. The descriptor is constant-size;
 // Live retains established cell custody, never a per-element occupancy tag.
 // Neither constructing this record nor changing count establishes Live.
-use omega::language::core::extent;
-use omega::language::core::layout;
 
 public data Run<P, T> [linear] {
     storage: Extent in Granted;

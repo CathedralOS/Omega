@@ -9,9 +9,6 @@
 // that modulus. `converges_together_at == Zero` is the heterogeneous twin for
 // two generators and is the atom from which the Real quotient relation will
 // be built.
-use omega::language::core::rat;
-use omega::language::core::nat;
-use omega::language::core::nat_metric;
 
 machine cauchy_at<machine Sequence, machine Modulus>(
     precision: Nat,

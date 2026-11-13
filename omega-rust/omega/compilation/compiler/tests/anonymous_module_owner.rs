@@ -4,7 +4,11 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use build_declarations::{BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName};
 use compiler::{CheckedCompileRequest, CompilationOutput, CompilationProduct, CompilationSession};
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use package_compilation::PackageDependencyAcquisition;
 use package_compilation::{
     BuildDeclarationKind, PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
@@ -122,6 +126,47 @@ fn inputs(
     .expect("accepted entry binding")
 }
 
+/// The graph a nine-place consumer's own Build settles. Its `build.omg`
+/// registers one Product dependency, `shared` at `location` (`../library`, or
+/// `../../library` from a reject twin one directory deeper), under the
+/// application name `declared` that the same Build declares, so the root
+/// carries exactly that edge plus the acquisition record for that executed
+/// request. Source preparation joins the two, and refuses a graph whose edges
+/// were not requested. The acquired package is the anonymous library with the
+/// owner its standalone check derived, not the sample's declared library.
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn registered_inputs(
+    consumer: &Path,
+    declared: &str,
+    location: &str,
+    library: &Path,
+    owner: PackageKeyIdentity,
+) -> PackageCompilationInputs {
+    let root_owner = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+    PackageCompilationInputs::new(
+        root_owner,
+        BuildDeclarationKind::Application,
+        vec![
+            PackageSourceBinding::new(root_owner, declared, consumer.to_path_buf())
+                .with_canonical_source_metadata()
+                .expect("sealed consumer Source metadata"),
+            PackageSourceBinding::new(owner, "owner_identity_library", library.to_path_buf()),
+        ],
+        vec![PackageDependencyBinding::new(root_owner, "shared", owner)],
+    )
+    .expect("exact registered source graph")
+    .with_dependency_acquisitions(vec![PackageDependencyAcquisition {
+        request_ordinal: 0,
+        request: BuildRequest::Dependency {
+            purpose: DependencyPurpose::Product,
+            alias: Some(ProjectName::parse("shared").unwrap()),
+            source: BuildDependencySource::Path(location.to_owned()),
+        },
+        package: owner,
+    }])
+    .expect("acquisition for the registered `shared` request")
+}
+
 fn scratch_library(name: &str, extra: bool) -> PathBuf {
     let root = fixture_package_inputs::sealed_fixture_staging::temporary_session_root().join(name);
     fs::create_dir(&root).unwrap();
@@ -210,7 +255,8 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
             &repository,
             &authored,
         );
-        let supplied = inputs(&staged, &library, owner, None);
+        let declared = format!("owner_{place}");
+        let supplied = registered_inputs(&staged, &declared, "../library", &library, owner);
         let checked = orchestration::check_source(
             &mut CompilationSession::default(),
             CheckedCompileRequest {
@@ -298,7 +344,13 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         let failure = orchestration::check_source(
             &mut CompilationSession::default(),
             CheckedCompileRequest {
-                package_inputs: Some(inputs(&invalid, &library, owner, None)),
+                package_inputs: Some(registered_inputs(
+                    &invalid,
+                    &declared,
+                    "../../library",
+                    &library,
+                    owner,
+                )),
                 ..CheckedCompileRequest::new(&invalid.join("main.omg"), Some("linux_x86_64"))
             },
         )

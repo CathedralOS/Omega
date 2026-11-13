@@ -1691,19 +1691,86 @@ pub(crate) mod type_predicates {
         }
     }
 
+    /// A store for `TypedTrees::static_boolean_value_memoized` answers.
+    pub trait StaticBooleanMemo {
+        /// `Some(answer)` if `expression`'s answer is stored.
+        fn static_boolean(&self, expression: ExpressionHandle) -> Option<Option<bool>>;
+        fn remember_static_boolean(&self, expression: ExpressionHandle, value: Option<bool>);
+    }
+
+    struct StaticBooleanWalk<'memo> {
+        memo: Option<&'memo dyn StaticBooleanMemo>,
+        // Per arena slot: whether the expression encloses the one being valued.
+        active: Vec<bool>,
+        // Whether a cycle was cut since the current expression was entered.
+        cut: bool,
+    }
+
+    impl<'memo> StaticBooleanWalk<'memo> {
+        fn new(memo: Option<&'memo dyn StaticBooleanMemo>) -> Self {
+            Self {
+                memo,
+                active: Vec::new(),
+                cut: false,
+            }
+        }
+
+        fn is_active(&self, expression: ExpressionHandle) -> bool {
+            self.active
+                .get(expression.arena_index() as usize)
+                .copied()
+                .unwrap_or(false)
+        }
+
+        fn enter(&mut self, expression: ExpressionHandle) {
+            let slot = expression.arena_index() as usize;
+            if slot >= self.active.len() {
+                self.active.resize(slot + 1, false);
+            }
+            self.active[slot] = true;
+        }
+
+        fn leave(&mut self, expression: ExpressionHandle) {
+            self.active[expression.arena_index() as usize] = false;
+        }
+    }
+
     impl TypedTrees {
         pub fn static_boolean_value(&self, expression: ExpressionHandle) -> Option<bool> {
-            self.static_boolean_value_inner(expression, &mut Vec::new())
+            self.static_boolean_value_inner(expression, &mut StaticBooleanWalk::new(None))
+        }
+
+        /*
+            `static_boolean_value` with every answer that does not depend on
+            the walk's path kept in `memo` for later queries. Callers ask it
+            of each logical operator's left operand, so without a memo a long
+            `&&` chain re-walked its left spine at every operator.
+        */
+        pub fn static_boolean_value_memoized(
+            &self,
+            expression: ExpressionHandle,
+            memo: &dyn StaticBooleanMemo,
+        ) -> Option<bool> {
+            self.static_boolean_value_inner(expression, &mut StaticBooleanWalk::new(Some(memo)))
         }
 
         fn static_boolean_value_inner(
             &self,
             expression: ExpressionHandle,
-            active: &mut Vec<ExpressionHandle>,
+            walk: &mut StaticBooleanWalk<'_>,
         ) -> Option<bool> {
-            if !self.expression_table.expression_is_valid(expression)
-                || active.contains(&expression)
+            if !self.expression_table.expression_is_valid(expression) {
+                return None;
+            }
+            if let Some(memo) = walk.memo
+                && let Some(value) = memo.static_boolean(expression)
             {
+                return value;
+            }
+            if walk.is_active(expression) {
+                // A cycle back to an enclosing expression: true only of this
+                // walk, so nothing that met it is memoized.
+                walk.cut = true;
                 return None;
             }
             if let Ok(position) = self
@@ -1719,7 +1786,8 @@ pub(crate) mod type_predicates {
             if let Some(value) = self.static_type_predicate_value(expression) {
                 return Some(value);
             }
-            active.push(expression);
+            walk.enter(expression);
+            let enclosing_cut = std::mem::take(&mut walk.cut);
             let value = (|| match self.expression_table.expression(expression) {
                 ExpressionNode::Boolean(value) => Some(*value),
                 ExpressionNode::Name(path)
@@ -1734,23 +1802,23 @@ pub(crate) mod type_predicates {
                     if local.is_mutable {
                         return None;
                     }
-                    self.static_boolean_value_inner(local.ordinary_value_initializer()?, active)
+                    self.static_boolean_value_inner(local.ordinary_value_initializer()?, walk)
                 }
                 ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => self
-                    .static_boolean_value_inner(unary.operand, active)
+                    .static_boolean_value_inner(unary.operand, walk)
                     .map(|value| !value),
                 ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-                    if self.static_boolean_value_inner(binary.left, active)? {
-                        self.static_boolean_value_inner(binary.right, active)
+                    if self.static_boolean_value_inner(binary.left, walk)? {
+                        self.static_boolean_value_inner(binary.right, walk)
                     } else {
                         Some(false)
                     }
                 }
                 ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Or => {
-                    if self.static_boolean_value_inner(binary.left, active)? {
+                    if self.static_boolean_value_inner(binary.left, walk)? {
                         Some(true)
                     } else {
-                        self.static_boolean_value_inner(binary.right, active)
+                        self.static_boolean_value_inner(binary.right, walk)
                     }
                 }
                 ExpressionNode::Binary(binary)
@@ -1759,13 +1827,19 @@ pub(crate) mod type_predicates {
                         .boolean_equalities
                         .contains(&expression) =>
                 {
-                    let left = self.static_boolean_value_inner(binary.left, active)?;
-                    let right = self.static_boolean_value_inner(binary.right, active)?;
+                    let left = self.static_boolean_value_inner(binary.left, walk)?;
+                    let right = self.static_boolean_value_inner(binary.right, walk)?;
                     Some((left == right) != (binary.operator == BinaryOperator::NotEqual))
                 }
                 _ => None,
             })();
-            active.pop();
+            walk.leave(expression);
+            if !walk.cut
+                && let Some(memo) = walk.memo
+            {
+                memo.remember_static_boolean(expression, value);
+            }
+            walk.cut |= enclosing_cut;
             value
         }
 

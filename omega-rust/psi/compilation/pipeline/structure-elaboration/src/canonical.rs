@@ -149,7 +149,9 @@ pub(crate) fn substituted_routes(
     Ok(self::routes(alternatives))
 }
 
-fn substitute(
+/// A clause over a machine's formals with each formal replaced by the value
+/// at its position: formal `i` is the machine's value `i + 1`.
+pub(crate) fn substitute(
     proposition: &Proposition,
     actuals: &[ValueId],
     id: MachineId,

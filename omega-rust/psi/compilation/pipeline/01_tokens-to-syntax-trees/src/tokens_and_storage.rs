@@ -475,6 +475,10 @@ pub(crate) mod tokens {
                 }
             }
 
+            pub(crate) fn resume_tokens(&mut self, tokens: &'tokens [Token]) {
+                *self = self.advanced(tokens);
+            }
+
             pub(crate) fn text(self, token: &Token) -> TokenText<'tokens> {
                 self.stream.text(token)
             }

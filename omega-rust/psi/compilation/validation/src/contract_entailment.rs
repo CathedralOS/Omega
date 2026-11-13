@@ -2387,13 +2387,27 @@ pub(crate) mod arithmetic_judgment {
                 ) {
                     return false;
                 }
+                let dividend = self.substituted(left);
+                let divisor = self.substituted(right);
+                let result = self.substituted(value);
+                let consequence = match operator {
+                    BinaryOperator::Modulo => divisor.sub(&result),
+                    _ => dividend.sub(&result),
+                };
+                // These rules establish a difference of at least zero or one.
+                // Once the stronger bound is present, rechecking its conditions
+                // cannot strengthen it. A zero bound must still be reconsidered.
+                let strongest_minimum = BigInt::from_i64(1);
+                if self.bounds.iter().any(|(existing, minimum)| {
+                    *existing == consequence && minimum >= &strongest_minimum
+                }) {
+                    return false;
+                }
                 let consequence = {
                     // These few queries share unchanged premises. Defer the full
                     // bound index until a simple query cannot resolve, then release
                     // the borrowed view before installing any consequence.
                     let mut queries = super::LowerBoundQueries::direct(self);
-                    let dividend = self.substituted(left);
-                    let divisor = self.substituted(right);
                     match operator {
                         BinaryOperator::Divide
                             if queries
@@ -2409,10 +2423,7 @@ pub(crate) mod arithmetic_judgment {
                                     &divisor,
                                     &BigInt::from_i64(2),
                                 );
-                            Some((
-                                dividend.sub(&self.substituted(value)),
-                                BigInt::from_i64(i64::from(strict)),
-                            ))
+                            Some((consequence, BigInt::from_i64(i64::from(strict))))
                         }
                         BinaryOperator::ShiftRight
                             if queries.prove_with_deferred_preparation(
@@ -2423,7 +2434,7 @@ pub(crate) mod arithmetic_judgment {
                                 &BigInt::from_i64(1),
                             ) =>
                         {
-                            Some((dividend.sub(&self.substituted(value)), BigInt::from_i64(1)))
+                            Some((consequence, BigInt::from_i64(1)))
                         }
                         BinaryOperator::Modulo
                             if queries
@@ -2433,7 +2444,7 @@ pub(crate) mod arithmetic_judgment {
                                     &BigInt::from_i64(1),
                                 ) =>
                         {
-                            Some((divisor.sub(&self.substituted(value)), BigInt::from_i64(1)))
+                            Some((consequence, BigInt::from_i64(1)))
                         }
                         _ => None,
                     }
@@ -2454,6 +2465,110 @@ pub(crate) mod arithmetic_judgment {
 
             fn constant(value: i64) -> Polynomial {
                 Polynomial::constant(BigInt::from_i64(value))
+            }
+
+            #[test]
+            fn established_operation_bounds_do_not_repeat_their_proof() {
+                use std::sync::atomic::Ordering;
+
+                let program = typed_trees::TypedTrees::default();
+                for operator in [
+                    BinaryOperator::Divide,
+                    BinaryOperator::Modulo,
+                    BinaryOperator::ShiftRight,
+                ] {
+                    let mut engine = Engine::for_explicit_bindings(&program);
+                    let dividend = engine
+                        .conditional_value(vec![
+                            super::super::ConditionalValueArm {
+                                conditions: vec![],
+                                value: constant(4),
+                            },
+                            super::super::ConditionalValueArm {
+                                conditions: vec![],
+                                value: constant(8),
+                            },
+                        ])
+                        .unwrap();
+                    let divisor = constant(2);
+                    let result = Polynomial::atom("result".to_owned());
+                    assert!(
+                        engine.install_integer_operation_bounds(
+                            operator, &dividend, &divisor, &result,
+                        )
+                    );
+                    let bounds = engine.bounds.clone();
+                    let remaining = engine.conditional_work_remaining.load(Ordering::Relaxed);
+                    for _ in 0..4 {
+                        assert!(!engine.install_integer_operation_bounds(
+                            operator, &dividend, &divisor, &result,
+                        ));
+                    }
+                    assert_eq!(engine.bounds, bounds);
+                    assert_eq!(
+                        engine.conditional_work_remaining.load(Ordering::Relaxed),
+                        remaining,
+                        "an established consequence needs no repeated conditional proof",
+                    );
+                    let other_result = Polynomial::atom("other_result".to_owned());
+                    assert!(engine.install_integer_operation_bounds(
+                        operator,
+                        &dividend,
+                        &divisor,
+                        &other_result,
+                    ));
+                }
+
+                let mut engine = Engine::for_explicit_bindings(&program);
+                let dividend = Polynomial::atom("dividend".to_owned());
+                let divisor = Polynomial::atom("divisor".to_owned());
+                let result = Polynomial::atom("result".to_owned());
+                assert!(!engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                assert!(engine.install_hypotheses(vec![
+                    (
+                        BinaryOperator::GreaterOrEqual,
+                        dividend.clone(),
+                        constant(0)
+                    ),
+                    (BinaryOperator::GreaterOrEqual, divisor.clone(), constant(1)),
+                ]));
+                assert!(engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                let difference = dividend.sub(&result);
+                assert!(
+                    engine
+                        .bounds
+                        .contains(&(difference.clone(), BigInt::zero()))
+                );
+                assert!(
+                    !engine
+                        .bounds
+                        .contains(&(difference.clone(), BigInt::from_i64(1)))
+                );
+                assert!(engine.install_hypotheses(vec![
+                    (
+                        BinaryOperator::GreaterOrEqual,
+                        dividend.clone(),
+                        constant(1)
+                    ),
+                    (BinaryOperator::GreaterOrEqual, divisor.clone(), constant(2)),
+                ]));
+                assert!(engine.install_integer_operation_bounds(
+                    BinaryOperator::Divide,
+                    &dividend,
+                    &divisor,
+                    &result,
+                ));
+                assert!(engine.bounds.contains(&(difference, BigInt::from_i64(1))));
             }
 
             #[test]
@@ -7566,7 +7681,7 @@ pub(crate) mod call_requirements {
     use super::citations::{
         CitationFacts, CitationTarget, instantiate_citation, machine_requires_facts,
     };
-    use super::refuted_requires::instantiated_selected_fact_judgment;
+    use super::refuted_requires::{OperandJudgments, remembered_instantiated_fact_judgment};
     use super::self_induction::intake_available_self_induction_hypotheses;
     use super::structural_case_arms::{
         recognize_structural_case_arms, recognize_structural_state_prefix, structural_arm_judge,
@@ -8957,7 +9072,8 @@ pub(crate) mod call_requirements {
                     );
                     continue;
                 }
-                let judgment = instantiated_selected_fact_judgment(
+                let mut judgments = OperandJudgments::default();
+                let judgment = remembered_instantiated_fact_judgment(
                     program,
                     &entry.judge,
                     self.callee_owner,
@@ -8968,7 +9084,12 @@ pub(crate) mod call_requirements {
                     &type_substitution,
                     Some((machine, state)),
                     false,
+                    &mut judgments,
                 );
+                if let Some((observation, _)) = trace {
+                    call_consumer_trace::operand_judgments(observation, program, judgments.iter());
+                }
+                drop(judgments);
                 entry.judge.trace_call_consumer_outcome(
                     trace,
                     "judgment",
@@ -10198,13 +10319,17 @@ pub(crate) mod collection_bounds {
         use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableIndexedExpression};
         use typed_trees::types::TypeReferenceHandle;
 
+        /// A fixed array's bound is its type's extent, so its elements are
+        /// never read: a constant used as `SOURCE[0]` arrives as its copied
+        /// literal `[3]`, which has no structural value, and still has extent
+        /// 1. Only an open collection's length needs `collection`.
         pub(crate) fn proves_observed_bounds(
             program: &dyn crate::CheckingInput,
             judge: &StructuralJudge<'_>,
             indexed: &TableIndexedExpression,
             collection_type: TypeReferenceHandle,
             array_extent: Option<&crate::ResolvedArrayExtent>,
-            collection: StructuralTerm,
+            collection: impl FnOnce() -> Option<StructuralTerm>,
             mut operand: impl FnMut(
                 ExpressionHandle,
             )
@@ -10235,7 +10360,7 @@ pub(crate) mod collection_bounds {
                     program,
                     collection_type,
                     language_semantics::declaration_selection::CollectionMeasure::Length,
-                    || Some(collection),
+                    collection,
                 ) else {
                     return false;
                 };
@@ -10731,7 +10856,7 @@ pub(crate) mod collection_bounds {
                     indexed,
                     reference,
                     array_extent.as_ref(),
-                    collection.clone(),
+                    || Some(collection.clone()),
                     |source| {
                         let value = entry.arguments.get(position)?.as_ref()?.clone();
                         position += 1;
@@ -16525,7 +16650,7 @@ pub(crate) mod inductive_judgment {
                     eprintln!(
                         "ENTAILDBG inductive machine={} arm_guard={} fact={} visible={}",
                         machine.name,
-                        arm.guard_display,
+                        arm.guard_display.as_deref().unwrap_or("<always>"),
                         program.expression_table.display_name(*fact),
                         arm.fully_visible,
                     );
@@ -16546,28 +16671,28 @@ pub(crate) mod inductive_judgment {
             }
             if let Some(guard) = constant_false_arm {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic on the transition arm guarded by `{}`",
+                "machine `{}` ensures contract proof fact `{}` is disproved by constant arithmetic{}",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(&guard)
             )));
             } else if let Some(guard) = refuted_arm {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` ensures contract proof fact `{}` is disproved on the transition arm guarded by `{}`: the arm's facts entail its negation",
+                "machine `{}` ensures contract proof fact `{}` is disproved{}: the arm's facts entail its negation",
                 machine.name,
                 program.expression_table.display_name(*fact),
-                guard
+                arm_clause(&guard)
             )));
             } else if let Some(ref guard) = unknown_arm
                 && goal_always_in_language
                 && machine_fully_visible
             {
                 diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` cannot prove ensures contract proof fact `{}` on the transition arm guarded by `{}`",
-                machine.name,
-                program.expression_table.display_name(*fact),
-                guard
-            )));
+                    "machine `{}` cannot prove ensures contract proof fact `{}`{}",
+                    machine.name,
+                    program.expression_table.display_name(*fact),
+                    arm_clause(guard)
+                )));
             } else if unknown_arm.is_none() {
                 proven.push(*fact);
             }
@@ -16620,7 +16745,20 @@ pub(crate) mod inductive_judgment {
         engine: Engine<'program>,
         vacuous: bool,
         fully_visible: bool,
-        guard_display: String,
+        // `None` for a body with one unguarded arm: there is no guard to name.
+        guard_display: Option<String>,
+    }
+
+    /*
+        The clause that says which transition arm a refused guarantee sits on.
+        A body that is a single unguarded arm has no guard, so the message
+        names the machine and the fact and stops there.
+    */
+    fn arm_clause(guard: &Option<String>) -> String {
+        guard
+            .as_ref()
+            .map(|guard| format!(" on the transition arm guarded by `{guard}`"))
+            .unwrap_or_default()
     }
 
     fn prepare_arm<'program>(
@@ -16632,18 +16770,20 @@ pub(crate) mod inductive_judgment {
         arm: &TransitionArm,
         preceding: &[TransitionArm],
     ) -> Option<JudgedArm<'program>> {
-        let guard_display = match arm.guard {
-            Some(guard) => program.expression_table.display_name(guard),
-            None if preceding.is_empty() => "<always>".to_owned(),
-            None => preceding
-                .iter()
-                .filter_map(|arm| arm.guard)
-                .map(|guard| failed_guard_display(program, guard))
-                .collect::<Vec<_>>()
-                .join(" && "),
-        };
-
         let mut engine = Engine::with_result_atom(program, machine, root);
+        let guard_display = match arm.guard {
+            Some(guard) => Some(guard_arm_display(&engine, guard, true)),
+            None if preceding.is_empty() => None,
+            None => Some(
+                preceding
+                    .iter()
+                    .filter_map(|arm| arm.guard)
+                    .map(|guard| guard_arm_display(&engine, guard, false))
+                    .collect::<Vec<_>>()
+                    .join(" && "),
+            )
+            .filter(|guards| !guards.is_empty()),
+        };
         if preceding.iter().any(|arm| arm.guard.is_none()) {
             return Some(JudgedArm {
                 engine,
@@ -16751,19 +16891,40 @@ pub(crate) mod inductive_judgment {
         ))
     }
 
-    fn failed_guard_display(program: &dyn crate::CheckingInput, guard: ExpressionHandle) -> String {
-        if let Some(binary) = program.expression_table.binary_node(guard)
-            && binary.operator == BinaryOperator::Equal
-            && let ExpressionNode::Boolean(polarity) =
-                program.expression_table.expression(binary.right)
-        {
-            return format!(
-                "{} == {}",
-                program.expression_table.display_name(binary.left),
-                !polarity
-            );
+    /// Names an arm by the condition the author wrote. An arm `true -> ...` of
+    /// `transition n > 0 { ... }` tests `subject == true`; the parser may also
+    /// capture the subject in a generated immutable local and test
+    /// `__transition_subject#N == true`. Either way the diagnostic shows `n > 0`
+    /// (or `!(n > 0)`), never the internal name. `holds` is false for a
+    /// preceding arm whose guard failed on the way to this one.
+    fn guard_arm_display(engine: &Engine<'_>, guard: ExpressionHandle, holds: bool) -> String {
+        let table = &engine.program.expression_table;
+        let (condition, holds) = match table.binary_node(guard) {
+            Some(binary) if binary.operator == BinaryOperator::Equal => {
+                match table.expression(binary.right) {
+                    ExpressionNode::Boolean(polarity) => (binary.left, holds == *polarity),
+                    _ => (guard, holds),
+                }
+            }
+            _ => (guard, holds),
+        };
+        let condition = match table.expression(condition) {
+            ExpressionNode::Name(name)
+                if table
+                    .display_name(condition)
+                    .starts_with("__transition_subject#") =>
+            {
+                engine
+                    .immutable_local_initializer(name.symbol)
+                    .unwrap_or(condition)
+            }
+            _ => condition,
+        };
+        if holds {
+            table.display_name(condition)
+        } else {
+            format!("!({})", table.display_name(condition))
         }
-        format!("!({})", program.expression_table.display_name(guard))
     }
 
     fn self_call_arguments(
@@ -21837,6 +21998,11 @@ pub(crate) mod captured_predicates {
                     ..Default::default()
                 });
                 bindings.push((field.name.to_string(), value));
+            } else if predicate_names_symbol(program, predicate, field.symbol) {
+                // A field the predicate reads must be judged at its current value. Left
+                // unbound, it would stand for the declaration's own field and let the
+                // data's `requires` prove itself after a write the judge cannot see into.
+                return false;
             }
         }
         if let Some(term) = current_projection_predicate(
@@ -21854,14 +22020,7 @@ pub(crate) mod captured_predicates {
             return true;
         }
         let subject_demanded = definition.predicate_subject_symbol.is_valid()
-            && crate::queries::expression_traversal::visit_pre_order(
-                program,
-                vec![predicate],
-                |_, node| {
-                    matches!(node, typed_trees::expression::ExpressionNode::Name(path)
-                    if path.symbol == definition.predicate_subject_symbol)
-                },
-            );
+            && predicate_names_symbol(program, predicate, definition.predicate_subject_symbol);
         if subject_demanded {
             let subject = judge.captured_data_subject(place, definition, |field| {
                 predicate_field_place(program, place, definition, field)
@@ -21898,6 +22057,18 @@ pub(crate) mod captured_predicates {
             false,
         );
         matches!(judgment, StructuralJudgment::Proven)
+    }
+
+    fn predicate_names_symbol(
+        program: &dyn crate::CheckingInput,
+        predicate: ExpressionHandle,
+        symbol: symbols::SymbolHandle,
+    ) -> bool {
+        crate::queries::expression_traversal::visit_pre_order(
+            program,
+            vec![predicate],
+            |_, node| matches!(node, typed_trees::expression::ExpressionNode::Name(path) if path.symbol == symbol),
+        )
     }
 
     fn current_projection_predicate(
@@ -22205,9 +22376,11 @@ pub(crate) mod operand_fits {
         },
         AnonymousInteger,
         AnonymousValue,
-        CompletedIntegerExclusion {
+        /// Each listed operand is compared with a constant; the request is
+        /// proven on a path when at least one listed comparison holds there.
+        CompletedIntegerComparison {
             references: [TypeReferenceHandle; 2],
-            excluded: [Option<i64>; 2],
+            compared: [Option<(BinaryOperator, i64)>; 2],
         },
         CompletedOperation {
             operator: BinaryOperator,
@@ -22748,18 +22921,25 @@ pub(crate) mod operand_fits {
         )
     }
 
-    pub(crate) fn integer_operands_exclude_at_occurrence(
+    /// Asks whether a binary operation's operands satisfy a definedness
+    /// condition on every path reaching it, including the arrivals of a
+    /// private nested machine: a nonzero divisor, an excluded `MIN / -1`
+    /// pair, or a shift count on the admitted side of a bound. `compared`
+    /// names, per operand, the comparison with a constant that operand of
+    /// carrier `primitive` must satisfy; when both operands are listed, one
+    /// holding comparison is enough. Anything short of a proof answers false.
+    pub(crate) fn integer_operands_compare_at_occurrence(
         program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
         primitive: PrimitiveType,
-        excluded: [Option<i64>; 2],
+        compared: [Option<(BinaryOperator, i64)>; 2],
     ) -> bool {
         let Some(binary) = program.expression_table.binary_node(expression) else {
             return false;
         };
-        let Some(position) = excluded.iter().position(Option::is_some) else {
+        let Some(position) = compared.iter().position(Option::is_some) else {
             return false;
         };
         let references = [binary.left, binary.right].map(|operand| {
@@ -22767,7 +22947,7 @@ pub(crate) mod operand_fits {
                 .unwrap_or_default()
         });
         if !primitive.is_fixed_integer()
-            || references.iter().zip(excluded).any(|(reference, value)| {
+            || references.iter().zip(compared).any(|(reference, value)| {
                 value.is_some() && program.primitive_type_reference(*reference) != Some(primitive)
             })
         {
@@ -22784,9 +22964,9 @@ pub(crate) mod operand_fits {
                 OperandFitRequest {
                     expression,
                     position,
-                    source: OperandSource::CompletedIntegerExclusion {
+                    source: OperandSource::CompletedIntegerComparison {
                         references,
-                        excluded
+                        compared
                     },
                     target: primitive,
                     context_reference,
@@ -23247,24 +23427,24 @@ pub(crate) mod operand_fits {
                     OperandSource::AnonymousInteger | OperandSource::AnonymousValue => entry
                         .judge
                         .integer_term_fit_judgment(value.clone(), self.request.target),
-                    OperandSource::CompletedIntegerExclusion {
+                    OperandSource::CompletedIntegerComparison {
                         references,
-                        excluded,
+                        compared,
                     } => {
-                        let predicates = excluded
+                        let predicates = compared
                             .into_iter()
                             .enumerate()
-                            .filter_map(|(position, excluded)| {
-                                excluded.map(|excluded| {
+                            .filter_map(|(position, compared)| {
+                                compared.map(|(operator, constant)| {
                                     let value = entry.arguments.get(position)?.as_ref()?.clone();
                                     Some(StructuralTerm::ScalarBinary {
                                         references: [references[position]; 2],
-                                        operator: BinaryOperator::NotEqual,
+                                        operator,
                                         meaning: [(self.request.target, ArithmeticDomain::Exact);
                                             2],
                                         left: Box::new(value),
                                         right: Box::new(StructuralTerm::Integer(BigInt::from_i64(
-                                            excluded,
+                                            constant,
                                         ))),
                                     })
                                 })
@@ -23754,7 +23934,7 @@ pub(crate) mod proof_integer {
                     && symbol.is_valid()
                     && match program.symbols.symbol_source_origin(*symbol) {
                         Some(source::SourceOrigin::Toolchain) => true,
-                        Some(source::SourceOrigin::User) => false,
+                        Some(source::SourceOrigin::User | source::SourceOrigin::ToolchainContract) => false,
                         None => !program.symbols.has_source_metadata(),
                     }
                     && crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
@@ -28729,6 +28909,23 @@ pub(crate) mod ranking_range {
             ) {
                 return Some(Polynomial::constant(BigInt::from_u64(length as u64)));
             }
+            // An extent spelled by a const parameter is that parameter's value
+            // when the engine holds it as a rigid atom (a generic body proved
+            // once). Without that binding the extent stays unknown.
+            if let Some(typed_trees::types::FixedArrayLength::ConstParameter { symbol, .. }) =
+                crate::value_custody::places::declared_place_type_raw(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                )
+                .and_then(|declared| {
+                    crate::value_custody::places::fixed_array_type_extent(program, declared)
+                })
+                && let Some(extent) = engine.strict_symbol_value(*symbol)
+            {
+                return Some(extent);
+            }
             let length = match expression_table(program).expression(expression) {
                 ExpressionNode::Name(_) => {
                     let symbol = crate::queries::expression_traversal::single_segment_name_symbol(
@@ -32602,6 +32799,60 @@ pub(crate) mod ranking_range {
             .to_u64()
     }
 
+    /*
+        Whether the slice `collection` selects has exactly the length `expected`
+        names, where either side may be one of `machine`'s const integer
+        parameters. A generic body is proved under its own entry contract, so a
+        full view of `[Element; Count]` has length `Count` without a caller
+        supplying `Count`. Each const parameter is one rigid atom, shared by its
+        name and by every array extent that spells it; nothing else is assumed.
+    */
+    pub fn collection_length_equals_under_matches(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        collection: ExpressionHandle,
+        matched: &[(ExpressionHandle, BigInt)],
+        expected: ExpressionHandle,
+    ) -> bool {
+        let bindings = program
+            .machine_type_parameters(machine)
+            .iter()
+            .filter_map(|parameter| {
+                let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+                else {
+                    return None;
+                };
+                let primitive = program
+                    .primitive_type_reference(type_reference)
+                    .filter(|primitive| primitive.is_fixed_integer())?;
+                Some(StrictArithmeticSymbolBinding::unsigned_integer_atom(
+                    parameter.symbol,
+                    format!(
+                        "\0const-parameter:{:?}:{:?}",
+                        machine.symbol, parameter.symbol
+                    ),
+                    primitive,
+                ))
+            })
+            .collect::<Vec<_>>();
+        let mut engine = Engine::strict(program, machine, &bindings);
+        if !engine.strict_symbol_bindings_are_valid() {
+            return false;
+        }
+        saved_arguments::install(program, machine, state, &[], &mut engine);
+        for (subject, value) in matched {
+            engine.bind_matched_integer_subject(*subject, value.clone());
+        }
+        let Some(length) = lengths::actual(program, machine, state, collection, &[], &mut engine)
+        else {
+            return false;
+        };
+        engine
+            .normalize(expected)
+            .is_some_and(|expected| expected == length)
+    }
+
     pub fn captured_collection_length(
         program: &dyn crate::CheckingInput,
         machine: &Machine,
@@ -34633,6 +34884,16 @@ pub(crate) mod refuted_requires {
 
     #[derive(Default)]
     pub(crate) struct OperandJudgments(symbols::SymbolKeyMap<ExpressionHandle, StructuralJudgment>);
+
+    impl OperandJudgments {
+        pub(super) fn iter(
+            &self,
+        ) -> impl Iterator<Item = (ExpressionHandle, StructuralJudgment)> + '_ {
+            self.0
+                .iter()
+                .map(|(expression, judgment)| (*expression, *judgment))
+        }
+    }
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn remembered_instantiated_fact_judgment(
@@ -40328,6 +40589,106 @@ pub(crate) mod specification_calls {
                         bindings: std::borrow::Cow::Borrowed(bindings),
                     });
                 }
+                /*
+                    Typing may write the observed result over another compiler-made
+                    copy of this requirement's formals: a state generated from the
+                    same signature whose formals are generated from its formals. Such
+                    a formal stands for the requirement position it was generated
+                    from. When the observed result agrees under that correspondence,
+                    present the requirement's own result, which names the formals the
+                    call's bindings are keyed by. Any other symbol stays unrenamed and
+                    the call is refused as before; slot formals keep the path below.
+                */
+                /*
+                    The names a type's value indices read, through member chains and
+                    arithmetic (`(source.bytes.len)` names `source`, `(end - start)`
+                    names both). Other index shapes name nothing here, so nothing in
+                    them is renamed.
+                */
+                fn value_index_names(
+                    program: &dyn crate::CheckingInput,
+                    reference: TypeReferenceHandle,
+                ) -> Vec<SymbolHandle> {
+                    use typed_trees::expression::ExpressionNode;
+                    use typed_trees::types::TypeReferenceNode;
+                    let mut names = Vec::new();
+                    let mut pending = vec![reference];
+                    let mut visited = Vec::new();
+                    while let Some(reference) = pending.pop() {
+                        if visited.contains(&reference) {
+                            continue;
+                        }
+                        visited.push(reference);
+                        match program.type_reference_table.type_reference(reference) {
+                            TypeReferenceNode::Constrained { base_type, .. } => {
+                                pending.push(*base_type);
+                            }
+                            TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
+                            TypeReferenceNode::Generic { arguments, .. } => pending
+                                .extend_from_slice(
+                                    program
+                                        .type_reference_table
+                                        .type_reference_handles(*arguments),
+                                ),
+                            TypeReferenceNode::ConstExpression(expression) => {
+                                let mut expressions = vec![*expression];
+                                while let Some(expression) = expressions.pop() {
+                                    match expression_table(program).expression(expression) {
+                                        ExpressionNode::Name(path) => {
+                                            if path.symbol.is_valid()
+                                                && !names.contains(&path.symbol)
+                                            {
+                                                names.push(path.symbol);
+                                            }
+                                        }
+                                        ExpressionNode::Member(member) => {
+                                            expressions.push(member.receiver);
+                                        }
+                                        ExpressionNode::Binary(binary) => {
+                                            expressions.push(binary.left);
+                                            expressions.push(binary.right);
+                                        }
+                                        ExpressionNode::Unary(unary) => {
+                                            expressions.push(unary.operand);
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    names
+                }
+                let mut copied_binders = public_binders.clone();
+                for symbol in value_index_names(program, observed) {
+                    let entry = program.symbols.get(symbol);
+                    if entry.kind != symbols::SymbolKind::Parameter
+                        || entry.parent == slot.symbol
+                        || program.symbols.get(entry.parent).generated_from != signature.symbol
+                        || copied_binders.iter().any(|(bound, _)| *bound == symbol)
+                    {
+                        continue;
+                    }
+                    let Some(position) = declared
+                        .iter()
+                        .position(|parameter| parameter.symbol == entry.generated_from)
+                    else {
+                        continue;
+                    };
+                    copied_binders.push((symbol, format!("\0public-result-formal:{position}")));
+                }
+                if copied_binders.len() > public_binders.len()
+                    && identity(observed, &copied_binders).as_ref() == Some(&result)
+                    && identity(signature.return_type, &public_binders).as_ref() == Some(&result)
+                {
+                    return Some(AppliedResultPresentation {
+                        type_reference: signature.return_type,
+                        parameter_owner,
+                        parameters,
+                        bindings: std::borrow::Cow::Borrowed(bindings),
+                    });
+                }
                 if identity(observed, &slot_binders)? != result {
                     return None;
                 }
@@ -40697,7 +41058,6 @@ pub(crate) mod specification_calls {
                 } else {
                     None
                 };
-                let collection = caller.term(program, indexed.collection, prior_facts.captures)?;
                 let judge = prior_facts.structural_judge(program, caller, arguments)?;
                 Some(super::super::collection_bounds::proves_observed_bounds(
                     program,
@@ -40705,7 +41065,7 @@ pub(crate) mod specification_calls {
                     indexed,
                     reference,
                     array_extent.as_ref(),
-                    collection,
+                    || caller.term(program, indexed.collection, prior_facts.captures),
                     |source| {
                         Some((
                             caller.term(program, source, prior_facts.captures)?,
@@ -42448,6 +42808,32 @@ pub(crate) mod specification_calls {
             })
             .collect();
         Some(std::borrow::Cow::Owned(parameters))
+    }
+
+    /*
+        The formals a call's result type is written over, which its value indices
+        (`-> Counted<(source.bytes.len)>`) are instantiated from. A call that names
+        an implementation member relies on that member's own declaration, so its
+        result names the member's formals, exactly the scope `call_parameter_scope`
+        binds; the requirement signature's formals never occur in it. Every other
+        call keeps the formals its site resolves.
+    */
+    pub(crate) fn call_result_parameters<'program>(
+        program: &'program dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        owner: &SelectedCallContract<'program>,
+        site: crate::CallSite<'program>,
+    ) -> Option<&'program [StateParameter]> {
+        if let Some(member) = direct_named_member_contract(program, caller, site) {
+            let SelectedCallContract::Concrete(machine, state) = owner else {
+                return None;
+            };
+            if machine.symbol != member.machine.symbol || state.symbol != member.state.symbol {
+                return None;
+            }
+            return Some(program.state_parameters(state));
+        }
+        site.parameters(program, caller)
     }
 
     pub(crate) fn call_parameter_scope<'program>(
@@ -59859,8 +60245,12 @@ pub(crate) mod structural_judgment {
                             call,
                             expression,
                             reserved.receiving_type,
-                            crate::CallSite::Expression { expression, call }
-                                .parameters(program, scope.0.symbol),
+                            super::super::super::specification_calls::call_result_parameters(
+                                program,
+                                scope.0.symbol,
+                                &owner,
+                                crate::CallSite::Expression { expression, call },
+                            ),
                             callable,
                             parameters,
                             bindings,
@@ -60278,7 +60668,13 @@ pub(crate) mod structural_judgment {
                         SelectedCallContract::Concrete(machine, _) => machine.symbol,
                         _ => owner_symbol(&owner),
                     };
-                    let applied_result_parameters = site.parameters(program, scope.0.symbol);
+                    let applied_result_parameters =
+                        super::super::super::specification_calls::call_result_parameters(
+                            program,
+                            scope.0.symbol,
+                            &owner,
+                            site,
+                        );
                     let result_presentation = if matches!(
                         program
                             .type_reference_table
@@ -64238,7 +64634,13 @@ pub(crate) mod structural_judgment {
                     0,
                     self.captured_result_equations
                         .iter()
-                        .filter(|equation| !equation.is_data_identity())
+                        // Data Id rows are substituted by Id elimination. A completed
+                        // call's identity row names its executed occurrence; rewriting
+                        // that result into its application would detach the result's
+                        // own guarantees from the value a later case match observes.
+                        .filter(|equation| {
+                            !equation.is_data_identity() && !equation.is_completed_call_identity()
+                        })
                         .map(|equation| (&equation.left, &equation.right))
                         // A completed owned read already records the exact value it
                         // copied. Later operands must retain that identity even when
@@ -66241,14 +66643,27 @@ pub(crate) mod structural_judgment {
                             {
                                 continue;
                             }
+                            // The arm's descriptor is the value this walk binds to the
+                            // parameter, not its spelling: walked from the helper's lexical
+                            // root, `chosen` holds the root's capture of `&chosen`. A
+                            // shadowed or repeated binding selects nothing.
+                            let mut bound = environment
+                                .iter()
+                                .filter(|(binding, _)| binding == parameter.name.as_str());
+                            let entry = match (bound.next(), bound.next()) {
+                                (Some((_, value)), None) => value.clone(),
+                                (None, _) => StructuralTerm::Variable(parameter.name.to_string()),
+                                (Some(_), Some(_)) => continue,
+                            };
                             let expected =
                                 super::super::observed_projections::project_observed_value_in_scope(
                                     program,
                                     self,
                                     parameter.type_reference,
-                                    StructuralTerm::Variable(parameter.name.to_string()),
+                                    entry,
                                     &source.segments,
-                                );
+                                )
+                                .map(StructuralTerm::into_collection_descriptor);
                             if expected.as_ref() != Some(descriptor.as_ref()) {
                                 continue;
                             }
@@ -67736,6 +68151,177 @@ pub(crate) mod structural_judgment {
             use super::*;
             use std::cell::Cell;
             use typed_trees::types::TypeReferenceHandle;
+
+            #[test]
+            fn saved_nested_fields_keep_their_checked_read() {
+                use symbols::{BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+                use typed_trees::{
+                    TypedTrees,
+                    data::{DataDefinition, DataField, DataMember},
+                    expression::ExpressionHandle,
+                    name::Identifier,
+                    types::TypeReferenceNode,
+                };
+
+                // The saved record and its producer are equal values, but the
+                // completed read owns the field observations used by its caller.
+                let mut symbols = SymbolTableBuilder::default();
+                let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                let builtins = symbols.insert_children(root, symbols::builtin_type_symbols());
+                let saved_type =
+                    symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Saved"));
+                let indices_type =
+                    symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Indices"));
+                let indices_field = symbols
+                    .insert_children(
+                        saved_type,
+                        [(SymbolKind::Field, SymbolNameRef::Static("indices"))],
+                    )
+                    .start();
+                let index_field = symbols
+                    .insert_children(
+                        indices_type,
+                        [(SymbolKind::Field, SymbolNameRef::Static("pt_index"))],
+                    )
+                    .start();
+                let mut program = TypedTrees {
+                    symbols: symbols.finish(),
+                    ..Default::default()
+                };
+                let saved_reference =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: saved_type,
+                            name: Identifier::from("Saved"),
+                        });
+                let indices_reference =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: indices_type,
+                            name: Identifier::from("Indices"),
+                        });
+                let scalar_reference =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: builtins.handle_at(BuiltinTypeAtom::U64.ordinal() as u32),
+                            name: Identifier::from("u64"),
+                        });
+                let shared_reference =
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Reference {
+                            referee: saved_reference,
+                            access: language_semantics::ReferenceAccess::Shared,
+                            lifetime: None,
+                        });
+                let saved_members =
+                    program
+                        .data_members
+                        .insert_many([DataMember::Field(DataField {
+                            symbol: indices_field,
+                            name: Identifier::from("indices"),
+                            type_reference: indices_reference,
+                            ..Default::default()
+                        })]);
+                program.push_data_definition(DataDefinition {
+                    symbol: saved_type,
+                    name: Identifier::from("Saved"),
+                    members: saved_members,
+                    ..Default::default()
+                });
+                let indices_members =
+                    program
+                        .data_members
+                        .insert_many([DataMember::Field(DataField {
+                            symbol: index_field,
+                            name: Identifier::from("pt_index"),
+                            type_reference: scalar_reference,
+                            ..Default::default()
+                        })]);
+                program.push_data_definition(DataDefinition {
+                    symbol: indices_type,
+                    name: Identifier::from("Indices"),
+                    members: indices_members,
+                    ..Default::default()
+                });
+
+                let captured = |occurrence| StructuralTerm::CapturedValue {
+                    expression: ExpressionHandle::from_arena_index(occurrence),
+                    statement: Default::default(),
+                    callable: SymbolHandle::invalid(),
+                    occurrence: occurrence as usize,
+                    result_type: saved_reference,
+                    integer_range: None,
+                };
+                let producer = captured(1);
+                let saved = captured(2);
+                let mut judge = StructuralJudge::from_declaration_requires(
+                    &program,
+                    SymbolHandle::invalid(),
+                    &[],
+                    &[],
+                    false,
+                );
+                judge.runtime_body_values = true;
+                judge.assume_normal_equation(
+                    producer.clone(),
+                    StructuralTerm::Application {
+                        result_type: saved_reference,
+                        target: SymbolHandle::invalid(),
+                        selections: Vec::new(),
+                        machine: "producer".to_owned(),
+                        arguments: Vec::new(),
+                    },
+                );
+                judge.assume_normal_equation(saved.clone(), producer.clone());
+                Arc::make_mut(&mut judge.completed_nominal_values).push(
+                    crate::proof_contracts::contract_entailment::structural_judgment::CompletedNominalValue {
+                        anchor: ExpressionHandle::from_arena_index(2),
+                        reference: saved_reference,
+                        value: saved.clone(),
+                        observed_value: producer.clone(),
+                    },
+                );
+                let observed = crate::proof_contracts::contract_entailment::structural_terms::owned_projection_observation(&program, saved_reference, saved.clone());
+                let indices = judge
+                    .observed_field_term(observed.clone(), "indices", 0)
+                    .expect("the saved record has an indices field");
+                assert_eq!(crate::proof_contracts::contract_entailment::structural_terms::owned_observation_type(&program, &indices), Some(indices_reference));
+                let expected = StructuralTerm::Projection {
+                    subject: Box::new(saved),
+                    path: "indices.pt_index".to_owned(),
+                };
+                let index = judge
+                    .observed_field_term(indices.clone(), "pt_index", 0)
+                    .expect("the saved indices have a scalar field");
+                assert!(index.semantic_value().same_resolution_payload(&expected));
+                assert!(
+                    judge
+                        .observed_field_term(observed.clone(), "missing", 0)
+                        .is_none()
+                );
+
+                // Membership comparisons still resolve the earlier subject. A
+                // read must keep its type instead of borrowing that comparison.
+                let membership = judge.completed_nominal_subject(&indices);
+                assert!(
+                    membership.same_resolution_payload(&StructuralTerm::Projection {
+                        subject: Box::new(producer),
+                        path: "indices".to_owned()
+                    })
+                );
+                let descriptor = crate::proof_contracts::contract_entailment::structural_terms::descriptor_only_observation(shared_reference, observed.clone());
+                assert!(
+                    judge
+                        .observed_field_term(descriptor, "indices", 0)
+                        .is_none()
+                );
+                judge.require_closed_computation = true;
+                assert!(judge.observed_field_term(observed, "indices", 0).is_none());
+            }
 
             #[test]
             fn completed_queries_keep_full_authority_depth_and_premise_context() {
@@ -73576,6 +74162,17 @@ pub(crate) mod structural_judgment {
                 }
 
                 pub(crate) fn graph_place_invalidated(&self, place: &CanonicalPlace) -> bool {
+                    self.graph_place_observation_invalidated(
+                        place,
+                        crate::completed_storage::StoredObservation::Contents,
+                    )
+                }
+
+                pub(crate) fn graph_place_observation_invalidated(
+                    &self,
+                    place: &CanonicalPlace,
+                    observation: crate::completed_storage::StoredObservation,
+                ) -> bool {
                     let (Some(graph), Some(at)) = (self.storage_graph(), self.storage_version)
                     else {
                         return false;
@@ -73600,14 +74197,18 @@ pub(crate) mod structural_judgment {
                             }
                             _ => true,
                         };
-                    match crate::completed_storage::at_snapshot(
+                    // `sources_at_snapshot` keeps "untouched since entry" (`Incoming`)
+                    // apart from "the graph cannot resolve this place" (`None`). Only the
+                    // first lets a reader keep the entry value; an unresolved place may
+                    // have changed, so it is invalidated and must be observed again.
+                    match crate::completed_storage::sources_at_snapshot(
                         self.program,
                         graph,
                         at.snapshot,
                         place,
-                        crate::completed_storage::StoredObservation::Contents,
+                        observation,
                     ) {
-                        None => false,
+                        None => true,
                         Some(crate::completed_storage::StoredOperand::Alternatives(
                             alternatives,
                         )) => alternatives.iter().any(invalidates),
@@ -73628,18 +74229,6 @@ pub(crate) mod structural_judgment {
                         .filter_map(|statement| statement.as_local_data())
                         .find(|local| local.symbol == symbol)
                         .map(|local| local.initial_value)
-                }
-
-                pub(crate) fn graph_observation_invalidated(
-                    &self,
-                    expression: ExpressionHandle,
-                ) -> bool {
-                    let Some(place) =
-                        crate::canonical_place_from_expression(self.program, expression)
-                    else {
-                        return false;
-                    };
-                    self.graph_place_invalidated(&place)
                 }
 
                 pub(crate) fn graph_binding_invalidated(&self, symbol: SymbolHandle) -> bool {
@@ -75473,7 +76062,9 @@ pub(crate) mod structural_judgment {
         // Call-consumer output owns its limits so tests can exercise the exact
         // emitted contract without constructing a judge or replaying proof.
         pub(crate) mod call_consumer_trace {
+            use super::super::StructuralJudgment;
             use std::sync::atomic::{AtomicUsize, Ordering};
+            use typed_trees::expression::ExpressionHandle;
 
             const OBSERVATION_LIMIT: usize = 16;
             pub(super) const ROW_LIMIT: usize = 32;
@@ -75542,6 +76133,34 @@ pub(crate) mod structural_judgment {
 
             pub(crate) fn context(observation: usize, text: String) -> String {
                 record(observation, "context", None, text)
+            }
+
+            pub(crate) fn operand_judgments(
+                observation: usize,
+                program: &dyn crate::CheckingInput,
+                judgments: impl Iterator<Item = (ExpressionHandle, StructuralJudgment)>,
+            ) {
+                let mut total = 0;
+                for (expression, judgment) in judgments {
+                    if let Some(index) = admit_row(&mut total) {
+                        eprintln!(
+                            "{}",
+                            record(
+                                observation,
+                                "operand-judgment",
+                                Some(index),
+                                format!(
+                                    "expression={expression:?} span={:?} judgment={judgment:?}",
+                                    program.expression_table.try_source_span(expression),
+                                ),
+                            )
+                        );
+                    }
+                }
+                eprintln!(
+                    "STRUCT call-consumer observation={observation} kind=operand-end total={total} row_limit={ROW_LIMIT} truncated={}",
+                    total > ROW_LIMIT,
+                );
             }
 
             pub(crate) fn limit() -> String {
@@ -76103,19 +76722,8 @@ pub(crate) mod structural_judgment {
                         self.retire_unversioned_storage(state)?;
                     }
                 }
-                let program = self.program;
                 let mut facts = std::mem::take(&mut self.premise_facts);
-                facts.retain(|fact| {
-                    let mut expressions = Vec::new();
-                    crate::queries::expression_traversal::collect_expression_tree(
-                        program,
-                        *fact,
-                        &mut expressions,
-                    );
-                    !expressions
-                        .iter()
-                        .any(|expression| self.storage_observation_invalidated(*expression))
-                });
+                facts.retain(|fact| self.entry_storage_observations_preserved(*fact));
                 self.premise_facts = facts;
                 Some(())
             }
@@ -77725,23 +78333,95 @@ pub(crate) mod structural_judgment {
                 if !self.requires_value_preservation() {
                     return true;
                 }
-                let mut expressions = Vec::new();
-                crate::queries::expression_traversal::collect_expression_tree(
-                    self.program,
-                    expression,
-                    &mut expressions,
-                );
-                !expressions
-                    .into_iter()
-                    .any(|expression| self.storage_observation_invalidated(expression))
+                use crate::completed_storage::StoredObservation;
+
+                let scope = self.runtime_declaration_scope();
+                let mut pending = vec![(expression, StoredObservation::Contents)];
+                let mut seen = std::collections::HashSet::with_hasher(symbols::BuildSymbolHasher);
+                while let Some((expression, observation)) = pending.pop() {
+                    let binding_only = matches!(observation, StoredObservation::Binding);
+                    if !expression.is_valid() || !seen.insert((expression, binding_only)) {
+                        continue;
+                    }
+                    let node = self.program.expression_table.expression(expression);
+                    if let Some(receiver) = self.storage_measure_receiver(scope, expression) {
+                        pending.push((receiver, StoredObservation::Binding));
+                        continue;
+                    }
+                    if self.storage_place_observation_invalidated(expression, observation) {
+                        return false;
+                    }
+                    let receiver = self.storage_field_receiver(scope, expression);
+                    crate::queries::expression_traversal::children(self.program, node, |child| {
+                        let observation = if receiver == Some(child) {
+                            StoredObservation::Binding
+                        } else {
+                            StoredObservation::Contents
+                        };
+                        pending.push((child, observation));
+                    });
+                }
+                true
             }
 
-            pub(crate) fn storage_observation_invalidated(
+            pub(crate) fn storage_measure_receiver(
+                &self,
+                scope: StorageScope<'_>,
+                expression: ExpressionHandle,
+            ) -> Option<ExpressionHandle> {
+                let ExpressionNode::Member(member) =
+                    self.program.expression_table.expression(expression)
+                else {
+                    return None;
+                };
+                let (machine, state) = scope?;
+                let reference = crate::expression_result_type_reference(
+                    self.program,
+                    machine,
+                    state,
+                    member.receiver,
+                )?;
+                crate::collection_operations::collection_measure_member(
+                    self.program,
+                    member,
+                    crate::collection_operations::MeasureReceiver::Declared(reference),
+                )?;
+                Some(member.receiver)
+            }
+
+            pub(crate) fn storage_field_receiver(
+                &self,
+                scope: StorageScope<'_>,
+                expression: ExpressionHandle,
+            ) -> Option<ExpressionHandle> {
+                let ExpressionNode::Member(member) =
+                    self.program.expression_table.expression(expression)
+                else {
+                    return None;
+                };
+                let (machine, state) = scope?;
+                let reference = crate::expression_result_type_reference(
+                    self.program,
+                    machine,
+                    state,
+                    member.receiver,
+                )?;
+                let reference =
+                    crate::field_domains::readable_type_reference(self.program, reference)?;
+                crate::applied_data_member_field(self.program, reference, member)?;
+                Some(member.receiver)
+            }
+
+            pub(crate) fn storage_place_observation_invalidated(
                 &self,
                 expression: ExpressionHandle,
+                observation: crate::completed_storage::StoredObservation,
             ) -> bool {
                 if self.graph_storage_mode() {
-                    return self.graph_observation_invalidated(expression);
+                    return crate::canonical_place_from_expression(self.program, expression)
+                        .is_some_and(|place| {
+                            self.graph_place_observation_invalidated(&place, observation)
+                        });
                 }
                 crate::value_custody::places::expression_root_symbol(
                     expression,
@@ -77749,6 +78429,16 @@ pub(crate) mod structural_judgment {
                     self.machine_symbol,
                 )
                 .is_some_and(|symbol| self.invalidated_storage.contains(&symbol))
+            }
+
+            pub(crate) fn storage_observation_invalidated(
+                &self,
+                expression: ExpressionHandle,
+            ) -> bool {
+                self.storage_place_observation_invalidated(
+                    expression,
+                    crate::completed_storage::StoredObservation::Contents,
+                )
             }
 
             pub(crate) fn storage_binding_invalidated(&self, symbol: SymbolHandle) -> bool {
@@ -83168,7 +83858,21 @@ pub(crate) mod structural_judgment {
             field_name: &str,
             depth: usize,
         ) -> Option<StructuralTerm> {
-            let value = if self.runtime_body_values {
+            // A saved value's fields belong to that read. Keep its checked type
+            // while selecting a field; following an equality to its producer
+            // first can lose that field observation. Closed computation still
+            // evaluates the complete source before selecting a field.
+            let observed =
+                super::structural_terms::owned_observation_type(self.program, &receiver_term)
+                    .or_else(|| {
+                        super::structural_terms::shared_inline_observation_type(
+                            self.program,
+                            &receiver_term,
+                        )
+                    });
+            let value = if !self.require_closed_computation && observed.is_some() {
+                receiver_term
+            } else if self.runtime_body_values {
                 self.completed_value_identity(receiver_term)
             } else {
                 self.resolve_at(receiver_term, depth + 1)
@@ -83180,20 +83884,14 @@ pub(crate) mod structural_judgment {
                 || super::structural_terms::shared_inline_observation_type(self.program, &value)
                     .is_some()
             {
-                let projected = super::observed_projections::project_declared_field(
+                // Keep the field's checked type and saved source occurrence.
+                // Membership comparisons resolve their own subjects; doing that
+                // here would move this read back to its producer's field.
+                return super::observed_projections::project_declared_field(
                     self.program,
                     self,
                     value,
                     field_name,
-                )?;
-                return Some(
-                    if super::structural_terms::owned_observation_type(self.program, &projected)
-                        .is_some()
-                    {
-                        self.completed_nominal_subject(&projected)
-                    } else {
-                        projected
-                    },
                 );
             }
             let projected = super::observed_projections::project_field(value, field_name)?;
@@ -83312,18 +84010,40 @@ pub(crate) mod structural_judgment {
             scope: Option<(&Machine, &State, TypeReferenceHandle)>,
             depth: usize,
         ) -> Option<StructuralTerm> {
+            self.callee_term_with_observation(
+                expression,
+                environment,
+                static_observations,
+                scope,
+                crate::completed_storage::StoredObservation::Contents,
+                depth,
+            )
+        }
+
+        fn callee_term_with_observation(
+            &self,
+            expression: ExpressionHandle,
+            environment: &[(String, StructuralTerm)],
+            static_observations: StaticObservations<'_>,
+            scope: Option<(&Machine, &State, TypeReferenceHandle)>,
+            observation: crate::completed_storage::StoredObservation,
+            depth: usize,
+        ) -> Option<StructuralTerm> {
             if depth >= 32 {
                 return None;
             }
             enum Pending {
-                Read(ExpressionHandle),
+                Read(
+                    ExpressionHandle,
+                    crate::completed_storage::StoredObservation,
+                ),
                 Join(ExpressionHandle),
             }
-            let mut pending = vec![Pending::Read(expression)];
+            let mut pending = vec![Pending::Read(expression, observation)];
             let mut values = Vec::new();
             while let Some(step) = pending.pop() {
                 match step {
-                    Pending::Read(expression) => {
+                    Pending::Read(expression, observation) => {
                         if let Some((_, value)) = self
                             .normal_results
                             .iter()
@@ -83343,14 +84063,21 @@ pub(crate) mod structural_judgment {
                             })
                         {
                             pending.push(Pending::Join(expression));
-                            pending.push(Pending::Read(binary.right));
-                            pending.push(Pending::Read(binary.left));
+                            pending.push(Pending::Read(
+                                binary.right,
+                                crate::completed_storage::StoredObservation::Contents,
+                            ));
+                            pending.push(Pending::Read(
+                                binary.left,
+                                crate::completed_storage::StoredObservation::Contents,
+                            ));
                         } else {
                             values.push(self.callee_term_leaf(
                                 expression,
                                 environment,
                                 static_observations,
                                 scope,
+                                observation,
                                 depth,
                             )?);
                         }
@@ -83378,6 +84105,7 @@ pub(crate) mod structural_judgment {
             environment: &[(String, StructuralTerm)],
             static_observations: StaticObservations<'_>,
             scope: Option<(&Machine, &State, TypeReferenceHandle)>,
+            observation: crate::completed_storage::StoredObservation,
             depth: usize,
         ) -> Option<StructuralTerm> {
             if depth >= 32 {
@@ -83512,12 +84240,21 @@ pub(crate) mod structural_judgment {
                     program,
                     member,
                     reference,
-                    || child_term!(member.receiver),
+                    || {
+                        self.callee_term_with_observation(
+                            member.receiver,
+                            environment,
+                            static_observations,
+                            scope,
+                            crate::completed_storage::StoredObservation::Binding,
+                            depth + 1,
+                        )
+                    },
                 )
             {
                 return Some(measure);
             }
-            if self.storage_observation_invalidated(expression) {
+            if self.storage_place_observation_invalidated(expression, observation) {
                 if super::struct_trace() {
                     eprintln!(
                         "STRUCT term-storage-refused caller={:?} expression={}",
@@ -83723,7 +84460,27 @@ pub(crate) mod structural_judgment {
                             path: member.member.as_str().to_owned(),
                         });
                     }
-                    let receiver_term = child_term!(member.receiver)?;
+                    // Selecting a field observes its receiver's address, not all
+                    // sibling contents. The field itself keeps its demanded read.
+                    let receiver_observation = if self
+                        .storage_field_receiver(
+                            scope.map(|(machine, state, _)| (machine, state)),
+                            expression,
+                        )
+                        .is_some()
+                    {
+                        crate::completed_storage::StoredObservation::Binding
+                    } else {
+                        crate::completed_storage::StoredObservation::Contents
+                    };
+                    let receiver_term = self.callee_term_with_observation(
+                        member.receiver,
+                        environment,
+                        static_observations,
+                        scope,
+                        receiver_observation,
+                        depth + 1,
+                    )?;
                     self.observed_field_term(receiver_term, member.member.as_str(), depth)
                 }
                 ExpressionNode::StructLiteral(literal) => {
@@ -84681,6 +85438,7 @@ pub(crate) mod structural_prefix {
             use symbols::SymbolKeyMap;
             use typed_trees::expression::ExpressionNode;
             use typed_trees::references::TypedReferences;
+            use typed_trees::signature::SignatureContractKind;
             use typed_trees::types::TypeReferenceHandle;
 
             fn authored_machine(
@@ -84726,6 +85484,22 @@ pub(crate) mod structural_prefix {
                     )
             }
 
+            fn has_authored_entry_requires(program: &dyn CheckingInput, machine: &Machine) -> bool {
+                // A written precondition states every input the body must handle.
+                // Even `requires true` cannot borrow a stronger condition from callers.
+                // The keyword span separates authored clauses from derived requirements.
+                let authored = |contracts: &[typed_trees::signature::SignatureContract]| {
+                    contracts.iter().any(|contract| {
+                        contract.kind == SignatureContractKind::Requires
+                            && contract.keyword_source_span.is_some()
+                    })
+                };
+                authored(program.machine_contracts(machine))
+                    || crate::activation_target_state_index(program, machine, machine.symbol)
+                        .and_then(|index| program.machine_states(machine).get(index))
+                        .is_some_and(|entry| authored(program.state_contracts(entry)))
+            }
+
             pub fn private_invocation_entry_is_closed(
                 program: &dyn CheckingInput,
                 machine: &Machine,
@@ -84739,6 +85513,9 @@ pub(crate) mod structural_prefix {
                 machine: &Machine,
                 consume: impl FnOnce(&[StaticMachineContractObligation]) -> T,
             ) -> Option<T> {
+                if has_authored_entry_requires(program, machine) {
+                    return None;
+                }
                 let index = private_invocation_index(program);
                 if !index.has_complete_private_uses(program, machine) {
                     return None;
@@ -85115,6 +85892,9 @@ pub(crate) mod structural_prefix {
                     .get(&callee.symbol)
                     .copied()
                     .ok_or("the callable is not a private member of the enclosing declaration")?;
+                if has_authored_entry_requires(program, callee) {
+                    return Err("the private helper has a complete written entry contract");
+                }
                 if callee.is_public
                     || callee.target_family_interface
                     || externally_invocable(program, callee)
@@ -85208,10 +85988,11 @@ pub(crate) mod structural_prefix {
                     .iter()
                     .enumerate()
                     .filter_map(|(member_index, member)| {
-                        let exposed = member.is_public
+                        let independent_entry = member.is_public
                             || member.target_family_interface
                             || externally_invocable(program, member)
-                            || !program.machine_trait_conformances(member).is_empty();
+                            || !program.machine_trait_conformances(member).is_empty()
+                            || has_authored_entry_requires(program, member);
                         let open_use = std::iter::once(member.symbol)
                             .chain(
                                 program
@@ -85233,7 +86014,7 @@ pub(crate) mod structural_prefix {
                                     )
                             });
                         (needed[member_index]
-                            && (exposed
+                            && (independent_entry
                                 || open_use
                                 || outside.contains(&member_index)
                                 || incoming_owners[member_indices[member_index]].is_empty()))
@@ -87200,7 +87981,7 @@ pub(crate) use operand_fits::{
     anonymous_value_fit_at_occurrence, exact_binary_formation_at_occurrence,
     exact_binary_formation_in_specification, exact_cast_fits_at_occurrence,
     exact_float_integer_cast_fits_at_occurrence, exact_integer_float_cast_fits_at_occurrence,
-    float_integer_conversion_fits_at_occurrence, integer_operands_exclude_at_occurrence,
+    float_integer_conversion_fits_at_occurrence, integer_operands_compare_at_occurrence,
 };
 pub(crate) use type_consequences::{predicate_case_type_contexts, predicate_type_contexts};
 pub(crate) mod structural_terms {
@@ -90558,14 +91339,39 @@ pub(crate) mod structural_terms {
                     )),
                 }
             }
-            ExpressionNode::Indexed(indexed) => indexed_term_in_scope(
-                program,
-                scope,
-                frame,
-                expression,
-                structural_term(program, scope, frame, indexed.collection, bindings)?,
-                structural_term(program, scope, frame, indexed.index, bindings)?,
-            ),
+            ExpressionNode::Indexed(indexed) => {
+                // Indexing an array literal at a constant index denotes the
+                // selected element itself, as with a constant substituted from
+                // `const SOURCE: [u64; 1] = [3]`. Formation has already proved
+                // the index in range; any other index stays unformed.
+                if let ExpressionNode::ArrayLiteral(elements) =
+                    expression_table(program).expression(indexed.collection)
+                {
+                    let StructuralTerm::Integer(position) =
+                        structural_term(program, scope, frame, indexed.index, bindings)?
+                    else {
+                        return None;
+                    };
+                    let element = position
+                        .to_u64()
+                        .and_then(|position| usize::try_from(position).ok())
+                        .and_then(|position| {
+                            expression_table(program)
+                                .expression_handles(*elements)
+                                .get(position)
+                                .copied()
+                        })?;
+                    return structural_term(program, scope, frame, element, bindings);
+                }
+                indexed_term_in_scope(
+                    program,
+                    scope,
+                    frame,
+                    expression,
+                    structural_term(program, scope, frame, indexed.collection, bindings)?,
+                    structural_term(program, scope, frame, indexed.index, bindings)?,
+                )
+            }
             ExpressionNode::ZeroValue(type_reference) => {
                 zero_value_structural_term(program, *type_reference)
             }

@@ -2838,18 +2838,23 @@ mod runtime_indices {
                     },
                 ) if left_base == right_base => {
                     if left_lifetimes.len() != right_lifetimes.len()
-                        || !(0..left_lifetimes.len()).all(|ordinal| {
-                            match (
-                                self.region_operand(actual, actual_reference, ordinal, 0),
-                                self.region_operand(required, required_reference, ordinal, 0),
-                            ) {
-                                (Some(Region::Known(left)), Some(Region::Known(right))) => {
-                                    left == right
+                        || !(0..left_lifetimes.len())
+                            .filter(|ordinal| {
+                                self.program
+                                    .application_lifetime_is_relevant(*left_base, *ordinal)
+                            })
+                            .all(|ordinal| {
+                                match (
+                                    self.region_operand(actual, actual_reference, ordinal, 0),
+                                    self.region_operand(required, required_reference, ordinal, 0),
+                                ) {
+                                    (Some(Region::Known(left)), Some(Region::Known(right))) => {
+                                        left == right
+                                    }
+                                    (Some(_), Some(_)) => true,
+                                    _ => false,
                                 }
-                                (Some(_), Some(_)) => true,
-                                _ => false,
-                            }
-                        })
+                            })
                     {
                         return false;
                     }
@@ -2862,7 +2867,12 @@ mod runtime_indices {
                     parameters
                         .iter()
                         .zip(left.iter().zip(right))
-                        .all(|(parameter, (left, right))| {
+                        .enumerate()
+                        .filter(|(ordinal, _)| {
+                            self.program
+                                .application_argument_is_relevant(*left_base, *ordinal)
+                        })
+                        .all(|(_, (parameter, (left, right)))| {
                             if matches!(
                                 parameter.kind,
                                 TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
@@ -4226,7 +4236,8 @@ mod runtime_indices {
                 if has_runtime_indices {
                     let mut roots = Vec::new();
                     collect_statement_expression_trees(program, node, &mut roots);
-                    let mut visited = Vec::new();
+                    let mut visited =
+                        validation::expression_traversal::EnteredExpressions::default();
                     for root in roots {
                         visit_post_order(program, root, &mut visited, |expression, node| {
                             if let ExpressionNode::Borrow(borrow) = node
@@ -6266,6 +6277,7 @@ mod carry {
         */
         pub(super) fn value_frontier(
             program: &dyn ::validation::CheckingInput,
+            type_parameters: &[symbols::SymbolHandle],
             borrow: &BorrowFacts,
             flow: &FlowFacts,
             frontier: &Arena<LoanFact>,
@@ -6291,12 +6303,15 @@ mod carry {
             if !type_reference.is_valid() {
                 return SuspensionValueBorrowFrontier::Unresolved;
             }
-            let Some(paths) =
-                crate::borrow::view_link::borrow_carrying_owner_paths(program, type_reference)
-            else {
+            let Some(declaration) = validation::borrow_contracts::declaration_borrow_frontier(
+                program,
+                type_reference,
+                type_parameters,
+            ) else {
                 return SuspensionValueBorrowFrontier::Unresolved;
             };
-            if paths.is_empty() {
+            let paths = declaration.owner_paths;
+            if paths.is_empty() && !declaration.template_dependent {
                 return SuspensionValueBorrowFrontier::ViewFree;
             }
             let symbol = match value.origin {
@@ -6378,8 +6393,11 @@ mod carry {
                 }
                 return SuspensionValueBorrowFrontier::Unresolved;
             }
-            SuspensionValueBorrowFrontier::RetainedLoans {
-                loans: value_loans.insert_many(matching),
+            let loans = value_loans.insert_many(matching);
+            if declaration.template_dependent {
+                SuspensionValueBorrowFrontier::TemplateDependent { loans }
+            } else {
+                SuspensionValueBorrowFrontier::RetainedLoans { loans }
             }
         }
 
@@ -6712,6 +6730,9 @@ mod carry {
                     .span(loans)
                     .filter(|links| !links.is_empty())
                     .ok_or("the stored loan-leaf frontier is missing")?,
+                SuspensionValueBorrowFrontier::TemplateDependent { loans } => value_loans
+                    .span(loans)
+                    .ok_or("the known loan-leaf frontier is missing")?,
                 SuspensionValueBorrowFrontier::Unresolved => {
                     return Err("the stored loan-leaf frontier is incomplete");
                 }
@@ -6997,7 +7018,11 @@ mod carry {
             }
             Ok(CarryPolicy {
                 suspension: CarrySuspension::Allowed,
-                ..CarryPolicy::STRICT
+                ..if links.is_empty() {
+                    CarryPolicy::PERMISSIVE
+                } else {
+                    CarryPolicy::STRICT
+                }
             })
         }
 
@@ -7297,15 +7322,18 @@ mod carry {
             }
         }
 
-        fn live_claim_identities(
+        // A call result receives a statement claim while its provenance records
+        // the acquisition call. Publication needs both; the receiving identity
+        // alone cannot reconstruct the callee or invocation ordinal.
+        fn live_claims(
             &self,
             program: &dyn ::validation::CheckingInput,
             value_name: &str,
-        ) -> Vec<language_semantics::PermissionClaimIdentity> {
+        ) -> Vec<language_semantics::PermissionArrival<symbols::SymbolHandle>> {
             let mut latest_by_path = Vec::<(
                 String,
                 (usize, usize, usize),
-                language_semantics::PermissionClaimIdentity,
+                language_semantics::PermissionArrival<symbols::SymbolHandle>,
             )>::new();
 
             for (event_index, event) in self
@@ -7349,10 +7377,20 @@ mod carry {
                 {
                     if order >= *previous_order {
                         *previous_order = order;
-                        *identity = event.claim_identity;
+                        *identity = language_semantics::PermissionArrival {
+                            claim_identity: event.claim_identity,
+                            provenance: event.provenance,
+                        };
                     }
                 } else {
-                    latest_by_path.push((label, order, event.claim_identity));
+                    latest_by_path.push((
+                        label,
+                        order,
+                        language_semantics::PermissionArrival {
+                            claim_identity: event.claim_identity,
+                            provenance: event.provenance,
+                        },
+                    ));
                 }
             }
 
@@ -7424,13 +7462,20 @@ mod carry {
     }
 
     /*
-        Reject a call that may suspend while a suspension-forbidden lexical value
-        remains live in the caller activation. This is deliberately a local check:
-        suspension joins the value policy with the callee's inferred suspension
-        possibility
-        here. The independent activation-wide analysis derives CPU/thread
-        preservation obligations without publishing a provider preemption mode.
+        Running a quiet callback does not require suspension permission.
+        Keep that permission requirement conditional until callback selection,
+        alongside the same exact live subjects and loans. Lifetime and access
+        checks still run here; only suspension permission may wait for selection.
+        The independent activation-wide analysis retains CPU/thread demands.
     */
+    #[derive(Clone, Copy, Default)]
+    enum OperationalCallSummary<'a> {
+        #[default]
+        Missing,
+        Unique(&'a flow_effects::CallOperational),
+        Ambiguous,
+    }
+
     pub(super) fn check_suspension_carry(
         program: &dyn ::validation::CheckingInput,
         facts: &checked_trees::CheckFacts,
@@ -7452,9 +7497,46 @@ mod carry {
                 continue;
             };
             let source_values = state_carry_values(program, state);
+            let (static_scope, _) = program
+                .machine_declaration_scope(machine, |left, right| left.symbol == right.symbol);
+            let type_parameters = static_scope
+                .iter()
+                .filter(|parameter| {
+                    matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                })
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
             let Some(state_flow) = facts.flow.control.state(machine.symbol, state.symbol) else {
                 continue;
             };
+
+            // Both producers number calls within their source statement. Prepare
+            // that correspondence once; repeated coordinates stay ambiguous.
+            let mut operational_calls =
+                vec![Vec::<OperationalCallSummary<'_>>::new(); state.statement_nodes.len()];
+            for summary in facts
+                .operational
+                .machine_by_symbol(machine.symbol)
+                .into_iter()
+                .flat_map(|machine| facts.operational.states.span_or_empty(machine.states))
+                .filter(|summary| summary.symbol == state.symbol)
+                .flat_map(|state| facts.operational.calls.span_or_empty(state.calls))
+            {
+                let Some(statement) = operational_calls.get_mut(summary.statement_index) else {
+                    diagnostics.push(Diagnostic::error(
+                        "operational call dependency is outside its checked source state",
+                    ));
+                    continue;
+                };
+                if statement.len() <= summary.call_ordinal {
+                    statement.resize(summary.call_ordinal + 1, OperationalCallSummary::Missing);
+                }
+                let occurrence = &mut statement[summary.call_ordinal];
+                *occurrence = match *occurrence {
+                    OperationalCallSummary::Missing => OperationalCallSummary::Unique(summary),
+                    _ => OperationalCallSummary::Ambiguous,
+                };
+            }
 
             for call in facts.borrow.calls.span_or_empty(state_borrows.calls) {
                 let Some(call_flow) =
@@ -7472,6 +7554,39 @@ mod carry {
                 {
                     continue;
                 }
+
+                let Some(OperationalCallSummary::Unique(summary)) = operational_calls
+                    .get(call.statement_index)
+                    .and_then(|statement| statement.get(call.call_ordinal))
+                else {
+                    diagnostics.push(Diagnostic::error(
+                        "possibly suspending call lost its exact operational dependency".to_owned(),
+                    ));
+                    continue;
+                };
+                let condition = summary.suspension_dependency;
+                let Some(dependencies) = facts
+                    .operational
+                    .dependency_parameters
+                    .span(condition.parameters)
+                else {
+                    diagnostics.push(Diagnostic::error(
+                        "possibly suspending call lost its exact callback dependency span"
+                            .to_owned(),
+                    ));
+                    continue;
+                };
+                let conditional_permission = !condition.concrete
+                    && !dependencies.is_empty()
+                    && dependencies.iter().all(|dependency| {
+                        static_scope.iter().any(|parameter| {
+                            parameter.symbol == *dependency
+                                && matches!(
+                                    parameter.kind,
+                                    typed_trees::data::TypeParameterKind::Machine { .. }
+                                )
+                        })
+                    });
 
                 let call_site = validation::find_call_site(
                     program,
@@ -7541,6 +7656,7 @@ mod carry {
                 for live in &mut crossing.live_values {
                     live.borrow_frontier = loans::value_frontier(
                         program,
+                        &type_parameters,
                         &facts.borrow,
                         &facts.flow,
                         &suspension_loans,
@@ -7551,14 +7667,23 @@ mod carry {
                     );
                 }
                 resolve_crossing_carry(
-                    program,
                     &facts.borrow,
                     &facts.flow,
                     &suspension_loans,
                     &suspension_value_loans,
                     state_borrows,
-                    call,
                     borrows,
+                    conditional_permission,
+                    &summary.target_name,
+                    summary
+                        .static_machine_parameter
+                        .is_valid()
+                        .then(|| {
+                            program
+                                .machine_holding_state(call.target_symbol)
+                                .map(|target| target.name.as_str())
+                        })
+                        .flatten(),
                     &mut crossing,
                     &mut diagnostics,
                 );
@@ -7568,6 +7693,7 @@ mod carry {
                     statement_index: call.statement_index,
                     call_ordinal: call.call_ordinal,
                     target: call.target_symbol,
+                    condition,
                     effective: crossing.effective,
                     live_values: crossing.live_values,
                     borrows,
@@ -7867,9 +7993,17 @@ mod carry {
     ) {
         let requirements =
             validation::effective_type_carry_requirements(program, type_parameters, type_reference);
-        let claims = claim_carry.live_claim_identities(program, value_name);
-        let policy =
-            claim_carry.effective_policy(program, value_name, requirements.structural, &claims);
+        let claims = claim_carry.live_claims(program, value_name);
+        let claim_identities = claims
+            .iter()
+            .map(|arrival| arrival.claim_identity)
+            .collect::<Vec<_>>();
+        let policy = claim_carry.effective_policy(
+            program,
+            value_name,
+            requirements.structural,
+            &claim_identities,
+        );
         crossing.obligations.push(PendingCarryObligation {
             name: value_name.to_owned(),
             ordinary: policy,
@@ -7877,7 +8011,7 @@ mod carry {
                 program,
                 value_name,
                 requirements.borrow_independent,
-                &claims,
+                &claim_identities,
             ),
             requires_borrow_preservation: requirements.requires_borrow_preservation,
         });
@@ -7894,14 +8028,15 @@ mod carry {
     }
 
     fn resolve_crossing_carry(
-        program: &dyn ::validation::CheckingInput,
         borrow: &checked_trees::BorrowFacts,
         flow: &checked_trees::FlowFacts,
         loans: &arena::Arena<checked_trees::SuspensionCrossingLoanFact>,
         value_loans: &arena::Arena<arena::Handle<checked_trees::SuspensionCrossingLoanFact>>,
         state: &checked_trees::StateBorrowFact,
-        call: &checked_trees::BorrowCallFact,
         frontier: checked_trees::SuspensionCrossingBorrowFrontier,
+        conditional_permission: bool,
+        target_name: &str,
+        selected_callback: Option<&str>,
         crossing: &mut CrossingAccumulator,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
@@ -7922,19 +8057,33 @@ mod carry {
             })
             .collect::<Vec<_>>();
         crossing.effective = CarryPolicy::PERMISSIVE;
-        let target_name = crate::published::labels::symbol_name(program, call.target_symbol);
         for ((live, obligation), lifetime) in crossing
             .live_values
             .iter_mut()
             .zip(&crossing.obligations)
             .zip(lifetime_demands)
         {
+            let template_dependent = matches!(
+                live.borrow_frontier,
+                checked_trees::SuspensionValueBorrowFrontier::TemplateDependent { .. }
+            );
+            // The known leaves do not complete a generic value's loan frontier.
+            // Only an exact callback-dependent crossing can retain the symbolic
+            // remainder until selection; a fixed suspension requires its backing
+            // now, even when the descriptor has AcrossSuspend permission. Keep
+            // every known-leaf failure unconditional in either case.
+            let lifetime = if template_dependent && !conditional_permission {
+                lifetime.and(Err("the stored loan-leaf frontier is template-dependent"))
+            } else {
+                lifetime
+            };
             let missing_borrow_obligation = obligation
                 .requires_borrow_preservation
                 .then(|| lifetime.as_ref().err().copied())
                 .flatten();
             let policy = if obligation.requires_borrow_preservation {
                 match lifetime {
+                    Ok(demand) if template_dependent => obligation.ordinary.intersect(demand),
                     Ok(demand) => obligation.borrow_independent.intersect(demand),
                     Err(_) => obligation.ordinary.intersect(CarryPolicy::STRICT),
                 }
@@ -7943,7 +8092,9 @@ mod carry {
             };
             live.effective = policy;
             crossing.effective = crossing.effective.intersect(policy);
-            if policy.suspension == CarrySuspension::Allowed {
+            if policy.suspension == CarrySuspension::Allowed
+                || (conditional_permission && missing_borrow_obligation.is_none())
+            {
                 continue;
             }
 
@@ -7962,6 +8113,9 @@ mod carry {
             if let Some(reason) = missing_borrow_obligation {
                 message.push_str("; missing retained-loan obligation: ");
                 message.push_str(reason);
+            }
+            if let Some(selected) = selected_callback {
+                message.push_str(&format!("; selected callback: `{selected}`"));
             }
             if diagnostics
                 .iter()

@@ -20,7 +20,7 @@ materialize_delta_compiler "$TMP/compiler.gamma" ||
   fail "materialization of the bound closure failed"
 require_bound_identity "materialized compiler" "$TMP/compiler.gamma" \
   "$DELTA_COMPILER_PACKED_SIZE" "$DELTA_COMPILER_PACKED_SHA256" \
-  "bootstrap/3_delta/delta_compiler.composed" ||
+  "bootstrap/interpreted/3_delta/delta_compiler.composed" ||
   fail "materialized closure differs from the bound identity"
 head -c "$DELTA_COMPILER_ENTRY_SIZE" "$TMP/compiler.gamma" |
   cmp -s - "$OMEGA_PATH_DELTA_COMPILER_SOURCE" ||
@@ -32,7 +32,7 @@ materialize_delta_support "$TMP/support.bin" ||
 require_bound_identity "materialized support section" "$TMP/support.bin" \
   "$DELTA_COMPILER_SUPPORT_PACKED_SIZE" \
   "$DELTA_COMPILER_SUPPORT_PACKED_SHA256" \
-  "bootstrap/3_delta/delta_compiler.composed" ||
+  "bootstrap/interpreted/3_delta/delta_compiler.composed" ||
   fail "materialized support section differs from the bound identity"
 echo "materialize: packed support section is exactly the bound member bytes"
 
@@ -305,7 +305,7 @@ do
       fail "$record lacks bound support-section record $needle"
   done
 done
-for needle in "147607" "63948ee46d4bed10344cd8b3adbadda274370fe169cb141f485b8accc71c60a3"
+for needle in "151292" "4e82f36aa94a5cad71297687e2643982d88942bda4750c877fe8d633308fb720"
 do
   grep -q "$needle" "$OMEGA_REPO_ROOT/tests/delta/staged-compiler/run.sh" ||
     fail "staged-compiler gate lacks packed development record $needle"

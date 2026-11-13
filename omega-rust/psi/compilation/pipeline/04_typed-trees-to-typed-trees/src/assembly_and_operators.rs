@@ -1427,7 +1427,6 @@ pub(crate) mod operators {
         use typed_trees::operator::selected_trait_operator_meanings;
         use typed_trees::typed_trees::StaticRequirementDispatch;
         use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
-        use validation::expression_traversal::collect_expression_tree;
         use validation::expression_type_reference_for_origin;
         use validation::indexed_operand_types;
 
@@ -1474,15 +1473,32 @@ pub(crate) mod operators {
                     .iter()
                     .map(|(expression, origin, _, _)| (*expression, *origin)),
             );
-            let mut expressions = Vec::new();
+            /*
+                Each value fact's subtree is walked in pre-order, but a subtree
+                already walked for the same origin is not walked again: every
+                pair it holds is already in `seen`. Nested subexpressions carry
+                facts of their own origin, so walking each one's whole tree was
+                quadratic in an operator chain's length.
+            */
+            let mut walked = HashSet::with_hasher(symbols::BuildSymbolHasher);
+            let mut pending = Vec::new();
+            let mut node_children = Vec::new();
             for (_, value) in values
                 .values
                 .iter()
                 .filter(|(_, value)| value.origin.machine_symbol().is_some())
             {
-                expressions.clear();
-                collect_expression_tree(program, value.expression, &mut expressions);
-                for expression in expressions.iter().copied() {
+                pending.push(value.expression);
+                while let Some(expression) = pending.pop() {
+                    if !expression.is_valid() || !walked.insert((expression, value.origin)) {
+                        continue;
+                    }
+                    validation::expression_traversal::children(
+                        program,
+                        expressions_of(program).expression(expression),
+                        |child| node_children.push(child),
+                    );
+                    pending.extend(node_children.drain(..).rev());
                     let Some(binary) = expressions_of(program).binary_node(expression) else {
                         continue;
                     };
@@ -1562,9 +1578,16 @@ pub(crate) mod operators {
             let mut named_targets = Vec::new();
             if !program.machine_token_bindings().is_empty() {
                 let mut seen_named = HashSet::with_hasher(symbols::BuildSymbolHasher);
-                for (_, value) in values.values.iter() {
-                    expressions.clear();
-                    collect_expression_tree(program, value.expression, &mut expressions);
+                // A named target depends only on the expression, so one walk
+                // over every value's tree, each expression taken once, finds
+                // them all in first-seen order.
+                let mut expressions = Vec::new();
+                validation::expression_traversal::collect_expression_trees(
+                    program,
+                    values.values.iter().map(|(_, value)| value.expression),
+                    &mut expressions,
+                );
+                {
                     for expression in expressions.iter().copied() {
                         let Some(call) = expressions_of(program).call_node(expression) else {
                             continue;

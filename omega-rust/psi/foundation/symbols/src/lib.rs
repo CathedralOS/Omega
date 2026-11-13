@@ -71,11 +71,22 @@ pub fn core_vocabulary_at(
     )?)
 }
 
+/*
+    The bundled core source `file` is, behind the same toolchain gate. This is
+    recognition of the file only; the caller still checks which declaration.
+*/
+pub fn core_source_at(
+    file: &source::SourceFile,
+) -> Option<language_core::core_vocabulary::CoreSource> {
+    let site = toolchain_site(file, "")?;
+    language_core::core_vocabulary::CoreVocabularyCatalog::source(site.file, site.source)
+}
+
 fn toolchain_site<'a>(
     file: &'a source::SourceFile,
     declaration: &'a str,
 ) -> Option<language_core::sealed_intrinsics::SealedDeclarationSite<'a>> {
-    if file.origin != source::SourceOrigin::Toolchain || file.package_identity.is_some() {
+    if !file.origin.is_toolchain() || file.package_identity.is_some() {
         return None;
     }
     Some(language_core::sealed_intrinsics::SealedDeclarationSite {

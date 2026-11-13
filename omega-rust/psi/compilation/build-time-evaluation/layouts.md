@@ -21,8 +21,8 @@ value and exact named implementation identity. Policies implement ordinary
 policy data and synthetic record shells are retired. This establishes the
 explicit fixed-policy application path. Transparent aliases, conversion
 families and programmable case layouts retain their separate task acceptance
-under `LIBRARY-REPRESENTATION-FAMILIES`, `PREFIX-CASE-IDENTITIES` and
-`WIRE-CODEC-LIBRARY` in [TASKS.md](../../../../TASKS.md).
+under `LIBRARY-REPRESENTATION-FAMILIES` and `PREFIX-CASE-IDENTITIES` in
+[TASKS.md](../../../../TASKS.md).
 
 ## Ownership
 

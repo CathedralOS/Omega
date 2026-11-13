@@ -1,0 +1,100 @@
+// The complete bootstrap compiler runs every case. Positive artifacts are
+// length-framed and executed separately by the existing Alpha seed; refusals
+// must leave no finalized or partial tape. No host compiler judges a case.
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+data Main { console: Console; compiler: OmegaScalarCompiler; }
+machine Main::main(&mut self) {
+    self.positive("machine identity(value: u8) -> u8 { value } machine main() -> u8 { (identity(42)) }", 42, 10);
+    self.positive("machine first(a: u8, b: u8) -> u8 { a } machine main() -> u8 { let saved: u8 = first(42, first(3, 4)); first(7, 8); saved }", 42, 11);
+    self.positive("machine second(a: u8, b: u8) -> u8 { b } machine main() -> u8 { (second(second(1, 2), second(3, second(4, 53)))) }", 53, 12);
+    self.positive("machine identity(value: u8) -> u8 { value } machine keep(value: u8) -> u8 { let ignored: u8 = identity(7); value } machine main() -> u8 { (keep(44)) }", 44, 13);
+    self.positive("machine identity(value: u8) -> u8 { value } machine main() -> u8 { let original: u8 = identity(52); let copied: u8 = original; identity(9); copied }", 52, 14);
+    self.positive("machine main() -> u8 { (later(6 * 7)) } machine later(value: u8) -> u8 { value }", 42, 15);
+    self.positive("machine identity(value: u8) -> u8 { value } machine main() -> u8 { transition { _ -> next() } machine next() -> u8 { let saved: u8 = identity(56); saved } }", 56, 16);
+    self.positive("machine first(a: u8, b: u8) -> u8 { a } machine main() -> u8 { let first_value: u8 = first(first(37, 8), first(9, 10)); first_value }", 37, 17);
+    self.refusal("machine identity(value: u8) -> u8 { value } machine main() -> u8 { (identity()) }", 1, 40);
+    self.refusal("machine identity(value: u8) -> u8 { value } machine main() -> u8 { (identity(true)) }", 1, 41);
+    self.refusal("machine main() -> u8 { unknown }", 1, 42);
+    self.refusal("machine duplicate(value: u8, value: u8) -> u8 { value } machine main() -> u8 { 42 }", 1, 43);
+    self.refusal("machine main() -> u8 { let value: u8 = 1; let value: u8 = 2; value }", 1, 44);
+    self.refusal("machine shadow(value: u8) -> u8 { let value: u8 = 2; value } machine main() -> u8 { 42 }", 1, 45);
+    self.refusal("machine hidden() -> u8 { 7 } machine main() -> u8 { let hidden: u8 = 2; hidden }", 2, 46);
+    self.positive("machine main() -> u8 { let value: u8; value }", 0, 47);
+    self.positive("machine main() -> u8 { let mut value: u8 = 2; value }", 2, 48);
+    self.refusal("machine increment(value: u8) -> u8 { value + 1 } machine main() -> u8 { (increment(41)) }", 2, 49);
+    self.refusal("machine recur(value: u8) -> u8 { (recur(value)) } machine main() -> u8 { (recur(42)) }", 2, 50);
+    self.refusal("machine left(value: u8) -> u8 { (right(value)) } machine right(value: u8) -> u8 { (left(value)) } machine main() -> u8 { (left(42)) }", 2, 51);
+    self.refusal("machine left() -> u8 { right(); 42 } machine right() -> u8 { transition { _ -> again() } machine again() -> u8 { (left()) } } machine main() -> u8 { (left()) }", 2, 52);
+    self.refusal("machine main() -> u8 { let value: u8 = 42; transition { _ -> next() } machine next() -> u8 { value } }", 1, 53);
+    self.refusal("machine main(value: u8) -> u8 { value }", 2, 54);
+    self.refusal("machine main() -> u8 requires false { 42 }", 0, 55);
+    self.refusal("machine guarded(value: u8) -> u8 requires value == 7 { value } machine main() -> u8 { (guarded(42)) }", 0, 56);
+    self.refusal("machine guarded(value: u8) -> u8 ensures result == 7 { value } machine main() -> u8 { (guarded(42)) }", 0, 57);
+    self.refusal("machine dead() -> u8 { let value: u8 = missing; value } machine main() -> u8 { 42 }", 1, 58);
+    self.refusal("machine main() -> u8 { let value: u8 = value; value }", 1, 59);
+    self.refusal("machine choose(a: u8, b: u8) -> u8 { a } machine main() -> u8 { (choose(42, choose(3, 4)))", 0, 60);
+    self.refusal("machine identity(value: u8) -> u8 { value } machine main() -> u8 { (identity(5 / 2)) }", 2, 61);
+    self.refusal("machine identity(value: u8) -> u8 { value } machine main() -> u8 { (identity((5 / 2) * 2)) }", 2, 62);
+    self.refusal("machine identity(value: u8) -> u8 { value } machine main() -> u8 { (identity(17 % 5)) }", 2, 63);
+    self.refusal("machine identity(value: u8) -> u8 { value } machine main() -> u8 { (identity(1 << 7)) }", 2, 64);
+    self.refusal("machine identity(value: u8) -> u8 { value } machine main() -> u8 { (identity(~213)) }", 2, 65);
+    self.refusal("machine identity(value: u8) -> u8 { value } machine main() -> u8 { (identity((1 - 2) + 43)) }", 2, 66);
+    self.refusal("machine identity(value: u8) -> u8 { value } machine main() -> u8 { (identity((200 + 100) - 258)) }", 2, 67);
+    self.refusal("machine helper() -> u8 { 1 } machine main() -> u8 { (helper()) machine helper() -> u8 { 42 } }", 2, 68);
+    self.refusal("machine helper() -> u8 { 1 } machine main() -> u8 { helper(); 42 machine helper() -> u8 { 7 } }", 2, 69);
+    self.refusal("machine choose() -> u8 { 1 } machine choose(value: u8) -> u8 { value } machine main() -> u8 { 42 }", 2, 70);
+    self.refusal("machine choose(value: u8) -> u8 { value } machine choose(value: u16) -> u8 { 1 } machine main() -> u8 { 42 }", 2, 71);
+    self.refusal("machine choose(first: u8) -> u8 { first } machine choose(second: u8) -> u8 { second } machine main() -> u8 { 42 }", 1, 72);
+    self.refusal("machine main() -> u8 { (choose(42)) } machine choose() -> u8 { 1 } machine choose(value: u8) -> u8 { value }", 2, 73);
+    self.positive("machine first(a: u8, b: u8) -> u8 { a } machine main() -> u8 { first(47, first(2, 3)) }", 47, 74);
+    self.refusal("machine early(value: u8) -> u8 { value + 1 } machine main() -> u8 { 42 }", 2, 75);
+    assert self.compiler.outcome_space == 4;
+    assert self.compiler.outcome_coordinate == 0;
+    self.positive("machine main() -> u8 { 43 }", 43, 90);
+}
+
+machine Main::positive(&mut self, source: &[u8], expected: i32, failure: i32) {
+    self.compiler.compile(source, "main");
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Complete -> publish()
+        _ -> self.console.exit_process(failure)
+    }
+    state publish() {
+        assert self.compiler.tape.finalized == 1;
+        self.console.write_byte(expected);
+        let length: i32 = self.compiler.tape.payload_length();
+        self.console.write_byte(length % 256);
+        self.console.write_byte((length / 256) % 256);
+        self.console.write_byte((length / 65536) % 256);
+        self.console.write_byte((length / 16777216) % 256);
+        transition true { true -> byte(0) }
+    }
+    state byte(index: i32) {
+        transition index < self.compiler.tape.payload_length() {
+            true -> write(index)
+            _ -> return
+        }
+    }
+    state write(index: i32) {
+        self.console.write_byte(self.compiler.tape.bytes[index]);
+        transition true { true -> byte(index + 1) }
+    }
+}
+machine Main::refusal(&mut self, source: &[u8], expected: i32, failure: i32) {
+    self.compiler.compile(source, "main");
+    transition self.compiler.status {
+        OmegaScalarCompilationStatus::Reject -> check(1)
+        OmegaScalarCompilationStatus::Incomplete -> check(2)
+        _ -> self.console.exit_process(failure)
+    }
+    state check(actual: i32) {
+        assert (expected == 0) || (expected == actual);
+        assert self.compiler.tape.finalized == 0;
+        assert self.compiler.tape.payload_length() == 0;
+    }
+}

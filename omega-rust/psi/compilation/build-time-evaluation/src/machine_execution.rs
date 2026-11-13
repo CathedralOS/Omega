@@ -1029,25 +1029,13 @@ pub(crate) mod admission {
     }
     mod failures {
         use super::{
-            BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
-            BuildTimeProgram, closure_validation::has_authored_requires, concrete_invocation,
+            BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeProgram,
+            closure_validation::has_authored_requires, concrete_invocation,
         };
         use crate::BuildTimeValue;
         use typed_trees::machine::Machine;
 
         impl BuildTimeAdmissionPlan {
-            pub(super) fn require_supplied_invocation(
-                &self,
-                input: BuildTimeProgram<'_>,
-                machine: &Machine,
-                arguments: &mut [BuildTimeValue],
-                custody: Option<BuildTimeInvocationCustody>,
-            ) -> Result<(), BuildTimeAdmissionRejection> {
-                self.require_invocation_failures(input, machine, arguments, custody)
-                    .map_err(BuildTimeAdmissionRejection::from)?;
-                self.require_floor(input, machine, custody, true)
-            }
-
             pub(crate) fn require_invocation_failures(
                 &self,
                 input: BuildTimeProgram<'_>,
@@ -1173,6 +1161,52 @@ pub(crate) mod admission {
                     .expect("compilation test");
             }
 
+            /// Run one invocation the way constant evaluation does: admit the
+            /// machine's checked closure and its concrete arguments, then execute
+            /// the checked machine with no deployment target.
+            fn evaluate(
+                admission: &BuildTimeAdmissionPlan,
+                input: BuildTimeProgram<'_>,
+                machine_name: &str,
+                arguments: Vec<BuildTimeValue>,
+            ) -> Result<BuildTimeValue, String> {
+                let symbol = input
+                    .typed()
+                    .realized_machine_named(machine_name)
+                    .expect("the invoked machine exists")
+                    .symbol;
+                admission
+                    .evaluate_const_evaluable_program_machine_symbol_for_invocation_measured(
+                        input,
+                        symbol,
+                        arguments,
+                        BuildTimeInvocationCustody::Symbol(symbol),
+                        None,
+                    )
+                    .map(crate::MeasuredEvaluation::into_value)
+            }
+
+            /// Run one invocation whose machine has an authored `requires`: the
+            /// concrete arguments are the only proof of that premise, so this is
+            /// the entry a constant call with literal arguments uses.
+            fn evaluate_under_concrete_premises(
+                admission: &BuildTimeAdmissionPlan,
+                program: &typed_trees::TypedTrees,
+                machine_name: &str,
+                arguments: Vec<BuildTimeValue>,
+            ) -> Result<BuildTimeValue, String> {
+                let symbol = program
+                    .realized_machine_named(machine_name)
+                    .expect("the invoked machine exists")
+                    .symbol;
+                admission.evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
+                    program,
+                    symbol,
+                    arguments,
+                    BuildTimeInvocationCustody::Symbol(symbol),
+                )
+            }
+
             #[test]
             fn source_admission_proves_guarded_actuals_before_execution() {
                 on_compilation_stack(|| {
@@ -1189,27 +1223,24 @@ pub(crate) mod admission {
         "#,
                     );
                     let admission = BuildTimeAdmissionPlan::infer(&program, None);
-                    let value = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Typed(&program),
-                            "divide",
-                            vec![BuildTimeValue::Int(14), BuildTimeValue::Int(2)],
-                        )
-                        .expect("a nonzero concrete denominator removes the route");
+                    let value = evaluate(
+                        &admission,
+                        BuildTimeProgram::Typed(&program),
+                        "divide",
+                        vec![BuildTimeValue::Int(14), BuildTimeValue::Int(2)],
+                    )
+                    .expect("a nonzero concrete denominator removes the route");
                     assert_eq!(value, BuildTimeValue::Int(7));
-                    let error = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Typed(&program),
-                            "divide",
-                            vec![BuildTimeValue::Int(14), BuildTimeValue::Int(0)],
-                        )
-                        .expect_err("a surviving route must refuse before interpretation");
-                    assert!(
-                        error.reason.contains("not build-time admissible"),
-                        "{error:?}"
-                    );
-                    assert!(error.reason.contains("unhandled [Trap]"), "{error:?}");
-                    assert!(error.reason.contains("before execution"), "{error:?}");
+                    let error = evaluate(
+                        &admission,
+                        BuildTimeProgram::Typed(&program),
+                        "divide",
+                        vec![BuildTimeValue::Int(14), BuildTimeValue::Int(0)],
+                    )
+                    .expect_err("a surviving route must refuse before interpretation");
+                    assert!(error.contains("not build-time admissible"), "{error}");
+                    assert!(error.contains("unhandled [Trap]"), "{error}");
+                    assert!(error.contains("before execution"), "{error}");
                 });
             }
 
@@ -1330,28 +1361,33 @@ pub(crate) mod admission {
                         little_endian: true,
                     };
                     let admission = BuildTimeAdmissionPlan::infer(&program, None);
-                    let value = admission
-                        .evaluate_machine(
+                    let machine = program.realized_machine_named("plan").expect("plan");
+                    // The compiler-issued target has no value an authored program
+                    // could write, so this test stops at the admission judgment
+                    // that every policy invocation passes before it executes.
+                    admission
+                        .require_invocation_failures(
                             BuildTimeProgram::Typed(&program),
-                            "plan",
-                            vec![
+                            machine,
+                            &mut [
                                 BuildTimeValue::LayoutTarget(target.clone()),
                                 BuildTimeValue::Int(1),
                             ],
+                            None,
                         )
                         .expect("a real opaque target does not prevent concrete guard discharge");
-                    assert_eq!(value, BuildTimeValue::Int(7));
                     let error = admission
-                        .evaluate_machine(
+                        .require_invocation_failures(
                             BuildTimeProgram::Typed(&program),
-                            "plan",
-                            vec![BuildTimeValue::LayoutTarget(target), BuildTimeValue::Int(0)],
+                            machine,
+                            &mut [BuildTimeValue::LayoutTarget(target), BuildTimeValue::Int(0)],
+                            None,
                         )
                         .expect_err(
                             "the same target with a zero actual must refuse before execution",
                         );
-                    assert!(error.reason.contains("unhandled [Trap]"), "{error:?}");
-                    assert!(error.reason.contains("before execution"), "{error:?}");
+                    assert!(error.contains("unhandled [Trap]"), "{error}");
+                    assert!(error.contains("before execution"), "{error}");
                 });
             }
 
@@ -1382,57 +1418,27 @@ pub(crate) mod admission {
                     concrete_invocation::require_empty_failure_summary(&checked, symbol)
                         .expect("the body is crash-free under its declared parameter domain");
                     let admission = BuildTimeAdmissionPlan::infer(program, None);
-                    let value = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Checked(&checked),
-                            "divide",
-                            vec![BuildTimeValue::Int(1)],
-                        )
-                        .expect("a host actual in the declared domain is established");
+                    let value = evaluate_under_concrete_premises(
+                        &admission,
+                        program,
+                        "divide",
+                        vec![BuildTimeValue::Int(1)],
+                    )
+                    .expect("a host actual in the declared domain is established");
                     assert_eq!(value, BuildTimeValue::Int(7));
-                    let value = admission
-                        .evaluate_machine_symbol_for_invocation_measured(
-                            BuildTimeProgram::Checked(&checked),
-                            symbol,
-                            vec![BuildTimeValue::Int(1)],
-                            BuildTimeInvocationCustody::Symbol(symbol),
-                        )
-                        .expect("the symbol entry establishes the same valid host domain")
-                        .into_parts()
-                        .0;
-                    assert_eq!(value, BuildTimeValue::Int(7));
-                    let error = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Checked(&checked),
-                            "divide",
-                            vec![BuildTimeValue::Int(0)],
-                        )
-                        .expect_err("a body summary cannot establish its host argument domain");
-                    assert!(
-                        error
-                            .reason
-                            .contains("constant invocation failed ordinary checking"),
-                        "{error:?}"
-                    );
-                    assert!(error.reason.contains("requires"), "{error:?}");
-                    assert!(
-                        error.reason.contains("not build-time admissible"),
-                        "{error:?}"
-                    );
-                    assert!(error.reason.contains("before execution"), "{error:?}");
-                    let error = admission
-                        .evaluate_machine_symbol_for_invocation_measured(
-                            BuildTimeProgram::Checked(&checked),
-                            symbol,
-                            vec![BuildTimeValue::Int(0)],
-                            BuildTimeInvocationCustody::Symbol(symbol),
-                        )
-                        .expect_err("the symbol entry must establish the same host domain");
+                    let error = evaluate_under_concrete_premises(
+                        &admission,
+                        program,
+                        "divide",
+                        vec![BuildTimeValue::Int(0)],
+                    )
+                    .expect_err("a body summary cannot establish its host argument domain");
                     assert!(
                         error.contains("constant invocation failed ordinary checking"),
                         "{error}"
                     );
                     assert!(error.contains("requires"), "{error}");
+                    assert!(error.contains("not build-time admissible"), "{error}");
                     assert!(error.contains("before execution"), "{error}");
                 });
             }
@@ -1459,29 +1465,27 @@ pub(crate) mod admission {
                     concrete_invocation::require_empty_failure_summary(&checked, symbol)
                         .expect("the constant body has an empty failure summary");
                     let admission = BuildTimeAdmissionPlan::infer(program, None);
-                    let value = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Checked(&checked),
-                            "answer",
-                            vec![BuildTimeValue::Int(1)],
-                        )
-                        .expect("the exact actual establishes the authored entry requirement");
+                    let value = evaluate_under_concrete_premises(
+                        &admission,
+                        program,
+                        "answer",
+                        vec![BuildTimeValue::Int(1)],
+                    )
+                    .expect("the exact actual establishes the authored entry requirement");
                     assert_eq!(value, BuildTimeValue::Int(7));
-                    let error = admission
-                        .evaluate_machine(
-                            BuildTimeProgram::Checked(&checked),
-                            "answer",
-                            vec![BuildTimeValue::Int(0)],
-                        )
-                        .expect_err("a crash-free body cannot grant its invocation precondition");
+                    let error = evaluate_under_concrete_premises(
+                        &admission,
+                        program,
+                        "answer",
+                        vec![BuildTimeValue::Int(0)],
+                    )
+                    .expect_err("a crash-free body cannot grant its invocation precondition");
                     assert!(
-                        error
-                            .reason
-                            .contains("constant invocation failed ordinary checking"),
-                        "{error:?}"
+                        error.contains("constant invocation failed ordinary checking"),
+                        "{error}"
                     );
-                    assert!(error.reason.contains("requires"), "{error:?}");
-                    assert!(error.reason.contains("before execution"), "{error:?}");
+                    assert!(error.contains("requires"), "{error}");
+                    assert!(error.contains("before execution"), "{error}");
                 });
             }
         }
@@ -2630,6 +2634,24 @@ pub(crate) mod admission {
             checked_operators: Option<&checked_trees::CheckedOperatorFacts>,
         ) -> Option<SelectionViolation> {
             let program = input.typed_program();
+            if let Some(custody) = custody {
+                let requester = match custody {
+                    BuildTimeInvocationCustody::Source(source) => {
+                        package_for_source(program, source)
+                    }
+                    BuildTimeInvocationCustody::Symbol(symbol) => {
+                        package_for_symbol(program, symbol)
+                    }
+                };
+                if let Some(message) = closed_contract_selection_violation(
+                    program,
+                    requester,
+                    package_for_symbol(program, root.symbol),
+                    "build-time root",
+                ) {
+                    return Some(SelectionViolation::unlocated(message));
+                }
+            }
             if let Some(authority) = authority {
                 let Some(custody) = custody else {
                     return Some(SelectionViolation::unlocated(
@@ -2671,6 +2693,16 @@ pub(crate) mod admission {
                     .filter(|call| call.source_machine_symbol == source_machine.symbol)
                 {
                     let Some(target_machine) = call.target_machine(program) else {
+                        if let Some(operator) = target_operator_symbol(program, call)
+                            && let Some(message) = closed_contract_selection_violation(
+                                program,
+                                package_for_symbol(program, source_machine.symbol),
+                                package_for_symbol(program, operator),
+                                "build-time named operator call",
+                            )
+                        {
+                            return Some(SelectionViolation::unlocated(message));
+                        }
                         let Some(authority) = authority else {
                             continue;
                         };
@@ -2717,6 +2749,17 @@ pub(crate) mod admission {
                             && row.provider_machine == target_machine
                             && row.provider_state == call.target_state_symbol
                     });
+                    if !delegated
+                        && !provider_delegated
+                        && let Some(message) = closed_contract_selection_violation(
+                            program,
+                            package_for_symbol(program, source_machine.symbol),
+                            package_for_symbol(program, target_machine),
+                            &context,
+                        )
+                    {
+                        return Some(SelectionViolation::unlocated(message));
+                    }
                     if !delegated
                         && !provider_delegated
                         && let Some(authority) = authority
@@ -3307,6 +3350,7 @@ pub(crate) mod admission {
         #[derive(Debug, Clone, Copy)]
         enum PackageCustody {
             Toolchain,
+            ToolchainContract(SourceSpan),
             Package(PackageKeyIdentity),
             UnownedUser,
             Missing,
@@ -3315,6 +3359,9 @@ pub(crate) mod admission {
         fn package_for_source(program: &TypedTrees, source: SourceSpan) -> PackageCustody {
             match program.symbols.source_file(source) {
                 Some(file) if file.origin == SourceOrigin::Toolchain => PackageCustody::Toolchain,
+                Some(file) if file.origin == SourceOrigin::ToolchainContract => {
+                    PackageCustody::ToolchainContract(source)
+                }
                 Some(file) => file
                     .package_identity
                     .map(PackageCustody::Package)
@@ -3329,19 +3376,113 @@ pub(crate) mod admission {
             }
             match program.symbols.symbol_source_origin(symbol) {
                 Some(SourceOrigin::Toolchain) => PackageCustody::Toolchain,
+                Some(SourceOrigin::ToolchainContract) => program
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .map(PackageCustody::ToolchainContract)
+                    .unwrap_or(PackageCustody::Missing),
                 Some(SourceOrigin::User) => PackageCustody::UnownedUser,
                 None => PackageCustody::Missing,
             }
         }
 
+        fn closed_contract_selection_violation(
+            program: &TypedTrees,
+            requester: PackageCustody,
+            owner: PackageCustody,
+            context: &str,
+        ) -> Option<String> {
+            match (requester, owner) {
+                (
+                    PackageCustody::ToolchainContract(requester),
+                    PackageCustody::ToolchainContract(owner),
+                ) if program.symbols.same_source_package(requester, owner) => None,
+                (PackageCustody::ToolchainContract(_), PackageCustody::Toolchain)
+                | (PackageCustody::Toolchain, PackageCustody::ToolchainContract(_)) => None,
+                (PackageCustody::ToolchainContract(_), _)
+                | (_, PackageCustody::ToolchainContract(_)) => {
+                    Some(format!("{context} crosses closed-contract owner custody"))
+                }
+                _ => None,
+            }
+        }
+
+        #[test]
+        fn closed_contract_selection_keeps_roots_and_scopes_without_package_authority() {
+            let mut sources = source::SourceMap::default();
+            let mut spans = Vec::new();
+            for (ordinal, (owner, scope)) in [
+                ("std", source::DependencyScope::Product),
+                ("std", source::DependencyScope::Product),
+                ("other", source::DependencyScope::Product),
+                ("std", source::DependencyScope::Build),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let root = std::path::PathBuf::from(owner);
+                let file = sources.add_checked_instance(
+                    root.join(format!("{ordinal}.omg")),
+                    "name",
+                    root,
+                    None,
+                    SourceOrigin::ToolchainContract,
+                    source::SourceResolutionStratum::Base,
+                    scope,
+                );
+                spans.push(file.source_span(source::Span::new(0, 4)));
+            }
+            let program = TypedTrees {
+                symbols: symbols::SymbolTableBuilder::with_sources_and_top_level_bindings(
+                    Some(std::sync::Arc::new(sources)),
+                    Vec::new(),
+                )
+                .finish(),
+                ..TypedTrees::default()
+            };
+            let requester = package_for_source(&program, spans[0]);
+            assert!(
+                closed_contract_selection_violation(
+                    &program,
+                    requester,
+                    package_for_source(&program, spans[1]),
+                    "same cohort"
+                )
+                .is_none()
+            );
+            for span in &spans[2..] {
+                assert!(
+                    closed_contract_selection_violation(
+                        &program,
+                        requester,
+                        package_for_source(&program, *span),
+                        "unrelated cohort"
+                    )
+                    .is_some()
+                );
+            }
+        }
+
         fn require_selection(
-            _program: &TypedTrees,
+            program: &TypedTrees,
             requester: PackageCustody,
             owner: PackageCustody,
             authority: &dyn BuildTimeSelectionAuthority,
             context: &str,
         ) -> Option<String> {
+            if let Some(message) =
+                closed_contract_selection_violation(program, requester, owner, context)
+            {
+                return Some(message);
+            }
             match (requester, owner) {
+                (PackageCustody::ToolchainContract(_), PackageCustody::ToolchainContract(_)) => {
+                    None
+                }
+                (PackageCustody::ToolchainContract(_), PackageCustody::Package(_))
+                | (PackageCustody::Package(_), PackageCustody::ToolchainContract(_)) => {
+                    Some(format!("{context} crosses closed-contract owner custody"))
+                }
                 (PackageCustody::Toolchain, _) | (_, PackageCustody::Toolchain) => None,
                 (PackageCustody::Package(requester), PackageCustody::Package(owner))
                     if authority.allows_declaration_selection(requester, owner) =>
@@ -4133,57 +4274,6 @@ pub(crate) mod admission {
             })
         }
 
-        pub fn evaluate_machine(
-            &self,
-            input: BuildTimeProgram<'_>,
-            machine_name: &str,
-            arguments: Vec<BuildTimeValue>,
-        ) -> Result<BuildTimeValue, BuildTimeAdmissionRejection> {
-            let program = input.typed();
-            let machine = program
-                .realized_machine_named(machine_name)
-                .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-            let mut arguments = arguments;
-            self.require_supplied_invocation(input, machine, &mut arguments, None)?;
-            self.accounting
-                .evaluate(
-                    checked_interpreter::BuildMachineProgram::Typed(program),
-                    BuildMachineEvaluationRequest {
-                        ..BuildMachineEvaluationRequest::named(machine_name, arguments)
-                    },
-                )
-                .map(BuildTimeOperationEvaluation::into_value)
-                .map_err(|error| BuildTimeAdmissionRejection::from(error.to_string()))
-        }
-
-        pub fn evaluate_machine_symbol_for_invocation_measured(
-            &self,
-            input: BuildTimeProgram<'_>,
-            machine_symbol: SymbolHandle,
-            arguments: Vec<BuildTimeValue>,
-            custody: BuildTimeInvocationCustody,
-        ) -> Result<crate::MeasuredEvaluation<BuildTimeValue>, String> {
-            let program = input.typed();
-            let machine = program.machine(machine_symbol).ok_or_else(|| {
-            format!(
-                "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
-            )
-        })?;
-            let mut arguments = arguments;
-            self.require_supplied_invocation(input, machine, &mut arguments, Some(custody))?;
-            self.accounting
-                .evaluate(
-                    checked_interpreter::BuildMachineProgram::Typed(program),
-                    BuildMachineEvaluationRequest {
-                        ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
-                    },
-                )
-                .map_err(String::from)
-                .and_then(|evaluation| {
-                    crate::MeasuredEvaluation::from_checked(evaluation.into_measured())
-                })
-        }
-
         pub fn admitted_program_machine_closure_symbols(
             &self,
             input: BuildTimeProgram<'_>,
@@ -4241,44 +4331,34 @@ pub(crate) mod admission {
             Ok(closure)
         }
 
-        pub fn evaluate_const_evaluable_machine(
+        pub fn evaluate_const_evaluable_machine_for_invocation(
             &self,
             program: &TypedTrees,
             machine_name: &str,
             arguments: Vec<BuildTimeValue>,
-        ) -> Result<BuildTimeValue, String> {
-            self.evaluate_const_evaluable_machine_for_invocation_opt(
-                program,
-                machine_name,
-                arguments,
-                None,
-            )
-        }
-
-        fn evaluate_const_evaluable_machine_for_invocation_opt(
-            &self,
-            program: &TypedTrees,
-            machine_name: &str,
-            arguments: Vec<BuildTimeValue>,
-            custody: Option<BuildTimeInvocationCustody>,
+            custody: BuildTimeInvocationCustody,
         ) -> Result<BuildTimeValue, String> {
             let machine = program
                 .realized_machine_named(machine_name)
                 .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
             let mut arguments = arguments;
-            let discharge =
-                self.zero_argument_invocation_discharge(program, machine, &arguments, custody);
+            let discharge = self.zero_argument_invocation_discharge(
+                program,
+                machine,
+                &arguments,
+                Some(custody),
+            );
             self.require_floor(
                 BuildTimeProgram::Typed(program),
                 machine,
-                custody,
+                Some(custody),
                 discharge,
             )?;
             self.require_invocation_failures(
                 BuildTimeProgram::Typed(program),
                 machine,
                 &mut arguments,
-                custody,
+                Some(custody),
             )?;
             let value = self
                 .accounting
@@ -4294,21 +4374,6 @@ pub(crate) mod admission {
                 .0;
             require_const_evaluable_result(program, machine, &value)?;
             Ok(value)
-        }
-
-        pub fn evaluate_const_evaluable_machine_for_invocation(
-            &self,
-            program: &TypedTrees,
-            machine_name: &str,
-            arguments: Vec<BuildTimeValue>,
-            custody: BuildTimeInvocationCustody,
-        ) -> Result<BuildTimeValue, String> {
-            self.evaluate_const_evaluable_machine_for_invocation_opt(
-                program,
-                machine_name,
-                arguments,
-                Some(custody),
-            )
         }
 
         pub fn evaluate_const_evaluable_machine_symbol_for_invocation(
@@ -5037,6 +5102,23 @@ pub(crate) mod build_machines {
                         target.name,
                     )
                 });
+                // An artifact with target layout applications runs only under
+                // the selected target's layouts, so we admit them from the
+                // target's facts whenever the caller supplied them.
+                let layouts = match (target, &selected) {
+                    (Some(target), Some(selected)) => target
+                        .layout_target
+                        .map(|facts| {
+                            terminal_installation::admit_target_layouts(
+                                artifact.view(),
+                                selected,
+                                facts,
+                            )
+                        })
+                        .transpose()
+                        .map_err(|error| format!("invocation Terminal target layouts: {error}"))?,
+                    _ => None,
+                };
                 let installation = selected
                     .as_ref()
                     .map(|selected| {
@@ -5049,7 +5131,7 @@ pub(crate) mod build_machines {
                                 host_imports: &[],
                                 entry: None,
                                 target_machines: Some(selected),
-                                target_layouts: None,
+                                target_layouts: layouts.as_ref(),
                             },
                         )
                     })
@@ -5628,7 +5710,7 @@ pub(crate) mod build_machines {
                      _ -> work
                  }
                  machine through(node: Node, index: u64, work: u64) -> u64
-                 requires work >= 1 && index <= 7
+                 requires work >= 1 && index <= 7 && node.count <= 8
                  {
                      descend(node, index + 1, work)
                  }

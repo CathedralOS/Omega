@@ -1,0 +1,3 @@
+machine first(value: i16) -> i16
+ensures first(value) == result { value }
+machine main() {}

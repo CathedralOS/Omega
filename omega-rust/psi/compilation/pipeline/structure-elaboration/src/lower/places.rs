@@ -57,7 +57,7 @@ use semantic_vocabulary::{
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::edges::Destination;
-use terminal_check_tables::obligations::ObligationKind;
+use terminal_check_tables::obligations::{Lender, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, ProgramPoint, PsiSemanticId, Refusal, RefusalReason,
@@ -74,7 +74,8 @@ use terminal_psi::{
 
 use super::{Lowering, Value};
 use crate::body::{
-    Body, Expression, ExpressionKind, RecordField, RecordType, Statement, ValueType,
+    Body, Expression, ExpressionKind, RecordField, RecordType, Signature, Statement, Target,
+    ValueType,
 };
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -124,6 +125,7 @@ pub(crate) fn declare<'a>(
     entry: MachineId,
     types: &'a IdTable<StructuralTypeId, RecordType>,
     bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
 ) -> Checked<Declared<'a>> {
     let mut identities = TerminalIdentityTableBuilder::default();
     let mut field_identities = IdTable::default();
@@ -138,6 +140,14 @@ pub(crate) fn declare<'a>(
                 let identity = identities.intern(&field.identity);
                 indexes.push(identity);
                 let field_type = match field.value_type {
+                    // The reader refuses a data type with such a field.
+                    ValueType::Rigid(_) => {
+                        return Err(refuse(
+                            entry,
+                            Construct::Machine,
+                            Unserved::Type("generic data"),
+                        ));
+                    }
                     ValueType::Scalar(scalar_type) => StructuralFieldType::Scalar(scalar_type),
                     ValueType::Record(nested) => {
                         // A data type holds only types declared before it,
@@ -226,15 +236,35 @@ pub(crate) fn declare<'a>(
             scalar_restriction: None,
         });
     }
-    let mut primitives: Vec<(ScalarType, StructuralTypeId)> = Vec::new();
+    // Every scalar place a body names besides its records: the home of a
+    // scalar local declared without an initializer or lent to a call, and
+    // the place of a borrowed scalar formal. Each needs its primitive type
+    // declared once, with the text identity the typed trees gave it.
+    let mut homes: Vec<(ScalarType, Option<&String>)> = Vec::new();
+    for (_, signature) in signatures.iter() {
+        for borrowed in &signature.borrowed {
+            if let Some(ValueType::Scalar(scalar_type)) =
+                signature.parameters.get(borrowed.position).copied()
+            {
+                homes.push((scalar_type, borrowed.home.as_ref()));
+            }
+        }
+    }
     for (_, body) in bodies.iter() {
         for statement in &body.statements {
+            statement_homes(statement, &mut homes);
             let Statement::Declare { slot, home, .. } = statement else {
                 continue;
             };
             let Some(ValueType::Scalar(scalar_type)) = body.slots.get(*slot).copied() else {
                 continue;
             };
+            homes.push((scalar_type, home.as_ref()));
+        }
+    }
+    let mut primitives: Vec<(ScalarType, StructuralTypeId)> = Vec::new();
+    for (scalar_type, home) in homes {
+        {
             if primitives.iter().any(|(known, _)| *known == scalar_type) {
                 continue;
             }
@@ -280,6 +310,127 @@ pub(crate) fn declare<'a>(
     })
 }
 
+/// The scalar homes the loans in `statement` give SSA locals, with the text
+/// identity of each home's type (`ExpressionKind::Borrow::home`).
+fn statement_homes<'b>(
+    statement: &'b Statement,
+    homes: &mut Vec<(ScalarType, Option<&'b String>)>,
+) {
+    match statement {
+        Statement::Bind { value, .. }
+        | Statement::Evaluate(value)
+        | Statement::Store { value, .. } => expression_homes(value, homes),
+        Statement::Declare { .. } | Statement::Witness { .. } => {}
+        Statement::Dispatch {
+            subject,
+            arms,
+            default,
+            ..
+        } => {
+            expression_homes(subject, homes);
+            for (_, arm, _) in arms {
+                target_homes(arm, homes);
+            }
+            if let Some((arm, _)) = default {
+                target_homes(arm, homes);
+            }
+        }
+        Statement::Arm { guard, target, .. } => {
+            if let Some(guard) = guard {
+                expression_homes(guard, homes);
+            }
+            target_homes(target, homes);
+        }
+    }
+}
+
+fn target_homes<'b>(target: &'b Target, homes: &mut Vec<(ScalarType, Option<&'b String>)>) {
+    if let Target::Value(value) = target {
+        expression_homes(value, homes);
+    }
+}
+
+fn expression_homes<'b>(
+    expression: &'b Expression,
+    homes: &mut Vec<(ScalarType, Option<&'b String>)>,
+) {
+    match &expression.kind {
+        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {}
+        ExpressionKind::Borrow { place, home, .. } => {
+            if let (Some(home), Some(ValueType::Scalar(scalar_type))) = (home, place.result) {
+                homes.push((scalar_type, Some(home)));
+            }
+            expression_homes(place, homes);
+        }
+        ExpressionKind::Not(operand)
+        | ExpressionKind::BitwiseNot(operand)
+        | ExpressionKind::Cast(operand)
+        | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::Payload { base: operand, .. }
+        | ExpressionKind::IsCase {
+            subject: operand, ..
+        } => expression_homes(operand, homes),
+        ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
+            for (_, operand) in fields {
+                expression_homes(operand, homes);
+            }
+        }
+        ExpressionKind::Match {
+            subject,
+            arms,
+            default,
+        } => {
+            expression_homes(subject, homes);
+            for (_, arm) in arms {
+                expression_homes(arm, homes);
+            }
+            if let Some(arm) = default {
+                expression_homes(arm, homes);
+            }
+        }
+        ExpressionKind::Strict { left, right, .. }
+        | ExpressionKind::ShortCircuit { left, right, .. } => {
+            expression_homes(left, homes);
+            expression_homes(right, homes);
+        }
+        ExpressionKind::Call { arguments, .. } => {
+            for argument in arguments {
+                expression_homes(argument, homes);
+            }
+        }
+    }
+}
+
+/// The Terminal access of a structural argument or parameter that lends
+/// with `access`; `None` for write-only access, which no slice lends yet.
+pub(crate) fn borrowed_access(access: language_core::ReferenceAccess) -> Option<StructuralAccess> {
+    match access {
+        language_core::ReferenceAccess::Shared => Some(StructuralAccess::SharedBorrow),
+        language_core::ReferenceAccess::Mutable => Some(StructuralAccess::MutableBorrow),
+        language_core::ReferenceAccess::WriteOnly => None,
+    }
+}
+
+impl Records<'_> {
+    /// The primitive structural type `declare` declared for `scalar_type`.
+    pub(super) fn primitive(
+        &self,
+        scalar_type: ScalarType,
+        machine: MachineId,
+    ) -> Checked<StructuralTypeId> {
+        self.primitives
+            .iter()
+            .find(|(known, _)| *known == scalar_type)
+            .map(|(_, home)| *home)
+            .ok_or_else(|| Refusal {
+                reason: RefusalReason::ForeignIdentity,
+                machine,
+                concerns: Construct::Machine,
+                detail: String::from("a scalar place's primitive type is not declared"),
+            })
+    }
+}
+
 /// What a slot holds: a scalar slot the value bound to it, a record slot the
 /// root place of the value its formal, initializer or last whole assignment
 /// established, and a scalar local declared without an initializer the root
@@ -289,6 +440,32 @@ pub(super) enum Bound {
     Scalar(ValueId),
     Record(PlaceId),
     Home(PlaceId),
+    /// An `[erased]` formal or local: the term it names. Nothing evaluates
+    /// it and no runtime expression may read it.
+    Erased(Witness),
+}
+
+/// The term an erased binding names: a value of this machine or a literal,
+/// the forms `ScalarTerm` states with no formation condition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Witness {
+    Value(ValueId, ScalarType),
+    Integer(
+        semantic_vocabulary::IntegerType,
+        semantic_vocabulary::IntegerValue,
+    ),
+    Boolean(bool),
+}
+
+impl Witness {
+    pub(super) fn term(self) -> semantic_vocabulary::ScalarTerm {
+        use semantic_vocabulary::ScalarTerm;
+        match self {
+            Self::Value(id, scalar_type) => ScalarTerm::Value { id, scalar_type },
+            Self::Integer(scalar_type, value) => ScalarTerm::Integer { scalar_type, value },
+            Self::Boolean(value) => ScalarTerm::Boolean(value),
+        }
+    }
 }
 
 /// One step of a path beneath a root: a field of the record `owner`, or the
@@ -467,6 +644,7 @@ impl<'a> Lowering<'a> {
 
     fn entry_leaves(&mut self, place: ExactPlaceId, value_type: ValueType) -> Checked<()> {
         match value_type {
+            ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
             ValueType::Scalar(scalar_type) => self.entry_content(place, scalar_type).map(drop),
             ValueType::Record(record) => {
                 let data = self.record_type(record)?;
@@ -607,7 +785,7 @@ impl<'a> Lowering<'a> {
                         record,
                         fresh: false,
                     }),
-                    Some(Bound::Scalar(_) | Bound::Home(_)) => {
+                    Some(Bound::Scalar(_) | Bound::Home(_) | Bound::Erased(_)) => {
                         Err(self.internal("a scalar slot is used as a record"))
                     }
                     None => Err(self.internal("a slot is read before it is bound")),
@@ -678,8 +856,12 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
+            | ExpressionKind::Cast(_)
             | ExpressionKind::ShortCircuit { .. } => {
                 Err(self.internal("a scalar operation has a record type"))
+            }
+            ExpressionKind::Borrow { .. } => {
+                Err(self.internal("a loan outside a call's arguments"))
             }
         }
     }
@@ -714,6 +896,119 @@ impl<'a> Lowering<'a> {
         Ok(root)
     }
 
+    /// The place a loan lends, as the call passes it: the lent place's root
+    /// and storage path with the loan's access, the place's interned row,
+    /// and where its authority comes from. loans.md: "Loan formation
+    /// captures a place, not a live selector expression."
+    ///
+    /// The place is a slot or a field path beneath one. A scalar local that
+    /// is an SSA value (`needs_home`) first gets a home holding its current
+    /// value, the operation the current pipeline emits for a local it lends
+    /// (structural_access.md: "`EstablishPrimitiveLocal` consumes an exactly
+    /// typed SSA initializer and establishes the referent"); the slot names
+    /// that home from then on, so the reads after the call observe what the
+    /// callee left there.
+    pub(super) fn lend(
+        &mut self,
+        place: &Expression,
+        access: language_core::ReferenceAccess,
+        needs_home: bool,
+    ) -> Checked<(StructuralArgument, ExactPlaceId, Lender)> {
+        let lent_access =
+            borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
+        let value_type = place
+            .result
+            .ok_or_else(|| self.internal("a loan of a Unit value"))?;
+        let (root, steps, exact) = match (&place.kind, value_type) {
+            (ExpressionKind::Slot(slot), ValueType::Scalar(scalar_type)) => {
+                let bound = *self.slot_mut(*slot)?;
+                let home = match bound {
+                    Some(Bound::Home(home)) => home,
+                    Some(Bound::Scalar(_)) if needs_home && self.joining > 0 => {
+                        return Err(refuse(
+                            self.id,
+                            self.current.map_or(Construct::Machine, Construct::Block),
+                            Unserved::Call("loan of a value local on some paths only"),
+                        ));
+                    }
+                    Some(Bound::Scalar(value)) if needs_home => {
+                        let home = self.establish_home(value, scalar_type, place.source)?;
+                        *self.slot_mut(*slot)? = Some(Bound::Home(home));
+                        home
+                    }
+                    _ => return Err(self.internal("a lent scalar slot holds no storage")),
+                };
+                (home, Vec::new(), self.exact_root(home)?)
+            }
+            (ExpressionKind::Field { base, field }, ValueType::Scalar(_)) => {
+                let at = self.located(base)?;
+                let step = Step::Field {
+                    owner: at.record,
+                    field: *field,
+                };
+                let leaf = self.step(at.place, step)?;
+                let mut steps = at.path;
+                steps.push(step);
+                (at.root, steps, leaf)
+            }
+            (_, ValueType::Record(_)) => {
+                let at = self.located(place)?;
+                if at.fresh {
+                    return Err(self.internal("a loan of a value no slot names"));
+                }
+                (at.root, at.path, at.place)
+            }
+            _ => return Err(self.internal("a loan of something that is not a place")),
+        };
+        if steps
+            .iter()
+            .any(|step| matches!(step, Step::Payload { .. }))
+        {
+            return Err(self.internal("a loan beneath a case payload"));
+        }
+        self.name_entry(root, exact, value_type)?;
+        let lender = if self.borrowed_roots.contains(&root) {
+            Lender::Incoming
+        } else {
+            Lender::Owner
+        };
+        Ok((
+            StructuralArgument {
+                place: root,
+                path: self.storage_path(&steps)?,
+                access: lent_access,
+            },
+            exact,
+            lender,
+        ))
+    }
+
+    /// A home for an SSA scalar holding `value`: one `EstablishPrimitiveLocal`
+    /// and the row that says the home holds that value.
+    fn establish_home(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+        source: SourceOrigin,
+    ) -> Checked<PlaceId> {
+        let home = self.records.primitive(scalar_type, self.id)?;
+        let operation = self.operation_identity(source);
+        let (root, exact) = self.produce(
+            operation,
+            home,
+            OperationKind::EstablishPrimitiveLocal {
+                value,
+                range_obligation: None,
+            },
+        )?;
+        self.write(
+            exact,
+            ProgramPoint::AfterOperation(operation),
+            Content::Value(value),
+        )?;
+        Ok(root)
+    }
+
     /// `R { a: x, b: y }`: the operands in authored order, then one
     /// `EstablishRecord` whose roster is in declaration order
     /// (structural_access.md: "a complete roster of declaration-identified
@@ -731,6 +1026,7 @@ impl<'a> Lowering<'a> {
                 .get(*position)
                 .ok_or_else(|| self.internal("a literal names a field past its record"))?;
             let evaluated = match field.value_type {
+                ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
                 ValueType::Scalar(_) => Operand::Scalar(self.scalar(operand)?),
                 ValueType::Record(_) => Operand::Record(self.record(operand)?),
             };
@@ -806,6 +1102,7 @@ impl<'a> Lowering<'a> {
                 .get(*position)
                 .ok_or_else(|| self.internal("a literal names a field past its case"))?;
             let evaluated = match field.value_type {
+                ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
                 ValueType::Scalar(_) => Operand::Scalar(self.scalar(operand)?),
                 ValueType::Record(_) => Operand::Record(self.record(operand)?),
             };
@@ -926,6 +1223,7 @@ impl<'a> Lowering<'a> {
             let mut payload_fields = Vec::new();
             for field in &selected.fields {
                 parameters.push(match field.value_type {
+                    ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
                     ValueType::Scalar(scalar_type) => {
                         let value = self.value(
                             scalar_type,
@@ -1174,6 +1472,9 @@ impl<'a> Lowering<'a> {
     /// domain clause and is never gated.
     pub(super) fn declare_local(&mut self, slot: usize, source: SourceOrigin) -> Checked<()> {
         let bound = match self.slot_type(slot)? {
+            ValueType::Rigid(_) => {
+                return Err(self.internal("a local of a rigid type is declared"));
+            }
             ValueType::Record(record) => {
                 // The zero of each scalar leaf, as a constant the module
                 // holds, so the row that says what the leaf holds names a
@@ -1243,6 +1544,9 @@ impl<'a> Lowering<'a> {
         scalar_type: ScalarType,
         source: SourceOrigin,
     ) -> Checked<Value> {
+        // A borrowed scalar formal's place holds the caller's value at entry.
+        let place = self.exact_root(home)?;
+        self.name_entry(home, place, ValueType::Scalar(scalar_type))?;
         let operation = self.operation_identity(source);
         self.emit(
             operation,
@@ -1301,10 +1605,10 @@ impl<'a> Lowering<'a> {
                 );
             }
             (Some(Bound::Record(root)), Some(last)) => (root, last),
-            (Some(Bound::Scalar(_) | Bound::Home(_)), Some(_)) => {
+            (Some(Bound::Scalar(_) | Bound::Home(_) | Bound::Erased(_)), Some(_)) => {
                 return Err(self.internal("a field of a scalar slot is stored to"));
             }
-            (Some(Bound::Scalar(_) | Bound::Record(_)), None) => {
+            (Some(Bound::Scalar(_) | Bound::Record(_) | Bound::Erased(_)), None) => {
                 return Err(self.internal("a whole store into a slot that is not a home"));
             }
             (None, _) => return Err(self.internal("a slot is stored to before it is bound")),
@@ -1324,7 +1628,7 @@ impl<'a> Lowering<'a> {
             place = self.step(place, step)?;
             record = match declared.value_type {
                 ValueType::Record(nested) => nested,
-                ValueType::Scalar(_) => {
+                ValueType::Scalar(_) | ValueType::Rigid(_) => {
                     return Err(self.internal("a store path crosses a scalar field"));
                 }
             };
@@ -1349,6 +1653,7 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a stored value has another type than its field"));
         }
         match declared.value_type {
+            ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
             ValueType::Scalar(_) => {
                 let stored = self.scalar(value)?;
                 let operation = self.operation_identity(source);
@@ -1441,6 +1746,7 @@ impl<'a> Lowering<'a> {
         for field in fields {
             prefix.push(Segment::Field(field.id));
             match field.value_type {
+                ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
                 ValueType::Scalar(scalar_type) => {
                     let zero = self.zero(scalar_type, source)?;
                     zeros.push((prefix.clone(), zero));

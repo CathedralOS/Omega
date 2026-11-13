@@ -1,0 +1,101 @@
+; The checked Epsilon-to-Delta pass owns this source encoder. It consumes
+; retained semantic names/parameters and compiler-produced body text; it does
+; not reparse Epsilon or invent another set of expression/control tags.
+; Byte literals keep the emitted language visible at its encoding boundary.
+
+(def epsilon_emit_negative_digits ((value Int)) Bytes
+  (if (lt -10 value)
+    (bytes_single (- 48 value))
+    (bytes_concat
+      (epsilon_emit_negative_digits (/ value 10))
+      (bytes_single (- 48 (% value 10))))))
+
+; Keep the working magnitude negative so INT64_MIN needs no overflowing abs.
+(def epsilon_emit_decimal ((value Int)) Bytes
+  (if (lt value 0)
+    (bytes_concat "-" (epsilon_emit_negative_digits value))
+    (epsilon_emit_negative_digits (- 0 value))))
+
+(def epsilon_emit_name_bytes ((source EpsilonSourceView) (index Int) (end Int)
+   (output Bytes)) Bytes
+  (if (eq index end)
+    output
+    (epsilon_emit_name_bytes source (+ index 1) end
+      (bytes_concat output (bytes_single (epsilon_source_byte source index))))))
+
+(def epsilon_emit_name ((source EpsilonSourceView) (name EpsilonName)) Bytes
+  (match name
+    ((EpsilonNameSpan start end)
+      (epsilon_emit_name_bytes source start end ""))))
+
+; Length-delimited ownership avoids collisions between a free name and a
+; qualified machine, including owners/names containing underscores.
+(def epsilon_emit_owned_function_name
+  ((source EpsilonSourceView) (owner EpsilonName) (member EpsilonName)) Bytes
+  (match owner
+    ((EpsilonNameSpan start end)
+      (let ownerPrefix Bytes
+        (bytes_concat (epsilon_emit_decimal (- end start))
+          (bytes_concat "_" (epsilon_emit_name source owner)))
+        (bytes_concat "ep_owned_"
+          (bytes_concat ownerPrefix
+            (bytes_concat "_" (epsilon_emit_name source member))))))))
+
+(def epsilon_compiled_function_name
+  ((source EpsilonSourceView) (name EpsilonQualifiedName)) Bytes
+  (match name
+    ((EpsilonUnqualifiedName start end member)
+      (bytes_concat "ep_free_" (epsilon_emit_name source member)))
+    ((EpsilonQualifiedNameSyntax start end owner member)
+      (epsilon_emit_owned_function_name source owner member))))
+
+; A source parameter's retained coordinate is its lexical identity. User
+; spellings cannot capture generated temporaries in the Delta target.
+(def epsilon_compiled_parameter_name ((source EpsilonSourceView) (name EpsilonName)) Bytes
+  (match name
+    ((EpsilonNameSpan start end)
+      (bytes_concat "ep_local_" (bytes_concat (epsilon_emit_decimal start)
+        (bytes_concat "_" (epsilon_emit_name source name)))))))
+
+(def epsilon_emit_parameter ((source EpsilonSourceView) (parameter EpsilonParameter)) Bytes
+  (match parameter
+    ((EpsilonParameterSyntax start end name typeValue)
+      (let named Bytes
+        (bytes_concat "(" (epsilon_compiled_parameter_name source name))
+        (bytes_concat named " Int) ")))))
+
+(def epsilon_emit_parameters ((source EpsilonSourceView) (parameters EpsilonParameterList)) Bytes
+  (match parameters
+    (NoEpsilonParameters "")
+    ((MoreEpsilonParameters parameter rest)
+      (bytes_concat (epsilon_emit_parameter source parameter)
+        (epsilon_emit_parameters source rest)))))
+
+(def epsilon_emit_inputs ((source EpsilonSourceView) (inputs EpsilonMachineInputs)) Bytes
+  (match inputs
+    ((NoEpsilonMachineInputs start end) "")
+    ((EpsilonPlainMachineInputs start end parameters)
+      (epsilon_emit_parameters source parameters))
+    ((EpsilonReceiverMachineInputs start end receiver parameters)
+      (epsilon_emit_parameters source parameters))))
+
+; Pure compiled machines return named scalar/resultless/trap/internal outcomes.
+; The checked capability boundary excludes storage and Console effects.
+(def epsilon_emit_compiled_function
+  ((source EpsilonSourceView) (name EpsilonQualifiedName)
+   (parameterText Bytes) (body Bytes)) Bytes
+  (let named Bytes
+    (bytes_concat "(def " (epsilon_compiled_function_name source name))
+    (let parameters Bytes
+      (bytes_concat " (" parameterText)
+      (let signature Bytes
+        (bytes_concat parameters
+          ") EpsilonCompiledOutcome\n  ")
+        (bytes_concat named
+          (bytes_concat signature (bytes_concat body ")\n")))))))
+
+(def epsilon_emit_resultless () Bytes "EpsilonCompiledResultless")
+
+(def epsilon_emit_integer ((value Int)) Bytes
+  (bytes_concat "(EpsilonCompiledScalar "
+    (bytes_concat (epsilon_emit_decimal value) ")")))

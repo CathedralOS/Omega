@@ -184,11 +184,11 @@ fn pure_build_accounting() {
     check(&mut session, &shared_sponsor, "windows_x86_64")
         .result
         .expect("first row");
-    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::build_execution_count() - before, 1);
     assert_eq!(counters::source_build_execution_count() - sources_before, 1);
     assert_eq!(
         counters::provider_defaults_execution_count() - suppliers_before,
-        1
+        0
     );
     let after_first = (
         counters::build_execution_count(),
@@ -205,7 +205,7 @@ fn pure_build_accounting() {
             counters::provider_defaults_execution_count(),
         ),
         after_first,
-        "the second request must reuse both completed Builds"
+        "the second request must reuse the completed Build"
     );
     let executions = counters::build_execution_count() - before;
     println!(
@@ -214,7 +214,7 @@ fn pure_build_accounting() {
         shared_sponsor.consumed_result_storage_cells()
     );
     build_sequence::print_execution_counts("two Pure source requests completed");
-    assert_eq!(executions, 2);
+    assert_eq!(executions, 1);
     assert_eq!(
         shared_sponsor.consumed_work_units(),
         2 * work,
@@ -227,7 +227,7 @@ fn pure_build_accounting() {
         .expect("fresh account");
     assert_eq!(fresh.consumed_work_units(), work);
     assert_eq!(fresh.consumed_result_storage_cells(), cells);
-    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::build_execution_count() - before, 1);
     println!("fresh_account_charged_without_execution");
 
     let mut limited_session = CompilationSession::default();
@@ -285,7 +285,7 @@ fn pure_build_accounting() {
             counters::source_build_execution_count() - before_cold.1,
             counters::provider_defaults_execution_count() - before_cold.2
         ),
-        (2, 1, 1)
+        (1, 1, 0)
     );
     println!("cold_and_warm_hard_ceiling_decisions_agree");
 
@@ -347,7 +347,9 @@ fn nested_readiness_jobs() {
 use omega::language::core::program_image;
 machine build(builder: &mut Build) suspends {
     Build::package(builder, "readiness_leaf");
-    Build::build_depend_as(builder, "root", Source::Path { location: "../.." });
+    let mut root_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../.." });
+    dependency::with_alias(&mut root_dependency, "root");
+    let root_registration: DependencyRegistration = Build::build_dependency(builder, root_dependency);
     suspend Build::await_provider<ProgramImage, root::TestImage>(builder);
 }
 "#,
@@ -973,7 +975,6 @@ fn terminal_build_filesystem() {
         .begin_package_build(first_request)
         .expect("generator admission");
     assert!(!guard_dropped.load(std::sync::atomic::Ordering::Acquire));
-    build_sequence::prepare_package_root(&mut invocation);
     let returned = {
         let execution = invocation.execution().expect("authored Build");
         let host = execution.host().expect("generator host");
@@ -1044,11 +1045,11 @@ fn terminal_build_filesystem() {
         6
     );
     build_sequence::print_execution_counts("captured generator settled its output");
-    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::build_execution_count() - before, 1);
     assert_eq!(counters::source_build_execution_count() - sources_before, 1);
     assert_eq!(
         counters::provider_defaults_execution_count() - suppliers_before,
-        1
+        0
     );
 
     let temporary = exclusive_workspace("terminal-filesystem-budget");
@@ -1469,7 +1470,7 @@ fn application_source_resolution(project: &str, private_call: bool) {
     )
     .unwrap_or_else(|error| panic!("application source resolution: {error:?}"));
     assert_eq!(resolved.builds.len(), 2);
-    assert_eq!(counters::build_execution_count(), before + 2);
+    assert_eq!(counters::build_execution_count(), before + 1);
     assert!(root_sponsor.consumed_work_units() > 0);
     let discovery_work = dependency_sponsor.consumed_work_units();
     assert!(
@@ -1533,7 +1534,7 @@ fn application_source_resolution(project: &str, private_call: bool) {
             "{project}: application_executed_source_join_native_and_terminal_exit0_without_live_sources_or_replay"
         );
     }
-    assert_eq!(counters::build_execution_count(), before + 2);
+    assert_eq!(counters::build_execution_count(), before + 1);
     assert_eq!(
         dependency_sponsor.consumed_work_units(),
         discovery_work,
@@ -1582,7 +1583,7 @@ fn application_source_resolution(project: &str, private_call: bool) {
             );
         }
     }
-    assert_eq!(counters::build_execution_count(), before + 2);
+    assert_eq!(counters::build_execution_count(), before + 1);
     drop(admitted);
     session.close().expect("dispose shared staging");
 }
@@ -2066,7 +2067,7 @@ fn settled_build_product_contexts() {
     std::fs::copy(fixture.join("main.omg"), project.join("main.omg")).unwrap();
     let authored = std::fs::read_to_string(fixture.join("build.omg")).unwrap();
     let dependency = format!(
-        "Build::depend_as(builder, \"std\", Source::Path {{ location: {:?} }});",
+        "let mut std_dependency: DependencyDescription = dependency::from_source(Source::Path {{ location: {:?} }});\n    dependency::with_alias(&mut std_dependency, \"std\");\n    let std_registration: DependencyRegistration = Build::dependency(builder, std_dependency);",
         repository.join("source/library/std").to_str().unwrap(),
     );
     std::fs::write(project.join("build.omg"), authored.replace(
@@ -2393,9 +2394,7 @@ fn foreign_source_return_refuses() {
         .begin_source_compilation(request())
         .expect("second source admission");
     assert_eq!(counters::build_execution_count(), before);
-    build_sequence::prepare_source_root(&mut first);
     let first_returned = return_execution(first.execution());
-    build_sequence::prepare_source_root(&mut second);
     let second_returned = return_execution(second.execution());
     for (source, returned) in [(first, second_returned), (second, first_returned)] {
         let failure = session
@@ -2415,7 +2414,7 @@ fn foreign_source_return_refuses() {
             counters::source_build_execution_count() - sources_before,
             counters::provider_defaults_execution_count() - suppliers_before
         ),
-        (4, 2, 2)
+        (2, 2, 0)
     );
     println!("source_continuations_rejected_swapped_normal_returns_without_replay");
 }
@@ -2446,7 +2445,7 @@ fn source_native_roundtrip() {
             counters::source_build_execution_count() - before.1,
             counters::provider_defaults_execution_count() - before.2
         ),
-        (2, 1, 1)
+        (1, 1, 0)
     );
     execute_report(report, &directory);
     println!("source_native_and_reloaded_terminal_exit_zero_after_one_build");
@@ -2477,7 +2476,6 @@ fn interleaved_build_invocations() {
             .contains("cannot replace its admitted Product target")
     }));
     assert_eq!(counters::build_execution_count(), before);
-    build_sequence::prepare_package_root(&mut first);
     let first_returned = {
         let host = first
             .execution()
@@ -2505,11 +2503,11 @@ fn interleaved_build_invocations() {
         let mut second = session
             .begin_package_build(request())
             .expect("second admission while paused");
-        assert_eq!(counters::build_execution_count(), before + 2);
+        assert_eq!(counters::build_execution_count(), before + 1);
         assert_eq!(counters::source_build_execution_count() - sources_before, 1);
         assert_eq!(
             counters::provider_defaults_execution_count() - suppliers_before,
-            1
+            0
         );
         let second_returned = return_build(&mut second);
         let second = session
@@ -2539,11 +2537,11 @@ fn interleaved_build_invocations() {
         .complete_package_build(first, Some(first_returned))
         .expect("first completion");
     session.check_package_build(first).expect("first Product");
-    assert_eq!(counters::build_execution_count(), before + 3);
+    assert_eq!(counters::build_execution_count(), before + 2);
     assert_eq!(counters::source_build_execution_count() - sources_before, 2);
     assert_eq!(
         counters::provider_defaults_execution_count() - suppliers_before,
-        1
+        0
     );
     println!("paused_build_survived_another_package_product_without_replay");
 }
@@ -2630,7 +2628,7 @@ fn sliced_build_retains_effects() {
             counters::source_build_execution_count() - before.1,
             counters::provider_defaults_execution_count() - before.2,
         ),
-        (2, 1, 1)
+        (1, 1, 0)
     );
     let work = account.consumed_work_units();
     assert!(
@@ -2665,7 +2663,7 @@ fn sliced_build_retains_effects() {
             counters::source_build_execution_count() - before.1,
             counters::provider_defaults_execution_count() - before.2,
         ),
-        (2, 1, 1)
+        (1, 1, 0)
     );
     assert_eq!(limited.live_storage_cells(), 0);
     assert_eq!(limited.live_payload_bytes(), 0);
@@ -2716,11 +2714,11 @@ fn anonymous_build_completes_before_product() {
         }
     }
     build_sequence::print_execution_counts("anonymous Build after both target products");
-    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::build_execution_count() - before, 1);
     assert_eq!(counters::source_build_execution_count() - sources_before, 1);
     assert_eq!(
         counters::provider_defaults_execution_count() - suppliers_before,
-        1
+        0
     );
     println!("anonymous_build_executed_once_before_two_portable_products");
 }
@@ -2784,7 +2782,7 @@ fn logged_build_reuse() {
             counters::source_build_execution_count() - before.1,
             counters::provider_defaults_execution_count() - before.2
         ),
-        (2, 1, 1)
+        (1, 1, 0)
     );
     assert_eq!(account.consumed_work_units(), 2 * cold_work);
     assert_eq!(account.live_storage_cells(), 0);
@@ -2847,7 +2845,7 @@ fn logged_build_reuse() {
             counters::source_build_execution_count() - before_cold.1,
             counters::provider_defaults_execution_count() - before_cold.2
         ),
-        (2, 1, 1)
+        (1, 1, 0)
     );
     assert_eq!(limited.live_storage_cells(), 0);
     assert_eq!(limited.live_payload_bytes(), 0);

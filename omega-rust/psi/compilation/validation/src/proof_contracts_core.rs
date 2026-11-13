@@ -5710,7 +5710,6 @@ pub mod immutable_integer_bounds {
 
 pub mod instruction_effects {
     use language_core::inline_assembly::AsmRegisterOperation;
-    use std::path::Path;
     use symbols::SymbolHandle;
     use typed_trees::proposition::PropositionBody;
     use typed_trees::types::PrimitiveType;
@@ -5720,15 +5719,15 @@ pub mod instruction_effects {
         symbol: SymbolHandle,
     ) -> Option<facts::InstructionEffectOperation> {
         let declaration = program.proposition_definition_by_symbol(symbol)?;
-        if !declaration.is_public
-            || !matches!(declaration.body, PropositionBody::Primitive)
-            || !program
-                .symbol_toolchain_relative_path(symbol)
-                .is_some_and(|path| path == Path::new("assembly_model.omg"))
-        {
+        if !declaration.is_public || !matches!(declaration.body, PropositionBody::Primitive) {
             return None;
         }
-        if declaration.name.as_str() == "atomic_release_written" {
+        use language_core::core_vocabulary::{AssemblyEffect, CoreVocabulary};
+        let Some(CoreVocabulary::AssemblyEffect(effect)) = program.symbols.core_vocabulary(symbol)
+        else {
+            return None;
+        };
+        if effect == AssemblyEffect::AtomicReleaseWritten {
             use typed_trees::proposition::PropositionBinderKind;
             use typed_trees::types::TypeReferenceNode;
             let [cell, value] = program.proposition_binders(declaration) else {
@@ -5762,10 +5761,10 @@ pub mod instruction_effects {
         if !program.proposition_binders(declaration).is_empty() {
             return None;
         }
-        let operation = match declaration.name.as_str() {
-            "port_written" => AsmRegisterOperation::PortWrite,
-            "model_specific_written" => AsmRegisterOperation::ModelSpecificWrite,
-            _ => return None,
+        let operation = match effect {
+            AssemblyEffect::PortWritten => AsmRegisterOperation::PortWrite,
+            AssemblyEffect::ModelSpecificWritten => AsmRegisterOperation::ModelSpecificWrite,
+            AssemblyEffect::AtomicReleaseWritten => return None,
         };
         let expected = operation.input_carriers();
         let parameters = program.proposition_parameters(declaration);
@@ -5909,25 +5908,27 @@ pub mod parameter_expression_meaning {
         parameters: &[StateParameter],
         expression: ExpressionHandle,
     ) -> bool {
+        // Per arena slot: 1 while on the active path, 2 once completed.
+        let mut marks: Vec<u8> = Vec::new();
         let mut pending = vec![(expression, false)];
-        let mut visited = Vec::new();
-        let mut active = Vec::new();
         while let Some((expression, completed)) = pending.pop() {
+            let slot = expression.arena_index() as usize;
             if completed {
-                active.pop();
-                visited.push(expression);
+                marks[slot] = 2;
                 continue;
             }
             if !program.expression_table.expression_is_valid(expression) {
                 return false;
             }
-            if visited.contains(&expression) {
-                continue;
+            if slot >= marks.len() {
+                marks.resize(slot + 1, 0);
             }
-            if active.contains(&expression) {
-                return false;
+            match marks[slot] {
+                2 => continue,
+                1 => return false,
+                _ => {}
             }
-            active.push(expression);
+            marks[slot] = 1;
             pending.push((expression, true));
             match program.expression_table.expression(expression) {
                 ExpressionNode::Binary(binary) => {
@@ -9972,6 +9973,35 @@ pub mod relevance {
             crate::erased_actuals::validate(program, diagnostics);
         }
 
+        /// Whether an expression clause of the machine's contracts names
+        /// exactly the field path `fields` below `parameter`.
+        fn contract_names_field(
+            program: &dyn crate::CheckingInput,
+            machine: &typed_trees::machine::Machine,
+            parameter: symbols::SymbolHandle,
+            fields: &[symbols::SymbolHandle],
+        ) -> bool {
+            let mut expressions = Vec::new();
+            crate::queries::expression_traversal::collect_expression_trees(
+                program,
+                program
+                    .machine_contracts(machine)
+                    .iter()
+                    .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+                    .filter_map(|fact| fact.as_expression().copied()),
+                &mut expressions,
+            );
+            expressions.iter().any(|expression| {
+                crate::canonical_place_from_expression(program, *expression).is_some_and(|place| {
+                    place.root.as_symbol() == Some(parameter)
+                        && place.segments.len() == fields.len()
+                        && place.segments.iter().zip(fields).all(|(segment, field)| {
+                            matches!(segment, facts::PlaceSegment::Field { symbol } if symbol == field)
+                        })
+                })
+            })
+        }
+
         fn validate_erased_runtime_scalar_formals(
             program: &dyn crate::CheckingInput,
             diagnostics: &mut Vec<Diagnostic>,
@@ -9990,10 +10020,18 @@ pub mod relevance {
                         let lanes = program.erased_scalar_lanes(parameter.type_reference);
                         // A contract over a record's `bool` field is read by
                         // the Boolean vocabulary, which names a formal's
-                        // structural slot; an erased record has none.
+                        // structural slot; an erased record has none. A
+                        // `bool` field no contract names rides its lane like
+                        // any other field.
                         if let Some(lane) = lanes.iter().find(|lane| {
                             !lane.fields.is_empty()
                                 && lane.primitive_type == typed_trees::types::PrimitiveType::Bool
+                                && contract_names_field(
+                                    program,
+                                    machine,
+                                    parameter.symbol,
+                                    &lane.fields,
+                                )
                         }) {
                             diagnostics.push(Diagnostic::error(format!(
                                 "machine `{}::{}` erased parameter `{}` is a record with `bool` field `{}`; an erased record carries integer and float fields only, so pass that field as its own erased `bool` parameter",

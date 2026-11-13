@@ -1,5 +1,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_alias_underscore_edge");
     builder.freestanding = true;
-    Build::depend_as(builder, "_kit", Source::Path { location: "dep" });
+    let mut aliased_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dep" });
+    dependency::with_alias(&mut aliased_dependency, "_kit");
+    let aliased_registration: DependencyRegistration = Build::dependency(builder, aliased_dependency);
 }

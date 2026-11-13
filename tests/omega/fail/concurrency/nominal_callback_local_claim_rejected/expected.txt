@@ -1,0 +1,3 @@
+call to `may_pause` may suspend
+claimed_receipt
+suspension: forbidden

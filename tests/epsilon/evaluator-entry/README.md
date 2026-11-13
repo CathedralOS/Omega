@@ -15,7 +15,7 @@ reconstructed canonical evaluator receipt is bound: 729,060 bytes,
 SHA-256 `bec9011e5216557a59ba701ac2a4112774e5f48240c729b95ffc8297f704c368`. Both identities are pinned in
 [`tools/bootstrap/epsilon/evaluator_env.sh`](../../../tools/bootstrap/epsilon/evaluator_env.sh)
 and recorded in
-[`bootstrap/4_epsilon/EVALUATOR_ENTRY.md`](../../../bootstrap/4_epsilon/EVALUATOR_ENTRY.md),
+[`bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md`](../../../bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md),
 which owns the envelope and profile prose.
 
 ## EREQ v1 request
@@ -56,7 +56,7 @@ status 254 `Incomplete(published observation, 4194304, 4194305)`, status 250
 `Incomplete(live call contexts, 256, 257)`, and status 252 `Incomplete(pair
 nodes, 3422453760, 3422453761)`. Every other process observation carries the
 outer `InternalFailure`. The status table and derivations live in
-[`EVALUATOR_ENTRY.md`](../../../bootstrap/4_epsilon/EVALUATOR_ENTRY.md). The
+[`EVALUATOR_ENTRY.md`](../../../bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md). The
 status-252 refusal is too slow for this routine gate; it is executed directly
 against this canonical receipt by the explicit slow
 [`pair-boundary`](../pair-boundary/README.md) gate.

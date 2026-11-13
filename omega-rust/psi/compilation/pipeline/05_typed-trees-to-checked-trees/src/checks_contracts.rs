@@ -8707,15 +8707,81 @@ mod current_values {
         frames: Option<&validation::CallFrameResolver<'_>>,
         completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
     ) -> bool {
-        let Some((machine, state)) =
-            program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)
-        else {
-            return false;
-        };
-        let Some(site) = validation::find_call_site(
+        prepare_call(program, state_flow, call, frames, completed)
+            .is_some_and(|values| proves_prepared_call(&values, state_flow, call, expression))
+    }
+
+    // A contract's clauses share the values at this exact completed invocation.
+    // Retire overwritten captures once, before any clause asks for a proof.
+    pub(crate) fn prepare_call<'program>(
+        program: &'program dyn ::validation::CheckingInput,
+        state_flow: &checked_trees::FlowStateFact,
+        call: &checked_trees::FlowCallFact,
+        frames: Option<&validation::CallFrameResolver<'_>>,
+        completed: &mut crate::checks::current_scalar_values::CompletedCallGuarantees,
+    ) -> Option<CurrentScalarValues<'program>> {
+        let (machine, state) =
+            program.state_flow_site(state_flow.machine_symbol, state_flow.state_symbol)?;
+        let site = validation::find_call_site(
             program,
             machine.symbol,
             state.symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )?;
+        let parameters = validation::call_target_parameters(program, call.target_symbol)?;
+        if validation::call_site_argument_expressions(program, &site).len() != parameters.len() {
+            return None;
+        }
+        let target = validation::transition_call_target(
+            program,
+            machine,
+            state,
+            call.statement_index,
+            call.call_ordinal,
+        )
+        .filter(|target| target.is_valid() && site.completes_transition(program, *target))
+        .unwrap_or_else(TransitionTargetHandle::invalid);
+        let mut values = CurrentScalarValues::at_completing(
+            program,
+            machine,
+            state,
+            call.statement_index,
+            target,
+            frames,
+            &[],
+            completed,
+        )?;
+        let at = program.storage_graph().and_then(|graph| {
+            validation::completed_storage::versions::invocation_snapshot(
+                program,
+                graph,
+                state.symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )
+        });
+        values.retire_unpreserved(at);
+        Some(values)
+    }
+
+    pub(crate) fn proves_prepared_call(
+        values: &CurrentScalarValues<'_>,
+        state_flow: &checked_trees::FlowStateFact,
+        call: &checked_trees::FlowCallFact,
+        expression: ExpressionHandle,
+    ) -> bool {
+        if values.machine().symbol != state_flow.machine_symbol
+            || values.state().symbol != state_flow.state_symbol
+            || values.statement_index() != call.statement_index
+        {
+            return false;
+        }
+        let program = values.program();
+        let Some(site) = validation::find_call_site(
+            program,
+            state_flow.machine_symbol,
+            state_flow.state_symbol,
             call.statement_index,
             call.call_ordinal,
         ) else {
@@ -8729,37 +8795,6 @@ mod current_values {
         if arguments.len() != parameters.len() {
             return false;
         }
-        let target = validation::transition_call_target(
-            program,
-            machine,
-            state,
-            call.statement_index,
-            call.call_ordinal,
-        )
-        .filter(|target| target.is_valid() && site.completes_transition(program, *target))
-        .unwrap_or_else(TransitionTargetHandle::invalid);
-        let Some(mut values) = CurrentScalarValues::at_completing(
-            program,
-            machine,
-            state,
-            call.statement_index,
-            target,
-            frames,
-            &[],
-            completed,
-        ) else {
-            return false;
-        };
-        let at = program.storage_graph().and_then(|graph| {
-            validation::completed_storage::versions::invocation_snapshot(
-                program,
-                graph,
-                state.symbol,
-                call.statement_index,
-                call.call_ordinal,
-            )
-        });
-        values.retire_unpreserved(at);
         let Some((callee, callee_state)) = validation::find_state(program, call.target_symbol)
             .or_else(|| validation::find_machine_head(program, call.target_symbol))
         else {

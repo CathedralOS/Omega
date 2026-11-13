@@ -1,0 +1,39 @@
+; The checker-owned binding selects a lexical value variable. No target
+; operation resolves source names or dispatches an Epsilon syntax node.
+(def epsilon_delta_scalar_type ((typeValue EpsilonType)) EpsilonDeltaCompilation
+  (match typeValue
+    ((EpsilonI32Type start end) (EpsilonDeltaCompiled "Int"))
+    ((EpsilonU8Type start end) (EpsilonDeltaCompiled "Int"))
+    ((EpsilonNeverType start end) (EpsilonDeltaUnsupported start))
+    ((EpsilonNamedType start end name) (EpsilonDeltaUnsupported start))
+    ((EpsilonArrayType start end element extent) (EpsilonDeltaUnsupported start))
+    ((EpsilonViewType start end element) (EpsilonDeltaUnsupported start))))
+
+(def epsilon_delta_parameter_read ((source EpsilonSourceView) (parameter EpsilonParameter)) EpsilonDeltaCompilation
+  (match parameter
+    ((EpsilonParameterSyntax start end name typeValue)
+      (match (epsilon_delta_scalar_type typeValue)
+        ((EpsilonDeltaCompiled typeText)
+          (EpsilonDeltaCompiled (epsilon_compiled_parameter_name source name)))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
+
+(def epsilon_delta_local_binding ((source EpsilonSourceView) (binding EpsilonLocalBinding)
+  (coordinate Int)) EpsilonDeltaCompilation
+  (match binding
+    ((EpsilonMachineParameterLocal parameter) (epsilon_delta_parameter_read source parameter))
+    ((EpsilonStateParameterLocal parameter) (epsilon_delta_parameter_read source parameter))
+    ((EpsilonLetLocal name typeValue statement) (EpsilonDeltaUnsupported coordinate))
+    ((EpsilonReceiverLocal name typeValue) (EpsilonDeltaUnsupported coordinate))
+    ((EpsilonTransitionBinderLocal pattern name) (EpsilonDeltaUnsupported coordinate))))
+
+(def epsilon_delta_local ((context EpsilonDeltaContext)
+  (expression EpsilonExpression)) EpsilonDeltaCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match (epsilon_find_resolved_local_reference expression locals)
+        (NoEpsilonResolvedLocalReference
+          (EpsilonDeltaInternal (epsilon_expression_start expression)))
+        ((OneEpsilonResolvedLocalReference binding)
+          (epsilon_delta_local_binding source binding (epsilon_expression_start expression)))))))

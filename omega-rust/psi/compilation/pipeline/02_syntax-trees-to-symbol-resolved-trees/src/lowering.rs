@@ -327,6 +327,12 @@ pub(crate) mod data {
                     ))
                 })?;
                     match contract {
+                    syntax::item::MachineParameterContract::Inferred => (
+                        TypeParameterKind::Machine {
+                            contract: symbol_resolved_trees::data::MachineParameterContract::Inferred,
+                        },
+                        None,
+                    ),
                     syntax::item::MachineParameterContract::RequirementIdentity => (
                         TypeParameterKind::Machine {
                             contract: symbol_resolved_trees::data::MachineParameterContract::RequirementIdentity,
@@ -431,6 +437,19 @@ declares_no_crash_route: contract.declares_no_crash_route,
             .declarations
             .data_type_parameters
             .insert_many(parameters);
+        for ordinal in 0..span.count() {
+            let handle = span.handle_at(ordinal);
+            if crate::selection::callable_inference::pending(
+                lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .declarations
+                    .data_type_parameters
+                    .get(handle),
+            ) {
+                lowerer.pending_callable_types.push(handle);
+            }
+        }
         if !span.is_empty() {
             for (index, authored) in pending_service_reaches.into_iter().enumerate() {
                 let Some((keyword_source_spans, authored)) = authored else {
@@ -607,6 +626,8 @@ pub(crate) mod domain {
                 semantic_identity = format!("package:{digest}:{scope}::{semantic_identity}");
             } else if owner.origin == source::SourceOrigin::Toolchain {
                 semantic_identity = format!("toolchain:{scope}::{semantic_identity}");
+            } else if owner.origin == source::SourceOrigin::ToolchainContract {
+                semantic_identity = format!("toolchain-contract:{scope}::{semantic_identity}");
             } else {
                 semantic_identity = format!("unmanaged:{scope}::{semantic_identity}");
             }
@@ -4518,6 +4539,9 @@ pub(crate) mod type_reference {
                     },
                 }))
             }
+            TypeReferenceNode::StaticSelection(_) => Err(Diagnostic::error(
+                "a scoped type selection must resolve to an admitted declared type before typed lowering",
+            )),
             TypeReferenceNode::ConstExpression(expression) => {
                 let expression = lower_expression_into_table(lowerer, syntax_trees, *expression)?;
                 Ok(TypeReference::ConstExpression(

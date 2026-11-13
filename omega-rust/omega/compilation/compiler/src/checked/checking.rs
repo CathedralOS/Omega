@@ -17,9 +17,10 @@ active compiler worker run inline without spawning additional threads.
 */
 
 pub(crate) mod build_continuation;
+mod lowered_route;
 mod product_queries;
 mod product_selections;
-mod source_build;
+pub(super) mod source_build;
 mod source_checking;
 pub(crate) mod typed_frontier;
 
@@ -30,7 +31,6 @@ pub use compilation_products::{
 };
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 pub use product_queries::ProductQueries;
-pub use source_build::BuildAdvance;
 pub(crate) use source_checking::check_product_source;
 
 use crate::execution_settlement::SelectedCompileOutcome;
@@ -201,12 +201,6 @@ pub(super) struct PreparedPackageInvocation {
 }
 
 impl PreparedPackageInvocation {
-    pub(super) fn advance(
-        &mut self,
-        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-    ) -> Result<BuildAdvance, CompileFailure> {
-        self.source.advance(returned)
-    }
     pub(super) fn product_queries(&self) -> ProductQueries {
         self.source.product_queries()
     }
@@ -374,12 +368,6 @@ pub struct SourceCompilation {
 }
 
 impl SourceCompilation {
-    pub fn advance(
-        &mut self,
-        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-    ) -> Result<BuildAdvance, CompileFailure> {
-        self.source.advance(returned)
-    }
     pub fn product_queries(&self) -> ProductQueries {
         self.source.product_queries()
     }
@@ -472,7 +460,6 @@ fn prepare_build_source_invocation(
     mut source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
     pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
-    purpose: source_build::BuildSourcePurpose<'_>,
 ) -> Result<build_continuation::BuildSourceInvocation, CompileFailure> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;
@@ -489,7 +476,6 @@ fn prepare_build_source_invocation(
         frontier,
         timings,
         pure_build_compilation,
-        purpose,
     )
     .map_err(|failure| attribute_failure(failure, &base_sources, package_inputs))
 }

@@ -22,7 +22,8 @@ So the walk reads the stores from the operations themselves
 - A whole copy stores what its source held into its fresh root, and a record
   stored into a field stores what its source held into that field.
 - A scalar store stores its value into exactly the leaf it names.
-- A call's record result holds what the callee returned.
+- A call's record result holds what the callee returned, and a place the
+  call borrows exclusively holds what the callee left there.
 - A scalar local declared without an initializer is zero-constructed
   (`local-without-initializer`): `EstablishPrimitiveLocal` stores its
   operand into the fresh home.
@@ -51,7 +52,8 @@ use semantic_vocabulary::{
 use terminal_check_tables::bindings::{Content, PlaceOrigin, Segment};
 use terminal_check_tables::{Checked, Construct, ExactPlaceId, MachineTables, ProgramPoint};
 use terminal_psi::{
-    Block, Operation, OperationKind, RecordFieldValue, StructuralFieldType, StructuralTypeShape,
+    Block, Operation, OperationKind, RecordFieldValue, StructuralAccess, StructuralFieldType,
+    StructuralTypeShape,
 };
 
 use super::{Lineage, Shape, Storage, index, lineage};
@@ -70,8 +72,9 @@ pub(super) enum Stored {
     /// The zero value, whole. The scalar leaves that have a zero constant
     /// are stores of their own, after this one.
     Zeroed,
-    /// What a call returned: contents its callee established, with no value
-    /// identity in this machine.
+    /// What a call returned, or left in storage this machine lent it
+    /// exclusively: contents its callee established, with no value identity
+    /// in this machine.
     Returned,
 }
 
@@ -391,6 +394,18 @@ impl Storage<'_> {
             kind if kind.module_invocation().is_some() => {
                 if produced.is_some() {
                     rows.push((fresh()?, Stored::Returned));
+                }
+                // An exclusive loan lets the callee store anything beneath
+                // the lent place; a shared one lets it store nothing.
+                // loans.md: "Borrowed arguments continue to denote the
+                // original storage".
+                for argument in kind.structural_arguments() {
+                    match argument.access {
+                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
+                            rows.push((self.argument(argument, concerns)?, Stored::Returned));
+                        }
+                        StructuralAccess::Owned | StructuralAccess::SharedBorrow => {}
+                    }
                 }
             }
             // An operation over scalar values alone, by Terminal semantics'

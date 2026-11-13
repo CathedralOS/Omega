@@ -45,7 +45,7 @@ machine example() {
 
 Every argument, including context and capabilities, is ordinary and explicit.
 This includes the toolchain-authored build API: `Build::application(builder,
-"example")` and `Build::depend(builder, source)` pass the build context explicitly.
+"example")` and `Build::dependency(builder, dependency::from_source(source))` pass the build context explicitly.
 Owned, shared, mutable and write-only access retain their normal contracts;
 removing receiver syntax removes no ownership, invariant, effect or proof check.
 Trait requirements and satisfiers use the same explicit parameter correspondence:
@@ -280,7 +280,12 @@ enclosing machine does not export its helpers.
 
 Runtime parameters and locals of enclosing invocations are **not captured**.
 Pass them explicitly, including references, capabilities and lifetime-bearing
-values. Enclosing generic/static declaration bindings remain lexical context;
+values. A named evidence output declared in a machine's `ensures` (such as
+`selected` in `ensures Outcome::Success -> { selected: … }`) is assigned only in
+that machine's own body; it is not in scope in nested machines. A nested
+machine that should supply it declares its own guarantee, and a terminal call
+to it discharges the caller's guarantee from the callee's guarantee and result
+case. Enclosing generic/static declaration bindings remain lexical context;
 resolution and specialization retain their exact identities without creating an
 implicit runtime environment. Nested contracts can use that static context and
 their own parameters, not another invocation's local values or live facts by

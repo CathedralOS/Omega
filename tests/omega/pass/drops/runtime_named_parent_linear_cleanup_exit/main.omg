@@ -29,7 +29,7 @@ ensures owner.receipt.value == 9
     owner.receipt.value = 9;
 }
 machine empty_array() -> bool {
-    let owner: EmptyOwner;
+    let mut owner: EmptyOwner;
     owner.receipt = Receipt { value: 7 };
     owner.receipt.value == 7
 }
@@ -44,7 +44,7 @@ ensures owner.receipts[0].value == 9 && owner.receipts[1].value == 9
     owner.receipts[1].value = 9;
 }
 machine complete_array() -> bool {
-    let owner: ArrayOwner;
+    let mut owner: ArrayOwner;
     owner.receipts[1] = Receipt { value: 13 };
     owner.receipts[0] = Receipt { value: 7 };
     owner.receipts[0].value == 7 && owner.receipts[1].value == 13

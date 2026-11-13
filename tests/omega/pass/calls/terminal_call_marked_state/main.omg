@@ -1,0 +1,5 @@
+// Expected exit: 0
+machine main() blocks {
+    transition { _ -> block next() }
+    machine next() {}
+}

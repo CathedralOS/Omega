@@ -42,7 +42,7 @@ mod terminal;
 pub mod checked;
 
 pub use crate::checked::{
-    BuildAdvance, CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
+    CheckedCompilation, CheckedCompileRequest, CompilationSession, CompletedBuild,
     CurrentCheckerVerdict, IndependentComponentDiscovery, IndependentComponentSelection,
     OptimizationRollback, OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
     PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
@@ -54,10 +54,6 @@ pub use crate::checked::{
 };
 pub use build_settings::BuildSnapshotRequest;
 pub use checked::checking::ProductQueries;
-#[doc(hidden)]
-pub use checked::checking::build_continuation::{
-    core_product_speculations, refuse_core_product_speculation,
-};
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 pub use compilation_products::{
     CompileFailure, CompileOptions, CompileOutcomes, CompileOutputKind, CompileReport,
@@ -72,9 +68,9 @@ pub use product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
 };
 pub use psi_compiler::{
-    LibrarySliceTotals, ProducedTerminalProgram, declaration_page_fork_totals,
-    dependency_body_read_totals, dependency_entailment_totals, library_slice_totals,
-    retained_layout_match_hits, whole_program_reuse_hits,
+    LibrarySliceTotals, ProducedTerminalProgram, checked_slice_totals,
+    declaration_page_fork_totals, dependency_body_read_totals, dependency_entailment_totals,
+    library_slice_totals, retained_layout_match_hits, whole_program_reuse_hits,
 };
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;

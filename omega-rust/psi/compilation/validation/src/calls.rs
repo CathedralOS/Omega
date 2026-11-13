@@ -3042,16 +3042,11 @@ pub(crate) mod expression_scanning {
         formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
         // A checked mathematical application in an erased initializer has no
-        // machine entry or executable call obligations. Its complete dependent
-        // application was checked by the mathematical producer; relevance still
-        // visits every operand and rejects runtime effects or escaped evidence.
-        if crate::mathematical_applications::is_mathematical_call(program, call)
-            && program
-                .prepared_mathematics()
-                .is_some_and(|view| view.application(expression).is_some())
-            && crate::mathematical_applications::erased_initializer_nodes(program)
-                .contains(&expression)
-        {
+        // machine entry or executable call obligations. Relevance still visits
+        // every operand and rejects runtime effects or escaped evidence.
+        if crate::mathematical_applications::is_erased_checked_application(
+            program, expression, call,
+        ) {
             return;
         }
         if call.quotient_operation.is_some() {
@@ -6441,6 +6436,11 @@ pub(crate) mod unit_returns {
                 Some(BuildOperation::TestGroupRegistration) => (
                     AuthoredDeclarationSelectionIntrinsic::BuildTestGroupRegistration,
                     1..=1,
+                    1..=1,
+                ),
+                Some(BuildOperation::TestGroupService) => (
+                    AuthoredDeclarationSelectionIntrinsic::BuildTestGroupService,
+                    2..=2,
                     1..=1,
                 ),
                 Some(BuildOperation::BoundaryAcceptance) => (
@@ -17840,6 +17840,23 @@ pub(crate) mod write_frames {
             current: &ParameterValues,
             expression: ExpressionHandle,
         ) -> BoolTruth {
+            bool_truth_within(program, state, current, expression, false)
+        }
+
+        /*
+            `meaning_checked` says an enclosing operator's builtin-meaning
+            check already covered `expression`'s whole subtree. That check
+            descends every operand except a static type predicate's, so a
+            subtree it passed passes again; re-running it at every operator
+            made a long `&&` chain cubic.
+        */
+        fn bool_truth_within(
+            program: &dyn CheckingInput,
+            state: &State,
+            current: &ParameterValues,
+            expression: ExpressionHandle,
+            meaning_checked: bool,
+        ) -> BoolTruth {
             if !expression.is_valid() {
                 return BoolTruth::Unknown;
             }
@@ -17852,19 +17869,26 @@ pub(crate) mod write_frames {
                     }
                 }
                 ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
-                    bool_truth(program, state, current, unary.operand).negate()
+                    bool_truth_within(program, state, current, unary.operand, meaning_checked)
+                        .negate()
                 }
                 ExpressionNode::Binary(binary) => {
-                    if !crate::has_builtin_parameter_bound_expression_meaning(
-                        program,
-                        state.symbol,
-                        program.state_parameters(state),
-                        expression,
-                    ) {
+                    if !meaning_checked
+                        && !crate::has_builtin_parameter_bound_expression_meaning(
+                            program,
+                            state.symbol,
+                            program.state_parameters(state),
+                            expression,
+                        )
+                    {
                         return BoolTruth::Unknown;
                     }
-                    let left = bool_truth(program, state, current, binary.left);
-                    let right = bool_truth(program, state, current, binary.right);
+                    let operands_checked =
+                        program.static_type_predicate_operands(expression).is_none();
+                    let left =
+                        bool_truth_within(program, state, current, binary.left, operands_checked);
+                    let right =
+                        bool_truth_within(program, state, current, binary.right, operands_checked);
                     match binary.operator {
                         BinaryOperator::Equal => left.equal(right),
                         BinaryOperator::NotEqual => left.equal(right).negate(),
@@ -18326,6 +18350,20 @@ pub(crate) mod write_frames {
                 .data_application_definition(handle)
                 .or_else(|| program.closed_data_definition(handle))
             {
+                /*
+                    A lifetime-only dependency is a hold on caller storage even when
+                    no field spells a reference: a retained-custody carrier such as
+                    `Pending<'source> { slot: u64 }` keeps its backing loan through
+                    that lifetime alone. Such a value can carry a caller borrow, so
+                    it is not an isolated proof value. The type is asked, not the
+                    definition, because a closed instance drops its lifetime list.
+                */
+                if proof_values
+                    && crate::borrow_contracts::retained_lifetime_owner_paths(program, handle)
+                        .is_some_and(|paths| !paths.is_empty())
+                {
+                    return false;
+                }
                 return definition_isolated!(definition, proof_values);
             }
             match program.type_reference_table.type_reference(handle) {
@@ -21155,6 +21193,17 @@ pub(crate) mod write_frames {
                 expression: ExpressionHandle,
             ) -> Option<crate::CanonicalPlace> {
                 let mut place = crate::canonical_place_from_expression(program, expression)?;
+                let selects_window = |segments: &[PlaceSegment]| {
+                    segments.iter().any(|segment| match segment {
+                        PlaceSegment::FixedRange { .. } => true,
+                        PlaceSegment::Index { expression } => {
+                            expression.is_valid()
+                                && program.expression_table.range_node(*expression).is_some()
+                        }
+                        _ => false,
+                    })
+                };
+                let mut retained_window = selects_window(&place.segments);
                 if let Some(anchor) = place.root.as_expression()
                     && let typed_trees::expression::ExpressionNode::SavedSubject(saved) =
                         program.expression_table.expression(anchor)
@@ -21163,6 +21212,7 @@ pub(crate) mod write_frames {
                     let mut active = vec![saved.capture];
                     loop {
                         let source_place = crate::canonical_place_from_expression(program, source)?;
+                        retained_window |= selects_window(&source_place.segments);
                         if let Some(root) = source_place.root.as_symbol() {
                             if let Some((machine, state)) = source_owner(program, root, expression)
                                 && let Some((owner, _, statement_index)) = caller_statement_owner(
@@ -21196,14 +21246,7 @@ pub(crate) mod write_frames {
                         source = program.saved_value_source(saved)?;
                     }
                 }
-                if !place.segments.iter().any(|segment| match segment {
-                    PlaceSegment::FixedRange { .. } => true,
-                    PlaceSegment::Index { expression } => {
-                        expression.is_valid()
-                            && program.expression_table.range_node(*expression).is_some()
-                    }
-                    _ => false,
-                }) {
+                if !retained_window {
                     return Some(place);
                 }
                 let Some(root) = place.root.as_symbol() else {
@@ -21222,12 +21265,37 @@ pub(crate) mod write_frames {
                 if owner.symbol != state.symbol {
                     return Some(place);
                 }
-                crate::ownership_place_from_expression_in_state(
+                let mut place = crate::ownership_place_from_expression_in_state(
                     program,
                     state.symbol,
                     statement_index,
                     expression,
-                )
+                )?;
+                // A full window can resolve to its complete collection owner.
+                // Keep that view projection only when the physical owner is
+                // itself a collection; a view into another carrier stays coarse.
+                if !segments_have_index_geometry(&place.segments)
+                    && place
+                        .root
+                        .as_symbol()
+                        .and_then(|root| crate::declaration_type_reference(program, root))
+                        .and_then(|reference| {
+                            crate::project_type_reference_from_segments(
+                                program,
+                                reference,
+                                &place.segments,
+                            )
+                        })
+                        .and_then(|reference| {
+                            crate::value_custody::places::collection_element_type_reference(
+                                program, reference,
+                            )
+                        })
+                        .is_some()
+                {
+                    place.segments.push(PlaceSegment::OpaqueRange);
+                }
+                Some(place)
             }
 
             fn source_has_builtin_coordinates(
@@ -21573,18 +21641,24 @@ pub(crate) mod write_frames {
             Some(coordinate_storage_path(program, program.symbols.name(root), segments).0)
         }
 
+        pub(crate) fn frame_length_path(mut collection: String) -> String {
+            collection.push_str(".len");
+            collection
+        }
+
         pub fn frame_length_coordinate_path(
             program: &dyn crate::CheckingInput,
             root: symbols::SymbolHandle,
             segments: &[facts::PlaceSegment],
         ) -> Option<String> {
             root.is_valid().then_some(())?;
-            let (mut path, precision) =
+            let (path, precision) =
                 coordinate_storage_path(program, program.symbols.name(root), segments);
-            if precision == FramePathPrecision::Exact {
-                path.push_str(".len");
-            }
-            Some(path)
+            Some(if precision == FramePathPrecision::Exact {
+                frame_length_path(path)
+            } else {
+                path
+            })
         }
 
         pub(crate) fn coordinate_storage_path(
@@ -32923,8 +32997,15 @@ pub(crate) mod write_frames {
                     }
                     if let ExpressionNode::Call(call) = node {
                         capture_completed(expression, prefix, effects, capture);
+                        // Neither a metadata query nor an erased mathematical
+                        // application installs a caller reference slot: the
+                        // first only observes, the second never executes.
                         if crate::compiler_operations::expression_call_only_observes_operands(
                             self.program,
+                            call,
+                        ) || crate::mathematical_applications::is_erased_checked_application(
+                            self.program,
+                            expression,
                             call,
                         ) {
                             if let Some(output) = observed {

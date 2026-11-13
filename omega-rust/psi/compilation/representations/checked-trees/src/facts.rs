@@ -2733,6 +2733,7 @@ pub(crate) mod carry {
         pub statement_index: usize,
         pub call_ordinal: usize,
         pub target: SymbolHandle,
+        pub condition: flow_effects::ContractDependency<bool>,
         pub effective: CarryPolicy,
         pub live_values: Vec<SuspensionCrossingLiveValueFact>,
         pub borrows: SuspensionCrossingBorrowFrontier,
@@ -2817,7 +2818,7 @@ pub(crate) mod carry {
         pub type_reference: typed_trees::types::TypeReferenceHandle,
         pub storage: SuspensionCrossingStorage,
         pub origin: SuspensionCrossingValueOrigin,
-        pub claims: Vec<language_semantics::PermissionClaimIdentity>,
+        pub claims: Vec<language_semantics::PermissionArrival<SymbolHandle>>,
         pub effective: CarryPolicy,
         pub borrow_frontier: SuspensionValueBorrowFrontier,
     }
@@ -2830,23 +2831,15 @@ pub(crate) mod carry {
         RetainedLoans {
             loans: HandleSpan<Handle<SuspensionCrossingLoanFact>>,
         },
+        // Known leaves are checked now; the value's exact type and subject
+        // retain the symbolic remainder until application checking resolves it.
+        TemplateDependent {
+            loans: HandleSpan<Handle<SuspensionCrossingLoanFact>>,
+        },
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-    pub enum SuspensionCrossingValueOrigin {
-        Parameter {
-            symbol: SymbolHandle,
-            position: usize,
-        },
-        Local {
-            symbol: SymbolHandle,
-            statement_index: usize,
-            environment_position: usize,
-        },
-        CallArgument {
-            position: usize,
-        },
-    }
+    pub type SuspensionCrossingValueOrigin =
+        language_semantics::SuspensionValueOrigin<SymbolHandle>;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub enum SuspensionCrossingStorage {
@@ -3252,7 +3245,11 @@ pub(crate) mod specialization_identities {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedMachineSpecializationIdentity {
         pub instance: symbols::SymbolHandle,
+        pub template_base_commitment: [u8; 32],
         pub template_contract_commitment: typed_trees::typed_trees::MachineTemplateCommitment,
+        pub suspension_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
+        pub blocking_dependency: flow_effects::ContractDependency<bool, Vec<u32>>,
+        pub conditional_carry: Box<[flow_effects::ConditionalCarryRequirement]>,
         pub machine_argument_contract_commitments: Box<[[u8; 32]]>,
         pub commitment: typed_trees::typed_trees::MachineSpecializationCommitment,
     }

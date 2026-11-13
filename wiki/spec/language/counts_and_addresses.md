@@ -99,6 +99,8 @@ For interpreted execution, address exposure returns a stable numeric identity
 for the retained machine entry or runtime storage location, not a native host
 pointer. A valid interpreted machine does not return zero merely because it has
 no native body. No native trampoline is created by the query.
+An `addr` a native import returns is not one of these identities; it is an
+[opaque host-provenance value](../terminal-psi/boundary_calls.md#host-result-validation).
 
 Code-entry and storage-location encodings occupy disjoint namespaces. Reserved
 high-order kind bits are a valid implementation; their exact allocation is not

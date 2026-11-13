@@ -1858,11 +1858,7 @@ pub(crate) mod ownership {
         pub claims: HandleSpan<FlowOwnedSelectionClaim>,
     }
 
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
-    pub struct FlowSelectionPlaceArrival {
-        pub claim_identity: language_semantics::PermissionClaimIdentity,
-        pub provenance: language_semantics::PermissionProvenance,
-    }
+    pub type FlowSelectionPlaceArrival = language_semantics::PermissionArrival<SymbolHandle>;
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct FlowSelectionPlaceBinding {

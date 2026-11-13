@@ -1,167 +1,132 @@
 # Whole-chain minimization
 
-This contract governs retention and engineering comparisons for the selected
-[bootstrap chain](README.md). Non-authoritative design experiments are delegated;
-they do not themselves change the accepted chain, admissions, or observation
-contracts. Apply the [owner-escalation rules](#owner-escalation) before relying
-on a changed trust boundary or weaker assurance.
-
 ## Objective
 
-Minimize the complete human-audited path to the first full Omega compiler, not
-an individual file or rung. Count semantics, native seeds and admitted tapes,
-mutable state, compiler/evaluator/checker source, proof obligations and rules,
-certificates, resource profiles, wire formats, permanent tests, and host tools.
-Complexity nearer Alpha costs more because later edges inherit it.
+Develop competing bootstrap chains that construct the Omega compiler from an
+explicitly documented, auditable seed, then use the resulting compiler to rebuild
+itself reproducibly. Carry viable approaches through actual end-to-end execution.
+The goal is a working, independently reviewable construction, not a collection of
+language prototypes. This mandate supersedes the former fixed-topology,
+full-language bootstrap-compiler and mandatory formal-certificate requirements.
 
-Test orchestration follows the repository's Omega tooling direction. Host
-scripts retained while Omega is not usable are migration scaffolding, not a
-permanent second tooling stack. Keep only the host operations needed to
-kickstart the compiler or exercise actual platform behavior once Omega can
-own the workflow. This does not put Omega in the cold-start trust base or
-replace the selected predecessor-language implementations.
+Optimize the complete construction path: what each stage costs to implement,
+what it lets its successor express, and what the whole chain costs to understand
+and execute. Humans and LLMs must be able to trace semantics, control flow,
+storage, dependencies and trust assumptions. Source size and stage count are
+measurements, not objectives. Complexity near the seed affects every successor.
 
-Below Omega these are purpose-built compiler and checker languages, not
-general-purpose products. Support the next consumer and its required assurance;
-an exact, deliberately small facility is sufficient. Language breadth, ergonomic
-symmetry with Omega, and hypothetical customers do not justify extra machinery.
-Prefer code a human can trace, including bounds, storage lifetime, and failure
-paths. Resource limits alone are not a memory-safety or refinement proof.
+## Architectural authority
+
+Implementers may change stage count, language facilities, representations,
+interpreted versus compiled execution, VM versus native targets, and repository
+organization. They may implement and adopt those changes within this mandate;
+an architecture experiment does not need a separate owner ruling merely because
+it differs from the existing chain. Omega's required semantics remain binding.
+
+Variants are peers. Use separate worktrees and branches to advance materially
+different approaches concurrently. No variant is designated selected during
+exploration. Share useful discoveries and comparison inputs without requiring a
+common implementation or premature convergence. A merged variant change is not
+selection of that architecture. The numbered source directories under
+`interpreted/` describe that variant; their existence grants it no privileged status.
+
+Use **bootstrap compiler** for the compiler that first builds the Omega compiler,
+and **Omega compiler** for the product. Historical C/D labels and artifact paths
+may remain in old records; they are not the public names. A bootstrap compiler
+need not implement every Omega facility. Supported facilities preserve their
+specified semantics; unsupported cases fail explicitly. File/hash allowlists,
+source-specific recognizers and manufactured output do not count as compilation.
 
 ## Retention test
 
-A feature, runtime mechanism, checker rule, sidecar, or tool must serve an exact
-customer and reduce total audit cost:
+The Omega-written compiler should follow the structure of
+[`omega-rust`](../omega-rust) as closely as practical: corresponding pipeline
+stages, Psi/Omega ownership boundaries, representations and core mechanisms.
+This is a structural reference, not a requirement for line-by-line translation.
+Reasonable simplifications and improvements are welcome. Keep the implementation
+within a deliberate subset of the language it implements so that this structural
+correspondence does not force every product-language facility into the bootstrap
+compiler. Required source semantics and safety checks remain binding.
 
-| Owner | Customer |
-| --- | --- |
-| Beta | Gamma evaluator |
-| Gamma | Delta compiler or derivation checker |
-| Delta | Epsilon implementation |
-| Epsilon | First Omega compiler `D` |
-| Omega `D` | First complete Omega compiler |
-| Omega-written `C` | Production compiler and its self-host closure |
+Every retained language feature, runtime mechanism, tool and sidecar must serve
+an actual successor compiler or necessary invocation/validation. Compare deletion,
+consolidation and a source refactor before adding machinery. Additional language
+breadth must earn its implementation cost by simplifying successor construction.
+Intermediate self-hosting is optional, not a goal in itself.
 
-Familiarity, historical investment, compatibility, current existence, and
-hypothetical reuse are not retention reasons. Intermediate self-hosting is not
-a customer. Beta's exact self-reconstruction supports its admitted root; it is
-not a reason to require self-hosting at the other intermediate rungs.
+The chain primarily contains the source needed to construct its successors.
+Avoid accumulating wrappers, duplicate authorities, compatibility layers or
+abandoned experiments. Preserve useful failed approaches in Git history and
+concise records. Keep any surviving proof research explicitly outside current
+construction acceptance; do not expand it without an actual construction need.
 
-For an addition, name the exact customer source or required proof obligation;
-compare deletion/deferment, consolidation, and a source refactor before adding
-machinery. Include evaluator, compiler, checker, and proof costs, deterministic
-failure/resource behavior, and focused positive and mutation controls. Remove
-the mechanism when its customer disappears, after reviewing its consumers and
-preserving any still-required assertions in their selected owners.
+<a id="constraints-on-comparisons"></a>
 
-Closures, macros, general garbage collection, polymorphism, continuations,
-exceptions, packages, and ambient effects do not enter the small functional
-rungs by convenience. Reconsidering an exclusion requires a whole-chain
-comparison, not a local extension justified only by familiarity.
+## Comparisons and execution evidence
 
-## Constraints on comparisons
+Compare real compiler customers and required behavior. Bind each result to its
+source revision, inputs, seed, implementation and execution profile. Architectural
+variants may use different representations, capacities and trust assumptions;
+disclose these differences rather than requiring identical internals. Record:
 
-Preserve the selected contracts: deterministic written semantics; exact seed,
-source, and tape identities; closed source envelopes; explicit bounded profiles;
-distinct invalid-source, authored-trap, incomplete-capacity, and internal-
-contradiction outcomes; exact successful bytes and atomic artifact publication;
-independent reconstruction of checked propositions; and no host semantic stage
-or source-specific accelerator.
+- implementation and specification burden, storage and control-flow reasoning;
+- source/artifact sizes, measured memory and cumulative allocation where relevant;
+- cold reconstruction time separately from ordinary development iteration;
+- actual outputs, failures and independently reviewed semantic controls; and
+- retained tooling and additional trusted components.
 
-Execution and human-auditable proof closure are both customers. A checked
-encoding equation does not prove that the evaluator implements its language.
-Admitting a root or moving a checker into readable source does not discharge
-that root's correctness assumptions. State exactly which trusted program,
-definition, or admission each proposed certificate would remove or retain.
+Do not infer correctness from line counts, matching hashes, successful execution,
+or agreement between reviewers. Distinguish actual measurements, conservative
+bounds, projections and unrun checks. Reproducibility means repeated construction
+from the same declared inputs/profile produces the required deterministic result;
+first and self-compiled generations need not be byte-identical.
 
-Compare candidates on the same frozen source closures, resource profiles,
-accepted subsets, and admissions. Small positive/negative language cases and
-valid/invalid derivations are early controls, not substitutes for the complete
-next-compiler closure and eventual Omega self-host source. Record:
+<a id="private-capacity-changes"></a>
 
-- semantic cases, state, invariants, proof rules, and resource arguments;
-- source/artifact/certificate sizes, retained state and cumulative allocation;
-- reconstruction/checking/production time, depth, and memory;
-- permanent validation and host tooling; and
-- reviewer effort to explain control flow and locate seeded semantic defects.
+A measured one- or two-day cold bootstrap can be acceptable. Diagnose bottlenecks
+and reasonable remedies before declaring an architecture infeasible. A host
+watchdog expiration is an unfinished observation, not a language rejection.
+Choose resource budgets before expensive runs and account for the shared host.
+Private capacity tuning is delegated; preserve defined failure behavior and
+validate changed boundaries instead of merely raising constants.
 
-Distinguish measured peaks, conservative bounds, constructed recipe costs, and
-unmeasured work. Lines and bytes are inventory, not an auditability score.
-Sharing terms does not establish sharing of state-dependent proofs or
-full-certificate fit.
+## Explicit acceleration
 
-### Private capacity changes
+Jets, host development compilers and other accelerators may unblock development
+or form a documented variant. Retain executable reference meaning, validate
+correspondence on relevant positive and negative cases, disclose extra trusted
+components and record actual inputs/results. A reference timeout does not prove
+correspondence. Accelerated execution is not reference-chain execution, and an
+accelerated result alone does not complete a source-owned construction route.
 
-Private capacities are delegated engineering choices. Within the accepted
-semantics and trust boundary, implementers may increase limits, reprovision
-storage, and adjust resource accounting without owner approval, including later
-increases. A limit hit alone is not a design failure or an owner question.
-Prefer coherent reprovisioning over a new subsystem whose only purpose is to
-preserve an arbitrary private limit.
-
-The implementer owns containment and failure arguments, coupled profile/artifact
-updates, and customer and boundary validation; an isolated constant edit or fitted
-allocation rate does not complete that work. Escalate when ordinary algorithmic
-cleanup and feasible reprovisioning cannot meet the required contract, or when a
-repair would change semantics, observations, identity, or trust guarantees.
-Changing an audited seed or ratified memory boundary remains governed by its
-own approval rules, not this private-capacity delegation.
-
-For `delta-compiler-pair-arena-profile`, use the enlarged selected Gamma arena
-and complete Delta's cumulative-allocation containment. Further coherent capacity
-tuning needs no new ruling. Raw evaluator status 252 is not a compiler-owned
-`DCOUT` outcome; replacing that guarantee would require a separate decision.
+A tool that supplies source-language meaning is an implementation stage or an
+accelerator and must be counted as such. Invocation, packing declared bytes and
+reporting do not by themselves make a host tool a language implementation.
 
 ## Completion and continuation
 
-The minimization program closes when every retained mechanism has a named
-customer, every selected edge reconstructs exactly, and the chain rebuilds
-offline from its audited root and repository bytes. No alternate compiler,
-compatibility adapter, or machine-readable sidecar remains without a consumer.
-This is an acceptance condition, not a claim that the chain is complete.
+A completed variant constructs the Omega compiler from its documented seed and
+repository-owned sources, then uses that compiler to rebuild itself reproducibly.
+Document all retained trust assumptions and any host/runtime prerequisites. Do
+not relabel a partial compiler, toy program, identity check or prototype as this
+result. Preserve language safety checks and explicit failure/publication behavior.
 
-Apply the [repository scope checkpoints](../AGENTS.md#scope-and-escalation) before
-expanding support machinery. A paused strategy does not block independent
-bootstrap work, authorize abandoning proof obligations, or permit a replacement
-rung. Comparative background belongs in
-[the comparison notes](../wiki/drafts/reference/bootstrap_chain_alternatives.md),
-not beside the selected chain as another authority. A concrete proposed change
-belongs in proposals; an experiment alone does not ratify it.
+Formal certificates proving bootstrap correctness are outside current acceptance.
+Clear semantics and boundaries leave room for stronger assurance later; they do
+not require speculative proof infrastructure now. Omega's ordinary language
+proofs, contracts and safety rules are unaffected by this scheduling decision.
+
+Persist through difficult implementation work. An experiment may end when evidence
+supports it: record what failed, what was tried, and what would justify
+reconsideration. Neither its first obstacle nor historical investment decides its
+fate. Continue viable alternatives and independent work.
 
 ## Owner escalation
 
-The following findings require a whole-chain reassessment, not another local
-workaround. Investigation and non-authoritative experiments may proceed without
-an owner ruling:
-
-- representative interpreted-D-to-omega0 or omega0-to-omega work has prohibitive
-  time, memory, or tape size after ordinary algorithmic/diagnostic cleanup and
-  feasible reprovisioning;
-- Alpha appears too weak or verbose, including pressure for a new opcode,
-  widened encoding, or higher-language primitive;
-- certificates or checking remain prohibitive after DAG sharing, compositional
-  lemmas, and duplicate-evidence removal;
-- a special native accelerator, source-pattern substitution, tape-hash shortcut,
-  or other jet appears necessary;
-- target ABI, object, runtime, or hardware behavior leaks into Gamma, Delta, or
-  Epsilon instead of Alpha realization or the Omega product boundary;
-- an edge requires an older rung or host semantic transformation outside the
-  explicitly selected source/evaluator composition in the [contract](CONTRACT.md);
-- realistic compiler source requires undefined Alpha behavior or cannot receive
-  an explicit fail-closed resource profile after ordinary cleanup and feasible
-  reprovisioning; exhausting the previous private bound alone is not escalation;
-- an edge appears to require a new trusted axiom or checker rule;
-- conforming Alpha realizations disagree on identical tape and input;
-- legacy retention requires a second accepted chain, duplicated semantic owner,
-  or permanent compatibility adapter; or
-- implementation pressure would weaken language meaning, observations, subject
-  identity, or fail-closed behavior.
-
-These findings do not grant permission to add complexity or claim a completed
-edge. Keep experimental semantics and artifacts separate from the selected
-chain. Before adopting a result, reconcile its written contracts and downstream
-consumers and establish the required evidence; do not silently change the
-question a certificate proves. Escalate a proposed weakening of trust,
-observation, identity, or fail-closed guarantees to the owner rather than relying
-on it. Existing explicitly selected evaluator composition is not an undeclared
-older-rung dependency.
+Make engineering and architectural decisions autonomously within this mandate.
+Record unresolved changes to required semantics, trust claims or the goal itself
+in [OWNER_QUESTIONS_BOOTSTRAP.md](../OWNER_QUESTIONS_BOOTSTRAP.md), with evidence,
+alternatives and a recommendation. Routine architecture choices, documented
+accelerators and capacity adjustments already authorized here are not owner
+questions. Do not claim guarantees unsupported by the actual execution route.
+Continue independent work while genuine owner questions await answers.

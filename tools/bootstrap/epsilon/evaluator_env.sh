@@ -13,12 +13,12 @@
 # epsilon_compiler.delta.sources is the ordered source authority whose
 # DeltaSourceClosureV1 rows bind every member length, digest, and path, and
 # repacking it reproduces the packed evaluator bytes pinned in
-# bootstrap/4_epsilon/README.md ("Exact source closure"). A digest here is an
+# bootstrap/interpreted/4_epsilon/README.md ("Exact source closure"). A digest here is an
 # identity check that the bytes being materialized are the bound ones; it is
 # not a proof that the evaluator implements Epsilon. Changing a member or the
 # manifest invalidates the dependent evidence and must update every record.
-EPSILON_EVALUATOR_MANIFEST_SIZE=15163
-EPSILON_EVALUATOR_MANIFEST_SHA256=717e6bdc90850b9cacc0858279f3483d10c93f3289f43d9ff83ac27b4e862061
+EPSILON_EVALUATOR_MANIFEST_SIZE=16779
+EPSILON_EVALUATOR_MANIFEST_SHA256=915588f07a415b37c5106e4be8d790c40c1fa381ffb4d997dea6f20fdf8c4e6f
 EPSILON_EVALUATOR_PACKED_SIZE=617354
 EPSILON_EVALUATOR_PACKED_SHA256=4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e
 
@@ -46,12 +46,12 @@ EPSILON_EVALUATOR_RECEIPT_SHA256=71a016f53f63501760e3a10632d86c9561aa0e8387b794b
 # support section reconstructs exactly one canonical evaluator receipt - the
 # artifact that consumes the EREQ envelope and publishes canonical
 # observations or EEOUT refusal frames
-# (bootstrap/4_epsilon/EVALUATOR_ENTRY.md). The entry lives outside the
+# (bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md). The entry lives outside the
 # closure because the closure's source inventory owns every .delta file under
-# bootstrap/4_epsilon/; it sits beside its boundary gate under the same
+# bootstrap/interpreted/4_epsilon/; it sits beside its boundary gate under the same
 # placement rule as the diagnostic driver. The identical pins in
 # tests/epsilon/evaluator-entry/{README.md,run.sh} and
-# bootstrap/4_epsilon/EVALUATOR_ENTRY.md are records of this one obligation,
+# bootstrap/interpreted/4_epsilon/EVALUATOR_ENTRY.md are records of this one obligation,
 # not independent identities. A digest here is an identity check on the entry
 # source or the reconstructed bytes; it is not a proof of evaluation. Changing
 # the entry, the packed closure, the compiler, or the support section changes
@@ -103,10 +103,10 @@ require_epsilon_evaluator_identity() {
   require_bound_identity "epsilon_compiler.delta.sources" \
     "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" \
     "$EPSILON_EVALUATOR_MANIFEST_SIZE" "$EPSILON_EVALUATOR_MANIFEST_SHA256" \
-    "bootstrap/4_epsilon/README.md" || return $?
+    "bootstrap/interpreted/4_epsilon/README.md" || return $?
   require_packed_closure_identity "$OMEGA_PATH_EPSILON_COMPILER_SOURCES" evaluator.delta \
     "$EPSILON_EVALUATOR_PACKED_SIZE" "$EPSILON_EVALUATOR_PACKED_SHA256" \
-    "bootstrap/4_epsilon/README.md" "canonical Epsilon evaluator closure" "Epsilon source closure"
+    "bootstrap/interpreted/4_epsilon/README.md" "canonical Epsilon evaluator closure" "Epsilon source closure"
 }
 
 # require_epsilon_execution_driver_identity : the canonical slice driver

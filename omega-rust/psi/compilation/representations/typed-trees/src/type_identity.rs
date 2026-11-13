@@ -1092,8 +1092,10 @@ pub(crate) mod derived_declarations {
                     .iter()
                     .any(|symbol| {
                         program.symbols.symbol_package_identity(*symbol).is_none()
-                            && program.symbols.symbol_source_origin(*symbol)
-                                != Some(source::SourceOrigin::Toolchain)
+                            && !program
+                                .symbols
+                                .symbol_source_origin(*symbol)
+                                .is_some_and(source::SourceOrigin::is_toolchain)
                     })
             {
                 return Err("derived placed declaration contains an unowned nominal operand");
@@ -1813,6 +1815,18 @@ pub(crate) mod identity_context {
             }
         }
 
+        /*
+            Type equality names the value an implementation constructs, so two
+            constructors of one value compare equal. A portable or
+            package-qualified identity keeps the written constructor: it names
+            the declaration an artifact depends on, and equal values must not
+            lose the dependencies of the one actually used.
+        */
+        pub(crate) fn identifies_constructed_values(&self) -> bool {
+            self.portable_machine_applications.is_none()
+                && self.qualification == TypeIdentityQualification::Ordinary
+        }
+
         pub(crate) fn applied_argument(
             &self,
             symbol: SymbolHandle,
@@ -2038,8 +2052,10 @@ pub(crate) mod identity_context {
             if self.qualification == TypeIdentityQualification::Ordinary
                 && (program.symbols.builtin_type_atom(symbol).is_some()
                     || (program.symbols.symbol_package_identity(symbol).is_none()
-                        && program.symbols.symbol_source_origin(symbol)
-                            != Some(source::SourceOrigin::Toolchain)))
+                        && !program
+                            .symbols
+                            .symbol_source_origin(symbol)
+                            .is_some_and(source::SourceOrigin::is_toolchain)))
             {
                 return path;
             }
@@ -2051,8 +2067,10 @@ pub(crate) mod identity_context {
             }
             let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
                 PackageQualifiedNominalOwner::Package(package.digest())
-            } else if program.symbols.symbol_source_origin(symbol)
-                == Some(source::SourceOrigin::Toolchain)
+            } else if program
+                .symbols
+                .symbol_source_origin(symbol)
+                .is_some_and(source::SourceOrigin::is_toolchain)
             {
                 program
                     .symbols
@@ -2164,6 +2182,34 @@ pub(crate) mod identity_context {
             name = base_name;
             arguments = *origin_arguments;
         }
+        let constructed = context.identifies_constructed_values();
+        let lifetime_is_relevant =
+            |ordinal| !constructed || program.application_lifetime_is_relevant(symbol, ordinal);
+        let argument_is_relevant =
+            |ordinal| !constructed || program.application_argument_is_relevant(symbol, ordinal);
+        let lifetimes = lifetimes
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, _)| lifetime_is_relevant(*ordinal))
+            .map(|(_, lifetime)| lifetime.clone())
+            .collect::<Vec<_>>();
+        let regions = regions
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, _)| lifetime_is_relevant(*ordinal))
+            .map(|(_, region)| *region)
+            .collect::<Vec<_>>();
+        let (lifetimes, regions) = (lifetimes.as_slice(), regions.as_slice());
+        let arguments = program
+            .type_reference_handles(arguments)
+            .iter()
+            .enumerate()
+            .filter(|(ordinal, _)| argument_is_relevant(*ordinal))
+            .collect::<Vec<_>>();
+        let parameters = program.declaration_type_parameters(symbol);
+        if constructed {
+            symbol = program.implementation_value_head(symbol);
+        }
         if arguments.is_empty()
             && (lifetimes.is_empty()
                 || context.invalid_application.is_none()
@@ -2180,57 +2226,50 @@ pub(crate) mod identity_context {
                 )],
             );
         }
-        let parameters = program.declaration_type_parameters(symbol);
         generic_type_identity(
             program,
             symbol,
             name.as_str(),
             lifetimes,
             regions,
-            program
-                .type_reference_handles(arguments)
-                .iter()
-                .enumerate()
-                .map(|(ordinal, argument)| {
-                    if context.storage_value_indices
-                        && parameters.get(ordinal).is_some_and(|parameter| {
-                            super::storage_identity::independent_value_index(
-                                program, symbol, parameter,
-                            )
-                        })
-                    {
-                        return bare(TypeForm::Unit);
-                    }
-                    if context.invalid_application.is_some()
-                        && parameters.get(ordinal).is_some_and(|parameter| {
-                            matches!(
-                                parameter.kind,
-                                crate::data::TypeParameterKind::Machine { .. }
-                            )
-                        })
-                    {
-                        return match program.static_operand_from_type_reference(*argument) {
-                            Ok(selected) => substitution::index_argument(
-                                program,
-                                super::IndexIdentityArgument::StaticArgument(&selected),
-                                context,
-                            ),
-                            Err(_) => substitution::rejected(context),
-                        };
-                    }
-                    let is_index = parameters
-                        .get(ordinal)
-                        .is_some_and(|parameter| parameter.kind.is_const_or_value());
-                    if is_index {
-                        substitution::index_argument(
-                            program,
-                            super::IndexIdentityArgument::TypeReference(*argument),
-                            context,
+            arguments.into_iter().map(|(ordinal, argument)| {
+                if context.storage_value_indices
+                    && parameters.get(ordinal).is_some_and(|parameter| {
+                        super::storage_identity::independent_value_index(program, symbol, parameter)
+                    })
+                {
+                    return bare(TypeForm::Unit);
+                }
+                if context.invalid_application.is_some()
+                    && parameters.get(ordinal).is_some_and(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            crate::data::TypeParameterKind::Machine { .. }
                         )
-                    } else {
-                        normalize_type_reference(program, *argument, context)
-                    }
-                }),
+                    })
+                {
+                    return match program.static_operand_from_type_reference(*argument) {
+                        Ok(selected) => substitution::index_argument(
+                            program,
+                            super::IndexIdentityArgument::StaticArgument(&selected),
+                            context,
+                        ),
+                        Err(_) => substitution::rejected(context),
+                    };
+                }
+                let is_index = parameters
+                    .get(ordinal)
+                    .is_some_and(|parameter| parameter.kind.is_const_or_value());
+                if is_index {
+                    substitution::index_argument(
+                        program,
+                        super::IndexIdentityArgument::TypeReference(*argument),
+                        context,
+                    )
+                } else {
+                    normalize_type_reference(program, *argument, context)
+                }
+            }),
             context,
         )
     }
@@ -2270,20 +2309,63 @@ pub(crate) mod identity_context {
         {
             return None;
         }
+        let constructed = context.identifies_constructed_values();
+        let head = if constructed {
+            program.implementation_value_head(argument.symbol)
+        } else {
+            argument.symbol
+        };
         if let Some(application) = &argument.application {
-            return Some(generic_type_identity(
-                program,
-                argument.symbol,
-                "",
-                &application.lifetime_arguments,
-                &[],
-                application.arguments.iter().map(|argument| {
+            let lifetimes = application
+                .lifetime_arguments
+                .iter()
+                .enumerate()
+                .filter(|(ordinal, _)| {
+                    !constructed
+                        || program.application_lifetime_is_relevant(argument.symbol, *ordinal)
+                })
+                .map(|(_, lifetime)| lifetime.clone())
+                .collect::<Vec<_>>();
+            let arguments = application
+                .arguments
+                .iter()
+                .enumerate()
+                .filter(|(ordinal, _)| {
+                    !constructed
+                        || program.application_argument_is_relevant(argument.symbol, *ordinal)
+                })
+                .map(|(_, argument)| {
                     substitution::index_argument(
                         program,
                         super::IndexIdentityArgument::StaticArgument(argument),
                         context,
                     )
-                }),
+                })
+                .collect::<Vec<_>>();
+            let binders_dropped = lifetimes.len() != application.lifetime_arguments.len()
+                || arguments.len() != application.arguments.len();
+            if (head != argument.symbol || binders_dropped)
+                && lifetimes.is_empty()
+                && arguments.is_empty()
+            {
+                return Some(compound(
+                    TypeForm::Named,
+                    [normalize_const_or_nominal_name(
+                        program,
+                        head,
+                        "",
+                        Label::Name,
+                        context,
+                    )],
+                ));
+            }
+            return Some(generic_type_identity(
+                program,
+                head,
+                "",
+                &lifetimes,
+                &[],
+                arguments.into_iter(),
                 context,
             ));
         }
@@ -2297,7 +2379,7 @@ pub(crate) mod identity_context {
             TypeForm::Named,
             [normalize_const_or_nominal_name(
                 program,
-                argument.symbol,
+                head,
                 "",
                 Label::Name,
                 context,
@@ -2521,7 +2603,11 @@ pub(crate) mod identity_context {
                 TypeForm::Named,
                 [normalize_const_or_nominal_name(
                     program,
-                    *symbol,
+                    if context.identifies_constructed_values() {
+                        program.implementation_value_head(*symbol)
+                    } else {
+                        *symbol
+                    },
                     name.as_str(),
                     Label::Name,
                     context,
@@ -2989,10 +3075,35 @@ pub(crate) mod lifetime_parameters {
     }
 }
 pub(crate) mod normalized_identities {
-    #[derive(
-        Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record,
-    )]
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct TypeIdentityId(u32);
+
+    /*
+        Written under the table's canonical numbering when one is installed
+        (`TypeIdentityTable::renumber_canonically`), so the bytes do not depend
+        on which checking thread first minted an identity.
+    */
+    impl compiler_storage::Record for TypeIdentityId {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            output.record(|output| {
+                let number = match self.slot() {
+                    None => 0,
+                    Some(slot) => u32::try_from(output.renumbered::<TypeIdentityId>(slot)? + 1)
+                        .map_err(|_| output.error("type identity number overflow"))?,
+                };
+                compiler_storage::Record::write(&number, output)
+            })
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            input.record(|input| Ok(Self(compiler_storage::Record::read(input)?)))
+        }
+    }
 
     impl TypeIdentityId {
         pub fn is_valid(self) -> bool {
@@ -3014,12 +3125,63 @@ pub(crate) mod normalized_identities {
 
     pub type NormalizedTypeIdentity = TypeIdentityId;
 
-    #[derive(Clone, Default, PartialEq, Eq, Debug, compiler_storage::Record)]
+    #[derive(Clone, Default, PartialEq, Eq, Debug)]
     pub struct TypeIdentityTable {
         texts: arena::OwnedTextInterner,
     }
 
+    /*
+        Parallel checking passes mint identities into one shared table in the
+        order their threads first ask, so the same program numbers them
+        differently from run to run. A record of the program is written under
+        a canonical numbering instead: the table's texts in sorted order, and
+        every `TypeIdentityId` by its text's place there. Equal programs then
+        write equal bytes, which exact-key reuse of checked slices needs.
+        Reading needs no change; the table comes back in canonical order.
+    */
+    impl compiler_storage::Record for TypeIdentityTable {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            output.record(|output| {
+                let installed = output
+                    .renumbering_owner::<TypeIdentityId>()
+                    .map(|(owner, numbers)| (owner, numbers.to_vec()));
+                match installed {
+                    None => compiler_storage::Record::write(&self.texts, output),
+                    Some((owner, _)) if owner != self.owner() => Err(output
+                        .error("a second type identity table under another table's numbering")),
+                    Some((_, numbers)) => self.texts.write_renumbered(output, &numbers),
+                }
+            })
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            input.record(|input| {
+                Ok(Self {
+                    texts: compiler_storage::Record::read(input)?,
+                })
+            })
+        }
+    }
+
     impl TypeIdentityTable {
+        fn owner(&self) -> *const () {
+            std::ptr::from_ref(self).cast()
+        }
+
+        /*
+            Installs this table's canonical numbering on `output`; see the
+            `Record` implementation. Every identity in the written value must
+            come from this table, and none may be minted while it is written.
+        */
+        pub fn renumber_canonically(&self, output: &mut compiler_storage::RecordWriter) {
+            output.renumber::<TypeIdentityId>(self.owner(), self.texts.sorted_numbering().into());
+        }
+
         pub fn intern(&self, text: &str) -> TypeIdentityId {
             TypeIdentityId::from_slot(self.texts.intern(text))
         }
@@ -3033,6 +3195,95 @@ pub(crate) mod normalized_identities {
                 .slot(text)
                 .map(TypeIdentityId::from_slot)
                 .unwrap_or_default()
+        }
+    }
+
+    #[cfg(test)]
+    mod canonical_numbering_tests {
+        use super::{TypeIdentityId, TypeIdentityTable};
+        use compiler_storage::RecordLimits;
+        use std::collections::BTreeMap;
+
+        /* A program's identities as checking leaves them: a table, the
+        identities its facts name, and a map ordered by identity. */
+        #[derive(Default, compiler_storage::Record)]
+        struct Checked {
+            identities: TypeIdentityTable,
+            named: Vec<TypeIdentityId>,
+            by_identity: BTreeMap<TypeIdentityId, u32>,
+        }
+
+        const NAMED: [&str; 3] = ["b", "a", "c"];
+
+        fn checked(minted: &[&str]) -> Checked {
+            let identities = TypeIdentityTable::default();
+            for text in minted {
+                identities.intern(text);
+            }
+            let named: Vec<_> = NAMED.iter().map(|text| identities.by_text(text)).collect();
+            let by_identity = named
+                .iter()
+                .zip(0..)
+                .map(|(id, place)| (*id, place))
+                .collect();
+            Checked {
+                identities,
+                named,
+                by_identity,
+            }
+        }
+
+        fn encoded(checked: &Checked) -> Result<Vec<u8>, compiler_storage::RecordError> {
+            compiler_storage::encode_with(checked, RecordLimits::default(), |output| {
+                checked.identities.renumber_canonically(output)
+            })
+        }
+
+        #[test]
+        fn a_program_whose_threads_minted_in_another_order_writes_equal_bytes() {
+            let first = checked(&["a", "b", "c"]);
+            let raced = checked(&["c", "a", "b"]);
+            assert_ne!(
+                first.named, raced.named,
+                "the two orders mint other numbers"
+            );
+            let bytes = encoded(&raced).unwrap();
+            assert_eq!(encoded(&first).unwrap(), bytes);
+            let read: Checked = compiler_storage::decode(&bytes, RecordLimits::default()).unwrap();
+            for (identity, text) in read.named.iter().zip(NAMED) {
+                assert_eq!(read.identities.text(*identity), Some(text));
+            }
+            let places: Vec<u32> = NAMED
+                .iter()
+                .map(|text| read.by_identity[&read.identities.by_text(text)])
+                .collect();
+            assert_eq!(places, [0, 1, 2]);
+        }
+
+        #[test]
+        fn a_second_table_under_the_first_tables_numbering_is_refused() {
+            #[derive(compiler_storage::Record)]
+            struct Two {
+                first: TypeIdentityTable,
+                second: TypeIdentityTable,
+            }
+            let two = Two {
+                first: checked(&["a"]).identities,
+                second: checked(&["a", "b"]).identities,
+            };
+            let written = compiler_storage::encode_with(&two, RecordLimits::default(), |output| {
+                two.first.renumber_canonically(output)
+            });
+            assert!(written.is_err());
+        }
+
+        #[test]
+        fn an_identity_minted_after_the_numbering_was_taken_is_refused() {
+            let checked = checked(&["a", "b", "c"]);
+            let mut output = compiler_storage::RecordWriter::new(RecordLimits::default());
+            checked.identities.renumber_canonically(&mut output);
+            let late = checked.identities.intern("d");
+            assert!(compiler_storage::Record::write(&late, &mut output).is_err());
         }
     }
 
@@ -6665,6 +6916,26 @@ use crate::TypedTrees;
 use crate::data;
 use crate::trait_definition::TraitDefinition;
 
+/*
+    Every program numbers type identities in its own table, and a program can
+    hold another (its product declaration frontier). Under a canonical
+    numbering, each program's fields are written under its own table's, and
+    the enclosing one is restored after; see `TypeIdentityTable`'s `Record`.
+*/
+pub(crate) fn write_under_own_numbering(
+    program: &TypedTrees,
+    output: &mut compiler_storage::RecordWriter,
+    write: impl FnOnce(&mut compiler_storage::RecordWriter) -> Result<(), compiler_storage::RecordError>,
+) -> Result<(), compiler_storage::RecordError> {
+    let Some(enclosing) = output.take_renumbering::<TypeIdentityId>() else {
+        return write(output);
+    };
+    program.type_identities.renumber_canonically(output);
+    let written = write(output);
+    output.restore_renumbering::<TypeIdentityId>(Some(enclosing));
+    written
+}
+
 fn program_intern_type_identity(program: &TypedTrees, identity: String) -> TypeIdentityId {
     program.type_identities.intern(&identity)
 }
@@ -7628,6 +7899,9 @@ impl TypedTrees {
         }
         match self.symbols.symbol_source_origin(symbol) {
             Some(source::SourceOrigin::Toolchain) => Ok(format!("toolchain::{path}")),
+            Some(source::SourceOrigin::ToolchainContract) => {
+                Ok(format!("toolchain-contract::{path}"))
+            }
             Some(origin) => Err(format!(
                 "declaration `{path}` has non-hermetic source origin `{origin:?}`"
             )),

@@ -16,6 +16,7 @@ and settles providers, dispatch, entry bindings, and task activations without
 reopening source checking.
 */
 
+pub(crate) mod checked_slice_store;
 pub(crate) mod checking;
 mod compilation_session;
 mod component_cache;
@@ -36,7 +37,7 @@ pub use checking::typed_frontier::{
     CurrentCheckerVerdict, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
 };
 pub use checking::{
-    BuildAdvance, CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
+    CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
     PreparedPackageBuild, RestrictedBuildGrants, SettledCheckReuse, SourceCompilation,
 };

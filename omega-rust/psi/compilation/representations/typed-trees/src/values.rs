@@ -706,7 +706,10 @@ pub mod expression {
             }
 
             fn display_name_with_owner(&self, table: Option<&ExpressionTable>) -> String {
-                if self.type_reference.is_valid() {
+                // An authored type operand has no name path. A named operand may
+                // also carry a type reference that records the scope it was
+                // written in; it is still shown by its name.
+                if self.type_reference.is_valid() && self.path.is_empty() {
                     return "<structural type>".to_owned();
                 }
                 if let Some(literal) = &self.const_literal {
@@ -5232,13 +5235,42 @@ pub mod subtrees {
     }
 
     impl crate::TypedTrees {
+        /*
+            Visits `root`'s subtree in pre-order, children in edge order, and
+            stops at the first `Found`. The walk keeps its pending nodes in a
+            stack it owns rather than on the thread's call stack, so a long
+            operator chain or deep nesting costs memory, not stack depth.
+        */
         pub fn subtree_any(
             &self,
             root: ExpressionHandle,
             edges: SubtreeEdges,
             mut visit: impl FnMut(ExpressionHandle, &ExpressionNode) -> SubtreeVisit,
         ) -> bool {
-            self.subtree_any_inner(root, edges, &mut visit)
+            let mut pending = vec![root];
+            let mut children = Vec::new();
+            while let Some(expression) = pending.pop() {
+                if !expression.is_valid() {
+                    continue;
+                }
+                let node = self.expression_table.expression(expression);
+                match visit(expression, node) {
+                    SubtreeVisit::Found => return true,
+                    SubtreeVisit::Prune => continue,
+                    SubtreeVisit::Instead(child) => pending.push(child),
+                    SubtreeVisit::InsteadEach(replacements) => {
+                        pending.extend(replacements.into_iter().rev());
+                    }
+                    SubtreeVisit::Descend => {
+                        self.subtree_children(node, edges, |child| {
+                            children.push(child);
+                            false
+                        });
+                        pending.extend(children.drain(..).rev());
+                    }
+                }
+            }
+            false
         }
 
         pub fn subtree_for_each(
@@ -5251,35 +5283,6 @@ pub mod subtrees {
                 visit(expression, node);
                 SubtreeVisit::Descend
             });
-        }
-
-        fn subtree_any_inner(
-            &self,
-            expression: ExpressionHandle,
-            edges: SubtreeEdges,
-            visit: &mut dyn FnMut(ExpressionHandle, &ExpressionNode) -> SubtreeVisit,
-        ) -> bool {
-            if !expression.is_valid() {
-                return false;
-            }
-            let node = self.expression_table.expression(expression);
-            match visit(expression, node) {
-                SubtreeVisit::Found => return true,
-                SubtreeVisit::Prune => return false,
-                SubtreeVisit::Instead(child) => return self.subtree_any_inner(child, edges, visit),
-                SubtreeVisit::InsteadEach(children) => {
-                    return children
-                        .into_iter()
-                        .any(|child| self.subtree_any_inner(child, edges, visit));
-                }
-                SubtreeVisit::Descend => {}
-            }
-            let mut found = false;
-            self.subtree_children(node, edges, |child| {
-                found = found || self.subtree_any_inner(child, edges, visit);
-                found
-            });
-            found
         }
 
         pub fn subtree_children(

@@ -224,6 +224,12 @@ The host must supply a legitimate owned value. An opaque identity number does
 not establish global allocation freshness against interpreter-created values
 or suspended callers. Shape validation alone is not external ownership proof.
 
+A host-returned `addr` is admitted as an opaque host-provenance value, like a
+claim ticket: the interpreter may store and copy it, compare it with other
+host-returned addresses, and pass it back to native imports. It never
+dereferences or offsets it, and it refuses any comparison or arithmetic that
+combines it with an interpreter-created address.
+
 ## Reachability and attachments
 
 An installation-bound requirement may retain an upper-bound reachability row.
@@ -382,3 +388,16 @@ function identity. The child spans the full semantic-code attribution interval
 and exact unresolved import and callback relocations, through object/image bytes
 and final image-symbol identity. Partial structural, ranked, port, or callback
 custody cannot be published as complete coverage.
+
+For [function-table bindings](../build/foreign_bindings.md#function-table-bindings),
+retain the exact requirement application, selected formal and its table
+application, field declaration/schema correspondence, and dispatch-only or passed
+role alongside the normalized argument mapping. Target realization derives the
+field offset from validated layout evidence. Independent artifact validation
+checks that same correspondence without source; an offset, arity, or binding-kind
+tag cannot replace it. No consumer reconstructs a first-argument or dispatch-prefix
+rule. The field read and its obligations remain part of the call even when the
+table formal has no native argument location. Supported interpreter execution
+uses the same correspondence; unsupported binding execution is refused, never
+silently redirected to native execution. Target-specific layouts and ABI plans
+remain realization inputs, not target-specific policy inside portable Psi.

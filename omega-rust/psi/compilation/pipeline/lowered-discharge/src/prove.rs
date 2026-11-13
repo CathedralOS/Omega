@@ -21,7 +21,11 @@ best upper and lower literal bound, each with a node concluding
   (`IntegerOrderSubstitution`);
 - its own result equation when it is a divide, remainder, shift, bitwise and
   or bitwise or with one literal operand: a one-step endpoint chain the
-  kernel replays (`ranges`).
+  kernel replays (`ranges`);
+- its own result equation when it is an exact left shift by a value that no
+  earlier equation fixes: the bound on the mathematical shift from the
+  value's bound and what any hypothesis says of the count, carried onto the
+  output like a product's.
 
 Goals decompose structurally (conjunction, disjunction, antisymmetry for
 equality). A comparison closes when the left side's bound and the right
@@ -49,15 +53,21 @@ use terminal_check_tables::values::ValueRow;
 
 mod ranges;
 
+use crate::known::{Fact, is_branch_fact};
+
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
+
+/// One obligation's case work, shared by all of its recursive searches.
+/// Running out supplies no premise or partial certificate.
+const CASE_BRANCH_BUDGET: usize = 64;
 
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
 /// conjunctions and disjunctions of covered parts, an implication whose
-/// conclusion is covered, integer orders and
-/// equalities, and an arithmetic bound of an add, subtract, multiply or
-/// left shift against a literal. Anything else the prover can only take from an equal
+/// conclusion is covered, integer orders and equalities, and an arithmetic
+/// bound of an add, subtract, multiply, left shift or single value against a
+/// literal. Anything else the prover can only take from an equal
 /// hypothesis, so a failure on it says nothing about the program: it is
 /// `UnprovedCause::NoRuleForGoalForm`, published `Incomplete`, not
 /// `NoDerivation`.
@@ -80,6 +90,7 @@ pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
                         | IntegerMathTerm::Subtract(..)
                         | IntegerMathTerm::Multiply(..)
                         | IntegerMathTerm::ShiftLeft { .. }
+                        | IntegerMathTerm::MathValue { .. }
                 )
             };
             match (left, right) {
@@ -135,15 +146,6 @@ enum Slot {
     Done(Option<Bound>),
 }
 
-/// One hypothesis or one conjunct of it, with the node that yields it.
-struct Fact {
-    proposition: Proposition,
-    proof: ProofNode,
-    /// The semantic axiom index when this fact is a whole axiom, which the
-    /// definition-bound rules cite.
-    axiom: Option<usize>,
-}
-
 #[cfg(test)]
 thread_local! {
     /// How many provers were started on this thread: the reuse tests assert
@@ -166,9 +168,14 @@ pub(crate) struct Prover<'a> {
     /// Whether relations between values are searched (off only to measure
     /// what they buy).
     relations: bool,
-    /// Whether a failed goal may be split over a disjunctive fact; off inside
-    /// a branch, so splits do not nest.
+    /// Whether a failed goal may split over a disjunctive fact. Guard
+    /// contradiction search disables this to avoid re-entering itself.
     case_split: bool,
+    /// Shared with each branch/implication and returned after its search.
+    remaining_case_branches: usize,
+    /// A branch already assumes one alternative of each cut on this path.
+    /// Splitting that exact predicate again supplies no new information.
+    active_cuts: Vec<Proposition>,
 }
 
 fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
@@ -256,65 +263,26 @@ fn flip(equality: ProofNode) -> Result<ProofNode, Unproven> {
     ))
 }
 
-/// The facts transport may substitute: `v == t` for a Boolean value `v` (an
-/// operation result equation, a callee guarantee or a block invariant's
-/// definition of a join parameter) or for any value defined as a literal.
-/// A Boolean literal on the right is a branch fact, not a definition. The
-/// kernel keeps the first definition of each subject, as this does.
-fn definitions(facts: &[Fact]) -> Vec<(Proposition, ProofNode)> {
-    facts
-        .iter()
-        .filter(|fact| match &fact.proposition {
-            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition) => {
-                match definition {
-                    ScalarTerm::Boolean(_) => fact.axiom.is_some(),
-                    ScalarTerm::Integer { .. } => true,
-                    _ => subject.scalar_type() == ScalarType::Boolean,
-                }
-            }
-            _ => false,
-        })
-        .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
-        .collect()
-}
-
-/// `c == true` or `c == false` for a Boolean value `c`.
-fn is_branch_fact(proposition: &Proposition) -> bool {
-    matches!(
-        proposition,
-        Proposition::Equal(
-            ScalarTerm::Value {
-                scalar_type: ScalarType::Boolean,
-                ..
-            },
-            ScalarTerm::Boolean(_),
-        )
+/// `goal` from `absurd`, a proved proposition whose denotation is
+/// `Falsehood` (a closed false relation, or `true == false`): `Falsehood and
+/// goal` has that same denotation, so it holds, and so does `goal`
+/// (`wiki/spec/proofs/classicality.md`, contradiction elimination). The
+/// kernel recomputes both denotations and refuses when `absurd`'s is not
+/// `Falsehood`.
+fn ex_falso(absurd: ProofNode, goal: &Proposition) -> ProofNode {
+    let both = node(
+        Proposition::Conjunction(vec![Proposition::Falsehood, goal.clone()]),
+        ProofRule::PredicateDenotation {
+            premise: Box::new(absurd),
+        },
+    );
+    node(
+        goal.clone(),
+        ProofRule::ConjunctionElimination {
+            conjunction: Box::new(both),
+            conjunct: 1,
+        },
     )
-}
-
-fn flatten(
-    proposition: &Proposition,
-    proof: ProofNode,
-    axiom: Option<usize>,
-    facts: &mut Vec<Fact>,
-) {
-    if let Proposition::Conjunction(parts) = proposition {
-        for (conjunct, part) in parts.iter().enumerate() {
-            let eliminated = node(
-                part.clone(),
-                ProofRule::ConjunctionElimination {
-                    conjunction: Box::new(proof.clone()),
-                    conjunct,
-                },
-            );
-            flatten(part, eliminated, None, facts);
-        }
-    }
-    facts.push(Fact {
-        proposition: proposition.clone(),
-        proof,
-        axiom,
-    });
 }
 
 impl<'a> Prover<'a> {
@@ -327,47 +295,8 @@ impl<'a> Prover<'a> {
     ) -> Self {
         #[cfg(test)]
         SEARCHES.with(|searches| searches.set(searches.get() + 1));
-        let mut facts = Vec::new();
-        for (index, assumption) in assumptions.iter().enumerate() {
-            let proof = node(assumption.clone(), ProofRule::Assumption { index });
-            flatten(assumption, proof, None, &mut facts);
-        }
-        for (index, axiom) in axioms.iter().enumerate() {
-            let proof = node(axiom.clone(), ProofRule::SemanticAxiom { index });
-            flatten(axiom, proof, Some(index), &mut facts);
-        }
-        // A branch fact `c == true` says what `c`'s comparison says. Transport
-        // it through the definitions of Boolean values and constants, so
-        // integer values stay values and their bounds stay findable; the
-        // kernel recomputes the same transport (`ValueEqualityTransport`).
-        let equations = definitions(&facts);
-        if !equations.is_empty() {
-            let premises: Vec<(Proposition, ProofNode)> = facts
-                .iter()
-                .filter(|fact| fact.axiom.is_none() && is_branch_fact(&fact.proposition))
-                .map(|fact| (fact.proposition.clone(), fact.proof.clone()))
-                .collect();
-            for (premise, proof) in premises {
-                let Ok(transported) = check_value_equality_denotation(
-                    context,
-                    &premise,
-                    equations.iter().map(|(equation, _)| equation),
-                ) else {
-                    continue;
-                };
-                if transported == premise {
-                    continue;
-                }
-                let proof = node(
-                    transported.clone(),
-                    ProofRule::ValueEqualityTransport {
-                        premise: Box::new(proof),
-                        equalities: equations.iter().map(|(_, proof)| proof.clone()).collect(),
-                    },
-                );
-                flatten(&transported, proof, None, &mut facts);
-            }
-        }
+        let crate::known::Known { facts, equations } =
+            crate::known::Known::new(context, assumptions, axioms, values);
         Self {
             context,
             assumptions,
@@ -380,6 +309,8 @@ impl<'a> Prover<'a> {
                 .collect(),
             relations,
             case_split: true,
+            remaining_case_branches: CASE_BRANCH_BUDGET,
+            active_cuts: Vec::new(),
         }
     }
 
@@ -431,7 +362,6 @@ impl<'a> Prover<'a> {
         .map(|()| primitive(proposition, PrimitiveJudgment::ClosedIntegerRelation))
     }
 
-    /// A certificate whose conclusion is exactly `goal`.
     /// A certificate whose conclusion is exactly `goal`: directly, or by a
     /// case split over a disjunctive fact.
     pub(crate) fn prove(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
@@ -445,6 +375,9 @@ impl<'a> Prover<'a> {
                     | Proposition::LessThan(..)
                     | Proposition::Equal(..)
                     | Proposition::IntegerMathLessOrEqual(..)
+                    // `n == 1 or n == 2` proves `n == 1 or n == 2 or
+                    // n == 3`, although no one alternative holds alone.
+                    | Proposition::Disjunction(_)
                     // Owed where nothing may happen: a crash site whose
                     // machine publishes no route for its cause. It holds
                     // only where what is known is contradictory.
@@ -457,16 +390,22 @@ impl<'a> Prover<'a> {
             return Ok(split);
         }
         self.unreachable(goal)
-            .ok_or(direct.err().unwrap_or("no proof"))
+            .ok_or(if self.remaining_case_branches == 0 {
+                "the bounded disjunction search was exhausted"
+            } else {
+                direct.err().unwrap_or("no proof")
+            })
     }
 
-    /// `goal` at a point no execution reaches: some order fact known there
-    /// contradicts the rest, so anything follows
-    /// (`wiki/spec/proofs/contracts.md`, "Required automatic discharge":
-    /// order reasoning includes "contradiction of an unreachable path"). The
-    /// derivation is `refute`'s, applied to a fact instead of a split
-    /// alternative. It is tried last, so a reachable point pays for it only
-    /// when its goal is otherwise unproved.
+    /// `goal` at a point no execution reaches: what is known there is
+    /// contradictory, so anything follows (`wiki/spec/proofs/contracts.md`,
+    /// "Required automatic discharge": order reasoning includes
+    /// "contradiction of an unreachable path"). Two searches, both ending in
+    /// `ex_falso`: an order fact chained with its opposite into a closed
+    /// false relation (`refute`, which needs a literal endpoint), then a
+    /// taken guard whose negation is provable (`refute_guard`, which does
+    /// not). It is tried last, so a reachable point pays for it only when its
+    /// goal is otherwise unproved.
     fn unreachable(&mut self, goal: &Proposition) -> Option<ProofNode> {
         let orders: Vec<ProofNode> = self
             .facts
@@ -474,9 +413,79 @@ impl<'a> Prover<'a> {
             .filter(|fact| fact.axiom.is_none() && order(&fact.proposition).is_some())
             .map(|fact| fact.proof.clone())
             .collect();
-        orders
+        if let Some(refuted) = orders
             .into_iter()
             .find_map(|known| self.refute(known, goal))
+        {
+            return Some(refuted);
+        }
+        let guards: Vec<ProofNode> = self
+            .facts
+            .iter()
+            .filter(|fact| fact.axiom.is_none() && is_branch_fact(&fact.proposition))
+            .map(|fact| fact.proof.clone())
+            .collect();
+        guards
+            .into_iter()
+            .find_map(|taken| self.refute_guard(taken, goal))
+    }
+
+    /// `goal` where the guard that was taken cannot have held: `taken` is the
+    /// branch fact `c == b`, and `c == not b` is provable from the rest.
+    ///
+    /// This is how two order facts over values with no literal between them
+    /// contradict. After `requires low <= high`, the arm of `high < low`
+    /// knows `c == true` with `c` defined as `high < low`. Chaining the two
+    /// orders only reaches `high < high`, which the kernel has no rule to
+    /// call false: its closed relations need literals. But `c == false`
+    /// denotes `low <= high` under `c`'s definition, which is known, so
+    /// `true == c` and `c == false` give `true == false`, and that the
+    /// kernel's denotation already calls `Falsehood`. Every step is an
+    /// existing rule (`ValueEqualityTransport`, `EqualitySymmetry`,
+    /// `EqualityTransitivity`, `PredicateDenotation`); no order arithmetic is
+    /// done, so nothing here depends on signedness, width or overflow.
+    ///
+    /// The negated guard's denotation is proved without a split or a nested
+    /// contradiction search, so this cannot re-enter itself.
+    fn refute_guard(&mut self, taken: ProofNode, goal: &Proposition) -> Option<ProofNode> {
+        let Proposition::Equal(condition, ScalarTerm::Boolean(value)) = &taken.conclusion else {
+            return None;
+        };
+        let untaken = Proposition::Equal(condition.clone(), ScalarTerm::Boolean(!*value));
+        let absurd = Proposition::Equal(ScalarTerm::Boolean(*value), ScalarTerm::Boolean(!*value));
+        let denotation = check_value_equality_denotation(
+            self.context,
+            &untaken,
+            self.equations.iter().map(|(equation, _)| equation),
+        )
+        .ok()?;
+        // Unchanged means `condition` has no definition here, and then
+        // nothing but the taken fact itself speaks of it.
+        if denotation == untaken {
+            return None;
+        }
+        let nested = std::mem::replace(&mut self.case_split, false);
+        let premise = self.prove_direct(&denotation);
+        self.case_split = nested;
+        let untaken = node(
+            untaken,
+            ProofRule::ValueEqualityTransport {
+                premise: Box::new(premise.ok()?),
+                equalities: self
+                    .equations
+                    .iter()
+                    .map(|(_, proof)| proof.clone())
+                    .collect(),
+            },
+        );
+        let absurd = node(
+            absurd,
+            ProofRule::EqualityTransitivity {
+                left_equals_middle: Box::new(flip(taken).ok()?),
+                middle_equals_right: Box::new(untaken),
+            },
+        );
+        Some(ex_falso(absurd, goal))
     }
 
     /// `goal` from a disjunctive fact (a disequality guard transports to
@@ -491,13 +500,21 @@ impl<'a> Prover<'a> {
                 _ => None,
             })
             .collect();
-        'disjunctions: for (parts, proof) in disjunctions {
+        for (parts, proof) in disjunctions {
+            if self.active_cuts.contains(&proof.conclusion) {
+                continue;
+            }
+            self.active_cuts.push(proof.conclusion.clone());
             let mut branches = Vec::with_capacity(parts.len());
             for part in &parts {
                 let Some(branch) = self.branch(part, goal) else {
-                    continue 'disjunctions;
+                    break;
                 };
                 branches.push(branch);
+            }
+            self.active_cuts.pop();
+            if branches.len() != parts.len() {
+                continue;
             }
             return Some(node(
                 goal.clone(),
@@ -512,6 +529,7 @@ impl<'a> Prover<'a> {
 
     /// One alternative: the kernel adds it as the next assumption.
     fn branch(&mut self, part: &Proposition, goal: &Proposition) -> Option<ProofNode> {
+        self.remaining_case_branches = self.remaining_case_branches.checked_sub(1)?;
         let local = node(
             part.clone(),
             ProofRule::Assumption {
@@ -530,14 +548,17 @@ impl<'a> Prover<'a> {
             self.values,
             self.relations,
         );
-        branch.case_split = false;
-        branch.prove(goal).ok()
+        branch.case_split = self.case_split;
+        branch.remaining_case_branches = self.remaining_case_branches;
+        branch.active_cuts.clone_from(&self.active_cuts);
+        let proof = branch.prove(goal);
+        self.remaining_case_branches = branch.remaining_case_branches;
+        proof.ok()
     }
 
     /// `goal` from an alternative that contradicts what is known: chained
-    /// with the opposite order it gives a closed false relation, whose
-    /// denotation is `Falsehood`, so `Falsehood and goal` holds and so does
-    /// `goal` (`wiki/spec/proofs/classicality.md`, contradiction elimination).
+    /// with the opposite order it gives a closed false relation, which
+    /// `ex_falso` turns into `goal`.
     fn refute(&mut self, local: ProofNode, goal: &Proposition) -> Option<ProofNode> {
         let (strict, left, right) = order(&local.conclusion)?;
         let (left, right) = (left.clone(), right.clone());
@@ -554,20 +575,7 @@ impl<'a> Prover<'a> {
         } else {
             return None;
         };
-        let both = Proposition::Conjunction(vec![Proposition::Falsehood, goal.clone()]);
-        let both = node(
-            both,
-            ProofRule::PredicateDenotation {
-                premise: Box::new(false_relation),
-            },
-        );
-        Some(node(
-            goal.clone(),
-            ProofRule::ConjunctionElimination {
-                conjunction: Box::new(both),
-                conjunct: 1,
-            },
-        ))
+        Some(ex_falso(false_relation, goal))
     }
 
     /// `premise => conclusion`: the kernel adds the premise as the next
@@ -589,7 +597,11 @@ impl<'a> Prover<'a> {
             self.relations,
         );
         under.case_split = self.case_split;
-        let body = under.prove(conclusion)?;
+        under.remaining_case_branches = self.remaining_case_branches;
+        under.active_cuts.clone_from(&self.active_cuts);
+        let body = under.prove(conclusion);
+        self.remaining_case_branches = under.remaining_case_branches;
+        let body = body?;
         Ok(node(
             goal.clone(),
             ProofRule::ImplicationIntroduction {
@@ -610,6 +622,13 @@ impl<'a> Prover<'a> {
     fn prove_structural(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
         if let Some(fact) = self.facts.iter().find(|fact| &fact.proposition == goal) {
             return Ok(fact.proof.clone());
+        }
+        if let Some(absurd) = self
+            .facts
+            .iter()
+            .find(|fact| fact.proposition == Proposition::Falsehood)
+        {
+            return Ok(ex_falso(absurd.proof.clone(), goal));
         }
         match goal {
             Proposition::Truth => Ok(primitive(Proposition::Truth, PrimitiveJudgment::Truth)),
@@ -865,6 +884,17 @@ impl<'a> Prover<'a> {
                         ));
                     }
                 }
+                // `a / d <= a` when `0 <= a` and `0 < d`.
+                Proposition::Equal(output, expression @ ScalarTerm::ExactIntegerDivide { .. })
+                    if output == at =>
+                {
+                    if let Some(axiom) = axiom
+                        && let Some((dividend, at_most)) =
+                            self.quotient_at_most_dividend(axiom, output, expression)
+                    {
+                        steps.push((dividend, at_most, false));
+                    }
+                }
                 // `a % d < d` for an unsigned remainder when `0 < d`.
                 Proposition::Equal(
                     output,
@@ -1091,16 +1121,26 @@ impl<'a> Prover<'a> {
                     .then(|| self.remainder_below_divisor(axiom, subject, expression))
                     .flatten()
                     .and_then(|(divisor, relation)| self.through(relation, &divisor, direction));
-                match (defined, below) {
-                    (Some(defined), Some(below)) => Some(
-                        if integer.compare(below.literal, defined.literal) == Some(Ordering::Less) {
-                            below
-                        } else {
-                            defined
-                        },
-                    ),
-                    (defined, below) => defined.or(below),
-                }
+                // A remainder by a divisor no literal fixes lies between
+                // zero and its dividend.
+                let within = self.remainder_within_dividend(axiom, subject, expression, direction);
+                // A quotient of a nonnegative dividend by a positive divisor
+                // is at most the dividend, and so at most its upper bound.
+                let quotient = (direction == Direction::Upper)
+                    .then(|| self.quotient_at_most_dividend(axiom, subject, expression))
+                    .flatten()
+                    .and_then(|(dividend, relation)| self.through(relation, &dividend, direction));
+                [defined, below, within, quotient]
+                    .into_iter()
+                    .flatten()
+                    .reduce(|best, next| {
+                        let better = matches!(
+                            (integer.compare(next.literal, best.literal), direction),
+                            (Some(Ordering::Less), Direction::Upper)
+                                | (Some(Ordering::Greater), Direction::Lower)
+                        );
+                        if better { next } else { best }
+                    })
             }
             _ => None,
         }
@@ -1167,6 +1207,14 @@ impl<'a> Prover<'a> {
             ScalarTerm::ExactIntegerAdd { left, right, .. } => (left, right, direction, true),
             ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
                 (left, right, direction.opposite(), false)
+            }
+            ScalarTerm::IntegerWiden { .. } | ScalarTerm::IntegerExactCast { .. } => {
+                return self.cast_bound(axiom, subject, integer, expression, direction);
+            }
+            ScalarTerm::ExactIntegerShiftLeft { value, count, .. } => {
+                return self
+                    .chain_step(axiom, subject, integer, expression, direction)
+                    .or_else(|| self.shifted(axiom, subject, integer, value, count, direction));
             }
             _ => return self.chain_step(axiom, subject, integer, expression, direction),
         };
@@ -1248,6 +1296,57 @@ impl<'a> Prover<'a> {
                 direction,
             )
             .ok()?;
+        self.transported(axiom, *id, integer, image, direction)
+    }
+
+    /// A bound on the output of an exact left shift whose count is a value
+    /// no earlier result equation fixes to a literal, so `chain_step` has
+    /// no landing for it. The count is then known only from a hypothesis
+    /// (an entry `requires`, a guard, a callee `ensures`) or its own bound:
+    /// the kernel bounds the mathematical shift from the value's bound and
+    /// that knowledge (`shift_left_image`), and the bound is carried onto
+    /// the output through the result equation, as for a product.
+    fn shifted(
+        &mut self,
+        axiom: usize,
+        subject: &ScalarTerm,
+        integer: IntegerType,
+        value: &ScalarTerm,
+        count: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let ScalarTerm::Value { id, .. } = subject else {
+            return None;
+        };
+        let leaf = |term: &ScalarTerm| match term {
+            ScalarTerm::Value {
+                id,
+                scalar_type: ScalarType::Integer(source_type),
+            } => Some(IntegerMathTerm::MathValue {
+                source_type: *source_type,
+                value: *id,
+            }),
+            _ => None,
+        };
+        let (value, count) = (leaf(value)?, leaf(count)?);
+        let image = self.shift_left_image(&value, &count, direction).ok()?;
+        self.transported(axiom, *id, integer, image, direction)
+    }
+
+    /// The output `output` of the result equation `axiom` bounded by
+    /// `image`, the kernel's bound on the equation's mathematical term:
+    /// the bound carried through the equation (`ValueEqualityTransport`)
+    /// and restated in the output's carrier (`IntegerOrderSubstitution`).
+    /// A limit outside the carrier gives no bound.
+    fn transported(
+        &self,
+        axiom: usize,
+        output: ValueId,
+        integer: IntegerType,
+        image: ProofNode,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let subject = &ScalarTerm::value(output, ScalarType::Integer(integer));
         let limit = match (&image.conclusion, direction) {
             (Proposition::IntegerMathLessOrEqual(_, limit), Direction::Upper)
             | (Proposition::IntegerMathLessOrEqual(limit, _), Direction::Lower) => limit.clone(),
@@ -1259,7 +1358,7 @@ impl<'a> Prover<'a> {
         let literal = literal.as_integer_value(integer)?;
         let output = IntegerMathTerm::MathValue {
             source_type: integer,
-            value: *id,
+            value: output,
         };
         let (on_output, endpoint) = match direction {
             Direction::Upper => (
@@ -1449,6 +1548,9 @@ impl<'a> Prover<'a> {
             IntegerMathTerm::ShiftLeft { value, count } => {
                 let affine = self.shift_left_image(value, count, direction)?;
                 return self.land(affine, term, limit, direction);
+            }
+            IntegerMathTerm::MathValue { source_type, value } => {
+                return self.value_in_carrier(*source_type, *value, term, limit, direction);
             }
             _ => return Err("arithmetic goal over a single term"),
         };

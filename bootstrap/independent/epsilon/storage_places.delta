@@ -1,0 +1,118 @@
+; Source descriptors are retained metadata. No target parser or AST expression
+; dispatcher discovers field ownership or recomputes a source lookup.
+(def epsilon_delta_span ((start Int) (end Int)) Bytes
+  (epsilon_emit_spaced (epsilon_emit_decimal start) (epsilon_emit_decimal end)))
+
+(def epsilon_delta_name_descriptor ((name EpsilonName)) Bytes
+  (match name
+    ((EpsilonNameSpan start end) (epsilon_emit_call "EpsilonNameSpan" (epsilon_delta_span start end)))))
+
+(def epsilon_delta_literal_descriptor ((literal EpsilonIntegerLiteral)) Bytes
+  (match literal
+    ((EpsilonIntegerSpan start end value)
+      (epsilon_emit_call "EpsilonIntegerSpan"
+        (epsilon_emit_spaced (epsilon_delta_span start end) (epsilon_emit_decimal value))))))
+
+(def epsilon_delta_type_descriptor ((typeValue EpsilonType)) Bytes
+  (match typeValue
+    ((EpsilonI32Type start end) (epsilon_emit_call "EpsilonI32Type" (epsilon_delta_span start end)))
+    ((EpsilonU8Type start end) (epsilon_emit_call "EpsilonU8Type" (epsilon_delta_span start end)))
+    ((EpsilonNeverType start end) (epsilon_emit_call "EpsilonNeverType" (epsilon_delta_span start end)))
+    ((EpsilonNamedType start end name)
+      (epsilon_emit_call "EpsilonNamedType" (epsilon_emit_spaced
+        (epsilon_delta_span start end) (epsilon_delta_name_descriptor name))))
+    ((EpsilonArrayType start end element extent)
+      (epsilon_emit_call "EpsilonArrayType" (epsilon_emit_spaced
+        (epsilon_delta_span start end) (epsilon_emit_spaced
+          (epsilon_delta_type_descriptor element) (epsilon_delta_literal_descriptor extent)))))
+    ((EpsilonViewType start end element)
+      (epsilon_emit_call "EpsilonViewType" (epsilon_emit_spaced
+        (epsilon_delta_span start end) (epsilon_delta_type_descriptor element))))))
+
+(def epsilon_delta_stored_local_place ((context EpsilonDeltaContext)
+  (expression EpsilonExpression)) EpsilonDeltaPlaceCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match (epsilon_find_resolved_local_reference expression locals)
+        (NoEpsilonResolvedLocalReference
+          (EpsilonDeltaPlaceInternal (epsilon_expression_start expression)))
+        ((OneEpsilonResolvedLocalReference binding)
+          (match binding
+            ((EpsilonReceiverLocal name typeValue) (EpsilonDeltaPlaceCompiled typeValue "ep_receiver"))
+            ((EpsilonMachineParameterLocal parameter)
+              (epsilon_delta_stored_parameter_place source parameter))
+            ((EpsilonStateParameterLocal parameter)
+              (epsilon_delta_stored_parameter_place source parameter))
+            ((EpsilonLetLocal name typeValue statement)
+              (EpsilonDeltaPlaceCompiled typeValue (epsilon_delta_home_place source name typeValue)))
+            ((EpsilonTransitionBinderLocal pattern name)
+              (EpsilonDeltaPlaceUnsupported (epsilon_expression_start expression)))))))))
+
+(def epsilon_delta_home_name ((source EpsilonSourceView) (name EpsilonName)) Bytes
+  (bytes_concat "home_" (epsilon_compiled_parameter_name source name)))
+
+(def epsilon_delta_home_place ((source EpsilonSourceView) (name EpsilonName)
+  (typeValue EpsilonType)) Bytes
+  (epsilon_emit_call "EpsilonRuntimePlaceAt" (epsilon_emit_spaced
+    (epsilon_delta_home_name source name)
+    (epsilon_emit_spaced "NoEpsilonRuntimePath" (epsilon_delta_type_descriptor typeValue)))))
+
+(def epsilon_delta_stored_parameter_place ((source EpsilonSourceView)
+  (parameter EpsilonParameter)) EpsilonDeltaPlaceCompilation
+  (match parameter
+    ((EpsilonParameterSyntax start end name typeValue)
+      (EpsilonDeltaPlaceCompiled typeValue (epsilon_delta_home_place source name typeValue)))))
+
+(def epsilon_delta_stored_project ((owner EpsilonDeclaration)
+  (field EpsilonDataMember) (base EpsilonDeltaPlaceCompilation)) EpsilonDeltaPlaceCompilation
+  (match base
+    ((EpsilonDeltaPlaceUnsupported offset) base)
+    ((EpsilonDeltaPlaceInternal offset) base)
+    ((EpsilonDeltaPlaceCompiled baseType place)
+      (match owner
+        ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)
+          (match field
+            ((EpsilonFieldMember start end name typeValue)
+              (let descriptor Bytes (epsilon_delta_type_descriptor typeValue)
+                (let identity Bytes (epsilon_emit_spaced (epsilon_delta_span ownerStart ownerEnd)
+                  (epsilon_delta_span start end))
+                  (let projection Bytes (epsilon_emit_call "EpsilonRuntimeField"
+                    (epsilon_emit_spaced identity descriptor))
+                    (EpsilonDeltaPlaceCompiled typeValue
+                      (epsilon_emit_call "epsilon_runtime_project_place"
+                        (epsilon_emit_spaced place (epsilon_emit_spaced projection descriptor))))))))
+            ((EpsilonCaseMember start end name payload) (EpsilonDeltaPlaceInternal start))))
+        ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaPlaceInternal start))
+        ((EpsilonMachineDeclaration start end name inputs returnType body) (EpsilonDeltaPlaceInternal start))))))
+
+(def epsilon_delta_stored_field_place ((context EpsilonDeltaContext)
+  (expression EpsilonExpression) (base EpsilonExpression)) EpsilonDeltaPlaceCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match (epsilon_find_resolved_field_reference expression fields)
+        (NoEpsilonResolvedFieldReference
+          (EpsilonDeltaPlaceUnsupported (epsilon_expression_start expression)))
+        ((OneEpsilonResolvedFieldReference owner field)
+          (epsilon_delta_stored_project owner field (epsilon_delta_stored_place context base)))))))
+
+; Only total receiver/field paths are admitted initially. Indexes, views,
+; temporaries and local homes require their own implemented place transport.
+(def epsilon_delta_stored_place ((context EpsilonDeltaContext)
+  (expression EpsilonExpression)) EpsilonDeltaPlaceCompilation
+  (match expression
+    ((EpsilonNameExpression start end name) (epsilon_delta_stored_local_place context expression))
+    ((EpsilonFieldExpression start end base member)
+      (epsilon_delta_stored_field_place context expression base))
+    ((EpsilonGroupedExpression start end inner) (epsilon_delta_stored_place context inner))
+    ((EpsilonIntegerExpression start end literal) (EpsilonDeltaPlaceUnsupported start))
+    ((EpsilonCharacterExpression start end literal) (EpsilonDeltaPlaceUnsupported start))
+    ((EpsilonStringExpression start end literal) (EpsilonDeltaPlaceUnsupported start))
+    ((EpsilonTrueExpression start end) (EpsilonDeltaPlaceUnsupported start))
+    ((EpsilonFalseExpression start end) (EpsilonDeltaPlaceUnsupported start))
+    ((EpsilonQualifiedExpression start end owner member arguments) (EpsilonDeltaPlaceUnsupported start))
+    ((EpsilonCallExpression start end base arguments) (EpsilonDeltaPlaceUnsupported start))
+    ((EpsilonIndexExpression start end base index) (EpsilonDeltaPlaceUnsupported start))
+    ((EpsilonSliceExpression start end base low high) (EpsilonDeltaPlaceUnsupported start))
+    ((EpsilonNegateExpression start end operand) (EpsilonDeltaPlaceUnsupported start))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right)
+      (EpsilonDeltaPlaceUnsupported start))))

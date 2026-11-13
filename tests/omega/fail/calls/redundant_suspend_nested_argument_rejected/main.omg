@@ -1,0 +1,8 @@
+// A redundant suspend marker still reserves a complete-expression position.
+machine ready() -> i32 { 7 }
+machine consume(value: i32) {}
+machine main() { consume(suspend ready()); }
+
+// A missing marker does not exempt an actually suspending call from that position.
+public boundary trait Scheduler { machine wait() -> i32 reaches suspends; }
+machine missing_marker() reaches Scheduler { consume(Scheduler::wait()); }

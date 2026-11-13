@@ -1,0 +1,107 @@
+; This owner implements the pure calling convention: scalar values/operators,
+; lexical parameters, free calls and state transfers. Receiver code uses the
+; effect-threaded owner instead. Every body, including an unreachable one,
+; must lower before the compiler publishes any function text.
+(def epsilon_delta_expression ((context EpsilonDeltaContext)
+  (expression EpsilonExpression)) EpsilonDeltaCompilation
+  (match expression
+    ((EpsilonIntegerExpression start end literal)
+      (EpsilonDeltaCompiled (epsilon_emit_scalar
+        (epsilon_emit_decimal (epsilon_integer_literal_value literal)))))
+    ((EpsilonCharacterExpression start end literal)
+      (match literal
+        ((EpsilonCharacterSpan literalStart literalEnd value)
+          (EpsilonDeltaCompiled (epsilon_emit_scalar (epsilon_emit_decimal value))))))
+    ((EpsilonTrueExpression start end) (EpsilonDeltaCompiled (epsilon_emit_scalar "1")))
+    ((EpsilonFalseExpression start end) (EpsilonDeltaCompiled (epsilon_emit_scalar "0")))
+    ((EpsilonGroupedExpression start end inner) (epsilon_delta_expression context inner))
+    ((EpsilonNameExpression start end name)
+      (epsilon_delta_scalar_result (epsilon_delta_local context expression)))
+    ((EpsilonNegateExpression start end operand) (epsilon_delta_negate context operand))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right)
+      (epsilon_delta_binary context operator left right))
+    ((EpsilonCallExpression start end base arguments)
+      (epsilon_delta_call context expression arguments))
+    ((EpsilonStringExpression start end literal) (EpsilonDeltaUnsupported start))
+    ((EpsilonQualifiedExpression start end owner member arguments) (EpsilonDeltaUnsupported start))
+    ((EpsilonFieldExpression start end base member) (EpsilonDeltaUnsupported start))
+    ((EpsilonIndexExpression start end base index) (EpsilonDeltaUnsupported start))
+    ((EpsilonSliceExpression start end base low high) (EpsilonDeltaUnsupported start))))
+
+(def epsilon_delta_negate ((context EpsilonDeltaContext)
+  (operand EpsilonExpression)) EpsilonDeltaCompilation
+  (let coordinate Int (epsilon_expression_start operand)
+    (let negative Bytes (epsilon_emit_call "-"
+      (epsilon_emit_spaced "0" (epsilon_emit_generated "scalar" coordinate)))
+      (epsilon_delta_scalar_then context operand
+        (epsilon_emit_call "epsilon_compiled_finish_scalar"
+          (epsilon_emit_call "epsilon_evaluator_i32_outcome" negative))))))
+
+; A literal or checked scalar parameter read cannot trap or change effects.
+; Lower those values directly into a typed target temporary rather than
+; constructing an outcome immediately followed by its four-case elimination.
+(def epsilon_delta_is_total_scalar ((expression EpsilonExpression)) Int
+  (match expression
+    ((EpsilonIntegerExpression start end literal) 1)
+    ((EpsilonCharacterExpression start end literal) 1)
+    ((EpsilonTrueExpression start end) 1)
+    ((EpsilonFalseExpression start end) 1)
+    ((EpsilonNameExpression start end name) 1)
+    ((EpsilonGroupedExpression start end inner) (epsilon_delta_is_total_scalar inner))
+    ((EpsilonStringExpression start end literal) 0)
+    ((EpsilonQualifiedExpression start end owner member arguments) 0)
+    ((EpsilonFieldExpression start end base member) 0)
+    ((EpsilonCallExpression start end base arguments) 0)
+    ((EpsilonIndexExpression start end base index) 0)
+    ((EpsilonSliceExpression start end base low high) 0)
+    ((EpsilonNegateExpression start end operand) 0)
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right) 0)))
+
+(def epsilon_delta_total_scalar ((context EpsilonDeltaContext)
+  (expression EpsilonExpression)) EpsilonDeltaCompilation
+  (match expression
+    ((EpsilonIntegerExpression start end literal)
+      (EpsilonDeltaCompiled (epsilon_emit_decimal (epsilon_integer_literal_value literal))))
+    ((EpsilonCharacterExpression start end literal)
+      (match literal
+        ((EpsilonCharacterSpan literalStart literalEnd value)
+          (EpsilonDeltaCompiled (epsilon_emit_decimal value)))))
+    ((EpsilonTrueExpression start end) (EpsilonDeltaCompiled "1"))
+    ((EpsilonFalseExpression start end) (EpsilonDeltaCompiled "0"))
+    ((EpsilonNameExpression start end name) (epsilon_delta_local context expression))
+    ((EpsilonGroupedExpression start end inner) (epsilon_delta_total_scalar context inner))
+    ((EpsilonStringExpression start end literal) (EpsilonDeltaInternal start))
+    ((EpsilonQualifiedExpression start end owner member arguments) (EpsilonDeltaInternal start))
+    ((EpsilonFieldExpression start end base member) (EpsilonDeltaInternal start))
+    ((EpsilonCallExpression start end base arguments) (EpsilonDeltaInternal start))
+    ((EpsilonIndexExpression start end base index) (EpsilonDeltaInternal start))
+    ((EpsilonSliceExpression start end base low high) (EpsilonDeltaInternal start))
+    ((EpsilonNegateExpression start end operand) (EpsilonDeltaInternal start))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right)
+      (EpsilonDeltaInternal start))))
+
+(def epsilon_delta_scalar_result ((compilation EpsilonDeltaCompilation)) EpsilonDeltaCompilation
+  (match compilation
+    ((EpsilonDeltaCompiled value) (EpsilonDeltaCompiled (epsilon_emit_scalar value)))
+    ((EpsilonDeltaRejected reason offset) compilation)
+    ((EpsilonDeltaUnsupported offset) compilation)
+    ((EpsilonDeltaInternal offset) compilation)))
+
+(def epsilon_delta_scalar_then ((context EpsilonDeltaContext)
+  (expression EpsilonExpression) (continuation Bytes)) EpsilonDeltaCompilation
+  (let coordinate Int (epsilon_expression_start expression)
+    (if (epsilon_delta_is_total_scalar expression)
+      (match (epsilon_delta_total_scalar context expression)
+        ((EpsilonDeltaCompiled value)
+          (EpsilonDeltaCompiled (epsilon_emit_call "let"
+            (epsilon_emit_spaced (epsilon_emit_generated "scalar" coordinate)
+              (epsilon_emit_spaced "Int" (epsilon_emit_spaced value continuation))))))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))
+      (match (epsilon_delta_expression context expression)
+        ((EpsilonDeltaCompiled text)
+          (EpsilonDeltaCompiled (epsilon_emit_scalar_continuation coordinate text continuation)))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))

@@ -299,10 +299,6 @@ pub(crate) mod access_lifecycles {
         lowered: &LoweredPsi,
         role: typed_trees::types::TypeReferenceHandle,
     ) -> Result<terminal_psi::TerminalAccessProfileRequirement, LoweringError> {
-        const LAYOUT_SOURCE: &[u8] = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../../source/library/core/layout.omg"
-        ));
         let typed = &checked.typed;
         let role_identity = typed.type_identity(
             typed_trees::type_identity::TypeIdentityRequest::ordinary(role),
@@ -313,11 +309,8 @@ pub(crate) mod access_lifecycles {
                 .symbol_source_span(symbol)
                 .and_then(|span| typed.symbols.source_file(span))
                 .is_some_and(|source| {
-                    source.origin == source::SourceOrigin::Toolchain
-                        && source.package_identity.is_none()
-                        && source.path.strip_prefix(&source.package_root).ok()
-                            == Some(std::path::Path::new("layout.omg"))
-                        && source.source.as_bytes() == LAYOUT_SOURCE
+                    symbols::core_source_at(source)
+                        == Some(language_core::core_vocabulary::CoreSource::Layout)
                 })
         };
         let mut selected = None;
@@ -505,9 +498,7 @@ pub(crate) mod access_lifecycles {
         LoweringError,
     > {
         let typed = &checked.typed;
-        if !validation::is_extent_declaration(typed, extent)
-            || typed.symbols.name(extent) != "Extent"
-        {
+        if !validation::is_core_extent(typed, extent) {
             return unsupported("placement storage is not the core extent");
         }
         let data = typed
@@ -1334,11 +1325,17 @@ pub(crate) mod closed_reach_applications {
                         )?;
                         let (requirement_parameter_kinds, requirement_arguments) =
                             requirement_arguments(identities, checked, specialization, contract)?;
+                        let upper_operational = validation::signature_operational(checked, view.signature());
+                        let selected_operational = operational.machine_by_symbol(selected_machine.symbol).ok_or_else(|| LoweringError::InvalidDeclarationIdentity("closed selection lost its published operational contract".to_owned()))?;
                         ClosedReachParameter::Machine(ClosedReachMachineBinding {
                             nominal_requirement,
                             requirement_parameter_kinds,
                             requirement_arguments,
                             upper_bound,
+                            upper_bound_may_suspend: upper_operational.may_suspend,
+                            upper_bound_may_block: upper_operational.may_block,
+                            selected_may_suspend: selected_operational.published_may_suspend,
+                            selected_may_block: selected_operational.published_may_block,
                             selected_identity: identities
                                 .intern(&selected_static_machine_identity(checked, *selected)?),
                             selected_contract_commitment: *commitment,
@@ -1541,6 +1538,10 @@ pub(crate) mod closed_reach_applications {
                     let capture_telescope = std::mem::replace(&mut telescope, invocation);
                     Ok::<_, LoweringError>(terminal_psi::ClosedReachCapture {
                         template_identity: identities.intern(&capture.normalized_template_identity),
+                        template_base_commitment: receipt.template_base_commitment,
+                        suspension_dependency: receipt.suspension_dependency.clone(),
+                        blocking_dependency: receipt.blocking_dependency.clone(),
+                        conditional_carry: receipt.conditional_carry.to_vec(),
                         template_commitment: receipt.template_contract_commitment.as_bytes(),
                         specialization_commitment: receipt.commitment.as_bytes(),
                         parameter_kinds: specialization.parameters
@@ -1554,6 +1555,10 @@ pub(crate) mod closed_reach_applications {
                 .transpose()?;
             terminal_owner.closed_reach_application = Some(ClosedReachApplication {
                 template_identity: identities.intern(specialization.normalized_template_identity),
+                template_base_commitment: checked_identity.template_base_commitment,
+                suspension_dependency: checked_identity.suspension_dependency.clone(),
+                blocking_dependency: checked_identity.blocking_dependency.clone(),
+                conditional_carry: checked_identity.conditional_carry.to_vec(),
                 template_commitment: checked_identity.template_contract_commitment.as_bytes(),
                 specialization_commitment: checked_identity.commitment.as_bytes(),
                 parameter_kinds: specialization.parameters[specialization.invocation_start..]
@@ -4885,6 +4890,11 @@ pub(crate) mod suspension_call_plan {
                         .any(|block| block.state == crossing.state)
             })
         {
+            if !crossing.condition.parameters.is_empty() {
+                return invalid_suspension(
+                    "closed suspension crossing retains an unresolved callback carry condition",
+                );
+            }
             let mut occurrences = source_calls.iter().filter(|occurrence| {
                 occurrence.matches_statement(
                     crossing.state,
@@ -4996,10 +5006,14 @@ pub(crate) mod suspension_call_plan {
                     .claims
                     .iter()
                     .map(|identity| {
-                        lookup_claim_id(&occurrence.frontier_before_call.claims, *identity)
+                        lookup_claim_id(
+                            &occurrence.frontier_before_call.claims,
+                            identity.claim_identity,
+                        )
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 claims.sort();
+                claims.dedup();
                 live_values.push((
                     live,
                     terminal_psi::TerminalSuspensionLiveValue {
@@ -5646,6 +5660,11 @@ pub(crate) mod suspension_call_plan {
                 }
                 SuspensionValueBorrowFrontier::Unresolved => {
                     TerminalSuspensionValueLoans::Unresolved
+                }
+                SuspensionValueBorrowFrontier::TemplateDependent { .. } => {
+                    return invalid_suspension(
+                        "closed suspension crossing retains a template-dependent loan frontier",
+                    );
                 }
             };
         }

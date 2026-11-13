@@ -1,0 +1,49 @@
+
+(def epsilon_evaluator_field_value ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (member EpsilonName)
+  (value EpsilonRuntimeValue) (place EpsilonRuntimeOptionalPlace)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match context
+    ((EpsilonEvaluatorInvocationContext source machineValue references
+      receiver blockFloor)
+      (if (if (epsilon_name_is_len source member)
+        (epsilon_runtime_has_contextual_length value) 0)
+        (epsilon_evaluator_array_length value store output)
+        (match (epsilon_runtime_find_field_reference expressionValue references)
+          (NoEpsilonResolvedFieldReference
+            (if (epsilon_name_is_len source member)
+              (epsilon_evaluator_array_length value store output)
+              (if (epsilon_name_is_as_slice source member)
+                (epsilon_evaluator_as_slice value place store output)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
+          ((OneEpsilonResolvedFieldReference owner fieldValue)
+            (match fieldValue
+              ((EpsilonFieldMember start end name typeValue)
+                (match owner
+                  ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)
+                    (epsilon_evaluator_project_value value place
+                      (EpsilonRuntimeField ownerStart ownerEnd start end typeValue)
+                      typeValue store output))
+                  ((EpsilonBoundaryDeclaration ownerStart ownerEnd ownerName machines)
+                    (EpsilonEvaluatorInternal start))
+                  ((EpsilonMachineDeclaration ownerStart ownerEnd ownerName inputs
+                    returnType body)
+                    (EpsilonEvaluatorInternal start))))
+              ((EpsilonCaseMember start end name payload)
+                (EpsilonEvaluatorInternal start)))))))))
+
+(def epsilon_evaluate_field ((context EpsilonEvaluatorInvocation)
+  (expressionValue EpsilonExpression) (base EpsilonExpression) (member EpsilonName)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (let outcome EpsilonEvaluatorOutcome
+    (epsilon_evaluate_expression context base bindings store output)
+    (match outcome
+      ((EpsilonEvaluatorValue value place nextStore nextOutput)
+        (epsilon_evaluator_field_value context expressionValue member value place
+          nextStore nextOutput))
+      ((EpsilonEvaluatorResultless nextStore nextOutput)
+        (EpsilonEvaluatorInternal (epsilon_expression_start base)))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome))))

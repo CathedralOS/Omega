@@ -2,7 +2,8 @@
 
 Top-level `build(request)` lifecycle for a single or multi-target project request.
 
-Every `build` call executes five steps in order:
+Every `build` call runs on the compiler's sized worker thread
+(`compiler::checked::run_on_compile_thread`) and executes five steps in order:
 1. `build_directory::admit_outputs`: claims per-target or single-target output
    directories (holding the `.omega-occupant` guards for the duration of `build`)
    or allocates a disposable `check` temporary workspace when `ProjectProduct::Check`
@@ -36,6 +37,13 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 use target::TargetProfile;
 
 pub fn build(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildError> {
+    // Checking and lowering keep large frames, so a build runs on the compiler's
+    // sized worker like every sibling entry (`compile_sources`, package builds),
+    // whichever thread the caller started on.
+    compiler::checked::run_on_compile_thread(|| build_on_compile_thread(request))
+}
+
+fn build_on_compile_thread(request: BuildRequest) -> Result<Vec<TargetBuildOutcome>, BuildError> {
     let profiles = target_profiles(&request.targets)?;
     validate_request(&request, &profiles)?;
     let mut timings = if request.timings {

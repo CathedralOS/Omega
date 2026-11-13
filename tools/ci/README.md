@@ -6,31 +6,60 @@ authors do not rebuild or repeat review just because main advances.
 
 ## Admission
 
-`.github/workflows/compiler.yml` runs on main PRs, `merge_group`, and manual
-dispatch. Its required status, **compiler-check**, runs
-`python tools/fmt.py --check` and `cargo clippy --locked -p omega -- -D warnings`
-on Linux. Clippy type-checks the same crates `cargo check -p omega` did and
-rejects warnings in them. `.github/workflows/repository-lint.yml` runs the full
-`--workspace --all-targets` clippy, which also covers test and example targets,
-as the second required status, **workspace-clippy**, on each PR push and in the
-merge queue, and again after each main push and nightly.
-`.github/workflows/lint-when-mergeable.yml` starts it for a PR whose base
-changes to main or that is marked ready when its head has no run yet. Default checkout selects the PR merge
-candidate or merge-group commit, not just the source head. No path filters leave
-the required status absent. Permissions are read-only; checkout credentials are
-not retained. Compilation runs on ephemeral GitHub-hosted runners, not the owner's
-machine. No repository secrets are passed to compiler tests.
+`.github/workflows/admission.yml` is the only check a pull request needs. It
+builds no compiler: a prebuilt `xtask` runs `check-rules` on the title, body
+and diff, then `fmt --check` when Rust files changed, which runs one `rustfmt`
+per CPU. A pull request can restore a cache only from its own runs or from
+main's, so the same workflow runs on pushes to main that change `tools/xtask`,
+`Cargo.lock` or the toolchain, and saves the built `xtask` there for every
+pull request to restore.
 
-`main-ruleset.json` specifies main's native queue: no bypass actors, no force push
-or deletion, required PR, linear history, and the check bound to GitHub Actions
-(application 15368). One integration candidate builds/merges at a time; squash
-publication means one main commit per checked PR result. There is no mandatory
-approval count or stale-review dismissal. Required semantic review remains
-assignment-specific and concerns the submitted change, not every integration SHA.
+## Post-merge check
 
-The compile gate does not establish runtime correctness or check independent
-workspaces. Authors still run focused validation appropriate to their changes.
-Full suites, all-host validation and customer boots are not admission gates.
+Pull requests merge on the admission check alone, which builds no compiler.
+`.github/workflows/post-merge-check.yml` runs on every push to main, one run
+at a time, and judges the batch of commits main gained since the last run that
+reached a verdict. A push that arrives while a run is in progress waits, and a
+newer push replaces it, so a burst of merges is judged once.
+
+- `post-merge-check` checks dependency boundaries, lints the workspace and
+  runs the lowered-route tests.
+- `sample` runs one sample natively and in the interpreter, building `omega`
+  from main's restored warm build.
+- `plan` finds the batch and chooses the corpus rows its changed paths reach
+  (`cargo xtask corpus-gate plan`, the selection the corpus gate used).
+- `build` compiles `omega` and the corpus runner once
+  (`cargo xtask corpus-gate build --out <dir>`) and uploads them with the
+  producer's receipt. When a shard may need the base commit's runner, `build`
+  takes the one the base's own run uploaded and compiles the base only if
+  that artifact is gone or its receipt names another commit.
+- Up to eight `shard` jobs at a time, one wave for a push run, download the runner and check their rows
+  against the ledger (`corpus-gate check --runner <dir>`). A shard refuses a
+  runner whose receipt names another commit or tree, or whose bytes differ,
+  and never compiles one itself.
+- `report` writes the verdict to the run summary: each failed part, the rows
+  that moved, and the batch's commits. A batch of several commits is named as
+  a whole; the run does not bisect it.
+
+- `ledger` starts from the last published ledger, splices in every measured
+  row whose outcome differs, better or worse
+  (`corpus-gate sweep-report --records <dir>`). `pages` then publishes the
+  result on the project site with the book (`pages.yml`), at
+  `corpus/corpus_outcomes.txt`, beside `corpus/measured.txt` naming the
+  measured commit. Pull requests do not edit the ledger and main accepts no
+  direct push, so the file in the repository is left as it is. The ledger is
+  not a release: releases are the product that installers resolve.
+
+A run started by hand with the input `full` set (Actions, Post-merge check,
+Run workflow) also runs every Rust test in the workspace in `build`, and
+measures the whole corpus instead of the batch's rows: 48 shards, twelve at a
+time, each running `corpus-gate sweep-shard` on the prebuilt runner. `ledger`
+then compares every measured row with the ledger, publishes it, and `report`
+lists the rows that differ, accepted must-reject programs first. It is meant
+for after a large wave of merges; pushes run as before. Linux only.
+
+The run reverts nothing; that is a later step of
+`wiki/drafts/designs/ci_rebuild_plan.md`.
 
 ## Post-merge and nightly regression
 
@@ -91,7 +120,7 @@ PR updates cancel superseded PR jobs; queue jobs do not cancel one another.
 Before this gate no CI job ran the corpus, so a compiler change could break
 ledger rows and land green; #2370 broke more than 100 and nobody saw it until a
 sweep. `.github/workflows/corpus-gate.yml` runs, for every pull request that is
-not a draft and for every merge-queue entry, the corpus rows the change can
+not a draft, the corpus rows the change can
 affect, and fails when one of them gets worse than
 `tests/omega/corpus_outcomes.txt` records:
 
@@ -137,9 +166,17 @@ and uploads its evidence as `corpus-gate-shard-N-attempt`.
 container and path the warm-build job builds main in, and restore that build
 with `tools/ci/corpus_host.sh`; only the crates the candidate changed compile.
 
+**Merge queue.** A merge-queue entry runs only the last job, which reports
+success without planning or checking rows, because the pull request's own run
+judged the same diff. Running a plan and eight shards for each of the eight
+groups the queue builds at once left the required checks waiting about an hour
+for a runner on 2026-11-12. A row that breaks only in combination with what
+main gained after the pull request's run is therefore not caught in the queue;
+post-merge smoke and the nightly sweep see it.
+
 **Required status.** The last job, `corpus-gate`, is the one to require: it is
 green when the plan skips or every shard passes, and red when the plan or any
-shard fails or does not finish. Requiring it is an owner change to the main
+shard fails or does not finish. In the merge queue it is always green. Requiring it is an owner change to the main
 ruleset (`main-ruleset.json`), not something this workflow does.
 
 Run a shard locally with the same code:

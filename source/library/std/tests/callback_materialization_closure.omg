@@ -1,5 +1,12 @@
-use omega::language::core::layout;
-use calling;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::LayoutPlan::place_private;
 
 public boundary trait WindowProcedure {
     machine call(message: u64) -> u64 reaches none;
@@ -9,7 +16,6 @@ public boundary trait UnusedProcedure {
     machine call(message: u64) -> u64 reaches none;
 }
 
-data Spread {}
 
 WndClassWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, WindowProcedure::call> { }
 
@@ -17,38 +23,39 @@ SecondaryWndClassWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord
 
 UnusedWindowProcedureSlot satisfies PrivateCallbackSlot<ForeignRecord, Spread, UnusedProcedure::call> { }
 
-machine Spread::plan(schema: Schema) -> LayoutPlan {
-    let mut owned_entries: [FieldEntry; 64];
-    owned_entries[0] = FieldEntry {
-        key: schema.fields[0].key,
-        representation: FieldPlan::At { offset: 0 },
-    };
-    let plan: LayoutPlan = LayoutPlan {
-        entries: owned_entries,
-        entry_count: 1,
-        size_fixed: 24,
-        size_is_dynamic: false,
-        align: 8,
-    };
-    let placed: LayoutPlan =
-        LayoutPlan::place_private<WndClassWindowProcedureSlot>(plan, 8);
-    LayoutPlan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)
-}
-
-data ForeignRecord {
-    payload: u64;
-}
-
-public data RegistrarPolicy { }
-public RegistrarPolicyCallingPolicy satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        RegistrarPolicy::plan(signature)
+// Callback slots and the registrar name this same selected layout.
+public Spread satisfies FixedLayout<ForeignRecord> {
+    machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan
+    reaches none terminates {
+        let mut owned_entries: [FieldEntry; 64];
+        owned_entries[0] = FieldEntry {
+            key: schema.fields[0].key,
+            representation: FieldPlan::At { offset: 0 },
+        };
+        let plan: LayoutPlan = LayoutPlan {
+            entries: owned_entries,
+            entry_count: 1,
+            size_fixed: 24,
+            size_is_dynamic: false,
+            align: 8,
+        };
+        let placed: LayoutPlan =
+            LayoutPlan::place_private<WndClassWindowProcedureSlot>(plan, 8);
+        LayoutPlan::place_private<SecondaryWndClassWindowProcedureSlot>(placed, 16)
     }
 }
 
-machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
-    satisfies CallingPolicy::plan
-{
+public data ForeignRecord {
+    payload: u64;
+}
+
+public RegistrarPolicyCallingPolicy satisfies CallingPolicy {
+    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+        make_registrar_plan(signature)
+    }
+}
+
+machine make_registrar_plan(signature: BoundarySignature) -> BoundaryPlanResult {
     transition signature.parameter_count == 1 {
         true -> select_catalog(signature)
         _ -> reject()
@@ -128,7 +135,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
 
 public boundary trait WindowRegistrar: Calling<RegistrarPolicyCallingPolicy> {
     machine register<machine Selected, machine SecondarySelected>(
-        specification: &Spread<ForeignRecord>
+        specification: &LayoutStorage<ForeignRecord, Spread>
     )
     requires machine Selected satisfies WindowProcedure::call;
     requires machine SecondarySelected satisfies WindowProcedure::call;

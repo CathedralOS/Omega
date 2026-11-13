@@ -43,7 +43,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buffer[3] = 1;
     main.buffer[4] = 1;
     main.buffer[5] = 6;
-    let bad: Retained = Retained { payload: 42, delta: 7 };
+    let mut bad: Retained = Retained { payload: 42, delta: 7 };
     CapturedCodec::decode(
         &mut bad,
         &main.buffer,
@@ -55,7 +55,7 @@ machine Main::main(main: &mut Main) reaches Console {
     main.buffer[2] = 50;
     main.buffer[3] = 1;
     main.buffer[4] = 9;
-    let good: Retained = Retained { payload: 42, delta: 7 };
+    let mut good: Retained = Retained { payload: 42, delta: 7 };
     CapturedCodec::decode(
         &mut good,
         &main.buffer,

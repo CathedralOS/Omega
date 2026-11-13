@@ -104,7 +104,6 @@ machine build(builder: &mut Build) crashes Trap {
                 execution_purpose:
                     artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
                 pure_build_compilation: None,
-                toolchain_defaults: None,
                 root_path: &entry,
                 typed: input.typed,
                 pre_checks: input.pre_checks,
@@ -131,6 +130,7 @@ machine build(builder: &mut Build) crashes Trap {
                 artifact_only: false,
                 prior_checks: Vec::new(),
                 retain_check: false,
+                checked_slices: None,
             },
             &mut timings,
         );

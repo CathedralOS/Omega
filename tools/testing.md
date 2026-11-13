@@ -1,10 +1,14 @@
 # Local testing
 
-The canonical contract for validation policy, baseline gates, corpus filters,
-test selection, and platform requirements. [AGENTS.md](../AGENTS.md) keeps only
-the everyday command surface and links here; the sections below were promoted
-from it. [baseline_gate.py](baseline_gate.py) runs the full-baseline gates as
-one command.
+Choose focused checks that show whether the changed behavior works, then land
+through [admission and a squash merge](landing.md). Main verification follows
+the merge; admission does not run the compiler tests for you.
+
+[AGENTS.md](../AGENTS.md) owns the common workflow. This guide supplies test
+selection, execution evidence and platform details. The
+[CI rebuild plan](../wiki/drafts/designs/ci_rebuild_plan.md) records intended CI
+work; [.github/workflows/](../.github/workflows/) defines what is implemented.
+Older qualification procedures below do not reinstate retired checks.
 
 ## Validation scope
 
@@ -35,30 +39,26 @@ is required merely to edit workflow prose.
 
 A bug fix needs a witnessed regression and checks for affected behavior. Reuse
 successful results when their inputs are unchanged. Full workspace/corpus runs
-are for explicit baseline, health, or release work, or changes whose impact
-cannot reasonably be bounded. Explain that scope before starting a full run.
+are user-triggered baseline, health or release work. Keep ordinary repairs on
+the affected rows and crates.
 An unverified base alone does not force a routine task to establish a full baseline.
 
-Attribute unexpected failures with a focused baseline comparison or dependency
-and source-reader evidence. For corpus movement the comparison is
-`python3 tools/corpus_gate.py --compare <parent> --filter <the fixtures that
-moved>`; a diff against the checked-in golden mixes this change with other
-lanes' drift and cannot attribute either. Confirmed unrelated failures do not block landing a
+Attribute unexpected failures from the actual diagnostic, dependencies and
+source readers. The checked-in ledger can include other lanes' drift and cannot
+by itself attribute a failure to this change. Do not add before/after runs
+against moving main. Confirmed unrelated failures do not block landing a
 scoped change: retain the command, revision, and evidence, and report them without
 repairing them in the same task. New or unexplained failures in affected behavior
 must be resolved before landing. Do not repeat broad suites to attribute one test.
 
 ### Merge validation budget
 
-When local resources cannot support a Rust test build, the manual
-`compiler.yml` workflow accepts one package and a required test-name filter on
-the selected remote branch. For example, `gh workflow run compiler.yml
---ref work/my-change -f test_package=validation -f test_filter=integer_predicates`
-selects library unit tests. Set `test_target` for an integration-test binary.
-The job reports its actual source revision and command; retain its result with
-that revision. A filter matching no executed tests fails. This uses ordinary
-Cargo checking and execution, without replacing
-the separate compiler-program acceptance checks.
+Run the affected crates' unit tests and Clippy locally, with one focused corpus
+run over the known affected rows and samples. Reuse a verified warm producer
+when its inputs still apply. A filter matching no executed tests supplies no
+evidence. Compiler-program acceptance still needs its actual engine observations.
+If resources obstruct the necessary run, identify that concrete blocker rather
+than dispatching the retired `compiler.yml` or `compiler-regression.yml` workflows.
 
 For each proposed build or test, name the decision it answers, the affected
 behavior, and why applicable existing evidence is insufficient. Estimate time
@@ -99,8 +99,8 @@ failure and remaining work separately; preserve affected-behavior failures as
 blockers and continue the parent capability after landing the completed step.
 
 Once the scoped checks and any required review pass, push, update the PR, and
-use the [normal merge queue](landing.md). Do not add more suites, rebuild an
-unchanged producer, or create nested reviews of scripts/manifests merely to
+follow [admission and squash-merge landing](landing.md). Do not add more suites,
+rebuild an unchanged producer, or create nested reviews of scripts/manifests merely to
 increase confidence. Required semantic review examines the changed meaning and
 relevant controls; it does not restart every earlier review. Keep the actual
 revision, command and outcome in the existing PR/claim rather than building an
@@ -128,6 +128,17 @@ checking, `--runtime tier/group/name,...` for native/Psi execution, and
 directory with `--output`; an existing directory refuses rather than mixing runs.
 The total selection is limited to 200 programs. These are exact paths, not search
 fragments. Selection and authored oracles are checked before compiler preparation.
+Discovery and execution use the same exact roster, so selecting
+`pass/build/native_component_reuse` excludes `native_component_reuse_foreign`.
+Ordinary `xtask corpus --filter` remains a substring search. Qualification passes
+the exact list through `OMEGA_CORPUS_FIXTURE_PATHS`; its bounded substring filter
+also remains present for older retained runners, whose extra matches still fail
+the observed-roster check.
+Qualification leaves verbose compiler check-site tracing disabled and clears an
+inherited `OMEGA_COMPILER_CHECK_SITES`. Ordinary compiler diagnostics remain in
+the captured runner output; use `xtask corpus --check-sites` for an explicit
+diagnostic replay. The trace switch prints successful internal queries too and
+can otherwise dominate the bounded observation.
 An existing numeric `Expected exit` header is the fallback when no explicit exit
 file exists; target-specific and portable files keep their precedence.
 
@@ -141,11 +152,9 @@ mbx xtask qualify \
   --output build/qualification-local
 ```
 
-The current `Post-merge smoke` workflow exposes the same three selections as
-`qualification_corpus`, `qualification_runtime`, and `qualification_samples`.
-Select one matching host or `qualification_target=all` for all four hosted targets.
-The job retains the whole output directory even on failure. Runtime acceptance
-requires actual native and Psi exits at the authored values, agreement, and any
+Use the local command on the matching authorized host and retain its output
+directory even on failure. Runtime acceptance requires actual native and Psi
+exits at the authored values, agreement, and any
 output oracle. A rejection counts only with the fixture's intended diagnostic.
 Missing, duplicate, extra, incomplete, unchecked, or wrong-reason rows fail even
 when a historical golden would consider them unchanged. Check-only or unrunnable
@@ -166,8 +175,8 @@ producer that actually emitted them.
 
 The optional `--runtime-controls tools/xtask/qualification/representation-wrong-branch.json`
 adds the existing three wrong-branch controls after the requested good programs
-pass. Include all three plan fixtures in `--runtime`. The workflow exposes this
-as `qualification_controls`. One prepared compiler remains unchanged through good,
+pass. Include all three plan fixtures in `--runtime`. One prepared compiler
+remains unchanged through good,
 weak and strong source phases. The weak source must execute with exit 0 in both
 engines; the strong source must build and reach the intended native Trap and Psi
 trap while its authored exit-0 oracle remains unchanged. Those private rows stay
@@ -191,6 +200,12 @@ or changed source during preparation refuse. The corpus harness is type-checked
 before optimized code generation. CLI-only requests do not prepare the harness.
 Relevant toolchain, host, jobs, flags and profile inputs are retained; credentials
 and the full process environment are never captured.
+
+Rust compiler preparation commands have a one-hour wall-clock limit. Checking
+and execution commands keep their 30-minute limit; fixture and Psi work limits are
+unchanged. Each command receipt records its limit and whether it timed out.
+A timed-out child is stopped and reaped, with cleanup errors and the original
+stdout and stderr retained for diagnosis.
 
 `--cli` and `--runner` cannot authenticate an arbitrary supplied executable and
 therefore refuse. Use the current-source builder. Cargo/mbx may reuse compatible
@@ -290,7 +305,7 @@ reason to reuse or rerun. Keep raw outcomes with their actual observed revision.
 Record scoped evidence on a fixed revision, with source/oracle hashes,
 compiler binary identity and producer revision, toolchain, target and relevant
 environment/resources. Keep frozen expected results and refusal controls intact.
-Keep the initial base fixed through publication. A changed main or queue SHA
+Keep the initial base fixed through publication. A changed main SHA
 alone does not trigger pull, rebase, rebuild, requalification or review. Only a
 demonstrated actual merge conflict, concrete prerequisite or changed affected
 source justifies targeted local work and reassessment against recorded inputs.
@@ -299,7 +314,7 @@ When pinned qualification is explicitly requested, or the assigned release or
 trust-boundary outcome requires it, use the executable
 [pinned qualification runner](qualification.md) to capture dependency identities
 and measured checks. An ordinary progress PR needs its scoped evidence and
-normal queue CI; it does not need a new qualification plan or packet. For a
+passing admission; it does not need a new qualification plan or packet. For a
 qualification assignment, keep the checkpoint fixed through publication;
 `assess`/`run-pending` uses that recorded base. After justified source integration,
 assess only the changed closure. Preserve original observation identities when
@@ -339,12 +354,11 @@ pass merely to fill another manifest. Keep current producer/review bindings
 separate from historical frozen products. This does not waive affected-consumer
 reruns, artifact integrity or review required for the submitted change.
 
-Record evidence against the source actually tested. A new integration SHA alone
-does not require author rebase, tests or review. GitHub's [merge queue](landing.md)
-checks the integrated candidate with `mbx xtask fmt --check` and
-`mbx clippy --locked -p omega -- -D warnings`; local
-exact-SHA build receipts are retired. Review and rerun affected checks when the
-author edits source, resolves a conflict or discovers a changed semantic premise.
+Record evidence against the source actually tested. A new main SHA alone
+does not require author rebase, tests or review. The [admission check](landing.md)
+checks rules and formatting; the author runs affected tests and Clippy before
+squash-merging, and main is verified afterward. Review and rerun affected checks
+when the author edits source, resolves a conflict or discovers a changed semantic premise.
 Independent-workspace checks remain part of focused author validation, not a
 per-main-movement qualification loop. New affected failures still require repair;
 authority, custody, digest and golden rules remain. Post-merge runtime checks and
@@ -376,9 +390,9 @@ limitations. Distinguish demonstrated defects from unresolved concerns and
 documented baseline failures. Review authority does not transfer implementation
 ownership: the worker resolves findings and finishes authorized publication.
 An approval names the source reviewed. Do not relabel it as a review of the
-queue's new integration SHA, and do not require another review solely for that
+published squash commit, and do not require another review solely for that
 SHA. Author changes, conflict resolutions or changed semantic assumptions need
-affected review; routine base movement is owned by queue CI and post-merge checks.
+affected review; routine base movement alone does not require another author review.
 
 ## Running one test
 
@@ -410,10 +424,21 @@ per-fixture compile time — against `tests/omega/corpus_outcomes.txt`. A diff
 means observable behavior moved; `--record` re-pins the golden when the
 movement is intended.
 
+Pull requests no longer edit that file. The post-merge check publishes the
+ledger it measured on the project site, at
+<https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt>,
+with `measured.txt` beside it naming the commit it was measured at. When a copy is at `build/corpus-ledger/corpus_outcomes.txt`,
+`cargo xtask corpus` compares with it and says so; otherwise it compares with
+the file in the repository. `--record` and `--golden` are unaffected. Fetch
+the copy with:
+
 ```bash
-python3 tools/corpus_gate.py --filter facts/saved_observation_snapshot   # one fact: 105 fixtures
-python3 tools/corpus_gate.py --filter fail/contracts/scalar_copy_guard  # one behavior
-python3 tools/corpus_gate.py --record             # re-pin the golden
+curl -fsSL --create-dirs -o build/corpus-ledger/corpus_outcomes.txt https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt
+```
+
+```bash
+mbx xtask corpus --filter facts/saved_observation_snapshot   # one fact: 105 fixtures
+mbx xtask corpus --filter fail/contracts/scalar_copy_guard  # one behavior
 ```
 
 An unfiltered run covers every fixture and takes a long time. It is a manual
@@ -445,18 +470,24 @@ because the runner ignores a shard it cannot use and would run every fixture.
 count -- cap it when several sessions measure at once, since N concurrent runs
 otherwise request N times the machine.
 
+Every compile, the corpus runner and the sample gate included, keeps the checked
+result of a dependency's Build program on local disk and loads it when a later
+compile checks exactly the same input
+([validation subjects](../wiki/spec/build/validation_subjects.md#what-this-rule-does-not-do)).
+The records live in `CathedralOS/Omega/checked-slices/v1` under the per-user
+cache directory, at most 4 GiB, oldest removed first; a rebuilt compiler starts
+them over. One record serves every fixture whose dependency Build program
+matches, so after the first such fixture the rest skip that check. `OMEGA_CHECKED_SLICE_CACHE=off` checks everything afresh, and an
+absolute path moves the records, which is how to measure a cold run.
+
 ### The corpus in CI
 
-Every pull request that is not a draft, and every merge-queue entry, runs the
-corpus rows its diff can affect against this ledger, and the job fails when a
-row gets worse: a pass/run row that stops checking, a fail row that is
-accepted, or a fail row that loses its pinned reason. A row main already lost
-is not charged to the pull request. Each night a sweep measures the whole
-corpus on main and opens one ledger-only pull request recording every row that
-moved, with accepted fail rows listed first as soundness alerts. Both are
-described in [tools/ci/README.md](ci/README.md#corpus-gate) and implemented by
-`cargo xtask corpus-gate`; the gate's own plan and shard run locally with the
-commands there.
+Pull requests run `admission`, which checks rules and formatting. Authors run
+their focused corpus selection before merging. The current `post-merge-check`
+workflow builds and checks main, measures the selected corpus rows, and
+publishes its ledger. Read the actual workflow result before claiming those
+rows passed; admission alone supplies no corpus evidence. Replacement CI work
+follows the [CI rebuild plan](../wiki/drafts/designs/ci_rebuild_plan.md).
 
 ### Re-recording the whole ledger
 
@@ -472,8 +503,9 @@ Name the tiers in `--filter` (`pass/,fail/,run/`), as the script does: with an
 empty filter the gate passes every fixture name to the runner in one
 environment string, which Linux refuses. Before 2026-11-11 each invocation
 spent about six minutes rebuilding the runner (see the freshness paragraph
-below); an unchanged tree now reuses it in under a second. xtask stops a runner
-at 1800 seconds, so forty shards of about 440 fixtures is the size that fits. On the
+below); an unchanged tree now reuses it in under a second. A corpus run has no
+time limit and prints each fixture as it finishes; shards exist to spread the work,
+and forty shards of about 440 fixtures is the size the sweep uses. On the
 two test VMs that is about 22 minutes a shard. To split the work, give each
 host its own `todo.txt` and merge the ledgers by taking each fixture's block
 from the host that stamped it with the new commit. The script's header carries
@@ -749,38 +781,10 @@ same cache and compares only the fixtures that ran. Use the trailing slash on ea
 like `time` matches 510 fixtures, some already red, and their unmet exit
 promises abort the run before the golden diff.
 
-To measure what your own change or series moved, compare against the commit it
-builds on. Every agent and host uses the same command:
-
-```bash
-python3 tools/corpus_gate.py --compare origin/main --filter calls/,host/
-python3 tools/corpus_gate.py --compare origin/main --native --filter calls/
-```
-
-Name the fixtures the change can move: `--compare` refuses to run without
-`--filter` or `--shard`, because both sides of an unfiltered comparison run the
-whole corpus, about two hours on a Windows host.
-
-A compare over 40 fixtures runs on hosted CI with `--remote`, and a local one
-that large refuses without `--local`:
-
-```bash
-python3 tools/corpus_gate.py --compare origin/main --remote --filter calls/,host/
-```
-
-`--remote` pushes the committed HEAD to the work branch it continues (it must
-already be pushed, as the draft PR requires; `--remote work/NAME` names it),
-dispatches the `Compiler queue pilot` at the base and at the head with the same
-exact fixture list, waits for both, and diffs their rows with the local
-compare's exit codes. Hosted runners are free for this repository and start in
-about 0.1 minutes; a Linux run takes about 15 minutes including its build, no
-slower than a local base build, and the Mac builds nothing. The default leg is
-checking only on `linux_x86_64`; `--native` or `--both` also compares
-native/Terminal rows on the matching host (`linux_x86_64`, `linux_arm64`,
-`windows_x86_64` or `macos_arm64`). The base's rows are cached like local
-ones, so a second remote compare against that base dispatches only the head.
-The pilot accepts exact `pass/`, `run/` and `fail/` IDs; `run/` fixtures keep
-their authored engine oracles. `--shard` stays local.
+The following comparison internals explain historical measurements. Current
+author validation uses one focused selection against the fixed candidate;
+do not start paired main/head runs or dispatch the retired Compiler queue pilot.
+Use retained source-reader and dependency evidence to attribute a failure.
 
 The base is built from its commit in a separate worktree
 (`build/compare-bases/<sha>`) with its own build directory, so neither uncommitted edits nor artifacts from
@@ -970,6 +974,14 @@ that host's golden `tests/omega/corpus_native_<target>.txt`; records gain
 `stderr:match|differs|unavailable` facts. Use it with `--filter` for
 backend-visible changes.
 
+Native mode, including `--both`, omits fail-tier rejection controls. The focused
+corpus plan names those omitted controls; its mode counts precede shard filtering
+when a shard is selected. A clean native/Psi result verifies only the observed rows.
+Run the same selection and shard in ordinary checking mode (without `--native`,
+`--native-target`, `--interpret` or `--both`) to check the selected negative
+diagnostic pins.
+`--interpret` alone retains those checking controls.
+
 `expected_source_locations.txt` can accompany a diagnostic fixture. Each
 nonempty line contains a relative path suffix, a one-based line, and a one-based
 column, separated by whitespace. Each row must match a compiler diagnostic's
@@ -1090,11 +1102,11 @@ still enforced; three answers need three responses.
 
 - **Retired obligation** — the rule itself is gone with the construct
   (source-visible `Binding<R>` fabrication, `component_publication.md:198`).
-  Delete the twin: fixture, `expected.txt`, a fixture-specific README and its
-  golden rows together, and enumerate in the commit body the retired obligation,
-  the specification citation, the row delta including any removed continuation
-  line, and the check showing the rule family is still pinned wherever it
-  survives. Never re-author a retired obligation into invented semantics.
+  Delete the twin's fixture, `expected.txt` and fixture-specific README, and
+  name the retired obligation, specification citation and affected rows in the
+  commit body. Leave ledger publication to post-merge verification. Show that
+  the rule family is still pinned wherever it survives. Never re-author a
+  retired obligation into invented semantics.
 - **Obligation survives, enforcement survives** — migrate the twin to the
   surviving construct: same obligation, new subject.
 - **Obligation survives, enforcement is gone** — a well-formed invalid control
@@ -1163,68 +1175,18 @@ python3 tools/corpus_scoreboard.py --cross-golden   # exits 1 on a stale success
 
 ### Who may record a regression
 
-A pull request that changes only corpus ledgers and Markdown may record a row
-as red; a pull request that changes anything else may not. Before this rule
-`cargo xtask check-rules` refused every red row in
-`tests/omega/corpus_outcomes.txt`, whoever wrote it, so the ledger could only
-move toward green. When the compiler regressed, the row kept its old good line
-because nothing was allowed to replace it. A full sweep at `759c80404428`
-found 1,296 rows worse than recorded, 34 of them `fail/` programs the compiler
-accepted, and the ledger said none of it.
+Post-merge verification publishes the corpus ledger. Authors report actual
+focused outcomes in the PR and claim; they do not edit the ledger, run
+`corpus --record`, or open a ledger-only PR to get around that boundary.
 
-The refusal existed for a good reason, and that reason is narrower than the
-rule was. A pull request that edits a fixture must re-record its row, and a
-worker whose change broke the fixture could satisfy that by recording the
-breakage: a `pass/` row as `rejected`, a `fail/` row as `unexpected`. The row
-then reads as a baseline and the regression lands as if it were the expected
-result. What must be prevented is a pull request writing down a failure *it
-could have caused*.
+Keep regressions visible: a valid positive that refuses, a negative that
+accepts or loses its intended diagnostic, and a runtime result that contradicts
+its oracle all remain failures. The PR's `Gate:` line states the expected
+change, which main verification measures after merge. Recording a failure
+does not make it accepted behavior.
 
-`check-rules` cannot run the compiler at the base to learn who caused a row,
-but it can read the diff. If every changed path is a `tests/omega/corpus_*.txt`
-ledger or a Markdown file outside `tests/` and `samples/`, the pull request
-changes no compiler, library, tool or fixture source, so the compiler and
-fixtures it measured are exactly those of its base. Whatever it records was
-already true there. That one condition is the whole change:
-
-| The pull request changes | Red row in `corpus_outcomes.txt` |
-| --- | --- |
-| only ledgers and Markdown | recorded |
-| anything else | refused, as before: repair the compiler or fixture first |
-
-Three things stay as they were, and they are the guard.
-
-- **A pull request cannot hide its own regression.** One that touches source
-  still cannot write a red row, and one that touches a fixture still has to
-  re-record it, so its only way through is green. Splitting the work does not
-  help: the recording pull request shows the loss on `main` under its own
-  title instead of inside a repair.
-- **A red row is never progress.** The `Gate:` line's `red rows:` number is
-  still computed from the ledger diff by the same definition
-  `--list-pinned-regressions` uses. Recording a regression raises it, and the
-  repair's `-1` only cancels the `+1` the recording put on `main`, so a break
-  followed by a repair sums to zero. Under the old rule the break was never
-  counted, which made the unrecorded ledger look better than the compiler.
-- **A loss stays distinguishable from a fixture that never worked.** When a
-  `pass/` or `run/` row replaces a recorded success with anything else,
-  `check-rules` requires the `regressed-from:` token that `--record` derives
-  (see [above](#recording-a-regression-without-pinning-it)). A hand-edited row
-  that drops it is refused. A `fail/` row needs no token: `checked` or
-  `unexpected` on a `fail/` fixture already says the rejection was lost.
-
-Dirty `+wt` stamps are refused in every pull request. A recorded regression is
-still a measurement: run `cargo xtask corpus --record --filter <fixtures>` on a
-clean checkout of the base, and attribute each row first
-([Attributing a move](#attributing-a-move)) so a host-only or flaky result is
-not written down as the compiler's.
-
-Alternatives considered and not taken: letting any pull request record a red
-row that carries `regressed-from:` (the recorder writes that token for the
-author's own breakage too, so it proves nothing about cause); a declaration in
-the pull request body (a claim, where the changed-path list is a fact); and
-checking that each row's stamp is an ancestor of the base (squash merges and a
-second recording commit both break it, and the path condition already implies
-the measured source is the base's).
+The recorder format described above explains retained observations and the
+post-merge publisher; it is not an author landing procedure.
 
 `python3 tools/corpus_scoreboard.py` reports the golden as a scoreboard —
 `macos_arm64 native: 64 authored / 172 executed / 746 fixtures` — where
@@ -1294,8 +1256,8 @@ schtasks /Create /SC DAILY /ST 03:00 /TN OmegaSampleGate /TR "cmd /c cd /d <gate
 Large structural moves (deleting a mechanism, rewriting a seam) may land while
 some fixtures stop compiling, under one rule. A regressed pass or run fixture
 must reject with a diagnostic whose message starts `unimplemented:` and names
-the missing piece; the same commit re-records the affected goldens and states
-how many fixtures moved. `grep -c "unimplemented:"` over the goldens is the
+the missing piece; the PR reports the affected rows and observed movement,
+leaving ledger publication to post-merge verification. `grep -c "unimplemented:"` over the goldens is the
 debt to burn down. Never allowed: a fail fixture that stops rejecting
 (unsound acceptance), a crash, or a native program that builds and exits
 differently from its golden. Those block landing.
@@ -1352,7 +1314,11 @@ probe; the gate checks it and reports it apart from the native score.
 Its failure still makes the gate fail. Intended-invalid projects never enter
 package acceptance or native execution: they must exit 1 from checking and match
 all authored diagnostic fragments. Missing expectations, wrong reasons, crashes
-and timeouts fail; no negative coverage disappears into an unscored row. Existing
+and timeouts fail; no negative coverage disappears into an unscored row. A
+program with `expected_native_error.txt` must pass `--check` and then fail its
+native build with every non-empty line of that file in the output, reported as
+`native-rejected`; an empty file, a check failure, a native build that succeeds
+or a missing line fails it. Existing
 no-oracle/freestanding reporting and positive package-review behavior are unchanged.
 
 ```bash
@@ -1496,8 +1462,8 @@ has converged to the two-driver contract. The same script's
 `FORBIDDEN_DEPENDENCIES` include the Omega firewall: Omega compilation crates
 do not depend on source-side Psi, and no Omega stage depends on another. Edges
 that predate those rules sit in `FIREWALL_ALLOWANCES` with a reason each; a
-removed edge's row must be deleted, so the list only shrinks. `compiler-check`
-runs the script on every pull request.
+removed edge's row must be deleted, so the list only shrinks. The post-merge
+check runs the boundary audit on main; admission does not run it for a PR.
 
 `mbx nextest run --workspace --lib --no-fail-fast` is the platform-portable
 subset: all library tests, no target-specific executable/runtime legs.
@@ -1691,12 +1657,20 @@ A Claude Code cloud session starts in a fresh container with nothing built, and
 `mbx build -p omega` there takes about 11 minutes (688 s measured on a 4-CPU
 container, 2026-11-11). The `Warm build` workflow builds main's compiler in a
 container set up like a session and publishes the build directory, about
-270 MB compressed, on the `warm-build-linux-x86_64` prerelease. The
-SessionStart hook in `.claude/settings.json` runs
+270 MB compressed, to the GitHub Container Registry as
+`ghcr.io/cathedralos/omega-warm-build:<slot>` (`primary` and `worker`), not as a
+release: releases are the product that installers resolve. A session's
+environment must allow `ghcr.io` and its blob host
+`pkg-containers.githubusercontent.com`. The SessionStart hook in `.claude/settings.json` runs
 `bash tools/warm_build.sh session-start`, which unpacks it into the primary
 checkout's `target/` and into `.agents/worktree/worker-1/target` before the
-session's first command. Measured on the same container with the archives CI
-published for commit `fd5aef2f7`: 14 s to restore both, then
+session's first command. Managed Codex environments can run the same command
+from their setup script; `CODEX_ENVIRONMENT_ID` enables restoration and preserves
+the restored worker's base during acquisition, just as `CLAUDE_CODE_REMOTE=true`
+does for Claude Code. Local Codex sessions do not opt in merely by running Codex.
+The archive's Cargo paths and toolchain must still match the environment for
+its compiled artifacts to be reused. Measured on the same container with the
+archives CI published for commit `fd5aef2f7`: 14 s to restore both, then
 `mbx build -p omega` took 30 s in the primary checkout, where it reran the
 `compiler` build script and recompiled 4 crates, and 5 s in the worker slot.
 
@@ -1706,7 +1680,8 @@ it: the same restored build, three commits away with `language-core` changed,
 took 673 s. So the hook creates `.agents/worktree/worker-1` at the published
 commit, `cargo xtask worktree acquire` hands it out there while it is untouched
 (it prints how many commits behind `origin/main` that is), and the work keeps
-that commit as its base; the merge queue integrates it with main. A slot that
+that commit as its base. Integrate newer source only for an actual conflict or
+needed prerequisite, then follow [squash-merge landing](landing.md). A slot that
 has been released or moved resets to `origin/main` as before.
 
 `mbx` does not provide this reuse in this workspace. `.cargo/config.toml` turns

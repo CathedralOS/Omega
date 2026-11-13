@@ -10,7 +10,9 @@ requires counter == 0
     0
 }
 
-machine apply(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> i64 {
+machine apply(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> i64
+requires visits == 0
+{
     let selected: &mut i64 = match chosen[compute(visits)] {
         17 -> &mut chosen[0]
         _ -> &mut other[0]
@@ -19,7 +21,9 @@ machine apply(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> 
     selected
 }
 
-machine forward(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> i64 {
+machine forward(chosen: &mut [i64; 2], other: &mut [i64; 2], visits: &mut u64) -> i64
+requires visits == 0
+{
     apply(chosen, other, visits)
 }
 

@@ -404,8 +404,8 @@ pub(crate) mod content_conservation {
 
         let algebra = content_algebra(&plan.algebra);
         let mut structural_places = BTreeMap::new();
-        let left = lower_content_term(plan.equation.left(), &mut structural_places, 0)?;
-        let right = lower_content_term(plan.equation.right(), &mut structural_places, 0)?;
+        let left = lower_content_term(plan.equation.left(), &mut structural_places)?;
+        let right = lower_content_term(plan.equation.right(), &mut structural_places)?;
         let proposition =
             Proposition::ContentConservation(ContentConservation::new(algebra, left, right));
         let context = PropositionContext::from_value_types_and_places(
@@ -711,45 +711,61 @@ pub(crate) mod content_conservation {
         left.segments[..shared] == right.segments[..shared]
     }
 
-    const MAX_CONTENT_TERM_DEPTH: usize = 256;
     pub(crate) const RESULT_STRUCTURAL_PLACE_ID: u64 = 4_294_967_297;
 
+    /// Lowers a content term children-first with an explicit stack, so a
+    /// separation's nesting depth is bounded only by memory.
     fn lower_content_term(
         term: &CheckedContentConservationTerm,
         structural_places: &mut BTreeMap<PlaceId, StructuralPlaceKind>,
-        depth: usize,
     ) -> Result<ContentTerm, LoweringError> {
-        if depth > MAX_CONTENT_TERM_DEPTH {
-            return Err(LoweringError::ContentTermNestingTooDeep);
+        enum Step<'term> {
+            Visit(&'term CheckedContentConservationTerm),
+            Separate(usize),
         }
-        match term {
-            CheckedContentConservationTerm::Projection {
-                semantic_domain,
-                projection_report_fingerprint,
-                subject,
-                ..
-            } => {
-                let domain = ContentDomainId::new(u64::from(semantic_domain.0))
-                    .ok_or(LoweringError::InvalidContentDomainIdentity)?;
-                if *projection_report_fingerprint == 0 {
-                    return Err(LoweringError::ZeroContentProjectionFingerprint);
+        let mut pending = vec![Step::Visit(term)];
+        let mut lowered: Vec<ContentTerm> = Vec::new();
+        while let Some(step) = pending.pop() {
+            let term = match step {
+                Step::Visit(term) => term,
+                Step::Separate(count) => {
+                    let members = lowered.split_off(lowered.len() - count);
+                    lowered.push(
+                        ContentTerm::separate(members)
+                            .map_err(LoweringError::InvalidContentProposition)?,
+                    );
+                    continue;
                 }
-                Ok(ContentTerm::Projection {
-                    projection: ContentProjectionIdentity {
-                        domain,
-                        projection_report_fingerprint: *projection_report_fingerprint,
-                    },
-                    subject: lower_content_place(subject, structural_places)?,
-                })
+            };
+            match term {
+                CheckedContentConservationTerm::Projection {
+                    semantic_domain,
+                    projection_report_fingerprint,
+                    subject,
+                    ..
+                } => {
+                    let domain = ContentDomainId::new(u64::from(semantic_domain.0))
+                        .ok_or(LoweringError::InvalidContentDomainIdentity)?;
+                    if *projection_report_fingerprint == 0 {
+                        return Err(LoweringError::ZeroContentProjectionFingerprint);
+                    }
+                    lowered.push(ContentTerm::Projection {
+                        projection: ContentProjectionIdentity {
+                            domain,
+                            projection_report_fingerprint: *projection_report_fingerprint,
+                        },
+                        subject: lower_content_place(subject, structural_places)?,
+                    });
+                }
+                CheckedContentConservationTerm::Separate(terms) => {
+                    pending.push(Step::Separate(terms.len()));
+                    pending.extend(terms.iter().rev().map(Step::Visit));
+                }
             }
-            CheckedContentConservationTerm::Separate(terms) => ContentTerm::separate(
-                terms
-                    .iter()
-                    .map(|term| lower_content_term(term, structural_places, depth + 1))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )
-            .map_err(LoweringError::InvalidContentProposition),
         }
+        Ok(lowered
+            .pop()
+            .expect("a content term lowers to exactly one term"))
     }
 
     fn lower_content_place(
@@ -3280,33 +3296,6 @@ pub(crate) mod crash_routes {
             )
         }
 
-        /*
-            A scalar field of a caller's structural local, as the proof-side
-            term an erased call actual substitutes for the callee's erased
-            scalar lane. It names the local's place; it emits no operation.
-        */
-        pub(crate) fn lower_structural_local_member_term(
-            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-            (place, structural_type, access): (
-                PlaceId,
-                StructuralTypeId,
-                terminal_psi::StructuralAccess,
-            ),
-            path: &[checked_trees::CheckedStructuralPredicatePathSegment],
-            expected: ScalarType,
-            structural_types: &[StructuralTypeDeclaration],
-        ) -> Result<ScalarTerm, LoweringError> {
-            lower_observation_term(
-                identities,
-                place,
-                structural_type,
-                access,
-                path,
-                expected,
-                structural_types,
-            )
-        }
-
         pub(crate) fn lower_structural_result_member_term(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             result: &terminal_psi::StructuralResultDeclaration,
@@ -3325,7 +3314,9 @@ pub(crate) mod crash_routes {
             )
         }
 
-        fn lower_observation_term(
+        /// One scalar member below an observation home: a formal's place or
+        /// the place of the root an erased call actual observes.
+        pub(crate) fn lower_observation_term(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             root: PlaceId,
             root_type: StructuralTypeId,
@@ -3832,7 +3823,10 @@ pub(crate) mod crash_routes {
                             checked_scalar_term(identities, expression, self.scalar_parameters, &[])
                         }
                         CheckedScalarExpression::StructuralParameterField {
-                            parameter_position,
+                            root:
+                                checked_trees::CheckedStorageRoot::Parameter {
+                                    index: parameter_position,
+                                },
                             path,
                             primitive_type,
                             ..
@@ -4121,7 +4115,6 @@ pub(crate) mod crash_routes {
             while let Some(expression) = pending.pop() {
                 match expression {
                     CheckedScalarExpression::StructuralParameterField { .. }
-                    | CheckedScalarExpression::StructuralLocalField { .. }
                     | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
                     | CheckedScalarExpression::StructuralSequenceLength { .. }
                     | CheckedScalarExpression::Boolean(_) => return true,
@@ -4386,10 +4379,9 @@ pub(crate) mod crash_routes {
         lowered_direct_scalar_term, lowered_erased_scalar_term, lowered_erased_scalar_terms,
     };
     pub(crate) use structural_members::{
-        lower_byte_predicate_term, lower_sequence_extent_projection_term,
+        lower_byte_predicate_term, lower_observation_term, lower_sequence_extent_projection_term,
         lower_sequence_extent_term, lower_structural_case_membership, lower_structural_identity,
-        lower_structural_indexed_term, lower_structural_local_member_term,
-        lower_structural_member_path, lower_structural_member_term,
+        lower_structural_indexed_term, lower_structural_member_path, lower_structural_member_term,
         lower_structural_result_indexed_term, lower_structural_result_member_term,
     };
     pub(crate) use structural_route_buckets::{

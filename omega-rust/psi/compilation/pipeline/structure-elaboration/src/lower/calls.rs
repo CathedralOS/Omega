@@ -6,16 +6,24 @@ crash continuations and `CrashCoverage` obligations of both.
 A record argument is passed by value: its expression is evaluated to a root
 nothing else names (`places::record`), the call takes that root whole and
 owned, and the root's home is retired on the edge into the call's
-continuation. Scalar and record arguments are evaluated in one left-to-right
+continuation. A loan for a borrowed formal passes the lent place itself,
+with the loan's access, and mints one `Loan` obligation; an exclusive loan
+leaves the lent place with contents this machine cannot name once the call
+returns. Scalar and record arguments are evaluated in one left-to-right
 order (calls_and_outcomes.md: "Mixed scalar and structural operands share
 that order; they do not form two separately evaluated lists") and then
 travel in Terminal Psi's two lanes.
 */
 
-use semantic_vocabulary::{InvocationSite, MachineId, ObligationId, PlaceId, ValueId};
+use language_core::ReferenceAccess;
+use semantic_vocabulary::{
+    InvocationSite, MachineId, ObligationId, OperationId, PlaceId, ScalarTerm, ValueId,
+};
 use terminal_check_tables::edges::{Actual, Callee, InvocationRow};
-use terminal_check_tables::obligations::{CrashSite, ObligationKind};
-use terminal_check_tables::{Checked, Construct, ProgramPoint, Refusal, RefusalReason};
+use terminal_check_tables::obligations::{CrashSite, Lender, ObligationKind};
+use terminal_check_tables::{
+    Checked, Construct, ExactPlaceId, ProgramPoint, Refusal, RefusalReason,
+};
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, Terminator};
 
 use super::{Lowering, Value};
@@ -30,37 +38,71 @@ struct Arguments {
     actuals: Vec<Actual>,
     /// The scalar lane: the values a callee clause's formals stand for.
     scalars: Vec<ValueId>,
-    /// The structural lane: each record argument's root, whole and owned.
-    records: Vec<PlaceId>,
-}
-
-impl Arguments {
-    fn structural(&self) -> Vec<StructuralArgument> {
-        self.records
-            .iter()
-            .map(|root| StructuralArgument::whole(*root, StructuralAccess::Owned))
-            .collect()
-    }
+    /// The structural lane in formal order: each record argument's root,
+    /// whole and owned, and each loan's place with the loan's access.
+    structural: Vec<StructuralArgument>,
+    /// The roots the call consumes, the record arguments' own: their homes
+    /// are retired after it.
+    consumed: Vec<PlaceId>,
+    /// One per loan, in formal order: the place lent, its access and where
+    /// the authority comes from.
+    loans: Vec<(ExactPlaceId, ReferenceAccess, Lender)>,
+    /// The erased lane: the term each `[erased]` formal stands for, in
+    /// position order. Nothing was evaluated for it, and it is not among
+    /// `actuals`: an invocation row's actual is a value or a place, and the
+    /// checker reads these terms from the call itself.
+    erased: Vec<ScalarTerm>,
 }
 
 impl Lowering<'_> {
     /// Evaluates a call's arguments left to right.
-    fn arguments(&mut self, arguments: &[Expression]) -> Checked<Arguments> {
+    fn arguments(&mut self, callee: MachineId, arguments: &[Expression]) -> Checked<Arguments> {
+        let signature =
+            terminal_check_tables::row(self.signatures, callee, self.id, Construct::Machine)?;
         let mut evaluated = Arguments {
             actuals: Vec::with_capacity(arguments.len()),
             scalars: Vec::new(),
-            records: Vec::new(),
+            structural: Vec::new(),
+            consumed: Vec::new(),
+            loans: Vec::new(),
+            erased: Vec::new(),
         };
-        for argument in arguments {
+        for (position, argument) in arguments.iter().enumerate() {
+            // contracts.md, "Explicit erased bindings": "Construction
+            // supplies the erased term". The argument at an erased position
+            // is that term; it is named, not run.
+            if signature.is_erased(position) {
+                let witness = self.witness(argument)?;
+                evaluated.erased.push(witness.term());
+                continue;
+            }
+            if let ExpressionKind::Borrow {
+                access,
+                place,
+                home,
+            } = &argument.kind
+            {
+                if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
+                    return Err(self.internal("a loan for a formal that is not borrowed alike"));
+                }
+                let (lent, exact, lender) = self.lend(place, *access, home.is_some())?;
+                evaluated.actuals.push(Actual::Place(exact));
+                evaluated.structural.push(lent);
+                evaluated.loans.push((exact, *access, lender));
+                continue;
+            }
             match argument.result {
                 Some(ValueType::Record(_)) => {
                     let root = self.record(argument)?;
                     evaluated
                         .actuals
                         .push(Actual::Place(self.exact_root(root)?));
-                    evaluated.records.push(root);
+                    evaluated
+                        .structural
+                        .push(StructuralArgument::whole(root, StructuralAccess::Owned));
+                    evaluated.consumed.push(root);
                 }
-                Some(ValueType::Scalar(_)) | None => {
+                Some(ValueType::Scalar(_) | ValueType::Rigid(_)) | None => {
                     let value = self.scalar(argument)?;
                     evaluated.actuals.push(Actual::Value(value));
                     evaluated.scalars.push(value);
@@ -68,6 +110,46 @@ impl Lowering<'_> {
             }
         }
         Ok(evaluated)
+    }
+
+    /// Mints one `Loan` per loan of a call, at the point before it, in
+    /// formal order. loans.md: "Loan resource | Exact occurrence, owner
+    /// lineage, captured place, access, parent lifetime, and restoration
+    /// obligation." The occurrence is the call: each loan is formed for it
+    /// and ends when it returns, so none is live on any edge.
+    fn loans(
+        &mut self,
+        loans: &[(ExactPlaceId, ReferenceAccess, Lender)],
+        before: ProgramPoint,
+        source: SourceOrigin,
+    ) {
+        for (captured, access, lender) in loans {
+            self.obligation(
+                ObligationKind::Loan {
+                    captured: *captured,
+                    access: *access,
+                    lender: *lender,
+                },
+                before,
+                source,
+            );
+        }
+    }
+
+    /// What an exclusive loan's callee may have stored: anything beneath the
+    /// lent place, from the call's normal continuation on. Nothing else the
+    /// caller holds changes, so siblings keep what they held.
+    fn returned_loans(
+        &mut self,
+        loans: &[(ExactPlaceId, ReferenceAccess, Lender)],
+        operation: OperationId,
+    ) -> Checked<()> {
+        for (captured, access, _) in loans {
+            if access.is_exclusive() {
+                self.unknown_contents(*captured, operation)?;
+            }
+        }
+        Ok(())
     }
 
     fn outcome(&self, callee: MachineId) -> Checked<&'_ Outcome> {
@@ -99,7 +181,9 @@ impl Lowering<'_> {
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
-            | ExpressionKind::ShortCircuit { .. } => Ok(None),
+            | ExpressionKind::Cast(_)
+            | ExpressionKind::ShortCircuit { .. }
+            | ExpressionKind::Borrow { .. } => Ok(None),
         }
     }
 
@@ -113,7 +197,17 @@ impl Lowering<'_> {
         arguments: &[Expression],
         source: SourceOrigin,
     ) -> Checked<()> {
-        let arguments = self.arguments(arguments)?;
+        let arguments = self.arguments(callee, arguments)?;
+        // A loan passed to a call that never returns is never returned to
+        // its lender: the edge would have to account for it, which no
+        // slice does yet.
+        if !arguments.loans.is_empty() {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Call("no-normal call that lends storage"),
+            ));
+        }
         let crash_continuations = canonical::substituted_routes(
             &self.outcome(callee)?.crash_routes,
             &arguments.scalars,
@@ -143,9 +237,9 @@ impl Lowering<'_> {
             edge,
             static_reach_binding: None,
             callee,
-            structural_arguments: arguments.structural(),
+            structural_arguments: arguments.structural,
             arguments: arguments.scalars,
-            erased_arguments: Vec::new(),
+            erased_arguments: arguments.erased,
             erased_proof_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: requirements,
@@ -215,7 +309,7 @@ impl Lowering<'_> {
                 Unserved::Call("no-normal call inside an expression"),
             ));
         }
-        let arguments = self.arguments(arguments)?;
+        let arguments = self.arguments(callee, arguments)?;
         // A callee that may return and also publishes crash routes makes
         // this operation a crash site: its routes, with each scalar formal
         // replaced by the actual at its position, are the call's crash
@@ -235,6 +329,7 @@ impl Lowering<'_> {
             before,
             source,
         )?;
+        self.loans(&arguments.loans, before, source);
         for bucket in &crash_continuations {
             self.obligation(
                 ObligationKind::CrashCoverage {
@@ -245,17 +340,23 @@ impl Lowering<'_> {
                 source,
             );
         }
-        let structural_arguments = arguments.structural();
+        let structural_arguments = arguments.structural;
+        let erased_arguments = arguments.erased;
         let scalars = arguments.scalars;
         // Terminal Psi has one call operation per result lane, and the
         // scalar-result form with no record argument is the plain `Call`.
         let value = match result {
+            // The reader refuses a call whose result is rigid: its value
+            // would need a row that says so, which `emit` does not make.
+            Some(ValueType::Rigid(_)) => {
+                return Err(self.internal("a call returns a value of a rigid type"));
+            }
             Some(ValueType::Scalar(scalar_type)) => {
                 let kind = if structural_arguments.is_empty() {
                     OperationKind::Call {
                         callee,
                         arguments: scalars,
-                        erased_arguments: Vec::new(),
+                        erased_arguments,
                         erased_proof_arguments: Vec::new(),
                         requirement_obligations: requirements,
                         crash_continuations,
@@ -264,7 +365,7 @@ impl Lowering<'_> {
                     OperationKind::CallStructuralScalar {
                         callee,
                         arguments: scalars,
-                        erased_arguments: Vec::new(),
+                        erased_arguments,
                         erased_proof_arguments: Vec::new(),
                         structural_arguments,
                         claim_transfers: Vec::new(),
@@ -280,7 +381,7 @@ impl Lowering<'_> {
                 OperationKind::CallUnit {
                     callee,
                     arguments: scalars,
-                    erased_arguments: Vec::new(),
+                    erased_arguments,
                     erased_proof_arguments: Vec::new(),
                     structural_arguments,
                     claim_transfers: Vec::new(),
@@ -295,7 +396,7 @@ impl Lowering<'_> {
                     OperationKind::CallStructuralWithScalarArguments {
                         callee,
                         arguments: scalars,
-                        erased_arguments: Vec::new(),
+                        erased_arguments,
                         erased_proof_arguments: Vec::new(),
                         structural_arguments,
                         claim_transfers: Vec::new(),
@@ -308,8 +409,9 @@ impl Lowering<'_> {
                 Value::Record(root)
             }
         };
-        if !arguments.records.is_empty() {
-            self.retire_homes(&arguments.records, source)?;
+        self.returned_loans(&arguments.loans, operation)?;
+        if !arguments.consumed.is_empty() {
+            self.retire_homes(&arguments.consumed, source)?;
         }
         Ok(value)
     }

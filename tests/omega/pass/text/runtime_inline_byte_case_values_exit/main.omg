@@ -61,7 +61,7 @@ machine main() crashes Trap {
     transition valid { true -> direct(make_direct()) false -> bad() }
     machine direct(reply: DirectReply) {
         let copied: DirectReply = reply;
-        let changed: DirectReply = make_direct();
+        let mut changed: DirectReply = make_direct();
         let before: DirectReply = changed;
         let edited: bool = edit(&mut changed);
         let empty: DirectReply = DirectReply::Empty { header: TextBuffer { storage: [69u8, 109u8, 112u8, 116u8, 121u8, 0u8, 0u8, 0u8], used: 5 }, sequence: 0 };

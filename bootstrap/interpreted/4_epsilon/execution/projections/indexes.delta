@@ -1,0 +1,42 @@
+
+; Index effects may change the selected array. Its identity and length were
+; established by the base; the element is read from the post-index store.
+(def epsilon_evaluate_index_operand ((context EpsilonEvaluatorInvocation)
+  (baseValue EpsilonRuntimeValue) (basePlace EpsilonRuntimeOptionalPlace)
+  (indexValue EpsilonExpression) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (let outcome EpsilonEvaluatorOutcome
+    (epsilon_evaluate_expression context indexValue bindings store output)
+    (match outcome
+      ((EpsilonEvaluatorValue value place nextStore nextOutput)
+        (match value
+          ((EpsilonRuntimeInteger index)
+            (epsilon_evaluator_index_value baseValue basePlace index
+              nextStore nextOutput))
+          ((EpsilonRuntimeAggregate typeValue children)
+            (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))
+          ((EpsilonRuntimeSumValue owner caseValue payloads)
+            (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))
+          ((EpsilonRuntimeViewValue view)
+            (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))))
+      ((EpsilonEvaluatorResultless nextStore nextOutput)
+        (EpsilonEvaluatorInternal (epsilon_expression_start indexValue)))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome))))
+
+(def epsilon_evaluate_index ((context EpsilonEvaluatorInvocation)
+  (base EpsilonExpression) (indexValue EpsilonExpression)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (let outcome EpsilonEvaluatorOutcome
+    (epsilon_evaluate_expression context base bindings store output)
+    (match outcome
+      ((EpsilonEvaluatorValue value place nextStore nextOutput)
+        (epsilon_evaluate_index_operand context value place indexValue bindings
+          nextStore nextOutput))
+      ((EpsilonEvaluatorResultless nextStore nextOutput)
+        (EpsilonEvaluatorInternal (epsilon_expression_start base)))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome))))

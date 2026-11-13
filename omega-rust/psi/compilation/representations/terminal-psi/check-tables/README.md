@@ -90,7 +90,7 @@ closed `RefusalReason`, the machine and the lowered `Construct` it concerns.
 There is no way to return "nothing". A construct the lane does not serve is
 refused as `Unsupported`, never accepted by default.
 
-Three reasons are verdicts about the program and the rest are about the
+Four reasons are verdicts about the program and the rest are about the
 checker. `Unproved` means an obligation's evidence did not check.
 `Unestablished` means a place is read, copied, passed or returned on a path
 on which nothing established it. A local declared without an initializer is
@@ -108,6 +108,9 @@ establish the selected case for the same root and prefix at the read's
 observation epoch"), and a dispatch that has no edge for a declared case
 ([patterns](../../../../../../wiki/spec/language/patterns.md): "Missing
 runtime coverage is a compile error, not an implicit trap or fallthrough").
+`Conflict` means two live loans may not both be formed (overlapping places
+with an exclusive access, or an exclusive reborrow of storage held shared):
+a resource judgment over the lowered form, with no certificate.
 `Unsupported`
 means the checker does not serve the construct and says nothing about the
 program.
@@ -136,12 +139,21 @@ being added here.
   `DataDomain` row, followed to its consumption points by
   `lowered-discharge`, and not a conserved row here.
 
+- **What a call supplies for an erased formal.** `Actual` is a value or a
+  place. The argument for an `[erased]` scalar formal is a term that nothing
+  evaluates
+  ([proof contracts](../../../../../../wiki/spec/proofs/contracts.md#explicit-erased-bindings):
+  "Construction supplies the erased term"), so `InvocationRow::actuals`
+  lists the runtime actuals only and the checker reads the erased terms from
+  the call's `erased_arguments`, by position against the callee's
+  `erased_scalar_formals`.
+
 ## Obligation kinds
 
 | Kind | Family | Created by |
 | --- | --- | --- |
 | `Claim` | conserved | [ownership](../../../../../../wiki/spec/terminal-psi/ownership.md): "Structural ownership is an exact live set of roots, projected claims, and remaining subtrees" |
-| `Loan` | conserved | [loans](../../../../../../wiki/spec/terminal-psi/loans.md): "Loan resource \| Exact occurrence, owner lineage, captured place, access, parent lifetime, and restoration obligation." |
+| `Loan` | conserved | [loans](../../../../../../wiki/spec/terminal-psi/loans.md): "Loan resource \| Exact occurrence, owner lineage, captured place, access, parent lifetime, and restoration obligation." The lender is the owner, a parent loan of the machine, or the loan the invocation passed in at a borrowed formal (`Lender::Incoming`: "A direct reborrow names its immediate parent resource"). |
 | `RestorationWindow` | conserved | [language ownership](../../../../../../wiki/spec/language/ownership.md#borrowed-storage-invariant-windows): "records a restoration obligation on the original place and loan" |
 | `DomainDebt` | conserved | [dependent values](../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "The domain must be proved again at the next consumption point" |
 | `EstablishmentDebt` | conserved | [dependent values](../../../../../../wiki/spec/language/dependent_values.md#invariant-windows): "may open initial target-establishment debt before a valid target value exists" |

@@ -184,6 +184,12 @@ pub enum BuildError {
     BuildDirectory(String),
 }
 
+impl From<Vec<Diagnostic>> for BuildError {
+    fn from(diagnostics: Vec<Diagnostic>) -> Self {
+        Self::Diagnostics(diagnostics)
+    }
+}
+
 impl std::fmt::Display for BuildError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

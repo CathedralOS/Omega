@@ -1,20 +1,13 @@
-use psi::checking::checker;
-use psi::checking::contracts;
-use psi::checking::invocations;
-use psi::checking::termination;
-use psi::resolution::resolution;
-use psi::syntax::syntax;
-
 // Operational possibilities compose over the authenticated invocation graph.
 // This post-settlement query borrows only its existing visited/work scratch;
 // topology, SCCs, ranking certificates and settled progress remain unchanged.
 // Nonempty service rows lack resolved identity evidence in this product yet:
 // they decline, rather than treating spelling equality as authority equality.
-public machine Checker::callable_markers_refine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, given: CallClauses, target: Selection) -> bool
+public machine callable_markers_refine(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, given: CallClauses, target: Selection) -> bool
 crashes Trap
 {
-    let markers: bool = Checker::callable_clause_ceiling(syntax, required, given);
-    let progress: bool = !Checker::callable_has_clause(syntax, required, ClauseKind::Terminates) || Checker::selected_progress(checker, syntax, resolution, target);
+    let markers: bool = callable_clause_ceiling(syntax, required, given);
+    let progress: bool = !callable_has_clause(syntax, required, ClauseKind::Terminates) || selected_progress(checker, syntax, resolution, target);
     transition markers && progress {
         true -> selected(checker, syntax, resolution, required, target)
         false -> false
@@ -27,7 +20,7 @@ crashes Trap
         }
     }
     machine bound(resolution: &NameResolution, parameter: u64 in Trapping) -> bool {
-        let contract: BinderContract = NameResolution::binder_contract(resolution, parameter);
+        let contract: BinderContract = binder_contract(resolution, parameter);
         contract.present
     }
     machine clear(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, root: u64 in Trapping, index: u64 in Trapping) -> bool {
@@ -44,7 +37,7 @@ crashes Trap
     }
     machine seed(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, root: u64 in Trapping) -> bool {
         checker.invocations.work_count = 0;
-        let queued: bool = Checker::queue_callable_effect(checker, root);
+        let queued: bool = queue_callable_effect(checker, root);
         transition checker.invocations.complete && checker.invocations.sealed && queued {
             true -> next(checker, syntax, resolution, required, 0)
             false -> false
@@ -68,8 +61,8 @@ crashes Trap
     machine bounded(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, cursor: u64 in Trapping, owner: u64 in Trapping) -> bool
     requires owner < 10240
     {
-        let clauses: CallClauses = Checker::call_clauses(syntax, resolution, Selection::Machine { handle: owner });
-        transition Checker::callable_clause_ceiling(syntax, required, clauses) {
+        let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Machine { handle: owner });
+        transition callable_clause_ceiling(syntax, required, clauses) {
             true -> edge(checker, syntax, resolution, required, cursor, checker.invocations.first[owner] as u64 in Trapping)
             false -> false
         }
@@ -96,22 +89,22 @@ crashes Trap
         }
     }
     machine concrete(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, cursor: u64 in Trapping, following: u64 in Trapping, machine: u64 in Trapping) -> bool {
-        transition Checker::queue_callable_effect(checker, machine) {
+        transition queue_callable_effect(checker, machine) {
             true -> edge(checker, syntax, resolution, required, cursor, following)
             false -> false
         }
     }
     machine opaque(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, required: CallClauses, cursor: u64 in Trapping, following: u64 in Trapping, parameter: u64 in Trapping) -> bool {
-        let contract: BinderContract = NameResolution::binder_contract(resolution, parameter);
-        let clauses: CallClauses = Checker::call_clauses(syntax, resolution, Selection::Binder { parameter: parameter });
-        transition contract.present && Checker::callable_clause_ceiling(syntax, required, clauses) {
+        let contract: BinderContract = binder_contract(resolution, parameter);
+        let clauses: CallClauses = call_clauses(syntax, resolution, Selection::Binder { parameter: parameter });
+        transition contract.present && callable_clause_ceiling(syntax, required, clauses) {
             true -> edge(checker, syntax, resolution, required, cursor, following)
             false -> false
         }
     }
 }
 
-machine Checker::queue_callable_effect(checker: &mut Checker, node: u64 in Trapping) -> bool
+machine queue_callable_effect(checker: &mut Checker, node: u64 in Trapping) -> bool
 crashes Trap
 {
     transition node < checker.invocations.node_count && node < 10240 {
@@ -139,11 +132,11 @@ crashes Trap
     }
 }
 
-machine Checker::callable_clause_ceiling(syntax: &SyntaxTrees, required: CallClauses, given: CallClauses) -> bool
+machine callable_clause_ceiling(syntax: &SyntaxTrees, required: CallClauses, given: CallClauses) -> bool
 crashes Trap
 {
-    let suspends: bool = Checker::callable_has_clause(syntax, required, ClauseKind::Suspends);
-    let blocks: bool = Checker::callable_has_clause(syntax, required, ClauseKind::Blocks);
+    let suspends: bool = callable_has_clause(syntax, required, ClauseKind::Suspends);
+    let blocks: bool = callable_has_clause(syntax, required, ClauseKind::Blocks);
     transition { _ -> next(syntax, given, suspends, blocks, 0) }
     machine next(syntax: &SyntaxTrees, given: CallClauses, suspends: bool, blocks: bool, offset: u64 in Trapping) -> bool {
         transition offset < given.clause_count {
@@ -152,7 +145,7 @@ crashes Trap
         }
     }
     machine clause(syntax: &SyntaxTrees, given: CallClauses, suspends: bool, blocks: bool, offset: u64 in Trapping) -> bool {
-        let row: Clause = SyntaxTrees::clause(syntax, given.first_clause + offset);
+        let row: Clause = syntax_trees_clause(syntax, given.first_clause + offset);
         transition (row.kind == ClauseKind::Suspends && !suspends) || (row.kind == ClauseKind::Blocks && !blocks) || ((row.kind == ClauseKind::Reaches || row.kind == ClauseKind::Invokes) && row.member_count > 0) {
             true -> false
             false -> next(syntax, given, suspends, blocks, offset + 1)
@@ -160,7 +153,7 @@ crashes Trap
     }
 }
 
-public machine Checker::callable_has_clause(syntax: &SyntaxTrees, clauses: CallClauses, kind: ClauseKind) -> bool
+public machine callable_has_clause(syntax: &SyntaxTrees, clauses: CallClauses, kind: ClauseKind) -> bool
 crashes Trap
 {
     transition { _ -> next(syntax, clauses, kind, 0) }
@@ -171,17 +164,17 @@ crashes Trap
         }
     }
     machine row(syntax: &SyntaxTrees, clauses: CallClauses, kind: ClauseKind, offset: u64 in Trapping) -> bool {
-        let clause: Clause = SyntaxTrees::clause(syntax, clauses.first_clause + offset);
+        let clause: Clause = syntax_trees_clause(syntax, clauses.first_clause + offset);
         transition clause.kind == kind { true -> true false -> next(syntax, clauses, kind, offset + 1) }
     }
 }
 
-machine Checker::selected_progress(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, target: Selection) -> bool
+machine selected_progress(checker: &Checker, syntax: &SyntaxTrees, resolution: &NameResolution, target: Selection) -> bool
 crashes Trap
 {
     transition target {
-        Selection::Machine { handle } -> Checker::settled_termination(checker, handle)
-        Selection::Binder { parameter } -> Checker::binder_terminates(syntax, resolution, parameter)
+        Selection::Machine { handle } -> settled_termination(checker, handle)
+        Selection::Binder { parameter } -> binder_terminates(syntax, resolution, parameter)
         _ -> false
     }
 }

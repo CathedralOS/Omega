@@ -38,6 +38,9 @@ mod demand {
         Entry {
             machine: MachineId,
             installation: TerminalRuntimeSupplies,
+            // Imports the selected target executes for this entry; `None`
+            // when the entry demands no import.
+            realized_imports: Option<Box<dyn super::AdmittedImportRealizations>>,
             prerequisites: terminal_installation::ScalarEntryPrerequisites<'artifact>,
         },
     }
@@ -47,6 +50,7 @@ mod demand {
         observations: &ScalarApplicationObservations<'artifact>,
         requested: &[ScalarApplicationId],
         conditions: &mut ScalarConditionSelection<'_>,
+        import_realizations: Option<&dyn super::TargetImportRealizations>,
     ) -> Result<Vec<Job<'artifact>>, String> {
         let mut demanded = Vec::new();
         extend_unique(&mut demanded, requested.iter().copied());
@@ -94,12 +98,35 @@ mod demand {
                             .map_err(|error| {
                                 format!("scalar evaluation dependencies: {error:?}")
                             })?;
-                        if !requirements.missing_providers.is_empty()
-                            || !requirements.imports.is_empty()
-                        {
+                        // A constant may reach an operation its target
+                        // executes without a checked body, such as a
+                        // canonical float operation. Only the target's owner
+                        // knows which those are, so we ask it for exactly the
+                        // imports this entry demands and refuse the rest.
+                        let realized_imports = match import_realizations {
+                            Some(realizations) if !requirements.imports.is_empty() => {
+                                Some(realizations.admit(&requirements.imports)?)
+                            }
+                            _ => None,
+                        };
+                        let unrealized = requirements
+                            .imports
+                            .iter()
+                            .copied()
+                            .filter(|boundary| {
+                                realized_imports
+                                    .as_ref()
+                                    .is_none_or(|realized| !realized.realizes(*boundary))
+                            })
+                            .collect::<Vec<_>>();
+                        if !requirements.missing_providers.is_empty() || !unrealized.is_empty() {
+                            let module = observations.artifact().module();
+                            let names = |boundaries: &[_]| boundary_names(module, boundaries);
                             return Err(format!(
-                                "scalar evaluation requires exact authored selection before evaluation; missing providers: {:?}, external imports unavailable to constant execution: {:?}",
-                                requirements.missing_providers, requirements.imports,
+                                "scalar evaluation requires exact authored selection before evaluation; missing providers: [{}]; operations target `{}` cannot execute during constant evaluation: [{}]",
+                                names(&requirements.missing_providers),
+                                observations.targets().target(),
+                                names(&unrealized),
                             ));
                         }
                         if !requirements.external_completions.is_empty() {
@@ -118,6 +145,7 @@ mod demand {
                             Execution::Entry {
                                 machine,
                                 installation,
+                                realized_imports,
                                 prerequisites,
                             },
                             {
@@ -139,6 +167,27 @@ mod demand {
             discovered = batch_end;
         }
         Ok(jobs)
+    }
+
+    // A diagnostic names an operation by its callable identity, which is what
+    // the author can find in source; the slot number is only a fallback.
+    fn boundary_names(
+        module: &terminal_psi::TerminalModule,
+        boundaries: &[semantic_vocabulary::BoundaryMachineId],
+    ) -> String {
+        boundaries
+            .iter()
+            .map(|boundary| {
+                terminal_psi::find_boundary_machine(&module.boundary_machines, *boundary)
+                    .and_then(|declaration| module.identities.text(declaration.identity))
+                    .filter(|identity| !identity.is_empty())
+                    .map_or_else(
+                        || format!("{boundary:?}"),
+                        |identity| format!("`{identity}`"),
+                    )
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
     pub(super) fn execution_order(jobs: &[Job]) -> Result<Vec<usize>, String> {
@@ -231,6 +280,38 @@ pub struct ScalarScopeEvaluation {
     pub address_model: Result<Option<terminal_installation::ScalarAddressModel>, String>,
     pub carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     pub layout_target: terminal_installation::LayoutTargetFacts,
+    /// `None` leaves every bodyless import unavailable to evaluation.
+    pub import_realizations: Option<Box<dyn TargetImportRealizations>>,
+}
+
+/// The selected target's execution of imports that have no checked body.
+///
+/// Constant evaluation runs on Terminal Psi, where a canonical float operation
+/// is a call to a bodyless boundary. The numeric values specification has the
+/// selected target's declared realization table decide how each such operation
+/// is realized, and that table belongs to the target's owner, outside this
+/// crate. The caller that names the target therefore supplies this, and an
+/// import it does not realize stays unavailable to constant evaluation.
+pub trait TargetImportRealizations {
+    /// Admit the realizations for the imports one entry demands. An import the
+    /// target does not realize is left out rather than refused here, so the
+    /// evaluator can name it.
+    fn admit(
+        &self,
+        imports: &[semantic_vocabulary::BoundaryMachineId],
+    ) -> Result<Box<dyn AdmittedImportRealizations>, String>;
+}
+
+/// Realizations admitted for one entry's demanded imports.
+pub trait AdmittedImportRealizations {
+    fn realizes(&self, boundary: semantic_vocabulary::BoundaryMachineId) -> bool;
+
+    /// Bind every realized import into the instance of the entry they were
+    /// admitted for.
+    fn bind(
+        &self,
+        instance: &mut terminal_interpreter::TerminalInstance<'_, '_>,
+    ) -> Result<(), String>;
 }
 
 pub fn complete_scalar_applications(
@@ -299,6 +380,7 @@ fn complete_scopes(
                 .as_ref()
                 .ok()
                 .and_then(Option::as_ref),
+            selected.import_realizations.as_deref(),
             |job, admission| {
                 let observations = admission.observations();
                 let ceiling = crate::evaluation_accounting::PURE_PSI_WORK_BUDGET;
@@ -344,6 +426,7 @@ pub fn evaluate_scalar_applications<'artifact>(
         value_scope,
         requested,
         None,
+        None,
         |job, admission| execute_entry(job, admission, meter),
     )
 }
@@ -360,6 +443,7 @@ pub fn evaluate_scalar_applications_with_address_model<'artifact>(
         value_scope,
         requested,
         address_model,
+        None,
         |job, admission| execute_entry(job, admission, meter),
     )
 }
@@ -412,6 +496,7 @@ pub(crate) fn complete_invocation_scalar_applications<'artifact>(
         target.name,
         requested,
         target.address_model,
+        None,
         |job, admission| execute_entry(job, admission, meter),
     )?;
     closure.close_scope(observations, conditions, Ok(target.address_model.cloned()))?;
@@ -423,6 +508,7 @@ fn evaluate_scope<'artifact>(
     value_scope: &str,
     requested: &[ScalarApplicationId],
     address_model: Option<&terminal_installation::ScalarAddressModel>,
+    import_realizations: Option<&dyn TargetImportRealizations>,
     mut execute: impl FnMut(
         &demand::Job<'artifact>,
         &terminal_installation::AdmittedScalarEntry<'_, 'artifact>,
@@ -430,7 +516,13 @@ fn evaluate_scope<'artifact>(
 ) -> Result<ScalarConditionSelection<'artifact>, String> {
     let program = TerminalProgram::borrow(observations.artifact());
     let mut conditions = observations.conditions(value_scope, requested)?;
-    let mut jobs = demand::discover(&program, observations, requested, &mut conditions)?;
+    let mut jobs = demand::discover(
+        &program,
+        observations,
+        requested,
+        &mut conditions,
+        import_realizations,
+    )?;
     let order = demand::execution_order(&jobs)?;
     demand::retain_entry_results(observations, &conditions, &mut jobs)?;
     conditions.discharge_ready(observations)?;
@@ -482,6 +574,7 @@ fn execute_entry(
     let demand::Execution::Entry {
         machine,
         installation,
+        realized_imports,
         ..
     } = &job.execution
     else {
@@ -502,6 +595,9 @@ fn execute_entry(
             ..TerminalInstantiation::default()
         })
         .map_err(|error| format!("scalar evaluation entry: {error:?}"))?;
+    if let Some(realized) = realized_imports {
+        realized.bind(&mut instance)?;
+    }
     let result = instance
         .invoke(meter)
         .map_err(|error| format!("scalar evaluation execution: {error:?}"))?;

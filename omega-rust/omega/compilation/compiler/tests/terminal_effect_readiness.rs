@@ -3,9 +3,6 @@
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
-#[path = "support/build_sequence.rs"]
-mod build_sequence;
-
 use psi_work::WorkMeter;
 use std::sync::{
     Arc, Mutex,
@@ -41,7 +38,9 @@ fn build_readiness_installs_applied_inherited_slots() {
 use backing::api;
 machine build(builder: &mut Build) suspends {
     Build::application(builder, "applied_readiness");
-    Build::build_depend_as(builder, "backing", Source::Path { location: "../backing" });
+    let mut backing_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../backing" });
+    dependency::with_alias(&mut backing_dependency, "backing");
+    let backing_registration: DependencyRegistration = Build::build_dependency(builder, backing_dependency);
     let mut count: u64 = 0;
     count = count + 1;
     suspend Build::await_provider<Operations<u32>, backing::Selected>(builder);
@@ -157,7 +156,6 @@ public Wide satisfies Operations<u64> {
         let mut invocation = compiler::CompilationSession::default()
             .begin_package_build(request)
             .unwrap_or_else(|error| panic!("receiver: {:?}", error.into_diagnostics()));
-        build_sequence::prepare_package_root(&mut invocation);
         let host = invocation.execution().unwrap().host().unwrap();
         let mut activation = host.start().unwrap();
         let mut pauses = 0;

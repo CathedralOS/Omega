@@ -8,7 +8,7 @@ data Main {
 
 machine Main::main(main: &mut Main) {
     main.raw = 0;
-    let local: u64 = 0;
+    let mut local: u64 = 0;
     let view: &mut i64 = &mut local as &mut i64;
     view = 0 - 11;
     transition local == 18446744073709551605 {

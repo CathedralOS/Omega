@@ -1,0 +1,629 @@
+// Declarations retain their syntax-arena identity across source units. Lookup
+// compares authored path members, package edges and logical modules; it never
+// derives a namespace from a filename or reinterprets a dependency under the
+// consumer's imports. The admitted profile still has free machines and copy
+// records: attached declarations and overload families remain unsupported.
+machine OmegaScalarCompiler::declaration_count(&mut self, kind: OmegaDeclarationKind) -> i32 {
+    transition kind {
+        OmegaDeclarationKind::Data -> return self.parser.data_count
+        OmegaDeclarationKind::Machine -> return self.parser.machine_count
+    }
+}
+
+machine OmegaScalarCompiler::declaration_name(
+    &mut self, kind: OmegaDeclarationKind, index: i32
+) -> OmegaRelativeSpan {
+    transition kind {
+        OmegaDeclarationKind::Data -> return self.parser.data_items[index].name
+        OmegaDeclarationKind::Machine -> return self.parser.members[self.parser.machine_items[index].first_path_member]
+    }
+}
+
+machine OmegaScalarCompiler::declaration_public(
+    &mut self, kind: OmegaDeclarationKind, index: i32
+) -> i32 {
+    transition kind {
+        OmegaDeclarationKind::Data -> return self.parser.data_items[index].is_public
+        OmegaDeclarationKind::Machine -> return self.parser.machine_items[index].is_public
+    }
+}
+
+// The syntax parser has already validated these exact bytes. Reuse its scanner
+// to retain path members, including legal trivia around `::`, instead of
+// introducing a second spelling parser in lookup or the host packer.
+machine OmegaScalarCompiler::read_query(&mut self, source: &[u8], start: i32, end: i32) -> i32 {
+    self.query_path.count = 0;
+    transition (start >= 0) && (start < end) && (end <= source.len) {
+        true -> scan(start, 1)
+        _ -> return 0
+    }
+    state scan(cursor: i32, need_member: i32) {
+        transition cursor < end {
+            true -> token(cursor, need_member)
+            _ -> finished(need_member)
+        }
+    }
+    state token(cursor: i32, need_member: i32) {
+        self.parser.scan.scan_preflighted_stage(source[0..end], cursor);
+        transition (self.parser.scan.accepted == 1) && (self.parser.scan.next_cursor > cursor) {
+            true -> classify(need_member)
+            _ -> return 0
+        }
+    }
+    state classify(need_member: i32) {
+        transition self.parser.scan.token_kind {
+            OmegaTokenKind::Whitespace -> scan(self.parser.scan.next_cursor, need_member)
+            OmegaTokenKind::LineComment -> scan(self.parser.scan.next_cursor, need_member)
+            OmegaTokenKind::BlockComment -> scan(self.parser.scan.next_cursor, need_member)
+            OmegaTokenKind::Identifier -> member(need_member)
+            OmegaTokenKind::Keyword -> member(need_member)
+            OmegaTokenKind::Punctuation -> separator(need_member)
+            _ -> return 0
+        }
+    }
+    state member(need_member: i32) {
+        transition (need_member == 1) && (self.query_path.count < 16384) {
+            true -> retain()
+            _ -> return 0
+        }
+    }
+    state retain() {
+        self.query_path.members[self.query_path.count].start = self.parser.scan.token_start;
+        self.query_path.members[self.query_path.count].end = self.parser.scan.token_end;
+        self.query_path.count = self.query_path.count + 1;
+        transition true { true -> scan(self.parser.scan.next_cursor, 0) }
+    }
+    state separator(need_member: i32) {
+        transition self.parser.scan.punctuation {
+            OmegaPunctuationKind::ColonColon -> separator_position(need_member)
+            _ -> return 0
+        }
+    }
+    state separator_position(need_member: i32) {
+        transition need_member {
+            0 -> scan(self.parser.scan.next_cursor, 1)
+            _ -> return 0
+        }
+    }
+    state finished(need_member: i32) {
+        transition (need_member == 0) && (self.query_path.count > 0) {
+            true -> return 1
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaScalarCompiler::same_module(&mut self, source: &[u8], left: i32, right: i32) -> i32 {
+    let a: OmegaSourceUnit = self.parser.sources.units[left];
+    let b: OmegaSourceUnit = self.parser.sources.units[right];
+    transition (a.package == b.package) && (a.module_member_count == b.module_member_count) {
+        true -> member(a, b, 0)
+        _ -> return 0
+    }
+    state member(a: OmegaSourceUnit, b: OmegaSourceUnit, offset: i32) {
+        transition offset < a.module_member_count {
+            true -> compare(a, b, offset)
+            _ -> return 1
+        }
+    }
+    state compare(a: OmegaSourceUnit, b: OmegaSourceUnit, offset: i32) {
+        transition self.parser.sources.equal_name(source,
+            self.parser.members[a.first_module_member + offset],
+            self.parser.members[b.first_module_member + offset]) {
+            1 -> member(a, b, offset + 1)
+            _ -> return 0
+        }
+    }
+}
+
+// An absolute address starts at the requester's own package or one direct
+// dependency alias. Otherwise it is package-relative. Transitive dependencies
+// never become addressable merely because their units are present.
+machine OmegaScalarCompiler::address_package(&mut self, source: &[u8], requester: i32) -> i32 {
+    transition self.address_path.count > 0 {
+        true -> own(requester)
+        _ -> return -1
+    }
+    state own(package: i32) {
+        transition self.parser.sources.equal_name(source, self.address_path.members[0],
+            self.parser.sources.packages[package].name) {
+            1 -> return package
+            _ -> edge(0)
+        }
+    }
+    state edge(index: i32) {
+        transition index < self.parser.sources.dependency_count {
+            true -> candidate(index, self.parser.sources.dependencies[index])
+            _ -> return -1
+        }
+    }
+    state candidate(index: i32, row: OmegaSourceDependency) {
+        transition (row.requester == requester) &&
+            (self.parser.sources.equal_name(source, self.address_path.members[0], row.alias) == 1) {
+            true -> return row.target
+            _ -> edge(index + 1)
+        }
+    }
+}
+
+// terminal=1 selects a declaration within a module; terminal=0 selects the
+// module itself. Only the latter can justify a namespace import.
+machine OmegaScalarCompiler::address_matches_module(
+    &mut self, source: &[u8], requester: i32, unit: i32, terminal: i32
+) -> i32 {
+    let package: i32 = self.address_package(source, requester);
+    transition package >= 0 {
+        true -> target(package, 1)
+        _ -> target(requester, 0)
+    }
+    state target(package: i32, first: i32) {
+        let row: OmegaSourceUnit = self.parser.sources.units[unit];
+        transition (row.package == package) &&
+            (row.module_member_count == self.address_path.count - first - terminal) {
+            true -> member(row, first, 0)
+            _ -> return 0
+        }
+    }
+    state member(row: OmegaSourceUnit, first: i32, offset: i32) {
+        transition offset < row.module_member_count {
+            true -> compare(row, first, offset)
+            _ -> return 1
+        }
+    }
+    state compare(row: OmegaSourceUnit, first: i32, offset: i32) {
+        transition self.parser.sources.equal_name(source,
+            self.parser.members[row.first_module_member + offset],
+            self.address_path.members[first + offset]) {
+            1 -> member(row, first, offset + 1)
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaScalarCompiler::address_declaration(
+    &mut self, source: &[u8], requester: i32, kind: OmegaDeclarationKind
+) -> i32 {
+    transition true { true -> candidate(0, -1) }
+    state candidate(index: i32, selected: i32) {
+        transition index < self.declaration_count(kind) {
+            true -> name(index, selected, self.declaration_name(kind, index))
+            _ -> return selected
+        }
+    }
+    state name(index: i32, selected: i32, name: OmegaRelativeSpan) {
+        transition self.parser.sources.equal_name(source, name,
+            self.address_path.members[self.address_path.count - 1]) {
+            1 -> owner(index, selected, self.parser.sources.unit_at(name.start))
+            _ -> candidate(index + 1, selected)
+        }
+    }
+    state owner(index: i32, selected: i32, unit: i32) {
+        transition (unit >= 0) &&
+            (self.address_matches_module(source, requester, unit, 1) == 1) {
+            true -> visible(index, selected, unit)
+            _ -> candidate(index + 1, selected)
+        }
+    }
+    state visible(index: i32, selected: i32, unit: i32) {
+        transition (self.parser.sources.units[unit].package == requester) ||
+            (self.declaration_public(kind, index) == 1) {
+            true -> retain(index, selected)
+            _ -> candidate(index + 1, selected)
+        }
+    }
+    state retain(index: i32, selected: i32) {
+        transition selected < 0 {
+            true -> candidate(index + 1, index)
+            _ -> return -2
+        }
+    }
+}
+
+machine OmegaScalarCompiler::query_address(&mut self) {
+    self.address_path.count = self.query_path.count;
+    transition true { true -> member(0) }
+    state member(index: i32) {
+        transition index < self.query_path.count {
+            true -> copy(index)
+            _ -> return
+        }
+    }
+    state copy(index: i32) {
+        self.address_path.members[index] = self.query_path.members[index];
+        transition true { true -> member(index + 1) }
+    }
+}
+
+machine OmegaScalarCompiler::import_address(&mut self, row: OmegaUseSyntax, append_query: i32) -> i32 {
+    let suffix: i32 = append_query * (self.query_path.count - 1);
+    transition (suffix >= 0) && (row.member_count <= 16384 - suffix) {
+        true -> begin(suffix)
+        _ -> return 0
+    }
+    state begin(suffix: i32) {
+        self.address_path.count = row.member_count + suffix;
+        transition true { true -> imported(0, suffix) }
+    }
+    state imported(index: i32, suffix: i32) {
+        transition index < row.member_count {
+            true -> copy_import(index, suffix)
+            _ -> query(0, suffix)
+        }
+    }
+    state copy_import(index: i32, suffix: i32) {
+        self.address_path.members[index] = self.parser.members[row.first_member + index];
+        transition true { true -> imported(index + 1, suffix) }
+    }
+    state query(index: i32, suffix: i32) {
+        transition index < suffix {
+            true -> copy_query(index, suffix)
+            _ -> return 1
+        }
+    }
+    state copy_query(index: i32, suffix: i32) {
+        self.address_path.members[row.member_count + index] = self.query_path.members[index + 1];
+        transition true { true -> query(index + 1, suffix) }
+    }
+}
+
+// Bare names select this file first, then this file's exact imports, then
+// sibling declarations of the same logical module. A namespace import binds
+// its final path member; it is never a wildcard import of ordinary machines.
+machine OmegaScalarCompiler::resolve_declaration(
+    &mut self, source: &[u8], start: i32, end: i32, kind: OmegaDeclarationKind
+) -> i32 {
+    let unit: i32 = self.parser.sources.unit_at(start);
+    transition (unit >= 0) && (self.read_query(source, start, end) == 1) {
+        true -> local(0, unit, -1)
+        _ -> return -1
+    }
+    state local(index: i32, unit: i32, selected: i32) {
+        transition (self.query_path.count == 1) && (index < self.declaration_count(kind)) {
+            true -> local_candidate(index, unit, selected, self.declaration_name(kind, index))
+            _ -> local_done(unit, selected)
+        }
+    }
+    state local_candidate(index: i32, unit: i32, selected: i32, name: OmegaRelativeSpan) {
+        transition (self.parser.sources.unit_at(name.start) == unit) &&
+            (self.parser.sources.equal_name(source, name, self.query_path.members[0]) == 1) {
+            true -> local_match(index, unit, selected)
+            _ -> local(index + 1, unit, selected)
+        }
+    }
+    state local_match(index: i32, unit: i32, selected: i32) {
+        transition selected < 0 {
+            true -> local(index + 1, unit, index)
+            _ -> return -2
+        }
+    }
+    state local_done(unit: i32, selected: i32) {
+        transition selected >= 0 {
+            true -> return selected
+            _ -> imports(0, unit, -1)
+        }
+    }
+    state imports(index: i32, unit: i32, selected: i32) {
+        transition index < self.parser.use_count {
+            true -> import_candidate(index, unit, selected, self.parser.uses[index])
+            _ -> imports_done(unit, selected)
+        }
+    }
+    state import_candidate(index: i32, unit: i32, selected: i32, row: OmegaUseSyntax) {
+        transition (self.parser.sources.unit_at(row.start) == unit) &&
+            (self.parser.sources.equal_name(source,
+                self.parser.members[row.first_member + row.member_count - 1], self.query_path.members[0]) == 1) {
+            true -> imported(index, unit, selected, row)
+            _ -> imports(index + 1, unit, selected)
+        }
+    }
+    state imported(index: i32, unit: i32, selected: i32, row: OmegaUseSyntax) {
+        transition self.import_address(row, 1) {
+            1 -> import_target(index, unit, selected)
+            _ -> return -2
+        }
+    }
+    state import_target(index: i32, unit: i32, selected: i32) {
+        let target: i32 = self.address_declaration(source, self.parser.sources.units[unit].package, kind);
+        transition target == -1 {
+            true -> imported_other_kind(index, unit, selected)
+            _ -> import_selected(index, unit, selected, target)
+        }
+    }
+    state import_selected(index: i32, unit: i32, selected: i32, target: i32) {
+        transition target >= 0 {
+            true -> import_match(index, unit, selected, target)
+            _ -> return -2
+        }
+    }
+    state imported_other_kind(index: i32, unit: i32, selected: i32) {
+        transition selected >= 0 {
+            true -> imports(index + 1, unit, selected)
+            _ -> imports(index + 1, unit, -3)
+        }
+    }
+    state import_match(index: i32, unit: i32, selected: i32, target: i32) {
+        transition (selected < 0) || (selected == target) {
+            true -> imports(index + 1, unit, target)
+            _ -> return -2
+        }
+    }
+    state imports_done(unit: i32, selected: i32) {
+        transition selected == -1 {
+            true -> fallback(unit)
+            _ -> imported_result(selected)
+        }
+    }
+    state imported_result(selected: i32) {
+        transition selected == -3 {
+            true -> return -1
+            _ -> return selected
+        }
+    }
+    state fallback(unit: i32) {
+        transition self.query_path.count {
+            1 -> sibling(0, unit, -1)
+            _ -> qualified(unit)
+        }
+    }
+    state qualified(unit: i32) {
+        self.query_address();
+        return self.address_declaration(source, self.parser.sources.units[unit].package, kind);
+    }
+    state sibling(index: i32, unit: i32, selected: i32) {
+        transition index < self.declaration_count(kind) {
+            true -> sibling_candidate(index, unit, selected, self.declaration_name(kind, index))
+            _ -> return selected
+        }
+    }
+    state sibling_candidate(index: i32, unit: i32, selected: i32, name: OmegaRelativeSpan) {
+        transition (self.parser.sources.equal_name(source, name, self.query_path.members[0]) == 1) &&
+            (self.same_module(source, unit, self.parser.sources.unit_at(name.start)) == 1) {
+            true -> sibling_match(index, unit, selected)
+            _ -> sibling(index + 1, unit, selected)
+        }
+    }
+    state sibling_match(index: i32, unit: i32, selected: i32) {
+        transition selected < 0 {
+            true -> sibling(index + 1, unit, index)
+            _ -> return -2
+        }
+    }
+}
+
+machine OmegaScalarCompiler::validate_imports(&mut self, source: &[u8]) -> i32 {
+    transition true { true -> import(0) }
+    state import(index: i32) {
+        transition index < self.parser.use_count {
+            true -> address(index, self.parser.uses[index])
+            _ -> return 1
+        }
+    }
+    state address(index: i32, row: OmegaUseSyntax) {
+        transition self.import_address(row, 0) {
+            1 -> declarations(index, row, self.parser.sources.units[self.parser.sources.unit_at(row.start)].package)
+            _ -> fail(row.start)
+        }
+    }
+    state declarations(index: i32, row: OmegaUseSyntax, requester: i32) {
+        let target: i32 = self.address_declaration(source, requester, OmegaDeclarationKind::Data);
+        transition target == -1 {
+            true -> machine_declaration(index, row, requester)
+            _ -> declarations_selected(index, row, target)
+        }
+    }
+    state declarations_selected(index: i32, row: OmegaUseSyntax, target: i32) {
+        transition target >= 0 {
+            true -> retain(index, row, OmegaImportBindingKind::Data, target)
+            _ -> fail(row.start)
+        }
+    }
+    state machine_declaration(index: i32, row: OmegaUseSyntax, requester: i32) {
+        let target: i32 = self.address_declaration(source, requester, OmegaDeclarationKind::Machine);
+        transition target == -1 {
+            true -> module(index, row, requester, 0)
+            _ -> machine_declaration_selected(index, row, target)
+        }
+    }
+    state machine_declaration_selected(index: i32, row: OmegaUseSyntax, target: i32) {
+        transition target >= 0 {
+            true -> retain(index, row, OmegaImportBindingKind::Machine, target)
+            _ -> fail(row.start)
+        }
+    }
+    state module(index: i32, row: OmegaUseSyntax, requester: i32, unit: i32) {
+        transition unit < self.parser.sources.unit_count {
+            true -> module_candidate(index, row, requester, unit)
+            _ -> fail(row.start)
+        }
+    }
+    state module_candidate(index: i32, row: OmegaUseSyntax, requester: i32, unit: i32) {
+        transition self.address_matches_module(source, requester, unit, 0) {
+            1 -> retain(index, row, OmegaImportBindingKind::Namespace, unit)
+            _ -> module(index, row, requester, unit + 1)
+        }
+    }
+    state retain(index: i32, row: OmegaUseSyntax, kind: OmegaImportBindingKind, target: i32) {
+        self.import_bindings[index].kind = kind;
+        self.import_bindings[index].target = target;
+        transition true { true -> prior(index, row, 0) }
+    }
+    state prior(index: i32, row: OmegaUseSyntax, previous: i32) {
+        transition previous < index {
+            true -> prior_name(index, row, previous, self.parser.uses[previous])
+            _ -> import(index + 1)
+        }
+    }
+    state prior_name(index: i32, row: OmegaUseSyntax, previous: i32, other: OmegaUseSyntax) {
+        transition (self.parser.sources.unit_at(row.start) == self.parser.sources.unit_at(other.start)) &&
+            (self.parser.sources.equal_name(source,
+                self.parser.members[row.first_member + row.member_count - 1],
+                self.parser.members[other.first_member + other.member_count - 1]) == 1) {
+            true -> prior_identity(index, row, previous)
+            _ -> prior(index, row, previous + 1)
+        }
+    }
+    state prior_identity(index: i32, row: OmegaUseSyntax, previous: i32) {
+        transition self.same_import(source, index, previous) {
+            1 -> prior(index, row, previous + 1)
+            _ -> fail(row.start)
+        }
+    }
+    state fail(offset: i32) { self.record_reject(-1, 4, offset); return 0; }
+}
+
+machine OmegaScalarCompiler::same_import(&mut self, source: &[u8], left: i32, right: i32) -> i32 {
+    let a: OmegaImportBinding = self.import_bindings[left];
+    let b: OmegaImportBinding = self.import_bindings[right];
+    transition a.kind {
+        OmegaImportBindingKind::Namespace -> namespace(a, b)
+        OmegaImportBindingKind::Data -> data_binding(a, b)
+        OmegaImportBindingKind::Machine -> machine_binding(a, b)
+    }
+    state namespace(a: OmegaImportBinding, b: OmegaImportBinding) {
+        transition b.kind {
+            OmegaImportBindingKind::Namespace -> return self.same_module(source, a.target, b.target)
+            _ -> return 0
+        }
+    }
+    state data_binding(a: OmegaImportBinding, b: OmegaImportBinding) {
+        transition b.kind {
+            OmegaImportBindingKind::Data -> return a.target == b.target
+            _ -> return 0
+        }
+    }
+    state machine_binding(a: OmegaImportBinding, b: OmegaImportBinding) {
+        transition b.kind {
+            OmegaImportBindingKind::Machine -> return a.target == b.target
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaScalarCompiler::call_has_static_target(&mut self, call: OmegaCallExpressionSyntax) -> i32 {
+    transition call.has_receiver {
+        0 -> return 1
+        _ -> receiver(self.parser.expressions[call.receiver])
+    }
+    state receiver(row: OmegaExpressionSyntax) {
+        transition row.path_kind {
+            OmegaPathExpressionKind::Name -> return call.name_member_count == row.payload1 + 1
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaScalarCompiler::resolve_call_machine(
+    &mut self, source: &[u8], call: OmegaCallExpressionSyntax
+) -> i32 {
+    transition call.has_receiver {
+        0 -> return self.resolve_machine(source, call.target.start, call.target.end)
+        _ -> receiver(self.parser.expressions[call.receiver])
+    }
+    state receiver(row: OmegaExpressionSyntax) {
+        transition row.path_kind {
+            OmegaPathExpressionKind::Name -> named(row)
+            _ -> return -1
+        }
+    }
+    state named(row: OmegaExpressionSyntax) {
+        transition call.name_member_count == row.payload1 + 1 {
+            true -> return self.resolve_machine(source,
+                self.parser.members[row.payload0].start, call.target.end)
+            _ -> return -1
+        }
+    }
+}
+
+// Exported signatures cannot make private nominal declarations into a public
+// naming surface. Qualifier/body proof machinery is still checked in its owner;
+// this additional boundary concerns structural field and call-interface types.
+machine OmegaScalarCompiler::public_type(&mut self, source: &[u8], index: i32) -> i32 {
+    let row: OmegaTypeReferenceSyntax = self.parser.type_references[index];
+    transition row.kind {
+        OmegaTypeReferenceKind::Named -> named(row)
+        OmegaTypeReferenceKind::Unit -> return 1
+        OmegaTypeReferenceKind::Reference -> return self.public_type(source, row.payload0)
+        OmegaTypeReferenceKind::FixedArray -> return self.public_type(source, row.payload0)
+        OmegaTypeReferenceKind::Slice -> return self.public_type(source, row.payload0)
+        OmegaTypeReferenceKind::Constrained -> return self.public_type(source, row.payload0)
+        _ -> return 0
+    }
+    state named(row: OmegaTypeReferenceSyntax) {
+        transition self.primitive_type(source, index) > 0 {
+            true -> return 1
+            _ -> record(self.resolve_data(source, row.payload0, row.payload1))
+        }
+    }
+    state record(data_index: i32) {
+        transition data_index >= 0 {
+            true -> return self.parser.data_items[data_index].is_public
+            _ -> return 0
+        }
+    }
+}
+
+machine OmegaScalarCompiler::check_public_interfaces(&mut self, source: &[u8]) -> i32 {
+    transition true { true -> record(0) }
+    state record(index: i32) {
+        transition index < self.parser.data_count {
+            true -> record_visibility(index)
+            _ -> machine_item(0)
+        }
+    }
+    state record_visibility(index: i32) {
+        transition self.parser.data_items[index].is_public {
+            1 -> field(index, 0)
+            _ -> record(index + 1)
+        }
+    }
+    state field(index: i32, offset: i32) {
+        transition offset < self.parser.data_items[index].field_count {
+            true -> field_type(index, offset, self.parser.data_fields[self.parser.data_items[index].first_field + offset])
+            _ -> record(index + 1)
+        }
+    }
+    state field_type(index: i32, offset: i32, row: OmegaDataFieldSyntax) {
+        transition self.public_type(source, row.type_reference) {
+            1 -> field(index, offset + 1)
+            _ -> fail(row.start)
+        }
+    }
+    state machine_item(index: i32) {
+        transition index < self.parser.machine_count {
+            true -> machine_visibility(index)
+            _ -> return 1
+        }
+    }
+    state machine_visibility(index: i32) {
+        transition self.parser.machine_items[index].is_public {
+            1 -> signature(index, self.parser.machine_items[index].first_state)
+            _ -> machine_item(index + 1)
+        }
+    }
+    state signature(index: i32, state_index: i32) {
+        transition self.parser.machine_states[state_index].has_return_type {
+            1 -> result(index, state_index)
+            _ -> parameter(index, state_index, 0)
+        }
+    }
+    state result(index: i32, state_index: i32) {
+        transition self.public_type(source, self.parser.machine_states[state_index].return_type) {
+            1 -> parameter(index, state_index, 0)
+            _ -> fail(self.parser.machine_items[index].start)
+        }
+    }
+    state parameter(index: i32, state_index: i32, offset: i32) {
+        transition offset < self.parser.machine_states[state_index].parameter_count {
+            true -> parameter_type(index, state_index, offset,
+                self.parser.machine_parameters[self.parser.machine_states[state_index].first_parameter + offset])
+            _ -> machine_item(index + 1)
+        }
+    }
+    state parameter_type(index: i32, state_index: i32, offset: i32, row: OmegaMachineParameterSyntax) {
+        transition self.public_type(source, row.type_reference) {
+            1 -> parameter(index, state_index, offset + 1)
+            _ -> fail(row.name.start)
+        }
+    }
+    state fail(offset: i32) { self.record_reject(-1, 4, offset); return 0; }
+}

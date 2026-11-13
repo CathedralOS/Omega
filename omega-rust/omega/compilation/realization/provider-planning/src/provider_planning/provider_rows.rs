@@ -253,6 +253,31 @@ fn capture_direct_declarations(
         if machine.body_is_present {
             continue;
         }
+        // A table binding reads one runtime `addr` field of the record its
+        // leaf borrows. Once that record is known, whether it has the field is
+        // a fact of the source, the same on every target and whether or not
+        // the program entry reaches the leaf, so we refuse it here for every
+        // candidate. The later consumers report it only from a selected plan
+        // or a reached leaf, which let an unreached leaf name a field its
+        // table does not have. A leaf whose table does not resolve from its
+        // first parameter keeps its deferred refusal.
+        if let ProviderBinding::VtableField {
+            field,
+            storage: Err(reason),
+            ..
+        }
+        | ProviderBinding::TableFunction {
+            field,
+            storage: Err(reason),
+            ..
+        } = &row.binding
+            && crate::dispatch_tables::dispatch_table(typed, machine).is_ok()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "cannot realize table field `{field}` for `{}`: {reason}",
+                row.method
+            ))]);
+        }
         let callable_identity = typed
             .machine_callable_identity_text(machine)
             .ok_or_else(|| {

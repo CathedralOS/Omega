@@ -1,6 +1,6 @@
 # Rust producer omission audit
 
-`tools/rust_producer_omission.py` decides whether a produced closure's
+`mbx xtask rust-producer-omission` decides whether a produced closure's
 declared dependency set omits the Rust producer (`omega-rust/`), per the
 contract in [omega-rust/README.md](../omega-rust/README.md#readme):
 
@@ -43,24 +43,26 @@ declaration defect, not an audit false-negative.
 | `checkout-derived-path` | spells `..` traversal, an absolute path, `CARGO_MANIFEST_DIR`/`OUT_DIR`, or reaches `source/library` through checkout-relative traversal |
 | `canonical-spelling` | is not a canonical relative POSIX path (same byte rules as `source_closure.py`) |
 
-Exit status: `0` = omitted, `1` = producer present (or `--require`
-mismatch), `2` = malformed input.
+Exit status: `0` = expected verdict matched (omitted by default), `1` = verdict
+mismatch, `2` = malformed input. With `--require present`, findings produce
+status zero. Record subjects contain canonical absolute input paths so they
+remain independently locatable when invoked from a different directory.
 
 ## Example
 
-The Omega compiler D closure and its env surface audit clean today:
+The bootstrap compiler closure and its env surface audit clean today:
 
 ```bash
-python3 tools/rust_producer_omission.py \
-  --manifest bootstrap/5_omega/omega_compiler.epsilon.sources \
+mbx xtask rust-producer-omission \
+  --manifest bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources \
   --steps tools/bootstrap/paths.sh \
   --steps tools/bootstrap/omega/compiler_env.sh \
   --require omitted
 ```
 
 ```powershell
-python tools/rust_producer_omission.py `
-  --manifest bootstrap/5_omega/omega_compiler.epsilon.sources `
+mbx xtask rust-producer-omission `
+  --manifest bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources `
   --steps tools/bootstrap/paths.sh `
   --steps tools/bootstrap/omega/compiler_env.sh `
   --require omitted
@@ -68,15 +70,27 @@ python tools/rust_producer_omission.py `
 
 ## Gate
 
-[rust_producer_omission.sh](rust_producer_omission.sh) pins the canonical
-bootstrap input set with `--require omitted`: every `*.sources` closure
-manifest under `bootstrap/` plus every `*.sh` orchestration step under
-`tools/bootstrap/`. Both sets are discovered rather than listed, so a new
-rung, closure manifest, or env script is audited without an edit here.
-It refuses a tree with no manifests or no step surface at all — an empty
-set cannot silently pass. Test fixtures under `tests/` are not release or
-bootstrap input sets and stay outside the audit. The gate runs on any
-host with `python3` and POSIX `find`; it does not execute the seeds.
+[rust_producer_omission.sh](rust_producer_omission.sh) audits the interpreted
+variant's numbered rungs and proof manifests, plus shell orchestration under
+`tools/bootstrap/`. Independent peer roots declare their own seed and audit
+boundary. The chain-hygiene gate also audits Python orchestration and retains
+its closed manifest/member/entry identity checks. Both reject forged Rust
+producer dependencies; neither is invoked by the source-to-executable chain.
+
+This is **developer-only verification**. Build its Rust executable once with
+`mbx build -p xtask`, then run the shell gate. `OMEGA_XTASK_BIN` can name an
+already-built verifier; archive regression fixtures reuse that executable and
+pass their own `--root`. Rust is required to build this auditor, not to construct
+or execute bootstrap stages. The ordinary construction still uses the documented
+Alpha seed, admitted Beta tape, source inputs, and byte-transport helpers.
+
+The verifier rejects invocations without inputs, malformed manifests, non-regular input
+files, and forbidden member spellings. The source-closure materializer separately
+checks member existence, symlinks, inventory, and byte identities before packing.
+Step inspection tokenizes each physical shell line, including quoted/escaped
+names; comments are ignored. Incomplete shell fragments use whitespace tokens,
+so this remains a lexical audit of a declared surface, not shell interpretation
+or a claim to discover indirect dependencies.
 
 ## Boundary
 

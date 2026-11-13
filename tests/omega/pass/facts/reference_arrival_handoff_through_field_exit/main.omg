@@ -5,7 +5,7 @@ data Holder<'owner> { slot: &'owner mut i64; }
 machine main() crashes Trap {
     let mut backing: i64 = 17;
     let original: &mut i64 = &mut backing;
-    let holder: Holder = Holder { slot: original };
+    let mut holder: Holder = Holder { slot: original };
     holder.slot = 41;
     let observed: i64 = holder.slot;
     transition observed == 41 {

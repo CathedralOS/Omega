@@ -1,1 +1,1 @@
-ensures
+mutable argument `saved` for state `entry` is not writable in this state

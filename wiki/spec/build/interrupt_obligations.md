@@ -20,6 +20,41 @@ disposition belongs to the exact admitted body and installation; a calling
 policy or frame shape alone cannot establish it. Returning interrupt entries
 retain their full save, restore and acknowledgement obligations.
 
+## Mask providers and initial authority
+
+Named decision: `sealed-runtime-providers`, settled 2026-11-12. Interrupt-mask
+save/restore providers are ordinary platform packages using contracted target
+`asm` or a legitimate admitted native operation. Exact compiler primitives and
+entry/exit bridges remain narrowly identified where required; an authored
+`CompilerIntrinsic` locator does not supply their implementation or custody.
+
+`InterruptMaskControl::save_and_mask` takes an explicit controller-authority
+value or borrow with a protected qualification authorizing the particular mask
+scope and execution context. Establish that permission before changing the
+state. The returned `InterruptMaskGuard in Active` carries the obligation and
+authority to restore the matching previous state; it does not supply the
+missing permission for the initial mask. Restricting issuance of Active alone
+does not protect a public zero-argument masking operation. Apply
+[initial-call authority](../resources/authority.md#initial-call-authority)
+at every lower-level callable route as well as the public wrapper.
+
+The provider must actually perform the checked/admitted mask transition and
+establish that the issued guard belongs to it. Merely constructing a guard or
+asserting Active proves neither a hardware action nor its obligation. Save and
+restore retain one compatible representation, provider provenance, scope and
+CPU/activation-context relationship. Restoration consumes the matching guard
+and restores the exact prior state, including initially masked and nested use;
+it must not unconditionally enable interrupts or restore unrelated state after
+migration. Carry and context-preservation rules remain independently checked.
+
+Package/default selection grants no machine-control authority. A configuration
+without the demanded realization rejects explicitly, never as a successful
+no-op. Model checks can establish bookkeeping, but only execution under a
+suitable privileged target or emulator demonstrates that the actual mask
+operation is emitted and behaves as specified. The
+[delivery controls](../../drafts/designs/runtime_provider_authority.md#acceptance)
+keep those evidence claims separate.
+
 ## Mask and acknowledgement custody
 
 `InterruptMaskGuard` and `InterruptAcknowledgement` are independent opaque

@@ -113,6 +113,47 @@ equal bytes or matching result types are not transfer evidence. Terminal
 [claim paths and residuals](../terminal-psi/ownership.md) specify independent
 reconstruction and publication.
 
+## Owned local mutability
+
+Under `immutable-binding-exclusive-loan` (owner ruling, 2026-11-12), modifying an established
+ordinary local's owned storage requires a `mut` binding. This covers direct
+assignment, writes to owned fields or array elements, and formation of
+`&mut` or `&write` loans to those places. A callee cannot grant writable
+access that the caller's place lacks. Initialization remains subject to the
+ordinary establishment rules.
+
+Binding mutability is not deep immutability. A non-`mut` local holding an
+existing `&mut T` or `&write T` may use or reborrow that reference's
+authorized referent without making its own carrier mutable. Replacing the
+carrier and writing through it are distinct operations. The same distinction
+applies when a reference is reached through a record field.
+
+By-value use still follows multiplicity: copyable values may be copied,
+affine values moved, and linear values transferred with their obligations.
+A non-`mut` binding does not prevent a permitted move; the recipient may
+bind its own value mutably. Neither `mut` nor a move overrides loans,
+domain access, invariant restoration, or other retained restrictions.
+Atomic and externally mutable storage retain their separately declared
+operation and access rules; they do not authorize arbitrary ordinary writes.
+
+Writable-loan admission and [fact validity](../terminal-psi/fact_validity.md#mutation-and-current-storage-facts)
+are independent obligations. Rejecting an illegal loan cannot replace
+accounting for the writes of a legal one.
+
+### Migration acceptance
+
+Retain `fail/constraints/computed_local_value_invalidated` as a rejection of
+the writable loan from an immutable owned local. Independently require the
+mutable-local counterpart to reject its false unchanged-result postcondition,
+for both literal and computed initializers; a counterpart promising the
+written result must pass. Cover immutable owned record fields, array elements,
+and write-only lending, alongside permitted use of an existing mutable
+reference in a non-`mut` local. Audit fact shortcuts that infer stability of
+reachable storage from binding syntax, including reference fields; writes
+invalidate overlapping places while proved-disjoint siblings retain facts.
+Migrate affected sources to `mut` where they actually lend owned storage
+for mutation, without changing what the programs do.
+
 ## Borrows and aliases
 
 | Source access | Authority |

@@ -2,7 +2,7 @@
  * alpha_vm.c — host-instrumentation Alpha VM for the certificate check gate's
  * --reference-vm diagnostic leg.
  *
- * Implements the 21-opcode small-step machine from bootstrap/0_alpha/
+ * Implements the 21-opcode small-step machine from bootstrap/interpreted/0_alpha/
  * SEMANTICS.md at the AlphaBootstrapV5 extent: a flat, initially-zeroed
  * M[0..MEMSIZE) obtained from one reserve-and-demand-zero anonymous mapping,
  * sp starting at 0x10000000, byte-granular stdin/stdout I/O, and the same

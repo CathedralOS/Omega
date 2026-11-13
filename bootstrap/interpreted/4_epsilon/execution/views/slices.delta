@@ -1,0 +1,95 @@
+
+(def epsilon_evaluate_slice_high ((context EpsilonEvaluatorInvocation)
+  (view EpsilonRuntimeView) (low Int) (high EpsilonOptionalExpression)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (match high
+    (NoEpsilonExpression
+      (epsilon_evaluator_slice_bounds view low (epsilon_runtime_view_length view)
+        store output))
+    ((SomeEpsilonExpression expressionValue)
+      (let outcome EpsilonEvaluatorOutcome
+        (epsilon_evaluate_expression context expressionValue bindings store output)
+        (match outcome
+          ((EpsilonEvaluatorValue value place nextStore nextOutput)
+            (match value
+              ((EpsilonRuntimeInteger bound)
+                (epsilon_evaluator_slice_bounds view low bound nextStore nextOutput))
+              ((EpsilonRuntimeAggregate typeValue children)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+              ((EpsilonRuntimeSumValue owner caseValue payloads)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+              ((EpsilonRuntimeViewValue nestedView)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
+          ((EpsilonEvaluatorResultless nextStore nextOutput)
+            (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+          ((EpsilonEvaluatorExit code nextOutput) outcome)
+          ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+          ((EpsilonEvaluatorInternal offset) outcome))))))
+
+; Complete both present bound expressions before the range judgment. Effects
+; and traps follow base, low, high order, even when the low value is negative.
+(def epsilon_evaluate_slice_low ((context EpsilonEvaluatorInvocation)
+  (view EpsilonRuntimeView) (low EpsilonOptionalExpression)
+  (high EpsilonOptionalExpression) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match low
+    (NoEpsilonExpression
+      (epsilon_evaluate_slice_high context view 0 high bindings store output))
+    ((SomeEpsilonExpression expressionValue)
+      (let outcome EpsilonEvaluatorOutcome
+        (epsilon_evaluate_expression context expressionValue bindings store output)
+        (match outcome
+          ((EpsilonEvaluatorValue value place nextStore nextOutput)
+            (match value
+              ((EpsilonRuntimeInteger bound)
+                (epsilon_evaluate_slice_high context view bound high bindings
+                  nextStore nextOutput))
+              ((EpsilonRuntimeAggregate typeValue children)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+              ((EpsilonRuntimeSumValue owner caseValue payloads)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+              ((EpsilonRuntimeViewValue nestedView)
+                (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))))
+          ((EpsilonEvaluatorResultless nextStore nextOutput)
+            (EpsilonEvaluatorInternal (epsilon_expression_start expressionValue)))
+          ((EpsilonEvaluatorExit code nextOutput) outcome)
+          ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+          ((EpsilonEvaluatorInternal offset) outcome))))))
+
+(def epsilon_evaluate_slice_from_value ((context EpsilonEvaluatorInvocation)
+  (value EpsilonRuntimeValue) (place EpsilonRuntimeOptionalPlace)
+  (low EpsilonOptionalExpression) (high EpsilonOptionalExpression)
+  (bindings EpsilonEvaluatorBindings) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (let outcome EpsilonEvaluatorOutcome
+    (epsilon_evaluator_slice_base value place store output)
+    (match outcome
+      ((EpsilonEvaluatorValue normalized normalizedPlace nextStore nextOutput)
+        (match normalized
+          ((EpsilonRuntimeViewValue view)
+            (epsilon_evaluate_slice_low context view low high bindings
+              nextStore nextOutput))
+          ((EpsilonRuntimeInteger integer) (EpsilonEvaluatorInternal 0))
+          ((EpsilonRuntimeSumValue owner caseValue payloads) (EpsilonEvaluatorInternal 0))
+          ((EpsilonRuntimeAggregate typeValue children) (EpsilonEvaluatorInternal 0))))
+      ((EpsilonEvaluatorResultless nextStore nextOutput) (EpsilonEvaluatorInternal 0))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome))))
+
+(def epsilon_evaluate_slice ((context EpsilonEvaluatorInvocation)
+  (base EpsilonExpression) (low EpsilonOptionalExpression)
+  (high EpsilonOptionalExpression) (bindings EpsilonEvaluatorBindings)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (let outcome EpsilonEvaluatorOutcome
+    (epsilon_evaluate_expression context base bindings store output)
+    (match outcome
+      ((EpsilonEvaluatorValue value place nextStore nextOutput)
+        (epsilon_evaluate_slice_from_value context value place low high bindings
+          nextStore nextOutput))
+      ((EpsilonEvaluatorResultless nextStore nextOutput)
+        (EpsilonEvaluatorInternal (epsilon_expression_start base)))
+      ((EpsilonEvaluatorExit code nextOutput) outcome)
+      ((EpsilonEvaluatorTrap kind nextOutput) outcome)
+      ((EpsilonEvaluatorInternal offset) outcome))))

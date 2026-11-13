@@ -1,0 +1,30 @@
+// The same checked scalar objects cross calls and lifted states. Traps stay
+// observations, while && and || skip a trapping right operand when required.
+machine ep_test_count(limit: i32) -> i32 {
+    transition true { true -> step(limit, 0) _ -> return 0 }
+    state step(left: i32, total: i32) {
+        transition left == 0 {
+            true -> return total
+            _ -> step(left - 1, total + 1)
+        }
+    }
+}
+machine ep_test_call(value: i32) -> i32 { return ep_test_count(value) + 1; }
+machine ep_test_add_overflow() -> i32 { return 2147483647 + 1; }
+machine ep_test_negate_overflow() -> i32 { return -(-2147483648); }
+machine ep_test_divide_zero() -> i32 { return 1 / 0; }
+machine ep_test_divide_overflow() -> i32 { return -2147483648 / -1; }
+machine ep_test_remainder_overflow() -> i32 { return -2147483648 % -1; }
+machine ep_test_shift_range() -> i32 { return 1 << 32; }
+machine ep_test_short_and() -> i32 { return 0 && (1 / 0); }
+machine ep_test_short_or() -> i32 { return 1 || (1 / 0); }
+machine ep_test_bad_guard() -> i32 { return 2 && 0; }
+machine ep_test_bad_right_guard() -> i32 { return 1 && 2; }
+machine ep_test_no_arm() -> i32 { transition 2 { 1 -> return 1 } }
+machine ep_test_bitwise() -> i32 { return ((-1 >> 31) & 255) ^ (1 << 31); }
+machine ep_test_compare() -> i32 { return (4 != 5) + (4 <= 4) + (5 > 4) + (5 >= 5); }
+machine ep_test_multiply_overflow() -> i32 { return 2147483647 * 2; }
+machine ep_test_remainder_zero() -> i32 { return 1 % 0; }
+machine ep_test_shift_negative() -> i32 { return 1 >> -1; }
+machine ep_test_subtract_overflow() -> i32 { return -2147483648 - 1; }
+machine ep_test_bit_or() -> i32 { return 16 | 3; }

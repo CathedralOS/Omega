@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Enforce the selected trust-minimizing bootstrap topology.
+# Check the interpreted variant's closed artifacts and dependency boundary.
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
@@ -121,7 +121,7 @@ done
 
 for retired in \
   "$OMEGA_REPO_ROOT/tools/alpha" \
-  "$OMEGA_REPO_ROOT/bootstrap/0_alpha/checker" \
+  "$OMEGA_REPO_ROOT/bootstrap/interpreted/0_alpha/checker" \
   "$OMEGA_REPO_ROOT/tests/proof-checker" \
   "$OMEGA_REPO_ROOT/tools/bootstrap/proof-checker" \
   "$OMEGA_REPO_ROOT/tools/bootstrap/epsilon/materialize_source_closure.py"
@@ -136,16 +136,8 @@ psi'
 [ "$tracked_source_roots" = "$expected_source_roots" ] ||
   fail "tracked final-source owners differ from library, Psi, and Omega"
 
-tracked_bootstrap_roots=$(owner_roots bootstrap)
-expected_bootstrap_roots='0_alpha
-1_beta
-2_gamma
-3_delta
-4_epsilon
-5_omega
-proofs'
-[ "$tracked_bootstrap_roots" = "$expected_bootstrap_roots" ] ||
-  fail "tracked bootstrap owners differ from the selected rungs and proof work"
+# Numbered owners belong to the interpreted variant. Other bootstrap roots
+# are independent peers and establish their own inventories and trust boundary.
 
 tracked_compiler_sources=$(find \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_DELTA_COMPILER" \
@@ -153,9 +145,9 @@ tracked_compiler_sources=$(find \
   -type f -name '*compiler.*' -print | \
   sed "s#^$OMEGA_REPO_ROOT/##" | \
   grep -E '/[^/]*compiler\.(beta|gamma|delta|epsilon|omg)$' | sort || true)
-expected_compiler_sources='bootstrap/1_beta/beta_compiler.beta
-bootstrap/3_delta/delta_compiler.gamma
-bootstrap/4_epsilon/epsilon_compiler.delta'
+expected_compiler_sources='bootstrap/interpreted/1_beta/beta_compiler.beta
+bootstrap/interpreted/3_delta/delta_compiler.gamma
+bootstrap/interpreted/4_epsilon/epsilon_compiler.delta'
 [ "$tracked_compiler_sources" = "$expected_compiler_sources" ] ||
   fail "compiler source exists outside selected edges"
 
@@ -167,8 +159,10 @@ bootstrap/4_epsilon/epsilon_compiler.delta'
 # This script names the forbidden spellings itself, exactly like the
 # retired-path grep, so it is not one of the audited step files.
 set --
-for omission_manifest in $(find "$OMEGA_PATH_BOOTSTRAP" \
-    -type f -name '*.sources' -print | sort)
+for omission_manifest in $(find \
+    "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
+    "$OMEGA_PATH_DELTA" "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_OMEGA_D" \
+    "$OMEGA_PATH_PROOFS" -type f -name '*.sources' -print | sort)
 do
   set -- "$@" --manifest "$omission_manifest"
 done
@@ -178,8 +172,7 @@ for omission_step in $(find "$OMEGA_REPO_ROOT/tools/bootstrap" \
 do
   set -- "$@" --steps "$omission_step"
 done
-python3 "$OMEGA_REPO_ROOT/tools/rust_producer_omission.py" \
-  --root "$OMEGA_REPO_ROOT" "$@" --require omitted ||
+sh "$OMEGA_REPO_ROOT/tools/rust_producer_omission.sh" "$@" ||
   fail "produced closure carries the Rust producer"
 
 # The enumerated compiler sources must be exactly the bound chain artifacts:
@@ -213,14 +206,14 @@ tracked_compiler_tapes=$(find \
   "$OMEGA_PATH_EPSILON_COMPILER" \
   -type f -name '*compiler*.tape' -print | \
   sed "s#^$OMEGA_REPO_ROOT/##" | sort || true)
-expected_compiler_tapes='bootstrap/1_beta/beta_compiler_bytecode.tape'
+expected_compiler_tapes='bootstrap/interpreted/1_beta/beta_compiler_bytecode.tape'
 [ "$tracked_compiler_tapes" = "$expected_compiler_tapes" ] ||
   fail "compiler tapes differ from selected edges or declared experiments"
 
 stale_paths=$(grep -RInE \
   --exclude-dir=target --exclude-dir=build \
   --exclude=check-chain-hygiene.sh \
-  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|bootstrap/0_alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR|tools/bootstrap/epsilon/materialize_source_closure\.py|OMEGA_PATH_EPSILON_COMPILER_SOURCE([^S]|$)' \
+  'tools/alpha(/|$)|tools/bootstrap/proof-checker(/|$)|bootstrap/interpreted/0_alpha/checker|tests/proof-checker|omega_compiler\.delta|\.alphaasm|alpha_tape_assembler|Alpha Tape Assembly|beta_evaluator|BETAREQ|OMEGA_PATH_ALPHA_TAPE|OMEGA_PATH_BETA_EVALUATOR|tools/bootstrap/epsilon/materialize_source_closure\.py|OMEGA_PATH_EPSILON_COMPILER_SOURCE([^S]|$)' \
   "$OMEGA_PATH_BOOTSTRAP" "$OMEGA_REPO_ROOT/source" "$OMEGA_REPO_ROOT/tests" \
   "$OMEGA_REPO_ROOT/tools" "$OMEGA_REPO_ROOT/wiki" \
   "$OMEGA_REPO_ROOT/README.md" "$OMEGA_REPO_ROOT/TASKS_BOOTSTRAP.md" || true)

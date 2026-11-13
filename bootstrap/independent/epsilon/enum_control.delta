@@ -1,0 +1,76 @@
+; A checked exhaustive enum transition becomes a direct target match. Case
+; order is authored order and every continuation lowers exactly once. Wildcard
+; expansion is an explicit future capability, avoiding a quadratic case lookup
+; or duplicated fallback body merely to support this actual four-case customer.
+(def epsilon_delta_enum_case_pattern ((source EpsilonSourceView)
+  (owner EpsilonDeclaration) (caseValue EpsilonResolvedSumCase)) EpsilonDeltaCompilation
+  (match owner
+    ((EpsilonDataDeclaration start end ownerName members)
+      (match caseValue
+        ((EpsilonResolvedSumCaseSyntax caseStart caseEnd name parameters)
+          (match parameters
+            (NoEpsilonParameters (EpsilonDeltaCompiled (epsilon_delta_enum_case_name source ownerName name)))
+            ((MoreEpsilonParameters parameter rest) (EpsilonDeltaUnsupported caseStart))))))
+    ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal start))
+    ((EpsilonMachineDeclaration start end name inputs returnType body) (EpsilonDeltaInternal start))))
+
+(def epsilon_delta_enum_arm ((context EpsilonDeltaContext)
+  (arm EpsilonArm)) EpsilonDeltaCompilation
+  (match arm
+    ((EpsilonArmSyntax start end pattern continuation)
+      (match context
+        ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+          (match (epsilon_control_find_complete_transition_pattern pattern control)
+            (NoEpsilonTransitionPatternKind (EpsilonDeltaInternal start))
+            ((OneEpsilonTransitionPatternKind kind)
+              (match kind
+                ((EpsilonScalarPatternSelector value) (EpsilonDeltaInternal start))
+                (EpsilonTransitionWildcard (EpsilonDeltaUnsupported (epsilon_pattern_start pattern)))
+                ((EpsilonSumCasePattern owner caseValue)
+                  (match (epsilon_delta_enum_case_pattern source owner caseValue)
+                    ((EpsilonDeltaCompiled targetPattern)
+                      (match (epsilon_delta_continuation context continuation)
+                        ((EpsilonDeltaCompiled body)
+                          (EpsilonDeltaCompiled (epsilon_emit_case targetPattern body)))
+                        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+                        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+                        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+                    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+                    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+                    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))))))))
+
+(def epsilon_delta_enum_arms ((context EpsilonDeltaContext)
+  (arms EpsilonArmList)) EpsilonDeltaCompilation
+  (match arms
+    (NoEpsilonArms (EpsilonDeltaCompiled ""))
+    ((MoreEpsilonArms arm rest)
+      (match (epsilon_delta_enum_arm context arm)
+        ((EpsilonDeltaCompiled text)
+          (epsilon_delta_append (EpsilonDeltaCompiled text) (epsilon_delta_enum_arms context rest)))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
+
+(def epsilon_delta_enum_transition_body ((context EpsilonDeltaContext)
+  (subject EpsilonExpression) (arms EpsilonArmList)) EpsilonDeltaCompilation
+  (match (epsilon_delta_enum_expression context subject)
+    ((EpsilonDeltaCompiled value)
+      (match (epsilon_delta_enum_arms context arms)
+        ((EpsilonDeltaCompiled cases) (EpsilonDeltaCompiled (epsilon_emit_match value cases)))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+
+(def epsilon_delta_enum_transition ((context EpsilonDeltaContext)
+  (owner EpsilonDeclaration) (subject EpsilonExpression)
+  (arms EpsilonArmList)) EpsilonDeltaCompilation
+  (match owner
+    ((EpsilonDataDeclaration start end name members)
+      (if (epsilon_delta_is_closed_enum members)
+        (epsilon_delta_enum_transition_body context subject arms)
+        (EpsilonDeltaUnsupported (epsilon_expression_start subject))))
+    ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal start))
+    ((EpsilonMachineDeclaration start end name inputs returnType body) (EpsilonDeltaInternal start))))

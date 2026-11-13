@@ -784,7 +784,21 @@ mod persistent {
                                 .and_then(|target| program.machine_holding_state(target.symbol))
                                 .is_some_and(|callee| obligated.contains(&callee.symbol)))
                     });
-                    if !requires_relation {
+                    // The borrow walk deferred this statement's missing relation
+                    // here, so it is refused even when no relation is required.
+                    let deferred = frames.is_some_and(|frames| {
+                        calls
+                            .iter()
+                            .any(|call| call.statement_index == statement_index)
+                            && matches!(
+                                frames.stored_reference_fallthrough_effects(machine, statement),
+                                Err(::validation::StoredReferenceRelationRefusal::Unavailable(_))
+                            )
+                            && crate::borrow::deferred_to_stored_output_check(
+                                frames, machine, statement,
+                            )
+                    });
+                    if !requires_relation && !deferred {
                         continue;
                     }
                     let failures = frames.and_then(|frames| {
@@ -799,7 +813,7 @@ mod persistent {
                         }),
                         None => requires_relation,
                     };
-                    if incomplete {
+                    if incomplete || deferred {
                         diagnostics.push(Diagnostic::error(format!(
                             "machine `{}` state `{}` statement {statement_index}: call stores a borrowed value without a complete destination/backing relation",
                             machine.name, state.name,
@@ -4220,6 +4234,7 @@ mod reads {
         FlowStatementFact,
     };
     use diagnostics::Diagnostic;
+    use symbols::SymbolHandle;
     use typed_trees::expression::{ExpressionHandle, ExpressionNode};
     use typed_trees::statement::StatementNode;
     use validation::CanonicalPlace;
@@ -4340,6 +4355,14 @@ mod reads {
     /*
         Each loan live at the statement's entry whose last use is this statement,
         with the last step that still holds it there.
+
+        A match transition reads its subject through the generated alias
+        `__transition_subject#N`, whose initializer is the subject local itself;
+        an observation of that alias is an observation of the local. A loan held
+        under a payload path of the local (a view inside a case) ends at the
+        local's final observation like a whole-local loan, unless a later step in
+        the same statement observes a name the arm's pattern bound: that binding
+        carries the payload, so the carried-loan rules keep the parent alive.
     */
     pub(super) fn final_holds_in_statement(
         program: &dyn ::validation::CheckingInput,
@@ -4383,33 +4406,154 @@ mod reads {
                         program.state_by_symbol(state.state_symbol)?,
                         loan.owner_symbol,
                     )?;
-                    if !matches!(
+                    /*
+                        Ending the source path skips every later statement, so a later
+                        arm's read is no use on this path; only the state's exit
+                        cleanup could still read an owned local. A reference local, or
+                        a local whose cleanup runs no code, holds nothing past its
+                        final observation here.
+                    */
+                    let reference = matches!(
                         program
                             .type_reference_table
                             .type_reference(local.type_reference),
                         typed_trees::types::TypeReferenceNode::Reference { .. }
-                    ) {
+                    );
+                    if !reference
+                        && !validation::has_no_code_cleanup_contents(program, local.type_reference)
+                    {
                         return None;
                     }
                 }
                 if (!ends_source_path && loan.last_use_statement_index != statement.statement_index)
-                    || !loan.owner_path.is_empty()
                     || destination_root == Some(loan.owner_symbol)
                 {
                     return None;
                 }
-                occurrences
+                let checked_state = program.state_by_symbol(state.state_symbol)?;
+                let observes_owner = |root: Option<SymbolHandle>| {
+                    root.is_some_and(|root| {
+                        root == loan.owner_symbol
+                            || transition_subject_aliases(
+                                program,
+                                checked_state,
+                                root,
+                                loan.owner_symbol,
+                            )
+                    })
+                };
+                let observations = occurrences
                     .iter()
                     .enumerate()
                     .filter(|(_, occurrence)| {
                         matches!(&occurrence.step, StatementStep::Observe { place, .. }
-                            if place.root.as_symbol() == Some(loan.owner_symbol))
+                            if observes_owner(place.root.as_symbol()))
                     })
-                    .map(|(position, _)| holds[position])
+                    .map(|(position, _)| position)
+                    .collect::<Vec<_>>();
+                let last_observation = *observations.last()?;
+                if !loan.owner_path.is_empty()
+                    && !payload_released_by_transition(
+                        program,
+                        statement_node,
+                        occurrences,
+                        last_observation,
+                    )
+                {
+                    return None;
+                }
+                observations
+                    .iter()
+                    .map(|position| holds[*position])
                     .max()
                     .map(|held_until| (handle, held_until))
             })
             .collect()
+    }
+
+    /*
+        The whole local a match transition's generated subject alias reads in its
+        place (`let __transition_subject#N = owner` or `= &owner`). The alias has
+        no storage of its own: observations and payload projections through it are
+        observations and projections of `owner`.
+    */
+    fn transition_subject_owner(
+        program: &dyn ::validation::CheckingInput,
+        state: &typed_trees::state::State,
+        alias: SymbolHandle,
+    ) -> Option<SymbolHandle> {
+        let (_, local) = program.state_local_declaration(state, alias)?;
+        if !local.name.as_str().starts_with("__transition_subject#") {
+            return None;
+        }
+        let mut initializer = local.initial_value;
+        if let ExpressionNode::Borrow(borrow) = program.expression_table.expression(initializer) {
+            initializer = borrow.target;
+        }
+        match program.expression_table.expression(initializer) {
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && path.symbol == path.head_symbol
+                    && program
+                        .expression_table
+                        .name_path_members(path.members)
+                        .len()
+                        == 1 =>
+            {
+                Some(path.symbol)
+            }
+            _ => None,
+        }
+    }
+
+    fn transition_subject_aliases(
+        program: &dyn ::validation::CheckingInput,
+        state: &typed_trees::state::State,
+        alias: SymbolHandle,
+        owner: SymbolHandle,
+    ) -> bool {
+        transition_subject_owner(program, state, alias) == Some(owner)
+    }
+
+    /*
+        A payload-path loan of a dispatched local ends with the dispatch only in
+        a transition arm, and only when no step after the subject's final
+        observation reads a name the arm's patterns bound. Such a read transports
+        the payload (and its loan) into the arm's target, where the carried-loan
+        checks own it.
+    */
+    fn payload_released_by_transition(
+        program: &dyn ::validation::CheckingInput,
+        statement_node: &StatementNode,
+        occurrences: &[StatementOccurrence],
+        last_observation: usize,
+    ) -> bool {
+        let StatementNode::Transition(transition) = statement_node else {
+            return false;
+        };
+        let bound = program
+            .statement_table
+            .transition_patterns(transition.patterns)
+            .iter()
+            .flat_map(|pattern| {
+                program
+                    .expression_table
+                    .match_fields(pattern.pattern.fields)
+            })
+            .filter_map(|field| match &field.action {
+                typed_trees::expression::MatchFieldAction::Bind(name) => Some(name.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        occurrences[last_observation + 1..]
+            .iter()
+            .all(|occurrence| {
+                !matches!(&occurrence.step, StatementStep::Observe { place, .. }
+                if place.root.as_symbol().is_some_and(|root| {
+                    let name = program.symbols.name(root);
+                    bound.contains(&name)
+                }))
+            })
     }
 
     /*
@@ -6285,9 +6429,32 @@ mod statements {
                 bound_lookup,
             );
 
-            let exiting_source = local_jump(program, state_flow, borrow_call).and_then(|_| {
-                find_state_in_machine(program, state_flow.machine_symbol, state_flow.state_symbol)
-            });
+            /*
+                A loan the caller carries into a terminal transfer closes at its last
+                derived use, inside the target's terminal chain too
+                (`state_contracts.md`, terminal calls): a write after that point is
+                judged against the held run, exactly as a later read is. That holds
+                for a terminal machine call as well as for a local jump; whether this
+                loan actually ends before the successor is still proved below.
+            */
+            let exiting_source = local_jump(program, state_flow, borrow_call)
+                .map(|_| ())
+                .or_else(|| {
+                    crate::flow::terminal_invocation(
+                        program,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                        borrow_call,
+                    )
+                    .map(|_| ())
+                })
+                .and_then(|_| {
+                    find_state_in_machine(
+                        program,
+                        state_flow.machine_symbol,
+                        state_flow.state_symbol,
+                    )
+                });
             for &loan_handle in &live_loans {
                 let loan = facts.borrow.loans.get(loan_handle);
                 let held_writes = exiting_source
@@ -6417,8 +6584,9 @@ mod statements {
 
     /*
         A transfer to a non-entry block retained by the caller's own machine.
-        Machine-entry calls keep their caller's live loans through completion;
-        nesting and recursive graph fusion do not change that lifetime boundary.
+        Nesting and recursive graph fusion do not change that boundary. A loan
+        carried into any terminal call, a machine-entry call included, still
+        closes at its last derived use (`state_contracts.md`, terminal calls).
     */
     pub(super) use crate::flow::LocalJump;
 

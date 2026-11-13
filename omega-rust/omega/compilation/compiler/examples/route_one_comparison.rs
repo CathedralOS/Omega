@@ -13,6 +13,7 @@
 //!     obligation <path> <machine> <obligation> <kind> <verdict> <values from> <detail>
 //!     diagnostic <path> <machine> <obligation> <reject|incomplete> <site> <message>
 //!     use <path> <machine> <operation or edge> unestablished <detail>
+//!     conflict <path> <machine> <loan obligation> <conflict> <message> <site>
 //!     window <path> <machine> <opening obligation> <consumption point> <closed-..|open:..>
 //!     current-diagnostic <path> <site> <message>
 //!     fallback <path> root=<..> <construct> <refusal detail>
@@ -190,7 +191,8 @@ fn origins(
     }
 }
 
-/// The operands of an exact operation, the subset's only partial operations.
+/// The operands of an exact operation or cast, the subset's only partial
+/// operations.
 fn exact_operands(kind: &terminal_psi::OperationKind) -> Vec<ValueId> {
     use terminal_psi::OperationKind as Kind;
     match kind {
@@ -201,6 +203,7 @@ fn exact_operands(kind: &terminal_psi::OperationKind) -> Vec<ValueId> {
         | Kind::ExactIntegerRemainder { left, right, .. } => vec![*left, *right],
         Kind::ExactIntegerShiftLeft { value, count, .. }
         | Kind::ExactIntegerShiftRight { value, count, .. } => vec![*value, *count],
+        Kind::IntegerExactCast { operand, .. } => vec![*operand],
         _ => Vec::new(),
     }
 }
@@ -489,6 +492,10 @@ fn judge_elaboration(
                 Ok(lowered_discharge::Discharged::Preserved) => {
                     ("preserved".to_owned(), None, "-".to_owned())
                 }
+                // A loan judged by structure: no certificate.
+                Ok(lowered_discharge::Discharged::Lent) => {
+                    ("lent".to_owned(), None, "-".to_owned())
+                }
                 Err(refusal) => {
                     let outcome = match refusal.reason {
                         RefusalReason::Unproved(_) => {
@@ -554,8 +561,23 @@ fn judge_elaboration(
         Ok(RouteVerdict::Rejected {
             unproved,
             unestablished,
+            conflicts,
         }) => {
             let mut best = report(main, &unproved, "reject", sites, lines);
+            for entry in &conflicts {
+                let class = sites.class(Some(entry.site));
+                lines.push(format!(
+                    "conflict\t{}\t{}\t{}\t{:?}\t{}\t{}\tsite={}",
+                    main.display(),
+                    entry.machine.get(),
+                    entry.loan.get(),
+                    entry.conflict,
+                    one_line(entry.message()),
+                    sites.describe_route(Some(entry.site)),
+                    class.name(),
+                ));
+                best = Some(best.map_or(class, |best| best.min(class)));
+            }
             for entry in &unestablished {
                 let class = sites.class(entry.site);
                 lines.push(format!(
@@ -574,6 +596,7 @@ fn judge_elaboration(
                     .iter()
                     .map(UnprovedObligation::message)
                     .chain(unestablished.iter().map(|entry| entry.message()))
+                    .chain(conflicts.iter().map(|entry| entry.message()))
                     .collect();
                 let (fragment, expected) = pinned_fragments(main, &messages);
                 lines.push(format!(

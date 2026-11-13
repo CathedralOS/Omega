@@ -45,7 +45,7 @@ responsibility of their existing gates. This gate makes no performance claim.
 before any observation runs.
 
 Runtime and adapter publication copies the bound support members of
-[`bootstrap/3_delta/support/`](../../../bootstrap/3_delta/support/README.md)
+[`bootstrap/interpreted/3_delta/support/`](../../../bootstrap/interpreted/3_delta/support/README.md)
 verbatim from the sealed input, not annotated packed integers or emitter
 character literals. The [staged compiler gate](../staged-compiler/run.sh) checks
 the exact emitted member bytes, full receipt counts, and execution. No separate

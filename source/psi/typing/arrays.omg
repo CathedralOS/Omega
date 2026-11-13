@@ -1,22 +1,16 @@
-use psi::syntax::syntax;
-use psi::types::types;
-use psi::typing::joins;
-use psi::typing::landing;
-use psi::typing::typer;
-
 // A fixed-array literal `[a, b, ...]` (wiki/spec/language/expressions.md:
 // elements evaluate in increasing index order) is an array of its elements'
 // joined type (joins.omg) whose extent is its element count. Elements of no
 // fixed type make an anonymous array, which lands element by element at its
 // destination (landing.omg); `[]` is an anonymous array of no elements.
-public machine Typer::type_array(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
+public machine type_array(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, expression: Expression)
 crashes Trap
 {
-    let values: JoinedValues = SyntaxTrees::joined_values(expression);
-    let fixed: u64 in Trapping = Typer::fixed_join(typer, syntax, values);
-    let mut extent_row: TypeRow = TypeRow::of(TypeKind::StaticInteger);
+    let values: JoinedValues = joined_values(expression);
+    let fixed: u64 in Trapping = fixed_join(typer, syntax, values);
+    let mut extent_row: TypeRow = type_row_of(TypeKind::StaticInteger);
     extent_row.length = expression.count;
-    let extent: u64 in Trapping = TypeTable::intern(&mut typer.output.types, extent_row);
+    let extent: u64 in Trapping = type_table_intern(&mut typer.output.types, extent_row);
     transition fixed > 0 {
         true -> typed(typer, syntax, index, values, fixed, extent)
         _ -> unfixed(typer, syntax, index, values, extent)
@@ -30,19 +24,19 @@ crashes Trap
     }
 
     machine empty(typer: &mut Typer, index: u64 in Trapping, extent: u64 in Trapping) {
-        let choice_row: TypeRow = TypeRow::of(TypeKind::AnonymousChoice);
-        let choice: u64 in Trapping = TypeTable::intern(&mut typer.output.types, choice_row);
+        let choice_row: TypeRow = type_row_of(TypeKind::AnonymousChoice);
+        let choice: u64 in Trapping = type_table_intern(&mut typer.output.types, choice_row);
         transition { _ -> array(typer, index, TypeKind::AnonymousArray, choice, extent) }
     }
 
     machine typed(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, element: u64 in Trapping, extent: u64 in Trapping) {
-        Typer::admit_joined(typer, syntax, values, element);
+        admit_joined(typer, syntax, values, element);
         transition { _ -> array(typer, index, TypeKind::Array, element, extent) }
     }
 
     machine unlanded(typer: &mut Typer, syntax: &SyntaxTrees, index: u64 in Trapping, values: JoinedValues, extent: u64 in Trapping) {
-        let join: UnlandedJoin = Typer::unlanded_join(typer, syntax, values);
-        let shaped: bool = Typer::unlanded(typer, join.joined);
+        let join: UnlandedJoin = unlanded_join(typer, syntax, values);
+        let shaped: bool = typer_unlanded(typer, join.joined);
         transition join.mismatch > 0 {
             true -> mismatched(typer, syntax, join.mismatch - 1)
             _ -> joined(typer, index, join.joined, extent, shaped)
@@ -58,15 +52,15 @@ crashes Trap
     }
 
     machine array(typer: &mut Typer, index: u64 in Trapping, kind: TypeKind, element: u64 in Trapping, extent: u64 in Trapping) {
-        let mut row: TypeRow = TypeRow::of(kind);
+        let mut row: TypeRow = type_row_of(kind);
         row.inner = element;
         row.length = extent;
-        let handle: u64 in Trapping = TypeTable::intern(&mut typer.output.types, row);
-        Typing::set_expression_type(&mut typer.output, index, handle);
+        let handle: u64 in Trapping = type_table_intern(&mut typer.output.types, row);
+        set_expression_type(&mut typer.output, index, handle);
     }
 
     machine mismatched(typer: &mut Typer, syntax: &SyntaxTrees, value: u64 in Trapping) {
-        let written: Expression = SyntaxTrees::expression(syntax, value);
-        Typing::reject(&mut typer.output, TypeDiagnosticCode::MismatchedTypes, written.source_span);
+        let written: Expression = syntax_trees_expression(syntax, value);
+        typing_reject(&mut typer.output, TypeDiagnosticCode::MismatchedTypes, written.source_span);
     }
 }

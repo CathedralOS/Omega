@@ -944,7 +944,6 @@ pass/capabilities/transitive_effect_inference checked 2626ms @5f668826adf3+wt
 pass/capabilities/uses_caller_folder checked 2232ms @5f668826adf3+wt
 pass/capabilities/win64_large_aggregate_result_import_compile built 2877ms @5f668826adf3+wt
 pass/capabilities/win64_pointer_length_vs_descriptor_compile built 2484ms @5f668826adf3+wt
-pass/capabilities/windows_applied_requirement_import_exit built 26701ms exit:70 @71da08e4e585
 pass/capabilities/windows_provides_import_exit built 8745ms exit:70 @5f668826adf3+wt
 pass/cases/arm_field_placement checked 3224ms @5f668826adf3+wt
 pass/cases/arm_rename_waive checked 2468ms @5f668826adf3+wt
@@ -1126,10 +1125,8 @@ pass/comptime/runtime_const_array_product_u32_exit built 8193ms exit:0 @5f668826
 pass/comptime/runtime_const_array_saturating_result_exit built 6458ms exit:0 @5f668826adf3+wt
 pass/comptime/runtime_const_array_wrapping_result_exit built 4397ms exit:0 @5f668826adf3+wt
 pass/comptime/runtime_const_measured_recursion_exit built 18045ms exit:70 @5f668826adf3+wt
-pass/comptime/selected_float_array_length_exit incomplete 22973ms regressed-from:built+exit:70 @5f668826adf3+wt
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `Main::main::main`, statement 2
-pass/comptime/selected_float_array_length_layout_query_exit incomplete 23626ms regressed-from:built+exit:70 @5f668826adf3+wt
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `Main::main::main`, statement 2
+pass/comptime/selected_float_array_length_exit built 51202ms exit:70 @79d6179edb97
+pass/comptime/selected_float_array_length_layout_query_exit built 51116ms exit:70 @79d6179edb97
 pass/concurrency/boundary_suspension_inline_completion_exit built 7046ms exit:0 @5f668826adf3+wt
 pass/concurrency/ref_array_suspend checked 3021ms @5f668826adf3+wt
 pass/concurrency/runtime_array_loan_suspension_exit built 5036ms exit:0 @5f668826adf3+wt
@@ -4850,10 +4847,8 @@ pass/float/admitted_float_lower_boundary_crash built 25804ms exit:-1073741795 st
 pass/float/admitted_numeric_imports_preserve_semantics built 56532ms exit:70 @5f668826adf3+wt
 pass/float/authored_heterogeneous_float_operator checked 5167ms @5f668826adf3+wt
 pass/float/boundary_call_guard_result built 20283ms exit:0 @5f668826adf3+wt
-pass/float/build_runtime_semantics_twins_windows_x64 incomplete 25944ms @5f668826adf3+wt
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `Main::main::main`, statement 3
-pass/float/build_runtime_semantics_twins_x86_baseline incomplete 26566ms @5f668826adf3+wt
-	`Main::main` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `Main::main::main`, statement 3
+pass/float/build_runtime_semantics_twins_windows_x64 built 57208ms @79d6179edb97
+pass/float/build_runtime_semantics_twins_x86_baseline built 51041ms @79d6179edb97
 pass/float/builtin_extrema_field_store_exit built 15778ms exit:70 @5f668826adf3+wt
 pass/float/closed_integer_conversion_predicate_proof_exit built 7360ms exit:0 @5f668826adf3+wt
 pass/float/closed_integer_conversion_trapping_source_no_normal_result built 9406ms exit:-1073741795 @5f668826adf3+wt

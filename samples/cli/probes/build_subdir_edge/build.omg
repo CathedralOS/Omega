@@ -4,5 +4,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "build_subdir_edge");
     builder.freestanding = true;
-    Build::depend_as(builder, "selfsub", Source::Path { location: "sub" });
+    let mut selfsub_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "sub" });
+    dependency::with_alias(&mut selfsub_dependency, "selfsub");
+    let selfsub_registration: DependencyRegistration = Build::dependency(builder, selfsub_dependency);
 }

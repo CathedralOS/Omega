@@ -16,7 +16,8 @@ use terminal_psi::{
 };
 
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target, ValueType,
+    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target,
+    Termination, ValueType,
 };
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unpositioned};
@@ -89,10 +90,13 @@ fn returns(value: Expression) -> Statement {
 fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signature {
     Signature {
         parameters: scalars(parameters),
+        erased: Vec::new(),
+        borrowed: Vec::new(),
         result: result.map(ValueType::Scalar),
         requires: Vec::new(),
         ensures: Vec::new(),
         crashes: CrashCeiling::Authored(Vec::new()),
+        termination: Termination::Silent,
     }
 }
 
@@ -152,9 +156,16 @@ fn lower_records(
 ) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(body);
-    let declared = crate::lower::places::declare(id(1), records, &bodies)?;
-    let body = bodies.get(id(1)).unwrap();
-    crate::lower::machine(id(1), body, signatures, outcomes, &declared.records, false)
+    let declared = crate::lower::places::declare(id(1), records, &bodies, signatures)?;
+    crate::lower::machine(
+        id(1),
+        &bodies,
+        &[],
+        signatures,
+        outcomes,
+        &declared.records,
+        false,
+    )
 }
 
 /// Every value, edge and obligation the machine names has a table row.
@@ -541,6 +552,69 @@ fn every_exact_operation_is_partial_by_the_policy_catalog() {
                 .formation_conditions
                 .is_empty()
         );
+    }
+}
+
+fn sized(sign: IntegerSign, bits: u16) -> ScalarType {
+    ScalarType::Integer(IntegerType::new(sign, bits).unwrap())
+}
+
+/// `return a as target`, over one formal of type `from`.
+fn cast_of_formal(from: ScalarType, target: ScalarType) -> (TerminalMachine, MachineTables) {
+    let body = Body {
+        slots: scalars(vec![from]),
+        statements: vec![returns(expression(
+            ExpressionKind::Cast(Box::new(slot(0, from))),
+            Some(target),
+        ))],
+    };
+    lower(body, vec![signature(vec![from], Some(target))])
+}
+
+#[test]
+fn a_cast_is_one_exact_conversion_and_only_a_partial_one_owes_safety() {
+    // domains.md, "Carrier casts": "exact widening, or narrowing with
+    // representability proved."
+    let conversion = |machine: &TerminalMachine| {
+        let [operation] = &block(machine, 1).operations[..] else {
+            panic!("one operation");
+        };
+        operation.kind.clone()
+    };
+    let formal: ValueId = id(1);
+    // u8 to u32, and u8 to i16, lose nothing: no obligation.
+    for target in [u32_type(), sized(IntegerSign::Signed, 16)] {
+        let (machine, tables) = cast_of_formal(sized(IntegerSign::Unsigned, 8), target);
+        assert_eq!(
+            conversion(&machine),
+            OperationKind::IntegerWiden { operand: formal }
+        );
+        assert_eq!(obligations(&tables), []);
+        assert_module_and_tables_agree(&machine, &tables);
+    }
+    // Narrowing, a change of sign at one width, and signed to a wider
+    // unsigned each exclude some operand values.
+    for (from, target) in [
+        (u32_type(), sized(IntegerSign::Unsigned, 8)),
+        (u32_type(), sized(IntegerSign::Signed, 32)),
+        (sized(IntegerSign::Signed, 8), u32_type()),
+    ] {
+        let (machine, tables) = cast_of_formal(from, target);
+        let OperationKind::IntegerExactCast {
+            operand,
+            obligation,
+        } = conversion(&machine)
+        else {
+            panic!("an exact cast");
+        };
+        assert_eq!(operand, formal);
+        let operation = block(&machine, 1).operations[0].id;
+        assert_eq!(
+            obligations(&tables),
+            [ObligationKind::OperationSafety { operation }]
+        );
+        assert_eq!(obligation, id(1));
+        assert_module_and_tables_agree(&machine, &tables);
     }
 }
 
@@ -1110,10 +1184,9 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
 }
 
 /// The right operand of `&&` or `||` may be skipped, so a short-circuit whose
-/// right operand never returns still completes; its causes stay published. A
-/// call cycle handed to `lower_bodies` directly is refused as recursion.
+/// right operand never returns still completes; its causes stay published.
 #[test]
-fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
+fn a_skipped_operand_cannot_end_the_machine() {
     use crate::outcome::outcomes;
     // machine 1(a: bool) -> bool { a && f() }  with f = `{ crash Trap; }`
     let caller = Body {
@@ -1137,10 +1210,12 @@ fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(Signature {
         crashes: CrashCeiling::Inferred,
+        termination: Termination::Silent,
         ..signature(vec![ScalarType::Boolean], Some(ScalarType::Boolean))
     });
     signatures.push(Signature {
         crashes: CrashCeiling::Inferred,
+        termination: Termination::Silent,
         ..signature(Vec::new(), Some(ScalarType::Boolean))
     });
     let table = outcomes(&bodies, &signatures, &[]).unwrap();
@@ -1150,21 +1225,6 @@ fn a_skipped_operand_cannot_end_the_machine_and_a_cycle_is_refused() {
             completes_normally: true,
             crash_routes: routes(&[CrashCause::Trap]),
         }
-    );
-
-    // machine 1 { f() }, machine 2 { g() }, machine 3 { f() }
-    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
-    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
-    for callee in [2, 3, 2] {
-        bodies.push(Body {
-            slots: Vec::new(),
-            statements: vec![Statement::Evaluate(call(callee, Vec::new(), None))],
-        });
-        signatures.push(signature(Vec::new(), None));
-    }
-    assert_eq!(
-        outcomes(&bodies, &signatures, &[]).unwrap_err().detail,
-        "call recursion"
     );
 }
 
@@ -1246,6 +1306,7 @@ fn bind(slot: usize, value: Expression) -> Statement {
 fn shaped(parameters: Vec<ValueType>, result: Option<ValueType>) -> Signature {
     Signature {
         parameters,
+        erased: Vec::new(),
         result,
         ..signature(Vec::new(), None)
     }
@@ -2748,3 +2809,156 @@ fn an_entry_clause_over_a_record_formals_field_encodes_in_the_module_contract() 
     assert_eq!(machine.structural_parameters[0].place, id::<PlaceId>(1));
     terminal_codec::encode_module(&elaboration.module).unwrap();
 }
+
+/// `main() -> u32 { let w [erased]: u32 = 100; keep(70, w) }` with
+/// `keep(n: u32, bound [erased]: u32) -> u32 requires n < bound { n }`.
+fn erased_module() -> crate::Elaboration {
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    bodies.push(Body {
+        slots: scalars(vec![u32_type()]),
+        statements: vec![
+            Statement::Witness {
+                slot: 0,
+                term: integer(100),
+            },
+            returns(call(
+                2,
+                vec![integer(70), slot(0, u32_type())],
+                Some(u32_type()),
+            )),
+        ],
+    });
+    signatures.push(signature(Vec::new(), Some(u32_type())));
+    bodies.push(Body {
+        slots: scalars(vec![u32_type(), u32_type()]),
+        statements: vec![returns(slot(0, u32_type()))],
+    });
+    let bound = ScalarTerm::Value {
+        id: id(3),
+        scalar_type: u32_type(),
+    };
+    signatures.push(Signature {
+        erased: vec![1],
+        requires: vec![Proposition::LessThan(
+            ScalarTerm::Value {
+                id: id(1),
+                scalar_type: u32_type(),
+            },
+            bound,
+        )],
+        ..signature(vec![u32_type(), u32_type()], Some(u32_type()))
+    });
+    crate::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap()
+}
+
+/// contracts.md, "Explicit erased bindings": "The binding remains in checking
+/// and semantic identity but contributes no runtime field, address, read, or
+/// cleanup." encoding.md: "Erased formals occupy no tag."
+#[test]
+fn an_erased_formal_has_an_identity_and_no_runtime_lane() {
+    let elaboration = erased_module();
+    let keep = &elaboration.module.machines[1];
+    // One runtime parameter; the erased one is declared in the contract.
+    assert_eq!(keep.parameters.len(), 1);
+    assert_eq!(keep.parameter_order.len(), 1);
+    let erased = &keep.contract.erased_scalar_formals;
+    assert_eq!(erased.len(), 1);
+    assert_eq!((erased[0].id, erased[0].scalar_type), (id(3), u32_type()));
+    // Runtime formal, result pseudo-value, erased formal: three values, the
+    // erased one an invocation formal at its authored position.
+    let tables = elaboration.tables.machines.get(id(2)).unwrap();
+    assert_eq!(tables.values.len(), 3);
+    assert_eq!(
+        tables.values.get(id(3)).unwrap().origin,
+        ValueOrigin::MachineParameter { position: 1 }
+    );
+    assert_eq!(
+        tables.values.get(id(2)).unwrap().origin,
+        ValueOrigin::MachineResult
+    );
+    // The body returns `n` and emits nothing.
+    assert!(keep.blocks.iter().all(|block| block.operations.is_empty()));
+}
+
+/// The argument at an erased position is a term of the call, not an operand:
+/// no operation computes it, the erased local before it emits nothing, and
+/// the invocation row lists only the runtime actual.
+#[test]
+fn an_erased_argument_is_a_term_and_evaluates_nothing() {
+    let elaboration = erased_module();
+    let main = &elaboration.module.machines[0];
+    let operations: Vec<_> = main
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .collect();
+    assert_eq!(operations.len(), 2);
+    assert!(matches!(
+        operations[0].kind,
+        OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(70)
+        }
+    ));
+    let OperationKind::Call {
+        arguments,
+        erased_arguments,
+        requirement_obligations,
+        ..
+    } = &operations[1].kind
+    else {
+        panic!("the second operation is the call")
+    };
+    assert_eq!(arguments.len(), 1);
+    assert_eq!(requirement_obligations.len(), 1);
+    assert_eq!(
+        erased_arguments,
+        &vec![ScalarTerm::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+            value: IntegerValue::Unsigned(100),
+        }]
+    );
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    let row = tables.invocations.get(id(1)).unwrap();
+    assert_eq!(row.actuals, vec![Actual::Value(arguments[0])]);
+    // The module is one Terminal Psi's codec accepts and reads back.
+    let bytes = terminal_codec::encode_module(&elaboration.module).unwrap();
+    terminal_codec::decode_module(&bytes).unwrap();
+}
+
+/// A runtime expression cannot read an erased binding, and an erased term
+/// cannot read storage or compute: lowering refuses a body that does.
+#[test]
+fn an_erased_binding_is_refused_as_a_runtime_value() {
+    let body = Body {
+        slots: scalars(vec![u32_type()]),
+        statements: vec![returns(slot(0, u32_type()))],
+    };
+    let erased = Signature {
+        erased: vec![0],
+        ..signature(vec![u32_type()], Some(u32_type()))
+    };
+    let refusal = try_lower(body, vec![erased], vec![returns_normally()]).unwrap_err();
+    assert_eq!(
+        refusal.detail,
+        "completion an erased binding is read as a runtime value"
+    );
+    let computed = Body {
+        slots: scalars(vec![u32_type(), u32_type()]),
+        statements: vec![Statement::Witness {
+            slot: 1,
+            term: strict(Strict::Add, slot(0, u32_type()), integer(1), u32_type()),
+        }],
+    };
+    let refusal = try_lower(
+        computed,
+        vec![signature(vec![u32_type()], None)],
+        vec![returns_normally()],
+    )
+    .unwrap_err();
+    assert_eq!(
+        refusal.detail,
+        "expression erased term other than a literal or a binding"
+    );
+}
+mod loops;

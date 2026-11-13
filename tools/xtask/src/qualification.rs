@@ -7,6 +7,7 @@ use std::process::{Command, Stdio};
 
 use serde_json::json;
 
+use crate::fixture_selection::FixtureSelection;
 use crate::{corpus, execution, producer, repo_root, samples};
 
 mod runtime_controls;
@@ -75,11 +76,11 @@ fn check_selection(root: &Path, paths: &[String]) -> Result<(), String> {
     if paths.is_empty() {
         return Ok(());
     }
-    // Use the corpus owner's discovery and substring semantics, then require
-    // exact equality with the authored request before any producer is built.
+    // Discovery and execution share exact membership, including when a nearby
+    // fixture name contains the entire requested path as a prefix.
     validate_roster(
         paths,
-        corpus::selected_fixture_names(root, &paths.join(","))?,
+        corpus::selected_fixture_names(root, &FixtureSelection::exact(paths.iter().cloned())?)?,
     )
 }
 
@@ -242,11 +243,11 @@ fn execute(
             let text = corpus::observe(
                 root,
                 runner,
-                &paths.join(","),
+                &FixtureSelection::exact(paths.iter().cloned())?,
                 "",
                 runtime.then_some(target),
                 runtime,
-                true, // Retain the location of a failed compiler check.
+                false,
                 &directory.join(label),
             )?;
             let rows = corpus::parse_records(&text)?;

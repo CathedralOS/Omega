@@ -32,9 +32,9 @@ pub(crate) mod call_acknowledgements {
     use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
     /*
-        Validate the source acknowledgement set against the call envelope already
-        normalized by `flow-effects`, and reject suspension in a nested expression
-        before continuation planning sees it.
+        Extra markers do not make a call pause or wait. Every required marker
+        must still be present. A written `suspend` also reserves a complete
+        expression position.
     */
     pub(crate) fn validate_call_acknowledgements(
         program: &dyn ::validation::CheckingInput,
@@ -344,11 +344,11 @@ pub(crate) mod call_acknowledgements {
         let acknowledgement = call.acknowledgement;
         let may_suspend = call.transitive_may_suspend;
         let may_block = call.transitive_may_block;
-        if acknowledgement.acknowledges_suspend != may_suspend
-            || acknowledgement.acknowledges_block != may_block
+        if (may_suspend && !acknowledgement.acknowledges_suspend)
+            || (may_block && !acknowledgement.acknowledges_block)
         {
             diagnostics.push(at_call(format!(
-                "call to `{target}` has operational envelope {} but acknowledges {}; call acknowledgements must match exactly",
+                "call to `{target}` has operational envelope {} but acknowledges {}; acknowledge every required operational effect",
                 envelope_label(may_suspend, may_block),
                 envelope_label(
                     acknowledgement.acknowledges_suspend,
@@ -357,9 +357,9 @@ pub(crate) mod call_acknowledgements {
             )).with_source_span(source_span));
         }
 
-        if may_suspend && !direct_position {
+        if (may_suspend || acknowledgement.acknowledges_suspend) && !direct_position {
             diagnostics.push(at_call(format!(
-                "suspending call to `{target}` is nested inside a partially evaluated expression; bind it as a complete statement, simple `let` right-hand side, transition subject, or terminal expression before continuation planning",
+                "call to `{target}` is nested inside a partially evaluated expression; calls that may suspend or acknowledge `suspend` require a complete statement, simple `let` right-hand side, transition subject, or terminal expression",
             )).with_source_span(source_span));
         }
     }
@@ -1135,15 +1135,6 @@ fn check_program(
     ) {
         return Err(merge_overflow(&mut deferred_overflow, errors));
     }
-    let specialization_identities =
-        match validation::contract_identities::prepare_specialization_contract_identities(
-            &program,
-            &facts.contract_plans,
-            &prepared_effects,
-        ) {
-            Ok(identities) => identities,
-            Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
-        };
 
     if let Err(errors) = checks::check_checked_facts_recording(
         &program,
@@ -1191,6 +1182,17 @@ fn check_program(
     facts.flow.semantic_dependencies =
         crate::flow::derive_checked_semantic_dependencies(&program, &facts);
 
+    let specialization_identities =
+        match validation::contract_identities::prepare_specialization_contract_identities(
+            &program,
+            &facts.contract_plans,
+            &prepared_effects,
+            &facts.carry,
+        ) {
+            Ok(identities) => identities,
+            Err(errors) => return Err(merge_overflow(&mut deferred_overflow, errors)),
+        };
+
     facts.specialization_identities = specialization_identities;
     facts.accepted_template_identities = {
         checked_trees::CheckedAcceptedTemplateIdentities::with_rows(
@@ -1205,10 +1207,12 @@ fn check_program(
                         identity: validation::contract_identities::generic_machine_template_report_fingerprint(
                             &program,
                             machine.symbol,
+                            &facts.carry,
                         )
                         .zip(validation::contract_identities::generic_machine_template_commitment(
                             &program,
                             machine.symbol,
+                            &facts.carry,
                         ))
                         .map(|(report_fingerprint, commitment)| {
                             checked_trees::CheckedAcceptedTemplateIdentity {

@@ -1,9 +1,9 @@
-use omega::language::core::external_binding;
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
 machine build(builder: &mut Build) {
     Build::application(builder, "foreign_callback_requires_selected_entry_plan");
-    Build::depend(builder, Source::Path { location: "../../../../../source/library/std" });
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind<LineRaster::draw>(builder, windows_x86_64, ForeignBinding::DllImport {
-        import: DllImport::PeByName { library: "gdi32.dll", export: "LineDDA" },
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind<Registrar::install>(builder, linux_x86_64, ForeignBinding::DllImport {
+        import: DllImport::ElfVersioned { object: "libc.so.6", symbol: "atexit", version: "GLIBC_2.2.5" },
     });
 }

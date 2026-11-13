@@ -378,6 +378,16 @@ pub(crate) mod finalize_execution {
         if !cleanup_diagnostics.is_empty() {
             return Err(cleanup_diagnostics);
         }
+        /*
+            The plans arrive in the order of their type identities' numbers,
+            which parallel checking threads mint in the order they race to, so
+            the same program listed them differently from run to run. Plans are
+            found by identity, never by position; listing them by identity text
+            makes the order a function of the program.
+        */
+        terminal_unit_effects
+            .structural_types
+            .sort_by_cached_key(|plan| program.type_identity_text(plan.identity));
         facts.flow.terminal_unit_effects = terminal_unit_effects;
         crate::execution::terminal_unit::retain_structural_value_calls(&mut facts, prepared_calls)
             .map_err(|reason| {

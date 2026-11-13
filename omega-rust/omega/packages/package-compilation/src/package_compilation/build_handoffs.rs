@@ -12,7 +12,7 @@ use build_declarations::DependencyPurpose;
 use build_output::PackageGeneratedSource;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -399,30 +399,6 @@ impl PackageCompilationInputs {
             Err(errors)
         }
     }
-
-    #[doc(hidden)]
-    pub(crate) fn generated_source_import_path(
-        &self,
-        package: PackageKeyIdentity,
-        import_scope: DependencyPurpose,
-        relative_candidates: &[PathBuf],
-    ) -> Result<Option<PathBuf>, &'static str> {
-        let Some(bundle) = self
-            .target
-            .dependency_build_handoffs
-            .get(&(package, self.instance_purpose(import_scope)))
-        else {
-            return Ok(None);
-        };
-        let Some(source) = bundle.generated_source(relative_candidates)? else {
-            return Ok(None);
-        };
-        Ok(Some(generated_source_logical_path(
-            self.package_root(package)
-                .ok_or("generated-source handoff lost its source supplier")?,
-            &generated_source_relative_path(source)?,
-        )))
-    }
 }
 
 fn generated_source_relative_path(
@@ -435,8 +411,4 @@ fn generated_source_relative_path(
         path.push(component);
     }
     Ok(path)
-}
-
-fn generated_source_logical_path(package_root: &Path, relative: &Path) -> PathBuf {
-    package_root.join(".omega/generated").join(relative)
 }

@@ -122,6 +122,25 @@ impl Minted<'_> {
         self.claim(obligation, kind, point)
     }
 
+    /// The root a place lies beneath, by its parent links.
+    fn root_of(
+        &self,
+        place: terminal_check_tables::ExactPlaceId,
+    ) -> Option<semantic_vocabulary::PlaceId> {
+        let mut at = place;
+        // A parent is minted before its projections, so the chain is no
+        // longer than the table.
+        for _ in 0..=self.tables.places.len() {
+            match self.tables.places.get(at)?.origin {
+                terminal_check_tables::bindings::PlaceOrigin::Root(root) => return Some(root),
+                terminal_check_tables::bindings::PlaceOrigin::Projection { parent, .. } => {
+                    at = parent;
+                }
+            }
+        }
+        None
+    }
+
     fn foreign(&self, concerns: Construct, detail: &str) -> Refusal {
         refusal(
             RefusalReason::ForeignIdentity,
@@ -201,8 +220,16 @@ impl Minted<'_> {
         for actual in &row.actuals {
             let restated = match actual {
                 Actual::Value(value) => scalars.next() == Some(value),
+                // An owned record argument is a root, passed whole. A loan
+                // passes a place beneath a root; its full path is checked
+                // against the place where loans are judged (`places::loans`).
                 Actual::Place(place) => records.next().is_some_and(|argument| {
-                    argument.path.is_empty() && self.tables.roots.get(argument.place) == Some(place)
+                    if argument.access == terminal_psi::StructuralAccess::Owned {
+                        argument.path.is_empty()
+                            && self.tables.roots.get(argument.place) == Some(place)
+                    } else {
+                        self.root_of(*place) == Some(argument.place)
+                    }
                 }),
             };
             if !restated {
@@ -520,21 +547,47 @@ fn values_are_declared(
         }
         Ok(())
     };
-    // A scalar formal's position is its place among all the formals.
+    // A formal's position is its place among all the formals, erased ones
+    // included. An erased scalar formal has no runtime lane, so the lowered
+    // form does not say where among the formals it was written; its row
+    // does. Those positions are accepted only when they strictly increase in
+    // the contract's order and lie among the formals, and the runtime
+    // formals then take the remaining positions in their own order.
+    let erased = &lowered.contract.erased_scalar_formals;
+    let total = lowered.parameter_order.len() + erased.len();
+    let mut erased_positions = Vec::with_capacity(erased.len());
+    for formal in erased {
+        let position = match tables.values.get(formal.id).map(|row| row.origin) {
+            Some(ValueOrigin::MachineParameter { position }) => position,
+            _ => return Err(foreign(formal.id, "an erased formal's row is not a formal")),
+        };
+        let increasing = erased_positions.last().is_none_or(|last| *last < position);
+        if !increasing || usize::try_from(position).map_or(true, |position| position >= total) {
+            return Err(foreign(
+                formal.id,
+                "an erased formal's position is out of order or past the formals",
+            ));
+        }
+        erased_positions.push(position);
+        declare(*formal, ValueOrigin::MachineParameter { position })?;
+    }
+    let mut runtime_positions = (0..total)
+        .map(|position| crate::position(position, id))
+        .collect::<Checked<Vec<u32>>>()?
+        .into_iter()
+        .filter(|position| erased_positions.binary_search(position).is_err());
     let mut scalars = lowered.parameters.iter();
-    for (position, kind) in lowered.parameter_order.iter().enumerate() {
+    for kind in &lowered.parameter_order {
+        let Some(position) = runtime_positions.next() else {
+            break;
+        };
         if !matches!(kind, BoundaryParameterKind::Scalar) {
             continue;
         }
         let Some(formal) = scalars.next() else {
             break;
         };
-        declare(
-            *formal,
-            ValueOrigin::MachineParameter {
-                position: crate::position(position, id)?,
-            },
-        )?;
+        declare(*formal, ValueOrigin::MachineParameter { position })?;
     }
     if let Some(formal) = scalars.next() {
         return Err(foreign(

@@ -5,6 +5,11 @@
 //! character limit (os error 206). This command enumerates workspace targets
 //! through `cargo metadata --no-deps`, groups them by edition, and invokes
 //! `rustfmt` in chunks bounded below 24,000 characters.
+//!
+//! One `rustfmt` process formats on one thread, and the whole workspace fit in
+//! a single chunk: 35 seconds of `admission` on a 4-CPU runner. The targets
+//! are therefore dealt into one chunk per available CPU as well, and the
+//! chunks run at the same time.
 
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
@@ -84,23 +89,33 @@ fn workspace_targets(repository: &Path) -> Result<BTreeMap<String, Vec<String>>,
         .collect())
 }
 
-pub(crate) fn chunked_invocations(prefix: &[String], files: &[String]) -> Vec<Vec<String>> {
+/// `rustfmt` invocations covering `files`, each within the command-line
+/// budget. The files are dealt round-robin into `lanes` groups first, so
+/// neighbouring targets of one large subsystem land in different processes.
+pub(crate) fn chunked_invocations(
+    prefix: &[String],
+    files: &[String],
+    lanes: usize,
+) -> Vec<Vec<String>> {
+    let lanes = lanes.max(1);
     let prefix_size: usize = prefix.iter().map(|arg| arg.len() + 1).sum();
     let mut invocations = Vec::new();
-    let mut current = prefix.to_vec();
-    let mut size = prefix_size;
-    for path in files {
-        let cost = path.len() + 1;
-        if size + cost > ARGV_BUDGET && current.len() > prefix.len() {
-            invocations.push(current);
-            current = prefix.to_vec();
-            size = prefix_size;
+    for lane in 0..lanes {
+        let mut current = prefix.to_vec();
+        let mut size = prefix_size;
+        for path in files.iter().skip(lane).step_by(lanes) {
+            let cost = path.len() + 1;
+            if size + cost > ARGV_BUDGET && current.len() > prefix.len() {
+                invocations.push(current);
+                current = prefix.to_vec();
+                size = prefix_size;
+            }
+            current.push(path.clone());
+            size += cost;
         }
-        current.push(path.clone());
-        size += cost;
-    }
-    if current.len() > prefix.len() {
-        invocations.push(current);
+        if current.len() > prefix.len() {
+            invocations.push(current);
+        }
     }
     invocations
 }
@@ -140,32 +155,51 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         }
     };
 
-    let mut failures = 0usize;
+    let lanes = std::thread::available_parallelism().map_or(1, usize::from);
+    let mut invocations = Vec::new();
     for (edition, files) in groups {
         let mut prefix = vec!["rustfmt".to_owned(), "--edition".to_owned(), edition];
         if check {
             prefix.push("--check".to_owned());
         }
         prefix.extend(passthrough.iter().cloned());
-        for invocation in chunked_invocations(&prefix, &files) {
-            if verbose {
-                println!("{}", invocation.join(" "));
-            }
-            let status = Command::new(&invocation[0])
-                .args(&invocation[1..])
-                .current_dir(&repository)
-                .status();
-            match status {
-                Ok(status) if status.success() => {}
-                _ => failures += 1,
-            }
+        invocations.extend(chunked_invocations(&prefix, &files, lanes));
+    }
+
+    // At most `lanes` processes at once; each finished one frees a lane for
+    // the next invocation.
+    let mut failures = 0usize;
+    let mut running = std::collections::VecDeque::new();
+    for invocation in invocations {
+        if running.len() == lanes
+            && let Some(child) = running.pop_front()
+        {
+            failures += usize::from(!succeeded(child));
         }
+        if verbose {
+            println!("{}", invocation.join(" "));
+        }
+        match Command::new(&invocation[0])
+            .args(&invocation[1..])
+            .current_dir(&repository)
+            .spawn()
+        {
+            Ok(child) => running.push_back(child),
+            Err(_) => failures += 1,
+        }
+    }
+    for child in running {
+        failures += usize::from(!succeeded(child));
     }
     if failures > 0 {
         eprintln!("fmt: {failures} rustfmt invocation(s) failed");
         return Err(1);
     }
     Ok(())
+}
+
+fn succeeded(mut child: std::process::Child) -> bool {
+    child.wait().is_ok_and(|status| status.success())
 }
 
 #[cfg(test)]
@@ -182,11 +216,23 @@ mod tests {
         let files: Vec<String> = (0..1000)
             .map(|index| format!("omega-rust/psi/stage_{index:04}/src/lib.rs"))
             .collect();
-        let chunks = chunked_invocations(&prefix, &files);
+        let chunks = chunked_invocations(&prefix, &files, 1);
         assert!(chunks.len() > 1);
         for chunk in &chunks {
             let total: usize = chunk.iter().map(|arg| arg.len() + 1).sum();
             assert!(total <= ARGV_BUDGET);
         }
+    }
+
+    #[test]
+    fn small_workspaces_are_dealt_into_one_chunk_per_lane() {
+        let prefix = vec!["rustfmt".to_owned()];
+        let files: Vec<String> = (0..10)
+            .map(|index| format!("crate_{index}/lib.rs"))
+            .collect();
+        let chunks = chunked_invocations(&prefix, &files, 4);
+        assert_eq!(chunks.len(), 4);
+        let covered: usize = chunks.iter().map(|chunk| chunk.len() - 1).sum();
+        assert_eq!(covered, files.len());
     }
 }

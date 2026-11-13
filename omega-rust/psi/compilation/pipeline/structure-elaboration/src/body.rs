@@ -16,8 +16,9 @@ fields and no case, a sum has cases and no field.
 
 use semantic_vocabulary::{
     CrashCause, IntegerValue, MachineId, PlaceId, Proposition, ScalarType, StructuralCaseId,
-    StructuralFieldId, StructuralTypeId,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
+use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;
 
 use crate::SourceOrigin;
@@ -30,6 +31,11 @@ use crate::SourceOrigin;
 pub enum ValueType {
     Scalar(ScalarType),
     Record(StructuralTypeId),
+    /// A value of a type parameter that a generic check form leaves rigid.
+    /// It is neither a scalar nor a record: no operator, field or literal
+    /// applies to it, so every typing rule that asks for one refuses it. It
+    /// can be named, passed to a call and returned.
+    Rigid(RigidType),
 }
 
 impl From<ScalarType> for ValueType {
@@ -42,6 +48,17 @@ impl ValueType {
     pub const fn scalar(self) -> Option<ScalarType> {
         match self {
             Self::Scalar(scalar_type) => Some(scalar_type),
+            Self::Record(_) | Self::Rigid(_) => None,
+        }
+    }
+
+    /// How a value of this type is declared on the lowered form, when it is
+    /// a value there and not a place: its declared type, and the rigid type
+    /// that declaration stands in for.
+    pub const fn declared(self) -> Option<(ScalarType, Option<RigidType>)> {
+        match self {
+            Self::Scalar(scalar_type) => Some((scalar_type, None)),
+            Self::Rigid(rigid) => Some((RigidType::DECLARED_AS, Some(rigid))),
             Self::Record(_) => None,
         }
     }
@@ -123,6 +140,24 @@ pub struct Signature {
     /// name scalar formals by those identities. A record formal is a root
     /// place and has no value identity.
     pub parameters: Vec<ValueType>,
+    /// The positions in `parameters` of the `[erased]` formals, strictly
+    /// increasing. `wiki/spec/proofs/contracts.md`, "Explicit erased
+    /// bindings": "The binding remains in checking and semantic identity but
+    /// contributes no runtime field, address, read, or cleanup." An erased
+    /// formal is scalar here, travels in neither runtime lane, and is a
+    /// value only so that clauses can name it: `formal_values` gives it the
+    /// identity after the result pseudo-value. A call supplies a term for
+    /// it and evaluates nothing.
+    pub erased: Vec<usize>,
+    /// The formals passed by reference, `&T` or `&mut T`, in strictly
+    /// increasing position order. `parameters` holds each one's referent
+    /// type. A borrowed formal is a place, never a value, whatever its
+    /// referent: the root of a structural parameter whose declared access
+    /// is the reference's, holding the caller's storage for the activation
+    /// (`wiki/spec/language/ownership.md`, "Borrows and aliases": "Borrowed
+    /// arguments continue to denote the original storage, not a caller-side
+    /// snapshot chosen because the referent is small.").
+    pub borrowed: Vec<Borrowed>,
     /// `None` is a Unit machine. A scalar result's pseudo-value is the value
     /// right after the scalar formals, which is how `ensures` clauses name
     /// `result`. A record result is the machine's result place.
@@ -139,6 +174,118 @@ pub struct Signature {
     /// in authored order.
     pub ensures: Vec<Proposition>,
     pub crashes: CrashCeiling,
+    pub termination: Termination,
+}
+
+/// One formal passed by reference.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Borrowed {
+    /// The formal's position in `Signature::parameters`.
+    pub position: usize,
+    /// `Shared` for `&T`, `Mutable` for `&mut T`. `&write T` is refused by
+    /// the reader.
+    pub access: language_core::ReferenceAccess,
+    /// For a scalar referent, the text identity of its type as the typed
+    /// trees render it: Terminal Psi declares the primitive type of the
+    /// formal's place with an interned text identity, as it does a scalar
+    /// home's (`Statement::Declare`). `None` for a record referent, whose
+    /// `RecordType` holds its own. Nothing compares it.
+    pub home: Option<String>,
+}
+
+/// What the machine's header says about ending.
+/// `wiki/spec/language/termination.md`: "Bare `terminates` authors the
+/// promise", and `terminates by subject` supplies "a witness [that]
+/// discharges that promise rather than redefining it".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Termination {
+    /// No clause. termination.md: "A private acyclic body needs no
+    /// annotation and derives a local `Terminates` summary", and "A
+    /// productive terminal-transfer cycle without a termination promise may
+    /// run forever and owes no rank".
+    Silent,
+    /// The header promises termination and names no ranking.
+    Promised,
+    /// The header supplies a ranking witness, with or without the promise.
+    Witnessed,
+}
+
+impl Signature {
+    pub fn is_erased(&self, position: usize) -> bool {
+        self.erased.binary_search(&position).is_ok()
+    }
+
+    /// The reference the formal at `position` is passed by, if it is one.
+    pub fn borrowed(&self, position: usize) -> Option<&Borrowed> {
+        self.borrowed
+            .binary_search_by_key(&position, |borrowed| borrowed.position)
+            .ok()
+            .and_then(|found| self.borrowed.get(found))
+    }
+
+    /// Whether the formal at `position` is a structural place: a record
+    /// formal, or any borrowed formal. The `k`-th of them, counting from
+    /// zero in position order, is the machine's place `k + 1`, which is how
+    /// a clause names it.
+    pub fn is_place(&self, position: usize) -> bool {
+        self.borrowed(position).is_some()
+            || matches!(self.parameters.get(position), Some(ValueType::Record(_)))
+    }
+
+    /// The value identity of each formal, by position; `None` for a record
+    /// formal, which is a place. See `formal_values`.
+    pub fn formal_values(&self) -> Vec<Option<ValueId>> {
+        formal_values(
+            self.parameters
+                .iter()
+                .enumerate()
+                .map(|(position, value_type)| {
+                    (
+                        *value_type,
+                        self.is_erased(position),
+                        self.borrowed(position).is_some(),
+                    )
+                }),
+            self.result,
+        )
+    }
+}
+
+/// The one numbering of a machine's formal values, shared by the reader
+/// (which states clauses over them) and lowering (which mints them). The
+/// `k`-th relevant value formal (scalar or of a rigid type) is value
+/// `k + 1`; a value result's pseudo-value follows them; the erased scalar formals follow that, in
+/// position order. Terminal Psi keeps the same split: runtime formals in
+/// `TerminalMachine::parameters`, erased ones in
+/// `MachineContract::erased_scalar_formals`. A borrowed formal (the third
+/// flag) is a place whatever its referent, so it has no value identity.
+pub fn formal_values(
+    formals: impl Iterator<Item = (ValueType, bool, bool)> + Clone,
+    result: Option<ValueType>,
+) -> Vec<Option<ValueId>> {
+    let relevant = formals
+        .clone()
+        .filter(|(value_type, erased, borrowed)| {
+            value_type.declared().is_some() && !erased && !borrowed
+        })
+        .count() as u64;
+    let result = u64::from(result.and_then(ValueType::declared).is_some());
+    let (mut next_relevant, mut next_erased) = (0, relevant + result);
+    formals
+        .map(|(value_type, erased, borrowed)| {
+            if borrowed {
+                return None;
+            }
+            value_type.declared()?;
+            let next = if erased {
+                &mut next_erased
+            } else {
+                &mut next_relevant
+            };
+            *next += 1;
+            ValueId::new(*next)
+        })
+        .collect()
 }
 
 /// What the machine's header says about crashing.
@@ -182,6 +329,14 @@ pub enum Statement {
     /// the statements of a body lie on one spine and a slot has one binding
     /// at each of them.
     Bind { slot: usize, value: Expression },
+    /// `let x [erased]: T = term;`: the slot names `term` and nothing is
+    /// evaluated. contracts.md, "Explicit erased bindings": the binding "may
+    /// supply proof computation or static authorization; it cannot determine
+    /// runtime data or control." `term` is a literal or a slot, the forms
+    /// with no formation condition of their own (contracts.md, "Total
+    /// arithmetic": "Exact operations discharge representability before
+    /// formation"); the reader refuses any other initializer.
+    Witness { slot: usize, term: Expression },
     /// `let x: T;`: a local declared without an initializer.
     ///
     /// A data local is zero-established: its storage holds the zero
@@ -346,12 +501,36 @@ pub enum ExpressionKind {
     },
     Not(Box<Expression>),
     BitwiseNot(Box<Expression>),
+    /// `operand as T` between two integer carriers, neither carrying a
+    /// domain: the operand, then the one exact conversion to `result`.
+    /// `wiki/spec/language/domains.md`, "Carrier casts": "`value as T`
+    /// changes the carrier through a unique exact compiler-derived
+    /// transformation: exact widening, or narrowing with representability
+    /// proved. The denoted value does not change."
+    Cast(Box<Expression>),
     /// `&&` when `conjunction`, else `||`: the right operand runs only when
     /// the left does not decide the result.
     ShortCircuit {
         conjunction: bool,
         left: Box<Expression>,
         right: Box<Expression>,
+    },
+    /// `&place` or `&mut place` as the argument for a borrowed formal, the
+    /// one position the reader serves it in: the place a slot, or a member
+    /// path beneath one, names, lent to the call for the call's duration.
+    /// `result` is the referent's type. A borrowed formal named whole as the
+    /// argument for another borrowed formal is the same expression, a
+    /// reborrow of its referent. `wiki/spec/terminal-psi/loans.md`: "Loan
+    /// formation captures a place, not a live selector expression."
+    ///
+    /// `home` is set when the place is a scalar local that is an SSA value
+    /// here: lending it needs storage, so lowering gives it a home holding
+    /// its current value first, and this is the text identity of that
+    /// home's type, as `Statement::Declare` carries one.
+    Borrow {
+        access: language_core::ReferenceAccess,
+        place: Box<Expression>,
+        home: Option<String>,
     },
     /// A direct call: all arguments left to right, then the invocation.
     Call {

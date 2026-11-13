@@ -1,0 +1,49 @@
+; The compiler retains checked semantic custody and named failure outcomes.
+(data EpsilonDeltaCompilation
+  (EpsilonDeltaCompiled Bytes)
+  (EpsilonDeltaRejected EpsilonRejectReason Int)
+  (EpsilonDeltaUnsupported Int)
+  (EpsilonDeltaInternal Int))
+
+; Keep source custody and resolved operations in named semantic records rather
+; than another numeric opcode protocol. The checker remains their only owner.
+(data EpsilonDeltaContext
+  (EpsilonDeltaContextAt EpsilonSourceView EpsilonResolutionCatalog EpsilonResolvedLocalReferenceList
+    EpsilonResolvedFieldReferenceList EpsilonResolvedCallableReferenceList
+    EpsilonControlReferenceLedger EpsilonDeclaration))
+
+(data EpsilonDeltaCallTarget
+  (EpsilonDeltaMachineTarget Bytes)
+  (EpsilonDeltaStateTarget Bytes Bytes))
+
+; Control is a named lowering decision, not the evaluator's numeric classifier.
+(data EpsilonDeltaBinaryFlow
+  (EpsilonDeltaEvaluateBoth)
+  (EpsilonDeltaShortOnTrue)
+  (EpsilonDeltaShortOnFalse))
+
+; The module names its runtime requirement separately from expression fragments.
+; Pure arithmetic/cases keep the small ABI; receiver effects use the shared store.
+(data EpsilonDeltaRuntime
+  (EpsilonDeltaPureRuntime)
+  (EpsilonDeltaStoredRuntime))
+
+(data EpsilonDeltaProgramCompilation
+  (EpsilonDeltaProgramCompiled EpsilonDeltaRuntime Bytes)
+  (EpsilonDeltaProgramRejected EpsilonRejectReason Int)
+  (EpsilonDeltaProgramUnsupported Int)
+  (EpsilonDeltaProgramInternal Int))
+
+; A compiled place retains its checked leaf type with native target syntax.
+(data EpsilonDeltaPlaceCompilation
+  (EpsilonDeltaPlaceCompiled EpsilonType Bytes)
+  (EpsilonDeltaPlaceUnsupported Int)
+  (EpsilonDeltaPlaceInternal Int))
+
+(data EpsilonDeltaStoredCallTarget
+  (EpsilonDeltaStoredPureCall Bytes)
+  (EpsilonDeltaStoredReceiverCall Bytes Bytes)
+  (EpsilonDeltaStoredStateCall Bytes Bytes Bytes Bytes)
+  (EpsilonDeltaStoredReadByte)
+  (EpsilonDeltaStoredWriteByte)
+  (EpsilonDeltaStoredExit))

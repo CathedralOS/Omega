@@ -1,5 +1,9 @@
 # Complete Beta encoding acceptance
 
+This is an optional research acceptance, outside the bootstrap construction
+MVP. Existing full-subject measurements concern the source and tape at
+`d19361fe4deae73e1b488a940a872fec1ed885cb`; they do not certify a later evaluator.
+
 The first complete certificate establishes the independently reconstructed root:
 
 ```text
@@ -8,7 +12,7 @@ encode_Beta(S, source_limit, output_limit) = Success(T)
 
 `S` is the entire selected Gamma evaluator's raw Beta source, including comments
 and whitespace; `T` is its entire persisted Alpha tape. The
-[evaluator profile](../../2_gamma/EVALUATOR_PROFILE.md) owns current identities.
+[evaluator profile](../../interpreted/2_gamma/EVALUATOR_PROFILE.md) owns current identities.
 The artifact owner fixes both subjects, the complete transparent Beta definition
 package, encoding profile, and root independently of the certificate producer.
 Neither a formed theory nor a producer-supplied theory identity authenticates
@@ -18,7 +22,7 @@ the definitions as Beta.
 
 The encoder is an ordinary total error-valued definition, not a primitive
 invoking Beta. `Success(T)` holds exactly for valid bounded source encoding
-those bytes under [Beta's complete language](../../1_beta/LANGUAGE.md).
+those bytes under [Beta's complete language](../../interpreted/1_beta/LANGUAGE.md).
 There is no unchecked well-formedness premise. Invalid source and exhausted
 encoding capacity are distinct results; neither is generic checker Incomplete.
 

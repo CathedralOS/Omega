@@ -54,6 +54,13 @@ pub enum AcceptedProofRule {
     IntegerMathOrderTranslation,
     IntegerOrderAntisymmetry,
     IntegerAffineBound,
+    /// The `IntegerAffineBound` form that bounds a remainder by its dividend.
+    /// It is a row of its own because it is provisional
+    /// (`AcceptedProofRule::is_provisional`).
+    IntegerRemainderWithinDividend,
+    /// The `IntegerAffineBound` form that relates a quotient to its
+    /// dividend; provisional, like the row above.
+    IntegerQuotientAtMostDividend,
     IntegerExactAddDefinitionBound,
     IntegerExactSubtractDefinitionBound,
     IntegerCastBound,
@@ -478,9 +485,16 @@ pub(crate) mod integer_bound_rules {
         root_bound: &Proposition,
         witness: &IntegerAffineWitness,
         conclusion: &Proposition,
-    ) -> Result<Vec<usize>, ProofError> {
+    ) -> Result<(AcceptedProofRule, Vec<usize>), ProofError> {
         let form = check_integer_affine_witness(context, semantic_axioms, witness)
             .map_err(ProofError::IntegerAffineWitness)?;
+        let rule = if form.is_remainder_within_dividend() {
+            AcceptedProofRule::IntegerRemainderWithinDividend
+        } else if form.is_quotient_at_most_dividend() {
+            AcceptedProofRule::IntegerQuotientAtMostDividend
+        } else {
+            AcceptedProofRule::IntegerAffineBound
+        };
         let normalized_conclusion =
             lower_integer_math_relation(conclusion).unwrap_or_else(|| conclusion.clone());
         if *root_bound == Proposition::Truth {
@@ -512,7 +526,7 @@ pub(crate) mod integer_bound_rules {
             }
             cited.push(definition_index);
         }
-        Ok(cited)
+        Ok((rule, cited))
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -759,16 +773,15 @@ pub(crate) mod integer_bound_rules {
                 root_bound,
                 witness,
             } => {
-                acceptance
-                    .rules
-                    .insert(AcceptedProofRule::IntegerAffineBound);
-                affine_bound_relation(
+                let (rule, cited) = affine_bound_relation(
                     context,
                     semantic_axioms,
                     &root_bound.conclusion,
                     witness,
                     conclusion,
-                )?
+                )?;
+                acceptance.rules.insert(rule);
+                cited
             }
             ProofRule::IntegerCastBound {
                 root_bound,
@@ -1022,6 +1035,22 @@ pub(crate) mod integer_math_normalization {
                 Box::new(lift_exact_integer_term(left)?),
                 Box::new(lift_exact_integer_term(right)?),
             )),
+            // An exact left shift completes only when `value * 2^count` is
+            // representable and the count lies below the width (Terminal
+            // semantics owes exactly that, over this same mathematical
+            // term), so the value it produces is that term, as an exact
+            // product's is its mathematical product.
+            ScalarTerm::ExactIntegerShiftLeft {
+                value_type,
+                count_type,
+                value,
+                count,
+            } if exact_ring_carrier(value_type) && exact_ring_carrier(count_type) => {
+                Some(IntegerMathTerm::ShiftLeft {
+                    value: Box::new(lift_exact_integer_term(value)?),
+                    count: Box::new(lift_exact_integer_term(count)?),
+                })
+            }
             ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } => lift_fixed_integer_term(term),
             _ => None,
         }
@@ -1047,6 +1076,36 @@ pub(crate) mod integer_math_normalization {
         };
         use std::slice::from_ref;
         use terminal_psi::{ProofNode, ProofRule};
+
+        #[test]
+        fn an_exact_left_shift_means_its_mathematical_shift_and_a_wrapping_one_does_not() {
+            let value_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+            let count_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+            let value =
+                ScalarTerm::value(ValueId::new(1).unwrap(), ScalarType::Integer(value_type));
+            let count =
+                ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Integer(count_type));
+            let exact = ScalarTerm::ExactIntegerShiftLeft {
+                value_type,
+                count_type,
+                value: Box::new(value.clone()),
+                count: Box::new(count.clone()),
+            };
+            assert_eq!(
+                lift_exact_integer_term(&exact),
+                Some(IntegerMathTerm::ShiftLeft {
+                    value: Box::new(IntegerMathTerm::embed(value.clone()).unwrap()),
+                    count: Box::new(IntegerMathTerm::embed(count.clone()).unwrap()),
+                })
+            );
+            let wrapping = ScalarTerm::WrappingIntegerShiftLeft {
+                value_type,
+                count_type,
+                value: Box::new(value),
+                count: Box::new(count),
+            };
+            assert_eq!(lift_exact_integer_term(&wrapping), None);
+        }
 
         #[test]
         fn embedded_endpoints_preserve_projection_and_operation_meaning() {

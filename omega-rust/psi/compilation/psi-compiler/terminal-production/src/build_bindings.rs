@@ -965,8 +965,8 @@ pub(crate) mod build_requests {
                     "application" => Request::Application,
                     "member" => Request::Member,
                     "artifact_only" => Request::ArtifactOnly,
-                    "depend_path" => Request::PathDependency,
-                    "depend_git" => Request::GitDependency,
+                    "register_path_dependency" => Request::PathDependency,
+                    "register_git_dependency" => Request::GitDependency,
                     "write_log" => Request::LogLine,
                     _ => return None,
                 })

@@ -46,7 +46,7 @@ mod constant_entries {
 }
 mod library_slice {
     use semantic_vocabulary::PackageKeyIdentity;
-    use source::{SourceFile, SourceOrigin};
+    use source::SourceFile;
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -107,7 +107,7 @@ mod library_slice {
                 .selected_files()
                 .filter(|file| self.in_slice(file))
                 .map(SliceSource::of)
-                .collect();
+                .collect::<Option<_>>()?;
             if slice.is_empty() {
                 return None;
             }
@@ -204,8 +204,8 @@ mod library_slice {
             Some(LibrarySliceKey(digest.finish()))
         }
 
-        fn in_slice(&self, file: &SourceFile) -> bool {
-            file.origin == SourceOrigin::Toolchain
+        pub(super) fn in_slice(&self, file: &SourceFile) -> bool {
+            file.origin.is_toolchain()
                 || file
                     .package_identity
                     .is_some_and(|package| Some(package) != self.root_package)
@@ -213,16 +213,17 @@ mod library_slice {
     }
 
     #[derive(PartialEq, Eq, PartialOrd, Ord)]
-    struct SliceSource {
+    pub(super) struct SliceSource {
         package: [u8; 32],
         path: String,
+        toolchain: Option<[u8; 32]>,
         scope: u8,
         stratum: u8,
         content: [u8; 32],
     }
 
     impl SliceSource {
-        fn of(file: &SourceFile) -> Self {
+        pub(super) fn of(file: &SourceFile) -> Option<Self> {
             let relative = file
                 .path
                 .strip_prefix(&file.package_root)
@@ -231,21 +232,37 @@ mod library_slice {
                 b"omega-library-source-v1\0",
             );
             content.bytes(file.source.as_bytes());
-            Self {
+            let toolchain = if file.origin.is_toolchain() {
+                Some(source::source_identity::toolchain_source_identity_digest(file).ok()?)
+            } else {
+                None
+            };
+            Some(Self {
                 package: file
                     .package_identity
                     .map(PackageKeyIdentity::digest)
                     .unwrap_or([0; 32]),
                 path: relative.to_string_lossy().replace('\\', "/"),
+                toolchain,
                 scope: file.dependency_scope as u8,
                 stratum: file.resolution_stratum as u8,
                 content: content.finish(),
-            }
+            })
         }
 
-        fn encode(&self, digest: &mut optimization::digest_encoder::DomainDigestEncoder) {
+        pub(super) fn encode(
+            &self,
+            digest: &mut optimization::digest_encoder::DomainDigestEncoder,
+        ) {
             digest.raw(&self.package);
             digest.bytes(self.path.as_bytes());
+            match self.toolchain {
+                Some(identity) => {
+                    digest.byte(1);
+                    digest.raw(&identity);
+                }
+                None => digest.byte(0),
+            }
             digest.byte(self.scope);
             digest.byte(self.stratum);
             digest.raw(&self.content);
@@ -387,6 +404,21 @@ mod library_slice {
         }
 
         #[test]
+        fn retained_slice_distinguishes_closed_contracts_from_ambient_core() {
+            let core = file(
+                "/library",
+                "entry.omg",
+                SourceOrigin::Toolchain,
+                None,
+                "body",
+            );
+            let mut contract = core.clone();
+            contract.origin = SourceOrigin::ToolchainContract;
+            assert!(LibrarySliceRequest::default().in_slice(&contract));
+            assert!(SliceSource::of(&core) != SliceSource::of(&contract));
+        }
+
+        #[test]
         fn a_slice_source_is_named_by_package_relative_path_and_bytes() {
             let package = PackageKeyIdentity::from_digest([2; 32]);
             let here = SliceSource::of(&file("/a/std", "x.omg", SourceOrigin::User, package, "m"));
@@ -395,6 +427,327 @@ mod library_slice {
                 SliceSource::of(&file("/a/std", "x.omg", SourceOrigin::User, package, "n"));
             assert!(here == moved);
             assert!(here != edited);
+        }
+    }
+}
+/*
+    Checked dependency slices kept on local disk between compiles.
+
+    A compile may load a check it did not run only when the check judged
+    nothing but dependency source and the stored result was produced for
+    exactly the same input (`wiki/spec/build/validation_subjects.md`, "What
+    this rule does not do"). The key binds the encoded program the check would
+    judge, its declaration authority and package labels, the content of every
+    source it contains, the producing compiler's identity and the target. A
+    program holding any source of the consumer's own package has no key and is
+    always checked. A record that is missing, truncated, carries another key,
+    fails its digest or does not decode is a miss, and the ordinary check runs.
+
+    The host owns where records live and who produced them, so this module
+    only frames bytes; `CheckedSliceStore` performs the reads and writes.
+*/
+pub(crate) mod checked_slice {
+    use super::library_slice::{LibrarySliceRequest, SliceSource};
+    use semantic_vocabulary::PackageKeyIdentity;
+
+    const RECORD_MAGIC: &[u8; 8] = b"OMGCSLC\x02";
+    const KEY_DOMAIN: &[u8] = b"omega-checked-slice-key-v2\0";
+    const PAYLOAD_DOMAIN: &[u8] = b"omega-checked-slice-payload-v1\0";
+    pub(crate) const LIMITS: compiler_storage::RecordLimits = compiler_storage::RecordLimits {
+        bytes: 256 * 1024 * 1024,
+        allocation: 1024 * 1024 * 1024,
+        elements: 64 * 1024 * 1024,
+        depth: 512,
+    };
+
+    /// Local storage for checked dependency slices. Implementations must not
+    /// publish a partially written record under its final name.
+    pub trait CheckedSliceStore: Send + Sync {
+        /// Identity of the compiler that produces and loads these records.
+        fn producer_identity(&self) -> [u8; 32];
+        fn load(&self, key: &[u8; 32]) -> Option<Vec<u8>>;
+        fn save(&self, key: &[u8; 32], record: &[u8]);
+    }
+
+    /// One check's permission to use a store.
+    pub struct CheckedSliceReuse<'store> {
+        pub store: &'store dyn CheckedSliceStore,
+        /// The target the program was typed for.
+        pub target: &'store str,
+        pub owner: CheckedSliceOwner,
+    }
+
+    /// Whose source the checked program can hold.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum CheckedSliceOwner {
+        /// A dependency's own Build, run for its consumer. Its program holds
+        /// that dependency and the toolchain only, even before package
+        /// admission names its files.
+        Dependency,
+        /// A program that may hold the consumer's source. It is reusable only
+        /// when every file belongs to the library slice outside this package;
+        /// `None` names a consumer without a package, whose loose sources are
+        /// never reused.
+        Consumer(Option<PackageKeyIdentity>),
+    }
+
+    pub(crate) struct SliceKey {
+        pub(super) digest: [u8; 32],
+        pub(crate) sources: std::sync::Arc<source::SourceMap>,
+    }
+
+    /*
+        The key every stored slice shares. `domain` separates kinds of result;
+        `parts` are the kind's own encoded inputs, written beside `sources`.
+
+        The invocation's source map is left out of those encodings: it holds
+        every file the invocation has read, including the consumer's own Build
+        that a dependency's Build carries without judging. The key covers the
+        map's selection view instead: every selected file's identity, path and
+        text, the selection, rejoins and dependency routing. Only unselected
+        files' paths and text are left out. Checking judges selected
+        declarations and reads no unselected text, so those cannot change the
+        result; a loaded record is joined to the loading compile's own map.
+    */
+    pub(crate) fn slice_key(
+        domain: &[u8],
+        reuse: &CheckedSliceReuse<'_>,
+        sources: std::sync::Arc<source::SourceMap>,
+        declarations: Option<&dyn validation::DeclarationSelectionAuthority>,
+        parts: &[&[u8]],
+    ) -> Option<SliceKey> {
+        let mut files = Vec::new();
+        for file in sources.selected_files() {
+            if let CheckedSliceOwner::Consumer(root_package) = reuse.owner
+                && !(LibrarySliceRequest { root_package }).in_slice(file)
+            {
+                return None;
+            }
+            files.push((file.source_id.0, SliceSource::of(file)?));
+        }
+        if files.is_empty() {
+            return None;
+        }
+        files.sort();
+        let authority = validation::RecordedDeclarationAuthority::capture(declarations).ok()?;
+        let mut digest = optimization::digest_encoder::DomainDigestEncoder::new(domain);
+        digest.raw(&reuse.store.producer_identity());
+        digest.bytes(reuse.target.as_bytes());
+        digest.bytes(&compiler_storage::encode(&authority, LIMITS).ok()?);
+        if let (validation::RecordedDeclarationAuthority::Packages(scope), Some(labels)) =
+            (&authority, declarations)
+        {
+            let mut packages: Vec<PackageKeyIdentity> = scope
+                .iter()
+                .flat_map(|(requester, owners)| {
+                    std::iter::once(*requester).chain(owners.iter().copied())
+                })
+                .collect();
+            packages.sort_unstable();
+            packages.dedup();
+            digest.len(packages.len());
+            for package in packages {
+                digest.raw(&package.digest());
+                digest.bytes(labels.package_label(package).as_bytes());
+            }
+        }
+        digest.len(files.len());
+        for (source_id, file) in &files {
+            digest.u64(*source_id as u64);
+            file.encode(&mut digest);
+        }
+        digest.bytes(&compiler_storage::encode(&sources.selection_view(), LIMITS).ok()?);
+        digest.len(parts.len());
+        for part in parts {
+            digest.bytes(part);
+        }
+        Some(SliceKey {
+            digest: digest.finish(),
+            sources,
+        })
+    }
+
+    /*
+        Only a check whose admission is the Build check's (a declaration
+        authority and nothing else) is keyed. Product checks carry roots,
+        layout scopes and representation selections and always judge the
+        consumer's own package, so they never reach a store.
+    */
+    pub(super) fn key(
+        program: &typed_trees::TypedTrees,
+        admission: &super::SourceAdmission<'_>,
+        reuse: &CheckedSliceReuse<'_>,
+    ) -> Option<SliceKey> {
+        let representations = &admission.representations;
+        if !admission.external_roots.is_empty()
+            || !matches!(
+                admission.completion,
+                validation::source_completion::SourceCompletionAdmission::None
+            )
+            || representations.activation.is_some()
+            || !representations.declared.is_empty()
+            || !representations.executed.is_empty()
+            || !representations.retained.is_empty()
+            || !admission.layout_scopes.is_empty()
+            || admission.layout_selection_authority.is_some()
+            || admission.asm_authority.is_some()
+            || !admission.wire_demands.is_empty()
+        {
+            return None;
+        }
+        let sources = program.symbols.source_map()?;
+        let encoded = encode_program(program, &program.type_identities, &sources).ok()?;
+        slice_key(
+            KEY_DOMAIN,
+            reuse,
+            sources,
+            admission.declarations,
+            &[&encoded],
+        )
+    }
+
+    /// The verified payload stored under `key`, if any.
+    pub(crate) fn load_payload(reuse: &CheckedSliceReuse<'_>, key: &SliceKey) -> Option<Vec<u8>> {
+        let record = reuse.store.load(&key.digest)?;
+        let rest = record.strip_prefix(RECORD_MAGIC.as_slice())?;
+        let (stored_key, rest) = rest.split_first_chunk::<32>()?;
+        if *stored_key != key.digest {
+            return None;
+        }
+        let (length, rest) = rest.split_first_chunk::<8>()?;
+        let length = usize::try_from(u64::from_le_bytes(*length)).ok()?;
+        if rest.len() != length.checked_add(32)? {
+            return None;
+        }
+        let (payload, payload_digest) = rest.split_at(length);
+        (payload_digest == payload_identity(&key.digest, payload)).then(|| payload.to_vec())
+    }
+
+    pub(crate) fn save_payload(reuse: &CheckedSliceReuse<'_>, key: &SliceKey, payload: &[u8]) {
+        let mut record = Vec::with_capacity(RECORD_MAGIC.len() + 32 + 8 + payload.len() + 32);
+        record.extend_from_slice(RECORD_MAGIC);
+        record.extend_from_slice(&key.digest);
+        record.extend_from_slice(&(payload.len() as u64).to_le_bytes());
+        record.extend_from_slice(payload);
+        record.extend_from_slice(&payload_identity(&key.digest, payload));
+        reuse.store.save(&key.digest, &record);
+    }
+
+    pub(super) fn load(
+        reuse: &CheckedSliceReuse<'_>,
+        key: &SliceKey,
+    ) -> Option<checked_trees::CheckedTrees> {
+        let payload = load_payload(reuse, key)?;
+        compiler_storage::decode_beside(&payload, std::sync::Arc::clone(&key.sources), LIMITS).ok()
+    }
+
+    /*
+        A result that holds a second source map is not saved: another compile
+        could not join it to its own map.
+    */
+    pub(super) fn save(
+        reuse: &CheckedSliceReuse<'_>,
+        key: &SliceKey,
+        checked: &checked_trees::CheckedTrees,
+    ) {
+        if let Ok(payload) = encode_program(checked, &checked.typed.type_identities, &key.sources) {
+            save_payload(reuse, key, &payload);
+        }
+    }
+
+    /*
+        A program, or a result holding one, written beside the invocation's
+        source map and under its type identity table's canonical numbering, so
+        equal programs write equal bytes however checking threads raced to
+        mint their identities.
+    */
+    pub(crate) fn encode_program<T: compiler_storage::Record>(
+        value: &T,
+        identities: &typed_trees::type_identity::TypeIdentityTable,
+        sources: &std::sync::Arc<source::SourceMap>,
+    ) -> Result<Vec<u8>, compiler_storage::RecordError> {
+        compiler_storage::encode_beside_with(value, sources, LIMITS, |output| {
+            identities.renumber_canonically(output)
+        })
+    }
+
+    fn payload_identity(key: &[u8; 32], payload: &[u8]) -> [u8; 32] {
+        let mut digest = optimization::digest_encoder::DomainDigestEncoder::new(PAYLOAD_DOMAIN);
+        digest.raw(key);
+        digest.bytes(payload);
+        digest.finish()
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::{CheckedSliceReuse, CheckedSliceStore, SliceKey};
+        use std::sync::Arc;
+        use std::sync::Mutex;
+
+        #[derive(Default)]
+        struct Memory(Mutex<Vec<([u8; 32], Vec<u8>)>>);
+
+        impl CheckedSliceStore for Memory {
+            fn producer_identity(&self) -> [u8; 32] {
+                [7; 32]
+            }
+            fn load(&self, key: &[u8; 32]) -> Option<Vec<u8>> {
+                let records = self.0.lock().unwrap();
+                records
+                    .iter()
+                    .find(|(stored, _)| stored == key)
+                    .map(|(_, bytes)| bytes.clone())
+            }
+            fn save(&self, key: &[u8; 32], record: &[u8]) {
+                self.0.lock().unwrap().push((*key, record.to_vec()));
+            }
+        }
+
+        fn key(marker: u8) -> SliceKey {
+            SliceKey {
+                digest: [marker; 32],
+                sources: Arc::new(source::SourceMap::default()),
+            }
+        }
+
+        fn reuse(store: &Memory) -> CheckedSliceReuse<'_> {
+            CheckedSliceReuse {
+                store,
+                target: "linux_x86_64",
+                owner: super::CheckedSliceOwner::Dependency,
+            }
+        }
+
+        #[test]
+        fn a_saved_slice_loads_under_its_own_key_only() {
+            let store = Memory::default();
+            let checked = checked_trees::CheckedTrees::default();
+            super::save(&reuse(&store), &key(1), &checked);
+            assert_eq!(super::load(&reuse(&store), &key(1)), Some(checked));
+            assert_eq!(super::load(&reuse(&store), &key(2)), None);
+        }
+
+        #[test]
+        fn a_damaged_or_misfiled_record_is_a_miss() {
+            let store = Memory::default();
+            super::save(
+                &reuse(&store),
+                &key(1),
+                &checked_trees::CheckedTrees::default(),
+            );
+            let record = store.0.lock().unwrap()[0].1.clone();
+            let mut damaged = record.clone();
+            let middle = damaged.len() / 2;
+            damaged[middle] ^= 1;
+            let truncated = record[..record.len() - 1].to_vec();
+            for bytes in [damaged, truncated, Vec::new()] {
+                let other = Memory::default();
+                other.save(&[1; 32], &bytes);
+                assert_eq!(super::load(&reuse(&other), &key(1)), None);
+            }
+            let misfiled = Memory::default();
+            misfiled.save(&[3; 32], &record);
+            assert_eq!(super::load(&reuse(&misfiled), &key(3)), None);
         }
     }
 }
@@ -575,6 +928,7 @@ pub use library_slice::{
     LibrarySliceKey, LibrarySliceRequest, LibrarySliceTotals, library_slice_totals,
 };
 
+pub use checked_slice::{CheckedSliceOwner, CheckedSliceReuse, CheckedSliceStore};
 pub use retained_check::RetainedCheck;
 pub use typed_trees_to_checked_trees::CheckedTreeProductSelection;
 
@@ -587,6 +941,25 @@ pub fn whole_program_reuse_hits() -> u64 {
 
 fn record_whole_program_reuse() {
     WHOLE_PROGRAM_REUSE_HITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+static CHECKED_SLICE_LOADS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static CHECKED_SLICE_SAVES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Checks this process loaded from a `CheckedSliceStore` and checks it saved.
+pub fn checked_slice_totals() -> (u64, u64) {
+    (
+        CHECKED_SLICE_LOADS.load(std::sync::atomic::Ordering::Relaxed),
+        CHECKED_SLICE_SAVES.load(std::sync::atomic::Ordering::Relaxed),
+    )
+}
+
+fn record_checked_slice_load() {
+    CHECKED_SLICE_LOADS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+fn record_checked_slice_save() {
+    CHECKED_SLICE_SAVES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 static RETAINED_LAYOUT_MATCH_HITS: std::sync::atomic::AtomicU64 =
@@ -655,6 +1028,7 @@ pub struct CheckRequest<'request> {
     pub previous: &'request [&'request RetainedCheck],
     pub retain: bool,
     pub library_slice: LibrarySliceRequest,
+    pub checked_slices: Option<CheckedSliceReuse<'request>>,
 }
 
 pub struct CheckedSource {
@@ -693,8 +1067,67 @@ impl CheckRequest<'_> {
     */
     pub fn check_keeping_typed_frontier(
         self,
-        mut frontier: Option<&mut Option<typed_trees::FrozenTypedTrees>>,
+        frontier: Option<&mut Option<typed_trees::FrozenTypedTrees>>,
     ) -> Result<CheckedSource, Vec<Diagnostic>> {
+        match frontier {
+            Some(frontier) => self.check_showing_typed_frontier(
+                Some(&mut |typed| {
+                    *frontier = Some(typed.clone());
+                }),
+                true,
+            ),
+            None => self.check_showing_typed_frontier(None, false),
+        }
+    }
+
+    /*
+        The same check, showing `inspect` the frozen typed trees Psi 05 judges
+        before Psi 05 takes them, under the same rule as the copy
+        `check_keeping_typed_frontier` makes: exactly once when Psi 04
+        completed or a retained judgment or stored slice supplied its trees,
+        whatever this function then returns, and not at all when the request
+        was refused earlier. A second checker judges the trees here by
+        reference (the checker on the lowered form, which may govern the
+        verdict), so nothing is cloned for it. One difference: when the
+        lifecycle-plan step between Psi 04 and Psi 05 refuses, `inspect` is not
+        called, because the compilation fails on that step's own diagnostic
+        and keeping Psi 04's output for the case would clone it every time.
+    */
+    pub fn check_inspecting_typed_frontier(
+        self,
+        inspect: &mut dyn FnMut(&typed_trees::FrozenTypedTrees),
+    ) -> Result<CheckedSource, Vec<Diagnostic>> {
+        self.check_showing_typed_frontier(Some(inspect), false)
+    }
+
+    /// `keep_prepared`: also show Psi 04's output when the lifecycle-plan step
+    /// refuses, which costs a copy of the trees on every check.
+    fn check_showing_typed_frontier(
+        self,
+        mut inspect: Option<&mut dyn FnMut(&typed_trees::FrozenTypedTrees)>,
+        keep_prepared: bool,
+    ) -> Result<CheckedSource, Vec<Diagnostic>> {
+        let stored_slice = self
+            .checked_slices
+            .as_ref()
+            .and_then(|reuse| checked_slice::key(&self.program, &self.admission, reuse));
+        if let (Some(reuse), Some(key)) = (self.checked_slices.as_ref(), stored_slice.as_ref())
+            && let Some(checked) = checked_slice::load(reuse, key)
+        {
+            record_checked_slice_load();
+            build_time_evaluation::admit_access_lifecycle_plans(
+                &checked.typed,
+                self.admission.declarations,
+            )?;
+            if let Some(inspect) = inspect.as_deref_mut() {
+                inspect(&checked.typed);
+            }
+            return Ok(CheckedSource {
+                program: Arc::new(checked),
+                retained: None,
+                reused: true,
+            });
+        }
         let mut program = self.program;
         let representations = self.admission.representations.admit(&program)?;
         let slice_key = {
@@ -775,8 +1208,8 @@ impl CheckRequest<'_> {
                 RETAINED_LAYOUT_MATCH_HITS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
             record_whole_program_reuse();
-            if let Some(frontier) = frontier.as_deref_mut() {
-                *frontier = Some(prior.judgment.judged_typed_trees().clone());
+            if let Some(inspect) = inspect.as_deref_mut() {
+                inspect(prior.judgment.judged_typed_trees());
             }
             let outcome = typed_trees_to_checked_trees::reuse_retained_check(
                 &prior.judgment,
@@ -798,17 +1231,18 @@ impl CheckRequest<'_> {
             let retained_input = self.retain.then(|| (Arc::new(program.clone()), admission));
             let (program, preparation) =
                 typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
-            let prepared = frontier.is_some().then(|| program.clone());
+            let prepared = (inspect.is_some() && keep_prepared).then(|| program.clone());
             let program = build_time_evaluation::retain_access_lifecycle_plans(
                 program,
                 self.admission.declarations,
                 self.admission.layout_scopes,
             );
-            if let Some(frontier) = frontier {
-                *frontier = match &program {
-                    Ok(program) => Some(program.clone()),
-                    Err(_) => prepared,
-                };
+            if let Some(inspect) = inspect {
+                match (&program, &prepared) {
+                    (Ok(program), _) => inspect(program),
+                    (Err(_), Some(prepared)) => inspect(prepared),
+                    (Err(_), None) => {}
+                }
             }
             let program = program?;
             let prior_dependency_bodies: Vec<_> = self
@@ -839,6 +1273,10 @@ impl CheckRequest<'_> {
             (outcome, layout_evaluation)
         };
         let (outcome, layout_evaluation) = outcome;
+        if let (Some(reuse), Some(key)) = (self.checked_slices.as_ref(), stored_slice.as_ref()) {
+            checked_slice::save(reuse, key, &outcome.checked);
+            record_checked_slice_save();
+        }
         Ok(CheckedSource {
             program: outcome.checked,
             retained: outcome.retained.map(|judgment| RetainedCheck {

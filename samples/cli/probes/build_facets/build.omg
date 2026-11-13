@@ -6,7 +6,7 @@ machine build(builder: &mut Build) {
     builder.freestanding = true;
     let p: BuildPath = BuildSource::resolve(&builder.source, "main.omg");
     let d: i32 = BuildSource::open(&builder.source, p, 0);
-    let bytes: [u8] = [0,0,0,0,0,0,0,0];
+    let mut bytes: [u8] = [0,0,0,0,0,0,0,0];
     let n: i64 = BuildSource::read(&builder.source, d, &mut bytes, 8);
     let c: i32 = BuildSource::close(&builder.source, d);
 }

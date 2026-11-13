@@ -757,6 +757,7 @@ dependencies = [
  "arena",
  "compiler-storage",
  "language-semantics",
+ "optimization",
  "semantic-vocabulary",
  "symbols",
 ]
@@ -1177,6 +1178,8 @@ name = "lowered-discharge"
 version = "0.1.0"
 dependencies = [
  "diagnostics",
+ "language-core",
+ "optimization",
  "proof-admission",
  "semantic-vocabulary",
  "structure-elaboration",
@@ -1184,6 +1187,7 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "typed-trees",
 ]
 
 [[package]]
@@ -1577,6 +1581,7 @@ name = "orchestration"
 version = "0.1.0"
 dependencies = [
  "artifacts",
+ "bounded-process",
  "build-declarations",
  "build-settings",
  "compilation-products",
@@ -1875,6 +1880,7 @@ dependencies = [
  "arena",
  "backend-plan",
  "build-time-evaluation",
+ "build-time-values",
  "calling-conventions",
  "checked-trees",
  "component-description",
@@ -1892,7 +1898,6 @@ dependencies = [
  "program-entry-plan",
  "provider-selection",
  "psi-work",
- "representation-selections",
  "runtime-abi",
  "semantic-vocabulary",
  "source",
@@ -2448,6 +2453,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "optimization",
  "semantic-vocabulary",
  "source",
  "symbols",
@@ -2695,6 +2701,7 @@ dependencies = [
  "access-plans",
  "arena",
  "compiler-storage",
+ "flow-effects",
  "language-core",
  "language-semantics",
  "layout-plans",
@@ -3167,6 +3174,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "shlex",
 ]
 
 [[package]]

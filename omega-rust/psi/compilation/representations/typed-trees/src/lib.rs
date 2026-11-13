@@ -1038,11 +1038,6 @@ pub(crate) mod run_custody {
     use language_semantics::MachineSupplyMode;
     use symbols::SymbolHandle;
 
-    const RUN_SOURCE: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../../../../source/library/core/run.omg"
-    ));
-
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct EmptyRunReleaseDeclaration {
         pub machine: SymbolHandle,
@@ -1064,18 +1059,8 @@ pub(crate) mod run_custody {
             let template = program
                 .machine_specialization(machine.symbol)
                 .map_or(machine.symbol, |application| application.template);
-            let Some(source) = program
-                .symbols
-                .symbol_source_span(template)
-                .and_then(|span| program.symbols.source_file(span))
-            else {
-                return Ok(None);
-            };
-            if source.origin != source::SourceOrigin::Toolchain
-                || source.package_identity.is_some()
-                || source.path.strip_prefix(&source.package_root).ok()
-                    != Some(std::path::Path::new("run.omg"))
-                || source.source.as_bytes() != RUN_SOURCE
+            if program.symbols.core_source(template)
+                != Some(language_core::core_vocabulary::CoreSource::Run)
                 || program
                     .normalized_hermetic_symbol_identity(template)
                     .ok()
@@ -1345,6 +1330,7 @@ impl PartialEq for ProgramIdentity {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+#[record(write_scope = crate::type_identity::write_under_own_numbering)]
 pub struct TypedTrees {
     pub identity: ProgramIdentity,
     pub product_declaration_frontier: Option<std::sync::Arc<TypedTrees>>,
@@ -1558,6 +1544,22 @@ impl TypedTrees {
             .find(|specialization| specialization.instance == instance)
     }
 
+    /*
+        The core vocabulary row of `symbol`'s authored declaration. A machine
+        specialization keeps its template's source span but lives under a
+        generated namespace, so it is resolved to the template first; the
+        catalog then judges the authored declaration's file, path and bytes.
+    */
+    pub fn core_vocabulary(
+        &self,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<language_core::core_vocabulary::CoreVocabulary> {
+        let original = self
+            .machine_specialization(symbol)
+            .map_or(symbol, |specialization| specialization.template);
+        self.symbols.core_vocabulary(original)
+    }
+
     pub fn checks_authored_selection(
         &self,
         selection: &language_semantics::declaration_selection::AuthoredDeclarationSelection,
@@ -1570,21 +1572,9 @@ impl TypedTrees {
                     .symbols
                     .source_file(selection.source_span())
                     .is_none_or(|file| {
-                        file.origin == source::SourceOrigin::Toolchain
+                        file.origin.is_toolchain()
                             || file.dependency_scope == source::DependencyScope::Build
                     }))
-    }
-
-    pub fn symbol_toolchain_relative_path(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Option<&std::path::Path> {
-        let span = self.symbols.symbol_source_span(symbol)?;
-        let file = self.symbols.source_file(span)?;
-        if file.origin != source::SourceOrigin::Toolchain {
-            return None;
-        }
-        file.path.strip_prefix(&file.package_root).ok()
     }
 
     pub fn authored_service_reach_rows_for(
@@ -1861,6 +1851,7 @@ pub use language_semantics::declaration_selection::{
 pub use names::{identity, name};
 pub use snapshot::TypedTreesSnapshot;
 pub use type_system::type_predicates::ProvenTypeContext;
+pub use type_system::type_predicates::StaticBooleanMemo;
 pub use type_system::{CaseMembershipTypeFacts, closed_numeric, types};
 pub use values::const_integer;
 pub use values::expression;

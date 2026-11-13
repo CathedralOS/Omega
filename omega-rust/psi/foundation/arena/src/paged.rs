@@ -1978,20 +1978,72 @@ impl std::fmt::Debug for OwnedTextInterner {
     }
 }
 
+fn write_texts(
+    output: &mut compiler_storage::RecordWriter,
+    texts: &[&str],
+) -> Result<(), compiler_storage::RecordError> {
+    output.record(|output| {
+        output.sequence(texts.len())?;
+        for text in texts {
+            output.sequence(text.len())?;
+            output.extend(text.as_bytes())?;
+        }
+        Ok(())
+    })
+}
+
+impl OwnedTextInterner {
+    /*
+        Each minted slot's place when the texts are sorted. Slots minted by
+        parallel passes race for their numbers; these places depend only on
+        the texts.
+    */
+    pub fn sorted_numbering(&self) -> Vec<u32> {
+        let texts = self.texts_in_order();
+        let mut order: Vec<usize> = (0..texts.len()).collect();
+        order.sort_unstable_by(|left, right| texts[*left].cmp(texts[*right]));
+        let mut numbers = vec![0; texts.len()];
+        for (place, slot) in order.into_iter().enumerate() {
+            numbers[slot] = place as u32;
+        }
+        numbers
+    }
+
+    /*
+        Writes the texts as the ordinary record does, each at `numbers[slot]`.
+        A reader rebuilds the interner in that order, so reading back gives
+        every text the number written for it. `numbers` must be a numbering
+        of exactly these slots, such as `sorted_numbering`.
+    */
+    pub fn write_renumbered(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+        numbers: &[u32],
+    ) -> Result<(), compiler_storage::RecordError> {
+        let texts = self.texts_in_order();
+        if numbers.len() != texts.len() {
+            return Err(output.error("a renumbering of another set of texts"));
+        }
+        let mut placed: Vec<Option<&str>> = vec![None; texts.len()];
+        for (slot, text) in texts.into_iter().enumerate() {
+            let Some(place) = placed.get_mut(numbers[slot] as usize) else {
+                return Err(output.error("a renumbering past its texts"));
+            };
+            if place.replace(text).is_some() {
+                return Err(output.error("a renumbering gives two texts one number"));
+            }
+        }
+        let placed: Vec<&str> = placed.into_iter().map(Option::unwrap_or_default).collect();
+        write_texts(output, &placed)
+    }
+}
+
 impl compiler_storage::Record for OwnedTextInterner {
     fn write(
         &self,
         output: &mut compiler_storage::RecordWriter,
     ) -> Result<(), compiler_storage::RecordError> {
-        let texts = self.texts_in_order();
-        output.record(|output| {
-            output.sequence(texts.len())?;
-            for text in texts {
-                output.sequence(text.len())?;
-                output.extend(text.as_bytes())?;
-            }
-            Ok(())
-        })
+        write_texts(output, &self.texts_in_order())
     }
 
     fn read<Context>(

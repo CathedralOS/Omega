@@ -20,6 +20,10 @@ pub struct EvaluatedBuild {
     pub base_source_consumption_commitment:
         Option<package_compilation::PackageSourceConsumptionCommitment>,
     pub retained_check: Option<psi_compiler::RetainedCheck>,
+    // Build admission folded a constant under Build's own provider plans. A
+    // Product completed from another typed frontier must have that fold
+    // repeated there, because the new frontier holds the constant unsettled.
+    pub provider_folded_constants: bool,
 }
 
 pub use build_time_evaluation::product_declarations::ServiceAuditRegistration;
@@ -173,7 +177,6 @@ pub struct ComputedBuildConfig {
     pub optimization_report_request: optimization_core::OptimizationReportRequest,
     pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
-    pub toolchain_provider_defaults: Option<package_compilation::CompletedProviderDefaults>,
     pub selected_build_machine_symbol: Option<symbols::SymbolHandle>,
     pub generated_sources: Vec<build_output::PackageGeneratedSource>,
 }
@@ -269,7 +272,6 @@ impl ComputedBuildConfig {
         }
         application.evaluation_usage = execution.evaluation_usage;
         application.observation_summary = execution.observation_summary.clone();
-        application.toolchain_provider_defaults = execution.toolchain_provider_defaults.clone();
         application.optimization_report_request = execution.optimization_report_request;
         Ok(application)
     }

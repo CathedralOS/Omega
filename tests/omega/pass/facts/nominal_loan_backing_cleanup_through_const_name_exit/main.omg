@@ -33,7 +33,7 @@ reaches Console
 }
 const COUNT: u32 in Wrapping = 10;
 machine scope() reaches Console crashes Trap {
- let room: Room = Room { count: COUNT };
+ let mut room: Room = Room { count: COUNT };
  transition { _ -> observe(&mut room) }
  machine observe(room: &mut Room) {
   Console::write_byte(79);

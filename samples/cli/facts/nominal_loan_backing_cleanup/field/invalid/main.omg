@@ -32,7 +32,7 @@ reaches Console
 }
 data Holder { room: Room; }
 machine scope() reaches Console crashes Trap {
- let holder: Holder = Holder { room: Room { count: 11 } };
+ let mut holder: Holder = Holder { room: Room { count: 11 } };
  transition { _ -> observe(&mut holder.room) }
  machine observe(room: &mut Room) {
   Console::write_byte(79);

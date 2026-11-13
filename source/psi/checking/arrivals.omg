@@ -1,11 +1,3 @@
-use psi::checking::checker;
-use psi::checking::constructions;
-use psi::checking::evaluation;
-use psi::checking::places;
-use psi::checking::zone;
-use psi::syntax::syntax;
-use psi::types::types;
-
 // Field paths an arrival carries. Besides a state's integer and Boolean
 // parameters, a jump projects the subject places it knows below an argument
 // that is a place (`table.count` for a parameter `table: &mut Table`), so a
@@ -32,7 +24,7 @@ public data ArrivalPath [copy] {
 }
 
 // A path's projection at `index` (0 through 3).
-public machine ArrivalPath::step(path: ArrivalPath, index: u64 in Trapping) -> ArrivalStep {
+public machine arrival_path_step(path: ArrivalPath, index: u64 in Trapping) -> ArrivalStep {
     transition index {
         0 -> chosen(path.step0)
         1 -> chosen(path.step1)
@@ -47,7 +39,7 @@ public machine ArrivalPath::step(path: ArrivalPath, index: u64 in Trapping) -> A
 
 // The first `count` steps of `path`, collected deepest first, in order from
 // the parameter, as a path of that depth.
-public machine ArrivalPath::reversed(path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath
+public machine arrival_path_reversed(path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
     let mut ordered: ArrivalPath = path;
@@ -70,10 +62,10 @@ crashes Trap
     }
 
     machine exchanged(path: ArrivalPath, low: u64 in Trapping, high: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
-        let lower: ArrivalStep = ArrivalPath::step(path, low);
-        let higher: ArrivalStep = ArrivalPath::step(path, high);
-        let moved: ArrivalPath = ArrivalPath::with_step(path, low, higher);
-        let result: ArrivalPath = ArrivalPath::with_step(moved, high, lower);
+        let lower: ArrivalStep = arrival_path_step(path, low);
+        let higher: ArrivalStep = arrival_path_step(path, high);
+        let moved: ArrivalPath = with_step(path, low, higher);
+        let result: ArrivalPath = with_step(moved, high, lower);
         transition { _ -> swap(result, low + 1, count) }
     }
 
@@ -83,7 +75,7 @@ crashes Trap
 }
 
 // `path` with its projection at `index` (0 through 3) replaced.
-public machine ArrivalPath::with_step(path: ArrivalPath, index: u64 in Trapping, step: ArrivalStep) -> ArrivalPath {
+public machine with_step(path: ArrivalPath, index: u64 in Trapping, step: ArrivalStep) -> ArrivalPath {
     transition index {
         0 -> first(path, step)
         1 -> second(path, step)
@@ -108,7 +100,7 @@ public machine ArrivalPath::with_step(path: ArrivalPath, index: u64 in Trapping,
     }
 }
 
-public machine Checker::path_count(checker: &Checker, offset: u64 in Trapping) -> u64 in Trapping
+public machine path_count(checker: &Checker, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition offset < 128 {
@@ -127,7 +119,7 @@ crashes Trap
     }
 }
 
-public machine Checker::set_path_count(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping)
+public machine set_path_count(checker: &mut Checker, offset: u64 in Trapping, count: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
@@ -146,7 +138,7 @@ crashes Trap
     }
 }
 
-public machine Checker::arrival_path(checker: &Checker, offset: u64 in Trapping, index: u64 in Trapping) -> ArrivalPath
+public machine arrival_path(checker: &Checker, offset: u64 in Trapping, index: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
     transition offset < 128 && index < 40 {
@@ -172,7 +164,7 @@ crashes Trap
     }
 }
 
-machine Checker::store_arrival_path(checker: &mut Checker, offset: u64 in Trapping, index: u64 in Trapping, path: ArrivalPath)
+machine store_arrival_path(checker: &mut Checker, offset: u64 in Trapping, index: u64 in Trapping, path: ArrivalPath)
 crashes Trap
 {
     transition offset < 128 && index < 40 {
@@ -201,7 +193,7 @@ crashes Trap
 // The path from place `outer` (one-based) down to place `inner`, when
 // `inner` lies strictly within it by at most four field or `.len` steps;
 // depth zero otherwise.
-public machine Checker::path_below(checker: &Checker, outer: u64 in Trapping, inner: u64 in Trapping, parameter: u64 in Trapping) -> ArrivalPath
+public machine path_below(checker: &Checker, outer: u64 in Trapping, inner: u64 in Trapping, parameter: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
     let empty: ArrivalStep = ArrivalStep { length: false, field: 0, type_handle: 0 };
@@ -219,7 +211,7 @@ crashes Trap
     }
 
     machine step(checker: &Checker, outer: u64 in Trapping, current: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
-        let place: Place = Checker::place_at(checker, current - 1);
+        let place: Place = place_at(checker, current - 1);
         let projection: bool = place.kind == PlaceKind::Field || place.kind == PlaceKind::Length;
         transition projection && place.parent > 0 && count < 4 {
             true -> recorded(checker, outer, place, path, count)
@@ -229,12 +221,12 @@ crashes Trap
 
     machine recorded(checker: &Checker, outer: u64 in Trapping, place: Place, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
         let step: ArrivalStep = ArrivalStep { length: place.kind == PlaceKind::Length, field: place.handle, type_handle: place.type_handle };
-        let extended: ArrivalPath = ArrivalPath::with_step(path, count, step);
+        let extended: ArrivalPath = with_step(path, count, step);
         transition { _ -> climb(checker, outer, place.parent, extended, count + 1) }
     }
 
     machine reversed(path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
-        let ordered: ArrivalPath = ArrivalPath::reversed(path, count);
+        let ordered: ArrivalPath = arrival_path_reversed(path, count);
         ordered
     }
 
@@ -246,7 +238,7 @@ crashes Trap
 }
 
 // Whether two paths name the same place below the same parameter.
-machine Checker::same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
+machine same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
     transition first.parameter == second.parameter && first.depth == second.depth {
         true -> steps(first, second, 0)
         _ -> no()
@@ -260,8 +252,8 @@ machine Checker::same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
     }
 
     machine step(first: ArrivalPath, second: ArrivalPath, index: u64 in Trapping) -> bool {
-        let left: ArrivalStep = ArrivalPath::step(first, index);
-        let right: ArrivalStep = ArrivalPath::step(second, index);
+        let left: ArrivalStep = arrival_path_step(first, index);
+        let right: ArrivalStep = arrival_path_step(second, index);
         transition left.length == right.length && left.field == right.field {
             true -> steps(first, second, index + 1)
             _ -> no()
@@ -279,10 +271,10 @@ machine Checker::same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
 
 // The index of `path` among state `offset`'s paths, the ones its demand
 // derived (demand.omg); 40 when it has none.
-public machine Checker::path_index(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
+public machine path_index(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
 crashes Trap
 {
-    let count: u64 in Trapping = Checker::path_count(checker, offset);
+    let count: u64 in Trapping = path_count(checker, offset);
     transition { _ -> search(checker, offset, path, count, 0) }
 
     machine search(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
@@ -293,8 +285,8 @@ crashes Trap
     }
 
     machine compare(checker: &Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
-        let existing: ArrivalPath = Checker::arrival_path(checker, offset, index);
-        let same: bool = Checker::same_path(existing, path);
+        let existing: ArrivalPath = arrival_path(checker, offset, index);
+        let same: bool = same_path(existing, path);
         transition same {
             true -> found(index)
             _ -> search(checker, offset, path, count, index + 1)
@@ -308,19 +300,19 @@ crashes Trap
 
 // Add `path` to state `offset`'s paths when it is new and there is room.
 // Whether it was added.
-public machine Checker::add_arrival_path(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool
+public machine add_arrival_path(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool
 crashes Trap
 {
-    let index: u64 in Trapping = Checker::path_index(checker, offset, path);
-    let count: u64 in Trapping = Checker::path_count(checker, offset);
+    let index: u64 in Trapping = path_index(checker, offset, path);
+    let count: u64 in Trapping = path_count(checker, offset);
     transition index == 40 && count < 40 && path.depth > 0 && path.depth <= 4 {
         true -> appended(checker, offset, path, count)
         _ -> unchanged()
     }
 
     machine appended(checker: &mut Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> bool {
-        Checker::store_arrival_path(checker, offset, count, path);
-        Checker::set_path_count(checker, offset, count + 1);
+        store_arrival_path(checker, offset, count, path);
+        set_path_count(checker, offset, count + 1);
         true
     }
 
@@ -331,10 +323,10 @@ crashes Trap
 
 // Enter state `offset`'s paths as places below its parameters, in order.
 // Whether every path's place took the subject its arrival numbers it with.
-public machine Checker::enter_paths(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping) -> bool
+public machine enter_paths(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping) -> bool
 crashes Trap
 {
-    let count: u64 in Trapping = Checker::path_count(checker, offset);
+    let count: u64 in Trapping = path_count(checker, offset);
     transition { _ -> next(checker, typing, offset, first_parameter, count, 0, true) }
 
     machine next(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
@@ -345,11 +337,11 @@ crashes Trap
     }
 
     machine path(checker: &mut Checker, typing: &Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
-        let path: ArrivalPath = Checker::arrival_path(checker, offset, index);
+        let path: ArrivalPath = arrival_path(checker, offset, index);
         let expected: u64 in Trapping = checker.subject_count as u64 in Trapping;
-        let root: u64 in Trapping = Checker::find_place(checker, PlaceKind::Parameter, first_parameter + path.parameter, 0);
-        let place: u64 in Trapping = Checker::enter_path(checker, typing, root, path);
-        let entry: Place = Checker::place_or_absent(checker, place);
+        let root: u64 in Trapping = find_place(checker, PlaceKind::Parameter, first_parameter + path.parameter, 0);
+        let place: u64 in Trapping = enter_path(checker, typing, root, path);
+        let entry: Place = place_or_absent(checker, place);
         let numbered: bool = place > 0 && entry.subject == expected;
         transition { _ -> next(checker, typing, offset, first_parameter, count, index + 1, matched && numbered) }
     }
@@ -361,7 +353,7 @@ crashes Trap
 
 // The places of `path` below `root` (one-based), entered as needed; the
 // last one, or zero when `root` is absent.
-public machine Checker::enter_path(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
+public machine enter_path(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
 crashes Trap
 {
     transition { _ -> step(checker, typing, root, path, 0) }
@@ -374,9 +366,9 @@ crashes Trap
     }
 
     machine entered(checker: &mut Checker, typing: &Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
-        let projection: ArrivalStep = ArrivalPath::step(path, index);
-        let kind: PlaceKind = Checker::step_kind(projection.length);
-        let place: u64 in Trapping = Checker::place(checker, typing, kind, projection.field, current, projection.type_handle);
+        let projection: ArrivalStep = arrival_path_step(path, index);
+        let kind: PlaceKind = step_kind(projection.length);
+        let place: u64 in Trapping = checker_place(checker, typing, kind, projection.field, current, projection.type_handle);
         transition { _ -> step(checker, typing, place, path, index + 1) }
     }
 
@@ -385,7 +377,7 @@ crashes Trap
     }
 }
 
-machine Checker::step_kind(length: bool) -> PlaceKind {
+machine step_kind(length: bool) -> PlaceKind {
     transition length {
         true -> chosen(PlaceKind::Length)
         _ -> chosen(PlaceKind::Field)
@@ -397,7 +389,7 @@ machine Checker::step_kind(length: bool) -> PlaceKind {
 }
 
 // A place (one-based) or, for zero, a place with no subject.
-public machine Checker::place_or_absent(checker: &Checker, place: u64 in Trapping) -> Place
+public machine place_or_absent(checker: &Checker, place: u64 in Trapping) -> Place
 crashes Trap
 {
     transition place > 0 {
@@ -406,7 +398,7 @@ crashes Trap
     }
 
     machine entry(checker: &Checker, place: u64 in Trapping) -> Place {
-        let entry: Place = Checker::place_at(checker, place - 1);
+        let entry: Place = place_at(checker, place - 1);
         entry
     }
 
@@ -419,7 +411,7 @@ crashes Trap
 // is a place, into state `offset`'s path slots after its `first_subject`
 // integer-parameter subjects. Slots this jump does not reach are unknown.
 // The number of projected subjects, the zero subject included.
-public machine Checker::project_paths(
+public machine project_paths(
     checker: &mut Checker,
     syntax: &SyntaxTrees,
     typing: &Typing,
@@ -458,8 +450,8 @@ crashes Trap
         first_subject: u64 in Trapping,
         slot: u64 in Trapping
     ) -> u64 in Trapping {
-        let unknown: Value = Value::unknown();
-        Checker::set_projection(checker, first_subject + slot, unknown);
+        let unknown: Value = value_unknown();
+        set_projection(checker, first_subject + slot, unknown);
         transition { _ -> clear(checker, syntax, typing, expression, item, offset, first_subject, slot + 1) }
     }
 
@@ -489,8 +481,8 @@ crashes Trap
         first_subject: u64 in Trapping,
         index: u64 in Trapping
     ) -> u64 in Trapping {
-        let handle: u64 in Trapping = SyntaxTrees::argument(syntax, expression.first + index);
-        let value: Value = Checker::value_at(checker, handle);
+        let handle: u64 in Trapping = syntax_trees_argument(syntax, expression.first + index);
+        let value: Value = value_at(checker, handle);
         transition value.place > 0 && value.subject == 0 {
             true -> settled(checker, syntax, typing, expression, item, offset, first_subject, index, value.place)
             _ -> parameter(checker, syntax, typing, expression, item, offset, first_subject, index + 1)
@@ -509,7 +501,7 @@ crashes Trap
         index: u64 in Trapping,
         root: u64 in Trapping
     ) -> u64 in Trapping {
-        Checker::settle_pending(checker, typing, root);
+        settle_pending(checker, typing, root);
         transition { _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, 0) }
     }
 
@@ -544,8 +536,8 @@ crashes Trap
         root: u64 in Trapping,
         candidate: u64 in Trapping
     ) -> u64 in Trapping {
-        let entry: Place = Checker::place_at(checker, candidate);
-        let path: ArrivalPath = Checker::path_below(checker, root, candidate + 1, index);
+        let entry: Place = place_at(checker, candidate);
+        let path: ArrivalPath = path_below(checker, root, candidate + 1, index);
         transition entry.subject > 0 && path.depth > 0 {
             true -> projected(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate, path)
             _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate + 1)
@@ -565,8 +557,8 @@ crashes Trap
         candidate: u64 in Trapping,
         path: ArrivalPath
     ) -> u64 in Trapping {
-        let slot: u64 in Trapping = Checker::path_index(checker, offset, path);
-        let value: Value = Checker::place_value(checker, candidate + 1);
+        let slot: u64 in Trapping = path_index(checker, offset, path);
+        let value: Value = place_value(checker, candidate + 1);
         transition slot < 40 && first_subject + slot < 64 {
             true -> stored(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate, first_subject + slot, value)
             _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate + 1)
@@ -587,12 +579,12 @@ crashes Trap
         subject: u64 in Trapping,
         value: Value
     ) -> u64 in Trapping {
-        Checker::set_projection(checker, subject, value);
+        set_projection(checker, subject, value);
         transition { _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate + 1) }
     }
 
     machine counted(checker: &mut Checker, offset: u64 in Trapping, first_subject: u64 in Trapping) -> u64 in Trapping {
-        let paths: u64 in Trapping = Checker::path_count(checker, offset);
+        let paths: u64 in Trapping = path_count(checker, offset);
         let count: u64 in Trapping = first_subject + paths;
         transition count <= 64 {
             true -> total(count)
