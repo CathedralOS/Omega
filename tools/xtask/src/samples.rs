@@ -1,4 +1,4 @@
-//! Sample native + Terminal Psi gate (`cargo xtask sample-gate`).
+//! Check samples and compare native/Psi execution (`cargo xtask sample-gate`).
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -364,14 +364,16 @@ fn settle_review(
         )?;
         if !resume.status.success() {
             return Err(format!(
-                "resume-failed: {}{}",
+                "resume-failed ({}): {}{}",
+                resume.status,
                 String::from_utf8_lossy(&resume.stdout),
                 String::from_utf8_lossy(&resume.stderr)
             ));
         }
     } else if !out.status.success() {
         return Err(format!(
-            "update failed: {}{}",
+            "update failed ({}): {}{}",
+            out.status,
             String::from_utf8_lossy(&out.stdout),
             String::from_utf8_lossy(&out.stderr)
         ));
@@ -729,6 +731,15 @@ pub fn verify_sample(
     Ok(format!("pass (native exit {n_exit}, Psi exit {i_exit})"))
 }
 
+// Compiler errors often put their cause after a heading. Keep those following
+// lines in the report and name the retained command files for further inspection.
+fn failure_report(sample: &str, reason: &str, evidence: &Path) -> String {
+    format!(
+        "FAIL\t{sample}\t{reason}\n  command evidence: {}",
+        evidence.display()
+    )
+}
+
 pub fn run(args: &[String]) -> Result<(), u8> {
     let repo = repo_root();
     let mut filters: Vec<String> = Vec::new();
@@ -830,8 +841,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 println!("{state}\t{}", proj.rel_path);
             }
             Err(reason) => {
-                let first_line = reason.lines().next().unwrap_or(&reason);
-                eprintln!("FAIL\t{}\t{first_line}", proj.rel_path);
+                eprintln!(
+                    "{}",
+                    failure_report(&proj.rel_path, &reason, &evidence.join(&proj.rel_path))
+                );
                 failed += 1;
             }
         }
@@ -859,6 +872,63 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_preparation_reports_the_child_status_and_following_diagnostic_lines() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let cli = directory.join("compiler");
+        for (name, script, expected_status) in [
+            (
+                "update",
+                "#!/bin/sh\nprintf '\\nproject source discovery failed:\\n  error: missing access evidence\\n' >&2\nexit 37\n",
+                37,
+            ),
+            ("silent", "#!/bin/sh\nexit 38\n", 38),
+            (
+                "resume",
+                "#!/bin/sh\ncase \"$*\" in\n  *--resume*) printf '\\n  error: missing access evidence\\n' >&2; exit 39;;\n  *) exit 0;;\nesac\n",
+                39,
+            ),
+        ] {
+            let project = directory.join(name);
+            fs::create_dir(&project).unwrap();
+            if name == "resume" {
+                let reviews = project.join("build/package-manager");
+                fs::create_dir_all(&reviews).unwrap();
+                fs::write(
+                    reviews.join(format!("review-{}.txt", host_target())),
+                    "decision row 0123abcd pending\n",
+                )
+                .unwrap();
+            }
+            fs::write(&cli, script).unwrap();
+            fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+            let evidence = directory.join(format!("{name}-evidence"));
+            let reason = settle_review(&cli, &project, host_target(), &evidence, &[]).unwrap_err();
+            let report = failure_report(name, &reason, &evidence);
+            assert!(
+                report.contains(&format!("exit status: {expected_status}")),
+                "{report}"
+            );
+            assert!(report.contains(evidence.to_str().unwrap()), "{report}");
+            let command = if name == "resume" { "resume" } else { "update" };
+            let stderr = fs::read_to_string(evidence.join(format!("{command}.stderr"))).unwrap();
+            assert!(
+                report.contains(&stderr),
+                "the report must retain the complete child diagnostic"
+            );
+            if name != "silent" {
+                assert!(
+                    report.contains("  error: missing access evidence"),
+                    "{report}"
+                );
+            }
+        }
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     fn invalid_sample(directory: &Path) -> SampleProject {
         fs::write(directory.join("main.omg"), "machine main() {}\n").unwrap();
