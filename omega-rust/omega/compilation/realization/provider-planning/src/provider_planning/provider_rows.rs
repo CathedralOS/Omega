@@ -7,7 +7,7 @@
 
 use crate::DerivedProviderPlan;
 use diagnostics::Diagnostic;
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
+use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeferredProviderRows {

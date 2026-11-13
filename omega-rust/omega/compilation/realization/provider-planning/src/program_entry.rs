@@ -2,13 +2,12 @@
 // checker. Source-contract preparation and checked service-reach settlement
 // have no producer here; canonical entry/adapter readers remain exact.
 
-use crate::provider_planning::entry_state;
 use diagnostics::Diagnostic;
 pub use language_semantics::declaration_selection::RootBinding;
 pub use package_compilation::program_entry_semantic_binding_role;
 use typed_trees::TypedTrees;
 use typed_trees::callable_signature_shapes::{BoundCallableShape, ParameterOccurrence};
-use typed_trees::product_operand::{ProductEntryDeclaration, core_arrival_requirement};
+use typed_trees::product_operand::core_arrival_requirement;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SelectedProgramEntry<'config> {

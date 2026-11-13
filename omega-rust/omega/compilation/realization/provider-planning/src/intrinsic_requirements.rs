@@ -4,7 +4,7 @@
 // (`closed_float_execution`) is narrower than the complete numeric requirement
 // catalog (`execution_identity`).
 
-use effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema};
+use effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod};
 use typed_trees::TypedTrees;
 use typed_trees::typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement as SourceRequirement;
 pub use typed_trees::typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind;
@@ -55,30 +55,6 @@ impl<'typed> IntrinsicRequirement<'typed> {
 
     pub fn by_symbol(typed: &'typed TypedTrees, symbol: symbols::SymbolHandle) -> Option<Self> {
         SourceRequirement::by_symbol(typed, symbol).map(Self)
-    }
-
-    pub(crate) fn schema_binds(
-        &self,
-        context: crate::ProviderPlanningContext<'_>,
-        schema: &ServiceSchema,
-    ) -> bool {
-        let typed = context.typed;
-        match self.kind {
-            IntrinsicRequirementKind::Operator => self.as_operator().is_some_and(|operator| {
-                crate::service_schema::schema_binds_exact_boundary_operator(
-                    context, schema, operator,
-                )
-            }),
-            IntrinsicRequirementKind::TopLevelRequirement => {
-                typed.machine(self.symbol).is_some_and(|requirement| {
-                    crate::service_schema::schema_binds_exact_boundary_requirement(
-                        context,
-                        schema,
-                        requirement,
-                    )
-                })
-            }
-        }
     }
 
     pub fn plan_row_binds(

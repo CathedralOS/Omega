@@ -48,45 +48,6 @@ impl SealedAccessor {
         identity
     }
 
-    pub(crate) fn prepared_binding_identity(
-        &self,
-        services: typed_trees::service_declarations::ServiceCatalog<'_>,
-    ) -> Result<String, Diagnostic> {
-        let schema = self.prepared_schema(services)?;
-        Ok(Self::format_binding_identity(self.schema_contract(&schema)))
-    }
-
-    pub(crate) fn prepared_schema(
-        &self,
-        services: typed_trees::service_declarations::ServiceCatalog<'_>,
-    ) -> Result<effects::provider_plan::ServiceSchema, Diagnostic> {
-        if services.sealed_accessor(self.machine())? != Some(&self.declaration) {
-            return Err(Diagnostic::error(
-                "sealed accessor schema substituted its authenticated declaration",
-            ));
-        }
-        let prepared = services
-            .declaration(crate::ProviderSchemaDeclaration::SealedAccessor(
-                self.machine(),
-            ))
-            .ok_or_else(|| {
-                Diagnostic::error("sealed accessor has no complete published callable schema")
-            })?;
-        Ok(effects::provider_plan::ServiceSchema::from_declaration(
-            prepared.declaration.clone(),
-        ))
-    }
-
-    pub(crate) fn prepared(
-        services: typed_trees::service_declarations::ServiceCatalog<'_>,
-        symbol: SymbolHandle,
-    ) -> Result<Option<Self>, Diagnostic> {
-        Ok(services
-            .sealed_accessor(symbol)?
-            .cloned()
-            .map(|declaration| Self { declaration }))
-    }
-
     pub fn execution_contract(
         &self,
         context: ProviderPlanningContext<'_>,

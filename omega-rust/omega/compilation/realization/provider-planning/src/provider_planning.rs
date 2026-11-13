@@ -5,7 +5,7 @@
 mod provenance_replay;
 pub(crate) mod provider_rows;
 
-use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
+use effects::provider_plan::{ProviderPlan, ServiceSchema};
 pub use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
@@ -154,36 +154,6 @@ pub(crate) mod selection_declarations {
             crate::ProviderSelectionProvenance::NativeBuild => SelectionProvenance::NativeBuild,
             crate::ProviderSelectionProvenance::TargetRealization(realization) => {
                 SelectionProvenance::TargetRealization(realization)
-            }
-        }
-    }
-
-    pub(crate) fn restore_provenance<Declaration>(
-        projected: SelectionProvenance<Declaration, ProviderSelection>,
-    ) -> crate::ProviderSelectionProvenance {
-        match projected {
-            SelectionProvenance::BuildOverride(declarations) => {
-                crate::ProviderSelectionProvenance::BuildOverride(
-                    declarations
-                        .into_iter()
-                        .map(|declaration| declaration.origin)
-                        .collect(),
-                )
-            }
-            SelectionProvenance::TargetDefault(declarations) => {
-                crate::ProviderSelectionProvenance::TargetDefault(
-                    declarations
-                        .into_iter()
-                        .map(|declaration| declaration.origin)
-                        .collect(),
-                )
-            }
-            SelectionProvenance::UniqueCoveringCandidate => {
-                crate::ProviderSelectionProvenance::UniqueCoveringCandidate
-            }
-            SelectionProvenance::NativeBuild => crate::ProviderSelectionProvenance::NativeBuild,
-            SelectionProvenance::TargetRealization(realization) => {
-                crate::ProviderSelectionProvenance::TargetRealization(realization)
             }
         }
     }

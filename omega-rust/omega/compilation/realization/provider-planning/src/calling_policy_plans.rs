@@ -1,27 +1,7 @@
-/*
-We prepare source calling requests and activate retained Terminal calling-policy
-machines. The source vocabulary lives in `source/library/std/calling.omg`, while
-this subsystem acts as the compiler-owned decoder that keeps that open policy
-surface behind the closed normalized-plan validator.
-
-Boundary signatures associate geometry with Source review coordinates, and
-`source_preparation` captures original request/review correspondence and target
-helper candidates once beside the shared Terminal publication. `plan_computation`
-publishes per-target plans from that owned preparation and canonical storage
-without reopening Source, while `selected_providers` applies the canonical
-invocation-scoped provider choice and `calling_program` owns finite invocation
-accounting and carries Build evaluation's two executors
-(`CallingPolicyEvaluator`).
-
-We also fold the source-free policy activation request (`policy_invocation`) and
-dependency-ready calling-plan scalar completion (`scalar_completion`) directly
-into this module entrypoint. Receiving admission precedes the compiler-evaluation
-floor, and both policy invocation and default ABI description use the same
-dependency-ready scalar evaluator and supplied provider custody without
-reopening Source or inheriting Product grants. Scalar completion decides which
-target scopes and applications to close; the evaluator that runs each scope's
-conditions is Build evaluation's, supplied by the caller.
-*/
+// Canonical calling signatures, validated ABI plans and actual Terminal policy
+// execution/storage readers. The old source request/review preparation and its
+// checked-owner correspondence have been removed; these data contracts do not
+// supply a replacement source-plan producer.
 
 mod boundary_signatures;
 mod build_time_decoding;
@@ -34,11 +14,11 @@ mod policy_signature;
 mod selected_application;
 mod terminal_signature;
 
+pub(crate) use boundary_signatures::BoundaryNativeParameter;
 pub use boundary_signatures::{
     BoundaryCallbackBinder, BoundaryNativeParameterOrigin, BoundaryNativeParameterShape,
     BoundaryValueClass, BoundaryValueField, BoundaryValueShape, MaterializedBoundarySignature,
 };
-pub(crate) use boundary_signatures::{BoundaryDirectCallbackParameter, BoundaryNativeParameter};
 pub use build_time_decoding::decode_boundary_plan_result;
 pub use callback_bindings::BoundaryCallingPlanRealization;
 pub use callback_layout_catalog::{
@@ -50,12 +30,10 @@ pub use opaque_representations::{
     BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,
     BoundaryOpaqueRepresentationUse,
 };
-pub(crate) use plan_computation::evaluate_default_calling_applications;
 pub use policy_signature::CallingPolicySignature;
 pub use policy_signature::{encode_calling_policy_signature, validate_calling_policy_result};
 pub use scalar_completion::{CallingScalarScope, complete_calling_scalar_inputs};
 pub use selected_application::component_calling_applications;
-pub(crate) use selected_application::selected_calling_applications;
 pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 
 use calling_conventions::ValidatedBoundaryEntryPlan;

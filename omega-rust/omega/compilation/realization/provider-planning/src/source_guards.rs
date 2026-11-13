@@ -16,7 +16,7 @@ fn sources_never_name_the_conversion_stage() {
     );
     assert!(
         violations.is_empty(),
-        "provider-planning consumes the checked product, not the conversion stage: {violations:?}"
+        "provider-planning consumes published declarations, not a retired conversion stage: {violations:?}"
     );
 }
 

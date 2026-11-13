@@ -126,7 +126,7 @@ impl PreparedNativeBuildBindings {
         Self { rows }
     }
 
-    pub(crate) fn form(
+    pub fn form(
         &self,
         supplies: &[NativeBuildSupply],
         selected_target: Option<target::TargetProfile>,

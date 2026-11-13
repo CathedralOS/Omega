@@ -99,7 +99,7 @@ impl BoundaryCallbackLayoutEntry {
         Ok(self.geometry.clone())
     }
 
-    pub(crate) fn from_canonical(
+    pub fn from_canonical(
         module: &terminal_psi::TerminalModule,
         geometry: BoundaryCallbackLayout,
         coordinates: &layout::CallbackLayoutCoordinates,

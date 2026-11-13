@@ -11,7 +11,6 @@ use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::service_declarations::PreparedServiceDeclaration;
-pub(crate) use typed_trees::service_declarations::exact_identity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceDeclaration {
