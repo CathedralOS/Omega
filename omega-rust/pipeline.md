@@ -141,7 +141,6 @@ setup are not additional public program stages.
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | Typed → typed trees | [typed-trees-to-typed-trees](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
 | Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md) |
-| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/compilation/pipeline/06_checked-trees-to-lowered-psi/README.md) |
 | Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs) |
 | Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/compilation/pipeline/08_lowered-psi-to-terminal-psi/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
@@ -1575,7 +1574,6 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   `syntax-trees-to-symbol-resolved-trees` →
   `symbol-resolved-trees-to-typed-trees` →
   `typed-trees-to-typed-trees` → `typed-trees-to-checked-trees` →
-  `checked-trees-to-lowered-psi` →
   `lowered-psi-to-lowered-psi` → `lowered-psi-to-terminal-psi`, then
   `terminal-psi-to-abstract-operations` →
   `abstract-operations-to-target-operations` →

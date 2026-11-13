@@ -370,30 +370,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "checked-trees-to-lowered-psi"
-version = "0.1.0"
-dependencies = [
- "arena",
- "checked-trees",
- "diagnostics",
- "facts",
- "language-core",
- "language-semantics",
- "lowered-psi",
- "numerics",
- "optimization",
- "proof-admission",
- "semantic-vocabulary",
- "source",
- "symbols",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
- "typed-trees",
- "validation",
-]
-
-[[package]]
 name = "command-group"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1922,12 +1898,10 @@ name = "psi-terminal-production"
 version = "0.1.0"
 dependencies = [
  "checked-trees",
- "checked-trees-to-lowered-psi",
  "compiler-storage",
  "diagnostics",
  "language-semantics",
  "lowered-discharge",
- "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "optimization",
@@ -1938,7 +1912,6 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "typed-trees",
- "validation",
 ]
 
 [[package]]

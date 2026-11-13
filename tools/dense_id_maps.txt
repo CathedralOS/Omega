@@ -68,15 +68,6 @@
 1 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs
 1 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_top_level.rs
 3 omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/selection_and_reflection.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/attached_unit.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission.rs
-40 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission_cleanup.rs
-3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_bindings.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/operation_emission.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs.rs
-3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit.rs
-1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit_arguments.rs
-29 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit_composed_control.rs
 29 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/control_flow_and_retention.rs
 1 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs
 19 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/scalar_and_value_passes.rs
@@ -86,7 +77,6 @@
 2 omega-rust/psi/compilation/proof/admission/src/mathematical_core.rs
 6 omega-rust/psi/compilation/proof/admission/src/proof.rs
 5 omega-rust/psi/compilation/proof/src/mathematical_declarations.rs
-3 omega-rust/psi/compilation/psi-compiler/terminal-production/src/build_bindings.rs
 9 omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/codec/src/term_wire.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/access.rs

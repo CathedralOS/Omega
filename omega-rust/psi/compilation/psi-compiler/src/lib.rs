@@ -557,5 +557,4 @@ pub use psi_terminal_production::{
     TerminalBuildValueField, TerminalBuildValueShape, TerminalCompositionRoots,
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionRequest,
     TerminalProgramRoots, TerminalSourceCompilation, UnmeasuredProduction,
-    lower_task_activation_demands,
 };

@@ -866,9 +866,9 @@ fn record_shape<'m>(
     if !data.retired_identities.is_empty() {
         return unserved("data with retired field identities");
     }
-    if members.is_empty() {
-        return unserved("data without fields");
-    }
+    // Data with no member is a record whose roster is empty (`data Token
+    // {}`): a value of it is established, copied or moved, passed and
+    // dropped like any other record, and holds nothing to read.
     let relevant = |field: &DataField| field.relevance == language_core::BindingRelevance::Relevant;
     let mut fields = false;
     let mut cases = false;
@@ -1093,7 +1093,7 @@ mod tests {
         assert_eq!(detail(&borrowing, &members), "type generic data");
         // A declaration-level `requires` is no longer refused here: its
         // clauses are read by the clause reader. A case-level one still is.
-        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 8] = [
+        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 7] = [
             ("type data with custody", |data, _| {
                 data.properties.multiplicity = language_semantics::Multiplicity::Linear;
             }),
@@ -1122,7 +1122,6 @@ mod tests {
                     ..DataField::default()
                 }));
             }),
-            ("type data without fields", |_, members| members.clear()),
             ("type data without a checked shape", |data, _| {
                 data.supply_mode = language_semantics::DataSupplyMode::BoundaryOpaque;
             }),
@@ -1132,8 +1131,10 @@ mod tests {
             change(&mut data, &mut members);
             assert_eq!(detail(&data, &members), expected);
         }
-        // A sum alone, with or without payload, is served.
+        // Data with no member at all is a record with an empty roster.
         let (data, _) = plain();
+        assert_eq!(record_shape(machine(), &data, &[], |_| &[]), Ok(()));
+        // A sum alone, with or without payload, is served.
         let sum = vec![
             DataMember::Variant(DataVariant::default()),
             DataMember::Variant(DataVariant::default()),

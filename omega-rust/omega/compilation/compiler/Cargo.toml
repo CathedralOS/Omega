@@ -121,18 +121,6 @@ name = "access_view_calls"
 path = "tests/access_view_calls.rs"
 
 [[test]]
-name = "terminal_entry_writeback"
-path = "tests/terminal_entry_writeback.rs"
-
-[[test]]
-name = "terminal_behavior_exclusions"
-path = "tests/terminal_behavior_exclusions.rs"
-
-[[test]]
-name = "terminal_effect_readiness"
-path = "tests/terminal_effect_readiness.rs"
-
-[[test]]
 name = "product_query_suspension"
 path = "tests/product_query_suspension.rs"
 

@@ -367,7 +367,7 @@ artifact.
 Terminal production borrows the unoptimized program for authored exclusions,
 checking each application's main and selected callback roots before optimization.
 Exclusion admission uses the backend effects checker; on rejection,
-[Psi lowering's source attribution](../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/lowered_machine_provenance.rs)
+the retained machine provenance
 supplies machine names and declaration spans. That diagnostic mapping is not
 admission evidence.
 
