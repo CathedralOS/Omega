@@ -239,7 +239,6 @@ dependencies = [
  "access-plans",
  "arena",
  "build-time-values",
- "checked-trees",
  "compiler-storage",
  "diagnostics",
  "evaluation-accounting",
@@ -249,7 +248,6 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
- "psi-terminal-production",
  "psi-work",
  "semantic-vocabulary",
  "source",
@@ -266,8 +264,6 @@ dependencies = [
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
- "typed-trees-to-typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -1917,7 +1913,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "build-time-evaluation",
- "checked-trees",
  "compiler-storage",
  "diagnostics",
  "flow-effects",

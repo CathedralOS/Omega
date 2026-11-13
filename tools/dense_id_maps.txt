@@ -54,9 +54,6 @@
 1 omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/original_homes.rs
 1 omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs
 1 omega-rust/omega/packages/review-evidence/src/capture/api/data/evidence.rs
-5 omega-rust/psi/compilation/build-time-evaluation/src/const_evaluation.rs
-1 omega-rust/psi/compilation/build-time-evaluation/src/const_generic_expressions.rs
-1 omega-rust/psi/compilation/build-time-evaluation/src/const_initializers.rs
 3 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs
 9 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs
 10 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs
