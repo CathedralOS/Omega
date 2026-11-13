@@ -441,7 +441,11 @@ pub(crate) mod source_review {
     pub struct SourceRecordCorrespondence {
         pub record: StructuralTypeId,
         pub declaration: SymbolHandle,
-        pub application: SourceTypeApplication,
+        /// The type occurrence the record was read from. `None` when the
+        /// program never writes the type: a declaration with no type
+        /// parameter, read as a declaration of the program, is the whole
+        /// identity of its record. A generic record always has one.
+        pub application: Option<SourceTypeApplication>,
         pub storage_identity: String,
         pub schema: SymbolHandle,
         pub policy: SymbolHandle,
