@@ -900,6 +900,7 @@ impl SourceCompilationRequest {
                     typing.complete_bodies(completed)
                 })?;
         }
+        PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
         let pre_check = match retained_program {
             Some(previous) => pre_check.exclude_completed_work(typing.typed(), &previous)?,
             None => pre_check,
