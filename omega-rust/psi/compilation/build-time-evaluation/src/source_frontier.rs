@@ -8,17 +8,79 @@ pub use semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority 
 use std::sync::Arc;
 use typed_trees::TypedTrees;
 use typed_trees::declaration_authority::RecordedDeclarationAuthority;
+use typed_trees::deferred_refusals::DeferredRequest;
 
 fn unavailable() -> Vec<Diagnostic> {
     vec![Diagnostic::error(
         "no product route yet: source evaluation and normalization",
     )]
 }
+/// One evaluation request written inside a declaration, and the declaration
+/// that holds it.
+type SourceJob = (symbols::SymbolHandle, DeferredRequest);
+
+fn unsupported(job: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(format!("no product route yet: {job}"))]
+}
+
 /// This stage consumes no evaluation job. Reject actual unresolved work,
 /// including work in type positions, before emitting a zero-work receipt.
 /// Ordinary bodies and declarations remain for the source checker to judge.
+///
+/// A request written inside a declaration is accepted here only when that
+/// declaration already carries its refusal (`defer_source_jobs` records
+/// it): the declaration is then refused wherever it is demanded, and this
+/// program, which may never reach it, goes on.
 fn require_no_source_jobs(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let unsupported = |job| vec![Diagnostic::error(format!("no product route yet: {job}"))];
+    for (declaration, request) in source_jobs(typed)? {
+        if !typed
+            .deferred_refusals_of(typed.refusal_declaration(declaration))
+            .any(|row| row.request == request)
+        {
+            return Err(unsupported(&format!(
+                "declaration `{}` {}",
+                typed.symbols.name(declaration),
+                request.construct()
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Records every evaluation request written inside a declaration on that
+/// declaration (`typed_trees::deferred_refusals`). This stage sees the
+/// program with every bundled library, so a type with a layout policy in a
+/// library declaration is not an error of a program that never reaches it.
+/// Work recorded beside the program (recipes, plans, schemas) still refuses.
+fn defer_source_jobs(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    require_no_recorded_work(typed)?;
+    defer_declared_jobs(typed)
+}
+
+/// Records the requests written inside declarations and judges nothing
+/// else. A later step that would evaluate one kind of them, and has no
+/// evaluator, calls this instead of refusing the program.
+pub(crate) fn defer_declared_jobs(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    for (declaration, request) in declared_jobs(typed)? {
+        let source_span = typed
+            .symbols
+            .symbol_source_span(declaration)
+            .unwrap_or_default();
+        typed.record_deferred_refusal(declaration, request, source_span);
+    }
+    Ok(())
+}
+
+/// The evaluation requests of the program's declarations, after refusing
+/// every request the program holds outside them.
+fn source_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
+    require_no_recorded_work(typed)?;
+    declared_jobs(typed)
+}
+
+/// Refuses work recorded beside the program rather than inside one of its
+/// declarations: nothing could raise it later.
+fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     require_no_unevaluated_constant_use(typed)?;
     if !typed.constant_recipes.is_empty()
         || !typed.constant_expression_contexts.is_empty()
@@ -68,42 +130,84 @@ fn require_no_source_jobs(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             ));
         }
     }
+    Ok(())
+}
+
+/// The evaluation requests written inside declarations, each with the
+/// declaration that holds it. One that no declaration owns refuses.
+fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
     // Reuse the reference owner's complete type-position inventory rather
     // than searching selected statements or treating a type as only a name.
     let references = typed_trees::references::collect_program_references(typed);
-    if references.expressions.iter().any(|expression| {
-        typed
+    let mut expressions = Vec::new();
+    for expression in &references.expressions {
+        if typed
             .expression_table
             .materialization_source(*expression)
             .is_valid()
-    }) {
-        return Err(unsupported(
-            "source materialized-expression evaluation correspondence",
-        ));
+        {
+            expressions.push((*expression, DeferredRequest::MaterializedExpression));
+        }
     }
+    let mut types = Vec::new();
     for reference in references.type_references {
         use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
         if typed.layout_storage_arguments(reference).is_some() {
-            return Err(unsupported("source layout-policy evaluation"));
+            types.push((reference, DeferredRequest::LayoutPolicyStorage));
+            continue;
         }
-        // The shared walk includes a machine value's parameters, result,
-        // bounds and contracts. Check every reached type for pending work
-        // rather than keeping another list of types that can contain it.
-        let node = typed.type_reference_table.type_reference(reference);
-        if matches!(node, TypeReferenceNode::ConstExpression(_)) {
-            return Err(unsupported("source type-expression evaluation"));
-        }
-        if matches!(
-            node,
+        match typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::ConstExpression(_) => {
+                types.push((reference, DeferredRequest::TypeExpressionEvaluation));
+            }
             TypeReferenceNode::FixedArray {
                 length: FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. },
                 ..
-            }
-        ) {
-            return Err(unsupported("source array-extent evaluation"));
+            } => types.push((reference, DeferredRequest::ArrayExtentEvaluation)),
+            // The shared walk already visits children, including machine
+            // parameters, results, bounds and contracts. Only jobs are named
+            // here; container types need no second inventory.
+            _ => {}
         }
     }
-    Ok(())
+    let mut jobs = Vec::new();
+    if expressions.is_empty() && types.is_empty() {
+        return Ok(jobs);
+    }
+    // A request is its declaration's to carry. One that no declaration owns
+    // has no reader that could raise it, so it still refuses the program.
+    let owners = typed_trees::references::collect_program_operand_owners(typed);
+    for (expression, request) in expressions {
+        let before = jobs.len();
+        jobs.extend(
+            owners
+                .expression_owners(expression)
+                .filter(|owner| owner.is_valid())
+                .map(|owner| (owner, request)),
+        );
+        if jobs.len() == before {
+            return Err(unsupported(&format!(
+                "outside every declaration, one {}",
+                request.construct()
+            )));
+        }
+    }
+    for (reference, request) in types {
+        let before = jobs.len();
+        jobs.extend(
+            owners
+                .type_owners(reference)
+                .filter(|owner| owner.is_valid())
+                .map(|owner| (owner, request)),
+        );
+        if jobs.len() == before {
+            return Err(unsupported(&format!(
+                "outside every declaration, one {}",
+                request.construct()
+            )));
+        }
+    }
+    Ok(jobs)
 }
 
 /// Refuse the first use of a constant whose value no stage has recorded.
@@ -335,6 +439,14 @@ impl PreCheckEvaluation {
                 _ => false,
             }
     }
+    /// Records the evaluation requests written inside the declarations of a
+    /// freshly typed program on those declarations. The owner of the typing
+    /// calls this once it has the program, before any narrowing or
+    /// comparison of it: those only read, and accept a request only where
+    /// its declaration already carries the refusal.
+    pub fn defer_declared_requests(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+        defer_source_jobs(typed)
+    }
     pub fn project(
         &self,
         original: &TypedTrees,
@@ -367,8 +479,8 @@ impl PreCheckEvaluation {
         typed: &mut TypedTrees,
     ) -> Result<crate::RecordedPreCheck, Vec<Diagnostic>> {
         self.evaluate(typed)?;
-        // The complete source-job inventory was empty. Reading declarations
-        // produced no execution receipt and discharged no source contract.
+        // Declarations retain their deferred requests. No evaluation ran, so
+        // this produces no execution receipt and discharges no source contract.
         Ok(crate::RecordedPreCheck {
             pending: None,
             accounting: crate::SourceCompletionAccounting::default(),
@@ -396,7 +508,7 @@ impl PreCheckEvaluation {
                 "no product route yet: source wire-schema evaluation",
             )]);
         }
-        require_no_source_jobs(typed)?;
+        defer_source_jobs(typed)?;
         for pending in pre_checks {
             pending.evaluate(typed)?;
         }
@@ -408,7 +520,7 @@ impl PreCheckEvaluation {
                 "source normalization authority has not been rejoined",
             )]);
         }
-        require_no_source_jobs(typed)
+        defer_source_jobs(typed)
     }
 }
 impl Record for PreCheckEvaluation {

@@ -2787,7 +2787,6 @@ pub mod control_flow {
                                         &source_tables.expression_table,
                                         assignment.value,
                                     ),
-                                    receiving_type: crate::types::TypeReferenceHandle::invalid(),
                                 })
                             }
                             StatementNode::Call(call) => {
@@ -3025,12 +3024,6 @@ pub mod control_flow {
                                     .remap_symbols_in(assignment.target, symbols);
                                 self.expression_table
                                     .remap_symbols_in(assignment.value, symbols);
-                                if let StatementNode::Assignment(copied) =
-                                    self.statement_table.statement_mut(handle)
-                                {
-                                    copied.receiving_type =
-                                        crate::types::TypeReferenceHandle::invalid();
-                                }
                             }
                             StatementNode::Call(call) => {
                                 if let Some(binding) = &call.runtime_call {
@@ -3831,7 +3824,6 @@ pub mod control_flow {
         pub struct TableAssignment {
             pub target: ExpressionHandle,
             pub value: ExpressionHandle,
-            pub receiving_type: crate::types::TypeReferenceHandle,
         }
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]

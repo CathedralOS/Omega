@@ -31,9 +31,6 @@ impl TerminalBuildBindingAdapter {
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
-            machine,
-            operation,
-            boundary,
             arguments,
             structural_arguments,
             ..
@@ -46,9 +43,7 @@ impl TerminalBuildBindingAdapter {
             .calls
             .iter()
             .find(|call| {
-                call.machine == *machine
-                    && call.operation == *operation
-                    && call.boundary == *boundary
+                crate::host::is_call_at(effect, call.site)
                     && call.action == TerminalBuildBindingOperation::BindNative
             })
             .ok_or_else(|| refuse("native Build call has no exact source-issued context"))?;

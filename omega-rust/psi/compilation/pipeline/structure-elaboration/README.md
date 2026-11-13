@@ -539,7 +539,10 @@ view of any other region, an elided one included, is another type: it cannot
 be stored in the field or returned as it (`typing assigned value type`).
 Naming the data bare therefore relates nothing. The source record
 correspondence a product keeps is the declaration's, with no lifetime
-argument in it. Any other reference field is refused as `type reference`.
+argument in it: it keeps the type occurrence the record was read from, bare
+or applied at lifetimes, and keeps none for a declaration with no type
+parameter that the program declares and never names as a type, because the
+declaration alone identifies that record. Any other reference field is refused as `type reference`.
 The reader checks
 the declaration and each application itself, because the stage that did is
 being removed ("They must match the declaration's lifetime arity and use

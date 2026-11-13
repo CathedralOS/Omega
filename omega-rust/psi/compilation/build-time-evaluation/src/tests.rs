@@ -201,17 +201,35 @@ fn callable_signatures_do_not_hide_pending_extent_work() {
     .into_syntax_and_pre_check();
     let before = typed.clone();
     let errors = pending
-        .clone()
-        .evaluate(&mut typed)
-        .expect_err("the nested return type still needs array-length evaluation");
+        .project(&typed, &typed)
+        .expect_err("unrecorded nested array-length work cannot leave the frontier");
     assert!(
-        errors.iter().any(
-            |error| error.message.contains("source array-extent evaluation")
-                || error.message.contains("source type-expression evaluation")
-        ),
+        errors
+            .iter()
+            .any(|error| error.message.contains("computed extent")
+                || error.message.contains("type written as an expression")),
         "{errors:?}"
     );
     assert!(typed == before);
+
+    let mut deferred = typed.clone();
+    pending
+        .clone()
+        .evaluate(&mut deferred)
+        .expect("the declaration must retain its unevaluated requests");
+    // The pending return type belongs to the inner callable's signature.
+    let requests: Vec<_> = deferred
+        .deferred_refusals_of(inner_owner)
+        .map(|row| row.request)
+        .collect();
+    assert!(
+        requests.contains(&typed_trees::deferred_refusals::DeferredRequest::ArrayExtentEvaluation)
+    );
+    assert!(
+        requests
+            .contains(&typed_trees::deferred_refusals::DeferredRequest::TypeExpressionEvaluation)
+    );
+    assert!(pending.project(&deferred, &deferred).is_ok());
 
     let closed_array = typed
         .type_reference_table
@@ -417,6 +435,81 @@ fn typed_base(
     (sources, identities, base, pending)
 }
 
+#[test]
+fn an_evaluation_request_in_a_declaration_refuses_that_declaration_only() {
+    use typed_trees::deferred_refusals::DeferredRequest;
+    use typed_trees::statement::StatementNode;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    // `holder` declares a local whose type is an array with a computed
+    // extent, which needs an evaluator that does not exist. `served` asks
+    // for nothing.
+    let (_, _, base, pending) = typed_base(&[(
+        "program/main.omg",
+        "machine holder() {
+    let count: u32 = 0;
+}
+machine served() { }
+",
+    )]);
+    let mut typed = base.typed().clone();
+    let holder = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "holder")
+        .expect("the holder machine");
+    let (holder, state) = (holder.symbol, typed.machine_states(holder)[0].clone());
+    let local = state.statement_nodes.handles().next().expect("the local");
+    let StatementNode::LocalData(binding) = typed.statement_table.statement(local).clone() else {
+        panic!("a typed local")
+    };
+    let extent = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: binding.type_reference,
+            length: FixedArrayLength::Expression(binding.type_reference),
+        });
+    let StatementNode::LocalData(binding) = typed.statement_table.statement_mut(local) else {
+        panic!("a typed local")
+    };
+    binding.type_reference = extent;
+
+    // A reader of the program refuses the request while nothing carries it.
+    let error = match pending.activate_sources(&typed) {
+        Ok(_) => panic!("an unrecorded request must not pass"),
+        Err(error) => error,
+    };
+    assert!(
+        error[0].message.contains("declaration `holder`")
+            && error[0].message.contains("computed extent"),
+        "{error:?}"
+    );
+    // Once the request is recorded on its declaration the program goes on,
+    // and only that declaration is refused.
+    crate::PreCheckEvaluation::defer_declared_requests(&mut typed).unwrap();
+    assert_eq!(
+        typed
+            .deferred_refusals
+            .iter()
+            .map(|row| (row.declaration, row.request))
+            .collect::<Vec<_>>(),
+        [(holder, DeferredRequest::ArrayExtentEvaluation)]
+    );
+    assert!(pending.activate_sources(&typed).is_ok());
+
+    // The step that would evaluate layout policies has no evaluator
+    // either: it records the same requests and stops nothing.
+    let mut prepared = typed.clone();
+    prepared.deferred_refusals.clear();
+    crate::evaluate_fixed_layout_applications(&mut prepared, &[], None).unwrap();
+    assert_eq!(prepared.deferred_refusals, typed.deferred_refusals);
+
+    // The twin: the same program as written requests nothing.
+    let mut plain = base.typed().clone();
+    crate::PreCheckEvaluation::defer_declared_requests(&mut plain).unwrap();
+    crate::evaluate_fixed_layout_applications(&mut plain, &[], None).unwrap();
+    assert!(plain.deferred_refusals.is_empty());
+}
+
 fn machine_names(typed: &typed_trees::TypedTrees) -> Vec<&str> {
     let mut names = typed
         .machines()
@@ -425,6 +518,110 @@ fn machine_names(typed: &typed_trees::TypedTrees) -> Vec<&str> {
         .collect::<Vec<_>>();
     names.sort_unstable();
     names
+}
+
+#[test]
+fn indexed_assignment_literals_retain_the_receivers_actual_type_application() {
+    // The constructor must use the declared array element type, keeping
+    // Cell<u32> separate from Cell<u64>. This checks typing metadata;
+    // execution and establishment remain later checks.
+    let (_, _, base, _) = typed_base(&[(
+        "program/main.omg",
+        r#"
+data Cell<T> { value: T; }
+data Store { small: [Cell<u32>; 2]; large: [Cell<u64>; 2]; }
+machine fill(store: &mut Store) {
+    store.small[0] = Cell { value: 7 };
+    store.large[1] = Cell { value: 4294967296 };
+}
+"#,
+    )]);
+    let typed = base.typed();
+    let machine = typed
+        .realized_machine_named("fill")
+        .expect("actual source machine");
+    let assignments = typed
+        .machine_states(machine)
+        .iter()
+        .flat_map(|state| {
+            typed
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .filter_map(move |statement| match statement {
+                    typed_trees::statement::StatementNode::Assignment(assignment) => {
+                        Some((state, assignment))
+                    }
+                    _ => None,
+                })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(assignments.len(), 2);
+    let mut receiving_types = Vec::new();
+    for ((state, assignment), (field_name, primitive)) in assignments.iter().zip([
+        ("small", typed_trees::types::PrimitiveType::U32),
+        ("large", typed_trees::types::PrimitiveType::U64),
+    ]) {
+        let declared = typed.state_parameters(state)[0].type_reference;
+        let carrier = typed.type_reference_table.peeled_type_reference(declared);
+        let store = typed
+            .closed_data_definition(carrier)
+            .expect("actual Store carrier");
+        let field = typed
+            .data_members(store)
+            .iter()
+            .filter_map(typed_trees::data::DataMember::as_field)
+            .find(|field| field.name.as_str() == field_name)
+            .expect("actual receiving field");
+        let typed_trees::types::TypeReferenceNode::FixedArray {
+            element_type: receiving,
+            ..
+        } = typed
+            .type_reference_table
+            .type_reference(field.type_reference)
+        else {
+            panic!("actual array field")
+        };
+        let receiving = *receiving;
+        receiving_types.push(receiving);
+        let application = typed
+            .closed_data_definition(receiving)
+            .expect("actual receiving application");
+        assert_eq!(application.name.as_str(), "Cell");
+        let required = typed
+            .expression_table
+            .construction_required_type_reference(assignment.value);
+        let identity = |reference| {
+            typed_trees::type_identity::applied_type_identity_in_region_scope(
+                typed,
+                reference,
+                machine.symbol,
+                machine.symbol,
+                &[],
+                &[],
+            )
+            .expect("the actual application has complete identity")
+        };
+        assert_eq!(identity(required), identity(receiving));
+        assert_eq!(
+            typed.type_reference_table.operand_lifetime_owner(required),
+            machine.symbol
+        );
+        let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+            typed.expression_table.expression(assignment.value)
+        else {
+            panic!("actual authored constructor")
+        };
+        assert_eq!(literal.application_type, required);
+        let [typed_trees::data::DataMember::Field(field)] = typed.data_members(application) else {
+            panic!("the exact applied field roster")
+        };
+        assert_eq!(
+            typed.primitive_type_reference(field.type_reference),
+            Some(primitive)
+        );
+    }
+    assert_ne!(receiving_types[0], receiving_types[1]);
 }
 
 #[test]

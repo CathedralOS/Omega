@@ -66,7 +66,7 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason, UnprovedCause};
 use terminal_codec::ObligationEvidenceSeal;
 
-use crate::{Discharge, describe, discharge, refusal};
+use crate::{Discharge, describe, refusal};
 
 /// What the route decided for one closure.
 #[derive(Debug)]
@@ -712,7 +712,7 @@ pub(crate) enum AppliedContracts {
     Undecided,
     /// Each applied machine's own check form, judged in the same
     /// compilation with its parameters rigid, so for every type the caller
-    /// can pass (`judge_generic_forms`). The rows are that form's
+    /// can pass (`examine_generic_forms`). The rows are that form's
     /// obligations and are not judged a second time here.
     OwnCheckForms,
 }
@@ -721,21 +721,46 @@ pub(crate) fn judge_owing(
     elaborated: Checked<Elaboration>,
     applied: AppliedContracts,
 ) -> Checked<RouteVerdict> {
+    match examine(elaborated, &[]) {
+        Ok(examined) => conclude(examined, applied),
+        Err(decided) => decided,
+    }
+}
+
+/// A closure lowered and discharged, before its verdict is drawn.
+struct Examined {
+    elaboration: Elaboration,
+    discharged: Discharge,
+    /// Uses of owned storage after its value was transferred or consumed,
+    /// found by the affine check before anything is discharged.
+    affine_unestablished: Vec<UnestablishedUse>,
+}
+
+/// Runs the affine check and the discharge on one closure. `Err` holds the
+/// verdict when one is reached before every obligation has a verdict: an
+/// elaboration refused, a closure that still lists generic machines, or a
+/// discharge refused whole. `carried` are the machines of the closure stage
+/// 04 generated from a generic machine whose check form is already
+/// discharged (`discharge_carrying`).
+fn examine(
+    elaborated: Checked<Elaboration>,
+    carried: &[crate::Carried<'_>],
+) -> Result<Examined, Checked<RouteVerdict>> {
     let mut elaboration = match elaborated {
         Ok(elaboration) => elaboration,
-        Err(refused) => return fall_back_or_defect(refused),
+        Err(refused) => return Err(fall_back_or_defect(refused)),
     };
     // A compilation's generic machines are judged as their own check forms
     // (`judge_compilation`). A closure that still lists them was judged
     // without them, so it decides nothing.
     if !elaboration.generic_templates.is_empty() {
         let first = MachineId::new(1).expect("1 is nonzero");
-        return Ok(RouteVerdict::FallBack(refusal(
+        return Err(Ok(RouteVerdict::FallBack(refusal(
             RefusalReason::Unsupported,
             first,
             Construct::Machine,
             "machine generic parameters",
-        )));
+        ))));
     }
     let mut affine_unestablished = Vec::new();
     for machine in &elaboration.module.machines {
@@ -753,21 +778,21 @@ pub(crate) fn judge_owing(
                         (RefusalReason::ForeignIdentity, detail)
                     }
                 };
-                return fall_back_or_defect(refusal(
+                return Err(fall_back_or_defect(refusal(
                     reason,
                     machine.id,
                     Construct::Machine,
                     detail,
-                ));
+                )));
             }
         };
         let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
-            refusal(
+            Err(refusal(
                 RefusalReason::ForeignIdentity,
                 machine.id,
                 Construct::Machine,
                 "affine machine has no source correspondence",
-            )
+            ))
         })?;
         for unavailable in plan.unavailable {
             let at = match unavailable.site {
@@ -779,17 +804,30 @@ pub(crate) fn judge_owing(
             affine_unestablished.push(UnestablishedUse {
                 machine: machine.id,
                 at,
-                site: Some(source_of(sources, machine.id, at)?),
+                site: Some(source_of(sources, machine.id, at).map_err(Err)?),
                 detail: "owned storage is used after its value was transferred or consumed"
                     .to_owned(),
                 declared: None,
             });
         }
     }
-    let discharged = match discharge(&mut elaboration, &mut Default::default()) {
-        Ok(discharged) => discharged,
-        Err(refused) => return fall_back_or_defect(refused),
-    };
+    match crate::discharge_carrying(&mut elaboration, carried, &mut Default::default()) {
+        Ok(discharged) => Ok(Examined {
+            elaboration,
+            discharged,
+            affine_unestablished,
+        }),
+        Err(refused) => Err(fall_back_or_defect(refused)),
+    }
+}
+
+/// The verdict on an examined closure.
+fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdict> {
+    let Examined {
+        mut elaboration,
+        discharged,
+        affine_unestablished,
+    } = examined;
     let mut unproved = Vec::new();
     let mut unestablished = affine_unestablished;
     let mut conflicts = Vec::new();
@@ -1058,18 +1096,174 @@ pub fn judge_compilation_for(
         }
         Err(refused) => (Err(refused), Vec::new()),
     };
-    let mut verdicts = vec![judge(closure).map_err(CompilationRefusal::Elaboration)];
-    verdicts.extend(
-        judge_generic_forms(typed, templates)
-            .into_iter()
-            .map(|verdict| verdict.map_err(CompilationRefusal::Elaboration)),
-    );
+    // The generic forms are discharged first, so that each machine of the
+    // closure stage 04 generated from one of them takes the form's
+    // certificates instead of a search of its own.
+    let forms = examine_generic_forms(typed, templates);
+    let closure_verdict = match closure {
+        Ok(closure) => {
+            let witnesses = witnesses(typed, &closure, &forms);
+            let carried = carried(typed, &closure, &forms, &witnesses);
+            match examine(Ok(closure), &carried) {
+                Ok(examined) => conclude(examined, AppliedContracts::Undecided),
+                Err(decided) => decided,
+            }
+        }
+        Err(refused) => judge(Err(refused)),
+    };
+    let mut verdicts = vec![closure_verdict.map_err(CompilationRefusal::Elaboration)];
+    verdicts.extend(forms.into_iter().map(|form| {
+        match form {
+            GenericForm::Decided(verdict) => verdict,
+            GenericForm::Examined { examined, .. } => {
+                conclude(examined, AppliedContracts::OwnCheckForms)
+            }
+        }
+        .map_err(CompilationRefusal::Elaboration)
+    }));
     verdicts
 }
 
-/// The verdicts on the check forms of `templates`, the subject's generic
-/// machines, and of every generic machine those forms apply, in the order
-/// they are met.
+/// One check form of a generic machine, in the order its verdict is listed.
+enum GenericForm {
+    /// Discharged, its verdict not yet drawn. `template` is the generic
+    /// machine it is the form of.
+    Examined {
+        template: symbols::SymbolHandle,
+        examined: Examined,
+    },
+    /// Its verdict, reached before a discharge: a form refused, or a
+    /// template on a call cycle.
+    Decided(Checked<RouteVerdict>),
+}
+
+/// The selection of the closure at `selection`, with its conformance
+/// witness and the witness's discharge: the proof that the selected
+/// implementation refines the requirement (`structure_elaboration::
+/// elaborate_witness`).
+struct Witnessed {
+    selection: usize,
+    witness: Elaboration,
+    refinement: Discharge,
+}
+
+/// The conformance witness of each selection a machine of `closure` makes
+/// when that machine was generated from a generic machine with a discharged
+/// form. A selection whose witness the route does not lower has none, and
+/// the obligations that would cite it are decided as in any closed machine.
+fn witnesses(
+    typed: &typed_trees::TypedTrees,
+    closure: &Elaboration,
+    forms: &[GenericForm],
+) -> Vec<Witnessed> {
+    let mut witnessed = Vec::new();
+    for (selection, selected) in closure.selections.iter().enumerate() {
+        let carried = closure
+            .machines
+            .get(selected.caller)
+            .and_then(|symbol| structure_elaboration::template_of(typed, *symbol))
+            .is_some_and(|template| has_form(forms, template));
+        let Some(implementation) = closure.machines.get(selected.implementation).copied() else {
+            continue;
+        };
+        if !carried {
+            continue;
+        }
+        let Ok(mut witness) = structure_elaboration::elaborate_witness(
+            typed,
+            selected.declaring_trait,
+            selected.requirement,
+            &selected.value_arguments,
+            implementation,
+        ) else {
+            continue;
+        };
+        let Ok(refinement) = crate::discharge(&mut witness, &mut Default::default()) else {
+            continue;
+        };
+        witnessed.push(Witnessed {
+            selection,
+            witness,
+            refinement,
+        });
+    }
+    witnessed
+}
+
+fn has_form(forms: &[GenericForm], template: symbols::SymbolHandle) -> bool {
+    forms.iter().any(|form| {
+        matches!(form, GenericForm::Examined { template: declared, .. } if *declared == template)
+    })
+}
+
+/// Each machine of `closure` stage 04 generated from a generic machine with
+/// a discharged form, with the forms it may take its certificates from and,
+/// for each form, the selection made for each machine parameter that form
+/// names.
+fn carried<'a>(
+    typed: &typed_trees::TypedTrees,
+    closure: &Elaboration,
+    forms: &'a [GenericForm],
+    witnesses: &'a [Witnessed],
+) -> Vec<crate::Carried<'a>> {
+    let mut carried = Vec::new();
+    for (specialization, symbol) in closure.machines.iter() {
+        let Some(template) = structure_elaboration::template_of(typed, *symbol) else {
+            continue;
+        };
+        let mut candidates = Vec::new();
+        for form in forms {
+            let GenericForm::Examined {
+                template: declared,
+                examined,
+            } = form
+            else {
+                continue;
+            };
+            if *declared != template {
+                continue;
+            }
+            let generic = &examined.elaboration;
+            let mut selections = Vec::new();
+            for witnessed in witnesses {
+                let Some(selected) = closure.selections.get(witnessed.selection) else {
+                    continue;
+                };
+                if selected.caller != specialization {
+                    continue;
+                }
+                let requirement = generic.machines.iter().find(|(machine, symbol)| {
+                    **symbol == selected.requirement
+                        && generic.requirements.contains(machine)
+                        && generic.value_arguments.get(*machine) == Some(&selected.value_arguments)
+                });
+                if let Some((requirement, _)) = requirement {
+                    selections.push(crate::Selection {
+                        requirement,
+                        witness: &witnessed.witness,
+                        refinement: &witnessed.refinement,
+                    });
+                }
+            }
+            candidates.push(crate::CarriedForm {
+                generic,
+                found: &examined.discharged,
+                selections,
+            });
+        }
+        if !candidates.is_empty() {
+            carried.push(crate::Carried {
+                specialization,
+                forms: candidates,
+            });
+        }
+    }
+    carried
+}
+
+/// The check forms of `templates`, the subject's generic machines, and of
+/// every generic machine those forms apply, in the order they are met, each
+/// discharged and awaiting its verdict.
 ///
 /// A generic body may call another generic machine at its own type
 /// parameters. That callee is in the caller's form as a contract with no
@@ -1092,10 +1286,10 @@ pub fn judge_compilation_for(
 /// bodies it read. Such a template is refused by name as not supported yet,
 /// whatever contract it states: one with no `ensures` has no applied row
 /// left undecided, and would otherwise be accepted unjudged.
-fn judge_generic_forms(
+fn examine_generic_forms(
     typed: &typed_trees::TypedTrees,
     mut templates: Vec<symbols::SymbolHandle>,
-) -> Vec<Checked<RouteVerdict>> {
+) -> Vec<GenericForm> {
     let mut forms = Vec::new();
     // For each template, the positions in `templates` of what its forms
     // apply; `None` when a form applies a machine with no symbol.
@@ -1126,33 +1320,36 @@ fn judge_generic_forms(
         forms.push(elaborated);
         next += 1;
     }
-    let mut verdicts = Vec::new();
-    for (template, elaborated) in forms.into_iter().enumerate() {
-        if reaches_itself(&applies, template) {
+    let mut examined = Vec::new();
+    for (position, elaborated) in forms.into_iter().enumerate() {
+        let template = templates[position];
+        if reaches_itself(&applies, position) {
             let first = MachineId::new(1).expect("1 is nonzero");
-            verdicts.push(Ok(RouteVerdict::FallBack(refusal(
+            examined.push(GenericForm::Decided(Ok(RouteVerdict::FallBack(refusal(
                 RefusalReason::Unsupported,
                 first,
                 Construct::Machine,
                 &format!(
                     "generic machine `{}` on a call cycle",
-                    typed.symbols.name(templates[template])
+                    typed.symbols.name(template)
                 ),
-            ))));
+            )))));
             continue;
         }
         match elaborated {
             Ok(forms) => {
-                verdicts.extend(
-                    forms
-                        .into_iter()
-                        .map(|form| judge_owing(Ok(form), AppliedContracts::OwnCheckForms)),
-                );
+                examined.extend(forms.into_iter().map(|form| match examine(Ok(form), &[]) {
+                    Ok(form) => GenericForm::Examined {
+                        template,
+                        examined: form,
+                    },
+                    Err(decided) => GenericForm::Decided(decided),
+                }));
             }
-            Err(refused) => verdicts.push(judge(Err(refused))),
+            Err(refused) => examined.push(GenericForm::Decided(judge(Err(refused)))),
         }
     }
-    verdicts
+    examined
 }
 
 /// Whether `template` applies itself, directly or through the machines it

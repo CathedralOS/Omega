@@ -17,24 +17,17 @@ pub struct FixedLayoutTargetScope {
     pub entry_declarations: Option<Vec<symbols::SymbolHandle>>,
     pub provider_declarations: Vec<crate::product::provider_declarations::ProviderSelection>,
 }
-pub fn has_fixed_layout_applications(typed: &TypedTrees) -> bool {
-    typed_trees::references::collect_program_type_occurrences(typed)
-        .into_iter()
-        .any(|occurrence| {
-            typed
-                .layout_storage_arguments(occurrence.reference)
-                .is_some()
-        })
-}
+/// Nothing evaluates a layout policy yet, so a type applied through one
+/// has no layout. Such a type is a request of the declaration that uses it:
+/// it is recorded there (`typed_trees::deferred_refusals`) and that
+/// declaration is refused where a program demands it. A program that never
+/// reaches one is not stopped for a library type it does not use.
 pub fn evaluate_fixed_layout_applications(
     typed: &mut TypedTrees,
     _scopes: &[FixedLayoutTargetScope],
     _authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
 ) -> Result<(), Vec<Diagnostic>> {
-    if has_fixed_layout_applications(typed) {
-        return Err(unavailable("source layout-policy evaluation"));
-    }
-    Ok(())
+    crate::source_frontier::defer_declared_jobs(typed)
 }
 pub fn is_exact_toolchain_build_prelude_data(
     typed: &TypedTrees,
@@ -675,7 +668,11 @@ mod tests {
                 .program()
                 .source_records()
                 .iter()
-                .filter(|row| row.application.reference == operand.type_reference)
+                .filter(|row| {
+                    row.application
+                        .as_ref()
+                        .is_some_and(|application| application.reference == operand.type_reference)
+                })
                 .collect::<Vec<_>>();
             let [row] = rows.as_slice() else {
                 panic!("the same query registers one exact actual application")

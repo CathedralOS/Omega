@@ -421,13 +421,11 @@ fn correspondence(
     source: &RecordSource,
     machine: MachineId,
 ) -> Checked<SourceRecordCorrespondence> {
-    let application = source.application.clone().ok_or_else(|| {
-        refuse(
-            machine,
-            Construct::Machine,
-            Unserved::Spelling("record without a source application"),
-        )
-    })?;
+    // A declaration nothing names as a type has no occurrence to retain
+    // (`data Unused { .. }` in a judged source). `record_definition` reads
+    // one only for a declaration with no type parameter that is no generic
+    // instance, so the declaration alone identifies the record.
+    let application = source.application.clone();
     if source.fields.len() != declaration.fields().len()
         || source.cases.len() != declaration.cases().len()
         || source
@@ -591,18 +589,18 @@ mod tests {
     }
 
     #[test]
-    fn export_refuses_missing_applications_and_truncated_field_rosters() {
+    fn export_keeps_an_unnamed_declaration_and_refuses_truncated_field_rosters() {
         let (declaration, mut source) = record_fixture();
         let application = source.application.take();
-        assert!(
-            correspondence(
-                StructuralTypeId::new(2).unwrap(),
-                &declaration,
-                &source,
-                machine()
-            )
-            .is_err()
-        );
+        let unnamed = correspondence(
+            StructuralTypeId::new(2).unwrap(),
+            &declaration,
+            &source,
+            machine(),
+        )
+        .unwrap();
+        assert_eq!(unnamed.declaration, source.declaration);
+        assert_eq!(unnamed.application, None);
         source.application = application;
         source.fields.pop();
         assert_eq!(

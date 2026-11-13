@@ -1242,7 +1242,7 @@ pub(crate) mod construction_destinations {
         let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle, SymbolHandle)>::new();
         let mut calls = Vec::new();
         let mut constructors = Vec::new();
-        let mut assignment_receivers = Vec::new();
+        let mut unlanded = Vec::new();
 
         for (handle, expression) in program.expression_table.expression_entries() {
             if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier)
@@ -1298,9 +1298,7 @@ pub(crate) mod construction_destinations {
             }
             for state in program.machine_states(machine) {
                 let statements = program.statement_table.statements(state.statement_nodes);
-                for (statement_index, (handle, statement)) in
-                    state.statement_nodes.handles().zip(statements).enumerate()
-                {
+                for (statement_index, statement) in statements.iter().enumerate() {
                     match statement {
                         StatementNode::Assembly(_) => {}
                         StatementNode::LocalData(local)
@@ -1314,45 +1312,22 @@ pub(crate) mod construction_destinations {
                             ));
                         }
                         StatementNode::Assignment(assignment) => {
-                            // A declared destination supplies a receiving type,
-                            // not permission to write or evidence for its value.
-                            // The lowered reader reconstructs both from the exact
-                            // target before admitting the assignment.
-                            let receiving =
-                                crate::typing_queries::scoped_expression_type_reference(
-                                    program,
-                                    program.state_parameters(state),
-                                    state.return_type,
-                                    assignment.target,
-                                )?
-                                .filter(|reference| reference.is_valid())
-                                .or_else(|| {
-                                    assignment
-                                        .receiving_type
-                                        .is_valid()
-                                        .then_some(assignment.receiving_type)
-                                });
-                            if let Some(receiving) = receiving {
-                                if !program
-                                    .type_reference_table
-                                    .contains_type_reference(receiving)
-                                {
-                                    return Err(Diagnostic::error(
-                                        "assignment receiving type lost its declaration custody",
-                                    ));
-                                }
-                                assignment_receivers.push((handle, receiving));
-                                if needs_destination(program, assignment.value) {
-                                    destinations.push((
+                            if needs_destination(program, assignment.value) {
+                                // One declared-place query supplies the exact
+                                // constructor application. Bounds, access and
+                                // establishment remain lowered judgments.
+                                match assigned_place_type(program, state, assignment.target) {
+                                    Some(receiving) => destinations.push((
                                         assignment.value,
                                         receiving,
                                         machine.symbol,
-                                    ));
+                                    )),
+                                    None => unlanded.push((
+                                        machine.symbol,
+                                        program.expression_table.source_span(assignment.value),
+                                    )),
                                 }
                             }
-                            // A source projection may await ordinary type/cast
-                            // formation. Keep its target and value intact so
-                            // the lowered assignment owner can supply the type.
                         }
                         StatementNode::Call(call) => collect_call_destinations(
                             program,
@@ -1405,17 +1380,13 @@ pub(crate) mod construction_destinations {
             }
         }
 
-        for (handle, receiving) in assignment_receivers {
-            let StatementNode::Assignment(assignment) =
-                program.statement_table.statement_mut(handle)
-            else {
-                return Err(Diagnostic::error(
-                    "assignment changed while retaining its receiving type",
-                ));
-            };
-            assignment.receiving_type = receiving;
+        for (machine, source_span) in unlanded {
+            program.record_deferred_refusal(
+                machine,
+                typed_trees::deferred_refusals::DeferredRequest::AssignmentLiteralDestination,
+                source_span,
+            );
         }
-
         for call in calls {
             let binders = if let Some(contract) = call.runtime_contract {
                 program
@@ -1473,6 +1444,7 @@ pub(crate) mod construction_destinations {
         }
         let mut cast_destinations = Vec::new();
         let mut completed_destinations = Vec::new();
+        let mut unselected = Vec::new();
         for (value, destination, lifetime_owner) in destinations {
             land_one(
                 program,
@@ -1481,6 +1453,7 @@ pub(crate) mod construction_destinations {
                 lifetime_owner,
                 &mut cast_destinations,
                 &mut completed_destinations,
+                &mut unselected,
             )?;
         }
         // A child constructor may get its complete application from an
@@ -1526,8 +1499,12 @@ pub(crate) mod construction_destinations {
                 .struct_fields(literal.fields)
                 .to_vec();
             for field in fields {
-                let field_type =
-                    selected_construction_field_type(program, value, &literal, field.field_symbol)?;
+                let Some(field_type) =
+                    selected_field_type(program, value, &literal, field.field_symbol)
+                else {
+                    unselected.push(value);
+                    break;
+                };
                 land_one(
                     program,
                     field.value,
@@ -1535,10 +1512,85 @@ pub(crate) mod construction_destinations {
                     literal.type_symbol,
                     &mut cast_destinations,
                     &mut completed_destinations,
+                    &mut unselected,
                 )?;
             }
         }
+        defer_unselected_constructors(program, unselected)?;
         Ok(cast_destinations)
+    }
+
+    /// The type a constructor's field is built at, or `None` when typing does
+    /// not select it. The usual reason is a constructor of generic data
+    /// applied at arguments: its fields have the types of that application,
+    /// which exists once the data is specialized, and typing specializes
+    /// nothing.
+    fn selected_field_type(
+        program: &TypedTrees,
+        constructor: ExpressionHandle,
+        literal: &typed_trees::expression::TableStructLiteral,
+        field: SymbolHandle,
+    ) -> Option<TypeReferenceHandle> {
+        selected_construction_field_type(program, constructor, literal, field).ok()
+    }
+
+    /// Records each constructor whose field types typing did not select on
+    /// the declaration that holds it. The constructor keeps the fields it was
+    /// written with; its declaration is refused where it is demanded. One
+    /// that no declaration owns has no reader to raise it and refuses here.
+    fn defer_unselected_constructors(
+        program: &mut TypedTrees,
+        unselected: Vec<ExpressionHandle>,
+    ) -> Result<(), Diagnostic> {
+        use typed_trees::deferred_refusals::DeferredRequest;
+        if unselected.is_empty() {
+            return Ok(());
+        }
+        let owners = typed_trees::references::collect_program_operand_owners(program);
+        let mut rows = Vec::new();
+        for constructor in unselected {
+            let source_span = program.expression_table.source_span(constructor);
+            let before = rows.len();
+            rows.extend(
+                owners
+                    .expression_owners(constructor)
+                    .filter(|owner| owner.is_valid())
+                    .map(|owner| (owner, source_span)),
+            );
+            if rows.len() == before {
+                return Err(crate::unavailable_judgment(
+                    "selected constructor field type outside every declaration",
+                )
+                .with_source_span(source_span));
+            }
+        }
+        for (owner, source_span) in rows {
+            program.record_deferred_refusal(
+                owner,
+                DeferredRequest::ConstructorFieldSelection,
+                source_span,
+            );
+        }
+        Ok(())
+    }
+
+    fn assigned_place_type(
+        program: &TypedTrees,
+        state: &typed_trees::state::State,
+        target: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let declared = crate::typing_queries::declared_place_type(program, state, target).ok()?;
+        let mut carrier = declared;
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(carrier)
+        {
+            carrier = *base_type;
+        }
+        (!matches!(
+            program.type_reference_table.type_reference(carrier),
+            TypeReferenceNode::Reference { .. }
+        ))
+        .then_some(declared)
     }
 
     fn collect_call_destinations(
@@ -1585,6 +1637,7 @@ pub(crate) mod construction_destinations {
         lifetime_owner: SymbolHandle,
         cast_destinations: &mut Vec<TypeReferenceHandle>,
         completed: &mut Vec<Vec<(TypeReferenceHandle, SymbolHandle)>>,
+        unselected: &mut Vec<ExpressionHandle>,
     ) -> Result<bool, Diagnostic> {
         if !value.is_valid() || !destination.is_valid() {
             return Ok(false);
@@ -1619,6 +1672,7 @@ pub(crate) mod construction_destinations {
             lifetime_owner,
             cast_destinations,
             completed,
+            unselected,
         )?;
         if landed {
             if completed.len() <= position {
@@ -1636,6 +1690,7 @@ pub(crate) mod construction_destinations {
         mut lifetime_owner: SymbolHandle,
         cast_destinations: &mut Vec<TypeReferenceHandle>,
         completed: &mut Vec<Vec<(TypeReferenceHandle, SymbolHandle)>>,
+        unselected: &mut Vec<ExpressionHandle>,
     ) -> Result<bool, Diagnostic> {
         if crate::runtime_callables::prepare_named_value(
             program,
@@ -1656,6 +1711,7 @@ pub(crate) mod construction_destinations {
                     lifetime_owner,
                     cast_destinations,
                     completed,
+                    unselected,
                 )?;
             }
             return Ok(landed);
@@ -1686,6 +1742,7 @@ pub(crate) mod construction_destinations {
                 lifetime_owner,
                 cast_destinations,
                 completed,
+                unselected,
             );
         }
         let mut carrier = destination;
@@ -1756,8 +1813,12 @@ pub(crate) mod construction_destinations {
                 .to_vec();
             let mut landed = true;
             for field in fields {
-                let field_type =
-                    selected_construction_field_type(program, value, &literal, field.field_symbol)?;
+                let Some(field_type) =
+                    selected_field_type(program, value, &literal, field.field_symbol)
+                else {
+                    unselected.push(value);
+                    return Ok(false);
+                };
                 landed &= land_one(
                     program,
                     field.value,
@@ -1765,6 +1826,7 @@ pub(crate) mod construction_destinations {
                     literal.type_symbol,
                     cast_destinations,
                     completed,
+                    unselected,
                 )?;
             }
             return Ok(landed);
@@ -1789,6 +1851,7 @@ pub(crate) mod construction_destinations {
                     lifetime_owner,
                     cast_destinations,
                     completed,
+                    unselected,
                 )?;
             }
             return Ok(landed);
@@ -1914,15 +1977,10 @@ pub(crate) mod construction_destinations {
             let value = literal();
             let unknown_value = literal();
             let body = program.statement_table.insert_statements([
-                StatementNode::Assignment(TableAssignment {
-                    target,
-                    value,
-                    receiving_type: Default::default(),
-                }),
+                StatementNode::Assignment(TableAssignment { target, value }),
                 StatementNode::Assignment(TableAssignment {
                     target: missing,
                     value: unknown_value,
-                    receiving_type: Default::default(),
                 }),
             ]);
             let states = program.machine_states.insert_many([State {
@@ -1948,14 +2006,30 @@ pub(crate) mod construction_destinations {
             let StatementNode::Assignment(unknown) = statements[1] else {
                 panic!("unknown assignment changed kind");
             };
+            assert_eq!((known.target, known.value), (target, value));
             assert_eq!(
-                (known.target, known.value, known.receiving_type),
-                (target, value, declared)
+                crate::typing_queries::declared_place_type(
+                    &program,
+                    &program.machine_states(&program.machines()[0])[0],
+                    target
+                )
+                .unwrap(),
+                declared
             );
             assert_eq!((unknown.target, unknown.value), (missing, unknown_value));
             assert!(
-                !unknown.receiving_type.is_valid(),
-                "an unresolved destination owes its real lowered receiving judgment"
+                !program
+                    .expression_table
+                    .construction_required_type_reference(unknown.value)
+                    .is_valid(),
+                "an unresolved destination must not invent its constructor application"
+            );
+            assert_eq!(
+                program
+                    .deferred_refusal(owner)
+                    .map(|refusal| refusal.request),
+                Some(typed_trees::deferred_refusals::DeferredRequest::AssignmentLiteralDestination),
+                "the unresolved destination remains its owner's unserved request"
             );
             let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(value)
             else {
@@ -1968,6 +2042,262 @@ pub(crate) mod construction_destinations {
                     .construction_required_type_reference(value),
                 declared
             );
+        }
+
+        #[test]
+        fn an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::deferred_refusals::DeferredRequest;
+            use typed_trees::expression::{TableNamePath, TableStructLiteral};
+            use typed_trees::machine::{Machine, MachineBodyStatus};
+            use typed_trees::statement::{TableAssignment, TableLocalData};
+            use typed_trees::{data::DataDefinition, state::State};
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = symbols.insert_children(
+                root,
+                [
+                    (SymbolKind::Data, SymbolNameRef::Static("Record")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("writer")),
+                ],
+            );
+            let (data, writer) = (declarations.handle_at(0), declarations.handle_at(1));
+            let inner = symbols.insert_children(
+                writer,
+                [
+                    (SymbolKind::State, SymbolNameRef::Static("run")),
+                    (SymbolKind::Local, SymbolNameRef::Static("owned")),
+                    (SymbolKind::Local, SymbolNameRef::Static("borrowed")),
+                ],
+            );
+            let [state, owned, borrowed] = [0, 1, 2].map(|position| inner.handle_at(position));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            program.push_data_definition(DataDefinition {
+                symbol: data,
+                name: "Record".into(),
+                ..Default::default()
+            });
+            let record = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: data,
+                    name: "Record".into(),
+                });
+            let reference = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: record,
+                    access: language_core::ReferenceAccess::Mutable,
+                    lifetime: None,
+                });
+            let name = |program: &mut TypedTrees, symbol, spelled: &[&'static str]| {
+                let mut members = Default::default();
+                for member in spelled {
+                    program.expression_table.push_name_path_member(
+                        &mut members,
+                        typed_trees::name::Identifier::generated(*member),
+                    );
+                }
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Name(TableNamePath {
+                        members,
+                        symbol,
+                        head_symbol: symbol,
+                        ..Default::default()
+                    }))
+            };
+            let literal = |program: &mut TypedTrees| {
+                program
+                    .expression_table
+                    .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                        type_symbol: data,
+                        type_name: "Record".into(),
+                        ..Default::default()
+                    }))
+            };
+            let local = |symbol, type_reference| {
+                StatementNode::LocalData(TableLocalData {
+                    symbol,
+                    type_reference,
+                    ..Default::default()
+                })
+            };
+            let target = name(&mut program, owned, &["owned"]);
+            let value = literal(&mut program);
+            let statement_nodes = program.statement_table.insert_statements([
+                local(owned, record),
+                local(borrowed, reference),
+                StatementNode::Assignment(TableAssignment { target, value }),
+            ]);
+            let states = program.machine_states.insert_many([State {
+                symbol: state,
+                statement_nodes,
+                ..Default::default()
+            }]);
+            program.push_machine(Machine {
+                symbol: writer,
+                states,
+                body_is_present: true,
+                body_status: MachineBodyStatus::Complete,
+                ..Default::default()
+            });
+
+            // `owned = Record {}` is built at the type written on `owned`.
+            let mut landed = program.clone();
+            prepare(&mut landed, 0, 0, &[]).unwrap();
+            assert!(landed.deferred_refusals.is_empty());
+            assert_eq!(
+                landed
+                    .expression_table
+                    .construction_required_type_reference(value),
+                record
+            );
+
+            // The twins differ only in the place assigned: a field of the
+            // binding, and a binding of reference type. Neither has a type
+            // typing computes, so the literal stays as written and the
+            // machine, not the program, is refused.
+            for place in [
+                name(&mut program, owned, &["owned", "field"]),
+                name(&mut program, borrowed, &["borrowed"]),
+            ] {
+                let mut unlanded = program.clone();
+                let assignment = unlanded.statement_table.statements(statement_nodes).len() - 1;
+                let handle = statement_nodes.handles().nth(assignment).unwrap();
+                let StatementNode::Assignment(assignment) =
+                    unlanded.statement_table.statement_mut(handle)
+                else {
+                    panic!("assignment")
+                };
+                assignment.target = place;
+                prepare(&mut unlanded, 0, 0, &[]).unwrap();
+                assert_eq!(
+                    unlanded
+                        .deferred_refusal(writer)
+                        .map(|refusal| refusal.request),
+                    Some(DeferredRequest::AssignmentLiteralDestination)
+                );
+                assert!(
+                    !unlanded
+                        .expression_table
+                        .construction_required_type_reference(value)
+                        .is_valid()
+                );
+            }
+        }
+
+        #[test]
+        fn a_constructor_with_an_unselected_field_refuses_its_own_machine() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::data::{DataDefinition, DataField, DataMember};
+            use typed_trees::deferred_refusals::DeferredRequest;
+            use typed_trees::expression::{TableStructLiteral, TableStructLiteralField};
+            use typed_trees::machine::{Machine, MachineBodyStatus};
+            use typed_trees::state::State;
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = symbols.insert_children(
+                root,
+                [
+                    (SymbolKind::Data, SymbolNameRef::Static("Record")),
+                    (SymbolKind::Data, SymbolNameRef::Static("Other")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("builder")),
+                ],
+            );
+            let [record, other, builder] =
+                [0, 1, 2].map(|position| declarations.handle_at(position));
+            let [own_field, foreign_field] = [record, other].map(|data| {
+                symbols
+                    .insert_children(data, [(SymbolKind::Field, SymbolNameRef::Static("a"))])
+                    .handle_at(0)
+            });
+            let state = symbols
+                .insert_children(builder, [(SymbolKind::State, SymbolNameRef::Static("run"))])
+                .handle_at(0);
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            for (symbol, name, field) in [
+                (record, "Record", own_field),
+                (other, "Other", foreign_field),
+            ] {
+                let members =
+                    program
+                        .tables
+                        .data_members
+                        .insert_many([DataMember::Field(DataField {
+                            symbol: field,
+                            name: "a".into(),
+                            ..Default::default()
+                        })]);
+                program.push_data_definition(DataDefinition {
+                    symbol,
+                    name: name.into(),
+                    members,
+                    ..Default::default()
+                });
+            }
+            let payload = program
+                .expression_table
+                .insert(ExpressionNode::Boolean(true));
+            let constructor = |program: &mut TypedTrees, field_symbol| {
+                let fields =
+                    program
+                        .expression_table
+                        .insert_struct_fields([TableStructLiteralField {
+                            name: "a".into(),
+                            field_symbol,
+                            value: payload,
+                        }]);
+                program
+                    .expression_table
+                    .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                        type_symbol: record,
+                        type_name: "Record".into(),
+                        fields,
+                        ..Default::default()
+                    }))
+            };
+            let build = |program: &TypedTrees, field_symbol| {
+                let mut program = program.clone();
+                let value = constructor(&mut program, field_symbol);
+                let statement_nodes = program
+                    .statement_table
+                    .insert_statements([StatementNode::Expression(value)]);
+                let states = program.machine_states.insert_many([State {
+                    symbol: state,
+                    statement_nodes,
+                    ..Default::default()
+                }]);
+                program.push_machine(Machine {
+                    symbol: builder,
+                    states,
+                    body_is_present: true,
+                    body_status: MachineBodyStatus::Complete,
+                    ..Default::default()
+                });
+                prepare(&mut program, 0, 0, &[]).unwrap();
+                program
+            };
+            // `Record { a: true }` names a field of the record it builds.
+            assert!(build(&program, own_field).deferred_refusals.is_empty());
+            // The twin names a field typing cannot place in that record. The
+            // machine holding the constructor is refused, not the program.
+            let refused = build(&program, foreign_field);
+            assert_eq!(
+                refused
+                    .deferred_refusal(builder)
+                    .map(|refusal| refusal.request),
+                Some(DeferredRequest::ConstructorFieldSelection)
+            );
+            assert_eq!(refused.deferred_refusals.len(), 1);
         }
 
         #[test]
@@ -2010,7 +2340,8 @@ pub(crate) mod construction_destinations {
                     unrelated,
                     owner,
                     &mut casts,
-                    &mut completed
+                    &mut completed,
+                    &mut Vec::new(),
                 )
                 .unwrap()
             );
@@ -2025,7 +2356,8 @@ pub(crate) mod construction_destinations {
                     exact,
                     owner,
                     &mut casts,
-                    &mut completed
+                    &mut completed,
+                    &mut Vec::new(),
                 )
                 .unwrap()
             );
@@ -2036,13 +2368,23 @@ pub(crate) mod construction_destinations {
                     exact,
                     owner,
                     &mut casts,
-                    &mut completed
+                    &mut completed,
+                    &mut Vec::new(),
                 )
                 .unwrap()
             );
             assert_eq!(completed[value.arena_index() as usize], [(exact, owner)]);
             assert!(
-                land_one(&mut program, value, exact, data, &mut casts, &mut completed).unwrap()
+                land_one(
+                    &mut program,
+                    value,
+                    exact,
+                    data,
+                    &mut casts,
+                    &mut completed,
+                    &mut Vec::new()
+                )
+                .unwrap()
             );
             assert_eq!(
                 completed[value.arena_index() as usize],
@@ -2057,6 +2399,7 @@ pub(crate) mod construction_destinations {
                 owner,
                 &mut casts,
                 &mut completed,
+                &mut Vec::new(),
             )
             .unwrap_err();
             assert!(
@@ -2072,6 +2415,7 @@ pub(crate) mod construction_destinations {
                 owner,
                 &mut casts,
                 &mut completed,
+                &mut Vec::new(),
             )
             .unwrap_err();
             assert!(

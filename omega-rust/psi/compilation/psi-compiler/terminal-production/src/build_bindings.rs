@@ -43,11 +43,12 @@ pub use native_locator::{
 };
 
 use crate::TerminalBuildQueryCall;
+use language_semantics::build_requests::BuildCallSite;
 use language_semantics::declaration_selection::product_operands::ProductStaticEnvironment;
 use language_semantics::declaration_selection::{
     BuildSelectionRequest, NativeBindingFormation, ProductDeclarationRequest,
 };
-use semantic_vocabulary::{BoundaryMachineId, OperationId};
+use semantic_vocabulary::BoundaryMachineId;
 use std::sync::Arc;
 use terminal_codec::TerminalExecutionView;
 
@@ -74,9 +75,7 @@ pub enum TerminalBuildBindingOperation {
 
 #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildBindingCall {
-    pub machine: semantic_vocabulary::MachineId,
-    pub operation: OperationId,
-    pub boundary: BoundaryMachineId,
+    pub site: BuildCallSite,
     pub action: TerminalBuildBindingOperation,
     pub request: TerminalBuildSelectionRequest,
     pub selecting_machine: Option<source::SourceSpan>,
@@ -160,9 +159,7 @@ pub(crate) mod build_filesystem {
 
     #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
     pub struct TerminalBuildFilesystemCall {
-        pub machine: semantic_vocabulary::MachineId,
-        pub operation: semantic_vocabulary::OperationId,
-        pub boundary: semantic_vocabulary::BoundaryMachineId,
+        pub site: language_semantics::build_requests::BuildCallSite,
         pub action: TerminalBuildFilesystemOperation,
     }
 
@@ -238,9 +235,7 @@ pub(crate) mod build_queries {
 
     #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
     pub struct TerminalBuildQueryCall {
-        pub machine: semantic_vocabulary::MachineId,
-        pub operation: semantic_vocabulary::OperationId,
-        pub boundary: semantic_vocabulary::BoundaryMachineId,
+        pub site: language_semantics::build_requests::BuildCallSite,
         pub action: TerminalBuildQueryOperation,
         pub occurrence: source::SourceSpan,
     }
@@ -249,7 +244,7 @@ pub(crate) mod build_queries {
 pub(crate) mod build_requests {
 
     pub use language_semantics::build_requests::{
-        TerminalBuildRequestCall, TerminalBuildRequestOperation,
+        BuildCallSite, TerminalBuildRequestCall, TerminalBuildRequestOperation,
     };
 
     #[derive(Debug, PartialEq, Eq)]

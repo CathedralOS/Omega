@@ -67,13 +67,6 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
-### The Build host finds a call's row by an operation number that is unique only within one machine
-- Category: one idea, several implementations
-- Where: `build-settings/src/host/{bindings,requests,filesystem}.rs` (`call.operation == *operation && call.boundary == *boundary`); `terminal-interpreter` `TerminalEffect::BoundaryCall` (carries no machine); `structure-elaboration/src/lower/operations.rs` (`operation_identity`)
-- Saw: the deleted lowering numbered operations across the whole module, and the Build host, the effect it is handed and the module rows the encoding calls "strictly ordered by operation id" still assume that; the lowered-form route numbers operations within each machine, so two helpers that each bind an entry yield two host rows under one key
-- Cost: production refuses such a Build script (`terminal-production/src/build_companions.rs`, `admit`) instead of publishing a row the host could misread, so a Build script that selects from two helper machines stops there until the effect names its machine or the route numbers operations per module
-- Reported: 2026-11-13, Claude Code, while publishing Build selections from the lowered-form route
-
 ### Constant operands are still read from a table keyed by spelling
 - Category: a verdict with nothing behind it
 - Where: `02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs` (`module_constants::lexical_integer_const_values`), built at five call sites in `preparation_const_evaluation.rs`, `preparation_generic_data.rs` and `preparation_machine_equations.rs` and handed to `evaluate_const_argument_expression` and the fact evaluators
@@ -528,7 +521,7 @@ own to defend. Say what you saw, not what you would build.
 
 ### A whole-program stage refuses every program for a library construct nobody calls
 - Category: a verdict with nothing behind it
-- Where: `03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs` (`require_prebound_calls`), `call_and_product_selections.rs` ("assignment literal receiving type"), and any by-name refusal added to `04_typed-trees-to-typed-trees`
-- Saw: typing and typed preparation see the program together with all of `core` and `std` and have no notion of what an entry demands, so one unbound call or unlanded literal in an uncalled library machine stops a program that never reaches it; structural elaboration, which reads only what is demanded, already refuses the same constructs by name
-- Cost: each such gate must be served for the entire library before any program compiles; pipeline.md's own pattern ("refusals stay deferred data") would record the refusal on the declaration and let the reader of that declaration raise it
+- Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers, such as "mathematical call receiving types" and "selected call parameter types" in `call_and_product_selections.rs` and `typing_queries.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
+- Saw: these stages see the program together with all of `core` and `std` and have no notion of what an entry demands, so one such construct in an uncalled library declaration stops a program that never reaches it; the gates the route probe met (unbound calls, assignment literals, constructor field types, layout-policy and computed types) now record the refusal on the declaration instead (`typed-trees/src/deferred_refusals.rs`), and the others still refuse the program
+- Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing

@@ -65,13 +65,13 @@ transition normalization—refuse with `no product route yet` until their
 surviving owner supplies the required judgment or correspondence.
 Typing does not create empty facts or reuse an old checker verdict.
 
-Assignments retain their target and declared receiving type as source metadata.
-The shared destination walk uses exact binding, field and element declarations
-for literals and named machine values, including applied record types. When a
-source projection has not acquired its type yet, the target and value remain
-intact for the lowered reader. That reader reconstructs the destination, checks
-write authority and proves the replacement's obligations; the retained type is
-not an assignment judgment.
+Assignments retain their exact target and value. One declared-place query reads
+the state's unique binding and its selected fields or elements, so literals and
+named machine values retain the actual constructor application. An unresolved
+literal destination stays intact and records an unserved request on its owning
+declaration. The lowered reader independently reconstructs the destination,
+checks write authority and proves the replacement's obligations; constructor
+type metadata is not an assignment judgment.
 
 Source activation (`SeededTypingBase::activate_sources`) narrows a retained
 typing to the program written in the selected sources. It reads no verdict: the

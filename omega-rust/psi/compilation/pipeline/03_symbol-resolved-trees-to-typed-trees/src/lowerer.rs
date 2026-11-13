@@ -1787,18 +1787,20 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
-    crate::typing_queries::require_prebound_transitions(
-        &lowerer.typed_trees,
-        cohort.typed_machines,
-        cohort.completed_machines,
-    )?;
     bind_dynamic_call_targets(&mut lowerer.typed_trees)?;
     callable_admission.extend(crate::runtime_callables::bind_calls(
         &mut lowerer.typed_trees,
         bound_expressions,
         bound_types,
     )?);
-    crate::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)
+    crate::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)?;
+    // Constructor and cast preparation may finish a callee's retained type.
+    // Bind those values before attributing any still-unserved call request.
+    crate::typing_queries::defer_unbound_calls(
+        &mut lowerer.typed_trees,
+        cohort.typed_machines,
+        cohort.completed_machines,
+    )
 }
 
 fn lower_authored_service_reach_row(
@@ -2083,7 +2085,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         data_implementation_applications: _,
         dynamic_slots: _,
         target_machine_families: _,
-        deferred_refusals: _,
+        deferred_refusals,
         boundary_completion_declarations: _,
         evidence_forwardings: _,
         proof_output_calls,
@@ -2099,6 +2101,10 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     } = typed;
     let mut trees = TypedTrees::with_roots(roots, tables, symbols);
     trees.type_identities = type_identities;
+    // A request recorded on a declaration stays recorded while the program
+    // is extended: its declaration is still unserved, and recording again
+    // adds nothing.
+    trees.deferred_refusals = deferred_refusals;
     trees.access_borrow_factories = access_borrow_factories;
     trees.excluded_authored_selection_occurrences = excluded_authored_selection_occurrences;
     trees.service_reaches = service_reaches;
@@ -2114,8 +2120,4 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     trees.proof_output_calls = proof_output_calls;
     trees.ranking_expression_custody = ranking_expression_custody;
     trees
-}
-
-fn bind_dynamic_call_targets(trees: &mut TypedTrees) -> Result<(), Diagnostic> {
-    crate::typing_queries::require_prebound_calls(trees)
 }

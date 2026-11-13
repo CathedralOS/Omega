@@ -276,12 +276,16 @@ impl CallOwner {
         program: &typed::TypedTrees,
         expression: typed::expression::ExpressionHandle,
     ) -> Result<Option<typed::types::TypeReferenceHandle>, Diagnostic> {
-        let (parameters, result) = match self {
+        let (parameters, result, state_scope) = match self {
             Self::State { state, .. } => {
                 let state = program.state_by_symbol(state).ok_or_else(|| {
                     Diagnostic::error("callable source scope lost its exact state")
                 })?;
-                (program.state_parameters(state), state.return_type)
+                (
+                    program.state_parameters(state),
+                    state.return_type,
+                    Some(state),
+                )
             }
             Self::Signature {
                 parameters, result, ..
@@ -290,11 +294,16 @@ impl CallOwner {
                     Diagnostic::error("callable source scope lost its formal telescope")
                 })?,
                 result,
+                None,
             ),
-            Self::Declaration { .. } => (&[][..], Default::default()),
+            Self::Declaration { .. } => (&[][..], Default::default(), None),
         };
         crate::typing_queries::scoped_expression_type_reference(
-            program, parameters, result, expression,
+            program,
+            parameters,
+            result,
+            expression,
+            state_scope,
         )
     }
 }

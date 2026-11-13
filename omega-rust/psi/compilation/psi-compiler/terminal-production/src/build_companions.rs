@@ -3,10 +3,11 @@
 //! Boundary declarations identify the four compiler-owned protocols. A selection
 //! also retains its designated source request and original selecting machine;
 //! lowering may place its call in a different machine. Host rows use the emitted
-//! machine, operation and boundary together, so helpers cannot share a call key.
+//! machine, operation and boundary together in BuildCallSite, so helpers cannot
+//! share a call key.
 
 use crate::{
-    AcceptedTerminalSource, TerminalBuildBindingCall, TerminalBuildBindingOperation,
+    AcceptedTerminalSource, BuildCallSite, TerminalBuildBindingCall, TerminalBuildBindingOperation,
     TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation, TerminalBuildNativeLocator,
     TerminalBuildProviderRequirement, TerminalBuildQueryCall, TerminalBuildQueryOperation,
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildValueCase,
@@ -17,9 +18,7 @@ use language_semantics::build_requests::{SELECTION_PROTOCOL, is_build_protocol};
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, NativeBindingFormation, ProductDeclarationRequest,
 };
-use semantic_vocabulary::{
-    BoundaryMachineId, InvocationSite, MachineId, OperationId, StructuralTypeId,
-};
+use semantic_vocabulary::{BoundaryMachineId, InvocationSite, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use structure_elaboration::SourceOrigin;
@@ -52,9 +51,7 @@ pub struct BuildProtocolUse {
 
 /// One emitted boundary call of a toolchain Build protocol.
 struct ProtocolCall<'a> {
-    machine: MachineId,
-    operation: OperationId,
-    boundary: BoundaryMachineId,
+    site: BuildCallSite,
     /// The protocol operation's declared name.
     name: &'a str,
 }
@@ -115,9 +112,11 @@ pub(crate) fn produce(
                 ));
             };
             let call = ProtocolCall {
-                machine: machine.id,
-                operation,
-                boundary,
+                site: BuildCallSite {
+                    machine: machine.id,
+                    operation,
+                    boundary,
+                },
                 name: requirement.name.as_str(),
             };
             if protocol(SELECTION_PROTOCOL) {
@@ -131,34 +130,28 @@ pub(crate) fn produce(
                 companions.bindings.push(row);
             } else if protocol("BuildRequestOperations") {
                 let row = TerminalBuildRequestCall {
-                    machine: call.machine,
-                    operation: call.operation,
-                    boundary: call.boundary,
+                    site: call.site,
                     action: request_operation(call.name)?,
                 };
                 companions.requests.push(row);
             } else if protocol("BuildFilesystemOperations") {
                 let row = TerminalBuildFilesystemCall {
-                    machine: call.machine,
-                    operation: call.operation,
-                    boundary: call.boundary,
+                    site: call.site,
                     action: filesystem_operation(call.name)?,
                 };
                 companions.filesystem.push(row);
             } else if protocol("BuildProductOperations") {
                 let SourceOrigin::Authored(occurrence) = elaboration
                     .sources
-                    .get(call.machine)
-                    .and_then(|sources| sources.operations.get(call.operation))
+                    .get(call.site.machine)
+                    .and_then(|sources| sources.operations.get(call.site.operation))
                     .copied()
                     .ok_or_else(|| refused("a Build product query lost its source row"))?
                 else {
                     return Err(refused("a Build product query has no authored occurrence"));
                 };
                 let row = TerminalBuildQueryCall {
-                    machine: call.machine,
-                    operation: call.operation,
-                    boundary: call.boundary,
+                    site: call.site,
                     action: query_operation(call.name)?,
                     occurrence,
                 };
@@ -203,12 +196,12 @@ fn binding(
     };
     let designated = elaboration
         .sources
-        .get(call.machine)
+        .get(call.site.machine)
         .and_then(|sources| {
             sources
                 .designated
                 .iter()
-                .find(|(operation, _)| *operation == call.operation)
+                .find(|(operation, _)| *operation == call.site.operation)
         })
         .map(|(_, designated)| *designated)
         .ok_or_else(|| refused("a Build selection call carries no designated operands"))?;
@@ -237,7 +230,12 @@ fn binding(
         None
     };
     let native_locator = if action == TerminalBuildBindingOperation::BindNative {
-        Some(native_locator(accepted, call.boundary, module, shapes)?)
+        Some(native_locator(
+            accepted,
+            call.site.boundary,
+            module,
+            shapes,
+        )?)
     } else {
         None
     };
@@ -245,9 +243,7 @@ fn binding(
         provider_requirement(accepted, selecting, reference, module)
     })?;
     Ok(TerminalBuildBindingCall {
-        machine: call.machine,
-        operation: call.operation,
-        boundary: call.boundary,
+        site: call.site,
         action,
         request,
         selecting_machine,

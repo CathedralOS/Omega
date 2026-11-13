@@ -4408,8 +4408,6 @@ pub mod inspection {
                 Assignment {
                     target: ExpressionSnapshot,
                     value: ExpressionSnapshot,
-                    #[serde(skip_serializing_if = "Option::is_none")]
-                    receiving_type: Option<TypeReferenceSnapshot>,
                 },
                 Call {
                     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4747,10 +4745,6 @@ pub mod inspection {
         StatementNode::Assignment(assignment) => StatementSnapshot::Assignment {
             target: expression_snapshot(program, assignment.target),
             value: expression_snapshot(program, assignment.value),
-            receiving_type: assignment
-                .receiving_type
-                .is_valid()
-                .then(|| type_reference_snapshot(program, assignment.receiving_type)),
         },
         StatementNode::Call(call) => StatementSnapshot::Call {
             runtime_call: call.runtime_call.map(|binding| runtime_call_snapshot(program, binding)),

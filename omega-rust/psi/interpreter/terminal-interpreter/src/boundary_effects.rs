@@ -3517,8 +3517,10 @@ pub enum TerminalEffect {
         kind: terminal_psi::MemoryFenceKind,
     },
     BoundaryCall {
-        /// Operation IDs are local to a machine; host requests retain both.
-        machine: semantic_vocabulary::MachineId,
+        /// The machine whose operation this call is. An operation identity
+        /// is unique within its machine only, so a host that keeps a row per
+        /// call matches the machine too.
+        machine: MachineId,
         operation: OperationId,
         boundary: BoundaryMachineId,
         arguments: Vec<TerminalScalarValue>,

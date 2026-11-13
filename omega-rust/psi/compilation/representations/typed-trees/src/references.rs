@@ -3604,11 +3604,7 @@ fn visit_statement(
                 visit_symbol(retained, local.pattern_subject);
             }
         }
-        StatementNode::Assignment(assignment) => {
-            if retained.derived_declaration_references() {
-                visit_type_reference(program, retained, assignment.receiving_type);
-            }
-        }
+        StatementNode::Assignment(_) => {}
         StatementNode::Transition(transition) => {
             for pattern in program
                 .statement_table

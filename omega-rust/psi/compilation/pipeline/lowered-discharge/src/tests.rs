@@ -1459,6 +1459,93 @@ fn a_partial_affine_move_keeps_the_disjoint_sibling_established() {
     );
 }
 
+/// `flag && takes(value)`, where machine 2 takes a `Point` by value and
+/// returns `bool`: `value` is transferred on one path into the join only.
+fn transferred_when(flag: usize, value: usize) -> Expression {
+    either(
+        true,
+        slot(flag, bool_type()),
+        of_type(
+            ExpressionKind::Call {
+                callee: id::<MachineId>(2).into(),
+                arguments: vec![place(value, point())],
+                designated: None,
+            },
+            bool_type().into(),
+        ),
+    )
+}
+
+/// Machine 2: `takes(point: Point) -> bool { true }`.
+fn takes_a_point() -> Shaped {
+    Shaped {
+        parameters: vec![point()],
+        locals: Vec::new(),
+        result: bool_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(expression(
+            ExpressionKind::Boolean(true),
+            Some(bool_type()),
+        ))],
+    }
+}
+
+#[test]
+fn a_value_transferred_on_one_path_is_not_owned_after_the_join() {
+    // Shows: `flag && takes(value)` transfers `value` only when `flag`
+    // holds, so after the join `value` is owned on one arrival and not the
+    // other. Read again there, it is a use after its value was transferred
+    // (ownership.md: predecessor paths must agree on the live ownership
+    // frontier), a rejection of the program rather than a construct the
+    // route does not serve. Not read again, the path that still owns it
+    // disposes of it before the join and the program is accepted.
+    let caller = |read_again| Shaped {
+        parameters: vec![point(), bool_type().into()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![
+            Statement::Evaluate(transferred_when(1, 0)),
+            returns(if read_again {
+                read(place(0, point()), 0)
+            } else {
+                unsigned(0)
+            }),
+        ],
+    };
+    let accepted = elaborate_over(vec![caller(false), takes_a_point()], &affine_records());
+    let plan = terminal_semantics::plain_affine::plan(
+        &accepted.module.machines[0],
+        &accepted.module.structural_types,
+    )
+    .unwrap();
+    assert!(plan.unavailable.is_empty());
+    assert!(
+        plan.cleanup
+            .iter()
+            .any(|(_, actions)| actions.iter().any(|action| matches!(
+                action,
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+            ))),
+        "the arrival that still owns the value disposes of it on its edge"
+    );
+    assert!(matches!(judge(Ok(accepted)), Ok(RouteVerdict::Accepted(_))));
+    let read_again = elaborate_over(vec![caller(true), takes_a_point()], &affine_records());
+    let Ok(RouteVerdict::Rejected { unestablished, .. }) = judge(Ok(read_again)) else {
+        panic!("a use after a transfer on one path is a rejection");
+    };
+    assert!(
+        unestablished.iter().any(|used| used.detail
+            == "owned storage is used after its value was transferred or consumed")
+    );
+    // The scalar initialization judgment reports the same read: one site.
+    assert!(
+        unestablished
+            .iter()
+            .all(|used| used.at == unestablished[0].at)
+    );
+}
+
 #[test]
 fn an_affine_empty_case_cannot_be_moved_twice() {
     let mut records = IdTable::default();
@@ -5996,7 +6083,7 @@ mod generic_bodies {
     //     { Selected::apply(start) + 1 }
     use super::*;
     use crate::ProofSearchActivity;
-    use crate::{Selection, reverify_specialization};
+    use crate::{Carried, CarriedForm, Selection, discharge_carrying, reverify_specialization};
 
     /// The result pseudo-value of a machine with one scalar formal.
     fn result_at_most(value: u128) -> Proposition {
@@ -6210,6 +6297,104 @@ mod generic_bodies {
             tables.propositions.get(row.proposition).unwrap().clone()
         };
         assert_ne!(after_call(double(), double()), after_call(shift(), shift()));
+    }
+
+    /// Discharges `advance(bound)` specialized to `implementation` as one
+    /// closed closure, with `carried` offering the generic form's proofs to
+    /// machine 1 when it is `Some`. Returns the discharge and how many
+    /// provers it started.
+    fn closure(
+        bound: u128,
+        implementation: Machine,
+        carried: Option<(u128, Machine)>,
+    ) -> (structure_elaboration::Elaboration, Discharge, usize) {
+        let (form, found) = checked_once(carried.as_ref().map_or(bound, |(form, _)| *form));
+        let refines = carried.map(|(_, refines)| run(vec![witness(), refines]));
+        let offered: Vec<Carried<'_>> = refines
+            .iter()
+            .map(|(witnessed, refinement)| Carried {
+                specialization: id(1),
+                forms: vec![CarriedForm {
+                    generic: &form,
+                    found: &found,
+                    selections: vec![Selection {
+                        requirement: id(2),
+                        witness: witnessed,
+                        refinement,
+                    }],
+                }],
+            })
+            .collect();
+        let mut consumer = lower(vec![advance(bound), implementation]).unwrap();
+        let mut activity = ProofSearchActivity::default();
+        let before = activity.started();
+        let decided = discharge_carrying(&mut consumer, &offered, &mut activity).unwrap();
+        let started = activity.started() - before;
+        (consumer, decided, started)
+    }
+
+    #[test]
+    fn a_specialization_in_a_closure_takes_the_generic_proofs_without_a_search() {
+        // Shows: discharging a whole closure, `advance<Double>` decides its
+        // call requirement, the add's safety and its guarantee from the
+        // proofs the generic form found once, each decided by the kernel
+        // against the closure's own goals, and starts no prover for them:
+        // three fewer than the closed check, which searches each. `Double`
+        // itself, machine 2, is searched in both, and both accept the same
+        // obligations.
+        let (_, closed, searched) = closure(21, double(), None);
+        let (consumer, carried, started) = closure(21, double(), Some((21, double())));
+        assert_eq!(searched - started, 3);
+        for (obligation, verdict) in carried.machines.get(id(1)).unwrap().verdicts.iter() {
+            let kind = consumer
+                .tables
+                .machines
+                .get(id(1))
+                .unwrap()
+                .obligations
+                .get(obligation);
+            if matches!(
+                kind.map(|row| row.kind),
+                Some(ObligationKind::PublishedGuarantee { .. })
+            ) {
+                assert!(verdict.is_ok());
+                continue;
+            }
+            assert_kernel_checked(&consumer, 1, obligation, certificate(verdict));
+        }
+        let accepted = |discharge: &Discharge| -> Vec<bool> {
+            discharge
+                .machines
+                .iter()
+                .flat_map(|(_, machine)| {
+                    machine.verdicts.iter().map(|(_, verdict)| verdict.is_ok())
+                })
+                .collect()
+        };
+        assert_eq!(accepted(&closed), accepted(&carried));
+    }
+
+    #[test]
+    fn a_specialization_with_nothing_to_carry_is_decided_as_a_closed_machine() {
+        // Shows: carrying never changes what a closure is judged to hold.
+        // The form of `advance` promising `result <= 18` proves no guarantee
+        // (`Step::apply` gives only `result <= 20`), so `advance<Shift>`
+        // has no proof to take for it and searches, accepting it as the
+        // closed check does; the generic form's own verdict is what rejects
+        // that body. The form of a body promising 21, offered to one
+        // promising 18, proves a guarantee the kernel refuses for this goal,
+        // and that obligation is searched too.
+        let (_, closed, _) = closure(18, shift(), None);
+        for offered in [(18, shift()), (21, shift())] {
+            let (_, carried, started) = closure(18, shift(), Some(offered));
+            assert!(started > 0);
+            for (machine, decided) in carried.machines.iter() {
+                let alone = &closed.machines.get(machine).unwrap().verdicts;
+                for ((_, mine), (_, theirs)) in decided.verdicts.iter().zip(alone.iter()) {
+                    assert_eq!(mine.is_ok(), theirs.is_ok());
+                }
+            }
+        }
     }
 
     #[test]

@@ -784,12 +784,7 @@ impl PreparedSource {
         &self,
         executed: &[language_semantics::declaration_selection::ExecutedRootBinding],
     ) -> Result<Vec<language_semantics::declaration_selection::RootBinding>, Vec<Diagnostic>> {
-        if executed.is_empty() {
-            return Ok(Vec::new());
-        }
-        Err(vec![Diagnostic::error(
-            "no product route yet: product root binding admission",
-        )])
+        crate::root_bindings::collect_root_bindings(&self.typed, executed)
     }
 }
 
@@ -900,6 +895,7 @@ impl SourceCompilationRequest {
                     typing.complete_bodies(completed)
                 })?;
         }
+        PreCheckEvaluation::defer_declared_requests(typing.typed_mut())?;
         let pre_check = match retained_program {
             Some(previous) => pre_check.exclude_completed_work(typing.typed(), &previous)?,
             None => pre_check,

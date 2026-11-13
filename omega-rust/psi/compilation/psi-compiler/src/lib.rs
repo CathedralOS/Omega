@@ -23,6 +23,7 @@
 
 #![forbid(unsafe_code)]
 
+mod root_bindings;
 mod source_checking;
 mod source_compilation;
 pub(crate) mod source_parsing {
@@ -341,10 +342,10 @@ pub use source_compilation::{
 };
 
 pub use psi_terminal_production::{
-    AcceptedTerminalSource, PortableTerminalProgram, PreparedExternalProviderDeclarations,
-    PreparedTerminalRoots, ProducedBuildProvider, ProducedTerminalApplication,
-    ProducedTerminalProgram, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
-    PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
+    AcceptedTerminalSource, BuildCallSite, PortableTerminalProgram,
+    PreparedExternalProviderDeclarations, PreparedTerminalRoots, ProducedBuildProvider,
+    ProducedTerminalApplication, ProducedTerminalProgram, ProgramEntryTerminalReceiptError,
+    PsiCompilationObserver, PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
     TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
     TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
     TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,
