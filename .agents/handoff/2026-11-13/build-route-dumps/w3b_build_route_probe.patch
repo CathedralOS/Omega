@@ -1,0 +1,75 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 938973ef9df77..073a58d32e388 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -208,6 +208,7 @@ dependencies = [
+  "language-core",
+  "language-semantics",
+  "layout-plans",
++ "lowered-discharge",
+  "optimization-core",
+  "package-compilation",
+  "provider-admission",
+@@ -219,6 +220,7 @@ dependencies = [
+  "selected-dispatch",
+  "semantic-vocabulary",
+  "source",
++ "structure-elaboration",
+  "symbols",
+  "syntax-trees",
+  "target",
+diff --git a/omega-rust/omega/build-system/build-settings/Cargo.toml b/omega-rust/omega/build-system/build-settings/Cargo.toml
+index 7835f4d4451ba..85fc89a484044 100644
+--- a/omega-rust/omega/build-system/build-settings/Cargo.toml
++++ b/omega-rust/omega/build-system/build-settings/Cargo.toml
+@@ -44,3 +44,5 @@ symbols = { path = "../../../psi/foundation/symbols" }
+ typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
+ checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
+ build-declarations = { path = "../../packages/build-declarations" }
++lowered-discharge = { path = "../../../psi/compilation/pipeline/lowered-discharge" }
++structure-elaboration = { path = "../../../psi/compilation/pipeline/structure-elaboration" }
+diff --git a/omega-rust/omega/build-system/build-settings/src/activation/preparation.rs b/omega-rust/omega/build-system/build-settings/src/activation/preparation.rs
+index bd26fe9315c01..ff3de0a7282ad 100644
+--- a/omega-rust/omega/build-system/build-settings/src/activation/preparation.rs
++++ b/omega-rust/omega/build-system/build-settings/src/activation/preparation.rs
+@@ -67,6 +67,10 @@ impl PreparedBuildExecution {
+         let produced = production
+             .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+             .map_err(|error| error.diagnostics())?;
++        if let Some(path) = std::env::var_os("OMEGA_W3_BUILD_DUMP") {
++            let text = format!("{:#?}", produced.view().module());
++            eprintln!("W3-BUILD-DUMP: write {:?}", std::fs::write(path, text));
++        }
+         let providers = providers.admit(produced.view())?;
+ 
+         let measurement = crate::activation::measurement();
+diff --git a/omega-rust/omega/build-system/build-settings/src/admission/checking.rs b/omega-rust/omega/build-system/build-settings/src/admission/checking.rs
+index c018ff5def12a..6021af05bb584 100644
+--- a/omega-rust/omega/build-system/build-settings/src/admission/checking.rs
++++ b/omega-rust/omega/build-system/build-settings/src/admission/checking.rs
+@@ -293,6 +293,25 @@ pub(crate) fn prepare_checked_build(
+         execution_profile,
+         BuildPlanDemand::Admission,
+     )?;
++    if std::env::var_os("OMEGA_W3_BUILD_ROUTE").is_some() {
++        for verdict in lowered_discharge::judge_compilation(
++            &program,
++            structure_elaboration::Compilation {
++                entries: &[entry],
++                subject: None,
++                selected: &[],
++                bindings: &[],
++            },
++        ) {
++            let text = match &verdict {
++                Ok(lowered_discharge::RouteVerdict::Accepted(closure)) => {
++                    format!("ACCEPTED publish={:?}", closure.publish().map(|_| ()))
++                }
++                other => format!("{other:?}"),
++            };
++            eprintln!("W3-BUILD-ROUTE: {}", &text[..text.len().min(4000)]);
++        }
++    }
+     let SettledBuildPlans {
+         facts: selected_provider_plan_facts,
+         provenance,
