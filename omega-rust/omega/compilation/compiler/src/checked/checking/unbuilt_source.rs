@@ -161,11 +161,13 @@ fn frozen_frontier(
             external_roots: &[],
             layout_scopes: &layout_scopes,
             layout_selection_authority: None,
-            completion: validation::source_completion::SourceCompletionAdmission::None,
+            completion: typed_trees::boundary_completions::SourceCompletionAdmission::None,
             representations: psi_compiler::ProductRepresentationInput::default(),
-            asm_authority: Some(validation::AsmAuthorityAdmission::from_freestanding(
-                build.settings.freestanding,
-            )),
+            asm_authority: Some(
+                language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(
+                    build.settings.freestanding,
+                ),
+            ),
             wire_demands: &[],
             declarations: None,
         },

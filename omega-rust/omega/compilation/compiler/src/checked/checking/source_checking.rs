@@ -88,7 +88,7 @@ pub(crate) fn check_product_source(
             )
         }) {
             Some(binding) => {
-                validation::source_completion::SourceCompletionAdmission::AcceptedProcessExit {
+                typed_trees::boundary_completions::SourceCompletionAdmission::AcceptedProcessExit {
                     package: binding.package(),
                     declaration_path: binding.declaration_path(),
                 }
@@ -96,9 +96,9 @@ pub(crate) fn check_product_source(
             None if package_inputs
                 .is_some_and(PackageCompilationInputs::semantic_role_discovery) =>
             {
-                validation::source_completion::SourceCompletionAdmission::DiscoverProcessExit
+                typed_trees::boundary_completions::SourceCompletionAdmission::DiscoverProcessExit
             }
-            None => validation::source_completion::SourceCompletionAdmission::None,
+            None => typed_trees::boundary_completions::SourceCompletionAdmission::None,
         },
         representations: psi_compiler::ProductRepresentationInput {
             activation: computed_build_config.selected_build_machine_symbol,
@@ -107,11 +107,13 @@ pub(crate) fn check_product_source(
             retained: &build.opaque_representation_selections,
         },
         asm_authority: Some(
-            validation::AsmAuthorityAdmission::from_freestanding(build.settings.freestanding)
-                .with_grants(
-                    build.settings.privileged_services.port_io,
-                    build.settings.privileged_services.interrupt_table,
-                ),
+            language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(
+                build.settings.freestanding,
+            )
+            .with_grants(
+                build.settings.privileged_services.port_io,
+                build.settings.privileged_services.interrupt_table,
+            ),
         ),
         wire_demands: &build.wire_compatibility_demands,
         declarations: None,
