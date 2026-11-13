@@ -143,8 +143,7 @@ impl PreparedBuildMachineEntry {
         };
         let receipt = crate::evaluation_accounting::PureTerminalEvaluationReceipt::new(
             &accepted,
-            self.symbol,
-            self.requester,
+            self,
             arguments,
             produced,
             admitted,

@@ -3,7 +3,7 @@
 //! requirements; this constructor supplies no acceptance or source authority.
 
 use crate::BuildTimeValue;
-use symbols::{SymbolHandle, SymbolKind, SymbolTableBuilder};
+use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableCallExpression, TableStructLiteral,

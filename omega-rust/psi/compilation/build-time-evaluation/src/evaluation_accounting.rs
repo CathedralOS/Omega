@@ -315,14 +315,15 @@ pub struct PureTerminalEvaluationReceipt {
 impl PureTerminalEvaluationReceipt {
     pub(crate) fn new(
         accepted: &psi_terminal_production::AcceptedTerminalSource,
-        machine: symbols::SymbolHandle,
-        requester: symbols::SymbolHandle,
+        entry: &crate::PreparedBuildMachineEntry,
         arguments: &[BuildTimeValue],
         program: Arc<psi_terminal_production::ProducedTerminalProgram>,
         admission: terminal_installation::AdmittedCompilerEvaluation,
         outcome: PureTerminalEvaluationOutcome,
         usage: psi_work::WorkUsage,
     ) -> Result<Self, String> {
+        let machine = entry.symbol();
+        let requester = entry.requester();
         let entry = accepted
             .entry()
             .ok_or("evaluation receipt lost its accepted entry")?;
