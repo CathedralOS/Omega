@@ -886,11 +886,18 @@ mod tests {
         program.scope.push((
             fixture.parameter,
             ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(
-                semantic_vocabulary::IntegerType::U64,
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .unwrap(),
             )),
         ));
         let refusal = program.record_at(machine(), open).unwrap_err();
-        assert!(refusal.detail.contains("unresolved argument"), "{refusal:?}");
+        assert!(
+            refusal.detail.contains("unresolved argument"),
+            "{refusal:?}"
+        );
     }
 
     #[test]
