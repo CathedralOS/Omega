@@ -40,8 +40,9 @@ public boundary trait UefiBootServices {
         pages: u64,
         memory: &mut u64
     ) -> u64
-        reaches UefiBootServices;
-    machine free_pages(this: &EfiBootServicesTable, memory: u64, pages: u64) -> u64 reaches none;
+        reaches UefiBootServices
+        crashes none;
+    machine free_pages(this: &EfiBootServicesTable, memory: u64, pages: u64) -> u64 reaches none crashes none;
     machine get_memory_map(
         this: &EfiBootServicesTable,
         map_size: &mut u64,
@@ -49,9 +50,11 @@ public boundary trait UefiBootServices {
         key: &mut u64,
         descriptor_size: &mut u64,
         descriptor_version: &mut u32
-    ) -> u64 reaches none;
+    ) -> u64 reaches none
+        crashes none;
     machine exit_boot_services(this: &EfiBootServicesTable, image: u64, map_key: u64) -> u64
-        reaches UefiBootServices;
+        reaches UefiBootServices
+        crashes none;
 }
 
 // Canonical UEFI x64 Boot Services table prefix through `exit_boot_services`
@@ -135,9 +138,11 @@ uefi_x86_64 machine EfiBootServicesTable::exit_boot_services_leaf(
 // borrow their machinery.
 public boundary trait UefiOsHandoffTermination {
     machine transfer()
-        reaches UefiOsHandoffTermination;
+        reaches UefiOsHandoffTermination
+        crashes none;
     machine firmware_return(status: u64)
-        reaches UefiOsHandoffTermination;
+        reaches UefiOsHandoffTermination
+        crashes none;
 }
 
 // The generated edges the authored cycle's terminal stages resolve to. The

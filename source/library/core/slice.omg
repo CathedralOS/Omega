@@ -19,45 +19,53 @@ ensures result.len == end - start {
 // The remaining named views share one boundary trait. A selected implementation
 // must supply its complete row set; the slice stays an ordinary explicit argument.
 boundary trait SliceAccess {
-    machine Length<T>(items: &[T]) -> u64 reaches none;
+    machine Length<T>(items: &[T]) -> u64 reaches none crashes none;
 
     machine index_mut<T>(items: &mut [T], index: u64) -> &mut T
     reaches none
     requires
-        index < items.len;
+        index < items.len
+    crashes none;
 
     machine tail<T>(items: &[T]) -> &[T]
     reaches none
     requires
-        items.len > 0;
+        items.len > 0
+    crashes none;
 
     machine tail_mut<T>(items: &mut [T]) -> &mut [T]
     reaches none
     requires
-        items.len > 0;
+        items.len > 0
+    crashes none;
 
     machine from<T>(items: &[T], start: u64) -> &[T]
     reaches none
     requires
-        start <= items.len;
+        start <= items.len
+    crashes none;
 
     machine from_mut<T>(items: &mut [T], start: u64) -> &mut [T]
     reaches none
     requires
-        start <= items.len;
+        start <= items.len
+    crashes none;
 
     machine to<T>(items: &[T], end: u64) -> &[T]
     reaches none
     requires
-        end <= items.len;
+        end <= items.len
+    crashes none;
 
     machine to_mut<T>(items: &mut [T], end: u64) -> &mut [T]
     reaches none
     requires
-        end <= items.len;
+        end <= items.len
+    crashes none;
 
     machine range_mut<T>(items: &mut [T], start: u64, end: u64) -> &mut [T]
     reaches none
     requires
-        start <= end && end <= items.len;
+        start <= end && end <= items.len
+    crashes none;
 }

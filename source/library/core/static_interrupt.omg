@@ -31,7 +31,8 @@ requires machine Valid(accepted: bool, table: &Table) -> bool reaches none termi
 public boundary trait StaticInterruptWork<Context> {
     machine run(context: &Context)
     reaches MachineControl + PortIo
-    ensures false;
+    ensures false
+    crashes Trap;
 }
 
 // A stack view includes only usable words. Guards stay outside this exclusive

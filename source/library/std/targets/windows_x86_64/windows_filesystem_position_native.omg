@@ -22,11 +22,14 @@ boundary trait WindowsFilesystemPositionIo {
     machine object_access(handle: i64, information_class: u32, output: &mut WindowsNativeObjectBasicInfo, size: u32, returned: &mut u32) -> i32
     reaches none
     requires information_class == 0 && size == 56
-    blocks;
+    blocks
+    crashes none;
     machine reopen_read(handle: i64, desired_access: u32, sharing: u32, flags: u32) -> i64
     requires desired_access == 1048577 && sharing == 7 && flags == 0
-    reaches FilesystemContentRead blocks;
+    reaches FilesystemContentRead blocks
+    crashes none;
     machine reopen_write(handle: i64, desired_access: u32, sharing: u32, flags: u32) -> i64
     requires desired_access == 1048578 && sharing == 7 && flags == 0
-    reaches FilesystemContentWrite blocks;
+    reaches FilesystemContentWrite blocks
+    crashes none;
 }

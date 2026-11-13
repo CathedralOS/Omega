@@ -9,11 +9,11 @@ use omega::language::core::PrivateCallbackSlot;
 use omega::language::core::LayoutPlan::place_private;
 
 public boundary trait WindowProcedure {
-    machine call(message: u64) -> u64 reaches none;
+    machine call(message: u64) -> u64 reaches none crashes none;
 }
 
 public boundary trait UnusedProcedure {
-    machine call(message: u64) -> u64 reaches none;
+    machine call(message: u64) -> u64 reaches none crashes none;
 }
 
 
@@ -139,7 +139,8 @@ public boundary trait WindowRegistrar: Calling<RegistrarPolicyCallingPolicy> {
     )
     requires machine Selected satisfies WindowProcedure::call;
     requires machine SecondarySelected satisfies WindowProcedure::call;
-    reaches none;
+    reaches none
+    crashes none;
 }
 
 data Main { }

@@ -9,10 +9,12 @@ use omega::language::core::narrow_u32_to_i32_wrapping;
 // targets bind this same schema through their own package Build rows.
 boundary trait DarwinTimeRead {
     machine clock_nanoseconds(clock_id: u32) -> u64
-    reaches TimeHost;
+    reaches TimeHost
+    crashes none;
     machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
     reaches TimeHost
-    blocks;
+    blocks
+    crashes none;
 }
 
 public DarwinTimeHost satisfies TimeHost {

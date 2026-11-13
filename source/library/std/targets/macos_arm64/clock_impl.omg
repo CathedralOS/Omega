@@ -15,7 +15,8 @@ use omega::language::core::narrow_u32_to_i32_wrapping;
 boundary trait DarwinClockWait {
     machine poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32)
     reaches
-        Clock;
+        Clock
+    crashes none;
 }
 
 // Each wait is one poll with no descriptors, a bounded wait of its timeout.

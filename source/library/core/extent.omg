@@ -35,7 +35,8 @@ public boundary trait VacantContentTransfer {
     reaches none
     ensures
         result in Granted & Vacant,
-        core::Identity<IntervalSet<Nat>>(Granted::content(old(&storage)), Granted::content(&result));
+        core::Identity<IntervalSet<Nat>>(Granted::content(old(&storage)), Granted::content(&result))
+    crashes Trap crashes Abort;
 }
 
 // Vacancy is absence of live content over an exact range, independently of
@@ -213,7 +214,8 @@ public boundary trait ResidentContentTransfer<P, T> {
     reaches none
     ensures
         result in Granted & Resident<P, T>,
-        core::Identity<IntervalSet<Nat>>(Granted::content(old(&storage)), Granted::content(&result));
+        core::Identity<IntervalSet<Nat>>(Granted::content(old(&storage)), Granted::content(&result))
+    crashes Trap crashes Abort;
 }
 
 // Geometry is a transparent mathematical predicate. The endpoint lives in
@@ -248,7 +250,8 @@ public boundary trait ProgramStorageEntry {
     machine enter(
         image: Extent in Granted,
         initial_storage: Extent in Granted
-    ) reaches none;
+    ) reaches none
+        crashes Trap crashes Abort;
 }
 
 // Explicitly selected transport to this artifact's Build-bound continuation.
@@ -285,7 +288,8 @@ public boundary trait ExtentRootProvider {
     machine grant(root: Extent) -> Extent
     reaches none
     ensures
-        result in Extent::Granted;
+        result in Extent::Granted
+    crashes Trap crashes Abort;
 }
 
 data ExtentSlot {

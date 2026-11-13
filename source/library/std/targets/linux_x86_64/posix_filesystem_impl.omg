@@ -14,12 +14,12 @@ use omega::language::core::min_u64;
 
 // This native requirement application fixes its kernel calling convention.
 boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling> {
-    machine read(fd: i32, buffer: &mut [u8]) -> i64 reaches FilesystemContentRead;
-    machine write(fd: i32, bytes: &[u8]) -> i64 reaches FilesystemContentWrite;
-    machine pread64(fd: i32, buffer: &mut [u8], offset: i64) -> i64 reaches FilesystemContentRead;
-    machine pwrite64(fd: i32, bytes: &[u8], offset: i64) -> i64 reaches FilesystemContentWrite;
-    machine readlinkat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8]) -> i64 reaches FilesystemMetadataQuery;
-    machine getdents64(fd: i32, buffer: &mut [u8]) -> i64 reaches DirectoryEnumeration;
+    machine read(fd: i32, buffer: &mut [u8]) -> i64 reaches FilesystemContentRead crashes none;
+    machine write(fd: i32, bytes: &[u8]) -> i64 reaches FilesystemContentWrite crashes none;
+    machine pread64(fd: i32, buffer: &mut [u8], offset: i64) -> i64 reaches FilesystemContentRead crashes none;
+    machine pwrite64(fd: i32, bytes: &[u8], offset: i64) -> i64 reaches FilesystemContentWrite crashes none;
+    machine readlinkat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8]) -> i64 reaches FilesystemMetadataQuery crashes none;
+    machine getdents64(fd: i32, buffer: &mut [u8]) -> i64 reaches DirectoryEnumeration crashes none;
 }
 
 
@@ -28,49 +28,69 @@ boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling
 // `PosixFilesystemHost` requirement publishes this trait through `invokes`.
 boundary trait PosixFilesystemLinux {
     machine openat(dirfd: i32, path: &[u8; 4096], flags: i32, mode: i32) -> i32
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
     machine close(fd: i32) -> i32
-    reaches none;
+    reaches none
+    crashes none;
     machine lseek(fd: i32, offset: i64, whence: i32) -> i64
-    reaches none;
+    reaches none
+    crashes none;
     machine mkdirat(dirfd: i32, path: &[u8; 4096], mode: i32) -> i32
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
     // The kernel reads each NUL-terminated path, and `utimensat` reads two
     // timespecs, past the first byte. Every leaf therefore lends the whole
     // buffer the caller already built, the same extent `openat` publishes; a
     // one-byte address would not carry that extent to a host adapter.
     machine unlinkat(dirfd: i32, path: &[u8; 4096], flags: i32) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine fchmodat(dirfd: i32, path: &[u8; 4096], mode: u32) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
     machine fchmod(fd: i32, mode: u32) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
     machine renameat(from_dirfd: i32, from: &[u8; 4096], to_dirfd: i32, to: &[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine linkat(from_dirfd: i32, from: &[u8; 4096], to_dirfd: i32, to: &[u8; 4096], flags: i32) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine symlinkat(target: &[u8; 4096], link_dirfd: i32, link: &[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine newfstatat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8; 144], flags: i32) -> i32
-    reaches FilesystemMetadataQuery;
+    reaches FilesystemMetadataQuery
+    crashes none;
     machine fstat(fd: i32, buffer: &mut [u8; 144]) -> i32
-    reaches FilesystemMetadataQuery;
+    reaches FilesystemMetadataQuery
+    crashes none;
     machine ftruncate(fd: i32, length: i64) -> i32
-    reaches FilesystemContentWrite + FilesystemMetadataMutation;
+    reaches FilesystemContentWrite + FilesystemMetadataMutation
+    crashes none;
     machine utimensat(dirfd: i32, path: u64, times: &[u8; 32], flags: i32) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
     machine fsync(fd: i32) -> i32
-    reaches none;
+    reaches none
+    crashes none;
     machine fdatasync(fd: i32) -> i32
-    reaches none;
+    reaches none
+    crashes none;
     machine dup(fd: i32) -> i32
-    reaches none;
+    reaches none
+    crashes none;
     machine flock(fd: i32, operation: i32) -> i32
-    reaches none;
+    reaches none
+    crashes none;
     machine fchownat(dirfd: i32, path: &[u8; 4096], uid: i32, gid: i32, flags: i32) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
     machine fchown(fd: i32, uid: i32, gid: i32) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
 }
 linux_x86_64 machine PosixFilesystemNativeProvider::open(path: &[u8] in Path, flags: i32) -> i32
     satisfies PosixFilesystemHost::open

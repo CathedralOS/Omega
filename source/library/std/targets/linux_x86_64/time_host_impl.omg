@@ -34,10 +34,12 @@ public data LinuxX64TimeHostInstant { seconds: i64; nanoseconds: i64; }
 // one-member clock-wait traits; this trait owns the time-host read and wait.
 boundary trait LinuxX64TimeRead {
     machine clock_gettime(clock_id: u32, instant: &mut LinuxX64TimeHostInstant) -> i64
-    reaches TimeHost;
+    reaches TimeHost
+    crashes none;
     machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
     reaches TimeHost
-    blocks;
+    blocks
+    crashes none;
 }
 
 // `seconds * 1_000_000_000 + nanoseconds` in the Wrapping spelling
