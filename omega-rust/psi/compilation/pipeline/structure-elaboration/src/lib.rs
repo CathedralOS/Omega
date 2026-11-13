@@ -835,9 +835,21 @@ fn lower_generic_for(
                     detail: detail.to_owned(),
                 }
             })?;
-        // Planning records disposal; it does not establish ownership. The
-        // checker reconstructs unavailable uses and the complete edge schedule.
+        // Receiving storage may be intact or exactly vacated by a preceding
+        // move. Install the mode reconstructed from the final ownership
+        // frontier; source syntax alone cannot distinguish them. The checker
+        // independently reconstructs these modes and the disposal schedule.
         for block in &mut machine.blocks {
+            for operation in &mut block.operations {
+                if let terminal_psi::OperationKind::StoreStructuralField { disposition, .. } =
+                    &mut operation.kind
+                    && let Ok(position) = plan
+                        .stores
+                        .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+                {
+                    *disposition = plan.stores[position].1;
+                }
+            }
             use terminal_psi::Terminator;
             let append = |edge, actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>| {
                 actions.retain(|action| !plan.affine_roots.contains(action.place()));

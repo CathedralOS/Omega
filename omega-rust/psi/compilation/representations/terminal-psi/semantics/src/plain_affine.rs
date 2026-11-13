@@ -10,8 +10,8 @@ use semantic_vocabulary::{
     StructuralTypeId,
 };
 use terminal_psi::{
-    StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralTypeDeclaration,
-    TerminalAffineCleanupAction, TerminalMachine,
+    StructuralAccess, StructuralArgument, StructuralPathSegment, StructuralStoreDisposition,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalMachine,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,6 +36,9 @@ pub enum Error {
 pub struct Plan {
     pub affine_roots: IdSet<PlaceId>,
     pub cleanup: Vec<(EdgeId, Vec<TerminalAffineCleanupAction>)>,
+    /// Exact receiving regions determine whether a store fills a vacancy or
+    /// replaces intact discardable contents. Sorted by operation identity.
+    pub stores: Vec<(OperationId, StructuralStoreDisposition)>,
     pub unavailable: Vec<Unavailable>,
 }
 
@@ -216,6 +219,8 @@ struct Analysis<'a> {
     roots: Vec<Option<Root>>,
     unavailable: Vec<Unavailable>,
     unavailable_roots: Vec<Option<Site>>,
+    stores: Vec<(OperationId, StructuralStoreDisposition)>,
+    verify_stores: bool,
 }
 
 fn index(raw: u64) -> Result<usize, Error> {
@@ -321,8 +326,10 @@ fn live_entries(machine: &TerminalMachine) -> Result<Vec<IdSet<PlaceId>>, Error>
     }
 }
 
-/// Plans only no-code affine storage. Nominal hooks, conserved claims and
-/// borrowed extraction require their own contracts, rather than an empty plan.
+/// Plans only no-code affine storage, including each receiving region's store
+/// disposition. The producer installs these dispositions before verification.
+/// Nominal hooks, conserved claims and borrowed extraction require their own
+/// contracts, rather than an empty plan.
 pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> Result<Plan, Error> {
     analyze(machine, types, false)
 }
@@ -590,6 +597,8 @@ fn analyze(
         roots,
         unavailable: Vec::new(),
         unavailable_roots: Vec::new(),
+        stores: Vec::new(),
+        verify_stores: bound_output,
     };
     // Each block is entered with the frontier every arrival agrees on
     // (ownership.md, "Paths and control flow": predecessor paths must agree
@@ -651,9 +660,11 @@ fn analyze(
         }
     }
     cleanup.sort_by_key(|(edge, _)| *edge);
+    analysis.stores.sort_by_key(|(operation, _)| *operation);
     Ok(Plan {
         affine_roots,
         cleanup,
+        stores: analysis.stores,
         unavailable: analysis.unavailable,
     })
 }
@@ -680,7 +691,7 @@ impl Analysis<'_> {
             .filter(|block| block.id == block_id)
             .ok_or(Error::Malformed("block is not at its identity"))?;
         for operation in &block.operations {
-            self.operation(&mut state, operation)?;
+            self.operation(&mut state, operation, entering.is_some())?;
         }
         let site = Site::Edge(
             block
@@ -873,6 +884,7 @@ impl Analysis<'_> {
         &mut self,
         state: &mut State,
         operation: &terminal_psi::Operation,
+        settled: bool,
     ) -> Result<(), Error> {
         use terminal_psi::{OperationKind as Op, RecordFieldValue};
         let site = Site::Operation(operation.id);
@@ -954,22 +966,31 @@ impl Analysis<'_> {
                     if state.regions[index(destination.get())?].is_none() {
                         self.read(state, *destination, &path, site)?;
                     } else if let Some(region) = &mut state.regions[index(destination.get())?] {
-                        match disposition {
-                            terminal_psi::StructuralStoreDisposition::Vacant
-                                if !region.vacant(&path) =>
-                            {
-                                return Err(Error::Malformed(
-                                    "a vacant store displaces established affine contents",
-                                ));
-                            }
-                            terminal_psi::StructuralStoreDisposition::ReplaceDiscardable
-                                if !region.available(&path) =>
-                            {
+                        // Incoming frontiers shrink until all predecessor
+                        // paths agree. A join may dispose a field on the path
+                        // that still holds it, so classify stores only after
+                        // that agreement, never from a provisional arrival.
+                        if settled {
+                            let required = if region.available(&path) {
+                                StructuralStoreDisposition::ReplaceDiscardable
+                            } else if region.vacant(&path) {
+                                StructuralStoreDisposition::Vacant
+                            } else {
                                 return Err(Error::Unsupported(
-                                    "replacement of a vacated or partially moved region",
+                                    "replacement of a partially moved region",
                                 ));
+                            };
+                            if self.verify_stores && *disposition != required {
+                                return Err(Error::Malformed(match required {
+                                    StructuralStoreDisposition::Vacant => {
+                                        "an occupied replacement store targets vacated affine contents"
+                                    }
+                                    StructuralStoreDisposition::ReplaceDiscardable => {
+                                        "a vacant store displaces established affine contents"
+                                    }
+                                }));
                             }
-                            _ => {}
+                            self.stores.push((operation.id, required));
                         }
                         if !region.base && !path.is_empty() {
                             return Err(Error::Unsupported(
