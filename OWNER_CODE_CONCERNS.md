@@ -192,13 +192,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a new path segment kind needs five encoders and at least two decoders (`register-homes/src/recovery/structural_declarations.rs:714`, `selected-instructions/src/effects/program/encoding.rs:1654`) edited by hand, and nothing says which numbering is the reference
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Stage 01 builds its control-flow graph from two terminator kinds while every node already lists its successors
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/control_flow_analyses.rs:303-323` and `:195`, `.../src/semantic_analyses.rs:2241-2249`, against `.../optimization-unit/semantics/src/candidates.rs:3224-3238`
-- Saw: the stage 01 graph and its value liveness add edges only for `Jump` and `Conditional` (`_ => {}` for the rest), so `StructuralCase` arms get no edge; the rewrite validator's dominators, the sparse constant pass (`semantic_analyses.rs:1838`) and the cycle graph (`ranked_cycles_validation.rs:737-763`) do follow case arms; a third dominator solver sits in `optimization-unit/src/dominance.rs:53`
-- Cost: the stage that proposes rewrites and the crate that validates them disagree on which blocks are reachable and dominated; whether a function with a `StructuralCase` reaches the two-kind graph was not traced
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The Omega unit validator carries copies of two Terminal Psi codec checks
 - Category: one idea, several implementations
 - Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:17909` and `:17846`, against `omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs:8566` and `:11744`
