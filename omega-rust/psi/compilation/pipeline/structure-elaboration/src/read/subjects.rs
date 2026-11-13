@@ -290,8 +290,13 @@ impl<'t> Program<'t> {
         entry: MachineId,
         declared: &'t typed_trees::trait_definition::Conformance,
     ) -> Checked<()> {
-        let unserved =
-            |what| Err(refuse(entry, Construct::Machine, Unserved::Declaration(what)));
+        let unserved = |what| {
+            Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Declaration(what),
+            ))
+        };
         let typed = self.typed;
         let plain = declared.lifetime_parameters.is_empty()
             && declared.type_parameters.is_empty()

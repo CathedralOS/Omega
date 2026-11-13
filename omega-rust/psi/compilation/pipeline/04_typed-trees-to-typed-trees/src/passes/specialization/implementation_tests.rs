@@ -30,11 +30,12 @@ use typed_trees::machine::{GenericConformanceBound, Machine};
 use typed_trees::name::Identifier;
 use typed_trees::signature::StateSignature;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableLocalData, TableTransition, TransitionTargetNode};
+use typed_trees::statement::{
+    StatementNode, TableLocalData, TableTransition, TransitionTargetNode,
+};
 use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::trait_definition::{
-    Conformance, ConformanceRow, ConformanceRowSource, ImplementationValueIdentity,
-    TraitDefinition,
+    Conformance, ConformanceRow, ConformanceRowSource, ImplementationValueIdentity, TraitDefinition,
 };
 use typed_trees::types::TypeReferenceHandle;
 
@@ -308,7 +309,13 @@ fn source() -> Source {
         main_state,
         statements,
     );
-    let statements = vec![applied(&mut program, partial, partial_local, "Empty", empty)];
+    let statements = vec![applied(
+        &mut program,
+        partial,
+        partial_local,
+        "Empty",
+        empty,
+    )];
     push_machine(
         &mut program,
         partial,
