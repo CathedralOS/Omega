@@ -111,7 +111,9 @@ crashes Trap
         let policy: bool = row.domain == DomainBinding::Unqualified
             || row.domain == DomainBinding::Wrapping || row.domain == DomainBinding::Saturating
             || row.domain == DomainBinding::Trapping;
-        transition policy {
+        // Work entries are plain stored words. Re-establish their type-table
+        // bound before dispatching helpers that index the per-type arrays.
+        transition handle < 8192 && policy {
             true -> form(lowerer, syntax, typing, handle, row)
             _ -> unsupported(lowerer)
         }
