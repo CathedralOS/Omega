@@ -81,7 +81,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
         }),
         restricted_build_requests: Vec::new(),
         base_source_consumption_commitment: None,
-        provider_folded_constants: false,
+        constants: compilation_products::BuildConstants::default(),
     };
     let (mut built, build_sources) = build_continuation::complete_build_source(
         typed,

@@ -694,6 +694,13 @@ pub(crate) enum AppliedContracts {
     /// compilation with its parameters rigid, so for every type the caller
     /// can pass (`examine_generic_forms`). The rows are that form's
     /// obligations and are not judged a second time here.
+    ///
+    /// A requirement the form calls through an implementation parameter is
+    /// there the same way, as its contract with no body. What makes its
+    /// `ensures` true is each implementation's refinement witness, and the
+    /// same compilation judges the witness of every row its subject declares
+    /// and of every row its closure selects (`judge_compilation_for`), so
+    /// the requirement's rows are left to them.
     OwnCheckForms,
 }
 
@@ -740,6 +747,17 @@ fn examine(
             first,
             Construct::Machine,
             "machine generic parameters",
+        ))));
+    }
+    // Likewise the rows of the subject's implementations, each judged as
+    // its own refinement witness.
+    if !elaboration.conformance_witnesses.is_empty() {
+        let first = MachineId::new(1).expect("1 is nonzero");
+        return Err(Ok(RouteVerdict::FallBack(refusal(
+            RefusalReason::Unsupported,
+            first,
+            Construct::Machine,
+            "implementation rows without their refinement witnesses",
         ))));
     }
     let mut affine_unestablished = Vec::new();
@@ -812,7 +830,9 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
     let mut unestablished = affine_unestablished;
     let mut conflicts = Vec::new();
     for (machine, result) in discharged.machines.iter() {
-        if applied == AppliedContracts::OwnCheckForms && elaboration.applications.contains(&machine)
+        if applied == AppliedContracts::OwnCheckForms
+            && (elaboration.applications.contains(&machine)
+                || elaboration.requirements.contains(&machine))
         {
             continue;
         }
@@ -1025,7 +1045,11 @@ pub enum CompilationRefusal {
 
 /// The route's verdicts on everything `compilation` claims: the closure of
 /// its roots first, then the check form of each generic machine its subject
-/// declares, in declaration order, one per alternative for a finite family.
+/// declares, in declaration order, one per alternative for a finite family,
+/// then the refinement witness of each machine an implementation selects for
+/// a requirement, for every implementation its subject declares and every
+/// one its closure calls through (conformances.md, "Binding a machine to a
+/// requirement": the machine "refines the complete requirement").
 /// generics.md, "Static type equality": "An unspecialized body checks every
 /// admitted alternative; one consumer cannot authorize an otherwise invalid
 /// generic body." So each generic body is judged as written whether or not
@@ -1063,17 +1087,49 @@ pub fn judge_compilation_for(
         Err(defect) => return vec![Err(CompilationRefusal::Binding(defect))],
     }
     let elaborated = structure_elaboration::elaborate_for(typed, compilation, publication);
-    let (closure, templates) = match elaborated {
+    let (closure, templates, declared_rows) = match elaborated {
         Ok(mut elaboration) => {
             let templates = std::mem::take(&mut elaboration.generic_templates);
-            (Ok(elaboration), templates)
+            let declared_rows = std::mem::take(&mut elaboration.conformance_witnesses);
+            (Ok(elaboration), templates, declared_rows)
         }
-        Err(refused) => (Err(refused), Vec::new()),
+        Err(refused) => (Err(refused), Vec::new(), Vec::new()),
     };
     // The generic forms are discharged first, so that each machine of the
     // closure stage 04 generated from one of them takes the form's
     // certificates instead of a search of its own.
     let forms = examine_generic_forms(typed, templates);
+    // Every row the subject's implementations declare, then every row a
+    // machine of the closure selects that is not among them (an
+    // implementation another package declares): validation_subjects.md, a
+    // passed check means "every declaration they depend on is valid".
+    let mut rows: Vec<_> = declared_rows
+        .into_iter()
+        .map(|row| {
+            (
+                row.declaring_trait,
+                row.requirement,
+                Vec::new(),
+                row.implementation,
+            )
+        })
+        .collect();
+    if let Ok(closure) = &closure {
+        for selected in &closure.selections {
+            let Some(implementation) = closure.machines.get(selected.implementation) else {
+                continue;
+            };
+            let row = (
+                selected.declaring_trait,
+                selected.requirement,
+                selected.value_arguments.clone(),
+                *implementation,
+            );
+            if !rows.contains(&row) {
+                rows.push(row);
+            }
+        }
+    }
     let closure_verdict = match closure {
         Ok(closure) => {
             let witnesses = witnesses(typed, &closure, &forms);
@@ -1095,6 +1151,18 @@ pub fn judge_compilation_for(
         }
         .map_err(CompilationRefusal::Elaboration)
     }));
+    verdicts.extend(rows.into_iter().map(
+        |(declaring_trait, requirement, arguments, implementation)| {
+            judge(structure_elaboration::elaborate_witness(
+                typed,
+                declaring_trait,
+                requirement,
+                &arguments,
+                implementation,
+            ))
+            .map_err(CompilationRefusal::Elaboration)
+        },
+    ));
     verdicts
 }
 

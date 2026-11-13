@@ -541,9 +541,23 @@ own to defend. Say what you saw, not what you would build.
 - Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
 - Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
 
+### An implementation's refinement witness is built twice, and its dispatch row keeps fields nobody fills
+- Category: one idea built twice
+- Where: `lowered-discharge/src/verdict.rs` (`witnesses`, and the witness parts of `judge_compilation_for`); `typed-trees` (`StaticRequirementDispatch`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
+- Saw: "this machine refines that requirement" is elaborated and discharged once to carry a generic form's proofs into a generated machine, where a failure is silently skipped, and a second time as the part that gives the verdict; the two share `elaborate_witness` and nothing else. Separately, the dispatch a generated call carries has an application fingerprint, a commitment, a selection application and a contract signature that only the deleted checker filled, so the pass writes four of nine fields
+- Cost: every selected implementation is proved twice per compilation, and a reader of the dispatch cannot tell an empty commitment from one that was never computed
+- Reported: 2026-11-13, Claude Code, while serving implementation parameters in the specialization pass
+
 ### A typing unit test is red on `main` and nothing runs it before merge
 - Category: a test that pins nothing while it is red
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs`, `construction_destinations::tests::an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine`
 - Saw: at `6f829063b3ed7` the test fails with no local change: `owned = Record {}` is asserted to be built at the type handle written on `owned` and gets a different handle (index 3, not 1), so either landing now inserts an equal copy of the type or the assertion compares identity where it means equality
 - Cost: `mbx test -p symbol-resolved-trees-to-typed-trees --lib` cannot be clean for anyone changing typing, so a second regression in the same crate hides behind the first
 - Reported: 2026-11-13, Claude Code, while accounting for domain casts in typing
+
+### The Product admissions of a finished Build are signatures with nothing behind them
+- Category: a verdict with nothing behind it
+- Where: `build-time-evaluation/src/product.rs` (`native_bindings::collect`, `product_declarations::admit`, `product_policy::*`, `provider_declarations::collect_product_provider_selections`, `retain_provider_defaults`, `RetainedProviderSelection::rejoin`); callers in `psi-compiler/src/source_compilation.rs` (`admit_product_policy`) and `compiler/src/checked/checking/source_checking.rs`
+- Saw: the old checker's deletion left each admission as a function that takes the typed program and the Build activation, ignores both, and either refuses or returns an empty list. Until 2026-11-13 each refused any program whose Build ran at all, so six unrelated refusals stood between every project and its Product; the callers still prepare operands and thread results as if producers existed.
+- Cost: nobody can tell from the code which Build operations work; the unused parameters and the result types (`AdmittedProductDeclarations`, `NativeBindingSelection`) describe a design that has no implementation and will drift from whatever replaces it
+- Reported: 2026-11-13, Claude Code, while taking the witness's finished Build to its Product

@@ -43,22 +43,50 @@ const BUILD_SOURCE_JUDGMENT: StageMeta = StageMeta::new(
 );
 
 /*
-A Product frontier typed after Build ran holds the Build source again. Folding
-its constants there under the Build's provider plans needs the evaluator that
-owns pending constant work (`build_time_evaluation::PreCheckEvaluation`), which
-serves no job yet. Admission folds nothing, so the caller asks for this only
-when package inputs joined after Build ran.
+A Product frontier typed after Build ran holds the Build source again, with
+its constants unsettled. What the Build admission evaluated must be settled
+there too, or the Product would retain the constant and evaluate it for its
+own targets.
+
+The admission states what it owes (`BuildConstants`): whether it folded a
+constant under Build's provider plans, and which constants the module it
+accepted names, read from that module. When it folded nothing and the module
+names no constant, no evaluation of the Build program exists to repeat and
+the settlement is complete. Otherwise the rejoined slice needs the evaluator
+that owns pending constant work (`build_time_evaluation::PreCheckEvaluation`),
+which serves no job yet, so the settlement is refused naming the constants.
+That evaluator replaces the refusal: it receives the rejoined frontier, the
+Build entry there and the package inputs the Build was admitted under.
 */
 pub fn settle_rejoined_build_slice(
-    _input: psi_compiler::BuildSourceInput<'_>,
+    constants: &compilation_products::BuildConstants,
+    _rejoined: psi_compiler::BuildSourceInput<'_>,
     _entry: symbols::SymbolHandle,
     _packages: Option<&PackageCompilationInputs>,
     _dependency_activation: bool,
     _execution_profile: Option<target::TargetProfile>,
 ) -> Result<(), Vec<Diagnostic>> {
-    Err(vec![Diagnostic::error(
-        "no product route yet: settling Build constants on a rejoined Product frontier requires the constant evaluator",
-    )])
+    if !constants.folded_under_providers && constants.read.is_empty() {
+        return Ok(());
+    }
+    let mut refusals = constants
+        .read
+        .iter()
+        .map(|name| {
+            Diagnostic::error(format!(
+                "no product route yet: the Build program reads constant `{name}`, and settling \
+                 it on a Product frontier typed after Build ran requires the constant evaluator"
+            ))
+        })
+        .collect::<Vec<_>>();
+    if refusals.is_empty() {
+        refusals.push(Diagnostic::error(
+            "no product route yet: Build admission folded a constant under its provider plans, \
+             and settling it on a Product frontier typed after Build ran requires the constant \
+             evaluator",
+        ));
+    }
+    Err(refusals)
 }
 
 pub(crate) fn prepare_admitted_build(
@@ -71,7 +99,7 @@ pub(crate) fn prepare_admitted_build(
     (
         Arc<psi_compiler::AcceptedTerminalSource>,
         super::provider_execution::BuildProviderPlans,
-        bool, // A constant was folded under the provider plans.
+        compilation_products::BuildConstants,
     ),
     Vec<Diagnostic>,
 > {
@@ -102,9 +130,84 @@ pub(crate) fn prepare_admitted_build(
             "no product route yet: the accepted Build program has no declaration-selection admission for its package authority",
         )]);
     }
+    // Nothing is folded here (point 3 above), and the names come from the
+    // accepted module, so a later frontier can tell there is nothing to
+    // settle without assuming how this admission was reached.
+    let constants = compilation_products::BuildConstants {
+        folded_under_providers: false,
+        read: accepted.constants_read(),
+    };
     Ok((
         Arc::new(accepted),
         super::provider_execution::BuildProviderPlans::default(),
-        false,
+        constants,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::settle_rejoined_build_slice;
+    use compilation_products::BuildConstants;
+
+    fn settle(constants: &BuildConstants) -> Result<(), Vec<String>> {
+        let mut typed = typed_trees::TypedTrees::default();
+        let mut pre_checks = Vec::new();
+        settle_rejoined_build_slice(
+            constants,
+            psi_compiler::BuildSourceInput {
+                typed: &mut typed,
+                pre_checks: &mut pre_checks,
+            },
+            symbols::SymbolHandle::invalid(),
+            None,
+            false,
+            None,
+        )
+        .map_err(|refusals| {
+            refusals
+                .into_iter()
+                .map(|refusal| refusal.message)
+                .collect()
+        })
+    }
+
+    /// An admission that folded nothing, for a module that names no
+    /// constant, leaves a later Product frontier nothing to settle.
+    #[test]
+    fn a_build_that_evaluated_no_constant_has_nothing_to_settle() {
+        assert_eq!(settle(&BuildConstants::default()), Ok(()));
+    }
+
+    /// The twin: the accepted module names constants. Settling them needs
+    /// the evaluator, so each is refused by name.
+    #[test]
+    fn a_build_that_reads_constants_is_refused_naming_each() {
+        let refusals = settle(&BuildConstants {
+            folded_under_providers: false,
+            read: vec!["LIMIT".into(), "linux_x86_64".into()],
+        })
+        .unwrap_err();
+        assert_eq!(refusals.len(), 2);
+        assert!(
+            refusals[0].contains("reads constant `LIMIT`"),
+            "{refusals:?}"
+        );
+        assert!(refusals[1].contains("reads constant `linux_x86_64`"));
+        assert!(refusals.iter().all(|refusal| {
+            refusal.starts_with("no product route yet:")
+                && refusal.ends_with("requires the constant evaluator")
+        }));
+    }
+
+    /// A fold under provider plans is owed even when no name was recorded.
+    #[test]
+    fn a_provider_fold_is_refused_without_any_recorded_read() {
+        let refusals = settle(&BuildConstants {
+            folded_under_providers: true,
+            read: Vec::new(),
+        })
+        .unwrap_err();
+        assert_eq!(refusals.len(), 1);
+        assert!(refusals[0].contains("folded a constant under its provider plans"));
+    }
 }

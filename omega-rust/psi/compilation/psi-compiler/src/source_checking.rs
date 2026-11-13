@@ -63,15 +63,25 @@ pub struct ProductRepresentationInput<'request> {
 }
 
 impl ProductRepresentationInput<'_> {
-    pub(crate) fn require_absent(&self) -> Result<(), Vec<Diagnostic>> {
-        // The removed planner cannot supply authority for an authored activation,
-        // an unused request, an executed event, or a retained application. None
-        // may be dropped and presented to the lowered route as an empty choice.
-        if self.activation.is_some()
-            || !self.declared.is_empty()
-            || !self.executed.is_empty()
-            || !self.retained.is_empty()
-        {
+    /// Whether this Build asked for an opaque representation: it authored or
+    /// executed a representation selection, or an earlier admission retained
+    /// one. A Build activation that made other requests asks for none.
+    fn requested(&self) -> bool {
+        build_time_evaluation::build_requests_any(
+            self.declared,
+            self.executed,
+            &[language_semantics::declaration_selection::BuildOperation::RepresentationSelection],
+        ) || !self.retained.is_empty()
+    }
+
+    /// The planner that admitted an opaque representation was removed with
+    /// the old checker, and nothing on the lowered-form route admits one
+    /// yet. A program that asks for none owes that admission nothing. One
+    /// that asks, whether by an authored request it never ran, an executed
+    /// one, or a retained application, is refused: the request may not be
+    /// dropped and presented to the route as an empty choice.
+    pub(crate) fn require_none_requested(&self) -> Result<(), Vec<Diagnostic>> {
+        if self.requested() {
             return Err(vec![Diagnostic::error(
                 "no product route yet: opaque representation admission",
             )]);
@@ -100,7 +110,7 @@ impl SourcePreparationRequest<'_> {
                 "no product route yet: source selection authority admission",
             )]);
         }
-        self.admission.representations.require_absent()?;
+        self.admission.representations.require_none_requested()?;
         let mut program = self.program;
         typed_trees::boundary_completions::prepare_source_completion(
             &mut program,
@@ -195,13 +205,6 @@ mod tests {
         )];
         for (dimension, representations) in [
             (
-                "activation",
-                ProductRepresentationInput {
-                    activation: Some(symbols::SymbolHandle::invalid()),
-                    ..ProductRepresentationInput::default()
-                },
-            ),
-            (
                 "declared",
                 ProductRepresentationInput {
                     declared: &declared,
@@ -239,5 +242,43 @@ mod tests {
                 "{dimension} must reach the missing admission obligation",
             );
         }
+    }
+
+    /// The twin: a Build that ran and made requests, none of them a
+    /// representation selection, asks nothing of the missing admission.
+    #[test]
+    fn a_build_that_selects_no_representation_owes_no_representation_admission() {
+        use super::ProductRepresentationInput;
+        use language_semantics::declaration_selection::{
+            BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+        };
+
+        let request = std::sync::Arc::new(ProductDeclarationRequest {
+            source_span: source::SourceSpan::default(),
+            operation: BuildOperation::ServiceAudit,
+            operands: Box::new([]),
+        });
+        let declared = [std::sync::Arc::clone(&request)];
+        let executed = [ExecutedProductSelection {
+            static_environment: None,
+            target: None,
+            request,
+            selecting_machine: None,
+            composition: None,
+        }];
+        SourcePreparationRequest {
+            program: typed_trees::TypedTrees::default(),
+            admission: SourceAdmission {
+                representations: ProductRepresentationInput {
+                    activation: Some(symbols::SymbolHandle::invalid()),
+                    declared: &declared,
+                    executed: &executed,
+                    retained: &[],
+                },
+                ..SourceAdmission::default()
+            },
+        }
+        .prepare()
+        .expect("a Build without a representation selection prepares");
     }
 }
