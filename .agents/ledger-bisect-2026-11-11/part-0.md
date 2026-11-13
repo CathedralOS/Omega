@@ -18,7 +18,8 @@ Members: `pass/facts/open_const_implementation_statement_const_result_exit` `pas
 Good: `048ddee5ae40`
 Members: `pass/borrows/runtime_reassigned_view_capture_exit`
 
-| 1 | pass/run rejected | cannot prove ensures contract for exit from Selected::read at statement 0: result == Value | `pass/facts/open_const_implementation_private_record_package_exit` | `` |  |  | pending |
+| 1 | pass/run rejected | cannot prove ensures contract for exit from Selected::read at statement 0: result == Value | `pass/facts/open_const_implementation_private_record_package_exit` | `225426a7aeea` | 2045 | psi: support explicit identity in conversion laws (#2045) ({ omega-rust/omega/compilation/compiler/tests/support/identity_formations.rs,omega-rust/omega/compilation/compiler/tests/support/indexed_family_controls.rs,omega-rust/omega/compilation/compiler/tests/support/mathematical_actuals.rs }) | bisected |
+Good: `c2bf4573a2ba`
 Members: `pass/facts/open_const_implementation_private_record_package_exit`
 
 | 1 | pass/run rejected | cannot prove requires contract for call require_cell_value from Main::main: first >= 0 && first <= 100 (needs fact `valu | `pass/borrows/runtime_shared_reference_array_cohort_restoration_exit` | `` |  |  | pending |

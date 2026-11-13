@@ -157,7 +157,13 @@
         "pass/facts/open_const_implementation_private_record_package_exit"
       ],
       "bisect": {
-        "status": "pending"
+        "status": "bisected",
+        "good": "c2bf4573a2ba029214ebea6f9ba3cb6657fbcb29",
+        "first_bad": "225426a7aeeabfa4c945df67d3113dd27f46fb38",
+        "pr": "2045",
+        "mechanism": "psi: support explicit identity in conversion laws (#2045) ({ omega-rust/omega/compilation/compiler/tests/support/identity_formations.rs,omega-rust/omega/compilation/compiler/tests/support/indexed_family_controls.rs,omega-rust/omega/compilation/compiler/tests/support/mathematical_actuals.rs })",
+        "flaky_good": false,
+        "flaky_bad": false
       }
     },
     {
