@@ -34,9 +34,13 @@ use crate::provider_planning::entry_state;
 use build_time_evaluation::product_entries::{
     validate_source_compatibility, visible_entry_parameters,
 };
-use checked_trees::typed_trees;
 use checked_trees::typed_trees::TypedTrees;
-use checked_trees::typed_trees::product_operand::ProductEntryDeclaration;
+use checked_trees::typed_trees::callable_signature_shapes::{
+    BoundCallableShape, ParameterOccurrence,
+};
+use checked_trees::typed_trees::product_operand::{
+    ProductEntryDeclaration, core_arrival_requirement,
+};
 use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 pub use language_semantics::declaration_selection::RootBinding;
@@ -62,8 +66,7 @@ pub struct SelectedProgramEntry<'config> {
 pub fn bound_program_entry_shapes(
     typed: &TypedTrees,
     bindings: &[RootBinding],
-) -> Result<Vec<typed_trees::callable_signature_shapes::BoundCallableShape>, Vec<Diagnostic>> {
-    use typed_trees::callable_signature_shapes::{BoundCallableShape, ParameterOccurrence};
+) -> Result<Vec<BoundCallableShape>, Vec<Diagnostic>> {
     let mut shapes = Vec::with_capacity(bindings.len());
     for binding in bindings {
         let resolved = (|| -> Result<_, Diagnostic> {
@@ -80,11 +83,8 @@ pub fn bound_program_entry_shapes(
                     Diagnostic::error(format!("unsupported program root slot `{}`", binding.slot))
                 })?;
             let (requirement_owner, requirement) =
-                typed_trees::product_operand::core_arrival_requirement(
-                    typed,
-                    slot.semantic_arrival_requirement,
-                )
-                .map_err(Diagnostic::error)?;
+                core_arrival_requirement(typed, slot.semantic_arrival_requirement)
+                    .map_err(Diagnostic::error)?;
             let visible_parameters = match slot.source_contract().visible_parameters {
                 semantic_vocabulary::ProgramEntryVisibleParameters::None => Vec::new(),
                 semantic_vocabulary::ProgramEntryVisibleParameters::ImageAndInitialStorage => typed
