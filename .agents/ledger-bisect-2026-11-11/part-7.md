@@ -18,13 +18,62 @@ The binary-search culprits, including any ledger-only commit, are withdrawn.
 
 | cluster | good | first bad (PIN diagnostic) | stops matching | PR | triple at bad | triple at parent |
 | --- | --- | --- | --- | ---: | --- | --- |
-| countdown | `68b1302cf9ebc2a9297840db1deb3b6993b6ac3d` | `` | `` |  | `None` | `None` |
+| countdown | `68b1302cf9ebc2a9297840db1deb3b6993b6ac3d` | `b9f7b5f007015207843632512dbf4311bf36b3d9` | `b9f7b5f007015207843632512dbf4311bf36b3d9` | 1113 | `[1, 1, 1]` | `[0, 0, 0]` |
 
-Witness `pass/termination/measure_field_computed_limit` status `bisect-inconclusive`.
+Witness `pass/termination/measure_field_computed_limit` status `bisected`.
+First-bad parent `ca20d0c585423571631b838f511d71ab4040416b`.
+- `pass/termination/measure_computed_endpoint` at good `0`, at first bad `1`: terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
+- `pass/termination/measure_field_computed_limit` at good `0`, at first bad `1`: terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view
 
-Hunk ``:
+Hunk `omega-rust/psi/compilation/checking/src/lib.rs`:
 ```diff
-mechanism not established
+     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
+     LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
+@@ -482,43 +482,44 @@ pub use proof_contracts::contract_entailment::collection_bounds::CollectionBound
+ pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
+ pub use proof_contracts::contract_entailment::law_conformance::{
+     InheritedRequirementApplication, inherited_requirement_proposition_application,
+     inherited_requirement_proposition_label, inherited_satisfier_parameters,
+ };
+ pub use proof_contracts::contract_entailment::law_conformance::{
+     MatchedLawGuarantee, matched_machine_law_guarantees,
+ };
+ pub use proof_contracts::contract_entailment::proof_integer::{
+     anonymous_integer_math_literal, proof_integer_expression,
+ };
+ pub use proof_contracts::contract_entailment::ranking_range::{
+-    ArithmeticCallObservation, CapturedRankEntry, RankArrivalCompatibility,
+-    RankArrivalCorrespondence, RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport,
+-    RankLocalCapture, RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation,
+-    RankProtectedPath, RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate,
+-    RankValueDerivation, RankingRangeEdgeProof, RankingRangeEntryProof, RankingRangeMeasure,
+-    RankingRangePremises, RankingRangeState, StateEntryCorrespondence,
++    ArithmeticCallObservation, CapturedRankApplicationInput, CapturedRankEntry,
++    RankArrivalCompatibility, RankArrivalCorrespondence, RankArrivalDemand, RankCoordinateBinding,
++    RankCoordinateTransport, RankLocalCapture, RankPremiseCoordinate, RankPremiseInput,
++    RankPremiseObservation, RankProtectedPath, RankReceivingCoordinate, RankStateBindings,
++    RankSubjectCoordinate, RankValueDerivation, RankingRangeEdgeProof, RankingRangeEntryProof,
++    RankingRangeMeasure, RankingRangePremises, RankingRangeState, StateEntryCorrespondence,
+     arithmetic_entry_requirement_is_covered, discover_rank_arrival_correspondence,
+     frame_preserves_rank_premises, protect_rank_premise, prove_arithmetic_call_requirement,
+     prove_captured_arithmetic_call_requirement, prove_captured_ranking_range_entry,
+     prove_captured_ranking_range_entry_with_formation, prove_ranking_range_edge,
+     prove_ranking_range_entry, prove_ranking_range_entry_with_formation,
+     prove_ranking_range_transition, rank_protected_path, ranking_coordinate_type,
+     ranking_range_arrival_preserves_roles, ranking_range_premise_symbols,
+     ranking_range_required_coordinates, ranking_range_state_premise_coordinates,
+     ranking_slice_length_observation, select_rank_arrival_correspondence,
+ };
+ pub use proof_contracts::contract_entailment::ranking_range::{
+-    ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,
+-    ScalarViewComputation, computation_body_shape, declared_scalar_view, find_declared_measure,
++    ComputationBodyShape, DeclaredInputRead, DeclaredInputShape, DeclaredScalarView,
++    MeasureBodyShape, ProjectionStep, ScalarViewComputation, computation_body_shape,
++    declared_input_shape, declared_input_type_matches, declared_scalar_view, find_declared_measure,
+     identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
+ };
+ pub use proof_contracts::contract_entailment::refuted_requires::instantiated_value_call_requires_proven;
+ pub use proof_contracts::contract_entailment::scoped_arithmetic::{
 ```
 
 | family | pending | pending | pending |  |  |  |

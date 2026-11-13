@@ -73,8 +73,36 @@
     "pin_rc": 1,
     "good": "68b1302cf9ebc2a9297840db1deb3b6993b6ac3d",
     "bisect_log": "# bad: [51e8c45c793007f211d0d9baee7de16767172444] psi: check a body over a const value parameter once and carry its proofs (#2505)\n# good: [68b1302cf9ebc2a9297840db1deb3b6993b6ac3d] build: resume provider readiness through dependency acquisition (#324)\ngit bisect start '--first-parent' '51e8c45c793007f211d0d9baee7de16767172444' '68b1302cf9ebc2a9297840db1deb3b6993b6ac3d'\n# bad: [a48219f5cf97b2d7d766d07c48e1d8946a2b6477] compiler: complete Windows raw filesystem metadata (#1401)\ngit bisect bad a48219f5cf97b2d7d766d07c48e1d8946a2b6477\n# good: [d583ba3cce4d4b55c05402bcc2727f1b2342d2bb] compiler: retain complete callback declarations before provider policy (#912)\ngit bisect good d583ba3cce4d4b55c05402bcc2727f1b2342d2bb\n# bad: [923f14ed0e20d7ff63e310ce30a8d6d329da76b7] samples: select recursive-bound implementations through Build (#1174)\ngit bisect bad 923f14ed0e20d7ff63e310ce30a8d6d329da76b7\n# good: [aea6289579e399b931161740f7ffd6f770c78830] psi: retain scoped context in callable and local-plan refusals (#1039)\ngit bisect good aea6289579e399b931161740f7ffd6f770c78830\n# good: [378cdc0281b04adc2f6a87a982a26cc16fd8dc02] psi: pin the initial-arrival twin to the disproved-fact wording (#1104)\ngit bisect good 378cdc0281b04adc2f6a87a982a26cc16fd8dc02\n# bad: [53d74019edb439b66952e5ada3b8beac1a18adb3] psi: admit callable machine binders on transparent aliases (#1135)\ngit bisect bad 53d74019edb439b66952e5ada3b8beac1a18adb3\n# bad: [a562d4060f10adc07996065e4273fcb558d51a68] psi: record a forwarded provider's authored template and tuple (#1115)\ngit bisect bad a562d4060f10adc07996065e4273fcb558d51a68\n# bad: [3c587bb6f746edc199308b5049177c2f85728182] psi: walk expression subtrees through one production edge roster (#1118)\ngit bisect bad 3c587bb6f746edc199308b5049177c2f85728182\n# good: [a1efeec13edaa54d0acf794a24dcd527ca10d495] psi: default and named case predicates share one judgment (#1097)\ngit bisect good a1efeec13edaa54d0acf794a24dcd527ca10d495\n# bad: [b9f7b5f007015207843632512dbf4311bf36b3d9] psi: retain typed inputs for declared integer rank applications (#1113)\ngit bisect bad b9f7b5f007015207843632512dbf4311bf36b3d9\n# good: [ca20d0c585423571631b838f511d71ab4040416b] psi: consolidate integer interval and premise reasoning (#1098)\ngit bisect good ca20d0c585423571631b838f511d71ab4040416b\n# first bad commit: [b9f7b5f007015207843632512dbf4311bf36b3d9] psi: retain typed inputs for declared integer rank applications (#1113)",
-    "first_bad": null,
-    "status": "bisect-inconclusive"
+    "first_bad": "b9f7b5f007015207843632512dbf4311bf36b3d9",
+    "first_bad_parent": "ca20d0c585423571631b838f511d71ab4040416b",
+    "pr": "1113",
+    "triple_bad": [
+      1,
+      1,
+      1
+    ],
+    "triple_parent": [
+      0,
+      0,
+      0
+    ],
+    "member_results": {
+      "pass/termination/measure_computed_endpoint": {
+        "at_good": 0,
+        "at_bad": 1,
+        "diag_at_bad": "terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view"
+      },
+      "pass/termination/measure_field_computed_limit": {
+        "at_good": 0,
+        "at_bad": 1,
+        "diag_at_bad": "terminating machine walk: cannot prove rank range `0..countdown.limit + 1` for the rank produced by the selected view"
+      }
+    },
+    "splits": [],
+    "hunk_file": "omega-rust/psi/compilation/checking/src/lib.rs",
+    "hunk": "     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,\n     LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,\n@@ -482,43 +482,44 @@ pub use proof_contracts::contract_entailment::collection_bounds::CollectionBound\n pub use proof_contracts::contract_entailment::is_arm_pattern_marker;\n pub use proof_contracts::contract_entailment::law_conformance::{\n     InheritedRequirementApplication, inherited_requirement_proposition_application,\n     inherited_requirement_proposition_label, inherited_satisfier_parameters,\n };\n pub use proof_contracts::contract_entailment::law_conformance::{\n     MatchedLawGuarantee, matched_machine_law_guarantees,\n };\n pub use proof_contracts::contract_entailment::proof_integer::{\n     anonymous_integer_math_literal, proof_integer_expression,\n };\n pub use proof_contracts::contract_entailment::ranking_range::{\n-    ArithmeticCallObservation, CapturedRankEntry, RankArrivalCompatibility,\n-    RankArrivalCorrespondence, RankArrivalDemand, RankCoordinateBinding, RankCoordinateTransport,\n-    RankLocalCapture, RankPremiseCoordinate, RankPremiseInput, RankPremiseObservation,\n-    RankProtectedPath, RankReceivingCoordinate, RankStateBindings, RankSubjectCoordinate,\n-    RankValueDerivation, RankingRangeEdgeProof, RankingRangeEntryProof, RankingRangeMeasure,\n-    RankingRangePremises, RankingRangeState, StateEntryCorrespondence,\n+    ArithmeticCallObservation, CapturedRankApplicationInput, CapturedRankEntry,\n+    RankArrivalCompatibility, RankArrivalCorrespondence, RankArrivalDemand, RankCoordinateBinding,\n+    RankCoordinateTransport, RankLocalCapture, RankPremiseCoordinate, RankPremiseInput,\n+    RankPremiseObservation, RankProtectedPath, RankReceivingCoordinate, RankStateBindings,\n+    RankSubjectCoordinate, RankValueDerivation, RankingRangeEdgeProof, RankingRangeEntryProof,\n+    RankingRangeMeasure, RankingRangePremises, RankingRangeState, StateEntryCorrespondence,\n     arithmetic_entry_requirement_is_covered, discover_rank_arrival_correspondence,\n     frame_preserves_rank_premises, protect_rank_premise, prove_arithmetic_call_requirement,\n     prove_captured_arithmetic_call_requirement, prove_captured_ranking_range_entry,\n     prove_captured_ranking_range_entry_with_formation, prove_ranking_range_edge,\n     prove_ranking_range_entry, prove_ranking_range_entry_with_formation,\n     prove_ranking_range_transition, rank_protected_path, ranking_coordinate_type,\n     ranking_range_arrival_preserves_roles, ranking_range_premise_symbols,\n     ranking_range_required_coordinates, ranking_range_state_premise_coordinates,\n     ranking_slice_length_observation, select_rank_arrival_correspondence,\n };\n pub use proof_contracts::contract_entailment::ranking_range::{\n-    ComputationBodyShape, DeclaredScalarView, MeasureBodyShape, ProjectionStep,\n-    ScalarViewComputation, computation_body_shape, declared_scalar_view, find_declared_measure,\n+    ComputationBodyShape, DeclaredInputRead, DeclaredInputShape, DeclaredScalarView,\n+    MeasureBodyShape, ProjectionStep, ScalarViewComputation, computation_body_shape,\n+    declared_input_shape, declared_input_type_matches, declared_scalar_view, find_declared_measure,\n     identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,\n };\n pub use proof_contracts::contract_entailment::refuted_requires::instantiated_value_call_requires_proven;\n pub use proof_contracts::contract_entailment::scoped_arithmetic::{",
+    "stops_matching": "b9f7b5f007015207843632512dbf4311bf36b3d9",
+    "status": "bisected"
   },
   "_last": "countdown"
 }
