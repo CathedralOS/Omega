@@ -113,8 +113,10 @@ pub(crate) fn retained_scoped_source_input(
     available.insert(Vec::new(), &root);
     let selected = filesystem_authority::select_source_members(
         request,
-        CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
-        FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
+        (
+            CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
+            FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
+        ),
         |path| Ok(available.get(path).copied()),
         |entry| matches!(entry, CapturedSourceEntry::Directory),
         |path| {
@@ -131,7 +133,8 @@ pub(crate) fn retained_scoped_source_input(
                 .map(|(child, _)| child.clone())
                 .collect())
         },
-        std::convert::identity,
+        |path| filesystem_authority::canonical_filesystem_metadata_path_is_canonical(path, false),
+        |reason| reason.to_string(),
     )?;
     require_source_members(&selected, required_members)?;
     retained_entries_input(
@@ -367,8 +370,10 @@ fn capture_scoped_rows<T>(
 ) -> Result<(CanonicalFilesystemMetadataIndex, Vec<(Vec<u8>, T)>), String> {
     let selected = filesystem_authority::select_source_members(
         request,
-        CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
-        FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
+        (
+            CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
+            FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
+        ),
         |relative| {
             let path = join_capture_path(&canonical_root, relative)?;
             match std::fs::symlink_metadata(path) {
@@ -404,7 +409,8 @@ fn capture_scoped_rows<T>(
             }
             Ok(child_paths)
         },
-        std::convert::identity,
+        |path| filesystem_authority::canonical_filesystem_metadata_path_is_canonical(path, false),
+        |reason| reason.to_string(),
     )?;
     let mut rows = BTreeMap::new();
     let mut retained = Vec::new();

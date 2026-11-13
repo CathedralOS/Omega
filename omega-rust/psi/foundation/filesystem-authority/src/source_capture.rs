@@ -73,29 +73,81 @@ impl SourceCaptureRequest {
     }
 }
 
+/// A selection failure generated independently of the metadata provider.
+/// Typed provider errors pass through unchanged; callers classify these variants
+/// without parsing their diagnostic text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SourceSelectionError {
+    RootNotDirectory,
+    RowLimit { limit: usize },
+    PathByteLimit { limit: usize },
+    MissingRequired { path: Vec<u8> },
+    MemberDisappeared { path: Vec<u8> },
+    NoncanonicalPath { path: Vec<u8> },
+    DuplicatePath { path: Vec<u8> },
+}
+
+impl std::fmt::Display for SourceSelectionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::RootNotDirectory => {
+                formatter.write_str("canonical Source root is not a directory")
+            }
+            Self::RowLimit { limit } => write!(
+                formatter,
+                "canonical Source metadata exceeds its {limit}-row ceiling"
+            ),
+            Self::PathByteLimit { limit } => write!(
+                formatter,
+                "canonical Source metadata path bytes exceed {limit}"
+            ),
+            Self::MissingRequired { path } => write!(
+                formatter,
+                "required source capture entry `{}` is absent",
+                String::from_utf8_lossy(path)
+            ),
+            Self::MemberDisappeared { path } => write!(
+                formatter,
+                "source capture member `{}` disappeared during capture",
+                String::from_utf8_lossy(path)
+            ),
+            Self::NoncanonicalPath { path } => {
+                write!(formatter, "Source path is not canonical metadata: {path:?}")
+            }
+            Self::DuplicatePath { path } => {
+                write!(formatter, "Source selection duplicated a path: {path:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SourceSelectionError {}
+
 /// Selects metadata without enumerating siblings of explicitly selected files.
 ///
 /// `children` supplies the direct canonical children of a selected directory;
 /// `lookup` supplies metadata without following a non-directory ancestor.
-/// The root counts toward `row_limit`, and every admitted non-root path counts
-/// toward `path_byte_limit`, including ancestors of selected members.
+/// `limits` is `(row_limit, path_byte_limit)`. The root counts toward the row
+/// budget; every admitted non-root path, including ancestors, counts toward
+/// the path-byte budget. `validate_path` preserves the caller's path profile:
+/// Build metadata uses portable canonical paths while native acquisition may
+/// admit native filename bytes. User request entries remain portable.
 pub fn select_source_members<Member, Error>(
     request: &SourceCaptureRequest,
-    row_limit: usize,
-    path_byte_limit: usize,
+    limits: (usize, usize),
     mut lookup: impl FnMut(&[u8]) -> Result<Option<Member>, Error>,
     is_directory: impl Fn(&Member) -> bool,
     mut children: impl FnMut(&[u8]) -> Result<Vec<Vec<u8>>, Error>,
-    selection_error: impl Fn(String) -> Error,
+    validate_path: impl Fn(&[u8]) -> bool,
+    selection_error: impl Fn(SourceSelectionError) -> Error,
 ) -> Result<BTreeMap<Vec<u8>, Member>, Error> {
+    let (row_limit, _) = limits;
     if row_limit == 0 {
-        return Err(selection_error(
-            "canonical Source metadata exceeds its 0-row ceiling".to_owned(),
-        ));
+        return Err(selection_error(SourceSelectionError::RowLimit { limit: 0 }));
     }
     let root = lookup(&[])?
         .filter(&is_directory)
-        .ok_or_else(|| selection_error("canonical Source root is not a directory".to_owned()))?;
+        .ok_or_else(|| selection_error(SourceSelectionError::RootNotDirectory))?;
     let mut selected = BTreeMap::from([(Vec::new(), root)]);
     let mut pending = Vec::new();
     let mut aggregate_path_bytes = 0usize;
@@ -127,11 +179,11 @@ pub fn select_source_members<Member, Error>(
             };
             charge_scoped_member(
                 &selected,
-                row_limit,
-                path_byte_limit,
+                limits,
                 pending.len(),
                 &mut aggregate_path_bytes,
                 ancestor,
+                &validate_path,
             )
             .map_err(&selection_error)?;
             selected.insert(ancestor.to_vec(), member);
@@ -141,20 +193,19 @@ pub fn select_source_members<Member, Error>(
             Some(member) => {
                 charge_scoped_member(
                     &selected,
-                    row_limit,
-                    path_byte_limit,
+                    limits,
                     pending.len(),
                     &mut aggregate_path_bytes,
                     declared,
+                    &validate_path,
                 )
                 .map_err(&selection_error)?;
                 pending.push((declared.to_vec(), member));
             }
             None if obligation == SourceCaptureObligation::Required => {
-                return Err(selection_error(format!(
-                    "required source capture entry `{}` is absent",
-                    String::from_utf8_lossy(declared)
-                )));
+                return Err(selection_error(SourceSelectionError::MissingRequired {
+                    path: declared.to_vec(),
+                }));
             }
             None => {}
         }
@@ -164,26 +215,25 @@ pub fn select_source_members<Member, Error>(
             for child in children(&path)? {
                 charge_scoped_member(
                     &selected,
-                    row_limit,
-                    path_byte_limit,
+                    limits,
                     pending.len() + 1,
                     &mut aggregate_path_bytes,
                     &child,
+                    &validate_path,
                 )
                 .map_err(&selection_error)?;
                 let member = lookup(&child)?.ok_or_else(|| {
-                    selection_error(format!(
-                        "source capture member `{}` disappeared during capture",
-                        String::from_utf8_lossy(&child)
-                    ))
+                    selection_error(SourceSelectionError::MemberDisappeared {
+                        path: child.clone(),
+                    })
                 })?;
                 pending.push((child, member));
             }
         }
         if selected.insert(path.clone(), member).is_some() {
-            return Err(selection_error(format!(
-                "Source selection duplicated a path: {path:?}"
-            )));
+            return Err(selection_error(SourceSelectionError::DuplicatePath {
+                path,
+            }));
         }
     }
     Ok(selected)
@@ -191,28 +241,31 @@ pub fn select_source_members<Member, Error>(
 
 fn charge_scoped_member<Member>(
     selected: &BTreeMap<Vec<u8>, Member>,
-    row_limit: usize,
-    path_byte_limit: usize,
+    limits: (usize, usize),
     pending_count: usize,
     aggregate_path_bytes: &mut usize,
     path: &[u8],
-) -> Result<(), String> {
+    validate_path: &impl Fn(&[u8]) -> bool,
+) -> Result<(), SourceSelectionError> {
+    let (row_limit, path_byte_limit) = limits;
     if selected
         .len()
         .checked_add(pending_count)
         .is_none_or(|count| count >= row_limit)
     {
-        return Err(format!(
-            "canonical Source metadata exceeds its {row_limit}-row ceiling"
-        ));
+        return Err(SourceSelectionError::RowLimit { limit: row_limit });
     }
-    if !crate::canonical_filesystem_metadata_path_is_canonical(path, false) {
-        return Err(format!("Source path is not canonical metadata: {path:?}"));
+    if !validate_path(path) {
+        return Err(SourceSelectionError::NoncanonicalPath {
+            path: path.to_vec(),
+        });
     }
     *aggregate_path_bytes = aggregate_path_bytes
         .checked_add(path.len())
         .filter(|bytes| *bytes <= path_byte_limit)
-        .ok_or_else(|| format!("canonical Source metadata path bytes exceed {path_byte_limit}"))?;
+        .ok_or(SourceSelectionError::PathByteLimit {
+            limit: path_byte_limit,
+        })?;
     Ok(())
 }
 
@@ -252,8 +305,7 @@ mod tests {
     ) -> Result<BTreeMap<Vec<u8>, bool>, String> {
         select_source_members(
             request,
-            rows,
-            path_bytes,
+            (rows, path_bytes),
             |path| Ok(tree.get(path).copied()),
             |directory| *directory,
             |path| {
@@ -271,7 +323,8 @@ mod tests {
                     .cloned()
                     .collect())
             },
-            std::convert::identity,
+            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+            |reason| reason.to_string(),
         )
     }
 
@@ -281,15 +334,15 @@ mod tests {
         let looked_up = RefCell::new(Vec::new());
         let selected = select_source_members(
             &request(&[(b"src/main.omg", SourceCaptureObligation::Required)]),
-            3,
-            15,
+            (3, 15),
             |path| {
                 looked_up.borrow_mut().push(path.to_vec());
                 Ok(tree.get(path).copied())
             },
             |directory| *directory,
             |_| panic!("a file selection must not enumerate its parent directory"),
-            std::convert::identity,
+            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+            |reason| reason.to_string(),
         )
         .unwrap();
         let expected = [b"".to_vec(), b"src".to_vec(), b"src/main.omg".to_vec()];
@@ -412,8 +465,7 @@ mod tests {
         let select_children = |children: Vec<Vec<u8>>, missing: bool| {
             select_source_members(
                 &request,
-                10,
-                100,
+                (10, 100),
                 |path| {
                     Ok(match path {
                         b"" | b"src" => Some(true),
@@ -423,7 +475,8 @@ mod tests {
                 },
                 |directory| *directory,
                 |_| Ok(children.clone()),
-                std::convert::identity,
+                |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+                |reason| reason.to_string(),
             )
         };
         assert_eq!(
@@ -446,43 +499,116 @@ mod tests {
         enum Failure {
             LookupChanged,
             DirectoryChanged,
-            Selection(String),
+            Selection(SourceSelectionError),
         }
         let lookup = select_source_members(
             &SourceCaptureRequest::entire_tree(),
-            10,
-            100,
+            (10, 100),
             |_| Err::<Option<bool>, _>(Failure::LookupChanged),
             |directory| *directory,
             |_| unreachable!(),
+            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
             Failure::Selection,
         )
         .unwrap_err();
         assert_eq!(lookup, Failure::LookupChanged);
         let directory = select_source_members(
             &SourceCaptureRequest::entire_tree(),
-            10,
-            100,
+            (10, 100),
             |_| Ok(Some(true)),
             |directory| *directory,
             |_| Err(Failure::DirectoryChanged),
+            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
             Failure::Selection,
         )
         .unwrap_err();
         assert_eq!(directory, Failure::DirectoryChanged);
         let missing = select_source_members(
             &request(&[(b"main.omg", SourceCaptureObligation::Required)]),
-            10,
-            100,
+            (10, 100),
             |path| Ok(path.is_empty().then_some(true)),
             |directory| *directory,
             |_| unreachable!(),
+            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
             Failure::Selection,
         )
         .unwrap_err();
         assert_eq!(
             missing,
-            Failure::Selection("required source capture entry `main.omg` is absent".to_owned())
+            Failure::Selection(SourceSelectionError::MissingRequired {
+                path: b"main.omg".to_vec()
+            })
         );
+    }
+
+    #[test]
+    fn callers_classify_resource_failures_without_parsing_diagnostics() {
+        #[derive(Debug, PartialEq, Eq)]
+        enum Failure {
+            TooManyFiles(usize),
+            Selection(SourceSelectionError),
+        }
+        let tree = tree();
+        let error = select_source_members(
+            &request(&[(b"src/main.omg", SourceCaptureObligation::Required)]),
+            (2, 100),
+            |path| Ok(tree.get(path).copied()),
+            |directory| *directory,
+            |_| unreachable!(),
+            |path| crate::canonical_filesystem_metadata_path_is_canonical(path, false),
+            |reason| match reason {
+                SourceSelectionError::RowLimit { limit } => Failure::TooManyFiles(limit),
+                other => Failure::Selection(other),
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error, Failure::TooManyFiles(2));
+    }
+
+    #[test]
+    fn native_descendant_names_do_not_broaden_portable_user_requests() {
+        let names = vec![b"literal\\name".to_vec(), vec![0xff]];
+        let tree = BTreeMap::from([
+            (Vec::new(), true),
+            (names[0].clone(), false),
+            (names[1].clone(), false),
+        ]);
+        let select = |validate_path: fn(&[u8]) -> bool| {
+            select_source_members(
+                &SourceCaptureRequest::entire_tree(),
+                (3, 100),
+                |path| Ok(tree.get(path).copied()),
+                |directory| *directory,
+                |path| {
+                    assert!(path.is_empty());
+                    Ok(names.clone())
+                },
+                validate_path,
+                std::convert::identity,
+            )
+        };
+        let native = select(|path| {
+            !path.is_empty()
+                && path != b"."
+                && path != b".."
+                && !path.contains(&b'/')
+                && !path.contains(&0)
+        })
+        .unwrap();
+        assert_eq!(native, tree);
+        let portable =
+            select(|path| crate::canonical_filesystem_metadata_path_is_canonical(path, false))
+                .unwrap_err();
+        assert_eq!(
+            portable,
+            SourceSelectionError::NoncanonicalPath {
+                path: names[0].clone()
+            }
+        );
+        for path in names {
+            assert!(
+                SourceCaptureRequest::new([(path, SourceCaptureObligation::Required)]).is_err()
+            );
+        }
     }
 }
