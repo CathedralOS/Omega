@@ -1,5 +1,33 @@
 //! Actual Build selection data survives without the source-checking producers.
-//! Nonempty selection/admission requests require the new product route.
+//!
+//! A finished Build hands the Product its requests: each names one
+//! `BuildOperation`, and each operation has one admission here that turns
+//! its requests into Product policy. None of these admissions has a producer
+//! on the lowered-form route yet. An admission therefore refuses a Build
+//! that authored or executed a request of its own operations, and answers
+//! "none" to a Build that made no such request: that Build asked it for
+//! nothing, whatever else it selected. A request is never dropped.
+
+use language_semantics::declaration_selection::{
+    BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+};
+
+/// Whether a Build asked for one of `operations`: it authored such a
+/// request (`declared`, executed or not) or executed one. Every admission
+/// of this module, and the opaque-representation admission of the source
+/// preparation, decides by this whether it has anything to admit.
+pub fn build_requests_any(
+    declared: &[std::sync::Arc<ProductDeclarationRequest>],
+    executed: &[ExecutedProductSelection],
+    operations: &[BuildOperation],
+) -> bool {
+    declared
+        .iter()
+        .any(|request| operations.contains(&request.operation))
+        || executed
+            .iter()
+            .any(|event| operations.contains(&event.request.operation))
+}
 
 pub mod test_groups {
     use symbols::SymbolHandle;
@@ -24,7 +52,7 @@ pub mod assumed_bindings {
 pub mod native_bindings {
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
-        ExecutedNativeBinding, ProductDeclarationRequest,
+        BuildOperation, ExecutedNativeBinding, ProductDeclarationRequest,
     };
     use symbols::SymbolHandle;
     use typed_trees::TypedTrees;
@@ -51,11 +79,14 @@ pub mod native_bindings {
     }
     pub fn collect(
         _typed: &TypedTrees,
-        activation: Option<SymbolHandle>,
+        _activation: Option<SymbolHandle>,
         declared: &[std::sync::Arc<ProductDeclarationRequest>],
         executed: &[ExecutedNativeBinding],
     ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-        if activation.is_some() || !declared.is_empty() || !executed.is_empty() {
+        // An executed native binding is its own row kind; every one counts.
+        if super::build_requests_any(declared, &[], &[BuildOperation::NativeBinding])
+            || !executed.is_empty()
+        {
             return Err(vec![Diagnostic::error(
                 "no product route yet: native binding admission",
             )]);
@@ -99,7 +130,7 @@ pub mod product_declarations {
     use crate::product::test_groups::TestGroupRegistration;
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
-        ExecutedProductSelection, ProductDeclarationRequest,
+        BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
     };
     use language_semantics::wire::WireCompatibilityDemand;
     use std::sync::Arc;
@@ -118,11 +149,21 @@ pub mod product_declarations {
     }
     pub fn admit(
         _typed: &TypedTrees,
-        activation: Option<SymbolHandle>,
+        _activation: Option<SymbolHandle>,
         declared: &[Arc<ProductDeclarationRequest>],
         executed: &[ExecutedProductSelection],
     ) -> Result<AdmittedProductDeclarations, Vec<Diagnostic>> {
-        if activation.is_some() || !declared.is_empty() || !executed.is_empty() {
+        if super::build_requests_any(
+            declared,
+            executed,
+            &[
+                BuildOperation::ServiceAudit,
+                BuildOperation::AssumedBindingContract,
+                BuildOperation::WireCompatibilityRequest,
+                BuildOperation::TestGroupRegistration,
+                BuildOperation::TestGroupService,
+            ],
+        ) {
             return Err(vec![Diagnostic::error(
                 "no product route yet: Build product declaration admission",
             )]);
@@ -138,7 +179,7 @@ pub mod product_declarations {
 pub mod product_policy {
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
-        AuthoredBehaviorExclusion, AuthoredRootGrant, ExecutedEnumExclusion,
+        AuthoredBehaviorExclusion, AuthoredRootGrant, BuildOperation, ExecutedEnumExclusion,
         ExecutedProductSelection, ProductDeclarationRequest,
     };
     use std::sync::Arc;
@@ -146,12 +187,14 @@ pub mod product_policy {
     use typed_trees::TypedTrees;
     pub fn collect_behavior_exclusions(
         _typed: &TypedTrees,
-        activation: Option<SymbolHandle>,
+        _activation: Option<SymbolHandle>,
         declared: &[Arc<ProductDeclarationRequest>],
         executed: &[ExecutedProductSelection],
         enums: &[ExecutedEnumExclusion],
     ) -> Result<Vec<AuthoredBehaviorExclusion>, Vec<Diagnostic>> {
-        if activation.is_some() || !declared.is_empty() || !executed.is_empty() || !enums.is_empty()
+        // An executed enum exclusion is its own row kind; every one counts.
+        if super::build_requests_any(declared, executed, &[BuildOperation::ServiceExclusion])
+            || !enums.is_empty()
         {
             return Err(vec![Diagnostic::error(
                 "no product route yet: Build behavior exclusion admission",
@@ -161,11 +204,11 @@ pub mod product_policy {
     }
     pub fn collect_product_root_grants(
         _typed: &TypedTrees,
-        activation: Option<SymbolHandle>,
+        _activation: Option<SymbolHandle>,
         declared: &[Arc<ProductDeclarationRequest>],
         executed: &[ExecutedProductSelection],
     ) -> Result<Vec<AuthoredRootGrant>, Vec<Diagnostic>> {
-        if activation.is_some() || !declared.is_empty() || !executed.is_empty() {
+        if super::build_requests_any(declared, executed, &[BuildOperation::BoundaryAcceptance]) {
             return Err(vec![Diagnostic::error(
                 "no product route yet: Build root grant admission",
             )]);
@@ -365,22 +408,210 @@ pub mod provider_declarations {
     }
     pub fn collect_product_provider_selections(
         _context: ProviderPlanningContext<'_>,
-        activation: Option<SymbolHandle>,
+        _activation: Option<SymbolHandle>,
         declared: &[Arc<language_semantics::declaration_selection::ProductDeclarationRequest>],
         executed: &[language_semantics::declaration_selection::ExecutedProductSelection],
     ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-        if activation.is_some() || !declared.is_empty() || !executed.is_empty() {
+        if super::build_requests_any(
+            declared,
+            executed,
+            &[language_semantics::declaration_selection::BuildOperation::ProviderSelection],
+        ) {
             return Err(vec![Diagnostic::error(
                 "no product route yet: source provider selection admission",
             )]);
         }
         Ok(Vec::new())
     }
+    /// The provider defaults a program declares, one row per target.
+    ///
+    /// A default is declared by a machine whose purpose is
+    /// `ProviderDefaults`; the selections come from the calls in its body.
+    /// Nothing on the lowered-form route harvests those calls yet, so a
+    /// program that declares such a machine in this planning context is
+    /// refused by the machine's name. A program that declares none has no
+    /// defaults, which is what the empty answer states.
     pub fn retain_provider_defaults(
-        _context: ProviderPlanningContext<'_>,
+        context: ProviderPlanningContext<'_>,
     ) -> Result<Vec<TargetProviderDefaults>, Vec<Diagnostic>> {
-        Err(vec![Diagnostic::error(
-            "no product route yet: source provider defaults",
-        )])
+        let declared = context.typed.machines().iter().find(|machine| {
+            machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
+                && !machine.target_family_interface
+                && context.contains(machine.symbol)
+                && (context.scope == source::DependencyScope::Product || machine.target.is_none())
+        });
+        match declared {
+            None => Ok(Vec::new()),
+            Some(machine) => Err(vec![Diagnostic::error(format!(
+                "no product route yet: source provider defaults: `{}` declares provider defaults",
+                machine.name.as_str()
+            ))]),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    fn request(operation: BuildOperation) -> Arc<ProductDeclarationRequest> {
+        Arc::new(ProductDeclarationRequest {
+            source_span: source::SourceSpan::default(),
+            operation,
+            operands: Box::new([]),
+        })
+    }
+
+    fn executed(request: &Arc<ProductDeclarationRequest>) -> ExecutedProductSelection {
+        ExecutedProductSelection {
+            static_environment: None,
+            target: None,
+            request: Arc::clone(request),
+            selecting_machine: None,
+            composition: None,
+        }
+    }
+
+    /// Runs every admission that reads product selections and reports which
+    /// of them refused.
+    fn refusals(
+        declared: &[Arc<ProductDeclarationRequest>],
+        executed: &[ExecutedProductSelection],
+    ) -> Vec<String> {
+        let typed = typed_trees::TypedTrees::default();
+        // The Build ran: its activation is known in every case.
+        let activation = Some(symbols::SymbolHandle::invalid());
+        let context = provider_declarations::ProviderPlanningContext::new(
+            &typed,
+            source::DependencyScope::Product,
+        );
+        [
+            native_bindings::collect(&typed, activation, declared, &[]).map(drop),
+            product_declarations::admit(&typed, activation, declared, executed).map(drop),
+            product_policy::collect_behavior_exclusions(
+                &typed,
+                activation,
+                declared,
+                executed,
+                &[],
+            )
+            .map(drop),
+            product_policy::collect_product_root_grants(&typed, activation, declared, executed)
+                .map(drop),
+            provider_declarations::collect_product_provider_selections(
+                context, activation, declared, executed,
+            )
+            .map(drop),
+        ]
+        .into_iter()
+        .filter_map(Result::err)
+        .map(|diagnostics| diagnostics[0].message.clone())
+        .collect()
+    }
+
+    /// A Build that ran and asked for nothing these admissions own is
+    /// refused by none of them. `OptimizationSelection` belongs to none.
+    #[test]
+    fn a_build_that_asks_an_admission_for_nothing_is_not_refused_by_it() {
+        assert_eq!(refusals(&[], &[]), Vec::<String>::new());
+        let other = request(BuildOperation::OptimizationSelection);
+        assert_eq!(
+            refusals(&[Arc::clone(&other)], &[executed(&other)]),
+            Vec::<String>::new()
+        );
+    }
+
+    /// The twins: each operation is refused by exactly its own admission,
+    /// whether the Build only authored the request or also executed it.
+    #[test]
+    fn each_request_is_refused_by_the_admission_that_owns_its_operation() {
+        for (operation, owner) in [
+            (BuildOperation::NativeBinding, "native binding admission"),
+            (
+                BuildOperation::ServiceAudit,
+                "Build product declaration admission",
+            ),
+            (
+                BuildOperation::AssumedBindingContract,
+                "Build product declaration admission",
+            ),
+            (
+                BuildOperation::WireCompatibilityRequest,
+                "Build product declaration admission",
+            ),
+            (
+                BuildOperation::TestGroupRegistration,
+                "Build product declaration admission",
+            ),
+            (
+                BuildOperation::TestGroupService,
+                "Build product declaration admission",
+            ),
+            (
+                BuildOperation::ServiceExclusion,
+                "Build behavior exclusion admission",
+            ),
+            (
+                BuildOperation::BoundaryAcceptance,
+                "Build root grant admission",
+            ),
+            (
+                BuildOperation::ProviderSelection,
+                "source provider selection admission",
+            ),
+        ] {
+            let asked = request(operation);
+            let expected = [format!("no product route yet: {owner}")];
+            assert_eq!(
+                refusals(&[Arc::clone(&asked)], &[]),
+                expected,
+                "{operation:?}"
+            );
+            // Native bindings execute as their own row kind, not as a
+            // product selection.
+            if operation != BuildOperation::NativeBinding {
+                assert_eq!(
+                    refusals(&[], &[executed(&asked)]),
+                    expected,
+                    "{operation:?}"
+                );
+            }
+        }
+    }
+
+    fn provider_defaults_of(source: &str) -> Result<usize, String> {
+        let typed = crate::source_jobs::tests::typed(source);
+        provider_declarations::retain_provider_defaults(
+            provider_declarations::ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product,
+            ),
+        )
+        .map(|rows| rows.len())
+        .map_err(|diagnostics| diagnostics[0].message.clone())
+    }
+
+    /// A program that declares no provider-defaults machine has no
+    /// defaults. The twin declares one: its selections are not harvested
+    /// yet, so the program is refused by that machine's name.
+    #[test]
+    fn provider_defaults_are_absent_only_when_no_machine_declares_them() {
+        assert_eq!(
+            provider_defaults_of(
+                "data Native {}\nmachine Native::configure(defaults: &mut Native) { }\n"
+            ),
+            Ok(0)
+        );
+        assert_eq!(
+            provider_defaults_of(
+                "data Native {}\nmachine Native::provider_defaults(defaults: &mut Native) { }\n"
+            ),
+            Err(concat!(
+                "no product route yet: source provider defaults: ",
+                "`Native::provider_defaults` declares provider defaults"
+            )
+            .into())
+        );
     }
 }

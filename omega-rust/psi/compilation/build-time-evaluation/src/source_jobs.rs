@@ -452,7 +452,7 @@ impl PreparedBuildMachineProgram {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::BuildTimeValue;
 
@@ -468,7 +468,7 @@ mod tests {
     // The source reader, caller construction, lowered checker, publication and
     // interpreter all see these actual programs. No accepted callee or artifact
     // is fabricated by this helper.
-    fn typed(source: &str) -> TypedTrees {
+    pub(crate) fn typed(source: &str) -> TypedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)
             .tokenize()
             .expect("lex source");
