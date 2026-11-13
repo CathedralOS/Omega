@@ -381,6 +381,7 @@ mod authored_completion {
 use authored_completion::AuthoredCompletions;
 mod product_policy {
     use super::SourceContinuation;
+    use crate::source_checking::ProductRepresentationInput;
     use build_time_evaluation::native_bindings::{
         CapturedNativeDeclaration, NativeBindingSelection,
     };
@@ -391,9 +392,9 @@ mod product_policy {
         AuthoredBehaviorExclusion, AuthoredRootGrant, CapturedNativeIntent, ExecutedEnumExclusion,
         ExecutedNativeBinding, ExecutedProductSelection, ProductDeclarationRequest,
     };
-    use representation_selections::OpaqueRepresentationSelection;
     use std::sync::Arc;
     use symbols::SymbolHandle;
+    use typed_trees::opaque_representations::OpaqueRepresentationSelection;
 
     pub struct ProductPolicyRequest<'request> {
         pub activation: Option<SymbolHandle>,
@@ -445,6 +446,13 @@ mod product_policy {
             &mut self,
             request: ProductPolicyRequest<'_>,
         ) -> Result<AdmittedProductPolicy, Vec<Diagnostic>> {
+            ProductRepresentationInput {
+                activation: request.activation,
+                declared: request.declared,
+                executed: request.executed,
+                retained: &[],
+            }
+            .require_absent()?;
             let providers = self.admit_product_provider_requests(
                 request.activation,
                 request.declared,
@@ -463,13 +471,7 @@ mod product_policy {
                 self.prepare_product_requirement_operand(operand, author, None)?;
             }
             let typed = self.typed();
-            let representations =
-                representation_planning::collect_opaque_representation_selections(
-                    typed,
-                    request.activation,
-                    request.declared,
-                    request.executed,
-                )?;
+            let representations = Vec::new();
             let native_bindings = build_time_evaluation::native_bindings::collect(
                 typed,
                 request.activation,

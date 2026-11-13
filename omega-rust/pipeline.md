@@ -1094,9 +1094,9 @@ make folder counts match.
 Target descriptions, calling conventions and register models belong to backend;
 installation/task evidence belongs to backend runtime; boundary-application
 companions belong to backend artifacts; provider authority evidence belongs to
-backend plans. Target-independent opaque representation-selection records remain
-an independent package beside their Psi admission owner at
-`psi/compilation/validation/representation-planning/`. None of these is a pipeline program IR.
+backend plans. Target-independent opaque representation-selection records belong to the
+`typed-trees::opaque_representations` data owner. They retain source choices,
+not a checking verdict. None of these is a pipeline program IR.
 
 ### Subsystem entrances and supporting packages
 
@@ -1362,12 +1362,11 @@ and product records retain that sealed selection evidence; only interpretation
 constructs host-import dispatch from it. This semantic library is not a source
 checker or an additional transform stage.
 
-Its independent
-[`representation-planning`](psi/compilation/validation/representation-planning/README.md)
-package admits source-level opaque representation relationships and checks their
-transitive cleanup and copy properties. The caller supplies build authority;
-backend layout derives target shape from the admitted carrier. Its independent
-`selections/` package keeps consumers free of a dependency on admission.
+The old opaque representation planner is deleted. Source preparation and
+product policy refuse nonempty representation inputs until the lowered-form
+route can supply their obligations. Retained application records live in
+[`typed-trees::opaque_representations`](psi/compilation/representations/typed-trees/src/opaque_representations.rs);
+retention itself supplies no checking or layout authority.
 `psi/compilation/proof/` constructs and solves source proof obligations; its
 independent `admission/` package owns the mathematical kernel and
 supplied-certificate checking. Terminal-specific codec, semantic reconstruction

@@ -26,7 +26,6 @@ layout-plans = { path = "../../foundation/layout-plans" }
 lowered-discharge = { path = "../pipeline/lowered-discharge" }
 numerics = { path = "../../foundation/numerics" }
 proof-admission = { path = "../proof/admission" }
-representation-selections = { path = "representation-planning/selections" }
 source = { path = "../../foundation/source" }
 structure-elaboration = { path = "../pipeline/structure-elaboration" }
 symbols = { path = "../../foundation/symbols" }

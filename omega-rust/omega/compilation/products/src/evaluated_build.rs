@@ -10,7 +10,7 @@ use effects::AuthoredBehaviorExclusion;
 use package_compilation::build_execution::build_value::EvaluatedBuildSettings;
 use provider_planning::ProviderSelection;
 use provider_planning::program_entry::RootBinding;
-use representation_planning::OpaqueRepresentationSelection;
+use typed_trees::opaque_representations::OpaqueRepresentationSelection;
 
 #[derive(Clone)]
 pub struct EvaluatedBuild {
