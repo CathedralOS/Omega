@@ -90,9 +90,9 @@ use proof_admission::{
     ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, InvocationSite,
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm,
-    ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, IntegerMathTerm,
+    InvocationSite, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
+    ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use structure_elaboration::Elaboration;
 use terminal_check_tables::edges::{Actual, Callee, Destination};
@@ -1389,6 +1389,18 @@ pub(crate) fn substitute(
         Proposition::LessOrEqual(left, right) => {
             Proposition::LessOrEqual(bound(left, bindings)?, bound(right, bindings)?)
         }
+        Proposition::IntegerMathEqual(left, right) => Proposition::IntegerMathEqual(
+            bound_mathematical(left, bindings)?,
+            bound_mathematical(right, bindings)?,
+        ),
+        Proposition::IntegerMathLessThan(left, right) => Proposition::IntegerMathLessThan(
+            bound_mathematical(left, bindings)?,
+            bound_mathematical(right, bindings)?,
+        ),
+        Proposition::IntegerMathLessOrEqual(left, right) => Proposition::IntegerMathLessOrEqual(
+            bound_mathematical(left, bindings)?,
+            bound_mathematical(right, bindings)?,
+        ),
         Proposition::StructuralCaseMembership { subject, case } => {
             if bindings.case(subject.root(), subject.path(), *case)? {
                 Proposition::Truth
@@ -1430,6 +1442,41 @@ fn bound(term: &ScalarTerm, bindings: &mut dyn Bindings) -> Result<ScalarTerm, U
         _ => Err(Unbound::Unsupported(
             "clause term outside the scalar subset",
         )),
+    }
+}
+
+/// One mathematical-integer term of a clause under substitution. An embedded
+/// name is replaced by what `bindings` says it stands for, embedded again:
+/// the value keeps its carrier, and a literal actual is the mathematical
+/// integer it denotes (`IntegerMathTerm::embed`). The arithmetic around it is
+/// over unbounded integers and is kept as written
+/// (mathematical_values.md: "These terms denote unbounded mathematical
+/// integers and cannot overflow").
+fn bound_mathematical(
+    term: &IntegerMathTerm,
+    bindings: &mut dyn Bindings,
+) -> Result<IntegerMathTerm, Unbound> {
+    let embedded = |term: ScalarTerm| {
+        IntegerMathTerm::embed(term).ok_or(Unbound::Unsupported(
+            "clause embeds a term that is not an integer",
+        ))
+    };
+    match term {
+        IntegerMathTerm::IntegerLiteral(_) => Ok(term.clone()),
+        IntegerMathTerm::MathValue { source_type, value } => {
+            embedded(bindings.value(*value, ScalarType::Integer(*source_type))?)
+        }
+        IntegerMathTerm::Embed(scalar) => embedded(bound(scalar, bindings)?),
+        IntegerMathTerm::Add(..)
+        | IntegerMathTerm::Subtract(..)
+        | IntegerMathTerm::Multiply(..)
+        | IntegerMathTerm::ShiftLeft { .. } => {
+            let mut bound_term = term.clone();
+            for operand in bound_term.operands_mut() {
+                *operand = bound_mathematical(operand, bindings)?;
+            }
+            Ok(bound_term)
+        }
     }
 }
 
@@ -1701,7 +1748,7 @@ fn decide(
         // last, so the outcome does not depend on search order: the form as
         // written, and the form of the operations that define the values it
         // names (`prove::reach`).
-        let cause = if prove::has_rules_for(&goal) && !prover.beyond_rules(&goal, unreached) {
+        let cause = if prover.has_rules_for(&goal) && !prover.beyond_rules(&goal, unreached) {
             UnprovedCause::NoDerivation
         } else {
             UnprovedCause::NoRuleForGoalForm
@@ -1862,8 +1909,8 @@ fn returned(lowered: &TerminalMachine, exit: EdgeId) -> Option<ValueId> {
 }
 
 /// `clause` with the result pseudo-value `result` replaced by `value`, in
-/// the comparison and connective forms a clause over scalars has. Any other
-/// form is left as it is: it then still names the pseudo-value, which no
+/// the comparison and connective forms a clause over scalars or mathematical
+/// integers has. Any other form is left as it is: it then still names the pseudo-value, which no
 /// knowledge row describes, so it is unproved and never wrongly accepted.
 fn returned_for_result(clause: &Proposition, result: ValueId, value: ValueId) -> Proposition {
     let term = |term: &ScalarTerm| match term {
@@ -1878,10 +1925,34 @@ fn returned_for_result(clause: &Proposition, result: ValueId, value: ValueId) ->
             .map(|part| returned_for_result(part, result, value))
             .collect()
     };
+    // An embedded `result` is the returned value embedded: the embedding
+    // keeps the carrier, and the two have the same one.
+    fn mathematical(term: &IntegerMathTerm, result: ValueId, value: ValueId) -> IntegerMathTerm {
+        let mut returned = term.clone();
+        match &mut returned {
+            IntegerMathTerm::MathValue { value: id, .. } if *id == result => *id = value,
+            other => {
+                for operand in other.operands_mut() {
+                    *operand = mathematical(operand, result, value);
+                }
+            }
+        }
+        returned
+    }
+    let math = |term: &IntegerMathTerm| mathematical(term, result, value);
     match clause {
         Proposition::Equal(left, right) => Proposition::Equal(term(left), term(right)),
         Proposition::LessThan(left, right) => Proposition::LessThan(term(left), term(right)),
         Proposition::LessOrEqual(left, right) => Proposition::LessOrEqual(term(left), term(right)),
+        Proposition::IntegerMathEqual(left, right) => {
+            Proposition::IntegerMathEqual(math(left), math(right))
+        }
+        Proposition::IntegerMathLessThan(left, right) => {
+            Proposition::IntegerMathLessThan(math(left), math(right))
+        }
+        Proposition::IntegerMathLessOrEqual(left, right) => {
+            Proposition::IntegerMathLessOrEqual(math(left), math(right))
+        }
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(parts(conjuncts)),
         Proposition::Disjunction(disjuncts) => Proposition::Disjunction(parts(disjuncts)),
         other => other.clone(),
