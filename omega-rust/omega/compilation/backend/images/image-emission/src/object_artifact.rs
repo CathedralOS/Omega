@@ -4563,10 +4563,7 @@ pub(crate) mod replay {
                     }
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                         integer,
-                    )) => {
-                        let size = integer.bits().div_ceil(8);
-                        ValueShape::integer(u32::from(size), size.next_power_of_two().min(8))
-                    }
+                    )) => ValueShape::standalone_integer(*integer),
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
                         semantic_vocabulary::IeeeFloatFormat::Binary32,
                     )) => ValueShape::float(4),
@@ -4948,19 +4945,10 @@ pub(crate) mod replay {
                         Some(ValueShape::integer(1, 1))
                     }
                     terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
-                        let size = integer.bits().div_ceil(8);
-                        Some(ValueShape::integer(
-                            u32::from(size),
-                            size.next_power_of_two().min(16),
-                        ))
+                        Some(ValueShape::field_integer(*integer))
                     }
                     terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
-                        let integer = bounds.integer_type();
-                        let size = integer.bits().div_ceil(8);
-                        Some(ValueShape::integer(
-                            u32::from(size),
-                            size.next_power_of_two().min(16),
-                        ))
+                        Some(ValueShape::field_integer(bounds.integer_type()))
                     }
                     terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(
                         semantic_vocabulary::IeeeFloatFormat::Binary32,
