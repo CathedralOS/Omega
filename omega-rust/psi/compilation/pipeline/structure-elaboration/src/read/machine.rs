@@ -782,7 +782,10 @@ impl<'t> Program<'t> {
             slots.push(Slot {
                 symbol: formal.symbol,
                 value_type,
-                assignable: false,
+                // What a clause reader needs to know of the binding mode: a
+                // guarantee or a crash route guard may not name a formal
+                // the body can replace (`ClauseScope::formal_fields`).
+                assignable: mutable_formal(formal, access),
                 homed: false,
                 erased: is_erased,
                 borrowed: access,
@@ -1081,9 +1084,15 @@ impl<'t> Program<'t> {
     /// with the reference beside it (`Borrowed`), for a builtin scalar or a
     /// plain record `T`. Stage 01 marks `x: &mut T` mutable for the
     /// reference's exclusivity; that is the reference's access, not a `mut`
-    /// binding. A `mut` formal that holds its own value, a `&write T`
-    /// formal, a reference with a named lifetime and a reference to
-    /// anything else stay refused.
+    /// binding. A `&write T` formal, a reference with a named lifetime and
+    /// a reference to anything else stay refused.
+    ///
+    /// A `mut` formal that holds its own value is read like any other: the
+    /// binding mode says only that the body may assign and store into its
+    /// own copy (`mutable_formal`), so it changes nothing a caller sees.
+    /// Two kinds stay refused by name: an `[erased]` one, which names a
+    /// term and has no storage to assign, and one of a type parameter,
+    /// whose replaced value no slice disposes of yet.
     fn formal(
         &mut self,
         id: MachineId,
@@ -1120,14 +1129,17 @@ impl<'t> Program<'t> {
             language_core::BindingRelevance::Erased => true,
         };
         let Some((referee, access, named_lifetime)) = reference else {
-            if formal.is_mutable {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Parameter("mutable parameter"),
-                ));
-            }
             let value_type = self.value_type(id, formal.type_reference)?;
+            if formal.is_mutable {
+                let unserved =
+                    |what| Err(refuse(id, Construct::Machine, Unserved::Parameter(what)));
+                if erased {
+                    return unserved("mutable erased parameter");
+                }
+                if matches!(value_type, ValueType::Rigid(_)) {
+                    return unserved("mutable parameter of a type parameter");
+                }
+            }
             if erased && value_type.scalar().is_none() {
                 return Err(refuse(
                     id,
@@ -1254,22 +1266,35 @@ impl<'t> Program<'t> {
             .collect();
         let mut slots: Vec<Slot> = formals
             .iter()
-            .map(|formal| formal.symbol)
-            .chain(binders.iter().map(|binder| binder.symbol))
+            .map(|formal| (formal.symbol, formal.is_mutable))
+            .chain(binders.iter().map(|binder| (binder.symbol, false)))
             .zip(&signature.parameters)
             .enumerate()
-            .map(|(position, (symbol, value_type))| {
+            .map(|(position, ((symbol, is_mutable), value_type))| {
                 // A borrowed formal names the caller's storage: a scalar
                 // referent is read and stored in place like a home, a record
                 // referent like a record formal's root; `&mut` lets the body
                 // store into it, `&` does not.
+                //
+                // A `mut` formal that holds its own value is the callee's
+                // own storage, initialised from the argument, and is
+                // assigned and stored into as a `mut` local is: a scalar is
+                // rebound to the assigned value, so the formal's entry
+                // value keeps its identity and every entry fact stays a
+                // fact about that value only (fact_validity.md: "Current
+                // body values are not entry snapshots"); a record is stored
+                // into by field in its own parameter place, which holds the
+                // copy the call passed.
                 let borrowed = signature
                     .borrowed(position)
                     .map(|reference| reference.access);
                 Slot {
                     symbol,
                     value_type: *value_type,
-                    assignable: borrowed == Some(language_core::ReferenceAccess::Mutable),
+                    assignable: match borrowed {
+                        Some(access) => access == language_core::ReferenceAccess::Mutable,
+                        None => is_mutable,
+                    },
                     homed: borrowed.is_some() && value_type.scalar().is_some(),
                     erased: signature.is_erased(position),
                     borrowed,
@@ -1600,6 +1625,16 @@ mod input_symbol_uses {
         outside.extend([helper]);
         assert!(outside.uses.get(helper).unwrap().outside);
     }
+}
+
+/// Whether a formal is a `mut` binding of its own value. Stage 01 also marks
+/// `x: &mut T` mutable, for the reference's exclusivity; that formal names
+/// the caller's storage and is not a binding the body may replace.
+fn mutable_formal(
+    formal: &StateParameter,
+    borrowed: Option<language_core::ReferenceAccess>,
+) -> bool {
+    formal.is_mutable && borrowed.is_none()
 }
 
 /// Every span of a value expression whose result a binder receives, with

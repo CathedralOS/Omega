@@ -1,0 +1,26 @@
+// A native binding names the application it supplies. `Magnitude<Value>` is a
+// generic boundary, so it has one slot per closed application; build.omg binds
+// `Magnitude<i32>::of` to msvcrt `abs`, and the call below uses that same
+// application. abs(-42) must come back as 42 through the result place (a
+// missing delivery would read 0 and exit 71). build.omg also binds
+// `Magnitude<i64>::of` to `labs`: a different slot, so the two locators do not
+// conflict, and nothing here uses it. This boundary declares no calling
+// policy, so the call uses the target's default; the twin
+// fail/build/applied_native_calling_policy_rejection adds a policy that
+// rejects every signature and must be refused.
+use omega_language_std::Console;
+public boundary trait Magnitude<Value> { machine of(value: i32) -> i32 reaches; }
+data Main { m: i32; v: i32; }
+machine Main::main(main: &mut Main) reaches Magnitude + Console {
+    main.v = 0 - 42;
+    main.m = Magnitude<i32>::of(main.v);
+    transition main.m == 42 { true -> good(main) _ -> bad(main, 71) }
+    machine good(main: &mut Main) { Console::exit_process(70); }
+    machine bad(main: &mut Main, code: i32) { Console::exit_process(code); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Magnitude + Console {
+    let mut entry_storage: Main;
+    Main::main(&mut entry_storage);
+}

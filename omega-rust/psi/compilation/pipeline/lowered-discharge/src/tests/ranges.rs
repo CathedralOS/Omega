@@ -490,3 +490,35 @@ fn a_cast_across_signs_needs_the_missing_side_only() {
     let (elaboration, result) = run(vec![to_signed(Vec::new())]);
     assert_unproved(verdicts(&elaboration, &result, 1, safety)[0].1);
 }
+
+#[test]
+fn a_signed_remainder_by_a_divisor_its_bounds_fix_is_below_that_divisor() {
+    // `a % b` with `0 <= a <= 100` and `16 <= b <= 16`: no result equation
+    // states `b == 16`, so the bound comes from the remainder by the literal
+    // spelled in place, carried through `b == 16` as proved from the bounds.
+    let signed = |value: i128| bound(i32_type(), IntegerValue::Signed(value));
+    let program = |addend: i128| {
+        after(
+            i32_type(),
+            vec![
+                Proposition::LessOrEqual(signed(0), formal(1, i32_type())),
+                Proposition::LessOrEqual(formal(1, i32_type()), signed(100)),
+                Proposition::LessOrEqual(signed(16), formal(2, i32_type())),
+                Proposition::LessOrEqual(formal(2, i32_type()), signed(16)),
+            ],
+            Strict::Remainder,
+            slot(1, i32_type()),
+            Strict::Add,
+            IntegerValue::Signed(addend),
+        )
+    };
+    let top = i128::from(i32::MAX);
+    let (elaboration, result) = run(vec![program(top - 15)]);
+    for (obligation, verdict) in verdicts(&elaboration, &result, 1, safety) {
+        assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    }
+    // One more would need the remainder to be at most 14.
+    let (elaboration, result) = run(vec![program(top - 14)]);
+    let verdicts = verdicts(&elaboration, &result, 1, safety);
+    assert_unproved(verdicts.last().unwrap().1);
+}

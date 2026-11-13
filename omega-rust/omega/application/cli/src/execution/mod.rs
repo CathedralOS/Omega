@@ -95,6 +95,7 @@ pub enum ExecutionSelection {
 }
 
 pub struct RunRequest {
+    pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
     pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub target_name: Option<String>,
@@ -202,6 +203,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         ..
     } = compilation::compile(
         request.private_entry_ram,
+        request.build_snapshot,
         CompileOptions {
             root_path: request.root_path,
             build_dir: Some(build_dir.clone()),
@@ -313,6 +315,7 @@ fn run_terminal(
         ..
     } = compilation::compile(
         request.private_entry_ram,
+        request.build_snapshot,
         CompileOptions {
             root_path: request.root_path,
             build_dir: Some(build_dir.clone()),
@@ -394,6 +397,7 @@ fn format_work_tsv(
 }
 
 pub struct CaseRunRequest {
+    pub build_snapshot: Option<compiler::BuildSnapshotRequest>,
     pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
     pub compare_interpreter: bool,
@@ -438,6 +442,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
         ..
     } = compilation::compile(
         request.private_entry_ram,
+        request.build_snapshot,
         CompileOptions {
             root_path: request.root_path,
             build_dir: Some(build_dir.clone()),

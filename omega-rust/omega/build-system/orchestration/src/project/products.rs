@@ -49,6 +49,7 @@ pub(crate) fn compile(
             (!matches!(request.targets, BuildTargets::Host)).then_some(profile.target_name());
         let mut source = compiler::CheckedCompileRequest::new(&request.root_path, target);
         source.build.directory = Some(directory.to_path_buf());
+        source.build.snapshot = request.build_snapshot.clone();
         let output = crate::produce_source(
             &mut crate::build_session::compiler_session(),
             source,

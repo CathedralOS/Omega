@@ -428,3 +428,83 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
         }
     }
 }
+
+#[test]
+fn selected_anonymous_source_excludes_invalid_siblings_and_cannot_widen_a_reused_check() {
+    use package_compilation::{
+        BuildSnapshotRequest, BuildSourceCaptureObligation, BuildSourceCaptureRequest,
+    };
+    #[cfg(not(unix))]
+    let root = fixture_package_inputs::sealed_fixture_staging::temporary_session_root()
+        .join("anonymous-selected");
+    // Keep socket names within the Unix pathname limit even on macOS.
+    #[cfg(unix)]
+    let root = Path::new("/tmp").join(format!(
+        "omega-anonymous-selected-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("main.omg"), "machine main() {}\n").unwrap();
+    fs::write(
+        root.join("invalid.omg"),
+        "machine main( { invalid sibling\n",
+    )
+    .unwrap();
+    #[cfg(unix)]
+    let _socket = std::os::unix::net::UnixListener::bind(root.join("s")).unwrap();
+    let selected = BuildSourceCaptureRequest::new([
+        (b"main.omg".to_vec(), BuildSourceCaptureObligation::Required),
+        (
+            b"absent.omg".to_vec(),
+            BuildSourceCaptureObligation::Optional,
+        ),
+    ])
+    .unwrap();
+    let mut request = CheckedCompileRequest::new(&root.join("main.omg"), None);
+    request.build.snapshot = Some(BuildSnapshotRequest::scoped(Vec::new(), selected));
+    let mut session = CompilationSession::default();
+    orchestration::check_source(&mut session, request)
+        .result
+        .unwrap_or_else(|failure| panic!("selected source: {:?}", failure.into_diagnostics()));
+    assert!(
+        orchestration::check_source(
+            &mut session,
+            CheckedCompileRequest::new(&root.join("main.omg"), None),
+        )
+        .result
+        .is_err(),
+        "the whole-root request must not reuse the successful partial inventory"
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn selected_anonymous_source_rejects_an_omitted_compilation_entry() {
+    use package_compilation::{
+        BuildSnapshotRequest, BuildSourceCaptureObligation, BuildSourceCaptureRequest,
+    };
+    let root = fixture_package_inputs::sealed_fixture_staging::temporary_session_root()
+        .join("anonymous-selected-missing-entry");
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("main.omg"), "machine main() {}\n").unwrap();
+    fs::write(root.join("other.omg"), "machine other() {}\n").unwrap();
+    let selected = BuildSourceCaptureRequest::new([(
+        b"other.omg".to_vec(),
+        BuildSourceCaptureObligation::Required,
+    )])
+    .unwrap();
+    let mut request = CheckedCompileRequest::new(&root.join("main.omg"), None);
+    request.build.snapshot = Some(BuildSnapshotRequest::scoped(Vec::new(), selected));
+    let failure = orchestration::check_source(&mut CompilationSession::default(), request)
+        .result
+        .expect_err("entry excluded by the caller must reject before parsing");
+    let diagnostic = format!("{:?}", failure.into_diagnostics());
+    assert!(
+        diagnostic.contains("required compilation source is absent"),
+        "{diagnostic}"
+    );
+}

@@ -6,10 +6,12 @@ Because a retained root directory handle stays pinned to its original inode if
 the root path is renamed or replaced mid-capture, `capture_local_source_from_open_root`
 compares the canonical path's observation before and after traversal against the
 retained handle's opening metadata, and runs `verify_captured_tree` after
-`visit_directory` so mutations landing in already-closed subtrees reject before
-publication.
+selected-member capture so mutations landing in already-closed subtrees reject
+before publication. Whole and scoped requests share the same selection, reads,
+identity hashing, and no-follow closing checks.
 */
 
+mod selection;
 mod traversal;
 mod traversal_observations;
 pub(crate) use traversal::excluded_from_capture;
@@ -29,7 +31,8 @@ use super::identity::SourceIdentityHasher;
 use crate::SourceResolveError;
 use crate::error::too_many_files;
 use crate::limits::{CANONICAL_DIRECTORY_MODE, LocalSourceLimits};
-use traversal::{CapturedTreeObservations, verify_captured_tree, visit_directory};
+use filesystem_authority::SourceCaptureRequest;
+use traversal::{CapturedTreeObservations, verify_captured_tree};
 
 #[cfg(test)]
 pub(crate) fn resolve_materialized_source(
@@ -44,13 +47,12 @@ pub(crate) fn capture_local_source(
     limits: LocalSourceLimits,
     policy: SourceTreePolicy,
 ) -> Result<CapturedLocalTree, SourceResolveError> {
-    let root = requested_root.canonicalize().at(requested_root)?;
-    if !root.is_dir() {
-        return Err(SourceResolveError::NotDirectory { path: root });
-    }
-
-    let root_directory = open_canonical_source_root(&root)?;
-    capture_local_source_from_open_root(root, root_directory, limits, policy)
+    capture_selected_local_source(
+        requested_root,
+        limits,
+        policy,
+        &SourceCaptureRequest::entire_tree(),
+    )
 }
 
 pub(crate) fn capture_exact_materialized(
@@ -72,24 +74,49 @@ pub(crate) fn capture_local_source_from_open_root(
     limits: LocalSourceLimits,
     policy: SourceTreePolicy,
 ) -> Result<CapturedLocalTree, SourceResolveError> {
+    capture_selected_source_from_open_root(
+        root,
+        root_directory,
+        limits,
+        policy,
+        &SourceCaptureRequest::entire_tree(),
+    )
+}
+
+pub(crate) fn capture_selected_local_source(
+    requested_root: &Path,
+    limits: LocalSourceLimits,
+    policy: SourceTreePolicy,
+    selected: &SourceCaptureRequest,
+) -> Result<CapturedLocalTree, SourceResolveError> {
+    let root = requested_root.canonicalize().at(requested_root)?;
+    if !root.is_dir() {
+        return Err(SourceResolveError::NotDirectory { path: root });
+    }
+    let root_directory = open_canonical_source_root(&root)?;
+    capture_selected_source_from_open_root(root, root_directory, limits, policy, selected)
+}
+
+fn capture_selected_source_from_open_root(
+    root: PathBuf,
+    root_directory: CapabilityDirectory,
+    limits: LocalSourceLimits,
+    policy: SourceTreePolicy,
+    selected: &SourceCaptureRequest,
+) -> Result<CapturedLocalTree, SourceResolveError> {
     let mut source_entries = Vec::new();
-    let mut captured_file_bytes = 0_u64;
     let opening_root = root_directory.dir_metadata().at(&root)?;
     let named_root = open_canonical_source_root(&root)?
         .dir_metadata()
         .at(&root)?;
     require_unchanged_entry(&opening_root, &named_root, &root)?;
     let mut tree_observations = CapturedTreeObservations::default();
-    visit_directory(
+    selection::capture_members(
         &root_directory,
-        &root_directory,
-        &root,
-        PathBuf::new(),
-        0,
         &root,
         limits,
         policy,
-        &mut captured_file_bytes,
+        selected,
         &mut source_entries,
         &mut tree_observations,
     )?;
@@ -131,6 +158,7 @@ pub(crate) fn capture_local_source_from_open_root(
     }
     let (byte_count, content_identity) = identity.finish();
     Ok(CapturedLocalTree {
+        selected: selected.clone(),
         normalized: ResolvedLocalSource {
             root,
             file_count,

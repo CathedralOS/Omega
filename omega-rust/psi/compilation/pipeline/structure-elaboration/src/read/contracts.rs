@@ -47,7 +47,10 @@ pub(super) struct ClauseScope<'s> {
     /// formal's place, about what that place holds at entry
     /// (fact_validity.md: "Entry hypotheses bind exact invocation formals
     /// or structural entry paths"). A crash route guard and an `ensures`
-    /// clause may not, yet.
+    /// clause may not, yet. The slice that lets them must settle what a
+    /// field of a `mut` record formal means there first: the body stores
+    /// into that formal's own place, so the place no longer holds what the
+    /// caller passed.
     pub(super) formal_fields: bool,
 }
 
@@ -434,6 +437,17 @@ impl Program<'_> {
                 let ValueType::Scalar(scalar_type) = scope.slots[slot].value_type else {
                     return unserved("record formal named whole in a clause");
                 };
+                // A `mut` formal names two things by the end of the body:
+                // the argument the caller passed and whatever the body
+                // last assigned. An entry `requires` can only mean the
+                // first. Which one a guarantee or a crash route guard
+                // means the specification does not say
+                // (`OWNER_QUESTIONS.md`, decision
+                // `mutable-parameter-contract-name`), so such a clause is
+                // refused rather than read as either.
+                if scope.slots[slot].assignable && !scope.formal_fields {
+                    return unserved("clause that names a mutable parameter outside requires");
+                }
                 let value = scope.values.get(slot).copied().flatten().ok_or_else(|| {
                     refuse(
                         id,

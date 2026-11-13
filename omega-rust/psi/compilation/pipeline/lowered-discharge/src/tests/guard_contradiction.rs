@@ -109,3 +109,77 @@ fn a_guard_and_its_negation_agree_with_arithmetic_on_every_pair_of_small_values(
         assert_eq!(pairs, 256 * 256);
     }
 }
+
+/// callee(a) crashes Trap when a == 0 { when a == 0 -> crash Trap; return a }
+/// caller() { return callee(<argument>) }, publishing no route: the call may
+/// stay only when its own argument disproves the callee's guard.
+fn calls_with(argument: u128) -> (structure_elaboration::Elaboration, Discharge) {
+    let mut bodies: IdTable<MachineId, Body> = IdTable::default();
+    let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
+    let signature = |parameters: Vec<ValueType>, crashes| Signature {
+        parameters,
+        erased: Vec::new(),
+        borrowed: Vec::new(),
+        result: Some(u32_type().into()),
+        requires: Vec::new(),
+        ensures: Vec::new(),
+        crashes: CrashCeiling::Authored(crashes),
+        termination: Termination::Silent,
+    };
+    bodies.push(Body {
+        slots: Vec::new(),
+        statements: vec![returns(call(2, vec![unsigned(argument)]))],
+    });
+    signatures.push(signature(Vec::new(), Vec::new()));
+    let zero = || {
+        expression(
+            ExpressionKind::Strict {
+                operation: Strict::Equal,
+                left: Box::new(slot(0, u32_type())),
+                right: Box::new(unsigned(0)),
+            },
+            Some(ScalarType::Boolean),
+        )
+    };
+    bodies.push(Body {
+        slots: vec![u32_type().into()],
+        statements: vec![
+            Statement::Arm {
+                guard: Some(zero()),
+                target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
+                source: nowhere(),
+            },
+            returns(slot(0, u32_type())),
+        ],
+    });
+    signatures.push(signature(
+        vec![u32_type().into()],
+        vec![terminal_psi::CrashRouteBucket {
+            cause: semantic_vocabulary::CrashCause::Trap,
+            alternatives: vec![terminal_psi::CrashRouteGuard::Predicate(
+                terminal_psi::CrashPredicateTerm::new(Proposition::Equal(
+                    formal(1, u32_type()),
+                    bound(u32_type(), IntegerValue::Unsigned(0)),
+                )),
+            )],
+        }],
+    ));
+    let mut elaboration =
+        structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
+            .unwrap();
+    let result = discharge(&mut elaboration).unwrap();
+    (elaboration, result)
+}
+
+#[test]
+fn a_literal_argument_disproves_an_equality_crash_guard() {
+    let coverage = |kind: &ObligationKind| matches!(kind, ObligationKind::CrashCoverage { .. });
+    let (elaboration, result) = calls_with(3);
+    let [(obligation, verdict)] = verdicts(&elaboration, &result, 1, coverage)[..] else {
+        panic!("one call site")
+    };
+    assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
+    // The twin passes zero: the guard holds and nothing covers the crash.
+    let (elaboration, result) = calls_with(0);
+    assert_unproved(verdicts(&elaboration, &result, 1, coverage)[0].1);
+}

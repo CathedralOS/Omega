@@ -10,7 +10,7 @@
 // before `pending.publish` so the OS permits the atomic directory rename.
 
 use super::ResolvedLocalSource;
-use super::{same_source_identity, verify_live_source_unchanged};
+use super::{same_source_identity, verify_selected_live_source_unchanged};
 use crate::SourceResolveError;
 use crate::custody::tree::CacheCustodyKind;
 use crate::error::local_snapshot_invalid;
@@ -133,7 +133,7 @@ fn materialize_pending_local_snapshot(
             "staged source does not match the captured local tree",
         ));
     }
-    verify_live_source_unchanged(expected_live, limits)?;
+    verify_selected_live_source_unchanged(expected_live, limits, &captured.selected)?;
 
     write_snapshot_file_from_open_root(
         CacheCustodyKind::LocalSnapshot,

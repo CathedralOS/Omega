@@ -170,6 +170,22 @@ fn describe_calls(
                 target,
             },
         )?;
+        // What the caller derives of an integer actual without holding it
+        // as a fact: the interval of a sum of bounded values, of a call's
+        // result, of a cast. The helper's body may need exactly that
+        // (`preserved - 100` after `step(total)`), and the arrival proves
+        // it like every other part of the inferred condition.
+        let mut parts = derived(
+            &tables,
+            &prepared.graph,
+            &prepared.context,
+            id,
+            site.before,
+            &crossing,
+            knowledge != Knowledge::LiteralIntervals,
+        )?;
+        parts.push(predicate);
+        let predicate = joins::connective(parts, true);
         incoming
             .get_mut(callee)
             .ok_or_else(|| {
@@ -334,6 +350,55 @@ fn machine_row_mut<T>(
             "machine identity is past the end of an entry-inference table",
         )
     })
+}
+
+/// The literal bounds machine `id` derives at `point` for each integer value
+/// that crosses to a callee's formal, stated of that formal.
+fn derived(
+    tables: &MachineTables,
+    graph: &Graph,
+    context: &semantic_vocabulary::PropositionContext,
+    id: MachineId,
+    point: ProgramPoint,
+    crossing: &[(ScalarTerm, ValueId)],
+    relations: bool,
+) -> Checked<Vec<Proposition>> {
+    let mut assumptions = Vec::new();
+    let mut axioms = Vec::new();
+    for (_, row) in tables.knowledge.iter() {
+        if graph.dominates(row.available_from, point)? {
+            let proposition = terminal_check_tables::row(
+                &tables.propositions,
+                row.proposition,
+                id,
+                Construct::Machine,
+            )?;
+            if matches!(row.justification, Justification::OperationSemantics(_)) {
+                axioms.push(proposition.clone());
+            } else {
+                assumptions.push(proposition.clone());
+            }
+        }
+    }
+    let mut prover =
+        crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, relations);
+    let mut bounds = Vec::new();
+    for (name, here) in crossing {
+        let ScalarType::Integer(integer) = name.scalar_type() else {
+            continue;
+        };
+        if tables.values.get(*here).map(|row| row.scalar_type) != Some(name.scalar_type()) {
+            continue;
+        }
+        let (lower, upper) = prover.literal_bounds(*here);
+        if let Some(literal) = lower.and_then(|lower| ScalarTerm::integer(integer, lower).ok()) {
+            bounds.push(Proposition::LessOrEqual(literal, name.clone()));
+        }
+        if let Some(literal) = upper.and_then(|upper| ScalarTerm::integer(integer, upper).ok()) {
+            bounds.push(Proposition::LessOrEqual(name.clone(), literal));
+        }
+    }
+    Ok(bounds)
 }
 
 /// What machine `id` knows at `point` about the values that cross a contract

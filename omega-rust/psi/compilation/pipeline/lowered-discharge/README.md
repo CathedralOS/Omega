@@ -124,6 +124,20 @@ clause. Callers read it as `CalleeGuarantee` knowledge with no rule of their
 own, and a private helper's inferred input condition (`entry_inputs.rs`,
 which runs next) is described from facts that include it.
 
+Summaries run once more after input inference. A helper that omits
+`requires` is first summarized under no input, which is already what its
+caller's later arrivals need when the body returns it whatever it is given;
+what it returns only because of the input its callers establish is a further
+clause, added when it is not already in the contract.
+
+Input inference states, beside the facts a caller holds about an actual, the
+interval the caller derives for it (`entry_inputs.rs`, `derived`): `step(total)`
+after `total = v1 + v2` carries the sum's bounds, which no fact names. A
+bound that holds only by cases is found too, for an actual and for a returned
+value: under a guard `20 <= v && v <= 60` the limits lie inside the join's
+disjunctive fact, so `Prover::literal_bounds` tries each literal such a fact
+compares the value with as a goal, on a side that has no bound of its own.
+
 A summary that some return does not establish is not added, and the machine
 keeps its written contract; so does a public machine, a dependency, a
 requirement, a selected implementation, a Build selection and a machine stage
@@ -816,6 +830,13 @@ Each of these is true in the programs that need it and has no derivation in
 the rules of [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md),
 so the obligation is `Unproved`. None is worked around here.
 
+One case of the second item is proved: a remainder by a divisor whose own
+bounds fix it to one literal (`divisor >= 16 && divisor <= 16`) takes the
+kernel's bound of the remainder by that literal spelled in place, carried
+onto the result through its equation and the proved `divisor == 16`
+(`remainder_by_fixed_divisor`). The kernel has no in-place form for a
+quotient or a right shift, so those stay unproved.
+
 - *A contradiction between two order facts when neither is a taken guard.*
   Two bare facts `low <= high` and `high < low` (two `requires`, or a
   split alternative against a requirement) chain to `high < high`, and no
@@ -838,6 +859,18 @@ so the obligation is `Unproved`. None is worked around here.
 - *A relation through a multiply.* `value * value >= value` for
   `value >= 1`; beyond the floor, which propagates ranges only
   (`pass/arithmetic/nonlinear_square_positive_operand_exit`).
+- *An operand fixed by its bounds, used as a literal.* `(prefix - 360) + last`
+  with `prefix` proved to be exactly 360 equals `last`, and no rule says
+  so: the endpoint chain lands an operand only on an earlier result
+  equation `value == literal`, never on an equality proved from bounds,
+  order translation concludes `a + t <= b + t` and nothing rewrites
+  `0 + last` to `last`, and `IntegerAddOrder` needs a strictly positive
+  increment. It would take a landing on a proved equality, or `0 + x == x`
+  over mathematical integers
+  (`pass/facts/nine_arg_stack_calling_plan_through_local_exit` and the
+  `register_stack_arg` and `thirtytwo_arg` families, 15 programs). The same
+  gap leaves a quotient or right shift by `divisor >= 3 && divisor <= 3`
+  unproved.
 
 ## Why this route and not the arithmetic engine
 
