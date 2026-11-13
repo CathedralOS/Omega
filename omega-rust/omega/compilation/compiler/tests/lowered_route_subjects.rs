@@ -1101,6 +1101,22 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
         "machine twice(value: u32 in Wrapping) -> u32 in Wrapping { value + value }\n\
          machine spare(value: u32 in Wrapping) -> u32 in Wrapping { twice(twice(value)) }",
     ),
+    // The literal lands in the carrier the cast names.
+    (
+        "wrapping_constant",
+        "machine spare() -> u32 in Wrapping { (5 as u32 in Wrapping) + 1 }",
+    ),
+    // A cast into a policy converts the carrier exactly first: no policy
+    // makes `as` truncate.
+    (
+        "narrowing_cast_into_wrapping",
+        "machine spare(value: u16) -> u8 in Wrapping { value as u8 in Wrapping }",
+    ),
+    (
+        "bounded_narrowing_cast_into_wrapping",
+        "machine spare(value: u16) -> u8 in Wrapping requires value <= 255 {\n    \
+         value as u8 in Wrapping\n}",
+    ),
     (
         "wrapping_and_plain_binding",
         "machine spare(left: u32 in Wrapping, right: u32) -> u32 in Wrapping { left + right }",
@@ -1132,7 +1148,8 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
 /// add nothing, a divide its divisor. It is never read as the Exact
 /// operation: a wrapped sum is not known to be nonzero where the
 /// mathematical sum is, and an Exact add beside a Wrapping one still owes
-/// its range. What the route does not serve is refused by name.
+/// its range. A cast into a policy converts the carrier exactly and owes
+/// that the value fits. What the route does not serve is refused by name.
 #[test]
 fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -1149,6 +1166,9 @@ fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
         Verdict::Accepted(2),
         Verdict::Accepted(2),
         Verdict::Accepted(3),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
         falls_back(
             "expression operator between a policy-qualified operand and a plain operand that is not a literal",
         ),

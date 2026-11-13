@@ -288,10 +288,17 @@ destination declares").
   operands such as an integer zero divisor"); a Wrapping shift reduces its
   count and is total. A shift's count keeps its own plain type. The
   comparisons compare the stored values and return `bool`.
-- **Casts.** `x as T in Wrapping` and `w as T` add and remove the policy
-  when the carrier does not change. The cast is its operand
-  (`ExpressionKind::Requalify`): no operation is emitted, and the operand
-  keeps whatever operations its own type chose.
+- **Casts.** `x as T in Wrapping` and `w as T` add and remove the policy.
+  The cast is its operand (`ExpressionKind::Requalify`): no operation is
+  emitted, and the operand keeps whatever operations its own type chose.
+  When `x` is a plain integer of another carrier, the carrier is converted
+  first by the one exact conversion of [Casts](#casts), with its
+  `OperationSafety` obligation when it narrows: a policy never makes `as`
+  truncate or clamp
+  ([domains](../../../../../wiki/spec/language/domains.md#domain-casts):
+  "`as` never calls user code, rounds, saturates, traps"). A literal operand
+  lands in the carrier the cast names, so `5 as u32 in Wrapping` is the
+  Wrapping constant.
 - **Suffixed operators.** Stage 04 rewrites `a +% b` to
   `((a as T in Wrapping) + (b as T in Wrapping)) as T` and `a +| b`
   likewise, so both are read as the casts and the operation above.
@@ -315,8 +322,8 @@ Refused by name:
 | `&`, `\|`, `^` and `~` over a policy-qualified operand, which the policy catalog has no row for | `expression bitwise operator on a policy-qualified operand`, `typing unary operand type` |
 | a Saturating shift, which owes the Exact count proof under an operation the lowering does not emit | `expression saturating shift` |
 | a shift whose count is policy-qualified | `expression shift by a policy-qualified count` |
-| a cast that also changes the carrier (truncation under Wrapping, clamping under Saturating) | `expression cast that changes the carrier of a policy-qualified integer` |
-| a literal bound to a policy-qualified local, `let x: u32 in Wrapping = 5;` ("An expected type ... never inserts a domain cast") | `typing local initializer without the arithmetic policy of its local` |
+| a cast that changes the carrier of an integer that already carries a policy ("Rejected: each of these changes the carrier of a qualified value") | `expression cast that changes the carrier of a policy-qualified integer` |
+| a literal or other plain value where a policy-qualified one is declared: `let x: u32 in Wrapping = 5;`, an argument, a field initializer, a result ("An expected type selects the carrier in which an anonymous literal lands. It never inserts a domain cast") | `typing local initializer without the arithmetic policy of its local`, `typing argument types`, `typing record literal field type`, `typing arm value type`, `typing final value type`, `typing assigned value type` |
 | a policy-qualified local declared without an initializer, `&T in Wrapping`, a loan of such a place, an `[erased]` one, and a value `match` that yields one | `statement uninitialized local of a policy-qualified type`, `parameter reference to a policy-qualified integer`, `call loan of a policy-qualified integer`, `parameter erased parameter of a policy-qualified type`, `expression match with a policy-qualified result` |
 
 ### Erased scalar bindings

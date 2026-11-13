@@ -2,11 +2,13 @@
 The cast family of the reader: `operand as T` between two integer carriers
 with no domain on either side, and the cast that adds or removes the
 `Wrapping` or `Saturating` policy of an integer while keeping its carrier
-(`x as u32 in Wrapping`, `w as u32`).
+(`x as u32 in Wrapping`, `w as u32`). A cast from a plain integer of another
+carrier into a policy is the exact carrier conversion, then the policy.
 
 `wiki/spec/language/domains.md`, "Carrier casts": "The operand of a carrier
 cast must carry no domain." A cast that names a declared domain, lands in
-`Trapping`, changes the carrier of a policy-qualified integer, re-views
+`Trapping`, changes the carrier of an integer that already carries a policy,
+re-views
 storage (`recast`) or converts an anonymous expression is refused here by
 what the typed trees record, never by its spelling: the domain symbol, the
 arithmetic domain, the cast form and the target's type node.
@@ -65,48 +67,63 @@ impl Program<'_> {
             ));
         }
         // An anonymous operand has no carrier of its own; landing it is the
-        // numeric landing rules' work, outside this family.
-        let operand = self.expression(id, slots, cast.value, None)?;
+        // numeric landing rules' work, outside this family. The one such
+        // operand read here is a literal cast into a policy: `5 as u32 in
+        // Wrapping` is `(5 as u32)` with the policy added (domains.md,
+        // "Carrier casts": "The cast may add domains to the result"), so
+        // the literal lands in the carrier the cast names, in range or not
+        // at all (numeric_values.md: no policy destination can "repair an
+        // out-of-range initial value").
+        let landing = if named.is_some() && self.wholly_anonymous(cast.value) {
+            target.scalar()
+        } else {
+            None
+        };
+        let operand = self.expression(id, slots, cast.value, landing)?;
         let source_type = match operand.result {
             Some(source_type @ (ValueType::Scalar(_) | ValueType::Qualified(..))) => source_type,
             Some(ValueType::Record(_) | ValueType::Rigid(_)) | None => {
                 return unserved("cast of a non-scalar");
             }
         };
-        // A cast that adds or removes a policy keeps the carrier and the
-        // value: numeric_values.md, "Adding and removing a policy domain
-        // ... change future operations, not existing payloads". One that
-        // would also change the carrier is the policy's conversion
-        // (truncation under Wrapping, clamping under Saturating), which no
-        // slice lowers.
-        if source_type.policy().is_some() || target.policy().is_some() {
-            if source_type.scalar() != target.scalar() {
-                return unserved("cast that changes the carrier of a policy-qualified integer");
-            }
-            if source_type == target {
-                return Ok(operand);
-            }
-            return Ok(Expression {
-                kind: ExpressionKind::Requalify(Box::new(operand)),
-                result: Some(target),
-                source,
-            });
+        // domains.md, "Carrier casts": "The operand of a carrier cast must
+        // carry no domain", and of a qualified value moved to another
+        // carrier, "Rejected: each of these changes the carrier of a
+        // qualified value".
+        if source_type.policy().is_some() && source_type.scalar() != target.scalar() {
+            return unserved("cast that changes the carrier of a policy-qualified integer");
         }
-        let (Some(ScalarType::Integer(from)), Some(target @ ScalarType::Integer(to))) =
+        let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
             (source_type.scalar(), target.scalar())
         else {
             return unserved("cast between carriers that are not integers");
         };
-        // The same carrier converts nothing.
-        if from == to {
-            return Ok(operand);
-        }
-        if !from.can_widen_to(to) && !from.can_exact_cast_to(to) {
-            return unserved("cast with no exact conversion");
+        // The carrier first: the same carrier converts nothing, and any
+        // other is the one exact conversion, whatever policy the cast then
+        // adds ("`plain as i64 +Km` abbreviates `(plain as i64) as +Km`").
+        // No policy makes it a truncation or a clamp: "`as` never calls
+        // user code, rounds, saturates, traps".
+        let converted = if from == to {
+            operand
+        } else {
+            if !from.can_widen_to(to) && !from.can_exact_cast_to(to) {
+                return unserved("cast with no exact conversion");
+            }
+            Expression {
+                kind: ExpressionKind::Cast(Box::new(operand)),
+                result: Some(ValueType::Scalar(carrier)),
+                source,
+            }
+        };
+        // Then the policy. Adding or removing one keeps the value:
+        // numeric_values.md, "Adding and removing a policy domain ...
+        // change future operations, not existing payloads".
+        if converted.result == Some(target) {
+            return Ok(converted);
         }
         Ok(Expression {
-            kind: ExpressionKind::Cast(Box::new(operand)),
-            result: Some(ValueType::Scalar(target)),
+            kind: ExpressionKind::Requalify(Box::new(converted)),
+            result: Some(target),
             source,
         })
     }
