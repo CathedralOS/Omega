@@ -50,11 +50,21 @@ def main() -> int:
     pin_status = ctx["pin_status"]
     pin_norm = ctx["pin_diag_norm"]
 
-    if status == expected:
-        return 0
+    tier = ctx["tier"]
+    tier_good = {
+        "pass": frozenset({"pass", "checked", "run"}),
+        "run": frozenset({"run", "checked", "pass"}),
+        "fail": frozenset({"fail", "rejected"}),
+    }
 
     if status == pin_status and norm_diag(first) == pin_norm:
         return 1
+
+    if status in tier_good.get(tier, frozenset({expected})) and norm_diag(first) != pin_norm:
+        return 0
+
+    if status == expected:
+        return 0
 
     return 125
 

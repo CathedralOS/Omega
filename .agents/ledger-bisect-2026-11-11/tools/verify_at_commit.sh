@@ -25,8 +25,9 @@ unprotect_agents() {
 
 AGENT_BACKUP="/tmp/ledger-bisect-agents-backup"
 rm -rf "$AGENT_BACKUP"
-if [[ -d "$ROOT/.agents/ledger-bisect-2026-11-11" ]]; then
-  cp -a "$ROOT/.agents/ledger-bisect-2026-11-11" "$AGENT_BACKUP"
+if [[ -d "$ROOT/.agents/ledger-bisect-2026-11-11/work" ]]; then
+  mkdir -p "$AGENT_BACKUP"
+  cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/work" "$AGENT_BACKUP/"
 fi
 unprotect_agents
 git checkout -qf "$COMMIT"
@@ -71,10 +72,14 @@ for ((t = 1; t <= TRIALS; t++)); do
   fi
 done
 git checkout -qf work/ledger-bisect-part-26
-if [[ -d "$AGENT_BACKUP" ]]; then
-  mkdir -p "$ROOT/.agents"
-  cp -a "$AGENT_BACKUP/." "$ROOT/.agents/ledger-bisect-2026-11-11/"
+if [[ -d "$AGENT_BACKUP/work" ]]; then
+  mkdir -p "$ROOT/.agents/ledger-bisect-2026-11-11"
+  cp -a "$AGENT_BACKUP/work" "$ROOT/.agents/ledger-bisect-2026-11-11/"
 fi
+if [[ ! -f "$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_test.py" ]]; then
+  git -C "$ROOT" archive HEAD .agents/ledger-bisect-2026-11-11/tools | tar -x -C "$ROOT"
+fi
+cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/." "$TOOLCACHE/"
 protect_agents
 trap unprotect_agents EXIT
 
