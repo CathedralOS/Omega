@@ -83,6 +83,20 @@ pub fn finalize_callable_refinements(module: &mut terminal_psi::TerminalModule) 
         callable_refinement_context, descriptor_refinement_goals,
         validate_callable_evidence_contracts_in, validate_descriptor_refinement_evidence,
     };
+    // A real construction owes its operational contract before acceptance,
+    // even if its logical refinement already has retained certificates.
+    // Abstract contract witnesses have no descriptor or nominal publication.
+    if let Some(descriptor) = module.callables.descriptors.first() {
+        terminal_semantics::callable_envelopes::validate_callable_operational_refinements(module)
+            .map_err(|detail| {
+            crate::refusal(
+                RefusalReason::ForeignIdentity,
+                descriptor.machine,
+                Construct::Machine,
+                detail,
+            )
+        })?;
+    }
     let mut prepared = Vec::with_capacity(module.callables.descriptors.len());
     for descriptor in &module.callables.descriptors {
         let refuse = |reason, detail: &str| {

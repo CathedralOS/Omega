@@ -29,7 +29,7 @@ pub struct SelectedExecution {
     pub trust_declarations: Arc<language_semantics::trust_declarations::TrustDeclarations>,
     pub has_proof_obligations: bool,
     pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
-    pub external_providers: Arc<psi_terminal_production::PreparedExternalProviderDeclarations>,
+    pub external_providers: Arc<provider_planning::PreparedExternalProviderDeclarations>,
     pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>, // refusal remains data so checking-only stops acquire no native-only obligations
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:

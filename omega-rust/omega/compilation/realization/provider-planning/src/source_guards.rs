@@ -1,13 +1,12 @@
 // Layering boundary guards for `provider-planning`. Verifies that `Cargo.toml`
-// declares no direct frontend source-input dependency edges (`typed-trees`,
-// `typed-trees-to-checked-trees`, `validation`), that every source line naming
-// `checked_trees::typed_trees` spells it through the `checked_trees` facade on
-// the same line, and that source selection decoding stays in Psi.
+// may retain typed declaration metadata beside an accepted Terminal module,
+// but never depends on the retired checking stage or validation as an
+// authority. Source selection decoding stays in Psi.
 
 use std::fs;
 use std::path::Path;
 
-use source_audit::{source_lines, violations};
+use source_audit::violations;
 
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
@@ -16,7 +15,6 @@ fn manifest_declares_no_source_input_dependency_edges() {
     let manifest = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"))
         .expect("manifest is readable beside the crate sources");
     let banned = [
-        concat!("typed", "-trees"),
         concat!("typed", "-trees", "-to", "-checked", "-trees"),
         concat!("valida", "tion"),
     ];
@@ -35,23 +33,6 @@ fn manifest_declares_no_source_input_dependency_edges() {
     assert!(
         violations.is_empty(),
         "provider-planning must not depend on frontend source-input crates: {violations:?}"
-    );
-}
-
-#[test]
-fn typed_vocabulary_spells_through_checked_custody() {
-    let typed = concat!("typed", "_trees");
-    let facade = concat!("checked", "_trees");
-    let mut violations = Vec::new();
-    for (file, line_number, line) in source_lines(CRATE_ROOT, "") {
-        if line.contains(typed) && !line.contains(facade) {
-            violations.push(format!("{file}:{line_number}: {typed}"));
-        }
-    }
-    violations.sort();
-    assert!(
-        violations.is_empty(),
-        "typed vocabulary must arrive through the checked_trees facade: {violations:?}"
     );
 }
 

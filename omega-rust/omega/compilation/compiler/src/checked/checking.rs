@@ -29,6 +29,7 @@ pub use compilation_products::{
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
     PreparedPackageBuild, SettledCheckReuse,
 };
+pub(crate) use lowered_route::publish_selected_roots;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 pub use product_queries::ProductQueries;
 pub(crate) use source_checking::check_product_source;

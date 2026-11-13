@@ -28,12 +28,15 @@ mod callables;
 mod calls;
 mod casts;
 mod contracts;
+mod correspondence;
 mod expressions;
 mod machine;
 mod places;
+mod providers;
 pub(crate) mod services;
 mod statements;
 mod subjects;
+mod traits;
 mod transitions;
 mod types;
 
@@ -55,6 +58,8 @@ pub(crate) struct Program<'t> {
     /// selection retains code without adding an invocation to its call graph.
     pub callables: crate::callables::CallableNamespace,
     pub boundaries: crate::boundaries::BoundaryNamespace,
+    pub external_providers: crate::external_providers::ExternalProviderNamespace,
+    pub static_contracts: crate::static_contracts::StaticContracts,
     /// What diagnostics call each machine's constructs, pushed with its
     /// signature and completed as its body is read.
     pub names: IdTable<MachineId, crate::MachineNames>,
@@ -164,6 +169,8 @@ impl<'t> Program<'t> {
             signatures: IdTable::default(),
             callables: crate::callables::CallableNamespace::default(),
             boundaries: crate::boundaries::BoundaryNamespace::default(),
+            external_providers: crate::external_providers::ExternalProviderNamespace::default(),
+            static_contracts: crate::static_contracts::StaticContracts::default(),
             names: IdTable::default(),
             rigid,
             requirements: Vec::new(),

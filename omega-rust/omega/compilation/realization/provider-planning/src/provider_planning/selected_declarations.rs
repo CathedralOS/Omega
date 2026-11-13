@@ -4,16 +4,16 @@
 // placement can change without reopening source; errors remain deferred until
 // binding checks the selected calls.
 
-use checked_trees::provider_declarations::{
-    ProviderApplicationView, ProviderDeclarationOrigin, ProviderDeclarationRequest,
-    ProviderDeclarationRow,
-};
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use provider_selection::SelectedPlanDeclarations;
+use typed_trees::provider_declarations::{
+    ProviderApplicationView, ProviderDeclarationOrigin, ProviderDeclarationRequest,
+    ProviderDeclarationRow,
+};
 
 pub(crate) fn capture_plan_declarations(
-    checked: &checked_trees::CheckedTrees,
+    source: &crate::PublishedProviderSource,
     plan: &ProviderPlan,
     provider: &crate::ProviderPlanProvenance,
 ) -> Result<language_semantics::provider_declarations::ProviderDeclarations, Diagnostic> {
@@ -56,7 +56,7 @@ pub(crate) fn capture_plan_declarations(
             },
         });
     }
-    let declarations = checked.provider_declarations(ProviderDeclarationRequest {
+    let declarations = source.provider_declarations(ProviderDeclarationRequest {
         rows: &rows,
         named_application: provider.named_application,
         provider_application_identity: plan

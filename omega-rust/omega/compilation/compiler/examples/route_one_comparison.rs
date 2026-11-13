@@ -32,8 +32,8 @@
 //! (one `diagnostic` line per unproved obligation and one `use` line per use
 //! of storage that is not established, the compile errors the program gets on
 //! this route), `incomplete` (the prover has no rule for some
-//! goal's form), `fallback` (an unsupported obligation hands the closure to
-//! the current checker) or `defect`.
+//! goal's form), `fallback` (the legacy report label for an unsupported form
+//! that refuses the compilation) or `defect`.
 //!
 //! The route is given everything the check claims: the Build's entries and
 //! every declaration of the fixture's package, used or not. A program the
@@ -606,9 +606,8 @@ fn judge_elaboration(
         .values()
         .map(|machine| machine.weakened_joins.len())
         .sum();
-    // The route's own verdict, the one a router takes: an unproved obligation
-    // rejects the program with a diagnostic, an unsupported one hands the
-    // closure back to the current checker.
+    // An unproved obligation rejects the program with its diagnostic. An
+    // unsupported form refuses the compilation without a source verdict.
     let route = match judge(Ok(for_verdict)) {
         Ok(RouteVerdict::Accepted(_)) => "accepted",
         Ok(RouteVerdict::Rejected {
@@ -616,6 +615,7 @@ fn judge_elaboration(
             unproved,
             unestablished,
             conflicts,
+            exceeded,
         }) => {
             debug_assert!(
                 formations.is_empty(),
@@ -649,12 +649,22 @@ fn judge_elaboration(
                 ));
                 best = Some(best.map_or(class, |best| best.min(class)));
             }
+            for entry in &exceeded {
+                lines.push(format!(
+                    "reach\t{}\t{}\t{:?}\t{}",
+                    main.display(),
+                    entry.machine.get(),
+                    entry.at,
+                    one_line(entry.message()),
+                ));
+            }
             if current == "rejected" {
                 let messages: Vec<String> = unproved
                     .iter()
                     .map(UnprovedObligation::message)
                     .chain(unestablished.iter().map(|entry| entry.message()))
                     .chain(conflicts.iter().map(|entry| entry.message()))
+                    .chain(exceeded.iter().map(|entry| entry.message()))
                     .collect();
                 let (fragment, expected) = pinned_fragments(main, &messages);
                 lines.push(format!(

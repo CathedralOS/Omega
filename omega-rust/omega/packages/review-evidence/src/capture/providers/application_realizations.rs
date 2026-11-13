@@ -242,7 +242,7 @@ fn application_is_selected(
         });
     if !selected
         && !compilation
-            .custody
+            .original_program
             .facts
             .operators
             .boundary_applications

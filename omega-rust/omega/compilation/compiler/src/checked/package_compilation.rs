@@ -352,8 +352,19 @@ impl CompilationSession {
                 None,
             )?;
             self.retain(&checked.retained_checks);
+            let program = std::sync::Arc::new(
+                crate::terminal::ProductCodeSource {
+                    program: &checked.program,
+                }
+                .portable()?,
+            );
+            let declarations = checked.program.correspondence();
             Ok(psi_compiler::BuildProviderProductionRequest {
-                checked: &checked.program,
+                typed: checked.program.typed(),
+                program,
+                evidence: checked.program.evidence(),
+                machines: &declarations.machines,
+                boundaries: &declarations.boundaries,
                 exact_toolchain_sources: checked.sources.exact_toolchain_sources(),
                 package: inputs.root(),
                 declaration_path,

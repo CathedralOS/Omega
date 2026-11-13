@@ -21,22 +21,30 @@ use std::sync::Arc;
 
 pub struct PreparedBindingDeclarations {
     pub(crate) owner: Result<(), Vec<Diagnostic>>,
-    pub(crate) source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
-    pub trust: Arc<language_semantics::trust_declarations::TrustDeclarations>,
+    pub(crate) source_owner: std::sync::Weak<provider_planning::PublishedProviderSource>,
+    trust: Result<Arc<language_semantics::trust_declarations::TrustDeclarations>, Vec<Diagnostic>>,
     pub(crate) external:
-        Result<Arc<psi_terminal_production::PreparedExternalProviderDeclarations>, Vec<Diagnostic>>,
+        Result<Arc<provider_planning::PreparedExternalProviderDeclarations>, Vec<Diagnostic>>,
     pub(crate) issuers: Result<Vec<language_semantics::BoundaryQualificationIssuer>, &'static str>,
     pub(crate) services: Arc<typed_trees::service_declarations::PreparedServiceCatalog>,
     pub has_proof_obligations: bool,
 }
 
 impl PreparedBindingDeclarations {
+    fn retained_trust_declarations(
+        &self,
+    ) -> Result<Arc<language_semantics::trust_declarations::TrustDeclarations>, Vec<Diagnostic>>
+    {
+        self.owner.clone()?;
+        self.trust.clone()
+    }
+
     pub fn callback_declarations<'declarations>(
         &'declarations self,
         program: &provider_planning::calling_policy_plans::CallingProgram,
         sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<
-        &'declarations Arc<psi_terminal_production::PreparedExternalProviderDeclarations>,
+        &'declarations Arc<provider_planning::PreparedExternalProviderDeclarations>,
         Vec<Diagnostic>,
     > {
         self.owner.clone()?;
@@ -57,8 +65,8 @@ impl PreparedBindingDeclarations {
     }
 
     pub fn capture(
-        program: &Arc<checked_trees::CheckedTrees>,
-        inventory: &Arc<psi_terminal_production::PreparedProviderInventory>,
+        program: &Arc<provider_planning::PublishedProviderSource>,
+        inventory: &Arc<provider_planning::PreparedProviderInventory>,
         exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     ) -> Self {
         let owner = if Arc::ptr_eq(inventory.program(), program) {
@@ -70,15 +78,10 @@ impl PreparedBindingDeclarations {
         };
         let external = (|| {
             owner.clone()?;
-            let external = psi_terminal_production::PreparedExternalProviderDeclarations::prepare(
+            let external = provider_planning::PreparedExternalProviderDeclarations::prepare(
                 Arc::clone(program),
                 exact_toolchain_sources,
-            )
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "external provider declarations: {error:?}"
-                ))]
-            })?;
+            )?;
             external
                 .require_owner(program, exact_toolchain_sources)
                 .map_err(|error| {
@@ -91,15 +94,14 @@ impl PreparedBindingDeclarations {
         Self {
             owner,
             source_owner: Arc::downgrade(program),
-            trust: Arc::new(inventory.trust_declarations().clone()),
+            trust: inventory
+                .trust_declarations()
+                .map(|trust| Arc::new(trust.clone()))
+                .map_err(|error| vec![error]),
             external,
-            issuers: program
-                .facts
-                .semantic
-                .admitted_qualification_issuers()
-                .map(|issuers| issuers.into_iter().cloned().collect()),
+            issuers: program.qualification_issuers(),
             services: inventory.retained_service_catalog(),
-            has_proof_obligations: program.facts.proof_applications.has_obligations,
+            has_proof_obligations: program.has_proof_obligations(),
         }
     }
 }
@@ -149,6 +151,7 @@ pub fn prepare_selected_execution(
             "selected deployment target differs from retained provider planning target",
         )]);
     }
+    let trust = settlement.declarations.retained_trust_declarations()?;
     let provider_plans = settlement
         .provider_candidates
         .iter()
@@ -156,7 +159,7 @@ pub fn prepare_selected_execution(
         .collect::<Vec<_>>();
     if settlement.package_inputs.is_some() && !settlement.root_grants.is_empty() {
         trust_model::reject_package_non_provider_grants(
-            &settlement.declarations.trust,
+            &trust,
             settlement.root_grants,
             &provider_plans,
             &settlement.selected_provider_plan_facts,
@@ -258,7 +261,7 @@ pub fn prepare_selected_execution(
         native_provider_sources: settlement.native_provider_sources,
         selected_provider_plan_facts,
         entry_service_requirements: settlement.entry_service_requirements,
-        trust_declarations: Arc::clone(&settlement.declarations.trust),
+        trust_declarations: trust,
         has_proof_obligations: settlement.declarations.has_proof_obligations,
         selected_target_profile: settlement.selected_target_profile,
         selected_program_entry: settlement.selected_program_entry,

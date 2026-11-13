@@ -48,6 +48,8 @@ result or normal-return guarantee"). Both edges go to `Destination::NoNormal`.
 mod boundaries;
 mod calls;
 mod control;
+mod ownership;
+pub(crate) use ownership::materialize_plain_affine_custody;
 mod operations;
 pub(crate) mod places;
 
@@ -107,6 +109,18 @@ pub(crate) fn machine(
 ) -> Checked<Lowered> {
     let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
     let signature = terminal_check_tables::row(signatures, id, id, Construct::Machine)?;
+    if signature.borrowed.iter().any(|borrowed| {
+        matches!(
+            signature.parameters.get(borrowed.position),
+            Some(ValueType::Rigid(_))
+        )
+    }) {
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Parameter("abstract borrowed type has no physical header"),
+        ));
+    }
     let (mut lowering, entry, formals, result) = begin(
         id,
         signature,
@@ -134,13 +148,7 @@ pub(crate) fn machine(
 
 /// A signature's declarations, shared by named bodies and stored callable
 /// contracts. This creates no named machine or implementation selection.
-pub(crate) struct SignatureHeader {
-    pub scalar_parameters: Vec<ValueDeclaration>,
-    pub parameter_order: Vec<BoundaryParameterKind>,
-    pub structural_parameters: Vec<StructuralParameterDeclaration>,
-    pub result: TerminalMachineResult,
-    pub proof: MachineContract,
-}
+pub(crate) type SignatureHeader = crate::callable_headers::CallableHeader;
 
 /// The same header preparation as an ordinary machine, without a body. The
 /// context names an existing machine for diagnostics; it is not published as
@@ -153,6 +161,47 @@ pub(crate) fn signature_header(
     records: &Records<'_>,
     callables: &crate::callables::CallableNamespace,
     boundaries: &crate::boundaries::BoundaryNamespace,
+) -> Checked<SignatureHeader> {
+    contract_header(
+        context,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        callables,
+        boundaries,
+        crate::callable_headers::CallableCrashPolicy::Closed,
+    )
+}
+
+pub(crate) fn static_signature_header(
+    context: MachineId,
+    signature: &Signature,
+    signatures: &IdTable<MachineId, Signature>,
+    outcomes: &IdTable<MachineId, Outcome>,
+    records: &Records<'_>,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
+) -> Checked<SignatureHeader> {
+    let policy = if matches!(signature.crashes, crate::body::CrashCeiling::Inferred) {
+        crate::callable_headers::CallableCrashPolicy::Open
+    } else {
+        crate::callable_headers::CallableCrashPolicy::Closed
+    };
+    contract_header(
+        context, signature, signatures, outcomes, records, callables, boundaries, policy,
+    )
+}
+
+fn contract_header(
+    context: MachineId,
+    signature: &Signature,
+    signatures: &IdTable<MachineId, Signature>,
+    outcomes: &IdTable<MachineId, Outcome>,
+    records: &Records<'_>,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
+    crash_policy: crate::callable_headers::CallableCrashPolicy,
 ) -> Checked<SignatureHeader> {
     let (lowering, _, formals, result) = begin(
         context,
@@ -167,13 +216,20 @@ pub(crate) fn signature_header(
     let routes = match &signature.crashes {
         crate::body::CrashCeiling::DeclaredNone => Vec::new(),
         crate::body::CrashCeiling::Authored(routes) => routes.clone(),
+        crate::body::CrashCeiling::Inferred
+            if crash_policy == crate::callable_headers::CallableCrashPolicy::Open =>
+        {
+            Vec::new()
+        }
         crate::body::CrashCeiling::Inferred => {
             return Err(
                 lowering.internal("a runtime callable header has no published crash ceiling")
             );
         }
     };
-    lowering.signature_header(formals, result, routes)
+    let mut header = lowering.signature_header(formals, result, routes)?;
+    header.crash_policy = crash_policy;
+    Ok(header)
 }
 
 fn begin<'a>(
@@ -295,7 +351,7 @@ fn begin<'a>(
                     place,
                     position: lane,
                     structural_type: record,
-                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    multiplicity: records.multiplicity(record, id)?,
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
@@ -329,7 +385,7 @@ fn begin<'a>(
             TerminalMachineResult::Structural(StructuralResultDeclaration {
                 place,
                 structural_type: record,
-                multiplicity: StructuralMultiplicity::Unrestricted,
+                multiplicity: records.multiplicity(record, id)?,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
                 reference_sources: Vec::new(),
@@ -742,6 +798,7 @@ impl<'a> Lowering<'a> {
             )
         };
         Ok(SignatureHeader {
+            crash_policy: crate::callable_headers::CallableCrashPolicy::Closed,
             scalar_parameters: formals.scalars,
             parameter_order: formals.order,
             structural_parameters: formals.records,

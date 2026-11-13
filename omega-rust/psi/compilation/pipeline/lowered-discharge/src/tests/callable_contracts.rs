@@ -104,6 +104,191 @@ fn refinement_module() -> TerminalModule {
     module
 }
 
+/// The finalizer receives a real source-issued nominal publication. Logical
+/// implication controls above deliberately use source-free abstract bodies.
+fn declared_refinement_module() -> TerminalModule {
+    use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use symbols::{
+        BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+    };
+    use typed_trees::TypedTrees;
+    use typed_trees::callable_values::RuntimeCallableContract;
+    use typed_trees::expression::{Expression as TypedExpression, NamePath};
+    use typed_trees::machine::Machine;
+    use typed_trees::name::Identifier;
+    use typed_trees::signature::{StateParameter, StateSignature};
+    use typed_trees::state::State;
+    use typed_trees::statement::{StatementNode, TableTransition, TransitionTargetNode};
+    use typed_trees::types::TypeReferenceNode;
+
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]);
+    let mut sources = SourceMap::default();
+    let source = sources
+        .add_with_metadata(
+            PathBuf::from("selected.omg"),
+            "Selected entry amount Callback".to_owned(),
+            PathBuf::from("package"),
+            package,
+            SourceOrigin::User,
+        )
+        .source_id;
+    let name = |start, end| SymbolNameRef::Source(SourceSpan::new(source, Span::new(start, end)));
+    let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = builder.insert_children(
+        root,
+        builtin_type_symbols().into_iter().chain([
+            (SymbolKind::Machine, name(0, 8)),
+            (SymbolKind::CallableContract, name(22, 30)),
+        ]),
+    );
+    let u32_symbol = declarations.handle_at(BuiltinTypeAtom::U32.ordinal() as u32);
+    let selected = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+    let callback = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1);
+    let entry = builder
+        .insert_children(selected, [(SymbolKind::State, name(9, 14))])
+        .handle_at(0);
+    let amount = builder
+        .insert_children(entry, [(SymbolKind::Parameter, name(15, 21))])
+        .handle_at(0);
+    let callback_amount = builder
+        .insert_children(callback, [(SymbolKind::Parameter, name(15, 21))])
+        .handle_at(0);
+    let mut typed = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    let no_services = typed.service_reach_rows.intern(Vec::new());
+    let carrier = typed.type_reference_table.insert(TypeReferenceNode::Named {
+        symbol: u32_symbol,
+        name: Identifier::generated("u32"),
+    });
+    let parameters = typed.state_parameters.insert_many([StateParameter {
+        symbol: amount,
+        name: Identifier::generated("amount"),
+        type_reference: carrier,
+        ..Default::default()
+    }]);
+    let result = typed
+        .expression_table
+        .insert_tree(&TypedExpression::Name(NamePath::resolved(
+            vec![Identifier::generated("amount")],
+            amount,
+            amount,
+        )));
+    let target = typed
+        .statement_table
+        .insert_transition_target(TransitionTargetNode::Value(result));
+    let statements = typed
+        .statement_table
+        .insert_statements([StatementNode::Transition(TableTransition {
+            target,
+            ..Default::default()
+        })]);
+    let states = typed.machine_states.insert_many([State {
+        symbol: entry,
+        name: Identifier::generated("entry"),
+        parameters,
+        return_type: carrier,
+        statement_nodes: statements,
+        ..Default::default()
+    }]);
+    typed.push_machine(Machine {
+        symbol: selected,
+        name: Identifier::generated("Selected"),
+        states,
+        service_reach_row: no_services,
+        declares_no_crash_route: true,
+        ..Default::default()
+    });
+    let parameters = typed.state_parameters.insert_many([StateParameter {
+        symbol: callback_amount,
+        name: Identifier::generated("amount"),
+        type_reference: carrier,
+        ..Default::default()
+    }]);
+    let required = typed
+        .runtime_callable_contracts
+        .insert(RuntimeCallableContract {
+            signature: StateSignature {
+                symbol: callback,
+                name: Identifier::generated("Callback"),
+                parameters,
+                return_type: carrier,
+                service_reach_row: no_services,
+                declares_no_crash_route: true,
+                ..Default::default()
+            },
+            lexical_owner: root,
+            resolved_source: None,
+        });
+    let required_identity = typed
+        .runtime_callable_contract_identity(required, &[])
+        .unwrap();
+    let elaborated = structure_elaboration::elaborate(
+        &typed,
+        structure_elaboration::Compilation {
+            entries: &[selected],
+            subject: package,
+            selected: &[],
+            bindings: &[],
+        },
+    );
+    let RouteVerdict::Accepted(closure) = crate::judge(elaborated).unwrap() else {
+        panic!("the source-owned selected body must be accepted");
+    };
+    assert!(closure.elaboration.undeclared.is_empty());
+    let mut module = closure.elaboration.module;
+    assert!(module.machines[0].declaration.is_some());
+    assert!(module.callables.machine_envelope(id(1)).is_some());
+    let selected = &module.machines[0];
+    let mut proof = selected.contract.clone();
+    proof.id = id(2);
+    let mut identities = module.identities.clone().into_builder();
+    let identity = identities.intern(&required_identity);
+    let application = identities.intern("source-owned-selected-application");
+    module.identities = identities.build();
+    let envelope = module.callables.machine_envelope(id(1)).unwrap().clone();
+    module.callables.contracts.push(TerminalCallableContract {
+        id: id(1),
+        identity,
+        scalar_parameters: selected.parameters.clone(),
+        parameter_order: selected.parameter_order.clone(),
+        structural_parameters: selected.structural_parameters.clone(),
+        result: BoundaryMachineResult::Scalar(selected.result.scalar().unwrap().value_type()),
+        proof_result: selected.result.clone(),
+        proof,
+        entry_claim_paths: Vec::new(),
+        result_claim_paths: Vec::new(),
+        result_reference_regions: Vec::new(),
+        evidence_contract: Vec::new(),
+        envelope,
+    });
+    let questions = callable_contract_refinement_goals(&module, id(1), id(1)).unwrap();
+    module
+        .callables
+        .descriptors
+        .push(TerminalMachineDescriptor {
+            id: id(1),
+            contract: id(1),
+            machine: id(1),
+            origin: TerminalMachineDescriptorOrigin {
+                application,
+                conformance: None,
+                requirement: None,
+            },
+            refinement_obligations: questions
+                .iter()
+                .enumerate()
+                .map(|(position, _)| id(100 + position as u64))
+                .collect(),
+            refinement_evidence: Vec::new(),
+        });
+    module
+}
+
 fn derive_refinements(
     module: &TerminalModule,
 ) -> Result<Vec<terminal_psi::CertificateEnvelope>, &'static str> {
@@ -157,7 +342,7 @@ fn callable_refinement_proves_input_weakening_and_remaps_result_formals() {
 
 #[test]
 fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
-    let mut module = refinement_module();
+    let mut module = declared_refinement_module();
     crate::finalize_callable_refinements(&mut module).unwrap();
     assert!(
         !module.callables.descriptors[0]
@@ -174,6 +359,32 @@ fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
         .proof
         .conclusion = Proposition::Falsehood;
     assert!(crate::finalize_callable_refinements(&mut module).is_err());
+}
+
+#[test]
+fn checker_refuses_operational_strengthening_before_publication() {
+    let mut module = declared_refinement_module();
+    crate::finalize_callable_refinements(&mut module).unwrap();
+    module.callables.machine_envelopes[0]
+        .as_mut()
+        .unwrap()
+        .envelope
+        .blocks = true;
+    module.machines[0]
+        .declaration
+        .as_mut()
+        .unwrap()
+        .published_may_block = true;
+    let refusal = crate::finalize_callable_refinements(&mut module).unwrap_err();
+    assert_eq!(
+        refusal.detail,
+        "selected machine may block outside the callable contract"
+    );
+
+    let mut abstract_form = refinement_module();
+    abstract_form.callables.descriptors.clear();
+    assert!(abstract_form.machines[0].declaration.is_none());
+    crate::finalize_callable_refinements(&mut abstract_form).unwrap();
 }
 
 #[test]

@@ -88,6 +88,9 @@ pub enum RouteVerdict {
         unestablished: Vec<UnestablishedUse>,
         /// One per loan that may not be formed where it is.
         conflicts: Vec<ConflictingUse>,
+        /// One per call that contributes services its caller's written
+        /// `reaches` ceiling leaves out (`service_reach`).
+        exceeded: Vec<crate::ExceededReach>,
     },
     /// No obligation is unproved for want of a derivation, but the prover has
     /// no rule for the form of at least one goal, so the route can judge the
@@ -115,6 +118,11 @@ pub struct AcceptedClosure {
 pub struct RoutePublication {
     pub artifact: terminal_codec::CanonicalTerminalArtifact,
     pub seals: terminal_codec::EvidenceSeals,
+    pub machines: semantic_vocabulary::IdTable<MachineId, symbols::SymbolHandle>,
+    pub boundaries:
+        semantic_vocabulary::IdTable<semantic_vocabulary::BoundaryMachineId, symbols::SymbolHandle>,
+    pub source_records: Vec<typed_trees::SourceRecordCorrespondence>,
+    pub services: Vec<structure_elaboration::SourceServiceCorrespondence>,
 }
 
 impl RoutePublication {
@@ -182,7 +190,14 @@ impl AcceptedClosure {
             .map_err(PublicationError::Seals)?;
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
             .map_err(PublicationError::Artifact)?;
-        Ok(RoutePublication { artifact, seals })
+        Ok(RoutePublication {
+            artifact,
+            seals,
+            machines: self.elaboration.machines.clone(),
+            boundaries: self.elaboration.boundaries.clone(),
+            source_records: self.elaboration.source_records.clone(),
+            services: self.elaboration.services.clone(),
+        })
     }
 }
 
@@ -454,6 +469,9 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             "machine generic parameters",
         )));
     }
+    if let Err(refused) = crate::ownership::verify_plain_affine_custody(&elaboration) {
+        return fall_back_or_defect(refused);
+    }
     let discharged = match discharge(&mut elaboration) {
         Ok(discharged) => discharged,
         Err(refused) => return fall_back_or_defect(refused),
@@ -612,12 +630,19 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             });
         }
     }
-    if !unestablished.is_empty() || !conflicts.is_empty() {
+    // Service reach is judged on the module's own rows, whatever the proof
+    // obligations came to.
+    let exceeded = match crate::service_reach::judge(&elaboration) {
+        Ok(exceeded) => exceeded,
+        Err(refused) => return fall_back_or_defect(refused),
+    };
+    if !unestablished.is_empty() || !conflicts.is_empty() || !exceeded.is_empty() {
         return Ok(RouteVerdict::Rejected {
             formations: Vec::new(),
             unproved: without_restated_clauses(unproved),
             unestablished,
             conflicts,
+            exceeded,
         });
     }
     if !unproved.is_empty() {
@@ -634,9 +659,16 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                     unproved,
                     unestablished: Vec::new(),
                     conflicts: Vec::new(),
+                    exceeded: Vec::new(),
                 }
             },
         );
+    }
+    if let Err(refused) = crate::external_providers::publish(&mut elaboration) {
+        return fall_back_or_defect(refused);
+    }
+    if let Err(refused) = crate::static_contracts::publish(&mut elaboration) {
+        return fall_back_or_defect(refused);
     }
     let seals = match discharged.operation_seals(&elaboration) {
         Ok(seals) => seals,
@@ -677,6 +709,7 @@ pub fn judge_compilation(
                 unproved: Vec::new(),
                 unestablished: Vec::new(),
                 conflicts: Vec::new(),
+                exceeded: Vec::new(),
             })];
         }
         Ok(_) => {}
@@ -691,19 +724,126 @@ pub fn judge_compilation(
         Err(refused) => (Err(refused), Vec::new()),
     };
     let mut verdicts = vec![judge(closure).map_err(CompilationRefusal::Elaboration)];
-    if !templates.is_empty() {
-        match structure_elaboration::elaborate_generic_forms(typed, &templates) {
-            Ok(forms) => verdicts.extend(
+    verdicts.extend(judge_generic_forms(typed, templates));
+    verdicts
+}
+
+/// Abstract applications cannot prove their own contract. Prepare the actual
+/// application closure once, then refuse every template on a direct or mutual
+/// cycle before its abstract guarantees can authorize acceptance. This also
+/// catches a recursive body with no ensures row to leave undecided (#2809).
+fn judge_generic_forms(
+    typed: &typed_trees::TypedTrees,
+    mut templates: Vec<symbols::SymbolHandle>,
+) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
+    let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+    templates.sort_by_key(|symbol| key(*symbol));
+    templates.dedup();
+    let mut positions = templates
+        .iter()
+        .enumerate()
+        .map(|(ordinal, symbol)| (key(*symbol), ordinal))
+        .collect::<Vec<_>>();
+    let mut forms = Vec::new();
+    let mut applies = Vec::new();
+    let mut next = 0;
+    while next < templates.len() {
+        let mut elaborated =
+            structure_elaboration::elaborate_generic_forms(typed, &[templates[next]]);
+        let discovered = match &elaborated {
+            Ok(alternatives) => (|| {
+                let mut symbols = Vec::new();
+                for form in alternatives {
+                    for application in &form.applications {
+                        let symbol = form.machines.get(*application).copied().ok_or_else(|| {
+                            refusal(
+                                RefusalReason::ForeignIdentity,
+                                *application,
+                                Construct::Machine,
+                                "generic application lost its exact source declaration",
+                            )
+                        })?;
+                        if !typed.symbols.symbols().nodes().is_valid(symbol)
+                            || typed.machine_by_symbol(symbol).is_none()
+                        {
+                            return Err(refusal(
+                                RefusalReason::ForeignIdentity,
+                                *application,
+                                Construct::Machine,
+                                "generic application names a stale or non-machine declaration",
+                            ));
+                        }
+                        symbols.push(symbol);
+                    }
+                }
+                Ok(symbols)
+            })(),
+            Err(_) => Ok(Vec::new()),
+        };
+        let mut called = Vec::new();
+        match discovered {
+            Err(refused) => elaborated = Err(refused),
+            Ok(symbols) => {
+                for symbol in symbols {
+                    let position =
+                        match positions.binary_search_by_key(&key(symbol), |(key, _)| *key) {
+                            Ok(position) => positions[position].1,
+                            Err(position) => {
+                                let ordinal = templates.len();
+                                templates.push(symbol);
+                                positions.insert(position, (key(symbol), ordinal));
+                                ordinal
+                            }
+                        };
+                    called.push(position);
+                }
+            }
+        }
+        called.sort_unstable();
+        called.dedup();
+        applies.push(called);
+        forms.push(elaborated);
+        next += 1;
+    }
+    let mut results = Vec::new();
+    for (template, forms) in forms.into_iter().enumerate() {
+        let mut visited = vec![false; applies.len()];
+        let mut pending = applies[template].clone();
+        let mut cycle = false;
+        while let Some(next) = pending.pop() {
+            if next == template {
+                cycle = true;
+                break;
+            }
+            if !std::mem::replace(&mut visited[next], true) {
+                pending.extend(applies[next].iter().copied());
+            }
+        }
+        if cycle {
+            let context = MachineId::new(1).expect("1 is nonzero");
+            results.push(Ok(RouteVerdict::FallBack(refusal(
+                RefusalReason::Unsupported,
+                context,
+                Construct::Machine,
+                &format!(
+                    "generic machine `{}` on a call cycle",
+                    typed.symbols.name(templates[template])
+                ),
+            ))));
+            continue;
+        }
+        match forms {
+            Ok(forms) => results.extend(
                 forms
                     .into_iter()
                     .map(|form| judge(Ok(form)).map_err(CompilationRefusal::Elaboration)),
             ),
             Err(refused) => {
-                verdicts.push(judge(Err(refused)).map_err(CompilationRefusal::Elaboration))
+                results.push(judge(Err(refused)).map_err(CompilationRefusal::Elaboration))
             }
         }
     }
-    verdicts
+    results
 }
 
 /// Where an operation, edge or block arises in the source, from
@@ -750,6 +890,7 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
                 declared: None,
             }],
             conflicts: Vec::new(),
+            exceeded: Vec::new(),
         }),
         RefusalReason::Unproved(_)
         | RefusalReason::NotConserved

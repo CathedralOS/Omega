@@ -57,15 +57,19 @@ mod callable_formations;
 mod crashes;
 mod describe;
 mod entry_inputs;
+mod external_providers;
 mod graph;
 mod joins;
 mod known;
 mod minted;
+mod ownership;
 mod places;
 mod prove;
 mod refinement;
 mod result_summaries;
 mod reuse;
+mod service_reach;
+mod static_contracts;
 mod verdict;
 
 pub use callable_formations::{
@@ -75,6 +79,7 @@ pub use callable_formations::{
 pub use places::{ConflictingLoan, LoanConflict};
 pub use refinement::{finalize_callable_refinements, prove_callable_refinement};
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
+pub use service_reach::ExceededReach;
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, PublicationError,
     RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge, judge_compilation,
@@ -809,14 +814,6 @@ fn fill_knowledge(
         let operation = match row.site {
             InvocationSite::Operation(operation) => operation,
             InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => continue,
-            _ => {
-                return Err(refusal(
-                    RefusalReason::Unsupported,
-                    id,
-                    Construct::Invocation(invocation),
-                    "invocation outside an operation or a no-normal call",
-                ));
-            }
         };
         let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
         let actuals = scalar_actuals(&row.actuals);
@@ -1516,14 +1513,6 @@ fn stated_goal(
                         result: None,
                         tables,
                     })
-                }
-                _ => {
-                    return Err(refusal(
-                        RefusalReason::Unsupported,
-                        id,
-                        Construct::Invocation(invocation),
-                        "invocation outside a direct call",
-                    ));
                 }
             }
             .map_err(|unbound| unbound.refusal(id, concerns))

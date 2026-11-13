@@ -109,13 +109,9 @@ pub(crate) struct Declared<'a> {
 
 /// The Terminal Psi declarations of the record types, in identity order.
 ///
-/// Every flag states what a copy-eligible plain record is by structure:
-/// `copyable` because its type is unrestricted; `no_code_affine_cleanup`
-/// because its "represented owned contents require no executable disposal"
-/// and `descriptor_cleanup` because it is "a closed value containing only
-/// owned storage and reference descriptors, with no nominal cleanup hook or
-/// conserved claim" (`wiki/spec/terminal-psi/structural_access.md`); it owns
-/// no linear claim and authors no layout.
+/// Copyability follows the declaration's multiplicity. These plain records
+/// have no nominal hook or conserved claim, so represented contents need no
+/// executable disposal; affine values still retain their move/discard custody.
 ///
 /// A scalar local declared without an initializer is homed in a place of
 /// primitive structural type, so each scalar type such a local has is
@@ -133,6 +129,13 @@ pub(crate) fn declare<'a, 'b>(
     let mut native_layouts = NativeLayoutCatalog::default();
     let mut payload_identities = IdTable::default();
     for (id, record) in types.iter() {
+        if record.multiplicity == StructuralMultiplicity::Linear {
+            return Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Type("linear record claims"),
+            ));
+        }
         let mut declare_fields = |declared: &[RecordField]| {
             let mut indexes = Vec::with_capacity(declared.len());
             let mut fields = Vec::with_capacity(declared.len());
@@ -229,7 +232,7 @@ pub(crate) fn declare<'a, 'b>(
             id,
             identity: identities.intern(&record.identity),
             owns_linear_claim: false,
-            copyable: true,
+            copyable: record.multiplicity == StructuralMultiplicity::Unrestricted,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
             shape,
@@ -418,6 +421,29 @@ pub(crate) fn borrowed_access(access: language_core::ReferenceAccess) -> Option<
 }
 
 impl Records<'_> {
+    pub(super) fn multiplicity(
+        &self,
+        record: StructuralTypeId,
+        machine: MachineId,
+    ) -> Checked<StructuralMultiplicity> {
+        if let Some(record) = self.types.get(record) {
+            return Ok(record.multiplicity);
+        }
+        if self
+            .primitives
+            .iter()
+            .any(|(_, primitive)| *primitive == record)
+        {
+            return Ok(StructuralMultiplicity::Unrestricted);
+        }
+        Err(Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            machine,
+            concerns: Construct::Machine,
+            detail: String::from("a structural place has no declared multiplicity"),
+        })
+    }
+
     /// The primitive structural type `declare` declared for `scalar_type`.
     pub(super) fn primitive(
         &self,
@@ -523,11 +549,15 @@ enum Operand {
     Record(PlaceId),
 }
 
-fn unrestricted_result(place: PlaceId, record: StructuralTypeId) -> StructuralOperationResult {
+fn structural_result(
+    place: PlaceId,
+    record: StructuralTypeId,
+    multiplicity: StructuralMultiplicity,
+) -> StructuralOperationResult {
     StructuralOperationResult {
         place,
         structural_type: record,
-        multiplicity: StructuralMultiplicity::Unrestricted,
+        multiplicity,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
         additional_input_qualifications: Vec::new(),
@@ -754,9 +784,10 @@ impl<'a> Lowering<'a> {
             },
             record,
         )?;
+        let multiplicity = self.records.multiplicity(record, self.id)?;
         self.draft()?.operations.push(Operation::unsuspended(
             operation,
-            OperationResult::Structural(unrestricted_result(place, record)),
+            OperationResult::Structural(structural_result(place, record, multiplicity)),
             kind,
         ));
         self.point = Some(ProgramPoint::AfterOperation(operation));
@@ -875,8 +906,8 @@ impl<'a> Lowering<'a> {
 
     /// Evaluates a record-typed expression to a root that holds its value
     /// and that nothing else names. A literal or call is its own fresh root;
-    /// a slot or member path is copied whole into one (`StructuralLeafCopy`),
-    /// which is what `let b = a;`, passing by value and returning do.
+    /// an unrestricted value is copied, and an affine whole value transfers
+    /// its custody. Passing or returning a value uses that same operation.
     pub(super) fn record(&mut self, expression: &Expression) -> Checked<PlaceId> {
         let at = self.located(expression)?;
         if at.fresh && at.path.is_empty() {
@@ -884,17 +915,36 @@ impl<'a> Lowering<'a> {
         }
         let path = self.storage_path(&at.path)?;
         self.name_entry(at.root, at.place, ValueType::Record(at.record))?;
-        let operation = self.operation_identity(expression.source);
-        let (root, exact) = self.produce(
-            operation,
-            at.record,
-            OperationKind::StructuralLeafCopy {
+        let multiplicity = self.record_type(at.record)?.multiplicity;
+        let kind = match multiplicity {
+            StructuralMultiplicity::Unrestricted => OperationKind::StructuralLeafCopy {
                 source: at.root,
                 path,
             },
-        )?;
-        // The copy's source is the operation's own `source` and `path`; the
-        // row says only that the fresh root has new contents.
+            StructuralMultiplicity::Affine if path.is_empty() => {
+                OperationKind::MoveStructuralValue {
+                    source: StructuralArgument::whole(at.root, StructuralAccess::Owned),
+                }
+            }
+            StructuralMultiplicity::Affine => {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Type("partial affine extraction"),
+                ));
+            }
+            StructuralMultiplicity::Linear => {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Type("linear record claims"),
+                ));
+            }
+        };
+        let operation = self.operation_identity(expression.source);
+        let (root, exact) = self.produce(operation, at.record, kind)?;
+        // Value transport retains its exact source relationship in the
+        // operation; this row records the destination's new contents.
         self.write(
             exact,
             ProgramPoint::AfterOperation(operation),

@@ -8,9 +8,8 @@ use semantic_vocabulary::{
 use terminal_check_tables::{CheckTables, Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::{
     BoundaryMachineResult, BoundaryStructuralResultDeclaration, TerminalCallableCatalog,
-    TerminalCallableContract, TerminalCallableEnvelope, TerminalMachineDescriptor,
-    TerminalMachineDescriptorOrigin, TerminalMachineEnvelope, TerminalMachineResult,
-    TerminalModule,
+    TerminalCallableContract, TerminalMachineDescriptor, TerminalMachineDescriptorOrigin,
+    TerminalMachineEnvelope, TerminalMachineResult, TerminalModule,
 };
 use typed_trees::callable_values::RuntimeCallableContractHandle;
 
@@ -20,7 +19,7 @@ use crate::Signature;
 pub(crate) struct CallableNamespace {
     pub contracts: IdTable<CallableContractId, CallableContract>,
     pub descriptors: IdTable<MachineDescriptorId, MachineSelection>,
-    pub envelopes: IdTable<MachineId, Option<TerminalCallableEnvelope>>,
+    pub envelopes: IdTable<MachineId, Option<crate::reach::SourceEnvelope>>,
     sources: Vec<Option<(RuntimeCallableContractHandle, CallableContractId)>>,
     pub resolving: Vec<RuntimeCallableContractHandle>,
 }
@@ -29,7 +28,7 @@ pub(crate) struct CallableNamespace {
 pub(crate) struct CallableContract {
     pub identity: String,
     pub signature: Signature,
-    pub envelope: TerminalCallableEnvelope,
+    pub envelope: crate::reach::SourceEnvelope,
 }
 
 #[derive(Debug, Clone)]
@@ -45,7 +44,7 @@ impl CallableNamespace {
     pub fn bind_machine_envelope(
         &mut self,
         machine: MachineId,
-        envelope: TerminalCallableEnvelope,
+        envelope: crate::reach::SourceEnvelope,
     ) -> Result<(), &'static str> {
         while self.envelopes.len() < machine.get() as usize {
             self.envelopes.push(None);
@@ -109,6 +108,7 @@ impl CallableNamespace {
         records: &crate::lower::places::Records<'_>,
         boundaries: &crate::boundaries::BoundaryNamespace,
         tables: &CheckTables,
+        services: &crate::reach::ServiceMap,
         module: &mut TerminalModule,
     ) -> Checked<()> {
         let refuse = |reason: &str| Refusal {
@@ -190,19 +190,23 @@ impl CallableNamespace {
                 result_reference_regions: Vec::new(),
                 proof,
                 evidence_contract: Vec::new(),
-                envelope: contract.envelope.clone(),
+                envelope: services.envelope(context, &contract.envelope)?,
             });
         }
         catalog.machine_envelopes = self
             .envelopes
             .iter()
             .map(|(machine, envelope)| {
-                envelope.as_ref().map(|envelope| TerminalMachineEnvelope {
-                    machine,
-                    envelope: envelope.clone(),
-                })
+                envelope
+                    .as_ref()
+                    .map(|envelope| {
+                        services
+                            .envelope(context, envelope)
+                            .map(|envelope| TerminalMachineEnvelope { machine, envelope })
+                    })
+                    .transpose()
             })
-            .collect();
+            .collect::<Checked<Vec<_>>>()?;
         for (id, selection) in self.descriptors.iter() {
             if !matches!(self.envelopes.get(selection.machine), Some(Some(_))) {
                 return Err(refuse(

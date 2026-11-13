@@ -5,19 +5,19 @@
 // deferred failures nor admits the projected provider closure.
 
 use crate::exact_checked_adapter;
-use checked_trees::typed_trees::machine::Machine;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use std::sync::{Arc, OnceLock};
+use typed_trees::machine::Machine;
 
 pub struct SelectedProviderSource {
-    inventory: Arc<checked_trees::PreparedProviderInventory>,
+    inventory: Arc<crate::PreparedProviderInventory>,
     plans: Arc<effects::SelectedProviderPlanFacts>,
     declarations: OnceLock<PreparedProviderInstances>,
 }
 
 struct PreparedProviderInstances {
-    plans: Vec<provider_selection::ProviderPlanInstanceDeclarations>,
+    plans: Result<Vec<provider_selection::ProviderPlanInstanceDeclarations>, Vec<Diagnostic>>,
 }
 
 impl std::fmt::Debug for SelectedProviderSource {
@@ -38,7 +38,7 @@ impl Eq for SelectedProviderSource {}
 
 impl SelectedProviderSource {
     pub fn new(
-        inventory: Arc<checked_trees::PreparedProviderInventory>,
+        inventory: Arc<crate::PreparedProviderInventory>,
         plans: Arc<effects::SelectedProviderPlanFacts>,
     ) -> Self {
         Self {
@@ -48,10 +48,10 @@ impl SelectedProviderSource {
         }
     }
 
-    pub fn program(&self) -> &Arc<checked_trees::CheckedTrees> {
+    pub fn program(&self) -> &Arc<crate::PublishedProviderSource> {
         self.inventory.program()
     }
-    pub fn inventory(&self) -> &Arc<checked_trees::PreparedProviderInventory> {
+    pub fn inventory(&self) -> &Arc<crate::PreparedProviderInventory> {
         &self.inventory
     }
     pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
@@ -60,11 +60,12 @@ impl SelectedProviderSource {
 
     pub fn project_instances(&self) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
         let prepared = self.declarations();
+        let instances = prepared.plans.as_ref().map_err(Clone::clone)?;
         let declarations = self
             .plans
             .plans()
             .iter()
-            .zip(&prepared.plans)
+            .zip(instances)
             .map(
                 |(plan, instances)| provider_selection::ProviderInstanceDeclarations {
                     plan,
@@ -80,7 +81,7 @@ impl SelectedProviderSource {
             let adapters = CheckedAdapterDeclarations::prepare(&self.program().typed, &self.plans);
             let plans = prepare_instance_declarations(
                 &self.program().typed,
-                &self.program().facts,
+                self.program(),
                 &self.plans,
                 &adapters,
             );
@@ -101,7 +102,7 @@ struct CheckedAdapterDeclarations<'typed, 'plan> {
 
 impl<'typed, 'plan> CheckedAdapterDeclarations<'typed, 'plan> {
     fn prepare(
-        typed: &'typed checked_trees::typed_trees::TypedTrees,
+        typed: &'typed typed_trees::TypedTrees,
         selected: &'plan effects::SelectedProviderPlanFacts,
     ) -> Self {
         let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
@@ -139,11 +140,11 @@ impl<'typed, 'plan> CheckedAdapterDeclarations<'typed, 'plan> {
 }
 
 fn prepare_instance_declarations(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    check_facts: &checked_trees::CheckFacts,
+    typed: &typed_trees::TypedTrees,
+    source: &crate::PublishedProviderSource,
     selected: &effects::SelectedProviderPlanFacts,
     adapters: &CheckedAdapterDeclarations<'_, '_>,
-) -> Vec<provider_selection::ProviderPlanInstanceDeclarations> {
+) -> Result<Vec<provider_selection::ProviderPlanInstanceDeclarations>, Vec<Diagnostic>> {
     use language_semantics::provider_declarations::{
         ClosedProviderInstance, ProviderInstanceApplication,
     };
@@ -174,7 +175,7 @@ fn prepare_instance_declarations(
             let inherited = match row.binding {
                 ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Syscall { .. } => {
                     let template = plan.identities.text(row.requirement_identity);
-                    checked_trees::provider_declarations::closed_provider_leaf_applications(
+                    typed_trees::provider_declarations::closed_provider_leaf_applications(
                         typed, template,
                     )
                     .map(|applications| {
@@ -200,30 +201,13 @@ fn prepare_instance_declarations(
                 } => adapters
                     .machine(plan, row)
                     .map(|provider| {
-                        let applications = checked_trees::provider_instances::inherited_instances(
-                            typed,
-                            check_facts,
+                        inherited_instances(
+                            source,
                             plan.identities.text(row.requirement_identity),
                             provider,
                             selecting,
                             machine_package_identity,
-                        );
-                        let mut projected = Vec::new();
-                        for application in applications {
-                            let candidates = application
-                                .candidates
-                                .into_iter()
-                                .map(|candidate| {
-                                    candidate.map(|instance| render_instance(typed, instance))
-                                })
-                                .collect();
-                            projected.push(ProviderInstanceApplication {
-                                declaration_application: application.declaration_application,
-                                receiving_application: application.receiving_application,
-                                candidates,
-                            });
-                        }
-                        projected
+                        )
                     })
                     .map_err(|error| vec![error]),
                 _ => Ok(Vec::new()),
@@ -242,16 +226,7 @@ fn prepare_instance_declarations(
                         machine_package_identity,
                         ..
                     } => adapters.machine(plan, row).map(|provider| {
-                        checked_trees::provider_instances::generic_instances(
-                            typed,
-                            check_facts,
-                            provider,
-                            template,
-                            machine_package_identity,
-                        )
-                        .into_iter()
-                        .map(|instance| instance.map(|instance| render_instance(typed, instance)))
-                        .collect()
+                        generic_instances(source, provider, template, machine_package_identity)
                     }),
                     _ => Ok(Vec::new()),
                 };
@@ -260,14 +235,21 @@ fn prepare_instance_declarations(
             generic_templates.push(GenericProviderInstanceDeclarations {
                 template: typed
                     .machine_callable_identity_text(template)
-                    .unwrap_or_default(),
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(format!(
+                            "generic provider template `{}` has no complete callable identity",
+                            typed.symbols.display_path(template.symbol, "::"),
+                        ))]
+                    })?,
                 rows: instance_rows,
-                required_instances: checked_trees::provider_instances::closed_requirements(
-                    typed, template,
-                )
-                .into_iter()
-                .map(|identity| typed.callable_identity_text(identity))
-                .collect(),
+                required_instances:
+                    typed_trees::provider_declarations::closed_provider_requirements(
+                        typed, template,
+                    )
+                    .into_iter()
+                    .map(|identity| typed.callable_identity_text(identity))
+                    .collect(),
             });
         }
         declarations.push(ProviderPlanInstanceDeclarations {
@@ -275,17 +257,185 @@ fn prepare_instance_declarations(
             generic_templates,
         });
     }
-    declarations
+    Ok(declarations)
 }
 
-fn render_instance(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    instance: language_semantics::provider_declarations::ClosedProviderInstance<
-        checked_trees::typed_trees::type_identity::CallableIdentityId,
-    >,
-) -> language_semantics::provider_declarations::ClosedProviderInstance<String> {
-    language_semantics::provider_declarations::ClosedProviderInstance {
-        requirement: typed.callable_identity_text(instance.requirement),
-        realization: typed.callable_identity_text(instance.realization),
+fn inherited_instances(
+    source: &crate::PublishedProviderSource,
+    requirement: &str,
+    provider: &Machine,
+    selecting: Option<symbols::SymbolHandle>,
+    package: Option<semantic_vocabulary::PackageKeyIdentity>,
+) -> Vec<language_semantics::provider_declarations::ProviderInstanceApplication<String>> {
+    use language_semantics::provider_declarations::{
+        ClosedProviderInstance, ProviderInstanceApplication,
+    };
+    let typed = &source.typed;
+    let module = source.module();
+    let provider_identity = typed.machine_callable_identity_text(provider);
+    let selecting_identity = selecting.map(|symbol| {
+        let sources =
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())?;
+        typed
+            .exact_owner_nominal_identity(symbol, &sources)
+            .and_then(|identity| typed.type_identity_text(identity))
+            .ok_or_else(|| "provider instance lost its exact selecting declaration".to_owned())
+    });
+    typed
+        .closed_requirement_applications()
+        .filter(|application| {
+            typed
+                .trait_machine_signature(application.template)
+                .is_some_and(|(owner, signature)| {
+                    typed.trait_requirement_callable_identity_text(owner, signature) == requirement
+                })
+        })
+        .map(|application| {
+            let expected = typed
+                .trait_definition_by_symbol(application.declaring_trait)
+                .map(|owner| {
+                    typed.trait_requirement_callable_identity_text(owner, application.signature)
+                });
+            let receiving = typed
+                .type_identity_text(application.portable_trait_application_identity)
+                .ok_or_else(|| {
+                    "provider instance lost its portable receiving application".to_owned()
+                });
+            let mut candidates = Vec::new();
+            let mut declaration_application: Option<Result<String, String>> = None;
+            for row in &module.provider_candidates {
+                if module.identities.text(row.source_requirement_identity) != Some(requirement)
+                    || module.identities.text(row.source_candidate_identity)
+                        != provider_identity.as_deref()
+                    || row.source_candidate_package_identity != package
+                    || module.identities.text(row.requirement_identity) != expected.as_deref()
+                    || module.identities.text(row.receiving_application)
+                        != receiving.as_ref().ok().map(String::as_str)
+                {
+                    continue;
+                }
+                if let Some(Ok(expected)) = &selecting_identity
+                    && module.identities.text(row.provider_declaration.identity())
+                        != Some(expected.as_str())
+                {
+                    continue;
+                }
+                let declared = module
+                    .identities
+                    .text(row.declaration_application)
+                    .filter(|identity| !identity.is_empty())
+                    .map(str::to_owned)
+                    .ok_or_else(|| "provider instance lost its declaration application".to_owned());
+                declaration_application = Some(match declaration_application.take() {
+                    Some(previous) if previous != declared => {
+                        Err("provider group has competing declaration applications".into())
+                    }
+                    Some(previous) => previous,
+                    None => declared,
+                });
+                let candidate = (|| {
+                    if let Some(expected) = &selecting_identity {
+                        expected.as_ref().map_err(Clone::clone)?;
+                    }
+                    let required = module
+                        .identities
+                        .text(row.requirement_identity)
+                        .ok_or("provider instance lost its required identity")?;
+                    let actual = module
+                        .identities
+                        .text(row.candidate_identity)
+                        .ok_or("provider instance lost its candidate identity")?;
+                    if module
+                        .machine(row.candidate)
+                        .and_then(|machine| machine.declaration.as_ref())
+                        .and_then(|declaration| module.identities.text(declaration.callable))
+                        != Some(actual)
+                    {
+                        return Err(
+                            "provider instance differs from its accepted candidate".to_owned()
+                        );
+                    }
+                    Ok(ClosedProviderInstance {
+                        requirement: required.to_owned(),
+                        realization: actual.to_owned(),
+                    })
+                })();
+                candidates.push(candidate);
+            }
+            if candidates.is_empty() {
+                candidates.push(Err(
+                    "provider instance has no accepted application refinement receipt".into(),
+                ));
+            }
+            ProviderInstanceApplication {
+                declaration_application: declaration_application.unwrap_or_else(|| {
+                    Err("provider group has no accepted declaration application".into())
+                }),
+                receiving_application: receiving,
+                candidates,
+            }
+        })
+        .collect()
+}
+
+fn generic_instances(
+    source: &crate::PublishedProviderSource,
+    provider: &Machine,
+    template: &Machine,
+    package: Option<semantic_vocabulary::PackageKeyIdentity>,
+) -> Vec<Result<language_semantics::provider_declarations::ClosedProviderInstance<String>, String>>
+{
+    use language_semantics::provider_declarations::ClosedProviderInstance;
+    let module = source.module();
+    let template_identity = source.typed.machine_callable_identity_text(template);
+    let provider_identity = source.typed.machine_callable_identity_text(provider);
+    let mut instances = Vec::new();
+    for row in &module.provider_instance_requirements {
+        if module.identities.text(row.template) != template_identity.as_deref()
+            || module.identities.text(row.source_candidate_identity) != provider_identity.as_deref()
+            || row.package != package
+        {
+            continue;
+        }
+        for required in &row.required_instances {
+            instances.push((|| {
+                let requirement = module
+                    .identities
+                    .text(required.requirement_identity)
+                    .ok_or("generic provider receipt lost its required identity")?;
+                let realization = module
+                    .identities
+                    .text(required.candidate_identity)
+                    .ok_or("generic provider receipt lost its candidate identity")?;
+                if !module.provider_candidates.iter().any(|candidate| {
+                    candidate.requirement_identity == required.requirement_identity
+                        && candidate.candidate_identity == required.candidate_identity
+                        && candidate.declaration_application == required.declaration_application
+                        && candidate.receiving_application == required.receiving_application
+                        && candidate.receiving_region_arguments
+                            == required.receiving_region_arguments
+                }) {
+                    return Err(
+                        "generic provider has no accepted exact application refinement".to_owned(),
+                    );
+                }
+                Ok(ClosedProviderInstance {
+                    requirement: requirement.to_owned(),
+                    realization: realization.to_owned(),
+                })
+            })());
+        }
     }
+    if instances.is_empty()
+        && !typed_trees::provider_declarations::closed_provider_requirements(
+            &source.typed,
+            template,
+        )
+        .is_empty()
+    {
+        instances.push(Err(
+            "generic provider has no accepted instance-requirement receipt".into(),
+        ));
+    }
+    instances
 }

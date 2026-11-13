@@ -1,8 +1,7 @@
-// One invocation's portable Terminal code, shared by policy and Product
-// consumers. `ProductTerminalPublication` fixes Psi optimization choices before
-// targets settle and memoizes the produced `PortableTerminalProgram` (or its
-// refusal) in a `OnceLock` without retrying or permitting a different Psi
-// optimization projection to replace it.
+//! Retain the accepted program and its publication result for product consumers.
+//! Reports share one portable wrapper with fixed Psi optimization choices. A
+//! failed publication remains a failure; target selection never tries another
+//! source producer to replace it.
 
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
@@ -13,7 +12,15 @@ pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
     productions: Arc<psi_compiler::PortableProductions>,
+    checked_application: Result<Arc<CheckedApplicationProgram>, Vec<Diagnostic>>,
 }
+
+// Product and provider preparation share one authenticated source owner;
+// neither creates a second declaration packet or rechecks a source body.
+pub use provider_planning::{
+    PublishedProviderDeclarations as ProductSourceDeclarations,
+    PublishedProviderSource as CheckedApplicationProgram,
+};
 
 impl std::fmt::Debug for ProductTerminalPublication {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -21,6 +28,7 @@ impl std::fmt::Debug for ProductTerminalPublication {
             .debug_struct("ProductTerminalPublication")
             .field("optimizations", &self.optimizations)
             .field("published", &self.program.get().map(Result::is_ok))
+            .field("checked_application", &self.checked_application.is_ok())
             .finish()
     }
 }
@@ -34,7 +42,25 @@ impl ProductTerminalPublication {
             optimizations,
             program: OnceLock::new(),
             productions,
+            checked_application: Err(vec![Diagnostic::error(
+                "no checked application program was retained for product production",
+            )]),
         }
+    }
+
+    /// Keep publication failures beside accepted source checking. A consumer
+    /// needing executable code must report this result, never produce another
+    /// program from the old checker's output after a failure.
+    pub fn with_checked_application(
+        mut self,
+        program: Result<Arc<CheckedApplicationProgram>, Vec<Diagnostic>>,
+    ) -> Self {
+        self.checked_application = program;
+        self
+    }
+
+    pub fn checked_application(&self) -> Result<&Arc<CheckedApplicationProgram>, Vec<Diagnostic>> {
+        self.checked_application.as_ref().map_err(Clone::clone)
     }
 
     // The same portable productions published for a different root

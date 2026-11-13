@@ -1,20 +1,7 @@
-/*
-We batch and reuse the published `PortableTerminalProgram` across target
-applications that share a checked source and Psi optimization projection.
-
-`produce_retained_terminal_artifacts` partitions requests first by shared
-checked source (`shares_source`) so target provider publications cover the full
-set of requested realization scopes, and then by equal Psi production inputs
-(`shares_production`).
-*/
-
-/*
-For each production cohort, we obtain the shared `PortableTerminalProgram` once
-(`produce_shared_terminal`), attach each application's entry and callback roots
-(`attach_application`), enforce authored behavior exclusions (`policy.admit`),
-and publish the target's provider proposals before restoring the caller's
-request order.
-*/
+//! Attach target execution to the program source checking accepted. Requests
+//! sharing that publication prepare provider proposals for their combined target
+//! scopes. Applications retain the accepted artifact and evidence seals;
+//! reports and named inspections retain its portable execution companions.
 
 use super::behavior_exclusions::TerminalBehaviorExclusions;
 use super::product_code::ProductCodeSource;
@@ -30,7 +17,7 @@ use std::sync::Arc;
 
 const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "terminal-production",
-    "CheckedTrees",
+    "CheckedApplicationProgram",
     "CanonicalTerminalArtifact",
 );
 
@@ -46,7 +33,7 @@ pub(crate) struct TerminalProductionView<'a> {
     plan_facts: &'a effects::SelectedProviderPlanFacts,
     native_sources: &'a Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
     callbacks: &'a psi_compiler::PreparedTerminalRoots,
-    callback_declarations: &'a psi_compiler::PreparedExternalProviderDeclarations,
+    callback_declarations: &'a provider_planning::PreparedExternalProviderDeclarations,
     callback_calling_requirements: Vec<terminal_psi::CallbackRequirementId>,
     timings: &'a mut CompileTimings,
     native_components:
@@ -160,11 +147,6 @@ impl<'a> TerminalProductRequest<'a> {
     ) -> Self {
         let source = ProductCodeSource {
             program: selection.source_inspection.program(),
-            inventory: selection.source_inspection.inventory(),
-            sources: &selection.sources,
-            build: &selection.build,
-            defaults: &selection.provider_defaults,
-            publication: &selection.terminal_publication,
         };
         let view = TerminalProductionView {
             source_identity: compilation_products::ProductSourceIdentity::new(
@@ -404,10 +386,15 @@ pub(crate) fn produce_retained_terminal_artifacts(
         for mut cohort in cohorts {
             let mut timings = std::mem::take(cohort[0].request.view.timings);
             timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0);
-            let applications = cohort
-                .iter()
-                .map(PreparedTerminalProduct::prepare_application)
-                .collect::<Vec<_>>();
+            if cohort[0].request.use_kind == TerminalProductUse::Application {
+                *cohort[0].request.view.timings = timings;
+                for application in cohort {
+                    let position = application.position;
+                    let outcome = produce_checked_application(application, &realization_scopes);
+                    outcomes.push((position, outcome));
+                }
+                continue;
+            }
             let started = std::time::Instant::now();
             let produced = produce_shared_terminal(&cohort, &mut timings);
             let elapsed = started.elapsed().as_micros();
@@ -420,32 +407,6 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     .timings
                     .add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
             }
-            if cohort[0].request.use_kind != TerminalProductUse::Application {
-                match produced {
-                    Err(diagnostics) => {
-                        for application in cohort {
-                            outcomes.push((application.position, Err(diagnostics.clone())));
-                        }
-                    }
-                    Ok(program) => {
-                        for application in cohort {
-                            let outcome = Ok(ProducedTerminalProduct::Descriptive {
-                                proposals: application.provider_publication.publish(
-                                    program.artifact().view(),
-                                    application.request.selections.identity(),
-                                    &realization_scopes,
-                                    &application.request.view.callback_declarations.identities,
-                                    &application.request.view.callback_declarations.callbacks,
-                                    &application.request.view.callback_calling_requirements,
-                                ),
-                                program: Arc::clone(&program),
-                            });
-                            outcomes.push((application.position, outcome));
-                        }
-                    }
-                }
-                continue;
-            }
             match produced {
                 Err(diagnostics) => {
                     for application in cohort {
@@ -453,41 +414,17 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     }
                 }
                 Ok(program) => {
-                    for (application, custody) in cohort.into_iter().zip(applications) {
-                        let mut timings = std::mem::take(application.request.view.timings);
-                        let produced = program
-                            .attach_application(&custody, &mut PsiStageTimings::new(&mut timings));
-                        *application.request.view.timings = timings;
-                        let outcome = produced.and_then(|produced| {
-                            if let Some(policy) = &application.policy {
-                                policy.admit(
-                                    program.artifact().semantic_module(),
-                                    &mut produced.roots.into_iter(),
-                                )?;
-                            }
-                            let receipt = produced.receipt?.ok_or_else(|| {
-                                vec![Diagnostic::error(
-                                    "terminal-artifact production retained no checked ProgramEntry receipt",
-                                )]
-                            })?;
-                            Ok(ProducedTerminalProduct::Application(TerminalApplication {
-                                physical_entry_adapter: application
-                                    .request
-                                    .view
-                                    .entry
-                                    .and_then(|entry| entry.physical_adapter())
-                                    .is_some(),
-                                provider_proposals: application.provider_publication.publish(
-                                    program.artifact().view(),
-                                    application.request.selections.identity(),
-                                    &realization_scopes,
-                                    &application.request.view.callback_declarations.identities,
-                                    &application.request.view.callback_declarations.callbacks,
-                                    &application.request.view.callback_calling_requirements,
-                                ),
-                                artifact: Arc::clone(program.artifact()),
-                                receipt,
-                            }))
+                    for application in cohort {
+                        let outcome = Ok(ProducedTerminalProduct::Descriptive {
+                            proposals: application.provider_publication.publish(
+                                program.artifact().view(),
+                                application.request.selections.identity(),
+                                &realization_scopes,
+                                &application.request.view.callback_declarations.identities,
+                                &application.request.view.callback_declarations.callbacks,
+                                &application.request.view.callback_calling_requirements,
+                            ),
+                            program: Arc::clone(&program),
                         });
                         outcomes.push((application.position, outcome));
                     }
@@ -499,24 +436,78 @@ pub(crate) fn produce_retained_terminal_artifacts(
     outcomes.into_iter().map(|(_, outcome)| outcome).collect()
 }
 
+/// Attach target-specific execution to the exact program source checking
+/// published. A missing or refused publication never invokes another producer.
+fn produce_checked_application(
+    application: PreparedTerminalProduct<'_>,
+    realization_scopes: &[String],
+) -> Result<ProducedTerminalProduct, Vec<Diagnostic>> {
+    let custody = application.prepare_application();
+    let PreparedTerminalProduct {
+        request,
+        policy,
+        provider_publication,
+        ..
+    } = application;
+    let view = request.view;
+    let mut timings = std::mem::take(&mut *view.timings);
+    let started = std::time::Instant::now();
+    let outcome = (|| {
+        if view.build.config.program_roots().is_empty() {
+            return Err(vec![Diagnostic::error(
+                "executable publication has no authored ProgramEntry root",
+            )]);
+        }
+        let checked = view.publication.checked_application()?;
+        let artifact = checked.artifact();
+        let produced =
+            custody.attach_published(artifact, &mut PsiStageTimings::new(&mut timings))?;
+        if let Some(policy) = &policy {
+            policy.admit(artifact.semantic_module(), &mut produced.roots.into_iter())?;
+        }
+        let receipt = produced.receipt?.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "application publication retained no checked ProgramEntry receipt",
+            )]
+        })?;
+        Ok(ProducedTerminalProduct::Application(TerminalApplication {
+            physical_entry_adapter: view
+                .entry
+                .and_then(|entry| entry.physical_adapter())
+                .is_some(),
+            provider_proposals: provider_publication.publish(
+                artifact.view(),
+                request.selections.identity(),
+                realization_scopes,
+                &view.callback_declarations.identities,
+                &view.callback_declarations.callbacks,
+                &view.callback_calling_requirements,
+            ),
+            artifact: Arc::clone(artifact),
+            evidence: Some(Arc::clone(checked.evidence())),
+            receipt,
+        }))
+    })();
+    timings.add_completed(TERMINAL_PRODUCTION_STAGE, started.elapsed().as_micros());
+    *view.timings = timings;
+    outcome
+}
+
 fn produce_shared_terminal(
     cohort: &[PreparedTerminalProduct<'_>],
-    timings: &mut CompileTimings,
+    _timings: &mut CompileTimings,
 ) -> Result<Arc<psi_compiler::PortableTerminalProgram>, Vec<Diagnostic>> {
     let first = &cohort[0];
     let view = &first.request.view;
     if let TerminalProductUse::Inspection { name, source } = first.request.use_kind {
-        let mut observer = PsiStageTimings::new(timings);
-        return source.inspect(name, first.request.selections, &mut observer);
+        return source.inspect(name);
     }
-    if first.request.use_kind == TerminalProductUse::Application
-        && view.build.config.program_roots().is_empty()
-    {
-        return Err(vec![Diagnostic::error(
-            "executable Terminal production has no authored ProgramEntry root",
-        )]);
-    }
-    view.publication.require_published(first.request.selections)
+    let checked = view.publication.checked_application()?;
+    view.publication.retain(first.request.selections, || {
+        ProductCodeSource { program: checked }
+            .portable()
+            .map(Arc::new)
+    })
 }
 
 fn admit_terminal_production<'a>(

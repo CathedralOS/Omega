@@ -1,6 +1,6 @@
 /*
 Run every ordinary source `via` binding producer once and hand its result to
-provider planning (`evaluate_via_bindings`, `evaluate_checked_via_bindings`).
+provider planning. Build and product requests share this source-side operation.
 
 A `via` leaf names a machine whose build-time result says which foreign import
 or syscall realizes a requirement. Running that machine is source-side
@@ -30,44 +30,12 @@ use provider_planning::evaluated_via_bindings::{
 use std::sync::Arc;
 use target::TargetProfile;
 
-pub(crate) fn evaluate_via_bindings(
+pub fn evaluate_via_bindings(
     context: ProviderPlanningContext<'_>,
     selected_target: Option<TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
-    evaluate_program_via_bindings(
-        BuildTimeProgram::Typed(context.typed),
-        context.scope,
-        selected_target,
-        package_inputs,
-    )
-}
-
-pub fn evaluate_checked_via_bindings(
-    checked: &checked_trees::CheckedTrees,
-    scope: source::DependencyScope,
-    selected_target: Option<TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
-    evaluate_program_via_bindings(
-        BuildTimeProgram::Checked(checked),
-        scope,
-        selected_target,
-        package_inputs,
-    )
-}
-
-fn evaluate_program_via_bindings(
-    program: BuildTimeProgram<'_>,
-    scope: source::DependencyScope,
-    selected_target: Option<TargetProfile>,
-    package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<EvaluatedViaBindingTable, Vec<Diagnostic>> {
-    let typed = match program {
-        BuildTimeProgram::Typed(typed) => typed,
-        BuildTimeProgram::Checked(checked) => &checked.typed,
-    };
-    let context = ProviderPlanningContext::new(typed, scope);
+    let typed = context.typed;
     let pending = typed
         .machines()
         .iter()
@@ -121,7 +89,7 @@ fn evaluate_program_via_bindings(
             }
         };
         if let Err(diagnostic) = evaluate_one(
-            program,
+            typed,
             &admission,
             &vocabulary,
             target,
@@ -139,7 +107,7 @@ fn evaluate_program_via_bindings(
 // authored for `target` under `ConstEvaluable`, with the `via` span retained
 // as invocation custody.
 fn evaluate_one(
-    program: BuildTimeProgram<'_>,
+    typed: &typed_trees::TypedTrees,
     admission: &BuildTimeAdmissionPlan,
     vocabulary: &BindingVocabulary,
     target: TargetProfile,
@@ -147,10 +115,7 @@ fn evaluate_one(
     conformance: &typed_trees::machine::TraitConformance,
     rows: &mut EvaluatedViaBindingRows,
 ) -> Result<(), Diagnostic> {
-    let typed = match program {
-        BuildTimeProgram::Typed(typed) => typed,
-        BuildTimeProgram::Checked(checked) => &checked.typed,
-    };
+    let program = BuildTimeProgram::Typed(typed);
     let producer = ViaProducer::resolve(typed, target, conformance)?;
     let source_span = producer.via_source_span();
     let at = |message: String| Diagnostic::error(message).with_source_span(source_span);

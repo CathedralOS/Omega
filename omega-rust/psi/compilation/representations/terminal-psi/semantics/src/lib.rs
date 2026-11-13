@@ -707,3 +707,6 @@ pub use calls::evidence_calls::validate_runtime_evidence_inputs;
 pub use scalars::unchanged_scalar::{UnchangedScalarOrigin, unchanged_scalar_identity};
 
 pub(crate) use structural::structural_declarations::{structural_declaration, structural_shape};
+
+/// Owned-value flow and implicit normal cleanup for plain affine records.
+pub mod plain_affine;

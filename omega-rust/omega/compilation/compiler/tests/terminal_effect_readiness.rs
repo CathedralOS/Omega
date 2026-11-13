@@ -14,6 +14,39 @@ use terminal_interpreter::{
     TerminalImportSignature, TerminalProgram, TerminalScalarValue,
 };
 
+fn inspect_fixture(
+    root: &std::path::Path,
+    entry: &str,
+) -> Arc<psi_compiler::PortableTerminalProgram> {
+    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(root, None)
+        .expect("sealed fixture inputs");
+    let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
+    request.package_inputs = prepared.package_inputs;
+    orchestration::produce_source(
+        &mut compiler::CompilationSession::default(),
+        request,
+        compiler::CompilationProduct::Inspection(entry.to_owned()),
+    )
+    .and_then(compiler::CompilationOutput::into_inspection)
+    .unwrap_or_else(|error| panic!("inspection {entry}: {error:?}"))
+}
+
+// The same accepted code may be held by distinct live invocation owners. Copy
+// its identity entries in order, so private custody changes no code coordinate.
+fn private_invocation(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+) -> terminal_codec::TerminalProgramProduct {
+    let mut module = artifact.semantic_module().clone();
+    let mut identities = terminal_psi::TerminalIdentityTableBuilder::for_invocation();
+    for text in module.identities.entries() {
+        identities.intern(text);
+    }
+    module.identities = identities.build();
+    terminal_codec::TerminalProgramProduct::Invocation(
+        terminal_codec::InvocationTerminalCode::new(module).expect("accepted invocation code"),
+    )
+}
+
 #[test]
 fn build_readiness_installs_applied_inherited_slots() {
     use package_compilation::{
@@ -115,9 +148,37 @@ public Wide satisfies Operations<u64> {
         orchestration::check_source(&mut compiler::CompilationSession::default(), request)
             .result
             .unwrap_or_else(|error| panic!("supplier: {:?}", error.into_diagnostics()));
+    let accepted = checked
+        .terminal_publication()
+        .checked_application()
+        .unwrap();
+    let declarations = accepted.correspondence();
+    let mut provenance = terminal_psi::TerminalMachineProvenance::default();
+    for machine in &accepted.module().machines {
+        let symbol = *declarations.machines.get(machine.id).unwrap();
+        provenance.name(
+            machine.id,
+            accepted.typed().symbols.display_path(symbol, "::"),
+            accepted.typed().symbols.symbol_source_span(symbol),
+        );
+    }
+    let program = std::sync::Arc::new(
+        psi_compiler::PortableTerminalProgram::from_checked_artifact(
+            std::sync::Arc::clone(accepted.artifact()),
+            accepted.typed(),
+            &declarations.boundaries,
+            provenance,
+            std::sync::Arc::clone(&declarations.records),
+        )
+        .unwrap(),
+    );
     let produce = |path| {
         psi_compiler::BuildProviderProductionRequest {
-            checked: checked.source_inspection().program(),
+            typed: accepted.typed(),
+            program: std::sync::Arc::clone(&program),
+            evidence: accepted.evidence(),
+            machines: &declarations.machines,
+            boundaries: &declarations.boundaries,
             exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
             package: supplier,
             declaration_path: path,
@@ -246,22 +307,8 @@ impl TerminalEffectHandler for HostComputation {
 fn synchronous_host_computation_retains_the_invocation_without_guest_suspension() {
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/concurrency/host_boundary_readiness_exit/main.omg");
-    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(&root, None)
-        .expect("sealed fixture inputs");
-    let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
-    request.package_inputs = prepared.package_inputs;
-    let checked =
-        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
-            .result
-            .expect("checked ordinary boundary call");
-    let produced = psi_compiler::TerminalProductionRequest::new(
-        checked.source_inspection().program(),
-        psi_compiler::TerminalMachineSelection::Name("synchronous_entry"),
-        checked.sources().exact_toolchain_sources(),
-    )
-    .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
-    .expect("Terminal production");
-    let artifact = produced.artifact().expect("portable product");
+    let produced = inspect_fixture(&root, "synchronous_entry");
+    let artifact = produced.artifact();
     for loaded in [false, true] {
         let program = if loaded {
             TerminalProgram::load_envelope(&artifact.to_bytes()).expect("external admission")
@@ -350,23 +397,9 @@ fn synchronous_host_computation_retains_the_invocation_without_guest_suspension(
 fn readiness_installs_exact_component_without_replaying_the_receiver() {
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/concurrency/host_boundary_readiness_exit/main.omg");
-    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(&root, None)
-        .expect("sealed fixture inputs");
-    let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
-    request.package_inputs = prepared.package_inputs;
-    let checked =
-        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
-            .result
-            .expect("checked component readiness fixture");
     for entry in ["component_entry", "component_premature_entry"] {
-        let produced = psi_compiler::TerminalProductionRequest::new(
-            checked.source_inspection().program(),
-            psi_compiler::TerminalMachineSelection::Name(entry),
-            checked.sources().exact_toolchain_sources(),
-        )
-        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
-        .expect("Terminal production");
-        let artifact = produced.artifact().expect("portable artifact");
+        let produced = inspect_fixture(&root, entry);
+        let artifact = produced.artifact();
         let module = artifact.view().module();
         let candidates = module
             .provider_candidates
@@ -395,20 +428,10 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
                 .into(),
             candidate: candidate.candidate,
         };
-        let produce_invocation = || {
-            let mut request = psi_compiler::TerminalProductionRequest::new(
-                checked.source_inspection().program(),
-                psi_compiler::TerminalMachineSelection::Name(entry),
-                checked.sources().exact_toolchain_sources(),
-            );
-            request.publication = terminal_codec::TerminalPublication::Invocation;
-            request
-                .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
-                .unwrap()
-        };
+        let produce_invocation = || private_invocation(artifact);
         let invocation = produce_invocation();
         let other_invocation = produce_invocation();
-        assert!(invocation.artifact().is_err(), "receiver stays private");
+        assert!(invocation.portable().is_err(), "receiver stays private");
         assert_eq!(
             invocation.view().identity(),
             other_invocation.view().identity(),
@@ -735,28 +758,14 @@ impl TerminalEffectHandler for ControlledImport {
 fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/concurrency/host_boundary_readiness_exit/main.omg");
-    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(&root, None)
-        .expect("sealed fixture inputs");
-    let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
-    request.package_inputs = prepared.package_inputs;
-    let checked =
-        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
-            .result
-            .expect("checked suspension fixture");
     for machine in [
         "main",
         "storage_entry",
         "incoming_storage_entry",
         "synchronous_entry",
     ] {
-        let produced = psi_compiler::TerminalProductionRequest::new(
-            checked.source_inspection().program(),
-            psi_compiler::TerminalMachineSelection::Name(machine),
-            checked.sources().exact_toolchain_sources(),
-        )
-        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
-        .expect("Terminal production");
-        let artifact = produced.artifact().expect("portable product");
+        let produced = inspect_fixture(&root, machine);
+        let artifact = produced.artifact();
         for loaded in [false, true] {
             let program = if loaded {
                 TerminalProgram::load_envelope(&artifact.to_bytes()).expect("external admission")
@@ -958,22 +967,8 @@ impl TerminalEffectHandler for ParkingScheduler {
 fn readiness_parks_every_step_of_a_fused_suspending_cycle() {
     let root = fixture_package_inputs::repo_root()
         .join("tests/omega/pass/facts/nested_machine_suspending_cycle_local_exit/main.omg");
-    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(&root, None)
-        .expect("sealed fixture inputs");
-    let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
-    request.package_inputs = prepared.package_inputs;
-    let checked =
-        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
-            .result
-            .expect("checked suspending cycle");
-    let produced = psi_compiler::TerminalProductionRequest::new(
-        checked.source_inspection().program(),
-        psi_compiler::TerminalMachineSelection::Name("main"),
-        checked.sources().exact_toolchain_sources(),
-    )
-    .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
-    .expect("Terminal production");
-    let artifact = produced.artifact().expect("portable product");
+    let produced = inspect_fixture(&root, "main");
+    let artifact = produced.artifact();
     let program = TerminalProgram::borrow(artifact.view());
     let requirements = program.execution_requirements(None).unwrap();
     let mut host_imports = requirements.imports;

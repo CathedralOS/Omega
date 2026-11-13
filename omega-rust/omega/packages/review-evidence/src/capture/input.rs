@@ -1,26 +1,17 @@
 /*
-Read-only review inputs (`PackageReviewInput`, `SourceDeclarationInput`, and
-`ContractOwnerQueries`) separating untrusted semantic candidates from immutable
-compiler-issued custody.
-
-`PackageReviewInput::supplied` pairs a candidate `CheckedTrees` with a borrowed
-`CheckedCompilation` custody without merging their query namespaces:
-`checking_input` and `mathematical_calls` evaluate against the supplied
-candidate, whereas `original_checking_input` and `original_mathematical_calls`
-evaluate against the original checked program. `project_service_declarations`
-prepares an independent `PreparedServiceCatalog` for the supplied candidate so
-source handles never cross between candidate and custody namespaces.
-`ContractOwnerQueries` lazily builds a single `OwnerEnvironmentIndex` per
-callable-projection batch after verifying `expression_table.call_node(expression)`.
+Legacy declaration projection inputs keep candidate and original checked data
+separate. Product review instead enters through `PublishedPackageReviewInput`,
+which retains the accepted Terminal artifact and immutable typed owner. There
+is no conversion from a new Product into these legacy checker queries.
 */
 
 use checked_trees::CheckedTrees;
 use checked_trees::typed_trees::service_declarations::PreparedServiceCatalog;
 use compilation_products::CheckedCompilation;
 use language_semantics::declaration_selection::AuthoredDeclarationSelection;
+use provider_planning::ExternalProviderDeclarations;
 use provider_planning::ProviderPlanningContext;
 use provider_planning::service_declarations::ServiceDeclarations;
-use psi_terminal_production::ExternalProviderDeclarations;
 use typed_trees::machine::Machine;
 use validation::expression_owners::OwnerEnvironmentIndex;
 
@@ -48,23 +39,6 @@ pub struct SourceDeclarationInput<'a> {
 }
 
 impl<'a> SourceDeclarationInput<'a> {
-    pub(crate) fn checked(
-        program: &'a CheckedTrees,
-        sources: &'a package_compilation::CheckedSourceCustody,
-    ) -> Self {
-        Self {
-            program,
-            original_program: program,
-            checking_input: program,
-            original_checking_input: program,
-            contract_owner_queries: None,
-            mathematical_calls: None,
-            original_mathematical_calls: None,
-            package: sources.package_identity(),
-            exact_toolchain_sources: sources.exact_toolchain_sources(),
-        }
-    }
-
     pub(crate) fn original(self) -> Self {
         Self {
             program: self.original_program,
@@ -77,37 +51,12 @@ impl<'a> SourceDeclarationInput<'a> {
 }
 
 impl<'a> PackageReviewInput<'a> {
-    pub fn supplied(program: &'a CheckedTrees, custody: &'a CheckedCompilation) -> Self {
-        Self {
-            source: SourceDeclarationInput {
-                program,
-                original_program: custody,
-                checking_input: program,
-                original_checking_input: &**custody,
-                contract_owner_queries: None,
-                mathematical_calls: None,
-                original_mathematical_calls: None,
-                package: custody.sources().package_identity(),
-                exact_toolchain_sources: custody.sources().exact_toolchain_sources(),
-            },
-            custody,
-            external_providers: None,
-            service_declarations: None,
-        }
-    }
-
     pub(super) fn project_external_providers(
         &self,
     ) -> Result<ExternalProviderDeclarations, Vec<diagnostics::Diagnostic>> {
-        psi_terminal_production::project_external_provider_declarations(
-            self.program,
-            self.custody.sources().exact_toolchain_sources(),
-        )
-        .map_err(|error| {
-            vec![diagnostics::Diagnostic::error(format!(
-                "package external provider declarations: {error:?}"
-            ))]
-        })
+        Err(vec![diagnostics::Diagnostic::error(
+            "legacy source review has no independently published native-provider contract receipts",
+        )])
     }
 
     pub(super) fn project_service_declarations(
@@ -189,12 +138,6 @@ impl<'a> SourceDeclarationInput<'a> {
     ) -> impl Iterator<Item = &AuthoredDeclarationSelection> + '_ {
         self.authored_selection_occurrences(expression)
             .filter_map(|occurrence| self.authored_declaration_selections().get(occurrence))
-    }
-}
-
-impl<'a> From<&'a CheckedCompilation> for PackageReviewInput<'a> {
-    fn from(compilation: &'a CheckedCompilation) -> Self {
-        Self::supplied(compilation, compilation)
     }
 }
 

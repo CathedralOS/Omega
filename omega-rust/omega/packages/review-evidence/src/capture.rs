@@ -19,6 +19,7 @@ mod contracts;
 mod input;
 mod package_policy;
 mod package_review;
+mod published_input;
 pub use package_review::{PackageReviewProjectionError, project_package_review};
 mod providers;
 mod representation;
@@ -58,11 +59,14 @@ impl<T> EvidenceOption<T> for Option<T> {
 }
 
 pub(crate) use callables::project_checked_callable_policy;
-pub use input::PackageReviewInput;
+pub(crate) use input::PackageReviewInput;
 pub(crate) use input::SourceDeclarationInput;
-pub use package_policy::project_checked_package_policy;
+pub use published_input::{
+    PublishedPackageReviewInput, project_checked_package_policy,
+    project_checked_terminal_permission_policy,
+};
+
 pub(crate) use providers::project_checked_selected_provider_policy;
 pub(crate) use representation::project_checked_representation_policy;
 pub(crate) use semantics::conformances::project_checked_conformance_policy;
 pub(crate) use semantics::declarations::nominal_identity;
-pub use terminal_authority_permissions::project_checked_terminal_permission_policy;

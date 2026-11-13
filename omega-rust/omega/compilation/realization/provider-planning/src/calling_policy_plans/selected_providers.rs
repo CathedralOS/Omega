@@ -5,10 +5,10 @@
 // (`BuildOverride` or `TargetDefault`) without retaining Source body
 // substitutions or a second helper-selection map.
 
-use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 use language_semantics::direct_calls::DirectCallDeclarations;
 use symbols::SymbolHandle;
+use typed_trees::service_declarations::ServiceCatalog;
 
 pub struct CallingPolicyProviderInputs<'program> {
     pub body_declarations: &'program DirectCallDeclarations<SymbolHandle>,
@@ -19,7 +19,7 @@ pub struct CallingPolicyProviderInputs<'program> {
 }
 
 pub(super) fn prepare(
-    checked: &checked_trees::CheckedTrees,
+    source: &crate::PublishedProviderSource,
     services: ServiceCatalog<'_>,
     inputs: &CallingPolicyProviderInputs<'_>,
 ) -> Vec<(
@@ -35,7 +35,7 @@ pub(super) fn prepare(
                     target.target_name(),
                 ))])
             } else {
-                prepare_target(checked, services, target, inputs)
+                prepare_target(source, services, target, inputs)
             };
             (target, prepared)
         })
@@ -43,7 +43,7 @@ pub(super) fn prepare(
 }
 
 fn prepare_target(
-    checked: &checked_trees::CheckedTrees,
+    source: &crate::PublishedProviderSource,
     services: ServiceCatalog<'_>,
     target: target::TargetProfile,
     inputs: &CallingPolicyProviderInputs<'_>,
@@ -58,7 +58,7 @@ fn prepare_target(
     )?;
     crate::target_machines::TargetProviderPreparationRequest {
         context: services.context(),
-        checked,
+        source,
         exact_toolchain_sources: inputs.exact_toolchain_sources,
         application_roots: None,
         overrides: inputs.requested,

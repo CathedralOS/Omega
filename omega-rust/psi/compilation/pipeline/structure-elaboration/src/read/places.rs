@@ -175,7 +175,19 @@ impl Program<'_> {
                 fields,
             });
         }
+        let multiplicity = match data.properties.multiplicity {
+            language_semantics::Multiplicity::Unrestricted => {
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            }
+            language_semantics::Multiplicity::Affine => {
+                terminal_psi::StructuralMultiplicity::Affine
+            }
+            language_semantics::Multiplicity::Linear => {
+                return Err(unserved("linear record claims"));
+            }
+        };
         let record: StructuralTypeId = self.records.push(RecordType {
+            multiplicity,
             identity,
             fields: declared,
             cases: case_types,
@@ -746,11 +758,9 @@ fn record_shape<'m>(
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    // Copy eligibility (`places_foundation_lane.md`): "data with no disposal
-    // obligation, no linear or affine field, no reference field and no
-    // attached `Drop`". ownership.md: "Plain unrestricted primitive-array,
-    // scalar-case, and plain record payloads have no disposal obligation."
-    if data.properties.multiplicity != language_semantics::Multiplicity::Unrestricted
+    // Ordinary affine data retains its ownership. Linear claims and nominal
+    // cleanup need their own producers before those declarations can be read.
+    if data.properties.multiplicity == language_semantics::Multiplicity::Linear
         || data.cleanup_selection.is_some()
     {
         return unserved("data with custody");
@@ -838,12 +848,12 @@ mod tests {
     fn each_data_declaration_outside_the_slice_is_refused_by_name() {
         let (data, members) = plain();
         assert_eq!(record_shape(machine(), &data, &members, |_| &[]), Ok(()));
+        let mut affine = data.clone();
+        affine.properties.multiplicity = language_semantics::Multiplicity::Affine;
+        assert_eq!(record_shape(machine(), &affine, &members, |_| &[]), Ok(()));
         // A declaration-level `requires` is no longer refused here: its
         // clauses are read by the clause reader. A case-level one still is.
-        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 10] = [
-            ("type data with custody", |data, _| {
-                data.properties.multiplicity = language_semantics::Multiplicity::Affine;
-            }),
+        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 9] = [
             ("type data with custody", |data, _| {
                 data.properties.multiplicity = language_semantics::Multiplicity::Linear;
             }),

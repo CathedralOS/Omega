@@ -2,14 +2,11 @@
 Discover a registered test group's roster and select each test as its own root
 (wiki/spec/build/testing.md#registration-and-discovery).
 
-After the package's final source is checked, every concrete, executable,
-package-local machine with a checked exact satisfaction edge to a registered
-requirement is one test. Discovery reads that edge from the checked trees; it
-never matches names or method conventions. Each test is then a separate
-selection over the same checked source: a copy of the application source whose
-only `ProgramEntry` root is the test machine. Roots decide which machines the
-Terminal program retains, so each copy publishes its own Terminal program and
-none of its test-only machines join the application's roots.
+After the package's source is checked, discover each concrete, executable,
+package-local machine by its exact requirement satisfaction edge. Each selected
+test is checked with its own installed entry binding and publishes its own
+artifact and evidence seals. Test selection never rewrites the application's
+accepted entry or adds runtime calls to its test machines.
 */
 
 use compilation_products::{
@@ -171,10 +168,35 @@ pub(crate) fn select_test_roots(
                 implementation_symbol: symbol,
                 source_span: typed.symbols.symbol_source_span(symbol),
             }];
+            let bindings = provider_planning::program_entry::bound_program_entry_shapes(
+                typed,
+                &computed.config.root_bindings,
+            )?;
+            let program =
+                super::checking::publish_selected_roots(&source.program, &[symbol], &bindings)?;
             let mut test_source = source.clone();
             test_source.computed_build_config = Arc::new(computed);
-            test_source.terminal_publication =
-                Arc::new(source.terminal_publication.for_other_roots());
+            test_source.program = program;
+            test_source.provider_inventory =
+                Arc::new(provider_planning::PreparedProviderInventory::new(
+                    Arc::clone(&test_source.program),
+                    test_source.sources.exact_toolchain_sources(),
+                ));
+            test_source.native_bindings = Arc::new(
+                provider_planning::native_bindings::PreparedNativeBuildBindings::capture(
+                    test_source
+                        .provider_inventory
+                        .services_for(&test_source.program)
+                        .map_err(|error| vec![error])?,
+                    &test_source.computed_build_config.config.native_bindings,
+                ),
+            );
+            test_source.terminal_publication = Arc::new(
+                source
+                    .terminal_publication
+                    .for_other_roots()
+                    .with_checked_application(Ok(Arc::clone(&test_source.program))),
+            );
             test_source.calling_program = Default::default();
             test_source.binding_declarations = Default::default();
             roots.push(TestRootSource {

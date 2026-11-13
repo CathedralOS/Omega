@@ -377,22 +377,25 @@ pub struct PreparedCompilerProgramEntry {
 impl PreparedCompilerProgramEntry {
     pub fn service_requirements(
         &self,
-        checked: &checked_trees::CheckedTrees,
-    ) -> Vec<symbols::SymbolHandle> {
-        let reaches = &checked.facts.service_reaches;
-        let Some(reach) = reaches.for_machine(self.declaration.machine) else {
-            return Vec::new();
-        };
-        let published = match reach.interface {
-            language_semantics::ServiceReachInterface::PublishedCeiling(row) => Some(row),
-            language_semantics::ServiceReachInterface::InternalInferred => None,
-        };
-        published
-            .into_iter()
-            .chain([reach.inferred_transitive, reach.concrete_transitive])
-            .flat_map(|row| reaches.rows.services(row))
-            .filter_map(|&service| reaches.services.definition(service))
-            .map(|definition| definition.symbol)
+        source: &crate::PublishedProviderSource,
+    ) -> Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>> {
+        let machine = source
+            .accepted_machine(self.declaration.machine)
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "program entry service reach: {reason}"
+                ))]
+            })?;
+        machine
+            .published_service_ceiling
+            .iter()
+            .map(|service| {
+                source.service_symbol(*service).map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "program entry service reach: {reason}"
+                    ))]
+                })
+            })
             .collect()
     }
 

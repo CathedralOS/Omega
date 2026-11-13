@@ -140,14 +140,14 @@ fn validate_crash_publication(
     };
     let original_machine = exactly_one(
         compilation
-            .custody
+            .original_program
             .machines()
             .iter()
             .filter(|candidate| candidate.symbol == machine.symbol),
         machine.name.as_str(),
         "family head declaration custody",
     )?;
-    let original_head = machine_contract_plan(compilation.custody, original_machine)?;
+    let original_head = machine_contract_plan(compilation.original_program, original_machine)?;
     let original_authored = derive_authored_machine_crash_buckets(
         compilation.original_checking_input,
         original_machine,
@@ -163,7 +163,7 @@ fn validate_crash_publication(
     }
     for member in members {
         let checked = machine_contract_plan(compilation.program, member)?;
-        let original = machine_contract_plan(compilation.custody, member)?;
+        let original = machine_contract_plan(compilation.original_program, member)?;
         let member_authored =
             derive_authored_machine_crash_buckets(compilation.checking_input, member)
                 .map_err(|diagnostic| vec![diagnostic])?;

@@ -47,22 +47,34 @@ Gaps found against the contract are listed in the crate README, "Findings".
 
 mod body;
 mod boundaries;
+mod callable_headers;
 mod callables;
 mod canonical;
 pub use canonical::substituted_routes as substituted_call_routes;
 mod components;
 mod declare;
+mod external_providers;
 mod lower;
 mod names;
 mod outcome;
+mod reach;
 mod read;
+mod static_contracts;
 
 pub use body::{
     Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType,
     Signature, Statement, Strict, Target, Termination, ValueType, self_place,
 };
+pub use callable_headers::{CallableCrashPolicy, CallableHeader};
+pub use external_providers::{ExternalProviderCandidate, ProviderContractHeader};
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
+pub use reach::ServiceReach;
+pub use static_contracts::{
+    StaticCallableEnvelope, StaticConformanceQuestion, StaticImplementation,
+    StaticProviderCandidate, StaticRequirementSchema, StaticSchemaQuestion, StaticServiceCeiling,
+};
+pub use typed_trees::SourceServiceCorrespondence;
 
 use semantic_vocabulary::{
     BlockId, EdgeId, IdTable, MachineId, ObligationId, OperationId, PackageKeyIdentity,
@@ -239,6 +251,18 @@ pub struct Elaboration {
     /// judged like any other and is never published. Empty outside
     /// `elaborate`, whose forms are not programs.
     pub undeclared: Vec<(MachineId, &'static str)>,
+    /// The service ceiling each machine's header wrote and what a diagnostic
+    /// calls each service (`reach`). The rows themselves are in `module`.
+    pub reach: ServiceReach,
+    /// Source coordinates paired with this module's exact structural types.
+    pub source_records: Vec<typed_trees::SourceRecordCorrespondence>,
+    /// Canonical service IDs paired with their original declarations.
+    pub services: Vec<SourceServiceCorrespondence>,
+    pub external_provider_candidates: Vec<ExternalProviderCandidate>,
+    pub static_schemas: Vec<StaticSchemaQuestion>,
+    pub static_conformances: Vec<StaticConformanceQuestion>,
+    /// Each retained boundary's original declaration in the same typed frontier.
+    pub boundaries: IdTable<semantic_vocabulary::BoundaryMachineId, SymbolHandle>,
 }
 
 /// One call through an implementation parameter in a machine stage 04
@@ -589,6 +613,10 @@ fn finish_reading(
     let private_inputs = program.private_input_contracts(entry)?;
     let local_results = program.local_result_bodies(entry)?;
     program.finish_operational_envelopes(&bodies)?;
+    program.prepare_external_providers(entry)?;
+    let services = program.service_map(entry)?;
+    let source_records = program.source_records(entry)?;
+    let boundary_sources = program.boundary_sources(entry)?;
     let mut elaboration = lower_program(
         entry,
         &bodies,
@@ -597,8 +625,15 @@ fn finish_reading(
         &program.requirements,
         &program.callables,
         &program.boundaries,
+        &services,
+        &program.external_providers,
+        &program.static_contracts,
     )?;
-    read::services::publish_catalog(program.typed, entry, &mut elaboration.module)?;
+    elaboration.machines = program.symbols.clone();
+    crate::reach::publish(program.typed, entry, &services, &mut elaboration)?;
+    elaboration.source_records = source_records;
+    elaboration.services = services.correspondence(entry)?;
+    elaboration.boundaries = boundary_sources;
     if let Some(typed) = declared {
         declare::declare(
             typed,
@@ -665,6 +700,9 @@ pub fn lower_generic(
         requirements,
         &callables::CallableNamespace::default(),
         &boundaries::BoundaryNamespace::default(),
+        &reach::ServiceMap::default(),
+        &external_providers::ExternalProviderNamespace::default(),
+        &static_contracts::StaticContracts::default(),
     )
 }
 
@@ -676,6 +714,9 @@ fn lower_program(
     requirements: &[MachineId],
     callables: &callables::CallableNamespace,
     boundaries: &boundaries::BoundaryNamespace,
+    services: &reach::ServiceMap,
+    external_providers: &external_providers::ExternalProviderNamespace,
+    static_contracts: &static_contracts::StaticContracts,
 ) -> Checked<Elaboration> {
     for requirement in requirements {
         let body = terminal_check_tables::row(bodies, *requirement, entry, Construct::Machine)?;
@@ -705,7 +746,19 @@ fn lower_program(
                     .values()
                     .map(|contract| &contract.signature),
             )
-            .chain(boundaries.rows.values().map(|boundary| &boundary.signature)),
+            .chain(boundaries.rows.values().map(|boundary| &boundary.signature))
+            .chain(
+                external_providers
+                    .rows
+                    .iter()
+                    .map(|provider| &provider.signature),
+            )
+            .chain(
+                static_contracts
+                    .conformances
+                    .iter()
+                    .map(|question| &question.signature),
+            ),
     )?;
     if !declared.structural_types.is_empty() {
         module.identities = declared.identities;
@@ -723,7 +776,7 @@ fn lower_program(
             )
         })?;
         let component = terminal_check_tables::row(&components, id, id, Construct::Machine)?;
-        let lowered = lower::machine(
+        let mut lowered = lower::machine(
             id,
             bodies,
             component,
@@ -734,6 +787,7 @@ fn lower_program(
             boundaries,
             requirements.contains(&id),
         )?;
+        lower::materialize_plain_affine_custody(&module.structural_types, &mut lowered)?;
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
@@ -747,6 +801,7 @@ fn lower_program(
         &outcomes,
         &declared.records,
         callables,
+        services,
         &mut module,
     )?;
     callables.publish(
@@ -756,9 +811,31 @@ fn lower_program(
         &declared.records,
         boundaries,
         &tables,
+        services,
+        &mut module,
+    )?;
+    let external_provider_candidates = external_providers.publish(
+        entry,
+        signatures,
+        &outcomes,
+        &declared.records,
+        callables,
+        boundaries,
+        services,
         &mut module,
     )?;
     let mut domains = IdTable::default();
+    let (static_schemas, static_conformances) = static_contracts.publish(
+        entry,
+        signatures,
+        &outcomes,
+        &declared.records,
+        callables,
+        boundaries,
+        services,
+        &module,
+        &external_provider_candidates,
+    )?;
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());
     }
@@ -778,6 +855,13 @@ fn lower_program(
         value_arguments: IdTable::default(),
         generic_templates: Vec::new(),
         undeclared: Vec::new(),
+        reach: ServiceReach::default(),
+        source_records: Vec::new(),
+        services: Vec::new(),
+        external_provider_candidates,
+        static_schemas,
+        static_conformances,
+        boundaries: IdTable::default(),
     })
 }
 

@@ -64,7 +64,7 @@ impl ValueType {
     }
 }
 
-/// One copy-eligible plain record type: its fields in declaration order.
+/// One plain record or sum, with its declared ownership multiplicity.
 /// A field is named by its position here and by its `StructuralFieldId`,
 /// both fixed once by the reader from the field's symbol.
 ///
@@ -81,6 +81,7 @@ impl ValueType {
 /// beside cases, is refused by the reader.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordType {
+    pub multiplicity: terminal_psi::StructuralMultiplicity,
     pub identity: String,
     pub fields: Vec<RecordField>,
     /// The declared cases in declaration order; empty for a record. A case

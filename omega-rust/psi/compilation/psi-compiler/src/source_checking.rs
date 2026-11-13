@@ -89,7 +89,8 @@ mod library_slice {
     }
 
     pub(super) struct SliceAdmission<'input> {
-        pub completion: &'input validation::source_completion::SourceCompletionAdmission<'input>,
+        pub completion:
+            &'input typed_trees::boundary_completions::SourceCompletionAdmission<'input>,
         pub layout_scopes: &'input [build_time_evaluation::FixedLayoutTargetScope],
         pub representations: &'input [representation_selections::OpaqueRepresentationSelection],
         pub asm_authority: Option<validation::AsmAuthorityAdmission>,
@@ -271,9 +272,9 @@ mod library_slice {
 
     fn encode_completion(
         digest: &mut optimization::digest_encoder::DomainDigestEncoder,
-        completion: &validation::source_completion::SourceCompletionAdmission<'_>,
+        completion: &typed_trees::boundary_completions::SourceCompletionAdmission<'_>,
     ) {
-        use validation::source_completion::SourceCompletionAdmission;
+        use typed_trees::boundary_completions::SourceCompletionAdmission;
         match completion {
             SourceCompletionAdmission::None => digest.byte(0),
             SourceCompletionAdmission::AcceptedProcessExit {
@@ -582,7 +583,7 @@ pub(crate) mod checked_slice {
         if !admission.external_roots.is_empty()
             || !matches!(
                 admission.completion,
-                validation::source_completion::SourceCompletionAdmission::None
+                typed_trees::boundary_completions::SourceCompletionAdmission::None
             )
             || representations.activation.is_some()
             || !representations.declared.is_empty()
@@ -972,7 +973,7 @@ pub fn retained_layout_match_hits() -> u64 {
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
     pub external_roots: &'request [symbols::SymbolHandle],
-    pub completion: validation::source_completion::SourceCompletionAdmission<'request>,
+    pub completion: typed_trees::boundary_completions::SourceCompletionAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
     pub layout_scopes: &'request [build_time_evaluation::FixedLayoutTargetScope],
     pub layout_selection_authority:
@@ -1020,6 +1021,48 @@ impl ProductRepresentationInput<'_> {
             copy_properties,
         })
     }
+}
+
+/// Finish source preparation without asking the retired checker for a verdict.
+/// These operations settle explicit Build selections and produce the exact typed
+/// frontier the lowered-form checker owns. They never create a checked body.
+pub fn prepare_product_typed_frontier(
+    mut program: typed_trees::TypedTrees,
+    admission: &SourceAdmission<'_>,
+) -> Result<typed_trees::FrozenTypedTrees, Vec<Diagnostic>> {
+    let representations = admission.representations.admit(&program)?;
+    typed_trees::boundary_completions::prepare_source_completion(
+        &mut program,
+        admission.completion,
+    )?;
+    build_time_evaluation::evaluate_fixed_layout_applications(
+        &mut program,
+        admission.layout_scopes,
+        admission.layout_selection_authority.clone(),
+    )?;
+    constant_entries::retain_evaluation_entries(&mut program)?;
+    let preparation = typed_preparation(admission, &representations);
+    crate::prepare_build_provider_requirements(&mut program)?;
+    let (program, _) = typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
+    build_time_evaluation::retain_access_lifecycle_plans(
+        program,
+        admission.declarations,
+        admission.layout_scopes,
+    )
+}
+
+fn typed_preparation<'a>(
+    admission: &'a SourceAdmission<'_>,
+    representations: &'a AdmittedRepresentations,
+) -> typed_trees_to_typed_trees::PreparationRequest<'a> {
+    let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
+        .with_opaque_property_receipts(&representations.copy_properties)
+        .with_opaque_representation_selections(&representations.selections)
+        .with_wire_compatibility_demands(admission.wire_demands);
+    if let Some(authority) = admission.asm_authority {
+        preparation = preparation.with_asm_authority(authority);
+    }
+    preparation
 }
 
 pub struct CheckRequest<'request> {
@@ -1152,17 +1195,11 @@ impl CheckRequest<'_> {
                 },
             )
         };
-        validation::source_completion::prepare_source_completion(
+        typed_trees::boundary_completions::prepare_source_completion(
             &mut program,
             self.admission.completion,
         )?;
-        let mut preparation = typed_trees_to_typed_trees::PreparationRequest::settled()
-            .with_opaque_property_receipts(&representations.copy_properties)
-            .with_opaque_representation_selections(&representations.selections)
-            .with_wire_compatibility_demands(self.admission.wire_demands);
-        if let Some(authority) = self.admission.asm_authority {
-            preparation = preparation.with_asm_authority(authority);
-        }
+        let preparation = typed_preparation(&self.admission, &representations);
         let checking = typed_trees_to_checked_trees::CheckingRequest::new()
             .with_declaration_authority(self.admission.declarations)
             .with_external_roots(self.admission.external_roots);

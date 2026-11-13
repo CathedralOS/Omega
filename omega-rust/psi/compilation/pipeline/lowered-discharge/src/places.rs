@@ -1816,6 +1816,9 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
+            OperationKind::MoveStructuralValue { source } => {
+                Ok(vec![self.argument(source, concerns)?])
+            }
             // structural_access.md: "The source must be readable and
             // established on every incoming path."
             OperationKind::StructuralCaseMembership { source, path, .. } => {
@@ -1974,7 +1977,7 @@ impl<'a> Storage<'a> {
             if std::mem::replace(&mut listed[position], true) {
                 return Err(self.foreign(concerns, "a dispatch lists a case twice"));
             }
-            if !edge.structural_arguments.is_empty() || !edge.cleanup_actions.is_empty() {
+            if !edge.structural_arguments.is_empty() {
                 return Err(self.unsupported(concerns, "storage passed on a dispatch edge"));
             }
             let parameters = &self.block(edge.target)?.parameters;

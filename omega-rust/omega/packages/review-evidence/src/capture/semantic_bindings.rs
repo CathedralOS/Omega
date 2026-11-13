@@ -207,78 +207,40 @@ fn checked_callable_service_references(
     checked: &CheckedCompilation,
     consumer: PackageKeyIdentity,
 ) -> Result<Vec<SymbolHandle>, SemanticBindingProjectionError> {
+    let source = checked.source_inspection().program();
     let mut services = Vec::new();
-    let reaches = &checked.facts.service_reaches;
-    for machine in checked.machines().iter().filter(|machine| {
-        checked
-            .typed
-            .symbols
-            .symbol_package_identity(machine.symbol)
-            == Some(consumer)
+    for machine in source.typed.machines().iter().filter(|machine| {
+        source.typed.symbols.symbol_package_identity(machine.symbol) == Some(consumer)
             && (machine.is_public
                 || machine.supply_mode.is_boundary_declaration()
                 || Some(machine.symbol) == checked.build().selected_build_machine_symbol)
     }) {
-        let missing = || SemanticBindingProjectionError::MissingCallableFacts {
-            diagnostics: vec![diagnostics::Diagnostic::error(format!(
-                "checked callable `{}` has no service-reach or synchronous-invocation facts",
-                checked.symbols.display_path(machine.symbol, "::"),
-            ))],
+        // A declaration that has no accepted executable or boundary header
+        // cannot acquire behavior from a historical checker summary.
+        let reach = if machine.supply_mode.is_boundary_declaration() {
+            let boundary = source.accepted_boundary(machine.symbol).map_err(|reason| {
+                SemanticBindingProjectionError::MissingCallableFacts {
+                    diagnostics: vec![Diagnostic::error(reason)],
+                }
+            })?;
+            &boundary.published_service_ceiling
+        } else {
+            &source
+                .accepted_machine(machine.symbol)
+                .map_err(
+                    |reason| SemanticBindingProjectionError::MissingCallableFacts {
+                        diagnostics: vec![Diagnostic::error(reason)],
+                    },
+                )?
+                .published_service_ceiling
         };
-        let reach = reaches.for_machine(machine.symbol).ok_or_else(missing)?;
-        let invocations = checked
-            .facts
-            .synchronous_invocations
-            .machines
-            .iter()
-            .find(|fact| fact.machine == machine.symbol)
-            .ok_or_else(missing)?;
-        let published = match reach.interface {
-            language_semantics::ServiceReachInterface::PublishedCeiling(row) => Some(row),
-            language_semantics::ServiceReachInterface::InternalInferred => None,
-        };
-        let body = (machine.body_is_present
-            && matches!(
-                machine.supply_mode,
-                language_semantics::MachineSupplyMode::CheckedBody
-                    | language_semantics::MachineSupplyMode::Boundary
-            ))
-        .then_some([reach.inferred_transitive, reach.concrete_transitive]);
-        for row in published
-            .into_iter()
-            .chain(body.into_iter().flatten())
-            .chain(
-                reach
-                    .unresolved_installation_reaches
-                    .iter()
-                    .map(|reach| reach.upper_bound),
-            )
-        {
-            for &service in reaches.rows.services(row) {
-                services.push(
-                    reaches
-                        .services
-                        .definition(service)
-                        .ok_or_else(missing)?
-                        .symbol,
-                );
-            }
+        for &service in reach {
+            services.push(source.service_symbol(service).map_err(|reason| {
+                SemanticBindingProjectionError::MissingCallableFacts {
+                    diagnostics: vec![Diagnostic::error(reason)],
+                }
+            })?);
         }
-        let published_invocations = match invocations.plan.interface {
-            language_semantics::SynchronousInvocationInterface::PublishedCeiling => {
-                invocations.published_targets.as_slice()
-            }
-            language_semantics::SynchronousInvocationInterface::InternalInferred => &[],
-        };
-        services.extend(
-            published_invocations
-                .iter()
-                .chain(&invocations.checked_inferred_targets)
-                .filter_map(|target| match target {
-                    flow_effects::InvocationTarget::Service(symbol) => Some(*symbol),
-                    flow_effects::InvocationTarget::Parameter(_) => None,
-                }),
-        );
     }
     services.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     services.dedup();

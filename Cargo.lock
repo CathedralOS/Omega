@@ -1920,6 +1920,7 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "tokens-to-syntax-trees",
+ "typed-trees",
 ]
 
 [[package]]

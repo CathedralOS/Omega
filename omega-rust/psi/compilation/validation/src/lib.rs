@@ -73,8 +73,8 @@ pub(crate) use frozen_program_and_queries::{frozen_program, queries};
 pub(crate) mod declarations {
     pub use crate::declarations_core::{
         data_queries, declaration_visibility, definition_facts, selection_authority,
-        selection_resolution, source_completion, standard_declarations, state_signatures, symbols,
-        transitions, type_aliases,
+        selection_resolution, standard_declarations, state_signatures, symbols, transitions,
+        type_aliases,
     };
     pub(crate) use crate::operators;
     pub(crate) use crate::traits;
@@ -1471,7 +1471,6 @@ pub use value_custody::static_inline_storage::{
 };
 
 pub use declarations::selection_resolution;
-pub use declarations::source_completion;
 pub use declarations::standard_declarations::{
     boundary_has_explicit_calling_policy, standard_calling_vocabularies,
 };

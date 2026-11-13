@@ -92,7 +92,7 @@ pub(crate) fn resolve_accepted_service_binding(
 
 pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
     candidates: &[provider_planning::ProviderPlanCandidate],
-    external_providers: &psi_terminal_production::ExternalProviderDeclarations,
+    external_providers: &provider_planning::ExternalProviderDeclarations,
     services: &ServiceDeclarations,
     selected_provider_plans: &effects::SelectedProviderPlanFacts,
     provenance: &mut [SelectedProviderReviewProvenance],
@@ -322,7 +322,7 @@ pub(crate) fn retain_selected_compiler_intrinsic_review_identities(
 }
 
 pub(crate) fn produce_direct_boundary_leaves(
-    external_providers: &psi_terminal_production::ExternalProviderDeclarations,
+    external_providers: &provider_planning::ExternalProviderDeclarations,
     selected: &[SelectedProviderReviewProvenance],
     candidates: &[provider_planning::ProviderPlanCandidate],
     services: &ServiceDeclarations,

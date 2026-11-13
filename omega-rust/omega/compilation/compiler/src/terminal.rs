@@ -1,27 +1,15 @@
-/*
-We publish portable Terminal Psi code for a Checked Product once and attach each
-target's selected entry, provider plans, and behavior-exclusion policy.
-
-When target provider selection needs boundary calling plans, `retain_calling_program`
-captures the source calling relationships (`CallingSourcePreparation`) before
-publishing the shared `PortableTerminalProgram` (`product_code.rs`) and caches
-the immutable `CallingProgram` on `CheckedProductSource` so target children never
-reopen Checked Psi after publication.
-*/
-
-/*
-Ordinary target applications (`terminal_artifact.rs`) reuse that shared
-publication, attach their selected `ProgramEntry` and callback roots, and verify
-Omega behavior exclusions (`behavior_exclusions.rs`) without rerunning Psi
-lowering. Named machine inspection (`TerminalProductUse::Inspection`) uses an
-explicit source-producing entrance because it may select a machine root outside
-the executable application closure.
-*/
+//! Products and calling policies consume the same program and evidence accepted
+//! by source checking. Calling metadata is captured once beside that artifact;
+//! target applications add their entry receipts, provider proposals and behavior
+//! exclusions without lowering source again. An explicit named inspection checks
+//! its chosen entry through the same source-publication owner.
 
 mod behavior_exclusions;
 mod product_code;
+pub(crate) mod source_roots;
 mod terminal_artifact;
 
+pub(crate) use product_code::ProductCodeSource;
 pub(crate) use terminal_artifact::{
     ProducedTerminalProduct, TerminalProductRequest, TerminalProductUse, TerminalProductionView,
     check_terminal_conditions, produce_retained_terminal_artifacts,
@@ -47,22 +35,21 @@ pub(crate) fn retain_calling_program(
 
 fn prepare(
     source: &CheckedProductSource,
-    timings: &mut artifacts::compile_timings::CompileTimings,
+    _timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<Arc<CallingProgram>, Vec<Diagnostic>> {
-    // Save the checked relationships before publishing code, so subsequent
-    // targets consume the same immutable metadata beside the shared artifact.
-    let source_preparation = capture_source_preparation(source);
-    let code = product_code::ProductCodeSource::checked(source);
-    let program = code.publish(
-        source.terminal_publication.optimizations(),
-        &mut crate::observations::PsiStageTimings::new(timings),
-    );
-    let program = program?;
-    let source_preparation = source_preparation?;
+    // Calling plans use the same checked program and original declarations
+    // as execution. Preparing metadata never lowers a second source program.
+    let program = source.terminal_publication.checked_application()?;
+    if !Arc::ptr_eq(program, &source.program) {
+        return Err(vec![Diagnostic::error(
+            "calling preparation and executable publication have different source owners",
+        )]);
+    }
+    let source_preparation = capture_source_preparation(source)?;
     Ok(Arc::new(CallingProgram {
         source_owner: Arc::downgrade(&source.program),
         artifact: Arc::clone(program.artifact()),
-        source_records: program.source_records().to_vec().into(),
+        source_records: Arc::clone(&program.correspondence().records),
         source_preparation: Arc::new(source_preparation),
         evaluator: build_settings::CALLING_POLICY_EVALUATOR,
     }))

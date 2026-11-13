@@ -83,7 +83,11 @@ fn family_invocation_ceiling(
             "family member synchronous-invocation",
         )?;
         let original = machine_invocation(
-            &compilation.custody.facts.synchronous_invocations.machines,
+            &compilation
+                .original_program
+                .facts
+                .synchronous_invocations
+                .machines,
             declaration.symbol,
             machine.name.as_str(),
             "family member synchronous-invocation custody",

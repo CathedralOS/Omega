@@ -62,7 +62,7 @@ pub fn provider_selection_roots<'selection>(
 
 pub(crate) struct TargetProviderPreparationRequest<'program> {
     pub context: ProviderPlanningContext<'program>,
-    pub checked: &'program checked_trees::CheckedTrees,
+    pub source: &'program crate::PublishedProviderSource,
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
     pub application_roots: Option<&'program [(String, SymbolHandle)]>, // None is reusable Source checking; Some is the complete Build deployment entry roster.
     pub overrides: &'program [ProviderSelection],
@@ -78,7 +78,7 @@ impl TargetProviderPreparationRequest<'_> {
         PreparedTargetChoices<crate::ProviderPlanProvenance, ProviderSelection>,
         Vec<Diagnostic>,
     > {
-        if !std::ptr::eq(&*self.checked.typed, self.context.typed) {
+        if !std::ptr::eq(&**self.source.typed, self.context.typed) {
             return Err(vec![Diagnostic::error(
                 "provider declarations belong to another checked source",
             )]);
@@ -178,7 +178,7 @@ impl TargetProviderPreparationRequest<'_> {
                             provider_declaration: closed.provider_declaration,
                             row_numeric_realizations: closed.row_numeric_realizations,
                             declarations: crate::provider_planning::selected_declarations::capture_plan_declarations(
-                                self.checked, &candidate.plan, &candidate.provenance,
+                                self.source, &candidate.plan, &candidate.provenance,
                             ),
                             owner: candidate.provenance.clone(),
                         }

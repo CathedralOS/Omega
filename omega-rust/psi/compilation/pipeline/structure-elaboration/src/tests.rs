@@ -1256,6 +1256,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         identity: String::from("Point"),
         fields: vec![
             field(1, "x", ValueType::Scalar(u32_type())),
@@ -1265,6 +1266,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         identity: String::from("Line"),
         fields: vec![field(3, "from", point()), field(4, "to", point())],
         cases: Vec::new(),
@@ -2148,12 +2150,14 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::Scalar(u32_type());
     let mut records = IdTable::default();
     records.push(RecordType {
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         identity: String::from("Point"),
         fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
         cases: Vec::new(),
         requires: Vec::new(),
     });
     records.push(RecordType {
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
         identity: String::from("Shape"),
         fields: Vec::new(),
         cases: vec![

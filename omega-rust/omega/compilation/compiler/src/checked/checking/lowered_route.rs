@@ -1,37 +1,14 @@
-// The lowered-form checker's verdict is the product compilation's verdict.
-//
-// The owner ruled on 2026-11-12 that the old checker (Psi 05, validation and
-// Psi 06) is removed now, not once every program is covered
-// (wiki/drafts/designs/check_on_lowered_form.md, "The gate"): none of the
-// obligations it accepts is backed by evidence the proof kernel re-checked,
-// so a program built on its acceptance is not a checked program. The checker
-// on the lowered form ("the route") therefore decides every product
-// compilation by itself, before Psi 05 is given the trees:
-//
-// - The route rejects: the compilation fails with the route's diagnostics.
-// - The route cannot judge the program (a construct it does not serve yet, a
-//   proof goal whose form its prover has no rule for, or a defect of the
-//   route itself): the compilation fails with an error that opens with
-//   `NOT_SUPPORTED_YET` and names what is not supported. It is never handed to
-//   Psi 05 for a verdict. A missing verdict is a refusal, never an
-//   acceptance.
-// - The route accepts: Psi 05 and 06 still run, because product selection,
-//   the provider inventory and target preparation read their output until
-//   the route's own published module feeds them (TASKS.md,
-//   LOWERED-FORM-CHECKER, step 1). They also still judge the two sources the
-//   route does not lower, the Build program and the bound target's
-//   entry-contract source (`lowered-route-governance-scope`), and a rejection
-//   placed there stands. A rejection placed anywhere else is not a verdict on
-//   the program, which the route accepted: the compilation fails with
-//   `NO_PRODUCT_ROUTE`, because no product can be built without that output.
-//
-// A compilation that stops before Psi 04 completes has no trees to judge and
-// fails on that stage's own diagnostics.
+//! Source checking decides whether a program is valid and publishes its checked
+//! portable module with evidence seals. Every product consumes that result;
+//! refusal or failed publication never retries a retired checker or producer.
+//!
+//! The executable closure and each generic body's admitted alternatives must
+//! all pass before the closure is published. Explicit entry changes use this
+//! same path and receive new evidence for the selected module.
 
 use diagnostics::Diagnostic;
 use lowered_discharge::{CompilationRefusal, RouteVerdict};
 use semantic_vocabulary::PackageKeyIdentity;
-use source::{SourceId, SourceMap};
 use symbols::SymbolHandle;
 
 /// What the route judges: the declarations the request claims, which are
@@ -53,37 +30,138 @@ impl RouteScope<'_> {
     /// 04 generated for the program's own applications are judged as closed
     /// machines of the closure. The route accepts only when it accepts every
     /// one of them.
-    pub(super) fn judge(&self, typed: &typed_trees::TypedTrees) -> RouteJudgment {
-        RouteJudgment::all(
-            lowered_discharge::judge_compilation(
-                typed,
-                structure_elaboration::Compilation {
-                    entries: self.entries,
-                    subject: self.subject,
-                    selected: self.selected,
-                    bindings: self.bindings,
-                },
-            )
+    ///
+    /// The source verdict and executable publication are separate results.
+    /// A valid program whose checked module cannot be published keeps that
+    /// exact failure; product emission must never substitute another module.
+    /// Only the first verdict owns executable code. The remaining verdicts
+    /// check generic bodies and must all pass before publication is attempted.
+    pub(super) fn judge(
+        &self,
+        typed: &std::sync::Arc<typed_trees::FrozenTypedTrees>,
+    ) -> (
+        RouteJudgment,
+        Result<std::sync::Arc<compilation_products::CheckedApplicationProgram>, Vec<Diagnostic>>,
+    ) {
+        let verdicts = lowered_discharge::judge_compilation(
+            typed,
+            structure_elaboration::Compilation {
+                entries: self.entries,
+                subject: self.subject,
+                selected: self.selected,
+                bindings: self.bindings,
+            },
+        );
+        let mut program = None;
+        let judgments = verdicts
             .into_iter()
-            .map(RouteJudgment::of)
-            .collect(),
-        )
+            .enumerate()
+            .map(|(position, verdict)| match (position, verdict) {
+                (0, Ok(RouteVerdict::Accepted(closure))) => {
+                    program = Some(closure);
+                    RouteJudgment::Accepted
+                }
+                (_, verdict) => RouteJudgment::of(verdict),
+            })
+            .collect();
+        let judgment = RouteJudgment::all(judgments);
+        let published = match &judgment {
+            RouteJudgment::Accepted => program
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "accepted source checking retained no executable program",
+                    )]
+                })
+                .and_then(|closure| closure.publish().map_err(publication_diagnostics))
+                .and_then(|publication| {
+                    compilation_products::CheckedApplicationProgram::new(
+                        compilation_products::ProductSourceDeclarations {
+                            typed: std::sync::Arc::clone(typed),
+                            machines: publication.machines,
+                            boundaries: publication.boundaries,
+                            records: publication.source_records.into(),
+                            services: publication.services.into(),
+                        },
+                        std::sync::Arc::new(publication.artifact),
+                        publication.seals,
+                    )
+                    .map(std::sync::Arc::new)
+                }),
+            RouteJudgment::Rejected(diagnostics) | RouteJudgment::Refused(diagnostics) => {
+                Err(diagnostics.clone())
+            }
+        };
+        (judgment, published)
     }
 }
 
-/// What Psi 05 still judges after the route accepts: the Build program and
-/// the bound targets' entry-contract sources, which the route does not lower.
-pub(super) struct CurrentScope<'a> {
-    pub(super) sources: Option<&'a SourceMap>,
-    /// The source file that declares the selected Build machine.
-    pub(super) build_program: Option<SourceId>,
-    /// The bound targets' entry-contract sources, by package-relative path.
-    pub(super) entry_contracts: &'a [target::ProgramEntryPhysicalContractPackage],
+/// Check explicitly selected roots without rewriting an accepted artifact's
+/// entry or evidence seals. Keep the original source obligations alongside the
+/// new entries, and check every newly installed entry binding.
+pub(crate) fn publish_selected_roots(
+    source: &std::sync::Arc<compilation_products::CheckedApplicationProgram>,
+    entries: &[SymbolHandle],
+    bindings: &[typed_trees::callable_signature_shapes::BoundCallableShape],
+) -> Result<std::sync::Arc<compilation_products::CheckedApplicationProgram>, Vec<Diagnostic>> {
+    let declarations = source.correspondence();
+    let module = source.module();
+    let selected = module
+        .machines
+        .iter()
+        .map(|machine| {
+            declarations
+                .machines
+                .get(machine.id)
+                .copied()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "root selection lost a checked machine's source declaration",
+                    )]
+                })
+        })
+        .chain(module.boundary_machines.iter().map(|boundary| {
+            declarations
+                .boundaries
+                .get(boundary.id)
+                .copied()
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "root selection lost a checked boundary's source declaration",
+                    )]
+                })
+        }))
+        .collect::<Result<Vec<_>, _>>()?;
+    let (verdict, published) = RouteScope {
+        entries,
+        subject: None,
+        selected: &selected,
+        bindings,
+    }
+    .judge(source.typed());
+    verdict.verdict()?;
+    published
 }
 
-/// The first sentence of the error a compilation reports when the route
-/// accepts a program that Psi 05 or 06, whose output every product is still
-/// built from, cannot process.
+fn publication_diagnostics(error: lowered_discharge::PublicationError) -> Vec<Diagnostic> {
+    use lowered_discharge::PublicationError;
+    let reason = match error {
+        PublicationError::GenericCheckForm => {
+            "the accepted module still contains abstract generic requirements".to_owned()
+        }
+        PublicationError::Undeclared(machine, reason) => {
+            format!(
+                "machine {} has no portable declaration: {reason}",
+                machine.get()
+            )
+        }
+        PublicationError::Semantic(reason) => format!("checked program publication: {reason}"),
+        PublicationError::Artifact(error) => format!("checked program artifact: {error}"),
+        PublicationError::Seals(error) => format!("checked program evidence: {error:?}"),
+    };
+    vec![Diagnostic::error(format!("{NO_PRODUCT_ROUTE}: {reason}"))]
+}
+
+/// Diagnostic prefix when an accepted module cannot be published as a product.
 pub(crate) const NO_PRODUCT_ROUTE: &str = "no product route yet";
 
 /// The first sentence of the error a compilation reports when the route
@@ -165,6 +243,7 @@ impl RouteJudgment {
                 unproved,
                 unestablished,
                 conflicts,
+                exceeded,
             } => {
                 let mut reported = Vec::new();
                 reported.extend(formations.iter().map(|entry| entry.reject_diagnostic()));
@@ -177,6 +256,7 @@ impl RouteJudgment {
                 }
                 reported.extend(unestablished.iter().map(|entry| entry.reject_diagnostic()));
                 reported.extend(conflicts.iter().map(|entry| entry.reject_diagnostic()));
+                reported.extend(exceeded.iter().map(|entry| entry.reject_diagnostic()));
                 if reported.is_empty() {
                     // `Rejected` is never empty; one that is would be a
                     // defect of the route, which must not decide the program
@@ -206,70 +286,9 @@ fn route_defect(detail: &str) -> Diagnostic {
     ))
 }
 
-/// The compilation's outcome from `current`, what the check returned, given
-/// whether the route `accepted` the program. The check returns the route's own
-/// diagnostics when the route does not accept (`RouteJudgment::verdict`), and
-/// an earlier stage's when no trees reached the route.
-pub(super) fn govern<T>(
-    current: Result<T, Vec<Diagnostic>>,
-    accepted: bool,
-    scope: &CurrentScope<'_>,
-) -> Result<T, Vec<Diagnostic>> {
-    if !accepted {
-        // Nothing may be built without the route's acceptance. A check that
-        // returns a program the route never accepted is a defect here.
-        return match current {
-            Err(rejection) => Err(rejection),
-            Ok(_) => Err(vec![route_defect("the check finished without its verdict")]),
-        };
-    }
-    current.map_err(|rejection| {
-        if !rejection
-            .iter()
-            .all(|diagnostic| outside_current_scope(scope, diagnostic))
-        {
-            return rejection;
-        }
-        let mut reported = Vec::with_capacity(rejection.len() + 1);
-        reported.push(Diagnostic::error(format!(
-            "{NO_PRODUCT_ROUTE}: the checker on the lowered form accepts this program, and its \
-             verdict is the compilation's; no product can be built for it, because product \
-             selection, the provider inventory and target preparation still read the output of \
-             the stages being removed, which could not process it; their diagnostics follow"
-        )));
-        reported.extend(rejection);
-        reported
-    })
-}
-
-/// Whether `diagnostic` is placed in a source the route judges: neither the
-/// Build program nor an entry-contract source.
-fn outside_current_scope(scope: &CurrentScope<'_>, diagnostic: &Diagnostic) -> bool {
-    let (Some(sources), Some(span)) = (scope.sources, diagnostic.source_span) else {
-        return false;
-    };
-    let Some(file) = sources.file_at(span) else {
-        return false;
-    };
-    if scope.build_program == Some(file.source_id) {
-        return false;
-    }
-    let relative = file.path.strip_prefix(&file.package_root).ok();
-    !scope
-        .entry_contracts
-        .iter()
-        .any(|package| relative == Some(std::path::Path::new(package.package_relative_source())))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const NONE: CurrentScope<'static> = CurrentScope {
-        sources: None,
-        build_program: None,
-        entry_contracts: &[],
-    };
 
     fn rejected(message: &str) -> RouteJudgment {
         RouteJudgment::Rejected(vec![Diagnostic::error(message)])
@@ -319,39 +338,11 @@ mod tests {
                 unproved: Vec::new(),
                 unestablished: Vec::new(),
                 conflicts: Vec::new(),
+                exceeded: Vec::new(),
             },
         ] {
             let reported = messages(RouteJudgment::of(Ok(verdict)).verdict());
             assert!(reported[0].starts_with(NOT_SUPPORTED_YET), "{reported:#?}");
         }
-    }
-
-    /// The route accepts and the later stages finish: the program builds.
-    #[test]
-    fn an_accepted_program_builds() {
-        assert!(govern(Ok(()), true, &NONE).is_ok());
-    }
-
-    /// Without the route's acceptance nothing builds: the check's own
-    /// diagnostics stand, and a check that somehow returned a program is
-    /// refused.
-    #[test]
-    fn nothing_builds_without_the_routes_acceptance() {
-        assert_eq!(
-            messages(govern(Err(vec![Diagnostic::error("route")]), false, &NONE)),
-            ["route"]
-        );
-        let reported = messages(govern(Ok(()), false, &NONE));
-        assert!(reported[0].starts_with(NOT_SUPPORTED_YET), "{reported:#?}");
-    }
-
-    /// After the route accepts, a rejection that cannot be placed outside the
-    /// Build program and the entry contract is reported as it is.
-    #[test]
-    fn an_unplaced_later_rejection_stands() {
-        assert_eq!(
-            messages(govern(Err(vec![Diagnostic::error("current")]), true, &NONE)),
-            ["current"]
-        );
     }
 }

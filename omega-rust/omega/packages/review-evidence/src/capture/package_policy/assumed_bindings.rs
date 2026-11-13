@@ -29,21 +29,22 @@ pub(crate) struct PreparedAssumedContracts {
 }
 
 impl PreparedAssumedContracts {
-    pub(crate) fn capture(
-        input: &SourceDeclarationInput<'_>,
+    pub(crate) fn capture_published(
+        source: &provider_planning::PublishedProviderSource,
         requirements: &[symbols::SymbolHandle],
     ) -> Self {
         let mut declarations = Vec::new();
-        for definition in input.traits() {
-            for signature in input.trait_machine_signatures(definition) {
-                if requirements.contains(&signature.symbol) {
-                    let identity =
-                        input.trait_requirement_callable_identity_text(definition, signature);
-                    if !declarations.iter().any(|(prior, _)| prior == &identity) {
-                        let contracts = project_contract(input, &identity);
-                        declarations.push((identity, contracts));
-                    }
-                }
+        for &requirement in requirements {
+            let Some((owner, signature)) = source.typed.trait_machine_signature(requirement) else {
+                continue;
+            };
+            let identity = source
+                .typed
+                .trait_requirement_callable_identity_text(owner, signature);
+            if !declarations.iter().any(|(prior, _)| prior == &identity) {
+                declarations.push((identity, Err(super::rejected(
+                    "assumed binding review needs its complete published requirement contract and positional subject receipt",
+                ))));
             }
         }
         Self { declarations }

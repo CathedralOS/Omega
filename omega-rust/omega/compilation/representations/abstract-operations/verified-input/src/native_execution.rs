@@ -5,6 +5,7 @@ use diagnostics::Diagnostic;
 use std::collections::BTreeSet;
 
 pub struct PreparedNativeExecution {
+    evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
     scope: crate::NativeExecutionScope,
     selection: effects::SelectedProviderPlanFacts,
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
@@ -417,6 +418,7 @@ impl TerminalNativeRealizationProposal {
         }
         scope.bind_completed_provider_selection(&selection);
         Ok(PreparedNativeExecution {
+            evidence: None,
             scope,
             selection,
             external_bindings,
@@ -429,6 +431,22 @@ impl TerminalNativeRealizationProposal {
 }
 
 impl PreparedNativeExecution {
+    pub fn with_operation_evidence(
+        mut self,
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if let Some(evidence) = &evidence {
+            crate::native_proposal::validate_operation_evidence(artifact, evidence)?;
+        }
+        self.evidence = evidence;
+        Ok(self)
+    }
+
+    pub const fn evidence(&self) -> Option<&std::sync::Arc<terminal_codec::EvidenceSeals>> {
+        self.evidence.as_ref()
+    }
+
     pub fn selection(&self) -> &effects::SelectedProviderPlanFacts {
         &self.selection
     }

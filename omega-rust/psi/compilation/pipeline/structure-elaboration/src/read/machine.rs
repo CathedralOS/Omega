@@ -451,14 +451,16 @@ impl<'t> Program<'t> {
         if machine.structural_type_equations_pending {
             return unserved("pending type equations");
         }
-        // Row 1 is the interned empty row (`ServiceReachRowTable::EMPTY_ROW`).
-        if !matches!(
-            machine.service_reach_row,
-            language_semantics::ServiceReachRowId::NULL
-                | language_semantics::ServiceReachRowTable::EMPTY_ROW
-        ) || machine.service_reach_is_installation_bound
+        // A written ceiling of named services is stated in the module and
+        // judged there (`reach`). One bound by an installation or by an
+        // abstract row is not a fixed set of services.
+        if machine.service_reach_is_installation_bound
+            || self
+                .typed
+                .service_reach_rows
+                .is_abstract(machine.service_reach_row)
         {
-            return unserved("service reach");
+            return unserved("service reach bound by an installation");
         }
         if machine.suspends || machine.blocks {
             return unserved("suspends or blocks");
@@ -722,12 +724,89 @@ impl<'t> Program<'t> {
         )
     }
 
+    /// A native leaf retains a genuine declaration header. This does not
+    /// register an executable machine or supply evidence for its behavior.
+    pub(super) fn native_provider_signature(
+        &mut self,
+        id: MachineId,
+        signature: &StateSignature,
+    ) -> Checked<(Signature, MachineNames)> {
+        self.callable_signature(
+            id,
+            signature,
+            &[],
+            Declarer::Boundary {
+                declares_no_crash_route: signature.declares_no_crash_route,
+            },
+        )
+    }
+
+    /// Type-check a requirement in its exact declaration or applied scope.
+    /// Abstract borrowed carriers stay logical and are never physical headers.
+    pub(super) fn static_requirement_signature(
+        &mut self,
+        id: MachineId,
+        signature: &StateSignature,
+        scope: Vec<(SymbolHandle, ValueType)>,
+        is_boundary: bool,
+        abstract_schema: bool,
+    ) -> Checked<Signature> {
+        if !signature.type_parameters.is_empty()
+            || !signature.lifetime_parameters.is_empty()
+            || !signature.conformance_bounds.is_empty()
+            || signature.is_default
+            || !signature.native_callback_parameters.is_empty()
+            || signature.spelling.is_some()
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration(
+                    "static requirement with unrepresented binders, regions, defaults or callbacks",
+                ),
+            ));
+        }
+        let outer = std::mem::replace(&mut self.scope, scope);
+        let declared = if abstract_schema {
+            Declarer::Schema {
+                declares_no_crash_route: signature.declares_no_crash_route,
+                is_boundary,
+            }
+        } else if is_boundary {
+            Declarer::Boundary {
+                declares_no_crash_route: signature.declares_no_crash_route,
+            }
+        } else {
+            Declarer::Requirement {
+                declares_no_crash_route: signature.declares_no_crash_route,
+            }
+        };
+        let result = self.contract(
+            id,
+            signature.symbol,
+            signature.parameters,
+            signature.return_type,
+            signature.contracts,
+            declared,
+            &[],
+            &[],
+        );
+        self.scope = outer;
+        let (mut lowered, _) = result?;
+        lowered.termination = if signature.termination_guarantee.promises_termination() {
+            Termination::Promised
+        } else {
+            Termination::Silent
+        };
+        Ok(lowered)
+    }
+
     /// Machine requirements and stored callable types share one signature
     /// reader. Their different omission and borrowing rules stay explicit.
     fn callable_signature(
         &mut self,
         id: MachineId,
-        requirement: &'t StateSignature,
+        requirement: &StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
         declared: Declarer,
     ) -> Checked<(Signature, MachineNames)> {
@@ -812,21 +891,19 @@ impl<'t> Program<'t> {
         let mut erased = Vec::new();
         let mut borrowed = Vec::new();
         let mut slots = Vec::with_capacity(formals.len());
+        let mut abstract_borrows = Vec::new();
         for (position, formal) in formals.iter().enumerate() {
-            let (value_type, is_erased, reference) = self.formal(id, formal)?;
+            let (value_type, is_erased, reference) = self.formal(
+                id,
+                formal,
+                matches!(declared, Declarer::Schema { .. }).then_some(&mut abstract_borrows),
+            )?;
             parameters.push(value_type);
             if is_erased {
                 erased.push(position);
             }
             let access = reference.as_ref().map(|reference| reference.access);
             if let Some(reference) = reference {
-                if matches!(declared, Declarer::Requirement { .. }) {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Parameter("reference parameter of a requirement"),
-                    ));
-                }
                 borrowed.push(crate::body::Borrowed {
                     position,
                     ..reference
@@ -995,6 +1072,10 @@ impl<'t> Program<'t> {
             }
             | Declarer::Boundary {
                 declares_no_crash_route,
+            }
+            | Declarer::Schema {
+                declares_no_crash_route,
+                ..
             } => declares_no_crash_route,
         };
         let crashes = match (declared, crash_clauses) {
@@ -1015,15 +1096,25 @@ impl<'t> Program<'t> {
                 },
                 false,
             )
-            | (Declarer::Boundary { .. }, false) => {
-                CrashCeiling::Authored(canonical::routes(routes))
-            }
+            | (Declarer::Boundary { .. }, false)
+            | (
+                Declarer::Schema {
+                    is_boundary: true, ..
+                },
+                false,
+            ) => CrashCeiling::Authored(canonical::routes(routes)),
             (Declarer::Machine { .. }, false) => CrashCeiling::Inferred,
             // generics.md, "Requirements and conformance evidence": on a
             // bodyless requirement "omitted `crashes` defers to its published
             // routes", the selected member's, while `crashes none` admits
             // only crash-free members.
-            (Declarer::Requirement { .. }, false) => CrashCeiling::Inferred,
+            (Declarer::Requirement { .. }, false)
+            | (
+                Declarer::Schema {
+                    is_boundary: false, ..
+                },
+                false,
+            ) => CrashCeiling::Inferred,
             (Declarer::RuntimeCallable { .. }, false) => {
                 return Err(refuse(
                     id,
@@ -1157,6 +1248,12 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         formal: &StateParameter,
+        abstract_borrows: Option<
+            &mut Vec<(
+                typed_trees::type_identity::NormalizedTypeIdentity,
+                terminal_check_tables::values::RigidType,
+            )>,
+        >,
     ) -> Checked<(ValueType, bool, Option<crate::body::Borrowed>)> {
         if !formal.symbol.is_valid() {
             return Err(refuse(
@@ -1225,7 +1322,37 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = self.value_type(id, referee)?;
+        let value_type = if let Some(abstract_borrows) = abstract_borrows
+            && matches!(
+                self.typed.type_reference_table.type_reference(referee),
+                TypeReferenceNode::Slice { .. }
+            ) {
+            let identity = self.typed.package_qualified_type_identity(referee);
+            if !identity.is_valid() {
+                return unserved("abstract borrowed type without a complete identity");
+            }
+            let ordinal = if let Some((_, rigid)) = abstract_borrows
+                .iter()
+                .find(|(previous, _)| *previous == identity)
+            {
+                *rigid
+            } else {
+                let ordinal =
+                    u32::try_from(self.scope.len() + abstract_borrows.len()).map_err(|_| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Parameter("abstract borrowed type ordinal"),
+                        )
+                    })?;
+                let rigid = terminal_check_tables::values::RigidType(ordinal);
+                abstract_borrows.push((identity, rigid));
+                rigid
+            };
+            ValueType::Rigid(ordinal)
+        } else {
+            self.value_type(id, referee)?
+        };
         // A data type with `requires` may be stored into by the callee, so
         // its domain is owed again where the loan returns; no slice follows
         // a domain across a call yet.
@@ -1235,7 +1362,7 @@ impl<'t> Program<'t> {
             return unserved("reference to data with requires");
         }
         let home = match value_type {
-            ValueType::Rigid(_) => return unserved("reference to a value of a type parameter"),
+            ValueType::Rigid(_) => None,
             ValueType::Record(_) => None,
             ValueType::Scalar(_) => Some(
                 Some(self.typed.normalized_type_identity_text(referee))
@@ -1811,6 +1938,10 @@ enum Declarer {
     Boundary {
         declares_no_crash_route: bool,
     },
+    Schema {
+        declares_no_crash_route: bool,
+        is_boundary: bool,
+    },
 }
 
 /// One value parameter of a generic check form: the binder's symbol, which
@@ -1842,7 +1973,7 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
     let target = |target: &Target, uses: &mut [usize]| {
         if let Target::Value(value) = target {
             expression_slot_uses(value, uses);
-        }
+        };
     };
     match statement {
         Statement::Bind { value, .. } | Statement::Store { value, .. } => {

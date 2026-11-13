@@ -87,11 +87,21 @@ impl Program<'_> {
     ) -> Checked<()> {
         let typed = self.typed;
         for symbol in selected {
+            if self.trait_declaration(entry, *symbol)?
+                || self.conformance_declaration(entry, *symbol)?
+            {
+                continue;
+            }
+            if self.select_native_provider(entry, *symbol)? {
+                continue;
+            }
             if typed.machine_by_symbol(*symbol).is_some() {
                 let machine = self.machine(*symbol)?;
                 self.fixed_inputs.push(machine);
-            } else if self.data_declaration(*symbol).is_some() {
-                self.record(entry, *symbol)?;
+            } else if let Some(data) = self.data_declaration(*symbol) {
+                if !names_only(data) {
+                    self.record(entry, *symbol)?;
+                }
             } else {
                 return Err(refuse(
                     entry,
@@ -116,6 +126,9 @@ impl Program<'_> {
             if self.owner(entry, machine.symbol, subject)? != Owner::Subject {
                 continue;
             }
+            if self.select_native_provider(entry, machine.symbol)? {
+                continue;
+            }
             // A generic machine is checked once as written, as its own check
             // form, not as a closed body (`Elaboration::generic_templates`).
             if machine.type_parameters.is_empty() {
@@ -128,6 +141,16 @@ impl Program<'_> {
         for data in typed.data_definitions() {
             if self.owner(entry, data.symbol, subject)? == Owner::Subject && !names_only(data) {
                 self.record(entry, data.symbol)?;
+            }
+        }
+        for declaration in typed.traits() {
+            if self.owner(entry, declaration.symbol, subject)? == Owner::Subject {
+                self.trait_declaration(entry, declaration.symbol)?;
+            }
+        }
+        for declaration in typed.conformances() {
+            if self.owner(entry, declaration.symbol, subject)? == Owner::Subject {
+                self.conformance_declaration(entry, declaration.symbol)?;
             }
         }
         // One row per remaining declaration table of the typed trees' roots.
@@ -159,11 +182,6 @@ impl Program<'_> {
             (
                 symbols_of(typed.mathematical_definitions(), |row| row.symbol),
                 "mathematical definition",
-            ),
-            (symbols_of(typed.traits(), |row| row.symbol), "trait"),
-            (
-                symbols_of(typed.conformances(), |row| row.symbol),
-                "conformance",
             ),
             (
                 symbols_of(typed.wire_schemas(), |row| row.symbol),

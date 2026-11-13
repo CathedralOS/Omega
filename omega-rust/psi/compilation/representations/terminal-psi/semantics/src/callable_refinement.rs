@@ -159,6 +159,25 @@ fn same_evidence_meaning(
 /// from predicates or from the selected machine body.
 /// Physical qualifications/effects use their ordinary admission owners; these
 /// goals retain the complete logical input, normal, guarded and crash contract.
+/// A published signature, independently of whether it has an executable body.
+/// A boundary/native header carries no invented machine or evidence identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallableCrashPolicy {
+    Closed,
+    Open,
+}
+
+#[derive(Clone, Copy)]
+pub struct CallableContractView<'a> {
+    pub parameter_order: &'a [terminal_psi::BoundaryParameterKind],
+    pub scalar_parameters: &'a [terminal_psi::ValueDeclaration],
+    pub structural_parameters: &'a [terminal_psi::StructuralParameterDeclaration],
+    pub result: &'a TerminalMachineResult,
+    pub proof: &'a terminal_psi::MachineContract,
+    pub evidence_owner: Option<EvidenceCallableOwner>,
+    pub crash_policy: CallableCrashPolicy,
+}
+
 pub fn callable_contract_refinement_goals(
     module: &TerminalModule,
     required: CallableContractId,
@@ -171,22 +190,59 @@ pub fn callable_contract_refinement_goals(
     let selected = module
         .machine(selected)
         .ok_or("refinement has no selected machine")?;
-    let required_result = &required.proof_result;
+    if !required
+        .result
+        .matches_machine_result(&required.proof_result)
+    {
+        return Err("refinement required result differs from its retained proof formal");
+    }
+    contract_refinement_goals(
+        module,
+        CallableContractView {
+            parameter_order: &required.parameter_order,
+            scalar_parameters: &required.scalar_parameters,
+            structural_parameters: &required.structural_parameters,
+            result: &required.proof_result,
+            proof: &required.proof,
+            evidence_owner: Some(EvidenceCallableOwner::Runtime(required.id)),
+            crash_policy: CallableCrashPolicy::Closed,
+        },
+        CallableContractView {
+            parameter_order: &selected.parameter_order,
+            scalar_parameters: &selected.parameters,
+            structural_parameters: &selected.structural_parameters,
+            result: &selected.result,
+            proof: &selected.contract,
+            evidence_owner: Some(EvidenceCallableOwner::Machine(selected.id)),
+            crash_policy: CallableCrashPolicy::Closed,
+        },
+    )
+}
+
+/// Project the complete logical refinement into the required signature's
+/// positional namespace. Both views are genuine published headers; selection
+/// and imported-behavior admission remain separate operations.
+pub fn contract_refinement_goals(
+    module: &TerminalModule,
+    required: CallableContractView<'_>,
+    selected: CallableContractView<'_>,
+) -> Result<Vec<CallableRefinementGoal>, &'static str> {
+    if selected.crash_policy != CallableCrashPolicy::Closed {
+        return Err("supplied implementation has no closed published crash contract");
+    }
+    let required_result = required.result;
     if required.parameter_order != selected.parameter_order
-        || required.scalar_parameters.len() != selected.parameters.len()
+        || required.scalar_parameters.len() != selected.scalar_parameters.len()
         || required.structural_parameters.len() != selected.structural_parameters.len()
-        || required.proof.erased_scalar_formals.len()
-            != selected.contract.erased_scalar_formals.len()
-        || required.proof.erased_proof_formals != selected.contract.erased_proof_formals
-        || !required.result.matches_machine_result(required_result)
-        || !match (&required.result, &selected.result) {
-            (terminal_psi::BoundaryMachineResult::Unit, TerminalMachineResult::Unit) => true,
+        || required.proof.erased_scalar_formals.len() != selected.proof.erased_scalar_formals.len()
+        || required.proof.erased_proof_formals != selected.proof.erased_proof_formals
+        || !match (required.result, selected.result) {
+            (TerminalMachineResult::Unit, TerminalMachineResult::Unit) => true,
+            (TerminalMachineResult::Scalar(expected), TerminalMachineResult::Scalar(actual)) => {
+                expected.scalar_type == actual.scalar_type
+            }
             (
-                terminal_psi::BoundaryMachineResult::Scalar(expected),
-                TerminalMachineResult::Scalar(actual),
-            ) => expected.scalar_type == actual.scalar_type,
-            (
-                terminal_psi::BoundaryMachineResult::Structural(expected),
+                TerminalMachineResult::Structural(expected),
                 TerminalMachineResult::Structural(actual),
             ) => {
                 expected.structural_type == actual.structural_type
@@ -199,12 +255,12 @@ pub fn callable_contract_refinement_goals(
     }
     let mut values = BTreeMap::<ValueId, ScalarTerm>::new();
     for (source, target) in selected
-        .parameters
+        .scalar_parameters
         .iter()
-        .zip(&required.scalar_parameters)
+        .zip(required.scalar_parameters)
         .chain(
             selected
-                .contract
+                .proof
                 .erased_scalar_formals
                 .iter()
                 .zip(&required.proof.erased_scalar_formals),
@@ -234,7 +290,7 @@ pub fn callable_contract_refinement_goals(
     for (source, target) in selected
         .structural_parameters
         .iter()
-        .zip(&required.structural_parameters)
+        .zip(required.structural_parameters)
     {
         if source.position != target.position
             || source.structural_type != target.structural_type
@@ -247,7 +303,7 @@ pub fn callable_contract_refinement_goals(
             return Err("refinement structural formal has another carrier, access or identity");
         }
     }
-    match (&selected.result, required_result) {
+    match (selected.result, required_result) {
         (TerminalMachineResult::Unit, TerminalMachineResult::Unit) => {}
         (TerminalMachineResult::Scalar(source), TerminalMachineResult::Scalar(target)) => {
             if source.scalar_type != target.scalar_type
@@ -274,17 +330,17 @@ pub fn callable_contract_refinement_goals(
         }
         _ => return Err("refinement result formal has another role"),
     }
-    let required_owner = EvidenceCallableOwner::Runtime(required.id);
-    let selected_owner = EvidenceCallableOwner::Machine(selected.id);
+    let required_owner = required.evidence_owner;
+    let selected_owner = selected.evidence_owner;
     let required_lanes = module
         .evidence_contract_lanes
         .iter()
-        .filter(|lane| lane.owner == required_owner)
+        .filter(|lane| Some(lane.owner) == required_owner)
         .collect::<Vec<_>>();
     let selected_lanes = module
         .evidence_contract_lanes
         .iter()
-        .filter(|lane| lane.owner == selected_owner)
+        .filter(|lane| Some(lane.owner) == selected_owner)
         .collect::<Vec<_>>();
     let mut atoms = BTreeMap::new();
     for source in &selected_lanes {
@@ -303,9 +359,9 @@ pub fn callable_contract_refinement_goals(
     }
     let context = semantic_vocabulary::PropositionContext::from_value_types_and_places(
         selected
-            .parameters
+            .scalar_parameters
             .iter()
-            .chain(&selected.contract.erased_scalar_formals)
+            .chain(&selected.proof.erased_scalar_formals)
             .chain(selected.result.scalar_ref())
             .map(|value| (value.id, value.scalar_type)),
         selected
@@ -359,10 +415,10 @@ pub fn callable_contract_refinement_goals(
         )?)
         .collect::<Vec<_>>();
     let selected_inputs = selected
-        .contract
+        .proof
         .source_checked_requires
         .iter()
-        .chain(&selected.contract.requires)
+        .chain(&selected.proof.requires)
         .map(substitute)
         .chain(
             evidence(&selected_lanes, EvidenceContractLaneKind::Requires)?
@@ -371,7 +427,7 @@ pub fn callable_contract_refinement_goals(
         )
         .collect::<Result<Vec<_>, _>>()?;
     let selected_outputs = selected
-        .contract
+        .proof
         .ensures
         .iter()
         .map(|clause| substitute(&clause.proposition))
@@ -406,7 +462,7 @@ pub fn callable_contract_refinement_goals(
     ];
     for guarantee in &required.proof.outcome_specific_ensures {
         let selected_guarantees = selected
-            .contract
+            .proof
             .outcome_specific_ensures
             .iter()
             .filter(|candidate| candidate.guard == guarantee.guard)
@@ -423,42 +479,44 @@ pub fn callable_contract_refinement_goals(
             ),
         });
     }
-    let mut causes = selected
-        .contract
-        .crash_routes
-        .iter()
-        .map(|bucket| bucket.cause)
-        .collect::<Vec<_>>();
-    causes.sort();
-    causes.dedup();
-    for cause in causes {
-        let guards = |routes: &[terminal_psi::CrashRouteBucket]| {
-            routes
-                .iter()
-                .filter(|bucket| bucket.cause == cause)
-                .flat_map(|bucket| bucket.alternatives.iter())
-                .map(|guard| match guard {
-                    CrashRouteGuard::Truth => Proposition::Truth,
-                    CrashRouteGuard::Predicate(predicate) => predicate.proposition().clone(),
-                })
-                .collect::<Vec<_>>()
-        };
-        let selected_guards = guards(&selected.contract.crash_routes)
+    if required.crash_policy == CallableCrashPolicy::Closed {
+        let mut causes = selected
+            .proof
+            .crash_routes
             .iter()
-            .map(substitute)
-            .collect::<Result<Vec<_>, _>>()?;
-        goals.push(CallableRefinementGoal {
-            kind: CallableRefinementGoalKind::Crash { cause },
-            proposition: implication(
-                conjunction(
-                    required_inputs
-                        .iter()
-                        .cloned()
-                        .chain(std::iter::once(disjunction(selected_guards))),
+            .map(|bucket| bucket.cause)
+            .collect::<Vec<_>>();
+        causes.sort();
+        causes.dedup();
+        for cause in causes {
+            let guards = |routes: &[terminal_psi::CrashRouteBucket]| {
+                routes
+                    .iter()
+                    .filter(|bucket| bucket.cause == cause)
+                    .flat_map(|bucket| bucket.alternatives.iter())
+                    .map(|guard| match guard {
+                        CrashRouteGuard::Truth => Proposition::Truth,
+                        CrashRouteGuard::Predicate(predicate) => predicate.proposition().clone(),
+                    })
+                    .collect::<Vec<_>>()
+            };
+            let selected_guards = guards(&selected.proof.crash_routes)
+                .iter()
+                .map(substitute)
+                .collect::<Result<Vec<_>, _>>()?;
+            goals.push(CallableRefinementGoal {
+                kind: CallableRefinementGoalKind::Crash { cause },
+                proposition: implication(
+                    conjunction(
+                        required_inputs
+                            .iter()
+                            .cloned()
+                            .chain(std::iter::once(disjunction(selected_guards))),
+                    ),
+                    disjunction(guards(&required.proof.crash_routes)),
                 ),
-                disjunction(guards(&required.proof.crash_routes)),
-            ),
-        });
+            });
+        }
     }
     goals.sort_by(|left, right| left.kind.cmp(&right.kind));
     if goals.windows(2).any(|pair| pair[0].kind == pair[1].kind) {
@@ -475,12 +533,26 @@ pub fn callable_refinement_context(
         .callables
         .contract(contract)
         .ok_or("refinement context has no callable contract")?;
+    contract_refinement_context(CallableContractView {
+        parameter_order: &contract.parameter_order,
+        scalar_parameters: &contract.scalar_parameters,
+        structural_parameters: &contract.structural_parameters,
+        result: &contract.proof_result,
+        proof: &contract.proof,
+        evidence_owner: Some(EvidenceCallableOwner::Runtime(contract.id)),
+        crash_policy: CallableCrashPolicy::Closed,
+    })
+}
+
+pub fn contract_refinement_context(
+    contract: CallableContractView<'_>,
+) -> Result<semantic_vocabulary::PropositionContext, &'static str> {
     semantic_vocabulary::PropositionContext::from_value_types_and_places(
         contract
             .scalar_parameters
             .iter()
             .chain(&contract.proof.erased_scalar_formals)
-            .chain(contract.proof_result.scalar_ref())
+            .chain(contract.result.scalar_ref())
             .map(|value| (value.id, value.scalar_type)),
         contract
             .structural_parameters
@@ -493,7 +565,7 @@ pub fn callable_refinement_context(
                     },
                 )
             })
-            .chain(contract.proof_result.structural().map(|result| {
+            .chain(contract.result.structural().map(|result| {
                 (
                     result.place,
                     semantic_vocabulary::StructuralPlaceKind::Result,

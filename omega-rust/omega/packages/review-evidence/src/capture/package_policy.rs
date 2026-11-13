@@ -42,13 +42,13 @@ impl<'program> PolicyCheckingContexts<'program> {
     }
 }
 
-pub fn project_checked_package_policy<'a>(
+pub(crate) fn project_source_package_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
     let input = input.into();
-    let queries = PolicyCheckingContexts::new(input.program, input.custody);
+    let queries = PolicyCheckingContexts::new(input.program, input.original_program);
     let mathematical_calls =
         super::contracts::mathematical_calls::MathematicalCallQueries::new(&queries.candidate);
     let original_mathematical_calls =
@@ -81,7 +81,11 @@ pub fn project_checked_package_policy<'a>(
     let (selected_providers, provider_indices) =
         super::project_checked_selected_provider_policy(compilation, target, package)?;
     let terminal_permissions =
-        super::project_checked_terminal_permission_policy(compilation, target, package)?;
+        super::terminal_authority_permissions::project_source_terminal_permission_policy(
+            compilation,
+            target,
+            package,
+        )?;
     let representation = super::project_checked_representation_policy(compilation, package)?;
     let external_supplies = external::project(compilation, package)?;
     let (dangerous_capabilities, slack_uses) = authority::project(compilation, &callables)?;

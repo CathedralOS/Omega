@@ -97,7 +97,8 @@ pub fn prepare<'input>(
             .collect::<Vec<_>>();
         let work = terminal_psi_to_abstract_operations::prepare_native_execution_with_components(
             proposal, artifact, &recipes, &calls,
-        )?;
+        )?
+        .with_evidence(retained.evidence().cloned())?;
         let scalars = NativeScalarCompletion::new(
             artifact,
             proposal,

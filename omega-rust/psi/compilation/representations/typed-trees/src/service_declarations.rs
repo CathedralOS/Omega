@@ -5,6 +5,137 @@ typed declaration and application for later provider selection.
 */
 
 pub mod provider_declarations {
+    use diagnostics::Diagnostic;
+    use language_semantics::direct_calls::DirectCallDeclarations;
+    use language_semantics::provider_declarations::SelectedTargetMachineOrigin;
+    use language_semantics::trust_declarations::TrustDeclarations;
+    use std::sync::{Arc, OnceLock};
+    use symbols::SymbolHandle;
+
+    pub fn closed_provider_requirements(
+        typed: &crate::TypedTrees,
+        template: &crate::machine::Machine,
+    ) -> Vec<crate::type_identity::CallableIdentityId> {
+        typed
+            .machine_specializations
+            .iter()
+            .filter(|receipt| receipt.template == template.symbol)
+            .filter_map(|receipt| typed.machine(receipt.instance))
+            .filter(|instance| {
+                instance.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+            })
+            .map(|instance| typed.machine_callable_identity(instance))
+            .filter(|identity| identity.is_valid())
+            .collect()
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct NamedProviderApplication {
+        pub declaration: symbols::SymbolHandle,
+        pub capture: arena::Handle<crate::CapturedMachineApplication>,
+    }
+
+    pub enum ProviderApplicationView {
+        None,
+        PhysicalLeaf,
+        External,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ProviderDeclarationOrigin {
+        Authored(symbols::SymbolHandle),
+        BuildNative {
+            requirement: symbols::SymbolHandle,
+            application: Option<arena::Handle<crate::product_operand::ProductOperandApplication>>,
+        },
+        Toolchain,
+    }
+
+    pub struct ProviderDeclarationRow<'identity> {
+        pub requirement: symbols::SymbolHandle,
+        pub origin: ProviderDeclarationOrigin,
+        pub requirement_identity: &'identity str,
+        pub declared_requirement_identity: &'identity str,
+        pub application: ProviderApplicationView,
+    }
+
+    pub struct ProviderDeclarationRequest<'rows> {
+        pub rows: &'rows [ProviderDeclarationRow<'rows>],
+        pub named_application: Option<NamedProviderApplication>,
+        pub provider_application_identity: Option<&'rows str>,
+        pub installation_reach: bool,
+    }
+
+    pub fn closed_provider_leaf_applications(
+        typed: &crate::TypedTrees,
+        template: &str,
+    ) -> Result<
+        Vec<language_semantics::provider_declarations::ProviderRequirementApplication>,
+        Vec<String>,
+    > {
+        let mut identities = Vec::new();
+        let mut diagnostics = Vec::new();
+        for application in typed
+            .closed_requirement_applications()
+            .filter(|application| {
+                typed
+                    .trait_machine_signature(application.template)
+                    .is_some_and(|(owner, signature)| {
+                        typed.trait_requirement_callable_identity_text(owner, signature) == template
+                    })
+            })
+        {
+            let Some(owner) = typed.trait_definition_by_symbol(application.declaring_trait) else {
+                diagnostics.push("closed requirement application lost its declaring trait".into());
+                continue;
+            };
+            let identity =
+                typed.trait_requirement_callable_identity_text(owner, application.signature);
+            if !identity.is_empty() && identity != template {
+                let Some(receiving_application) = typed
+                    .type_identity_text(application.portable_trait_application_identity)
+                    .filter(|text| !text.is_empty())
+                else {
+                    diagnostics
+                        .push("provider receiving application has no portable identity".into());
+                    continue;
+                };
+                identities.push(
+                    language_semantics::provider_declarations::ProviderRequirementApplication {
+                        requirement: identity,
+                        receiving_application,
+                    },
+                );
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(identities)
+        } else {
+            Err(diagnostics)
+        }
+    }
+
+    pub fn requirement_reach(
+        typed: &crate::TypedTrees,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<(String, bool, language_semantics::ServiceReachRowId)> {
+        if let Some((owner, requirement)) = typed.trait_machine_signature(symbol) {
+            return Some((
+                typed.trait_requirement_callable_identity_text(owner, requirement),
+                requirement.service_reach_is_installation_bound,
+                requirement.service_reach_row,
+            ));
+        }
+        let requirement = typed.machine_by_symbol(symbol)?;
+        if requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement {
+            return None;
+        }
+        Some((
+            typed.machine_callable_identity_text(requirement)?,
+            requirement.service_reach_is_installation_bound,
+            requirement.service_reach_row,
+        ))
+    }
     pub(crate) mod context {
         use crate::TypedTrees;
         use source::DependencyScope;
@@ -29,6 +160,149 @@ pub mod provider_declarations {
         }
     }
     pub use context::ProviderPlanningContext;
+
+    /// Declaration catalogs share the exact immutable source owner. Preparing
+    /// them grants no checking or admission authority: the product factory must
+    /// separately retain the route's acceptance of that same source.
+    pub struct PreparedProviderInventory<Owner: AsRef<crate::TypedTrees> = crate::FrozenTypedTrees> {
+        owner: Arc<Owner>,
+        origins: OnceLock<Vec<SelectedTargetMachineOrigin>>,
+        direct_calls: OnceLock<Arc<DirectCallDeclarations<SymbolHandle>>>,
+        trust: OnceLock<Result<TrustDeclarations, Diagnostic>>,
+        services: Arc<super::PreparedServiceCatalog>,
+    }
+
+    impl<Owner: AsRef<crate::TypedTrees>> PreparedProviderInventory<Owner> {
+        pub fn new(
+            owner: Arc<Owner>,
+            exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+        ) -> Self {
+            let services = super::PreparedServiceCatalog::prepare(
+                ProviderPlanningContext::new(
+                    owner.as_ref().as_ref(),
+                    source::DependencyScope::Product,
+                ),
+                exact_toolchain_sources,
+            );
+            Self {
+                owner,
+                origins: OnceLock::new(),
+                direct_calls: OnceLock::new(),
+                trust: OnceLock::new(),
+                services: Arc::new(services),
+            }
+        }
+
+        pub fn program(&self) -> &Arc<Owner> {
+            &self.owner
+        }
+
+        pub fn retained_service_catalog(&self) -> Arc<super::PreparedServiceCatalog> {
+            Arc::clone(&self.services)
+        }
+
+        pub fn service_declarations(
+            &self,
+        ) -> impl Iterator<Item = super::PreparedServiceDeclaration<'_>> {
+            self.services.declared_traits()
+        }
+
+        pub fn services_for(&self, owner: &Owner) -> Result<super::ServiceCatalog<'_>, Diagnostic> {
+            self.require_owner(owner)?;
+            self.services.bind(ProviderPlanningContext::new(
+                self.owner.as_ref().as_ref(),
+                source::DependencyScope::Product,
+            ))
+        }
+
+        pub fn direct_calls_for(
+            &self,
+            owner: &Owner,
+        ) -> Result<&DirectCallDeclarations<SymbolHandle>, Diagnostic> {
+            self.require_owner(owner)?;
+            Ok(self.direct_calls())
+        }
+
+        pub fn direct_calls(&self) -> &DirectCallDeclarations<SymbolHandle> {
+            self.direct_call_declarations()
+        }
+
+        pub fn retained_direct_calls_for(
+            &self,
+            owner: &Owner,
+        ) -> Result<Arc<DirectCallDeclarations<SymbolHandle>>, Diagnostic> {
+            self.require_owner(owner)?;
+            Ok(Arc::clone(self.direct_call_declarations()))
+        }
+
+        fn direct_call_declarations(&self) -> &Arc<DirectCallDeclarations<SymbolHandle>> {
+            self.direct_calls.get_or_init(|| {
+                Arc::new(crate::direct_calls::collect(
+                    self.owner.as_ref().as_ref(),
+                    source::DependencyScope::Product,
+                ))
+            })
+        }
+
+        pub fn origins_for(
+            &self,
+            owner: &Owner,
+        ) -> Result<&[SelectedTargetMachineOrigin], Diagnostic> {
+            self.require_owner(owner)?;
+            Ok(self.origins())
+        }
+
+        pub fn origins(&self) -> &[SelectedTargetMachineOrigin] {
+            self.origins.get_or_init(|| {
+                provider_target_declarations(
+                    self.owner.as_ref().as_ref(),
+                    source::DependencyScope::Product,
+                )
+            })
+        }
+
+        fn require_owner(&self, owner: &Owner) -> Result<(), Diagnostic> {
+            if !std::ptr::eq(self.owner.as_ref(), owner) {
+                return Err(Diagnostic::error(
+                    "provider declarations belong to another source program",
+                ));
+            }
+            Ok(())
+        }
+
+        /// The old checker's template and contract plans are not route evidence.
+        /// Keep the complete source census and refuse when an admitted machine
+        /// needs trust declarations the route does not yet publish. An empty
+        /// census requires no such custody and makes no admission claim.
+        pub fn trust_declarations(&self) -> Result<&TrustDeclarations, Diagnostic> {
+            self.trust
+                .get_or_init(|| {
+                    let claims = self
+                        .owner
+                        .as_ref()
+                        .as_ref()
+                        .machines()
+                        .iter()
+                        .filter(|machine| {
+                            machine.supply_mode
+                                == language_semantics::MachineSupplyMode::AdmissionClaim
+                        })
+                        .map(|machine| machine.name.as_str())
+                        .collect::<Vec<_>>();
+                    if claims.is_empty() {
+                        Ok(TrustDeclarations::default())
+                    } else {
+                        Err(Diagnostic::error(format!(
+                            "no product route yet: admitted machines require route-owned \
+                             template and contract trust declarations: {}",
+                            claims.join(", ")
+                        )))
+                    }
+                })
+                .as_ref()
+                .map_err(Clone::clone)
+        }
+    }
 
     pub fn independent_satisfactions<'program>(
         typed: &'program crate::TypedTrees,
@@ -136,6 +410,74 @@ pub mod provider_declarations {
             _ => return None,
         };
         (!identity.is_empty()).then_some((symbol, identity))
+    }
+    #[cfg(test)]
+    mod inventory_tests {
+        use super::PreparedProviderInventory;
+        use crate::{FrozenTypedTrees, TypedTrees};
+        use std::sync::Arc;
+
+        #[test]
+        fn catalogs_require_the_exact_immutable_owner_even_for_equal_source() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let other = Arc::new(owner.as_ref().clone());
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
+            assert!(Arc::ptr_eq(inventory.program(), &owner));
+            assert!(inventory.services_for(&owner).is_ok());
+            assert!(inventory.direct_calls_for(&owner).is_ok());
+            assert!(inventory.origins_for(&owner).is_ok());
+            assert!(inventory.services_for(&other).is_err());
+            assert!(inventory.direct_calls_for(&other).is_err());
+            assert!(inventory.retained_direct_calls_for(&other).is_err());
+            assert!(inventory.origins_for(&other).is_err());
+        }
+
+        #[test]
+        fn retained_catalogs_and_empty_trust_are_shared_for_one_owner() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
+            assert!(Arc::ptr_eq(
+                &inventory.retained_service_catalog(),
+                &inventory.retained_service_catalog()
+            ));
+            assert!(Arc::ptr_eq(
+                &inventory.retained_direct_calls_for(&owner).unwrap(),
+                &inventory.retained_direct_calls_for(&owner).unwrap()
+            ));
+            let trust = inventory.trust_declarations().unwrap();
+            assert!(trust.machines.is_empty());
+            assert!(std::ptr::eq(trust, inventory.trust_declarations().unwrap()));
+        }
+
+        #[test]
+        fn admission_claims_cannot_recover_old_checker_trust() {
+            let mut symbols = symbols::SymbolTableBuilder::new();
+            let first = symbols.insert_root(
+                symbols::SymbolKind::Machine,
+                symbols::SymbolNameRef::Static("First"),
+            );
+            let second = symbols.insert_root(
+                symbols::SymbolKind::Machine,
+                symbols::SymbolNameRef::Static("Second"),
+            );
+            let mut typed = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            for (symbol, name) in [(first, "First"), (second, "Second")] {
+                typed.push_machine(crate::machine::Machine {
+                    symbol,
+                    name: name.into(),
+                    supply_mode: language_semantics::MachineSupplyMode::AdmissionClaim,
+                    ..Default::default()
+                });
+            }
+            let inventory =
+                PreparedProviderInventory::new(Arc::new(FrozenTypedTrees::from(typed)), &[]);
+            let error = inventory.trust_declarations().unwrap_err();
+            assert!(error.message.contains("no product route yet"));
+            assert!(error.message.contains("First, Second"));
+        }
     }
 }
 

@@ -67,6 +67,18 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### External provider declarations have two retention rules
+- Category: one idea, several implementations
+- Where: `provider-admission/src/provider_admission/compiler_builtins/retained.rs` and `verified-input/src/native_proposal.rs`.
+- Saw: one admission demands a declaration for every selected realization, while another checks only requirements retained in the actual module.
+- Cost: an otherwise unrelated selected float provider can refuse the smaller published application; the two receiving paths need one retention rule.
+
+### Empty service rows lose whether a ceiling was written
+- Category: a verdict with nothing behind it
+- Where: `typed-trees` machine service rows and `authored_service_reach_rows_for`, consumed by `structure-elaboration/src/reach.rs`.
+- Saw: omission and authored `reaches none` can both normalize to the empty row; generated applications also need their exact template's authored ceiling.
+- Cost: reading only the normalized row can infer permission where the source promised none, so the surviving owner must retain writtenness explicitly.
+
 ### "Does this access cover that one" is written eight times with five different answers
 - Category: one idea, several implementations
 - Where: `omega-rust/psi/interpreter/terminal-interpreter/src/storage_references.rs:4455`; `omega-rust/psi/compilation/representations/terminal-psi/src/ownership.rs:62`; `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/references.rs:887`; `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_reference_custody.rs:4600` and `selection.rs:877`; `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:5124` and `:14940`; `omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs:350`

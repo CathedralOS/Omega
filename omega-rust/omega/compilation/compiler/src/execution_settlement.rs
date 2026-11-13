@@ -337,6 +337,7 @@ fn select_checked_providers(
         providers: prepared_providers,
         entry_service_requirements,
     } = declarations?;
+    let entry_service_requirements = entry_service_requirements?;
     let provider_planning::CheckedProviderSelection {
         settlement: providers,
         selected_provider_plan_facts,

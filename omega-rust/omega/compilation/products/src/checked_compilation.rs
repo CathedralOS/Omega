@@ -3,8 +3,8 @@ Checked compilation and the source custody sealed against it.
 
 The sealed `CheckedCompilation` record retains each stage product as the unit
 its producer returned: selected execution, the shared evaluated Build, this
-compilation's Build admission, provider settlement, checked-tree product
-selection, and source custody. Consumers borrow the unit they read; the methods
+compilation's Build admission, provider settlement, accepted source publication,
+and source custody. Consumers borrow the unit they read; the methods
 here expose those units, reconstruct explicit root trust obligations, project
 package build handoffs, and assemble the `TerminalNativeProposalRequest` that
 Omega 00 joins against provider selection.
@@ -18,7 +18,6 @@ separate checked semantic identity: `PartialEq` compares only `execution` and
 
 use crate::{BuildAdmission, ComputedBuildConfig};
 use artifacts::compile_timings::CompileTimings;
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use package_compilation::CheckedSourceCustody;
 use provider_planning::ProviderSettlement;
@@ -301,7 +300,7 @@ impl CheckedCompilation {
 }
 
 impl std::ops::Deref for CheckedCompilation {
-    type Target = CheckedTrees;
+    type Target = provider_planning::PublishedProviderSource;
 
     fn deref(&self) -> &Self::Target {
         self.source_inspection().program()

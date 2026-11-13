@@ -34,7 +34,7 @@ pub(crate) struct PreparedTargetDeclarations {
         Vec<Diagnostic>,
     >,
     pub(crate) providers: Result<PreparedProductProviders, Vec<Diagnostic>>,
-    pub(crate) entry_service_requirements: Vec<symbols::SymbolHandle>,
+    pub(crate) entry_service_requirements: Result<Vec<symbols::SymbolHandle>, Vec<Diagnostic>>,
 }
 
 impl PreparedProductTarget {
@@ -105,9 +105,11 @@ impl PreparedProductTarget {
                 );
                 Ok((entry, target_machines))
             })();
-            let evaluated_bindings = build_settings::evaluate_checked_via_bindings(
-                &source.program,
-                source::DependencyScope::Product,
+            let evaluated_bindings = build_settings::evaluate_via_bindings(
+                provider_planning::ProviderPlanningContext::new(
+                    &source.program,
+                    source::DependencyScope::Product,
+                ),
                 profile.or_else(target::TargetProfile::host_if_supported),
                 package_inputs.as_ref(),
             );
@@ -115,7 +117,7 @@ impl PreparedProductTarget {
                 let providers = (|| {
                     let deployment = deployment.as_ref().map_err(Clone::clone)?;
                     ProductProviderPreparation {
-                        checked: &source.program,
+                        source: &source.program,
                         services: source
                             .provider_inventory
                             .services_for(&source.program)
@@ -138,12 +140,11 @@ impl PreparedProductTarget {
                     }
                     .capture()
                 })();
-                let entry_service_requirements = entry
-                    .as_ref()
-                    .ok()
-                    .and_then(Option::as_ref)
-                    .map(|entry| entry.service_requirements(&source.program))
-                    .unwrap_or_default();
+                let entry_service_requirements = match &entry {
+                    Ok(Some(entry)) => entry.service_requirements(&source.program),
+                    Ok(None) => Ok(Vec::new()),
+                    Err(diagnostics) => Err(diagnostics.clone()),
+                };
                 PreparedTargetDeclarations {
                     entry,
                     providers,

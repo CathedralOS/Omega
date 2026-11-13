@@ -4,17 +4,17 @@
 // Source has expired, keeping fallible requests, reviews, and target helpers
 // inert until consumed.
 
-use checked_trees::typed_trees::service_declarations::ServiceCatalog;
-use checked_trees::typed_trees::service_declarations::signatures::PreparedBoundarySignatures;
-use checked_trees::typed_trees::service_declarations::signatures::calling_applications::PreparedCallingInstance;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::{CallingAbiIdentity, CallingSignatureId};
 use std::sync::{Arc, Weak};
+use typed_trees::service_declarations::ServiceCatalog;
+use typed_trees::service_declarations::signatures::PreparedBoundarySignatures;
+use typed_trees::service_declarations::signatures::calling_applications::PreparedCallingInstance;
 
 #[derive(Debug, Clone, Default)]
 pub struct CallingSourcePreparation {
-    pub(super) owner: Weak<checked_trees::CheckedTrees>,
+    pub(super) owner: Weak<crate::PublishedProviderSource>,
     pub(super) requests: Vec<CallingSourceRequest>,
     pub(super) helpers: Vec<(
         target::TargetProfile,
@@ -42,7 +42,7 @@ pub(super) struct CallingSourceRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct CallingSourceInstance {
-    pub arguments: Vec<checked_trees::typed_trees::types::TypeReferenceHandle>,
+    pub arguments: Vec<typed_trees::types::TypeReferenceHandle>,
     pub argument_owner: symbols::SymbolHandle,
     pub policy_name: Result<String, Vec<Diagnostic>>,
     pub signatures: Result<Vec<CallingSourceSignature>, Vec<Diagnostic>>,
@@ -58,25 +58,22 @@ pub(super) struct CallingSourceSignature {
 
 impl CallingSourcePreparation {
     pub fn capture(
-        checked: &Arc<checked_trees::CheckedTrees>,
+        source: &Arc<crate::PublishedProviderSource>,
         services: ServiceCatalog<'_>,
         opaque_reviews: Arc<[super::PreparedOpaqueReviewSelection]>,
         providers: super::CallingPolicyProviderInputs<'_>,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if !std::ptr::eq(&*checked.typed, services.context().typed)
+        let typed = source.typed().as_ref();
+        if !std::ptr::eq(typed.as_ref(), services.context().typed)
             || services.context().scope != source::DependencyScope::Product
         {
             return Err(vec![Diagnostic::error(
                 "calling plans require the exact Product source owner's prepared signature catalog",
             )]);
         }
-        let typed = &checked.typed;
-        let signatures = typed.boundary_signatures();
-        if !std::ptr::eq(signatures.as_ref(), services.signatures()) {
-            return Err(vec![Diagnostic::error(
-                "calling admission has a different frozen declaration census",
-            )]);
-        }
+        // The catalog retains signatures prepared from this exact immutable
+        // source. Their complete source keys supply the calling identities.
+        let signatures = services.signatures();
         let calling = signatures.calling();
         let mut requests = Vec::new();
         let mut has_pending = false;
@@ -141,12 +138,12 @@ impl CallingSourcePreparation {
             });
         }
         let helpers = if has_pending {
-            super::selected_providers::prepare(checked, services, &providers)
+            super::selected_providers::prepare(source, services, &providers)
         } else {
             Vec::new()
         };
         Ok(Self {
-            owner: Arc::downgrade(checked),
+            owner: Arc::downgrade(source),
             requests,
             helpers,
         })

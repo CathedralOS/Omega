@@ -30,9 +30,8 @@
 #![forbid(unsafe_code)]
 
 mod build_bindings;
-pub(crate) use build_bindings::{
-    build_filesystem, build_protocol, build_provider, build_queries, build_requests,
-};
+mod build_provider;
+pub(crate) use build_bindings::{build_filesystem, build_protocol, build_queries, build_requests};
 pub(crate) mod calling_signatures {
     use checked_trees::{CheckedTrees, PreparedProviderInventory};
     use diagnostics::Diagnostic;
@@ -559,7 +558,9 @@ pub use build_bindings::{
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
 };
-pub use build_provider::{BuildProviderProductionRequest, ProducedBuildProvider};
+pub use build_provider::{
+    BuildProviderProductionRequest, ProducedBuildProvider, prepare_build_provider_requirements,
+};
 pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
@@ -635,6 +636,25 @@ pub(crate) mod composition_roots {
                 entry_identity,
                 composition,
             }
+        }
+
+        /// Attaches this application to a canonical artifact published
+        /// without this crate's production: the lowered-form route's own
+        /// module (`lowered_discharge::AcceptedClosure::publish`). The entry
+        /// receipt and the composition roots are resolved on that artifact
+        /// exactly as on a produced program; it carries no machine
+        /// provenance, so a root is named by its declaration alone.
+        pub fn attach_published(
+            &self,
+            artifact: &terminal_codec::CanonicalTerminalArtifact,
+            observer: &mut impl PsiCompilationObserver,
+        ) -> Result<ProducedTerminalApplication, Vec<Diagnostic>> {
+            self.attach(
+                artifact.view().into(),
+                Ok(artifact),
+                &TerminalMachineProvenance::default(),
+                observer,
+            )
         }
 
         pub(crate) fn attach(

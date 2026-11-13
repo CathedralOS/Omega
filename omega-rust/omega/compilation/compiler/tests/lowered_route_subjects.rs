@@ -717,6 +717,29 @@ fn staged_unused(name: &str, declaration: &str) -> Box<compiler::TypedFrontier> 
     }
 }
 
+fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
+    let frontier = staged_unused(name, declaration);
+    lowered_discharge::judge_compilation(
+        &frontier.typed,
+        Compilation {
+            entries: &frontier.entries,
+            subject: frontier.subject,
+            selected: &frontier.selected,
+            bindings: &frontier.bindings,
+        },
+    )
+    .into_iter()
+    .map(|verdict| match verdict {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            Verdict::Accepted(accepted.elaboration.machines.len())
+        }
+        Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
+        Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
+        other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
+    })
+    .collect()
+}
+
 /// A generic machine nothing applies is still in the check, as its own
 /// check form: judged once as written, with the closure judged beside it
 /// (`judge_compilation`). generics.md: "An unspecialized body checks every
@@ -728,31 +751,9 @@ fn staged_unused(name: &str, declaration: &str) -> Box<compiler::TypedFrontier> 
 #[test]
 fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let parts = |name: &str, declaration: &str| -> Vec<Verdict> {
-        let frontier = staged_unused(name, declaration);
-        lowered_discharge::judge_compilation(
-            &frontier.typed,
-            Compilation {
-                entries: &frontier.entries,
-                subject: frontier.subject,
-                selected: &frontier.selected,
-                bindings: &frontier.bindings,
-            },
-        )
-        .into_iter()
-        .map(|verdict| match verdict {
-            Ok(RouteVerdict::Accepted(accepted)) => {
-                Verdict::Accepted(accepted.elaboration.machines.len())
-            }
-            Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
-            Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
-            other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
-        })
-        .collect()
-    };
     // The closure (the empty entry) and the generic form, both accepted.
     assert_eq!(
-        parts(
+        judged_parts(
             "generic_machine",
             "machine keep<T>(value: u64) -> u64 { value }"
         ),
@@ -760,12 +761,44 @@ fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
     );
     // One check per listed alternative; the body can overflow in each.
     assert_eq!(
-        parts(
+        judged_parts(
             "generic_family_overflow",
             "machine bump<T>(value: u64) -> u64 requires T == u8 || T == u16 { value + 1u64 }"
         ),
         [Verdict::Accepted(1), Verdict::Rejected, Verdict::Rejected]
     );
+}
+
+/// A generic check form cannot assume the contract of itself or of another
+/// form that calls it back. Even a body with no result guarantee must refuse:
+/// otherwise its `terminates` promise could be accepted without a cycle proof.
+#[test]
+fn generic_application_cycles_are_refused_before_using_their_contracts() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    for (name, declaration, cycles) in [
+        (
+            "generic_application_of_itself",
+            "machine again<T>(item: T, limit: u32) -> u32 ensures result <= limit { again<T>(item, limit) }",
+            &["again"][..],
+        ),
+        (
+            "generic_application_of_itself_with_no_guarantee",
+            "machine forever<T>(item: T, limit: u32) -> u32 terminates { forever<T>(item, limit) }",
+            &["forever"][..],
+        ),
+        (
+            "generic_application_cycle_of_two",
+            "machine ping<T>(item: T, limit: u32) -> u32 { pong<T>(item, limit) }
+             machine pong<T>(item: T, limit: u32) -> u32 { ping<T>(item, limit) }",
+            &["ping", "pong"][..],
+        ),
+    ] {
+        let mut expected = vec![Verdict::Accepted(1)];
+        expected.extend(cycles.iter().map(|machine| {
+            Verdict::FallsBack(format!("generic machine `{machine}` on a call cycle"))
+        }));
+        assert_eq!(judged_parts(name, declaration), expected, "{name}");
+    }
 }
 
 /// Every kind of unused subject declaration is in the check. What the route

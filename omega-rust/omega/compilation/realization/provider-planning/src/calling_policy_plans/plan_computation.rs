@@ -225,7 +225,7 @@ pub fn prepare_boundary_calling_plans(
 }
 
 pub struct PreparedBoundaryCallingPlans {
-    source_owner: Weak<checked_trees::CheckedTrees>,
+    source_owner: Weak<crate::PublishedProviderSource>,
     pending: Vec<PreparedCallingPolicy>,
     target: target::TargetProfile,
     providers: Vec<backend_plan::TerminalTargetProviderPlan>,

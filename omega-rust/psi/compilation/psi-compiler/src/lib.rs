@@ -540,8 +540,8 @@ pub use source_checking::{
     CheckRequest, CheckedSliceOwner, CheckedSliceReuse, CheckedSliceStore, CheckedSource,
     CheckedTreeProductSelection, LibrarySliceKey, LibrarySliceRequest, LibrarySliceTotals,
     ProductRepresentationInput, ProductSelections, RetainedCheck, SelectedCheckedSource,
-    SourceAdmission, checked_slice_totals, library_slice_totals, retained_layout_match_hits,
-    whole_program_reuse_hits,
+    SourceAdmission, checked_slice_totals, library_slice_totals, prepare_product_typed_frontier,
+    retained_layout_match_hits, whole_program_reuse_hits,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
@@ -567,5 +567,5 @@ pub use psi_terminal_production::{
     TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
     TerminalCompositionRoots, TerminalMachineSelection, TerminalProductionCustody,
     TerminalProductionRequest, TerminalProgramRoots, UnmeasuredProduction,
-    lower_task_activation_demands,
+    lower_task_activation_demands, prepare_build_provider_requirements,
 };

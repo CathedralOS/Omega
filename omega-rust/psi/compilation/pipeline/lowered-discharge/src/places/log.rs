@@ -343,6 +343,9 @@ impl Storage<'_> {
                     Stored::Moved(self.stored_at(*source, path, concerns)?),
                 ));
             }
+            OperationKind::MoveStructuralValue { source } => {
+                rows.push((fresh()?, Stored::Moved(self.argument(source, concerns)?)));
+            }
             OperationKind::WriteOnlyPrimitiveStore {
                 destination,
                 path,

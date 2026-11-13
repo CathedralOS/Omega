@@ -3,7 +3,7 @@
 
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
-use psi_terminal_production::ExternalProviderDeclarations;
+use provider_planning::ExternalProviderDeclarations;
 use symbols::SymbolHandle;
 
 #[derive(Clone, Copy)]

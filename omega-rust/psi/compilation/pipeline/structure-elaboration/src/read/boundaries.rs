@@ -25,7 +25,16 @@ impl Program<'_> {
                 || self
                     .typed
                     .trait_machine_signature(target)
-                    .is_some_and(|(owner, _)| owner.is_boundary && owner.symbol == qualifier))
+                    .is_some_and(|(owner, _)| owner.is_boundary && owner.symbol == qualifier)
+                || self.typed.machine_by_own_or_state_symbol(target).is_some_and(|machine| {
+                    !machine.body_is_present
+                        && matches!(
+                            machine.supply_mode,
+                            language_semantics::MachineSupplyMode::Boundary
+                                | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+                        )
+                        && machine.attached_data_symbol == qualifier
+                }))
     }
 
     pub(super) fn boundary_application_is_empty(
@@ -34,12 +43,26 @@ impl Program<'_> {
         target: SymbolHandle,
         application: StaticMachineApplicationHandle,
     ) -> Checked<bool> {
-        let Some((owner, _)) = self.typed.trait_machine_signature(target) else {
-            return Ok(false);
-        };
-        if !owner.is_boundary {
-            return Ok(false);
-        }
+        let (owner, declaration) =
+            if let Some((owner, _)) = self.typed.trait_machine_signature(target) {
+                if !owner.is_boundary {
+                    return Ok(false);
+                }
+                (owner.symbol, target)
+            } else if let Some(machine) = self.typed.machine_by_own_or_state_symbol(target) {
+                if machine.body_is_present
+                    || !matches!(
+                        machine.supply_mode,
+                        language_semantics::MachineSupplyMode::Boundary
+                            | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+                    )
+                {
+                    return Ok(false);
+                }
+                (machine.attached_data_symbol, machine.symbol)
+            } else {
+                return Ok(false);
+            };
         if !application.is_valid() {
             return Ok(true);
         }
@@ -56,7 +79,8 @@ impl Program<'_> {
             || actual.callable_contract_source.is_valid()
             || (actual.registration_operation.is_valid()
                 && actual.registration_operation != target
-                && actual.registration_operation != owner.symbol)
+                && actual.registration_operation != owner
+                && actual.registration_operation != declaration)
         {
             return Err(services::unavailable(
                 context,
@@ -72,21 +96,37 @@ impl Program<'_> {
         target: SymbolHandle,
     ) -> Checked<Option<(BoundaryMachineId, Signature)>> {
         let typed = self.typed;
-        let Some((owner, declared)) = typed.trait_machine_signature(target) else {
-            return Ok(None);
-        };
-        if !owner.is_boundary {
-            return Ok(None);
-        }
+        let target = typed
+            .machine_by_own_or_state_symbol(target)
+            .filter(|machine| {
+                !machine.body_is_present
+                    && matches!(
+                        machine.supply_mode,
+                        language_semantics::MachineSupplyMode::Boundary
+                            | language_semantics::MachineSupplyMode::ExternalRealization { .. }
+                    )
+            })
+            .map_or(target, |machine| machine.symbol);
         if let Some((id, source)) = self
             .boundaries
             .rows
             .iter()
             .find(|(_, source)| source.source == target)
         {
+            if source.native {
+                self.visible_to(context, source.source)?;
+            }
             return Ok(Some((id, source.signature.clone())));
         }
-        if !owner.lifetime_parameters.is_empty() || !owner.type_parameters.is_empty() {
+        let Some((owner, declared)) = typed.trait_machine_signature(target) else {
+            return self.native_boundary_call(context, target);
+        };
+        if !owner.is_boundary {
+            return Ok(None);
+        }
+        if (!owner.lifetime_parameters.is_empty() || !owner.type_parameters.is_empty())
+            && typed.closed_requirement_application(target).is_none()
+        {
             return Err(services::unavailable(
                 context,
                 "boundary call needs its complete declaring trait application",
@@ -122,10 +162,12 @@ impl Program<'_> {
         envelope
             .service_reach
             .extend(services::service_closure(self.typed, context, &[service])?);
-        envelope.service_reach.sort();
+        envelope.service_reach.sort_by_key(|service| service.0);
         envelope.service_reach.dedup();
         let id = self.boundaries.rows.push(BoundarySource {
             source: target,
+            kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+            native: false,
             owner: owner.symbol,
             signature: signature.clone(),
             envelope,

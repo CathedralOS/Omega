@@ -2,13 +2,13 @@
 //! Provider selection settles that requirement later; it does not replace this
 //! identity with a named body or an implicit service receiver.
 
-use semantic_vocabulary::{BoundaryCompletion, BoundaryMachineId, IdTable, MachineId, ServiceId};
+use semantic_vocabulary::{BoundaryCompletion, BoundaryMachineId, IdTable, MachineId};
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::{
     BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
     BoundaryStructuralResultDeclaration, CheckedBoundaryCallable, CheckedBoundaryExecution,
-    TerminalCallableEnvelope, TerminalCallableTermination, TerminalMachineResult, TerminalModule,
+    TerminalCallableTermination, TerminalMachineResult, TerminalModule,
 };
 
 use crate::{Outcome, Signature};
@@ -16,11 +16,13 @@ use crate::{Outcome, Signature};
 #[derive(Debug, Clone)]
 pub(crate) struct BoundarySource {
     pub source: SymbolHandle,
+    pub kind: semantic_vocabulary::BoundaryRequirementKind,
+    pub native: bool,
     pub owner: SymbolHandle,
     pub signature: Signature,
-    pub envelope: TerminalCallableEnvelope,
+    pub envelope: crate::reach::SourceEnvelope,
     pub completion: BoundaryCompletion,
-    pub owning_service: Option<ServiceId>,
+    pub owning_service: Option<language_semantics::ServiceReachId>,
     pub declaration: crate::declare::BoundaryDeclarationSource,
 }
 #[derive(Debug, Clone, Default)]
@@ -56,6 +58,7 @@ impl BoundaryNamespace {
         outcomes: &IdTable<MachineId, Outcome>,
         records: &crate::lower::places::Records<'_>,
         callables: &crate::callables::CallableNamespace,
+        services: &crate::reach::ServiceMap,
         module: &mut TerminalModule,
     ) -> Checked<()> {
         let refusal = |detail: &str| Refusal {
@@ -69,6 +72,7 @@ impl BoundaryNamespace {
         }
         let mut identities = std::mem::take(&mut module.identities).into_builder();
         for (id, source) in self.rows.iter() {
+            let envelope = services.envelope(context, &source.envelope)?;
             let header = crate::lower::signature_header(
                 context,
                 &source.signature,
@@ -105,18 +109,30 @@ impl BoundaryNamespace {
                     })
                 }
             };
-            let declaration = crate::declare::boundary_declaration(
-                &source.declaration,
-                &source.signature,
-                &header.proof,
-                &mut identities,
-            );
+            let declaration = if source.native {
+                crate::declare::provider_declaration(
+                    &source.declaration,
+                    &source.signature,
+                    &header.proof,
+                    &envelope,
+                    services,
+                    &mut identities,
+                )
+                .map_err(refusal)?
+            } else {
+                crate::declare::boundary_declaration(
+                    &source.declaration,
+                    &source.signature,
+                    &header.proof,
+                    &mut identities,
+                )
+            };
             module.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
                 declaration: Some(CheckedBoundaryCallable { source: declaration, execution: CheckedBoundaryExecution::Provider, method_arguments: Vec::new() }),
                 numeric_intrinsic: None,
                 role: BoundaryDeclarationRole::Callable,
-                kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+                kind: source.kind,
                 completion: source.completion,
                 unconditional_termination: matches!(source.envelope.termination, TerminalCallableTermination::Terminates { ref premises } if premises.is_empty()),
                 identity: identities.intern(&source.declaration.callable),
@@ -136,9 +152,9 @@ impl BoundaryNamespace {
                 reference_outputs: Vec::new(),
                 program_local_root_introductions: Vec::new(),
                 content_guarantees: Vec::new(),
-                fixed_service_reach: source.envelope.service_reach.clone(),
-                owning_service: source.owning_service,
-                published_service_ceiling: source.envelope.service_reach.clone(),
+                fixed_service_reach: envelope.service_reach.clone(),
+                owning_service: source.owning_service.map(|service| services.service(context, service)).transpose()?,
+                published_service_ceiling: envelope.service_reach,
             });
         }
         module.identities = identities.build();

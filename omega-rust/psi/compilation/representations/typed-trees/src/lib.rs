@@ -436,6 +436,16 @@ pub(crate) mod source_review {
         pub substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
     }
 
+    /// The canonical service coordinate paired with its source declaration.
+    /// The lowering owner prepares this association; consumers retain it
+    /// beside the checked module instead of comparing display identities.
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct SourceServiceCorrespondence {
+        pub service: semantic_vocabulary::ServiceId,
+        pub source: language_semantics::ServiceReachId,
+        pub declaration: SymbolHandle,
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct SourceRecordCorrespondence {
         pub record: StructuralTypeId,
@@ -470,7 +480,7 @@ pub(crate) mod source_review {
 }
 pub use source_review::{
     SourceFieldCorrespondence, SourceLayoutPlanCoordinate, SourceLayoutRealizationCoordinate,
-    SourceRecordCorrespondence, SourceTypeApplication,
+    SourceRecordCorrespondence, SourceServiceCorrespondence, SourceTypeApplication,
 };
 pub mod direct_calls {
     use crate::TypedTrees;

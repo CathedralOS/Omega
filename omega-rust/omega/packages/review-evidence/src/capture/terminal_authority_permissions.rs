@@ -5,4 +5,4 @@
 pub(crate) mod declarations;
 mod policy;
 
-pub use policy::project_checked_terminal_permission_policy;
+pub(crate) use policy::project_source_terminal_permission_policy;

@@ -368,42 +368,49 @@ that cannot fail cannot hold work back, and work went ahead
      source, a route rejection fails the compilation with the route's
      diagnostics (the current checker's follow when it rejects too), and a
      route acceptance of a program the current checker rejects elsewhere
-     fails with "no product route yet", because nothing builds a product
-     from the route's own module. A fallback, an `Incomplete` verdict or a
+     fails with "no product route yet", because provider selection and
+     target preparation still need the current checker's output. A fallback, an `Incomplete` verdict or a
      defect of the route leaves the current verdict. The four entry-contract
      programs below therefore stay rejected by the current checker.
-     A product is still built from the current checker's output. The first
-     piece of a product path from the route's own module landed in `#2666`:
-     `AcceptedClosure::publish` publishes exactly the module the route
-     checked as canonical Terminal Psi with its evidence seals, Omega 00
-     attaches them, Omega 01 fills each sealed obligation's
-     `proof_bundle_fingerprint`, and `run/calls/scalar_contract_route_exit`
-     runs from it to completion (`lowered_route_publication`). Each machine
-     of a compilation's module now states its declaration identity from the
-     typed trees (`structure-elaboration`, `declare.rs`), so the Build's
-     selected entry is found on the published module as the program-entry
-     receipt finds it on the current checker's program; the same test
-     compares every identity with the current program's. The contract
-     commitment in it is the route's own, a digest of the contract the
-     lowered form publishes, and is never equal to the current checker's
-     for the same machine. A machine stage 04 generated for a static
-     application gets no identity yet, and a module with one does not
-     publish. The compile does not call `publish` yet. A trial that
-     substituted the published artifact for the application's program on
-     2026-11-12 passed the entry receipt and native entry settlement
-     (`validate_native_program_entry_settlement`) and then stopped in
-     `project_terminal_native_body`: "selected provider `NativeFloats` has
-     no retained external implementation for" `Float::add`. That product
-     (`run/calls/scalar_contract_route_exit` for `linux_x86_64`, a program
-     with no floats) had selected the target's float realization table;
-     whether every hosted product does was not measured. Omega 00
-     requires the application's own module to hold an
-     `ExternalProviderConformance` row for each selected external
-     realization and the boundary machine it realizes. Psi 06 writes those
-     rows from Psi 05's facts; the route lowers no boundary requirement or
-     external realization, so its module has none. Product selection, the
-     provider inventory and target preparation also still read Psi 05's
-     trees.
+     The application of a program both checkers accept is built from the
+     route's own module. `AcceptedClosure::publish` (`#2666`) publishes
+     exactly the module the route checked as canonical Terminal Psi with its
+     evidence seals. Each machine of a compilation's module states its
+     declaration identity from the typed trees (`structure-elaboration`,
+     `declare.rs`), so the Build's selected entry is found on the published
+     module as the program-entry receipt finds it on the current checker's
+     program. The contract commitment in it is the route's own, a digest of
+     the contract the lowered form publishes, and is never equal to the
+     current checker's for the same machine. A machine stage 04 generated
+     for a static application gets no identity yet, and a module with one
+     does not publish.
+     The default compile calls `publish` when the route accepts the whole
+     compilation (`RouteScope::judge`), keeps the artifact and seals on the
+     product's Terminal publication (`ProductTerminalPublication::route`),
+     and attaches the executable application to that artifact in
+     `terminal_artifact.rs`: the entry receipt, the composition roots and
+     the target's provider proposals are taken from it. The seals stay
+     beside the artifact (`RetainedTerminalArtifact::evidence`) and native
+     production attaches them to the input Omega 00 lowers from it, which
+     refuses seals that name another module. A module that does not publish
+     leaves the application on the current checker's program.
+     `run/calls/scalar_contract_route_exit` builds this way from the default
+     compile: `omega run --both` on `windows_x86_64` gave native exit 0 and
+     Psi exit 0, and the `linux_x86_64` image was produced, both from the
+     six-machine module with no `ExternalProviderConformance` row
+     (2026-11-13; `lowered_route_publication` pins the product's artifact
+     and seals). An earlier trial that handed the route's artifact to
+     `project_terminal_native_realization_proposal` with the provider
+     declarations prepared for the current checker's program stopped at
+     "selected provider `NativeFloats` has no retained external
+     implementation for" `Float::add`; the default compile publishes the
+     target's provider proposals against the artifact it attaches, and did
+     not reach that refusal.
+     Still read from Psi 05's trees and Psi 06's published code: product
+     selection, the provider inventory, native bindings, source sealing,
+     execution settlement, and the calling program, whose policy bodies are
+     library machines the route does not judge yet. A program only the route
+     accepts therefore still stops with "no product route yet".
      `Build::validate` rows are not handled either; nothing implements them.
      The `fail/` sweep of 2026-11-12 found four programs
      the current checker rejected for their entry that were accepted whole by the

@@ -3,18 +3,17 @@ Saved source declaration identities and assumed-binding contracts for runtime
 permission comparison (`PreparedRuntimePolicy`).
 
 `PreparedRuntimePolicy::capture` snapshots nominal service and requirement
-identities plus `PreparedAssumedContracts` from `CheckedProductSource` before
-shared Terminal publication, holding only a `Weak<CheckedTrees>` pointer so the
-checked AST is not kept alive. During `rows`, we verify that the weak owner
+identities plus `PreparedAssumedContracts` from the published Product source, retaining only a
+`Weak<PublishedProviderSource>` pointer beside the exact source custody. The
+accepted Terminal artifact remains the authority for checked behavior. During `rows`, we verify that the weak owner
 pointer and `CheckedSourceCustody` match `RuntimePermissionInput`, rejoin
 accepted semantic bindings to their saved service schemas and requirement
 identities, render assumed-binding contracts, and emit canonical
 `PackagePolicyRow` items without reopening source.
 */
 
-use super::SourceDeclarationInput;
 use super::package_policy::assumed_bindings::PreparedAssumedContracts;
-use super::semantics::declarations::{nominal_identity, provider_requirement_identity};
+use super::semantics::declarations::nominal_identity_from_symbols;
 use super::terminal_authority_permissions::declarations::rejected;
 use crate::record::{
     PackagePolicyTerminalPermission, PackageReviewNominalIdentity, PackageReviewNominalOwner,
@@ -22,7 +21,6 @@ use crate::record::{
 use checked_trees::typed_trees::service_declarations::PreparedServiceCatalog;
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
-use provider_planning::ProviderSchemaDeclaration;
 use provider_planning::service_declarations::ServiceDeclarations;
 use std::sync::{Arc, Weak};
 use symbols::SymbolHandle;
@@ -30,14 +28,17 @@ use symbols::SymbolHandle;
 struct ServiceIdentities {
     symbol: SymbolHandle,
     service: Result<PackageReviewNominalIdentity, Vec<Diagnostic>>,
-    requirements: Vec<(
-        SymbolHandle,
-        Result<PackageReviewNominalIdentity, Vec<Diagnostic>>,
-    )>,
+    requirements: Result<
+        Vec<(
+            SymbolHandle,
+            Result<PackageReviewNominalIdentity, Vec<Diagnostic>>,
+        )>,
+        Vec<Diagnostic>,
+    >,
 }
 
 pub struct PreparedRuntimePolicy {
-    owner: Weak<checked_trees::CheckedTrees>,
+    owner: Weak<provider_planning::PublishedProviderSource>,
     sources: Arc<package_compilation::CheckedSourceCustody>,
     catalog: Arc<PreparedServiceCatalog>,
     identities: Vec<ServiceIdentities>,
@@ -47,12 +48,34 @@ pub struct PreparedRuntimePolicy {
 
 impl PreparedRuntimePolicy {
     pub fn capture(source: &CheckedProductSource) -> Self {
-        let mathematical_calls =
-            super::contracts::mathematical_calls::MathematicalCallQueries::new(&*source.program);
-        let input = SourceDeclarationInput {
-            mathematical_calls: Some(&mathematical_calls),
-            original_mathematical_calls: Some(&mathematical_calls),
-            ..SourceDeclarationInput::checked(&source.program, &source.sources)
+        let nominal = |symbol| {
+            nominal_identity_from_symbols(
+                &source.program.typed.symbols,
+                symbol,
+                source.sources.exact_toolchain_sources(),
+            )
+        };
+        let requirement_identity = |requirement| {
+            let requirement_nominal = nominal(requirement)?;
+            let (owner, signature) = source
+                .program
+                .typed
+                .trait_machine_signature(requirement)
+                .ok_or_else(|| {
+                    rejected("service requirement lost its exact declaring signature")
+                })?;
+            if nominal(owner.symbol)?.owner != requirement_nominal.owner {
+                return Err(rejected(
+                    "service and requirement have different declaration custody",
+                ));
+            }
+            Ok(PackageReviewNominalIdentity {
+                owner: requirement_nominal.owner,
+                path: source
+                    .program
+                    .typed
+                    .trait_requirement_callable_identity_text(owner, signature),
+            })
         };
         let catalog = source.provider_inventory.retained_service_catalog();
         let identities = catalog
@@ -61,7 +84,7 @@ impl PreparedRuntimePolicy {
                 let symbol = declaration.schema.symbol();
                 ServiceIdentities {
                     symbol,
-                    service: nominal_identity(&input, symbol),
+                    service: nominal(symbol),
                     requirements: declaration
                         .surface
                         .as_ref()
@@ -71,18 +94,13 @@ impl PreparedRuntimePolicy {
                                 .iter()
                                 .map(|requirement| {
                                     let requirement = requirement.source.symbol;
-                                    (
-                                        requirement,
-                                        provider_requirement_identity(
-                                            &input,
-                                            ProviderSchemaDeclaration::BoundaryTrait(symbol),
-                                            requirement,
-                                        ),
-                                    )
+                                    (requirement, requirement_identity(requirement))
                                 })
                                 .collect()
                         })
-                        .unwrap_or_default(),
+                        .ok_or_else(|| {
+                            rejected("saved service has no complete prepared requirement surface")
+                        }),
                 }
             })
             .collect();
@@ -99,7 +117,7 @@ impl PreparedRuntimePolicy {
             sources: Arc::clone(&source.sources),
             catalog,
             identities,
-            contracts: PreparedAssumedContracts::capture(&input, &requirements),
+            contracts: PreparedAssumedContracts::capture_published(&source.program, &requirements),
         }
     }
 
@@ -199,6 +217,8 @@ impl PreparedRuntimePolicy {
                 };
                 let requirement = saved
                     .requirements
+                    .as_ref()
+                    .map_err(Clone::clone)?
                     .iter()
                     .find(|(candidate, _)| candidate == *symbol)
                     .ok_or_else(|| rejected("permission lost its saved requirement identity"))?

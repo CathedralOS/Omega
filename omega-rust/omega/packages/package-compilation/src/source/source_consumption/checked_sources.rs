@@ -14,8 +14,8 @@ use super::{
     derive_package_compilation_subject, toolchain_source_identities,
 };
 use crate::{PackageBuildHandoff, PackageCompilationInputs};
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
+use typed_trees::TypedTrees;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildSourceCustody {
@@ -104,7 +104,7 @@ impl BuildSourceCustody {
 
     pub fn seal(
         self,
-        program: &CheckedTrees,
+        program: &TypedTrees,
         package_inputs: Option<&PackageCompilationInputs>,
     ) -> Result<CheckedSourceCustody, Vec<Diagnostic>> {
         let package_subject = package_inputs

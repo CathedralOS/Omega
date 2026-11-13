@@ -86,8 +86,8 @@ pub struct PreparedProductSource {
 #[derive(Clone)]
 pub struct CheckedProductSource {
     pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
-    pub program: Arc<checked_trees::CheckedTrees>,
-    pub provider_inventory: Arc<psi_compiler::PreparedProviderInventory>,
+    pub program: Arc<provider_planning::PublishedProviderSource>,
+    pub provider_inventory: Arc<provider_planning::PreparedProviderInventory>,
     pub native_bindings: Arc<provider_planning::native_bindings::PreparedNativeBuildBindings>,
     pub terminal_publication: Arc<crate::ProductTerminalPublication>,
     pub calling_program: Arc<
@@ -134,10 +134,10 @@ impl CheckedProductSource {
 }
 
 #[derive(Clone, Debug)]
-pub struct ProductSourceIdentity(std::sync::Weak<checked_trees::CheckedTrees>);
+pub struct ProductSourceIdentity(std::sync::Weak<provider_planning::PublishedProviderSource>);
 
 impl ProductSourceIdentity {
-    pub fn new(program: &Arc<checked_trees::CheckedTrees>) -> Self {
+    pub fn new(program: &Arc<provider_planning::PublishedProviderSource>) -> Self {
         Self(Arc::downgrade(program))
     }
 

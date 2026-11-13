@@ -829,7 +829,7 @@ impl<'t> Program<'t> {
     /// rejects it after them, where a product selects the callee, so a
     /// reader that took every resolved call as permitted would accept a
     /// program that reaches into a dependency's private machine.
-    fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
+    pub(super) fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let Some(declaration) = self.typed.machine_by_symbol(callee) else {
             return unserved("target is not a machine declaration");

@@ -2,15 +2,13 @@
 //! Private omitted axes are inferred from actual calls, never from callers or a
 //! list of eligible implementations. Published axes are checked as ceilings.
 
+use crate::reach::{SourceEnvelope, SourceInvocation as Invocation};
 use language_semantics::{
     ServiceReachId, ServiceReachRowId, TerminationGuarantee, TerminationInterface,
 };
-use semantic_vocabulary::{IdTable, MachineId, ServiceId};
+use semantic_vocabulary::{IdTable, MachineId};
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
-use terminal_psi::{
-    ServiceDeclaration, TerminalCallableEnvelope, TerminalCallableInvocation as Invocation,
-    TerminalCallableTermination, TerminalModule,
-};
+use terminal_psi::TerminalCallableTermination;
 use typed_trees::TypedTrees;
 use typed_trees::signature::{AuthoredInvocation, AuthoredInvocationTarget, StateSignature};
 
@@ -19,7 +17,7 @@ use crate::body::{
     Body, CallTarget, Expression, ExpressionKind as E, Statement, Target, ValueType,
 };
 
-pub(super) fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
+pub(crate) fn unavailable(machine: MachineId, detail: impl Into<String>) -> Refusal {
     Refusal {
         machine,
         concerns: Construct::Machine,
@@ -32,62 +30,27 @@ pub(super) fn service(
     typed: &TypedTrees,
     context: MachineId,
     id: ServiceReachId,
-) -> Checked<ServiceId> {
+) -> Checked<ServiceReachId> {
     typed
         .service_reaches
         .definition(id)
         .ok_or_else(|| unavailable(context, "service permission names an absent declaration"))?;
-    ServiceId::new(u64::from(id.0))
-        .ok_or_else(|| unavailable(context, "service permission has an invalid identity"))
+    Ok(id)
 }
 
 pub(super) fn service_closure(
     typed: &TypedTrees,
     context: MachineId,
     roots: &[ServiceReachId],
-) -> Checked<Vec<ServiceId>> {
-    let mut pending = roots.iter().map(|id| (*id, false)).collect::<Vec<_>>();
-    let mut active = Vec::new();
-    let mut completed = Vec::new();
-    let mut reached = Vec::new();
-    while let Some((id, exiting)) = pending.pop() {
-        if exiting {
-            if active.pop() != Some(id) {
-                return Err(unavailable(
-                    context,
-                    "service closure lost its active declaration",
-                ));
-            }
-            completed.push(id);
-            continue;
-        }
-        let retained = service(typed, context, id)?;
-        if active.contains(&id) {
-            return Err(unavailable(context, "service inheritance has a cycle"));
-        }
-        if completed.contains(&id) {
-            continue;
-        }
-        if !reached.contains(&retained) {
-            reached.push(retained);
-        }
-        active.push(id);
-        pending.push((id, true));
-        let definition = typed
-            .service_reaches
-            .definition(id)
-            .ok_or_else(|| unavailable(context, "service permission lost its declaration"))?;
-        pending.extend(definition.parents.iter().map(|parent| (*parent, false)));
-    }
-    reached.sort();
-    Ok(reached)
+) -> Checked<Vec<ServiceReachId>> {
+    crate::reach::source_closure(typed, context, roots)
 }
 
-pub(super) fn finite_reach(
+pub(crate) fn finite_reach(
     typed: &TypedTrees,
     context: MachineId,
     mut row: ServiceReachRowId,
-) -> Checked<Vec<ServiceId>> {
+) -> Checked<Vec<ServiceReachId>> {
     let mut active = Vec::new();
     loop {
         if row.0 == 0 || row.0 as usize > typed.service_reach_rows.len() || active.contains(&row) {
@@ -104,7 +67,7 @@ pub(super) fn finite_reach(
     }
 }
 
-fn invocations(
+pub(super) fn invocations(
     typed: &TypedTrees,
     context: MachineId,
     authored: &[AuthoredInvocation],
@@ -144,7 +107,7 @@ fn invocations(
     Ok(targets)
 }
 
-fn termination(
+pub(super) fn termination(
     context: MachineId,
     guarantee: &TerminationGuarantee,
 ) -> Checked<TerminalCallableTermination> {
@@ -167,7 +130,7 @@ impl Program<'_> {
         &self,
         context: MachineId,
         signature: &StateSignature,
-    ) -> Checked<TerminalCallableEnvelope> {
+    ) -> Checked<SourceEnvelope> {
         if signature.service_reach_is_installation_bound {
             return Err(unavailable(
                 context,
@@ -184,7 +147,7 @@ impl Program<'_> {
             .state_parameters
             .span(signature.parameters)
             .ok_or_else(|| unavailable(context, "callable parameter permission span is stale"))?;
-        Ok(TerminalCallableEnvelope {
+        Ok(SourceEnvelope {
             service_reach: finite_reach(self.typed, context, signature.service_reach_row)?,
             invocations: invocations(self.typed, context, authored, parameters)?,
             suspends: signature.suspends,
@@ -236,13 +199,7 @@ impl Program<'_> {
                     }
                 };
                 Policy {
-                    reach: if machine.service_reach_row.0 != 0 {
-                        Some(finite_reach(self.typed, id, machine.service_reach_row)?)
-                    } else if machine.is_public {
-                        Some(Vec::new())
-                    } else {
-                        None
-                    },
+                    reach: crate::reach::written_ceiling(self.typed, id, *symbol)?,
                     invokes: if machine.is_public || !authored.is_empty() {
                         Some(invocations(self.typed, id, authored, parameters)?)
                     } else {
@@ -319,7 +276,7 @@ impl Program<'_> {
                                 .envelope
                         }
                     };
-                    union(&mut reached.service_reach, &envelope.service_reach);
+                    union_services(&mut reached.service_reach, &envelope.service_reach);
                     reached.suspends |= envelope.suspends;
                     reached.blocks |= envelope.blocks;
                     for target in &envelope.invocations {
@@ -372,7 +329,7 @@ impl Program<'_> {
                                             ));
                                         };
                                         let actual = self.callables.contracts.get(contract).ok_or_else(|| unavailable(id, "invoked actual has no retained callable contract"))?;
-                                        union(
+                                        union_services(
                                             &mut reached.service_reach,
                                             &actual.envelope.service_reach,
                                         );
@@ -519,15 +476,15 @@ fn call_terminates(
 }
 
 struct Policy {
-    reach: Option<Vec<ServiceId>>,
+    reach: Option<Vec<ServiceReachId>>,
     invokes: Option<Vec<Invocation>>,
     suspends: Option<bool>,
     blocks: Option<bool>,
     termination: TerminalCallableTermination,
 }
 impl Policy {
-    fn initial(&self) -> TerminalCallableEnvelope {
-        TerminalCallableEnvelope {
+    fn initial(&self) -> SourceEnvelope {
+        SourceEnvelope {
             service_reach: self.reach.clone().unwrap_or_default(),
             invocations: self.invokes.clone().unwrap_or_default(),
             suspends: self.suspends.unwrap_or(false),
@@ -535,22 +492,7 @@ impl Policy {
             termination: self.termination.clone(),
         }
     }
-    fn close(
-        &self,
-        context: MachineId,
-        reached: TerminalCallableEnvelope,
-    ) -> Checked<TerminalCallableEnvelope> {
-        if self.reach.as_ref().is_some_and(|ceiling| {
-            reached
-                .service_reach
-                .iter()
-                .any(|value| !ceiling.contains(value))
-        }) {
-            return Err(unavailable(
-                context,
-                "body reaches a service outside its published ceiling",
-            ));
-        }
+    fn close(&self, context: MachineId, reached: SourceEnvelope) -> Checked<SourceEnvelope> {
         if self.invokes.as_ref().is_some_and(|ceiling| {
             reached
                 .invocations
@@ -574,7 +516,7 @@ impl Policy {
                 "body blocks outside its published ceiling",
             ));
         }
-        Ok(TerminalCallableEnvelope {
+        Ok(SourceEnvelope {
             service_reach: self.reach.clone().unwrap_or(reached.service_reach),
             invocations: self.invokes.clone().unwrap_or(reached.invocations),
             suspends: self.suspends.unwrap_or(reached.suspends),
@@ -583,14 +525,19 @@ impl Policy {
         })
     }
 }
-fn empty() -> TerminalCallableEnvelope {
-    TerminalCallableEnvelope {
+fn empty() -> SourceEnvelope {
+    SourceEnvelope {
         service_reach: Vec::new(),
         invocations: Vec::new(),
         suspends: false,
         blocks: false,
         termination: TerminalCallableTermination::NotGuaranteed,
     }
+}
+fn union_services(to: &mut Vec<ServiceReachId>, from: &[ServiceReachId]) {
+    to.extend_from_slice(from);
+    to.sort_by_key(|service| service.0);
+    to.dedup();
 }
 fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
     to.extend_from_slice(from);
@@ -681,43 +628,37 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
     }
 }
 
-pub(crate) fn publish_catalog(
-    typed: &TypedTrees,
-    context: MachineId,
-    module: &mut TerminalModule,
-) -> Checked<()> {
-    if !module.services.is_empty() {
-        return Err(unavailable(
-            context,
-            "service catalog was already published",
-        ));
+impl Program<'_> {
+    pub(crate) fn service_map(&self, context: MachineId) -> Checked<crate::reach::ServiceMap> {
+        let mut roots = Vec::new();
+        for (_, row) in self.callables.contracts.iter() {
+            source_roots(&row.envelope, &mut roots);
+        }
+        for (_, row) in self.callables.envelopes.iter() {
+            if let Some(row) = row {
+                source_roots(row, &mut roots);
+            }
+        }
+        for (_, row) in self.boundaries.rows.iter() {
+            source_roots(&row.envelope, &mut roots);
+            roots.extend(row.owning_service);
+        }
+        for row in &self.external_providers.rows {
+            source_roots(&row.envelope, &mut roots);
+        }
+        self.static_contracts.service_roots(&mut roots);
+        crate::reach::ServiceMap::prepare(self.typed, context, &roots)
     }
-    let sources =
-        source::source_identity::toolchain_source_identities(typed.symbols.source_files())
-            .map_err(|_| unavailable(context, "service source has no exact identity"))?;
-    let mut identities = std::mem::take(&mut module.identities).into_builder();
-    for (ordinal, definition) in typed.service_reaches.definitions().iter().enumerate() {
-        let id = ServiceId::new(ordinal as u64 + 1)
-            .ok_or_else(|| unavailable(context, "service identity overflow"))?;
-        let identity = typed
-            .exact_owner_nominal_identity(definition.symbol, &sources)
-            .and_then(|identity| typed.type_identity_text(identity))
-            .ok_or_else(|| {
-                unavailable(context, "service declaration has no exact package owner")
-            })?;
-        let mut parents = definition
-            .parents
+}
+fn source_roots(envelope: &SourceEnvelope, roots: &mut Vec<ServiceReachId>) {
+    roots.extend_from_slice(&envelope.service_reach);
+    roots.extend(
+        envelope
+            .invocations
             .iter()
-            .map(|parent| service(typed, context, *parent))
-            .collect::<Checked<Vec<_>>>()?;
-        parents.sort();
-        parents.dedup();
-        module.services.push(ServiceDeclaration {
-            id,
-            identity: identities.intern(&identity),
-            parents,
-        });
-    }
-    module.identities = identities.build();
-    Ok(())
+            .filter_map(|target| match target {
+                Invocation::Service(service) => Some(*service),
+                Invocation::Parameter(_) => None,
+            }),
+    );
 }

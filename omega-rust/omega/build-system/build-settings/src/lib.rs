@@ -127,4 +127,4 @@ pub use provider_planning::program_entry::{
     program_entry_semantic_binding_role, selected_program_entry_machine,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
-pub use via_binding_evaluation::evaluate_checked_via_bindings;
+pub use via_binding_evaluation::evaluate_via_bindings;

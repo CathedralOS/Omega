@@ -43,7 +43,7 @@ pub(crate) struct PreparedProviderMetadata {
 type ApplicationRoots = Result<Option<Vec<CanonicalProviderDeclaration>>, Vec<Diagnostic>>;
 
 pub struct ProductProviderPreparation<'program> {
-    pub checked: &'program Arc<checked_trees::CheckedTrees>,
+    pub source: &'program Arc<crate::PublishedProviderSource>,
     pub services: ServiceCatalog<'program>,
     pub body_declarations: &'program DirectCallDeclarations<SymbolHandle>,
     pub origins: &'program [crate::SelectedTargetMachineOrigin],
@@ -61,7 +61,7 @@ pub struct ProductProviderPreparation<'program> {
 }
 
 pub struct PreparedProductProviders {
-    owner: Weak<checked_trees::CheckedTrees>,
+    owner: Weak<crate::PublishedProviderSource>,
     planning_target: Option<target::TargetProfile>,
     assumptions: PreparedAssumedBindings,
     bindings: EvaluatedViaBindingTable,
@@ -339,7 +339,7 @@ fn attach_choices<'candidate, Owner>(
 
 impl ProductProviderPreparation<'_> {
     pub fn capture(self) -> Result<PreparedProductProviders, Vec<Diagnostic>> {
-        if !std::ptr::eq(&*self.checked.typed, self.services.context().typed)
+        if !std::ptr::eq(&**self.source.typed, self.services.context().typed)
             || self.services.context().scope != source::DependencyScope::Product
         {
             return Err(vec![Diagnostic::error(
@@ -365,7 +365,7 @@ impl ProductProviderPreparation<'_> {
         )?;
         let request = TargetProviderPreparationRequest {
             context: self.services.context(),
-            checked: self.checked,
+            source: self.source,
             exact_toolchain_sources: self.exact_toolchain_sources,
             application_roots: self.application_roots,
             overrides: self.overrides,
@@ -390,13 +390,14 @@ impl ProductProviderPreparation<'_> {
         );
         base_targets.push(profile.target_name().to_owned());
         base_targets.extend(
-            checked_trees::ProofApplications::new(
-                &self.checked.facts.proof_applications,
-                &self.checked.facts.operational,
-            )
-            .scopes(profile.target_name())
-            .into_iter()
-            .map(str::to_owned),
+            self.source
+                .module()
+                .scalar_applications
+                .proof_scope
+                .applications()
+                .scopes(profile.target_name())
+                .into_iter()
+                .map(str::to_owned),
         );
         base_targets.sort();
         base_targets.dedup();
@@ -474,12 +475,12 @@ impl ProductProviderPreparation<'_> {
         let choices = choices.map(|choices| {
             choices.map_owner(|plan, provenance| {
                 let completion = completion::capture(
-                    self.checked,
+                    self.source,
                     &provenance,
                     planning_target.map(target::TargetProfile::target_name),
                     &original_candidates,
                 );
-                let role = PreparedCompletionRole::capture(&self.checked.typed, plan, &provenance);
+                let role = PreparedCompletionRole::capture(&self.source.typed, plan, &provenance);
                 PreparedProviderMetadata {
                     families: crate::native_provider_sources::capture_family_realizations(
                         self.services.context(),
@@ -507,11 +508,11 @@ impl ProductProviderPreparation<'_> {
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         Ok(PreparedProductProviders {
-            owner: Arc::downgrade(self.checked),
-            completion_roles: PreparedCompletionRoles::capture(&self.checked.typed),
+            owner: Arc::downgrade(self.source),
+            completion_roles: PreparedCompletionRoles::capture(&self.source.typed),
             planning_target,
             assumptions: PreparedAssumedBindings::capture(
-                &self.checked.typed,
+                &self.source.typed,
                 self.assumed_bindings,
             ),
             bindings,

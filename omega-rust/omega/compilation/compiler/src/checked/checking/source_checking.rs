@@ -1,10 +1,8 @@
-// We complete one portable Product judgment (`check_product_source`, Psi 05)
-// before target realization starts. Build supplies source admission, layout
-// target scopes (`layout_target_scopes`), and representation choices; native
-// provider selections are not checking inputs and cannot alter this checked
-// program afterward.
+// Prepare one immutable source frontier, judge it with the lowered-form
+// checker, and retain exactly the artifact and declaration packet it publishes.
+// Native selection consumes that packet; no retired body verdict or lowering
+// output can substitute for it.
 
-use artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES;
 use compilation_products::{CheckedProductSource, PreparedProductSource, SettledCheckReuse};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -14,7 +12,7 @@ pub(crate) fn check_product_source(
     source: PreparedProductSource,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
-    reuse: SettledCheckReuse,
+    _reuse: SettledCheckReuse,
     selections: &mut psi_compiler::ProductSelections,
     frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
@@ -32,42 +30,10 @@ pub(crate) fn check_product_source(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let build = &computed_build_config.config;
     let symbol_sources = typed.symbols.source_map();
-    // The file that declares the selected Build machine is the Build program,
-    // which the current checker judges (`lowered_route`).
-    let build_program = computed_build_config
-        .selected_build_machine_symbol
-        .and_then(|symbol| typed.symbols.symbol_source_span(symbol))
-        .and_then(|span| symbol_sources.as_deref()?.file_at(span))
-        .map(|file| file.source_id);
     let layout_scopes = layout_target_scopes(&typed, build)?;
-    let external_roots = build.program_roots();
+    let mut external_roots = build.program_roots();
     let bindings =
         provider_planning::program_entry::bound_program_entry_shapes(&typed, &build.root_bindings)?;
-    // Validation subjects: the root package is checked in full; a dependency
-    // only where the root package or one of the Build's selections reaches it
-    // (`PackageCompilationInputs::is_validation_subject`).
-    let library_slice = psi_compiler::LibrarySliceRequest {
-        root_package: package_inputs.map(PackageCompilationInputs::root),
-    };
-    let mut demanded = external_roots.clone();
-    // Binding signatures are source dependencies even when the visible
-    // projection has no arguments. Retain their metadata without turning the
-    // semantic schema into another executable root or importing its effects.
-    demanded.extend(bindings.iter().flat_map(|binding| {
-        [
-            binding.semantic_schema_symbol,
-            binding.requirement_symbol,
-            binding.implementation,
-        ]
-    }));
-    // The target realization table supplies canonical float operations, so,
-    // as for the Build activation, the sealed catalog map and its public
-    // requirements stay whether or not the program names them.
-    demanded.extend(typed_trees::float_providers::catalog_realization_declarations(&typed));
-    // What the Build's selections name: the providers it selected and what
-    // each provides, the layout scopes' entries, and the opaque
-    // representations it chose. A check claims these with their closure
-    // (validation_subjects.md, "the obligations of the Build's selections").
     let mut selected = Vec::new();
     for selection in layout_scopes
         .iter()
@@ -100,90 +66,14 @@ pub(crate) fn check_product_source(
             .iter()
             .flat_map(|supply| [supply.selection.subject, supply.selection.requirement]),
     );
-    // Psi 05 re-forms each representation choice from its named conformance,
-    // which may live in a dependency the program never names, so the
-    // conformance is a subject alongside the opaque type it represents.
+    // Representation choices name both an opaque type and its conformance.
+    // Keep both as checking subjects even when the conformance lives in an
+    // otherwise unused dependency.
     selected.extend(
         build
             .opaque_representation_selections
             .iter()
             .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
-    );
-    demanded.extend(selected.iter().copied());
-    // A dependency's provider-default machine chooses the provider for a
-    // boundary trait, and settlement finds it by its purpose rather than a
-    // name. Its choice is used only where the program reaches that trait, so
-    // it stays with the trait it names: demanding all of them checked every
-    // target's console, filesystem and window providers for a program that
-    // calls none of them. One that names no trait stays unconditionally. A
-    // target family's interface has no body to name one; the projection keeps
-    // it with any member it keeps.
-    let mut defaults_by_slot = Vec::new();
-    for machine in typed.machines().iter().filter(|machine| {
-        machine.purpose == typed_trees::machine::MachinePurpose::ProviderDefaults
-            && !machine.target_family_interface
-    }) {
-        let before = defaults_by_slot.len();
-        defaults_by_slot.extend(
-            typed_trees::references::collect_selected_program_references(
-                &typed,
-                &typed_trees::references::DeclarationSelection::from_symbols([machine.symbol]),
-            )
-            .symbols
-            .into_iter()
-            .filter(|symbol| typed.symbols.get(*symbol).kind == symbols::SymbolKind::Trait)
-            .map(|slot| (slot, machine.symbol)),
-        );
-        if defaults_by_slot.len() == before {
-            demanded.push(machine.symbol);
-        }
-    }
-    // Each accepted semantic binding names a service declaration of the
-    // package it was accepted for, and selected execution rejoins it by that
-    // name, so the admitted bindings are obligations of this check whether or
-    // not the program calls the service.
-    for binding in package_inputs
-        .into_iter()
-        .flat_map(PackageCompilationInputs::accepted_semantic_bindings)
-    {
-        demanded.extend(
-            typed
-                .traits()
-                .iter()
-                .map(|definition| definition.symbol)
-                .chain(typed.machines().iter().map(|machine| machine.symbol))
-                .filter(|symbol| {
-                    typed.symbols.symbol_package_identity(*symbol) == Some(binding.package())
-                        && typed.symbols.display_path(*symbol, "::") == binding.declaration_path()
-                }),
-        );
-    }
-    // Representation and provider requests are read back from the Build
-    // machine that made them.
-    demanded.extend(computed_build_config.selected_build_machine_symbol);
-    // A bound root slot takes its boundary schema from the target's entry
-    // contract source. Nothing in the program names that schema, so those
-    // sources are subjects too.
-    let mut entry_contracts = Vec::new();
-    for binding in &build.root_bindings {
-        if let Some((owner, _)) = binding.slot.rsplit_once("::")
-            && let Ok(profile) = target::TargetProfile::from_root_slot_owner(owner)
-            && let Some(package) = profile.program_entry_slot().physical_contract_package
-        {
-            entry_contracts.push(package);
-        }
-    }
-    let typed = validation::execution_projection::project_subject_program(
-        &typed,
-        |file| {
-            PackageCompilationInputs::is_validation_subject(package_inputs, file)
-                || entry_contracts.iter().any(|package| {
-                    file.path.strip_prefix(&file.package_root).ok()
-                        == Some(std::path::Path::new(package.package_relative_source()))
-                })
-        },
-        &demanded,
-        &defaults_by_slot,
     );
     let source_admission = psi_compiler::SourceAdmission {
         external_roots: &external_roots,
@@ -197,7 +87,7 @@ pub(crate) fn check_product_source(
             )
         }) {
             Some(binding) => {
-                validation::source_completion::SourceCompletionAdmission::AcceptedProcessExit {
+                typed_trees::boundary_completions::SourceCompletionAdmission::AcceptedProcessExit {
                     package: binding.package(),
                     declaration_path: binding.declaration_path(),
                 }
@@ -205,9 +95,9 @@ pub(crate) fn check_product_source(
             None if package_inputs
                 .is_some_and(PackageCompilationInputs::semantic_role_discovery) =>
             {
-                validation::source_completion::SourceCompletionAdmission::DiscoverProcessExit
+                typed_trees::boundary_completions::SourceCompletionAdmission::DiscoverProcessExit
             }
-            None => validation::source_completion::SourceCompletionAdmission::None,
+            None => typed_trees::boundary_completions::SourceCompletionAdmission::None,
         },
         representations: psi_compiler::ProductRepresentationInput {
             activation: computed_build_config.selected_build_machine_symbol,
@@ -226,85 +116,17 @@ pub(crate) fn check_product_source(
         declarations: package_inputs
             .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
     };
-    let previous: Vec<_> = reuse
-        .prior
-        .product
-        .iter()
-        .chain(reuse.prior.sibling_product_checks.iter())
-        .collect();
-    let subject = package_inputs.map(PackageCompilationInputs::root);
-    let route_scope = super::lowered_route::RouteScope {
-        entries: &external_roots,
-        subject,
-        selected: &selected,
-        bindings: &bindings,
-    };
-    let mut judged = None;
-    let mut accepted = false;
-    let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
-        let started = std::time::Instant::now();
-        // The checker on the lowered form judges the trees by reference
-        // before Psi 05 would take them. Its verdict is this compilation's:
-        // unless it accepts, the check stops here with its diagnostics and
-        // Psi 05 never sees the program (`lowered_route`).
-        let keep = frontier.is_some();
-        let result = psi_compiler::CheckRequest {
-            program: typed,
-            admission: source_admission,
-            previous: &previous,
-            retain: reuse.retain,
-            library_slice,
-            // A product check judges the consumer's own package.
-            checked_slices: None,
-        }
-        .check_inspecting_typed_frontier(&mut |trees| {
-            if keep {
-                judged = Some(trees.clone());
-            }
-            let verdict = route_scope.judge(trees).verdict();
-            accepted = verdict.is_ok();
-            verdict
-        });
-        if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
-            artifacts::compile_timings::counters::record_product_source_check(started.elapsed());
-        }
-        result
-    });
-    let outcome = outcome.map_err(|mut diagnostics| {
-        if let Some(sources) = symbol_sources.as_deref() {
-            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
-        }
-        diagnostics
-    });
-    let outcome = super::lowered_route::govern(
-        outcome,
-        accepted,
-        &super::lowered_route::CurrentScope {
-            sources: symbol_sources.as_deref(),
-            build_program,
-            entry_contracts: &entry_contracts,
-        },
-    );
-    // The entries are this request's, so they are paired with the trees here,
-    // before a rejection below returns and drops the Build configuration.
-    if let (Some(frontier), Some(typed)) = (frontier, judged) {
-        *frontier = Some(super::typed_frontier::TypedFrontier {
-            typed,
-            entries: external_roots.clone(),
-            subject,
-            selected,
-            bindings,
-        });
-    }
-    let outcome = outcome?;
-    let roots = build.checked_tree_product_roots(rollback);
-    let psi_compiler::SelectedCheckedSource {
-        program,
-        provider_defaults,
-        retained,
-        selection: product_selection,
-    } = selections.select(outcome, roots)?;
-    let mut provider_defaults = provider_defaults.to_vec();
+    let typed = Arc::new(psi_compiler::prepare_product_typed_frontier(
+        typed,
+        &source_admission,
+    )?);
+    let mut provider_defaults =
+        build_time_evaluation::provider_declarations::retain_provider_defaults(
+            build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
+                &typed,
+                source::DependencyScope::Product,
+            ),
+        )?;
     for selection in &build.default_provider_selections {
         provider_defaults.push(
             build_time_evaluation::provider_declarations::TargetProviderDefaults {
@@ -316,24 +138,80 @@ pub(crate) fn check_product_source(
             },
         );
     }
-    let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
-    let provider_inventory = Arc::new(psi_compiler::PreparedProviderInventory::new(
+    let code_roots =
+        crate::terminal::source_roots::collect(&typed, &computed_build_config, &provider_defaults)?;
+    // Keep the Build's first actual entry as the executable entry. Additional
+    // source-code obligations are checked roots, never extra invocation edges.
+    if !external_roots.is_empty() {
+        for machine in code_roots.machines {
+            if !external_roots.contains(&machine) {
+                external_roots.push(machine);
+            }
+        }
+    }
+    selected.extend(code_roots.boundaries);
+    selected.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    selected.dedup();
+    let subject = package_inputs.map(PackageCompilationInputs::root);
+    let route_scope = super::lowered_route::RouteScope {
+        entries: &external_roots,
+        subject,
+        selected: &selected,
+        bindings: &bindings,
+    };
+    // Keeping a frontier is an explicit inspection request. The normal
+    // product path shares one Arc through checking, metadata and emission.
+    if let Some(frontier) = frontier {
+        *frontier = Some(super::typed_frontier::TypedFrontier {
+            typed: typed.as_ref().clone(),
+            entries: external_roots.clone(),
+            subject,
+            selected: selected.clone(),
+            bindings: bindings.clone(),
+        });
+    }
+    let started = std::time::Instant::now();
+    let judged = timings.record_result(
+        artifacts::compile_timings::StageMeta::new("Psi check", "TypedTrees", "AcceptedPsi"),
+        || {
+            let (verdict, published) = route_scope.judge(&typed);
+            verdict.verdict()?;
+            published
+        },
+    );
+    artifacts::compile_timings::counters::record_product_source_check(started.elapsed());
+    let program = judged.map_err(|mut diagnostics| {
+        if let Some(sources) = symbol_sources.as_deref() {
+            super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+        }
+        diagnostics
+    })?;
+    if !Arc::ptr_eq(&typed, program.typed()) {
+        return Err(vec![Diagnostic::error(
+            "checked product publication changed its source frontier",
+        )]);
+    }
+    let sources = Arc::new(build_sources.seal(&typed, package_inputs)?);
+    let provider_inventory = Arc::new(provider_planning::PreparedProviderInventory::new(
         Arc::clone(&program),
         sources.exact_toolchain_sources(),
     ));
-    let terminal_publication = Arc::new(compilation_products::ProductTerminalPublication::new(
-        rollback
-            .settle(&computed_build_config.config.settings.optimizations)
-            .effective()
-            .clone(),
-        selections.portable_productions(),
-    ));
+    let terminal_publication = Arc::new(
+        compilation_products::ProductTerminalPublication::new(
+            rollback
+                .settle(&build.settings.optimizations)
+                .effective()
+                .clone(),
+            selections.portable_productions(),
+        )
+        .with_checked_application(Ok(Arc::clone(&program))),
+    );
     let native_bindings = Arc::new(
         provider_planning::native_bindings::PreparedNativeBuildBindings::capture(
             provider_inventory
                 .services_for(&program)
                 .map_err(|error| vec![error])?,
-            &computed_build_config.config.native_bindings,
+            &build.native_bindings,
         ),
     );
     Ok(CheckedProductSource {
@@ -351,10 +229,11 @@ pub(crate) fn check_product_source(
         timings,
         retained_checks: compilation_products::RetainedCompilationChecks {
             build: retained_build_check,
-            product: retained,
             ..Default::default()
         },
-        product_selection,
+        // The checked module owns its closure directly. There is no retired
+        // checked-tree pruning operation or receipt on this source path.
+        product_selection: None,
     })
 }
 

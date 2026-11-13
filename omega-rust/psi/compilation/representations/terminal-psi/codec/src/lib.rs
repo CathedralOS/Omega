@@ -142,7 +142,10 @@ pub use canonical_artifact::{
     CanonicalTerminalArtifactError, TerminalArtifactView,
 };
 pub use codec_error::CodecError;
-pub use obligation_evidence::{EvidenceSeals, ObligationEvidenceSeal, canonical_certificate_bytes};
+pub use obligation_evidence::{
+    EvidenceSealValidationError, EvidenceSealValidator, EvidenceSeals, ObligationEvidenceSeal,
+    canonical_certificate_bytes,
+};
 pub use sections::artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
     build_artifact_manifest, validate_artifact_manifest,

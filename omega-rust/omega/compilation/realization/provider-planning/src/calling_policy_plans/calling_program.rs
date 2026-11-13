@@ -1,6 +1,6 @@
 // We define `CallingProgram`: the shared calling declarations, executable
-// policies, and original review coordinates published by the compiler's ordinary
-// Psi production request. Canonical admission precedes each activation, and
+// policies, and original review coordinates retained with the accepted program.
+// Canonical admission precedes each activation, and
 // pure compiler-run policies execute under a finite 100,000-unit semantic work
 // allowance with independent logical storage metering and no host imports.
 
@@ -26,9 +26,9 @@ enum CallingStorageScope<'account> {
 
 #[derive(Debug)]
 pub struct CallingProgram {
-    pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>, // association only; never keeps source alive
+    pub source_owner: std::sync::Weak<crate::PublishedProviderSource>, // association only; never keeps source alive
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
-    pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
+    pub source_records: std::sync::Arc<[typed_trees::SourceRecordCorrespondence]>,
     pub source_preparation: std::sync::Arc<super::CallingSourcePreparation>,
     pub evaluator: CallingPolicyEvaluator, // Build evaluation's executors; omitted from catalog equality
 }
@@ -47,7 +47,7 @@ impl Eq for CallingProgram {}
 impl CallingProgram {
     pub(crate) fn require_owner(
         &self,
-        source_owner: &std::sync::Weak<checked_trees::CheckedTrees>,
+        source_owner: &std::sync::Weak<crate::PublishedProviderSource>,
     ) -> Result<(), String> {
         if std::sync::Weak::ptr_eq(&self.source_owner, source_owner) {
             return Ok(());

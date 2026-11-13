@@ -17,7 +17,7 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
-pub fn project_checked_terminal_permission_policy<'a>(
+pub(crate) fn project_source_terminal_permission_policy<'a>(
     input: impl Into<PackageReviewInput<'a>>,
     target: TargetProfile,
     package: PackageKeyIdentity,

@@ -8,10 +8,9 @@ target-specific provider plans without embedding target policy or layout choices
 inside the coordinator itself.
 
 We resolve exact execution grants from backend provider evidence independently of
-compiler trust reporting. Checked-tree and package-input custody dependencies
-serve as our realization bridge: typed vocabulary enters this crate exclusively
-through `checked_trees` re-exports, and `source_guards` rejects any direct
-source-input dependency edge or facade-free typed spelling.
+compiler trust reporting. Product preparation pairs immutable typed declaration
+metadata with the exact accepted Terminal artifact in PublishedProviderSource.
+The source guards keep the removed checking stage out of that authority path.
 
 Start at `provider_settlement.rs` for typed candidate derivation and selection,
 then `provider_planning.rs` for selected source correspondence. Whole-map choice,
@@ -29,6 +28,11 @@ pub mod evaluated_via_bindings;
 mod intrinsic_requirements;
 mod native_provider_sources;
 pub mod provider_declarations;
+mod published_source;
+pub use published_source::{
+    ExternalProviderDeclarations, PreparedExternalProviderDeclarations, PreparedProviderInventory,
+    PublishedProviderDeclarations, PublishedProviderSource,
+};
 mod sealed_accessors;
 pub use sealed_accessors::{SealedAccessor, SealedAccessorScalarOperation};
 pub mod program_entry;

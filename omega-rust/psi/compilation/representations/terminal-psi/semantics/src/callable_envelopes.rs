@@ -163,42 +163,91 @@ pub fn validate_callable_operational_refinements(
         if required.parameter_order != machine.parameter_order {
             return Err("selected callable operational formals have another order");
         }
-        if selected
-            .service_reach
+        callable_envelope_refines(&required.envelope, selected)?;
+    }
+    Ok(())
+}
+
+/// Validate a standalone published header before using its permissions.
+pub fn validate_callable_envelope(
+    module: &TerminalModule,
+    envelope: &TerminalCallableEnvelope,
+    order: &[BoundaryParameterKind],
+    scalars: &[ValueDeclaration],
+    structures: &[StructuralParameterDeclaration],
+) -> Result<(), &'static str> {
+    let services = module.services.iter().map(|service| service.id).collect();
+    validate_envelope(module, &services, envelope, order, scalars, structures)
+}
+
+/// A supplied contract may use only permissions the required contract grants.
+pub fn callable_envelope_refines(
+    required: &TerminalCallableEnvelope,
+    selected: &TerminalCallableEnvelope,
+) -> Result<(), &'static str> {
+    if selected
+        .service_reach
+        .iter()
+        .any(|service| !required.service_reach.contains(service))
+    {
+        return Err("selected machine exceeds the callable service ceiling");
+    }
+    callable_operational_refines(
+        CallableOperationalView::from(required),
+        CallableOperationalView::from(selected),
+    )
+}
+
+/// The non-service axes shared by closed callables and open static schemas.
+#[derive(Clone, Copy)]
+pub struct CallableOperationalView<'a> {
+    pub invocations: &'a [TerminalCallableInvocation],
+    pub suspends: bool,
+    pub blocks: bool,
+    pub termination: &'a TerminalCallableTermination,
+}
+impl<'a> From<&'a TerminalCallableEnvelope> for CallableOperationalView<'a> {
+    fn from(envelope: &'a TerminalCallableEnvelope) -> Self {
+        Self {
+            invocations: &envelope.invocations,
+            suspends: envelope.suspends,
+            blocks: envelope.blocks,
+            termination: &envelope.termination,
+        }
+    }
+}
+pub fn callable_operational_refines(
+    required: CallableOperationalView<'_>,
+    selected: CallableOperationalView<'_>,
+) -> Result<(), &'static str> {
+    if selected
+        .invocations
+        .iter()
+        .any(|invocation| !required.invocations.contains(invocation))
+    {
+        return Err("selected machine exceeds the callable invocation ceiling");
+    }
+    if selected.suspends && !required.suspends {
+        return Err("selected machine may suspend outside the callable contract");
+    }
+    if selected.blocks && !required.blocks {
+        return Err("selected machine may block outside the callable contract");
+    }
+    if let TerminalCallableTermination::Terminates {
+        premises: required_premises,
+    } = required.termination
+    {
+        let TerminalCallableTermination::Terminates {
+            premises: selected_premises,
+        } = selected.termination
+        else {
+            return Err("selected machine has no published callable termination guarantee");
+        };
+        if selected_premises
             .iter()
-            .any(|service| !required.envelope.service_reach.contains(service))
+            .any(|premise| !required_premises.contains(premise))
         {
-            return Err("selected machine exceeds the callable service ceiling");
-        }
-        if selected
-            .invocations
-            .iter()
-            .any(|invocation| !required.envelope.invocations.contains(invocation))
-        {
-            return Err("selected machine exceeds the callable invocation ceiling");
-        }
-        if selected.suspends && !required.envelope.suspends {
-            return Err("selected machine may suspend outside the callable contract");
-        }
-        if selected.blocks && !required.envelope.blocks {
-            return Err("selected machine may block outside the callable contract");
-        }
-        if let TerminalCallableTermination::Terminates {
-            premises: required_premises,
-        } = &required.envelope.termination
-        {
-            let TerminalCallableTermination::Terminates {
-                premises: selected_premises,
-            } = &selected.termination
-            else {
-                return Err("selected machine has no published callable termination guarantee");
-            };
-            if selected_premises
-                .iter()
-                .any(|premise| !required_premises.contains(premise))
-            {
-                return Err("selected machine needs an unpublished callable progress premise");
-            }
+            return Err("selected machine needs an unpublished callable progress premise");
         }
     }
     Ok(())

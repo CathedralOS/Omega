@@ -6,13 +6,13 @@
 // target join as direct-call completion, while deferred shape failures retain
 // their original target and ownership demand gate.
 
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use provider_planning::intrinsic_declarations::IntrinsicDeclaration;
 use provider_planning::service_declarations::ServiceDeclarations;
 use provider_planning::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
 
 pub(crate) use provider_planning::intrinsic_declarations::{
     AcceptedIntrinsicBinding as AcceptedRowBinding, HostedService,
@@ -25,7 +25,7 @@ pub enum SelectedCompilerIntrinsicExecutionIdentity {
 }
 
 pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
-    checked: &CheckedTrees,
+    typed: &TypedTrees,
     numeric: crate::NumericProviderSelection<'_>,
     services: &ServiceDeclarations,
     plan: &ProviderPlan,
@@ -49,7 +49,7 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
         })
     }
     row_execution_identity(
-        checked,
+        typed,
         numeric,
         services,
         plan,
@@ -68,7 +68,7 @@ pub fn derive_selected_compiler_intrinsic_execution_identity_for_row(
 }
 
 pub(crate) fn row_execution_identity(
-    checked: &CheckedTrees,
+    typed: &TypedTrees,
     numeric: crate::NumericProviderSelection<'_>,
     services: &ServiceDeclarations,
     plan: &ProviderPlan,
@@ -93,15 +93,8 @@ pub(crate) fn row_execution_identity(
     let identity = services
         .for_symbol(schema.symbol())
         .map(|service| service.declaration.nominal_identity.clone());
-    let declaration = IntrinsicDeclaration::prepare(
-        &checked.typed,
-        plan,
-        schema,
-        row,
-        requirement,
-        realization,
-        identity,
-    );
+    let declaration =
+        IntrinsicDeclaration::prepare(typed, plan, schema, row, requirement, realization, identity);
     settle_declaration(&declaration, plan, target, console, process_exit).map(Some)
 }
 

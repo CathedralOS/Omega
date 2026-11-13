@@ -48,7 +48,9 @@ mod prepared_source;
 pub mod publication;
 mod terminal_publication;
 mod test_products;
-pub use terminal_publication::ProductTerminalPublication;
+pub use terminal_publication::{
+    CheckedApplicationProgram, ProductSourceDeclarations, ProductTerminalPublication,
+};
 pub use test_products::{
     PendingTestProduct, TestFilesystem, TestRootIdentity, TestRosterEntry, TestRosterStatus,
 };

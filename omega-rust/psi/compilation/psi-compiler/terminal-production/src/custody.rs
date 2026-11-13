@@ -127,7 +127,7 @@ impl ProducedTerminalProgram {
             build_filesystem: self.build_filesystem,
             applications: self.applications,
             provenance: self.provenance,
-            source_records: self.source_records,
+            source_records: self.source_records.into(),
         })
     }
     pub const fn build_filesystem(&self) -> &TerminalBuildFilesystem {
@@ -178,10 +178,63 @@ pub struct PortableTerminalProgram {
     build_filesystem: TerminalBuildFilesystem,
     applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     provenance: terminal_psi::TerminalMachineProvenance,
-    source_records: Vec<checked_trees::typed_trees::SourceRecordCorrespondence>,
+    source_records: Arc<[typed_trees::SourceRecordCorrespondence]>,
 }
 
 impl PortableTerminalProgram {
+    /// Retain an already checked program for inspection without invoking a
+    /// source producer again. Build operations need their own source-request
+    /// correspondence; absence is checked against every actual boundary call
+    /// before creating empty companions for an ordinary program.
+    pub fn from_checked_artifact(
+        artifact: Arc<CanonicalTerminalArtifact>,
+        typed: &typed_trees::FrozenTypedTrees,
+        boundaries: &semantic_vocabulary::IdTable<
+            semantic_vocabulary::BoundaryMachineId,
+            symbols::SymbolHandle,
+        >,
+        provenance: terminal_psi::TerminalMachineProvenance,
+        source_records: Arc<[typed_trees::SourceRecordCorrespondence]>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        for machine in &artifact.semantic_module().machines {
+            for invocation in machine.boundary_invocations() {
+                let source = *boundaries.get(invocation.boundary).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "inspection lost an invoked boundary's exact source declaration",
+                    )]
+                })?;
+                if needs_build_companions(typed, source)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                {
+                    return Err(vec![Diagnostic::error(
+                        "inspection of Build operations requires their retained source-request correspondence",
+                    )]);
+                }
+            }
+        }
+        let view: terminal_codec::TerminalExecutionView<'_> = artifact.view().into();
+        let build_bindings = TerminalBuildBindings::new(
+            view,
+            Vec::<crate::TerminalBuildBindingCall>::new(),
+            Vec::<Arc<ProductDeclarationRequest>>::new(),
+            Vec::<crate::TerminalBuildQueryCall>::new(),
+            Vec::<NativeBindingFormation>::new(),
+        );
+        let build_requests =
+            TerminalBuildRequests::new(view, Vec::<crate::TerminalBuildRequestCall>::new());
+        let build_filesystem =
+            TerminalBuildFilesystem::new(view, Vec::<TerminalBuildFilesystemCall>::new());
+        Ok(Self {
+            artifact,
+            build_bindings,
+            build_requests,
+            build_filesystem,
+            applications: Vec::new(),
+            provenance,
+            source_records,
+        })
+    }
+
     pub fn source_records(&self) -> &[checked_trees::typed_trees::SourceRecordCorrespondence] {
         &self.source_records
     }
@@ -213,6 +266,62 @@ impl PortableTerminalProgram {
     pub fn applications(&self) -> &[Result<ProducedTerminalApplication, Vec<Diagnostic>>] {
         &self.applications
     }
+}
+
+fn needs_build_companions(
+    typed: &typed_trees::TypedTrees,
+    declaration: symbols::SymbolHandle,
+) -> Result<bool, &'static str> {
+    let mut pending = vec![declaration];
+    let mut visited = Vec::new();
+    while let Some(declaration) = pending.pop() {
+        if !typed.symbols.symbols().nodes().is_valid(declaration) {
+            return Err("inspection boundary names a stale source declaration");
+        }
+        if visited.contains(&declaration) {
+            continue;
+        }
+        visited.push(declaration);
+        let source = typed
+            .symbols
+            .symbol_source_span(declaration)
+            .and_then(|span| typed.symbols.source_file(span))
+            .ok_or("inspection boundary declaration has no source custody")?;
+        // The compiler installs Build protocols in this exact toolchain
+        // source. A same-named user declaration grants no Build meaning.
+        if source.origin == source::SourceOrigin::Toolchain
+            && source.path == std::path::Path::new("<build-prelude>")
+        {
+            return Ok(true);
+        }
+        if let Some((owner, _)) = typed.trait_machine_signature(declaration) {
+            let source = typed
+                .symbols
+                .symbol_source_span(owner.symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .ok_or("inspection boundary schema has no source custody")?;
+            if source.origin == source::SourceOrigin::Toolchain
+                && source.path == std::path::Path::new("<build-prelude>")
+            {
+                return Ok(true);
+            }
+            continue;
+        }
+        let owner = match typed.symbols.get(declaration).kind {
+            symbols::SymbolKind::State => typed.symbols.get(declaration).parent,
+            _ => declaration,
+        };
+        let machine = typed
+            .machine_by_symbol(owner)
+            .ok_or("inspection boundary has no exact source machine or requirement")?;
+        pending.extend(
+            typed
+                .machine_trait_conformances(machine)
+                .iter()
+                .map(|conformance| conformance.requirement_symbol),
+        );
+    }
+    Ok(false)
 }
 
 #[derive(Clone, Copy, Default)]
