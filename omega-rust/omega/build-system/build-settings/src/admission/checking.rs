@@ -6,7 +6,6 @@
 
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use psi_compiler::RetainedCheck;
 
 pub fn settle_rejoined_build_slice(
     _input: psi_compiler::BuildSourceInput<'_>,
@@ -26,14 +25,10 @@ pub(crate) fn prepare_admitted_build(
     _dependency_activation: bool,
     _execution_profile: Option<target::TargetProfile>,
     _timings: &mut artifacts::compile_timings::CompileTimings,
-    _priors: &[&RetainedCheck],
-    _retain: bool,
-    _checked_slices: Option<&dyn psi_compiler::CheckedSliceStore>,
 ) -> Result<
     (
         std::sync::Arc<psi_compiler::AcceptedTerminalSource>,
         super::provider_execution::BuildProviderPlans,
-        Option<RetainedCheck>,
         bool,
     ),
     Vec<Diagnostic>,
