@@ -358,6 +358,7 @@ mod tests {
                 content_guarantees: vec![],
                 fixed_service_reach: vec![],
                 owning_service: None,
+                published_synchronous_entries: Vec::new(),
                 published_service_ceiling: vec![],
             });
         let application = application();

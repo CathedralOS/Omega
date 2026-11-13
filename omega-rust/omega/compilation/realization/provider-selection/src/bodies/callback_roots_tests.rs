@@ -58,6 +58,7 @@ fn machine(identity: u64, kind: OperationKind) -> TerminalMachine {
         ranked_scc: None,
         declared_service_reach: Vec::new(),
         closed_reach_application: None,
+        published_synchronous_entries: Vec::new(),
         published_service_ceiling: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),

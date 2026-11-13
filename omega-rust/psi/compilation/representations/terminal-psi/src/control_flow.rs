@@ -702,6 +702,12 @@ pub(crate) mod machines {
         pub declared_service_reach: Vec<ServiceId>,
         pub closed_reach_application: Option<crate::ClosedReachApplication>,
         pub published_service_ceiling: Vec<ServiceId>,
+        /// The callbacks and inbound entries control may arrive at before
+        /// this machine returns, as the requirement identities that name
+        /// them, strictly increasing: its written `invokes` ceiling, or else
+        /// what its calls contribute. effects.md, "Direct synchronous
+        /// invocation". Empty is "enters nothing". No parent closure.
+        pub published_synchronous_entries: Vec<ServiceId>,
         pub content_entry_claims: Vec<ContentEntryClaim>,
         pub content_identity_reshuffles: Vec<ContentIdentityReshuffle>,
         pub content_partition_compositions: Vec<ContentPartitionComposition>,

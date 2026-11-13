@@ -235,7 +235,9 @@ pub struct Signature {
     pub ensures: Vec<Proposition>,
     pub crashes: CrashCeiling,
     /// What the header says about service reach.
-    pub reaches: ReachCeiling,
+    pub reaches: Ceiling,
+    /// What the header says about synchronous entry (`invokes`).
+    pub invokes: Ceiling,
     pub termination: Termination,
 }
 
@@ -392,19 +394,51 @@ pub fn formal_values(
         .collect()
 }
 
-/// What a header says about service reach.
+/// What a header says on one ceiling axis: service reach (`reaches`) or
+/// synchronous entry (`invokes`). Both are a set of service identities that
+/// bounds what the machine's calls contribute, published to callers, so one
+/// type, one derivation (`outcome`) and one judgment serve both.
 /// `wiki/spec/language/effects.md`: "A present clause is an upper bound, not
 /// an assertion of exact equality and not an additive contribution", and
 /// "Omission requests inference and is distinct from an explicit empty
 /// clause."
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ReachCeiling {
-    /// No `reaches` clause. A checked body's published reach is then derived
-    /// from its calls (`outcome`); a boundary requirement must not omit it.
+pub enum Ceiling {
+    /// No clause on a declaration whose row is derived: a checked body
+    /// publishes what its calls contribute (`outcome`). A boundary
+    /// requirement must not omit `reaches`; a requirement that omits
+    /// `invokes` is not this case (see `Axis::Entries`).
     Inferred,
-    /// The services the clause names "and their boundary parents", strictly
-    /// increasing. Empty is `reaches none`.
+    /// The written row, strictly increasing. For reach, the services the
+    /// clause names "and their boundary parents"; empty is `reaches none`.
+    /// For entries, the requirement identities the clause names, with no
+    /// parent closure.
     Authored(Vec<semantic_vocabulary::ServiceId>),
+}
+
+/// The two ceiling axes a header may bound.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Axis {
+    /// `reaches`: the boundary services a machine's calls may reach.
+    Reach,
+    /// `invokes`: the callbacks and inbound entries control may arrive at
+    /// before the machine returns. effects.md, "Direct synchronous
+    /// invocation": a bodyless requirement that omits the clause has "No
+    /// synchronous entry", so its row is `Authored` and empty, never open.
+    Entries,
+}
+
+impl Axis {
+    pub const ALL: [Axis; 2] = [Axis::Reach, Axis::Entries];
+}
+
+impl Signature {
+    pub fn ceiling(&self, axis: Axis) -> &Ceiling {
+        match axis {
+            Axis::Reach => &self.reaches,
+            Axis::Entries => &self.invokes,
+        }
+    }
 }
 
 /// What the machine's header says about crashing.

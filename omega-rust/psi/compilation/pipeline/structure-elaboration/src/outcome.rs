@@ -27,6 +27,15 @@ publishes; a boundary call contributes "its requirement's explicit reach
 ceiling", never the called trait's own identity. Whether a derived reach fits
 a written ceiling is the checker's judgment, made on the published rows; a
 row is only published here.
+
+Published synchronous entries (`invokes`) are the same derivation on a second
+axis (`Axis`): "the callee's published `invokes` joins the caller's, as its
+reach does". A written clause is the published ceiling, an omitted one on a
+checked body publishes what its calls contribute, and a boundary call
+contributes its requirement's row, where omission is "No synchronous entry".
+A call of a requirement is "not itself an entry", so nothing in the subset
+this route reads originates an entry: a row is non-empty only where a clause
+was written.
 */
 
 use std::collections::BTreeSet;
@@ -36,7 +45,7 @@ use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard};
 
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, ReachCeiling, Signatures, Statement, Target,
+    Axis, Body, Ceiling, CrashCeiling, Expression, ExpressionKind, Signatures, Statement, Target,
 };
 use crate::canonical;
 use crate::{Unserved, refuse};
@@ -52,6 +61,9 @@ pub struct Outcome {
     /// The service reach a caller may rely on, strictly increasing: the
     /// written ceiling, or what the body's calls contribute.
     pub service_reach: Vec<ServiceId>,
+    /// The synchronous entries a caller is charged, strictly increasing:
+    /// the written `invokes` ceiling, or what the body's calls contribute.
+    pub synchronous_entries: Vec<ServiceId>,
 }
 
 /// The outcomes of every machine, indexed by `MachineId`.
@@ -77,15 +89,13 @@ pub(crate) fn outcomes(
         requirements,
         reached: bodies.map(|_, _| Reached::default()),
         causes: BTreeSet::new(),
-        services: Vec::new(),
-        open_reach: false,
+        contributed: Default::default(),
     };
     loop {
         let mut changed = false;
         for (machine, body) in bodies.iter() {
             walk.causes.clear();
-            walk.services.clear();
-            walk.open_reach = false;
+            walk.contributed = Default::default();
             let completes_normally = if requirements.contains(&machine) {
                 true
             } else {
@@ -94,13 +104,11 @@ pub(crate) fn outcomes(
             let found = Reached {
                 completes_normally,
                 causes: std::mem::take(&mut walk.causes),
-                services: {
-                    let mut services = std::mem::take(&mut walk.services);
-                    services.sort_unstable();
-                    services.dedup();
-                    services
-                },
-                open_reach: walk.open_reach,
+                contributed: std::mem::take(&mut walk.contributed).map(|mut row| {
+                    row.services.sort_unstable();
+                    row.services.dedup();
+                    row
+                }),
             };
             let slot = walk.reached.get_mut(machine).ok_or_else(|| {
                 refuse(
@@ -123,7 +131,8 @@ pub(crate) fn outcomes(
         table.push(Outcome {
             completes_normally: reached.completes_normally,
             crash_routes: walk.published(machine, &reached.causes)?,
-            service_reach: walk.published_reach(machine, reached, true)?,
+            service_reach: walk.published_row(machine, Axis::Reach, reached, true)?,
+            synchronous_entries: walk.published_row(machine, Axis::Entries, reached, true)?,
         });
     }
     Ok(table)
@@ -136,12 +145,20 @@ struct Reached {
     /// Every cause a path of the body may crash with, from a `crash`
     /// statement or from a callee that may.
     causes: BTreeSet<CrashCause>,
-    /// Every service a call in the body contributes, strictly increasing.
+    /// What the body's calls contribute on each ceiling axis, by `Axis`.
+    contributed: [Contributed; 2],
+}
+
+/// What a body's calls contribute on one ceiling axis.
+#[derive(Clone, Default, PartialEq)]
+struct Contributed {
+    /// Every service a call contributes; strictly increasing once the
+    /// body's walk ends.
     services: Vec<ServiceId>,
-    /// Some call in the body is of a requirement with no `reaches` clause,
-    /// or of a machine that publishes such a call: what it contributes is
-    /// its selected member's to say.
-    open_reach: bool,
+    /// Some call in the body is of a requirement that omits the clause and
+    /// defers the row to its selected member, or of a machine that
+    /// publishes such a call.
+    open: bool,
 }
 
 struct Walk<'b> {
@@ -151,11 +168,9 @@ struct Walk<'b> {
     reached: IdTable<MachineId, Reached>,
     /// Every cause a path of the body being walked may crash with.
     causes: BTreeSet<CrashCause>,
-    /// Every service a call of the body being walked contributes, in the
-    /// order met; sorted when the body's walk ends.
-    services: Vec<ServiceId>,
-    /// The body being walked calls into an open reach contract.
-    open_reach: bool,
+    /// What the calls of the body being walked contribute on each axis, in
+    /// the order met; sorted when the body's walk ends.
+    contributed: [Contributed; 2],
 }
 
 impl Walk<'_> {
@@ -183,7 +198,8 @@ impl Walk<'_> {
         })
     }
 
-    /// The reach `machine` publishes, given what its body's calls contribute.
+    /// The row `machine` publishes on `axis`, given what its body's calls
+    /// contribute: one rule for reach and for synchronous entries.
     ///
     /// A requirement that omits `reaches` is open: effects.md, "defer to the
     /// selected implementation's published reach". The generic form keeps
@@ -192,23 +208,30 @@ impl Walk<'_> {
     /// compared with a contribution nobody knows yet ("The template must
     /// remain valid for every admitted selection"), so that machine is
     /// refused when its row is published (`judged`).
-    fn published_reach(
+    fn published_row(
         &self,
         machine: MachineId,
+        axis: Axis,
         reached: &Reached,
         judged: bool,
     ) -> Checked<Vec<ServiceId>> {
         let signature = self.signatures.get(machine.into(), machine)?;
-        Ok(match &signature.reaches {
-            ReachCeiling::Authored(_) if judged && reached.open_reach => {
+        let contributed = &reached.contributed[axis as usize];
+        Ok(match signature.ceiling(axis) {
+            Ceiling::Authored(_) if judged && contributed.open => {
                 return Err(refuse(
                     machine,
                     Construct::Machine,
-                    Unserved::Machine("reach ceiling over a requirement that defers its reach"),
+                    Unserved::Machine(match axis {
+                        Axis::Reach => "reach ceiling over a requirement that defers its reach",
+                        Axis::Entries => {
+                            "invokes ceiling over a requirement that defers its entries"
+                        }
+                    }),
                 ));
             }
-            ReachCeiling::Authored(ceiling) => ceiling.clone(),
-            ReachCeiling::Inferred => reached.services.clone(),
+            Ceiling::Authored(ceiling) => ceiling.clone(),
+            Ceiling::Inferred => contributed.services.clone(),
         })
     }
 
@@ -380,17 +403,30 @@ impl Walk<'_> {
                     self.causes.extend(routes.iter().map(|route| route.cause));
                     // "A boundary call contributes its requirement's explicit
                     // reach ceiling, with boundary-parent closure", which the
-                    // reader applied when it read the clause.
-                    match &signature.reaches {
-                        ReachCeiling::Authored(ceiling) => {
-                            self.services.extend(ceiling.iter().copied());
-                        }
-                        ReachCeiling::Inferred => {
-                            return Err(refuse(
-                                machine,
-                                Construct::Machine,
-                                Unserved::Call("boundary call has no declared reach ceiling"),
-                            ));
+                    // reader applied when it read the clause. The call "is
+                    // not itself an entry", and "the callee's published
+                    // `invokes` joins the caller's, as its reach does".
+                    for axis in Axis::ALL {
+                        match signature.ceiling(axis) {
+                            Ceiling::Authored(ceiling) => {
+                                self.contributed[axis as usize]
+                                    .services
+                                    .extend(ceiling.iter().copied());
+                            }
+                            Ceiling::Inferred => {
+                                return Err(refuse(
+                                    machine,
+                                    Construct::Machine,
+                                    Unserved::Call(match axis {
+                                        Axis::Reach => {
+                                            "boundary call has no declared reach ceiling"
+                                        }
+                                        Axis::Entries => {
+                                            "boundary call has no declared entry ceiling"
+                                        }
+                                    }),
+                                ));
+                            }
                         }
                     }
                     // The reader serves ordinary returning requirements only;
@@ -411,20 +447,29 @@ impl Walk<'_> {
                 })?;
                 let completes = reached.completes_normally;
                 let causes = reached.causes.clone();
-                let reach = self.published_reach(*callee, reached, false)?;
-                // An open requirement is itself the open call; a machine
-                // with a written ceiling closes whatever its body calls.
-                let open = match &self.signatures.get((*callee).into(), machine)?.reaches {
-                    ReachCeiling::Authored(_) => false,
-                    ReachCeiling::Inferred => {
-                        reached.open_reach || self.requirements.contains(callee)
-                    }
-                };
+                let signature = self.signatures.get((*callee).into(), machine)?;
+                let mut joins = Vec::with_capacity(Axis::ALL.len());
+                for axis in Axis::ALL {
+                    let row = self.published_row(*callee, axis, reached, false)?;
+                    // An open requirement is itself the open call; a machine
+                    // with a written ceiling closes whatever its body calls.
+                    let open = match signature.ceiling(axis) {
+                        Ceiling::Authored(_) => false,
+                        Ceiling::Inferred => {
+                            reached.contributed[axis as usize].open
+                                || self.requirements.contains(callee)
+                        }
+                    };
+                    joins.push((axis, row, open));
+                }
                 let published = self.published(*callee, &causes)?;
                 self.causes
                     .extend(published.iter().map(|bucket| bucket.cause));
-                self.services.extend(reach);
-                self.open_reach |= open;
+                for (axis, row, open) in joins {
+                    let contributed = &mut self.contributed[axis as usize];
+                    contributed.services.extend(row);
+                    contributed.open |= open;
+                }
                 Ok(completes)
             }
         }

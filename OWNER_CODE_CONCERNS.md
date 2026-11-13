@@ -512,3 +512,10 @@ own to defend. Say what you saw, not what you would build.
 - Saw: every refusal reads "no product route yet: X requires a lowered-form judgment", but most of X is arity, a declared type or a field's owner, which typing decides from declarations; two of them stopped the bundled library (`core::Strict<0>`, `ForeignBinding<N, ...>`) although no proof was involved
 - Cost: a reader cannot tell a typing rule that was not rebuilt from a proof the checker must supply, so each stop is investigated from scratch and the wording invites routing typing work to the checker
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
+
+### An `invokes` row that names an ordinary trait is dropped without a word
+- Category: a verdict with nothing behind it
+- Where: `typed-trees/src/declarations.rs` (`declared_targets`); `lowered-discharge/src/refinement.rs` (`prove_callable_refinement`)
+- Saw: `declared_targets` keeps an `invokes` target only when it is a boundary trait or a parameter of boundary type and silently discards any other, so `invokes Handler` over an ordinary trait reads as no clause at all to every consumer of `declared_machine_invocations`; separately, `prove_callable_refinement` has no caller outside its own tests, so the reach and entry containment it guards is never asked of a real conformance
+- Cost: a written entry ceiling can vanish before any checker sees it, and a supplied implementation outside its requirement's ceilings is not refused anywhere in a compile until that operation is wired
+- Reported: 2026-11-13, Claude Code, while putting `invokes` on the lowered-form checker

@@ -95,7 +95,8 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         result: result.map(ValueType::Scalar),
         requires: Vec::new(),
         ensures: Vec::new(),
-        reaches: crate::ReachCeiling::Inferred,
+        reaches: crate::Ceiling::Inferred,
+        invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(Vec::new()),
         termination: Termination::Silent,
     }
@@ -147,6 +148,7 @@ fn returns_normally() -> Outcome {
     Outcome {
         completes_normally: true,
         service_reach: Vec::new(),
+        synchronous_entries: Vec::new(),
         crash_routes: Vec::new(),
     }
 }
@@ -874,6 +876,7 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
             Outcome {
                 completes_normally: false,
                 service_reach: Vec::new(),
+                synchronous_entries: Vec::new(),
                 crash_routes: callee_routes,
             },
         ],
@@ -993,11 +996,13 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
             Outcome {
                 completes_normally: true,
                 service_reach: Vec::new(),
+                synchronous_entries: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap, CrashCause::Abort]),
             },
             Outcome {
                 completes_normally: true,
                 service_reach: Vec::new(),
+                synchronous_entries: Vec::new(),
                 crash_routes: callee_routes,
             },
         ],
@@ -1083,6 +1088,7 @@ fn a_no_normal_call_inside_an_expression_is_refused() {
             Outcome {
                 completes_normally: false,
                 service_reach: Vec::new(),
+                synchronous_entries: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap]),
             },
         ],
@@ -1173,7 +1179,8 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
         for crashes in [first, second] {
             signatures.push(Signature {
-                reaches: crate::ReachCeiling::Inferred,
+                reaches: crate::Ceiling::Inferred,
+                invokes: crate::Ceiling::Inferred,
                 crashes,
                 ..signature(Vec::new(), None)
             });
@@ -1195,6 +1202,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         Outcome {
             completes_normally: false,
             service_reach: Vec::new(),
+            synchronous_entries: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
     );
@@ -1226,7 +1234,8 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
                 statements,
             });
             signatures.push(Signature {
-                reaches: crate::ReachCeiling::Inferred,
+                reaches: crate::Ceiling::Inferred,
+                invokes: crate::Ceiling::Inferred,
                 crashes,
                 ..signature(Vec::new(), None)
             });
@@ -1252,6 +1261,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
     let never_returns = Outcome {
         completes_normally: false,
         service_reach: Vec::new(),
+        synchronous_entries: Vec::new(),
         crash_routes: Vec::new(),
     };
     assert_eq!(run(crashing(), quiet()).unwrap(), never_returns);
@@ -1284,13 +1294,15 @@ fn a_skipped_operand_cannot_end_the_machine() {
     bodies.push(crashing);
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(Signature {
-        reaches: crate::ReachCeiling::Inferred,
+        reaches: crate::Ceiling::Inferred,
+        invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Inferred,
         termination: Termination::Silent,
         ..signature(vec![ScalarType::Boolean], Some(ScalarType::Boolean))
     });
     signatures.push(Signature {
-        reaches: crate::ReachCeiling::Inferred,
+        reaches: crate::Ceiling::Inferred,
+        invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Inferred,
         termination: Termination::Silent,
         ..signature(Vec::new(), Some(ScalarType::Boolean))
@@ -1309,6 +1321,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
         &Outcome {
             completes_normally: true,
             service_reach: Vec::new(),
+            synchronous_entries: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
     );
@@ -2014,9 +2027,11 @@ fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
             disposition: terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
             destination,
             path,
-            field: Some(field),
+            field: None,
             value,
-        } if *destination == l && path.is_empty() && *field == id(4)
+        } if *destination == l
+            // The stored field is the one step of the path, by identity.
+            && path.len() == 1
             && value.place == copied && value.path.is_empty()
     ));
     let to = projected(&tables, l, &[4]);
@@ -2692,22 +2707,18 @@ fn each_sum_construct_outside_the_slice_is_refused_by_name_in_lowering() {
     .unwrap_err();
     assert_eq!(crash.reason, RefusalReason::Unsupported);
     assert_eq!(crash.detail, "transition crash in a case arm");
-    // A field read through a data payload would put the `Case` step inside
-    // the read's carrier.
+    // A field read through a data payload is lowered: the `Case` step is a
+    // segment of the read's path, and the checker's payload judgment decides
+    // whether that case is established where the read stands.
     let inner = payload(place(0, shape()), BOXED, 0, point());
-    let beneath = try_lower_sums(
+    try_lower_sums(
         Body {
             slots: vec![shape()],
             statements: vec![returns(member(inner, 0, scalar))],
         },
         weighs(),
     )
-    .unwrap_err();
-    assert_eq!(beneath.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        beneath.detail,
-        "expression field read beneath a case payload"
-    );
+    .unwrap();
 }
 
 #[test]
