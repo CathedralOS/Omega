@@ -920,3 +920,117 @@ fn a_statement_that_drops_its_value_is_never_accepted() {
     )]);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+/// One program per thing the route decides about a formal the body writes.
+/// Each is the declaration followed by `machine main() {}`.
+const WRITTEN_FORMALS: &[(&str, &str)] = &[
+    // The add after the assignment reads the assigned value, at most 11.
+    (
+        "mut_scalar_assigned",
+        "machine spare(mut value: u32) -> u32 requires value <= 10 {\n    \
+         value = value + 1;\n    value + 4294967284\n}",
+    ),
+    // `value <= 10` was true of the argument; `value` now holds `other`.
+    (
+        "mut_scalar_stale_fact",
+        "machine spare(mut value: u32, other: u32) -> u32 requires value <= 10 {\n    \
+         value = other;\n    value + 4294967285\n}",
+    ),
+    // The same add with no assignment before it.
+    (
+        "mut_scalar_entry_fact",
+        "machine spare(mut value: u32, other: u32) -> u32 requires value <= 10 {\n    \
+         value + 4294967285\n}",
+    ),
+    (
+        "immutable_scalar_assigned",
+        "machine spare(value: u32) -> u32 { value = 1; value }",
+    ),
+    // The read after the store is of 5.
+    (
+        "mut_record_stored",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair.a = 5;\n    pair.a + 4294967285\n}",
+    ),
+    // `pair.a <= 10` was true of what the field held before the store.
+    (
+        "mut_record_stale_fact",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair.a = 4294967295;\n    pair.a + 4294967285\n}",
+    ),
+    // A whole assignment replaces every field the entry fact spoke of.
+    (
+        "mut_record_replaced",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair = Pair { a: 4294967295, b: 0 };\n    pair.a + 4294967285\n}",
+    ),
+    (
+        "immutable_record_stored",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(pair: Pair) -> u32 { pair.a = 5; pair.a }",
+    ),
+    // The callee stores into its own copy, so the caller's field holds 1.
+    (
+        "mut_record_callers_argument",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine set(mut pair: Pair) { pair.a = 4294967295; }\n\
+         machine spare() -> u32 {\n    \
+         let q: Pair = Pair { a: 1, b: 2 };\n    set(q);\n    q.a + 4294967294\n}",
+    ),
+    // Lent exclusively, the formal holds whatever the callee stored.
+    (
+        "mut_scalar_lent",
+        "machine clear(value: &mut u32) { value = 0; }\n\
+         machine spare(mut value: u32) -> u32 requires value <= 10 {\n    \
+         clear(&mut value);\n    value + 4294967285\n}",
+    ),
+    (
+        "mut_named_in_ensures",
+        "machine spare(mut value: u32) -> u32 ensures result == value { value }",
+    ),
+    (
+        "mut_affine_data",
+        "data Token { value: u32; }\n\
+         machine spare(mut token: Token) -> u32 { token.value = 1; token.value }",
+    ),
+];
+
+/// A `mut` formal that holds its own value is the callee's own storage and
+/// is written as a `mut` local is; the route used to refuse every machine
+/// that declared one (`parameter mutable parameter`). A fact from `requires`
+/// is about the argument: it does not survive an assignment to a scalar
+/// formal, a store into that field of a record formal, a whole assignment or
+/// an exclusive loan, and each such program is rejected for the operation
+/// that needed it. A formal that is not `mut` is still not written, and the
+/// cases the route does not serve are refused by name.
+#[test]
+fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        falls_back("statement assignment to an immutable binding"),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Rejected,
+        falls_back("statement store into an immutable binding"),
+        Verdict::Accepted(3),
+        Verdict::Rejected,
+        falls_back("contract clause that names a mutable parameter outside requires"),
+        falls_back("type data with custody"),
+    ];
+    assert_eq!(expected.len(), WRITTEN_FORMALS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in WRITTEN_FORMALS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
