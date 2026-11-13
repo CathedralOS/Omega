@@ -505,3 +505,10 @@ own to defend. Say what you saw, not what you would build.
 - Saw: Psi 02 still requires every scalar constant to be a literal and says richer initializers "arrive with build-time evaluation", but that evaluation (about 36,000 lines) left with the old checker; `source/library/std/targets/uefi_x86_64/handoff.omg:29` (`const A: u64 = B;`) therefore stops every compilation that loads `std`, and Psi 04 accepts only an empty program
 - Cost: no source program reaches the lowered-form checker, so no work on the checker can be verified from source until constants have an evaluator and Psi 04 passes a nonempty program through
 - Reported: 2026-11-13, Claude Code, while restoring source activation for the route probe
+
+### Typing refuses its own questions as if they waited for the checker
+- Category: a stage reaching across a boundary
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/lib.rs` (`unavailable_judgment`) and its 26 callers, such as `typing_queries.rs` ("constructor field type", "call entry parameter types") and `type_reference.rs` ("closed const argument declaration custody")
+- Saw: every refusal reads "no product route yet: X requires a lowered-form judgment", but most of X is arity, a declared type or a field's owner, which typing decides from declarations; two of them stopped the bundled library (`core::Strict<0>`, `ForeignBinding<N, ...>`) although no proof was involved
+- Cost: a reader cannot tell a typing rule that was not rebuilt from a proof the checker must supply, so each stop is investigated from scratch and the wording invites routing typing work to the checker
+- Reported: 2026-11-13, Claude Code, while getting the route probe through typing
