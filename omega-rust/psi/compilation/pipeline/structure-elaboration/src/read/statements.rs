@@ -176,8 +176,32 @@ impl Program<'_> {
                 Unserved::Spelling("local without a symbol"),
             ));
         }
-        if local.is_operand_capture || local.reflected_query_origin.is_some() {
-            return unserved("operand capture or reflected query");
+        if local.reflected_query_origin.is_some() {
+            return unserved("reflected query");
+        }
+        // A selector must keep the value captured before later operands run.
+        // Resolution emits an immutable relevant binding; typing must retain
+        // its complete carrier. The ordinary binder below evaluates it once
+        // and keeps that carrier, including any supported backing. It never
+        // turns a reference into its referent's value.
+        if local.is_operand_capture {
+            if local.role != language_core::LocalBindingRole::Value
+                || local.is_mutable
+                || local.relevance != language_core::BindingRelevance::Relevant
+            {
+                return unserved("operand capture without its immutable value binding");
+            }
+            if !self
+                .typed
+                .expression_table
+                .expression_is_valid(local.initial_value)
+                || !self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(local.type_reference)
+            {
+                return unserved("operand capture without its retained initializer and type");
+            }
         }
         if local.relevance != language_core::BindingRelevance::Relevant {
             return self.erased_local(id, slots, local);

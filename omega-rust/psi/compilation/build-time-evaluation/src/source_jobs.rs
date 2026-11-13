@@ -632,6 +632,61 @@ pub(crate) mod tests {
         assert_eq!(meter.usage().total_units(), 0);
     }
 
+    // The selector's call runs once before the replacement changes index.
+    // The returned fields distinguish a redirected store and a repeated call.
+    #[test]
+    fn source_jobs_capture_selectors_before_the_replacement_runs() {
+        let source = typed(
+            "data Store { items: [u64; 2]; }
+            data Report { first: u64; second: u64; index: u64; calls: u64; }
+            machine select(index: u64, calls: &mut u64) -> u64
+            requires calls < 2
+            ensures result == index
+            { calls = calls + 1; index }
+            machine replace(index: &mut u64) -> u64
+            ensures index == 1
+            { index = 1; 9u64 }
+            machine answer() -> Report {
+                let mut index: u64 = 0;
+                let mut calls: u64 = 0;
+                let mut store: Store = Store { items: [3u64, 4u64] };
+                store.items[select(index, &mut calls)] = replace(&mut index);
+                Report { first: store.items[0], second: store.items[1], index: index, calls: calls }
+            }",
+        );
+        let machine = source.realized_machine_named("answer").unwrap();
+        let [state] = source.machine_states(machine) else {
+            panic!("one source state")
+        };
+        assert!(
+            source
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|statement| matches!(statement,
+            typed_trees::statement::StatementNode::LocalData(local) if local.is_operand_capture))
+        );
+        let selected = machine.symbol;
+        let result = PreparedBuildMachineProgram::prepare(&source, None)
+            .unwrap()
+            .entry(selected, selected)
+            .unwrap()
+            .invoke(target(), &[], &mut psi_work::WorkMeter::unbounded())
+            .expect("the store uses the selector captured before replacement");
+        let BuildTimeValue::Struct { fields, .. } = result else {
+            panic!("actual report")
+        };
+        assert_eq!(
+            fields.as_slice(),
+            &[
+                ("first".into(), BuildTimeValue::Int(9)),
+                ("second".into(), BuildTimeValue::Int(4)),
+                ("index".into(), BuildTimeValue::Int(1)),
+                ("calls".into(), BuildTimeValue::Int(1)),
+            ]
+        );
+    }
+
     #[test]
     fn source_schema_query_materializes_its_bare_type_operand() {
         let source = with_reflection(

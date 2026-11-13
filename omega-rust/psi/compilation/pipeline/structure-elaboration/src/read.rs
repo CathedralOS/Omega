@@ -1128,6 +1128,120 @@ mod tests {
         );
     }
 
+    // Capturing a selector uses the ordinary local binder. Its complete type
+    // must survive; a reference must not become an integer snapshot merely
+    // because both appear in an index expression.
+    #[test]
+    fn operand_captures_keep_their_complete_binding_type() {
+        use typed_trees::statement::TableLocalData;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            builtin_type_symbols().into_iter().chain([
+                (SymbolKind::Local, SymbolNameRef::Static("capture")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("input")),
+            ]),
+        );
+        let u32_symbol = children.handle_at(7);
+        let local_symbol = children.handle_at(symbols::BUILTIN_TYPE_COUNT);
+        let input_symbol = children.handle_at(symbols::BUILTIN_TYPE_COUNT + 1);
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let carrier = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: u32_symbol,
+            name: Default::default(),
+        });
+        let reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: carrier,
+                access: ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let initial = typed
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+        let mut members = arena::HandleSpan::empty();
+        typed.expression_table.push_name_path_member(
+            &mut members,
+            typed_trees::name::Identifier::generated("input"),
+        );
+        let borrowed_name = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                symbol: input_symbol,
+                ..Default::default()
+            }));
+        let borrowed = [Slot {
+            symbol: input_symbol,
+            value_type: ValueType::plain(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+            )),
+            assignable: false,
+            homed: true,
+            erased: false,
+            borrowed: Some(ReferenceAccess::Shared),
+        }];
+        let local = TableLocalData {
+            symbol: local_symbol,
+            type_reference: carrier,
+            initial_value: initial,
+            is_operand_capture: true,
+            relevance: language_core::BindingRelevance::Relevant,
+            ..Default::default()
+        };
+        let mut program = Program::new(&typed, false);
+        let (slot, statement) = program.local(machine(), &[], &local).unwrap();
+        assert_eq!(
+            slot.value_type,
+            ValueType::plain(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
+            ))
+        );
+        assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
+        assert!(matches!(statement, crate::Statement::Bind { slot: 0, .. }));
+        let mut refusal = |local: &TableLocalData| {
+            program
+                .local(machine(), &borrowed, local)
+                .map(drop)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            refusal(&TableLocalData {
+                type_reference: reference,
+                initial_value: borrowed_name,
+                ..local.clone()
+            }),
+            "type reference"
+        );
+        assert_eq!(
+            refusal(&TableLocalData {
+                is_mutable: true,
+                ..local.clone()
+            }),
+            "statement operand capture without its immutable value binding"
+        );
+        assert_eq!(
+            refusal(&TableLocalData {
+                type_reference: TypeReferenceHandle::invalid(),
+                ..local.clone()
+            }),
+            "statement operand capture without its retained initializer and type"
+        );
+        assert_eq!(
+            refusal(&TableLocalData {
+                initial_value: ExpressionHandle::invalid(),
+                ..local
+            }),
+            "statement operand capture without its retained initializer and type"
+        );
+    }
+
     /// A type is `u32` by its builtin slot. A declaration spelled `u32` is a
     /// different symbol and is refused as nominal; a `Named` type with no
     /// symbol is refused as a spelling.
