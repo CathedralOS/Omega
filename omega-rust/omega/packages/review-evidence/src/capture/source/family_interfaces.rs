@@ -23,12 +23,11 @@ pub(in crate::capture) fn members<'a>(
         .collect::<Vec<_>>();
     let originals = compilation
         .custody
-        .typed
         .target_machine_families
         .iter()
         .filter(|family| family.canonical == machine.symbol)
         .collect::<Vec<_>>();
-    let original_machine = compilation.custody.typed.machine_by_symbol(machine.symbol);
+    let original_machine = compilation.custody.machine_by_symbol(machine.symbol);
     let derived = !machine.body_is_present && !families.is_empty();
     let originally_derived =
         original_machine.is_some_and(|original| !original.body_is_present) && !originals.is_empty();

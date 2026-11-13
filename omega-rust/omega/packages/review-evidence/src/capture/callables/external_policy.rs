@@ -15,10 +15,10 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_checked_external_supply_policy<'a>(
-    input: impl Into<PackageReviewInput<'a>>,
+    input: impl crate::IntoPackageReviewInput<'a>,
     symbol: SymbolHandle,
 ) -> Result<Vec<PackagePolicyExternalExecutableSupply>, Vec<Diagnostic>> {
-    let compilation = &input.into();
+    let compilation = &input.into_review_input()?;
     let Some(machine) = compilation.exact_machine(symbol) else {
         return Err(rejected("supply has no unique checked machine"));
     };

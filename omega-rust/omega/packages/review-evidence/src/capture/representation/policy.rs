@@ -21,10 +21,10 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_checked_representation_policy<'a>(
-    input: impl Into<PackageReviewInput<'a>>,
+    input: impl crate::IntoPackageReviewInput<'a>,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyRepresentation, Vec<Diagnostic>> {
-    let compilation = &input.into();
+    let compilation = &input.into_review_input()?;
     if !compilation
         .custody
         .sources()

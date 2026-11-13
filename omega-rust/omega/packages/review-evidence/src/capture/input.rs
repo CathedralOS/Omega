@@ -1,11 +1,15 @@
-//! Retained package inputs for projections that already have portable evidence.
-//!
-//! Nominal target proof reconstruction belonged to the deleted source checker;
-//! callers needing that evidence refuse until the lowered-form product supplies it.
+/*
+Review projection inputs retain their original query namespace. A frozen typed
+source and the route's verdict cannot stand in for the retired checker's
+original contract custody, so public construction now refuses explicitly.
+Fallible conversion preserves that error through every projection entrance.
+Legacy private readers never reinterpret a typed source as a CheckingInput.
+*/
 
 use checked_trees::CheckedTrees;
 use checked_trees::typed_trees::service_declarations::PreparedServiceCatalog;
 use compilation_products::CheckedCompilation;
+use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelection;
 use provider_planning::ProviderPlanningContext;
 use provider_planning::service_declarations::ServiceDeclarations;
@@ -35,22 +39,6 @@ pub struct SourceDeclarationInput<'a> {
 }
 
 impl<'a> SourceDeclarationInput<'a> {
-    pub(crate) fn checked(
-        program: &'a CheckedTrees,
-        sources: &'a package_compilation::CheckedSourceCustody,
-    ) -> Self {
-        Self {
-            program,
-            original_program: program,
-            checking_input: program,
-            original_checking_input: program,
-            mathematical_calls: None,
-            original_mathematical_calls: None,
-            package: sources.package_identity(),
-            exact_toolchain_sources: sources.exact_toolchain_sources(),
-        }
-    }
-
     pub(crate) fn original(self) -> Self {
         Self {
             program: self.original_program,
@@ -62,22 +50,16 @@ impl<'a> SourceDeclarationInput<'a> {
 }
 
 impl<'a> PackageReviewInput<'a> {
-    pub fn supplied(program: &'a CheckedTrees, custody: &'a CheckedCompilation) -> Self {
-        Self {
-            source: SourceDeclarationInput {
-                program,
-                original_program: custody,
-                checking_input: program,
-                original_checking_input: &**custody,
-                mathematical_calls: None,
-                original_mathematical_calls: None,
-                package: custody.sources().package_identity(),
-                exact_toolchain_sources: custody.sources().exact_toolchain_sources(),
-            },
-            custody,
-            external_providers: None,
-            service_declarations: None,
-        }
+    /// Typed source and a route verdict do not supply the retired checker's
+    /// original checking namespace. Review refuses until the route publishes
+    /// the contract custody this projection consumes.
+    pub fn supplied(
+        _program: &'a typed_trees::TypedTrees,
+        _custody: &'a CheckedCompilation,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Err(vec![Diagnostic::error(
+            "no product route yet: package review requires route-owned original contract custody",
+        )])
     }
 
     pub(super) fn project_external_providers(
@@ -170,15 +152,33 @@ impl<'a> SourceDeclarationInput<'a> {
     }
 }
 
-impl<'a> From<&'a CheckedCompilation> for PackageReviewInput<'a> {
-    fn from(compilation: &'a CheckedCompilation) -> Self {
-        Self::supplied(compilation, compilation)
+/// Converts review requests without substituting typed source for checked
+/// contract custody. Conversion failures remain the projection's full error.
+pub trait IntoPackageReviewInput<'a> {
+    fn into_review_input(self) -> Result<PackageReviewInput<'a>, Vec<Diagnostic>>;
+}
+
+impl<'a> IntoPackageReviewInput<'a> for &'a CheckedCompilation {
+    fn into_review_input(self) -> Result<PackageReviewInput<'a>, Vec<Diagnostic>> {
+        PackageReviewInput::supplied(self, self)
     }
 }
 
-impl<'a> From<&PackageReviewInput<'a>> for PackageReviewInput<'a> {
-    fn from(input: &PackageReviewInput<'a>) -> Self {
-        *input
+impl<'a> IntoPackageReviewInput<'a> for PackageReviewInput<'a> {
+    fn into_review_input(self) -> Result<PackageReviewInput<'a>, Vec<Diagnostic>> {
+        Ok(self)
+    }
+}
+
+impl<'a> IntoPackageReviewInput<'a> for &PackageReviewInput<'a> {
+    fn into_review_input(self) -> Result<PackageReviewInput<'a>, Vec<Diagnostic>> {
+        Ok(*self)
+    }
+}
+
+impl<'a> IntoPackageReviewInput<'a> for Result<PackageReviewInput<'a>, Vec<Diagnostic>> {
+    fn into_review_input(self) -> Result<PackageReviewInput<'a>, Vec<Diagnostic>> {
+        self
     }
 }
 
@@ -195,5 +195,24 @@ impl std::ops::Deref for SourceDeclarationInput<'_> {
 
     fn deref(&self) -> &Self::Target {
         self.program
+    }
+}
+
+#[cfg(test)]
+mod route_review_input_tests {
+    use super::*;
+
+    #[test]
+    fn failed_review_input_keeps_the_complete_projection_error() {
+        let input: Result<PackageReviewInput<'static>, Vec<Diagnostic>> =
+            Err(vec![Diagnostic::error(
+                "route contract custody is unavailable",
+            )]);
+        let errors = match input.into_review_input() {
+            Ok(_) => panic!("an unavailable input cannot produce a review namespace"),
+            Err(errors) => errors,
+        };
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].message, "route contract custody is unavailable");
     }
 }

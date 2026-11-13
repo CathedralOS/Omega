@@ -30,11 +30,11 @@ use target::TargetProfile;
 use trust_model::ProviderGrantSelectorKind;
 
 pub(crate) fn project_checked_selected_provider_policy<'a>(
-    input: impl Into<PackageReviewInput<'a>>,
+    input: impl crate::IntoPackageReviewInput<'a>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<(PackagePolicySelectedProviders, Vec<usize>), Vec<Diagnostic>> {
-    let input = input.into();
+    let input = input.into_review_input()?;
     let projected = input
         .external_providers
         .is_none()

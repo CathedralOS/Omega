@@ -38,7 +38,7 @@ pub(crate) fn validate_machine_operational(
         validate_authored_keywords(compilation, member)?;
         let (member_suspension, member_blocking) = operational_plans(compilation.program, member)?;
         validate_machine_operational_interfaces(member, member_suspension, member_blocking)?;
-        let original = operational_plans(compilation.custody, member)?;
+        let original = operational_plans(compilation.original_program, member)?;
         if (member_suspension, member_blocking) != original {
             return Err(rejected());
         }

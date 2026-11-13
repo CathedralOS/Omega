@@ -938,6 +938,33 @@ pub(crate) mod frozen {
     use crate::service_declarations::signatures::PreparedBoundarySignatures;
     use std::sync::{Arc, OnceLock};
 
+    /// Exact invocation-local custody of one immutable typed source owner.
+    /// This is an association, never a checking verdict or a content identity.
+    #[derive(Clone, Debug)]
+    pub struct ProductSourceIdentity(std::sync::Weak<FrozenTypedTrees>);
+
+    impl ProductSourceIdentity {
+        pub fn new(program: &Arc<FrozenTypedTrees>) -> Self {
+            Self(Arc::downgrade(program))
+        }
+
+        pub fn same_source(&self, other: &Self) -> bool {
+            std::sync::Weak::ptr_eq(&self.0, &other.0)
+        }
+
+        pub fn is_for(&self, program: &Arc<FrozenTypedTrees>) -> bool {
+            self.same_source(&Self::new(program))
+        }
+    }
+
+    impl PartialEq for ProductSourceIdentity {
+        fn eq(&self, other: &Self) -> bool {
+            self.same_source(other)
+        }
+    }
+
+    impl Eq for ProductSourceIdentity {}
+
     #[derive(Clone, Default)]
     pub struct FrozenTypedTrees(TypedTrees, OnceLock<Arc<PreparedBoundarySignatures>>);
 
@@ -1010,6 +1037,27 @@ pub(crate) mod frozen {
         use super::*;
 
         #[test]
+        fn source_identity_rejects_equal_content_in_another_allocation() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let other = Arc::new(owner.as_ref().clone());
+            let identity = ProductSourceIdentity::new(&owner);
+            assert!(identity.is_for(&owner));
+            assert!(!identity.is_for(&other));
+            assert_ne!(identity, ProductSourceIdentity::new(&other));
+        }
+
+        #[test]
+        fn source_identity_does_not_keep_the_source_alive() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let weak = Arc::downgrade(&owner);
+            let identity = ProductSourceIdentity::new(&owner);
+            let retained = identity.clone();
+            drop(owner);
+            assert!(weak.upgrade().is_none());
+            assert_eq!(identity, retained);
+        }
+
+        #[test]
         fn immutable_clones_share_census_but_reopened_source_does_not() {
             let frozen = FrozenTypedTrees::from(TypedTrees::default());
             let census = Arc::clone(frozen.boundary_signatures());
@@ -1029,7 +1077,7 @@ pub(crate) mod frozen {
     }
 }
 pub use data_definitions::DataDefinitionTable;
-pub use frozen::FrozenTypedTrees;
+pub use frozen::{FrozenTypedTrees, ProductSourceIdentity};
 pub use machine_declarations::MachineDeclarationTable;
 pub use machine_parameter_signatures::MachineParameterSignatureQueries;
 pub use spelled_declarations::SpelledDeclarationTable;

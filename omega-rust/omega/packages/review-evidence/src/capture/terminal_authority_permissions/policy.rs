@@ -18,11 +18,11 @@ use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
 pub fn project_checked_terminal_permission_policy<'a>(
-    input: impl Into<PackageReviewInput<'a>>,
+    input: impl crate::IntoPackageReviewInput<'a>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyTerminalPermissions, Vec<Diagnostic>> {
-    let input = input.into();
+    let input = input.into_review_input()?;
     let services = input
         .service_declarations
         .is_none()
