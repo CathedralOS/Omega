@@ -58,8 +58,8 @@ pub(crate) fn check_product_source(
     }
     // Every admitted native supply needs its exact boundary and signature for
     // calling-policy validation and trust disclosure, even when its target or
-    // requirement is unused. Keep that checked closure through subject
-    // projection just as for an ordinary provider selection.
+    // requirement is unused. Claim these source declarations alongside each
+    // ordinary provider selection in the structural judgment.
     selected.extend(
         build
             .native_bindings

@@ -385,10 +385,15 @@ impl CompilationSession {
             let mut requests = Vec::new();
             for (owner, selected) in self.select_build_batch(pending, None) {
                 let request = match selected.result {
-                    Ok(selected) => Ok(crate::product_execution::ProductRequest::Component {
-                        checked: selected.into_checked_compilation(),
-                        retain_native_inputs: owner.2.is_some(),
-                    }),
+                    Ok(selected) => selected
+                        .into_checked_compilation()
+                        .map(
+                            |checked| crate::product_execution::ProductRequest::Component {
+                                checked,
+                                retain_native_inputs: owner.2.is_some(),
+                            },
+                        )
+                        .map_err(crate::CompilationProductError::Production),
                     Err(failure) => Err(crate::CompilationProductError::Production(
                         failure.into_diagnostics(),
                     )),

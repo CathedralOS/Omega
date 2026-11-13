@@ -40,6 +40,21 @@ impl ProductTerminalPublication {
         self
     }
 
+    pub fn require_source_owner(
+        &self,
+        source: &Arc<typed_trees::FrozenTypedTrees>,
+    ) -> Result<(), Diagnostic> {
+        let accepted = self.accepted.as_ref().ok_or_else(|| {
+            Diagnostic::error("no product route yet: the source has no retained accepted judgment")
+        })?;
+        if !Arc::ptr_eq(source, accepted.source()) {
+            return Err(Diagnostic::error(
+                "no product route yet: product publication retains a different frozen source owner",
+            ));
+        }
+        Ok(())
+    }
+
     pub fn accepted(&self) -> Result<&psi_compiler::AcceptedTerminalSource, Vec<Diagnostic>> {
         // The factory seals the judged module with the empty Psi execution
         // record. A requested transform needs its own evidence transport.

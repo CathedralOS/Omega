@@ -240,7 +240,7 @@ impl SelectedProductTarget {
     pub(crate) fn finish_check(mut self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         let terminal = crate::terminal::check_terminal_conditions(&mut self.custody)?;
         self.check_declaration_requirements(terminal.as_ref().map(|product| product.module()))?;
-        Ok(self.into_checked_compilation())
+        self.into_checked_compilation()
     }
 
     pub(crate) fn check_declaration_requirements(
@@ -262,7 +262,7 @@ impl SelectedProductTarget {
         )
     }
 
-    pub(crate) fn into_checked_compilation(self) -> CheckedCompilation {
+    pub(crate) fn into_checked_compilation(self) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         checked_compilation(self.custody, self.independent_components)
     }
 }
@@ -480,7 +480,7 @@ fn select_product_providers(
 fn checked_compilation(
     selection: SelectedProviderCustody,
     independent_components: Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
-) -> CheckedCompilation {
+) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let SelectedProviderCustody {
         terminal_publication,
         source_completion_accounting,
@@ -507,7 +507,7 @@ fn checked_compilation(
         timings,
         terminal_publication,
     )
-    .with_source_completion_accounting(source_completion_accounting)
+    .map(|checked| checked.with_source_completion_accounting(source_completion_accounting))
 }
 
 pub(crate) fn select_product_target(
