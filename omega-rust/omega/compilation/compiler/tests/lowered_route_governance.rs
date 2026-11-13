@@ -1,19 +1,12 @@
-//! Which checker's verdict a Product compilation reports while both ship.
+//! The lowered-form checker's verdict is the product compilation's verdict.
 //!
-//! The owner ruled on 2026-11-12 (`lowered-route-governance-scope`): the
-//! current checker judges the Build program and the target's entry-contract
-//! source, the checker on the lowered form judges everything else, and a
-//! compilation routes on the new verdict only when both accept
-//! (`wiki/drafts/designs/check_on_lowered_form.md`, "The gate"). These run the
+//! The owner ruled on 2026-11-12 that the old checker is removed now
+//! (`wiki/drafts/designs/check_on_lowered_form.md`, "The gate"): the checker
+//! on the lowered form decides every product compilation before Psi 05 is
+//! given the trees, and a program it cannot judge is refused. These run the
 //! product check itself, so they pin what the default compile reports, not
-//! what a harness computes beside it.
-//!
-//! A program the route accepts and the current checker rejects outside the
-//! Build program and the entry contract fails with an error that opens with
-//! `NO_PRODUCT_ROUTE`: no product exists yet for it. No corpus program is
-//! known to reach that case now that name resolution refuses a repeated
-//! local, so the unit tests of `lowered_route::govern` pin it, with the rest
-//! of the decision.
+//! what a harness computes beside it. The unit tests of `lowered_route` pin
+//! the refusal and the "no product route yet" case.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -29,8 +22,8 @@ const NO_PRODUCT_ROUTE: &str = "no product route yet";
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-/// The current checker's rejection of `fixture` as the product check reports
-/// it, and the route's own verdict on what that check claims.
+/// The rejection of `fixture` as the product check reports it, and the
+/// route's own verdict on what that check claims.
 fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
     let main = repo_root().join(fixture).join("main.omg");
     // Discovery and checking recurse deeply; give them the compiler worker's
@@ -77,10 +70,10 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
     )
 }
 
-/// Both checkers reject a loop whose arrival invariant is unproved: the
-/// route judges it, so the route's diagnostics are reported.
+/// A loop whose arrival invariant is unproved is rejected with the route's
+/// diagnostics.
 #[test]
-fn a_rejection_both_checkers_make_is_reported_as_the_route_reports_it() {
+fn a_rejection_is_reported_as_the_route_reports_it() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
         rejected("tests/omega/fail/termination/productive_scalar_loop_arrival_unproved");
@@ -105,11 +98,10 @@ fn a_rejection_both_checkers_make_is_reported_as_the_route_reports_it() {
     );
 }
 
-/// A bound entry that returns a value fails both the current entry check and
-/// the route's source-owned calling shape. The current rejection stands and
-/// the route's independently established diagnostic remains visible.
+/// A bound entry that returns a value fails the route's source-owned calling
+/// shape, and the compilation reports that diagnostic.
 #[test]
-fn an_invalid_bound_entry_reports_both_checkers_rejections() {
+fn an_invalid_bound_entry_reports_the_routes_rejection() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
         rejected("tests/omega/fail/build/unrequested_target_entry_returns_value");
