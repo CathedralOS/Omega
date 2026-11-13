@@ -72,9 +72,9 @@ The crate is organized along that lifecycle:
   interpreter's root structural parameter after normal return.
 - `calling_policy_execution.rs` executes retained Terminal calling-policy
   machines on canonical ABI signatures without re-entering the source compiler.
-- `via_binding_evaluation.rs` runs each ordinary source `via` producer once, for
-  Build admission and for the compiler's Product preparation, and hands the
-  result to provider planning to retain.
+- `via_binding_evaluation.rs` retains genuine no-producer source rosters and refuses
+  ordinary `via` execution without accepted invocation custody, before Product
+  provider preparation can use a binding table.
 */
 
 mod activation;
@@ -126,4 +126,4 @@ pub use provider_planning::program_entry::{
     program_entry_semantic_binding_role, selected_program_entry_machine,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
-pub use via_binding_evaluation::evaluate_checked_via_bindings;
+pub use via_binding_evaluation::prepare_source_via_bindings;

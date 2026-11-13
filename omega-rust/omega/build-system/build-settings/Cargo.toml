@@ -27,7 +27,6 @@ package-compilation = { path = "../../packages/package-compilation" }
 provider-planning = { path = "../../compilation/realization/provider-planning" }
 provider-admission = { path = "../../compilation/realization/provider-admission" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
-selected-dispatch = { path = "../../compilation/realization/selected-dispatch" }
 target = { path = "../../compilation/backend/target" }
 runtime-abi = { path = "../../compilation/backend/runtime/runtime-abi" }
 trust-model = { path = "../../compilation/realization/trust-model" }
@@ -40,5 +39,4 @@ layout-plans = { path = "../../../psi/foundation/layout-plans" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
-checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 build-declarations = { path = "../../packages/build-declarations" }
