@@ -83,11 +83,15 @@ ownership, and borrow obligations remain independently enforced.
 
 A carrier-generic domain family has a separately applied carrier at each use.
 Sharing its definition does not transfer membership between those carriers.
-Possible restrictions to all integer, signed integer, or unsigned integer
-carriers are discussed in the unaccepted
-[arbitrary-width integer proposal](../../proposals/0008_arbitrary_width_integers.md#carrier-families-and-domains).
-That proposal neither permits concrete cross-carrier membership nor admits
-arbitrary integer widths into the language.
+Requirements may restrict that carrier to the
+[integer families](numeric_values.md#integer-carrier-families), using ordinary
+generic constraints and checked type-classification metadata. Establish carrier
+eligibility before checking the value predicate; an unsigned-only domain
+applied to a signed carrier is an invalid application, not an empty domain.
+Neither a positive signed value nor matching physical bits supplies the missing
+carrier eligibility. Valid carrier applications retain their separate domain
+identities and ordinary membership/establishment/access rules. See
+[generic carrier constraints](generics.md#integer-carrier-constraints).
 
 Scalar interval relationships use ordinary propositions, not a bracketed type
 suffix (`scalar-range-contract-spelling`). Put field relationships in the

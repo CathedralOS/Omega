@@ -105,6 +105,12 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Lowering, checker, and data-flow
 
+- **WIDTH-INDEXED-INTEGERS.** Deliver `u<N>`/`i<N>` and concrete-width shorthand as one integer family ([contract and acceptance](wiki/spec/language/numeric_values.md#width-indexed-integers)). Extend shared carrier identity, literal/query/conversion handling, lowered-form proofs, versioned Psi encodings and multiword realization; no per-width source tables or hidden allocation. Run non-byte-width arithmetic and fixed multiword customers, not only constant folding.
+  Acceptance: width-one, modulo-13 shifts, 65/257-bit runtime arithmetic, generic widths, layouts/recasts, foreign/atomic refusal and resource controls satisfy the spec through Psi and native execution on hosted targets, with matching Omega-written compiler semantics. Raise genuine unspecified language decisions in `OWNER_QUESTIONS.md`; unsupported implementation is not a new semantic rule.
+
+- **INTEGER-CARRIER-FAMILY-CONSTRAINTS.** Supply the four [integer-family classifiers](wiki/spec/language/numeric_values.md#integer-carrier-families) through authoritative metadata and ordinary checked library contracts. Generalize type refinement and domain admission so carrier eligibility is checked before value predicates, without name magic, implicit implementation search or enumerating widths.
+  Acceptance: generic nonzero/signed/unsigned/fixed-width uses work for their admitted carriers; signed-to-unsigned-domain application, fake classifier, missing fixed-width premise and invalid value predicates reject for distinct obligations. Preserve exact domain carriers and authority; exercise arbitrary widths as WIDTH-INDEXED-INTEGERS lands. New semantic holes go to `OWNER_QUESTIONS.md`.
+
 - **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/drafts/designs/operation_arithmetic_policy.md).
   Acceptance: draft fixtures pass `--both`; `source/psi` has no `in Trapping`.
 
@@ -172,6 +178,7 @@ Write each item so any agent can start from it alone: current state, files and e
   Acceptance: `modules/`, `runtime_index_application`, `selected_value_application`, `inferred_array_equation_call`, and finite-family fixtures pass `--both`.
 
 - **DOMAIN-ACCESS-AUTHORITY.** (covers **DOMAIN-CARRIER-FORMATION**, **NOMINAL-FIELD-FLOW**, **DOMAIN-ISSUER-ROUTES**) Complete [carrier membership](wiki/spec/language/domains.md#carrier-exact-membership), `[u8; N] in D`, [domain `access Policy`](wiki/spec/resources/access.md), and [repair facts](wiki/drafts/designs/invariant_repair_facts.md).
+  - `access Policy` is read: the parser takes the clause, name resolution selects the one named implementation it names, and the typed trees carry it on the domain (`typed_trees::domain::DomainDefinition::issuance`, `compiler/tests/domain_access_policy.rs`). A policy's plan is not evaluated (**EARLY-TERMINAL-JOBS**), so such a domain's issuance is `Planned` and a reader must admit no issuer for it; a policy applied at static arguments (`IssuedBy<..>`) is a deferred refusal on its domain. Next, in order: account for `=D -D +D` in typing (`domain_cast_accounting::account` refuses every one), read `T in D` and judge `as +D` in the lowered-form checker (`structure-elaboration/src/read/{types,casts}.rs` refuse both by name), move core's `AccessPlan` to the spec's `AccessPlan::new(&schema, issuance)`, then migrate the `established by` declarations and delete that clause.
   Acceptance: [domain_carrier_identity](samples/cli/facts/domain_carrier_identity/README.md), Dungeon Crawler, [controlled cell](wiki/language_guide/chapter_8_domains.md#read-and-write-authority), `bodyless_owner_establishment` and `non_owning_reference_erasure` pass `--both`.
 
 - **TERMINATION-RANKING-CHECKS.** (covers **GENERAL-CYCLIC-EXECUTION**, **CRASH-CONTRACT**, **OUTCOME-SPECIFIC-CALL-EVIDENCE**, **UNREACHABLE-BRANCH-DIAGNOSTICS**) Complete [termination](wiki/spec/language/termination.md) (`ranking_range/calls.rs`, `value_origins.rs`), crash/outcome evidence (`operator_crashes.rs`), and [unreachable warnings](wiki/spec/language/state_contracts.md#unreachable-branches).

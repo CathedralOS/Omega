@@ -120,6 +120,18 @@ impl Region {
         self.whole = self.base && self.unavailable_children == 0;
     }
 
+    /// What both regions hold available: every part either has vacated is
+    /// vacant.
+    fn intersection(&self, other: &Region) -> Region {
+        let mut both = self.clone();
+        let mut vacated = Vec::new();
+        other.vacancies(&mut Vec::new(), &mut vacated);
+        for path in vacated {
+            both.set(&path, false);
+        }
+        both
+    }
+
     fn vacancies(&self, prefix: &mut Vec<Segment>, output: &mut Vec<Vec<Segment>>) {
         if !self.base {
             output.push(prefix.clone());
@@ -154,10 +166,10 @@ struct State {
 impl State {
     /// The frontier two arrivals at one block agree on. A root one arrival
     /// no longer owns (its home was consumed by a whole transfer, or it was
-    /// disposed of) is not owned at the join. Two arrivals that both own a
-    /// root must own the same region of it: equalizing a partial move would
-    /// discard a residual while keeping the home, which no consumer of the
-    /// cleanup schedule accepts yet.
+    /// disposed of) is not owned at the join. Of a root both still own, the
+    /// join owns the part both own: a part one arrival moved out is vacant
+    /// there, and the arrival that still holds it discards it on its edge
+    /// and keeps the home (`Analysis::walk`).
     fn meet(&self, other: &State) -> Result<State, Error> {
         if self.regions.len() != other.regions.len() {
             return Err(Error::Malformed("two arrivals track different places"));
@@ -167,10 +179,7 @@ impl State {
             .iter()
             .zip(&other.regions)
             .map(|pair| match pair {
-                (Some(mine), Some(theirs)) if mine == theirs => Ok(Some(mine.clone())),
-                (Some(_), Some(_)) => Err(Error::Unsupported(
-                    "different partial affine frontiers at a reconvergence",
-                )),
+                (Some(mine), Some(theirs)) => Ok(Some(mine.intersection(theirs))),
                 _ => Ok(None),
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -792,8 +801,18 @@ impl Analysis<'_> {
                 let raw = index(place.get())?;
                 if let Some(region) = &outgoing.regions[raw] {
                     let read_there = needed.is_some_and(|needed| needed.contains(place));
-                    let owned = owned_there.is_none_or(|there| there.regions[raw].is_some());
-                    if read_there && owned {
+                    let there = owned_there.map(|there| there.regions[raw].as_ref());
+                    if read_there && there.is_none_or(|there| there.is_some()) {
+                        if let Some(Some(there)) = there
+                            && there != region
+                        {
+                            let discards = self.equalize(place, region, there)?;
+                            residual_budget = residual_budget.checked_sub(discards.len()).ok_or(
+                                Error::Malformed("affine residual partition exceeds its output"),
+                            )?;
+                            actions.extend(discards);
+                            outgoing.regions[raw] = Some(there.clone());
+                        }
                         retained.push(place);
                     } else {
                         let disposal = self.dispose(place, region, residual_budget)?;
@@ -1037,6 +1056,56 @@ impl Analysis<'_> {
         Ok(actions)
     }
 
+    /// Discards what `held` still holds of `place` and the join does not
+    /// (`joined`, a region within it), keeping the home: each vacancy of the
+    /// join this arrival still holds whole is one residual discard, the
+    /// same consumption a projected move performs. A vacancy this arrival
+    /// holds only part of is refused; its exact complement is not yet
+    /// partitioned here.
+    fn equalize(
+        &self,
+        place: PlaceId,
+        held: &Region,
+        joined: &Region,
+    ) -> Result<Vec<TerminalAffineCleanupAction>, Error> {
+        let info = self
+            .root(place)?
+            .ok_or(Error::Malformed("missing affine owner"))?;
+        let mut vacated = Vec::new();
+        joined.vacancies(&mut Vec::new(), &mut vacated);
+        let mut actions = Vec::new();
+        for path in vacated {
+            if held.vacant(&path) {
+                continue;
+            }
+            if path.is_empty() || !held.available(&path) {
+                return Err(Error::Unsupported(
+                    "a partly moved region at a reconvergence",
+                ));
+            }
+            let storage = crate::canonical_structural_storage_path(
+                self.types.iter(),
+                info.structural_type,
+                &path,
+            )
+            .ok_or(Error::Malformed("moved region has no typed storage path"))?;
+            let (_, declaration) = crate::canonical_static_projection(
+                self.types.iter(),
+                info.structural_type,
+                &storage,
+            )
+            .ok_or(Error::Malformed("moved region has no structural type"))?;
+            actions.push(TerminalAffineCleanupAction::DiscardResidual(
+                terminal_psi::StructuralAffineDiscard {
+                    place,
+                    path: storage,
+                    structural_type: declaration.id,
+                },
+            ));
+        }
+        Ok(actions)
+    }
+
     fn root(&self, root: PlaceId) -> Result<Option<&Root>, Error> {
         self.roots
             .get(index(root.get())?)
@@ -1173,5 +1242,22 @@ mod tests {
         assert_eq!(vacancies, [vec![field(1), field(2)]]);
         value.set(&[field(1), field(2)], true);
         assert_eq!(value, Region::new(true));
+    }
+
+    #[test]
+    fn a_join_owns_only_what_every_arrival_still_owns() {
+        let mut moved_a = Region::new(true);
+        moved_a.set(&[field(1)], false);
+        let mut moved_b = Region::new(true);
+        moved_b.set(&[field(2)], false);
+        let joined = moved_a.intersection(&moved_b);
+        assert!(!joined.available(&[field(1)]));
+        assert!(!joined.available(&[field(2)]));
+        assert!(joined.available(&[field(3)]));
+        assert_eq!(joined, moved_b.intersection(&moved_a));
+        assert_eq!(Region::new(true).intersection(&moved_a), moved_a);
+        let mut vacancies = Vec::new();
+        joined.vacancies(&mut Vec::new(), &mut vacancies);
+        assert_eq!(vacancies, [vec![field(1)], vec![field(2)]]);
     }
 }

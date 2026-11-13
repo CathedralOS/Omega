@@ -337,3 +337,323 @@ fn whole_owned_transfers_consume_their_homes_once() {
         "an extra retirement of an already consumed home must still reject"
     );
 }
+
+/// A value moved on one path into a join, whole or in part, carried from the
+/// route's verdict through publication, Omega 00, Omega 01's ownership
+/// validation and the interpreter. `flag && takes(owned)` moves `owned`
+/// into `takes` only when `flag` holds; the arrival that did not move it
+/// discards the same storage on its edge, so both enter the join with one
+/// frontier.
+mod transferred_on_one_path {
+    use semantic_vocabulary::{
+        IdTable, IntegerSign, IntegerType, IntegerValue, PsiSemanticId, ScalarType,
+    };
+    use structure_elaboration::{
+        Body, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
+        SourceOrigin, Statement, Target, Termination, Unpositioned, ValueType,
+    };
+
+    use super::{
+        NoEffects, RouteVerdict, TerminalExecution, TerminalExecutionStatus,
+        TerminalStructuralInputs,
+    };
+
+    fn id<T: PsiSemanticId>(raw: u64) -> T {
+        T::new(raw).unwrap()
+    }
+
+    const SOURCE: SourceOrigin = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
+
+    fn number() -> ValueType {
+        ValueType::Scalar(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+        ))
+    }
+
+    fn boolean() -> ValueType {
+        ValueType::Scalar(ScalarType::Boolean)
+    }
+
+    /// `Inner { number: u64 }`, record 1, and `Pair { a: Inner, b: Inner }`,
+    /// record 2, neither `[copy]`.
+    fn records() -> IdTable<semantic_vocabulary::StructuralTypeId, RecordType> {
+        let field = |raw, identity: &str, value_type| RecordField {
+            id: id(raw),
+            identity: identity.into(),
+            value_type,
+        };
+        let mut records = IdTable::default();
+        records.push(RecordType {
+            copyable: false,
+            identity: "Inner".into(),
+            shape: structure_elaboration::StorageShape::Record(vec![field(3, "number", number())]),
+            requires: Vec::new(),
+        });
+        records.push(RecordType {
+            copyable: false,
+            identity: "Pair".into(),
+            shape: structure_elaboration::StorageShape::Record(vec![
+                field(1, "a", ValueType::Record(id(1))),
+                field(2, "b", ValueType::Record(id(1))),
+            ]),
+            requires: Vec::new(),
+        });
+        records
+    }
+
+    fn expression(kind: ExpressionKind, result: Option<ValueType>) -> Expression {
+        Expression {
+            kind,
+            result,
+            source: SOURCE,
+        }
+    }
+
+    fn slot(slot: usize, value_type: ValueType) -> Expression {
+        expression(ExpressionKind::Slot(slot), Some(value_type))
+    }
+
+    fn field(base: Expression, field: usize, value_type: ValueType) -> Expression {
+        expression(
+            ExpressionKind::Field {
+                base: Box::new(base),
+                field,
+            },
+            Some(value_type),
+        )
+    }
+
+    fn invoke(callee: u64, arguments: Vec<Expression>, result: ValueType) -> Expression {
+        expression(
+            ExpressionKind::Call {
+                callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+                arguments,
+                designated: None,
+            },
+            Some(result),
+        )
+    }
+
+    fn finish(value: Expression) -> Statement {
+        Statement::Arm {
+            guard: None,
+            target: Target::Value(value),
+            source: SOURCE,
+        }
+    }
+
+    fn inner(value: u64) -> Expression {
+        expression(
+            ExpressionKind::Record {
+                fields: vec![(
+                    0,
+                    expression(
+                        ExpressionKind::Integer(IntegerValue::Unsigned(value.into())),
+                        Some(number()),
+                    ),
+                )],
+            },
+            Some(ValueType::Record(id(1))),
+        )
+    }
+
+    /// Machine 1 binds `owned` (slot 0) from machine 3 and `flag` (slot 1)
+    /// from machine 4, evaluates `flag && takes(moved)`, where machine 2 is
+    /// `takes`, and returns `result`. `whole` makes `owned` an `Inner` moved
+    /// whole; otherwise it is a `Pair` whose field `a` is moved.
+    fn judged(
+        whole: bool,
+        result: Expression,
+    ) -> Result<RouteVerdict, terminal_check_tables::Refusal> {
+        let owned_type = ValueType::Record(id(if whole { 1 } else { 2 }));
+        let inner_type = ValueType::Record(id(1));
+        let moved = if whole {
+            slot(0, owned_type)
+        } else {
+            field(slot(0, owned_type), 0, inner_type)
+        };
+        let made = if whole {
+            inner(7)
+        } else {
+            expression(
+                ExpressionKind::Record {
+                    fields: vec![(0, inner(7)), (1, inner(9))],
+                },
+                Some(owned_type),
+            )
+        };
+        let mut bodies = IdTable::default();
+        bodies.push(Body {
+            slots: vec![owned_type, boolean()],
+            statements: vec![
+                Statement::Bind {
+                    slot: 0,
+                    value: invoke(3, Vec::new(), owned_type),
+                },
+                Statement::Bind {
+                    slot: 1,
+                    value: invoke(4, Vec::new(), boolean()),
+                },
+                Statement::Evaluate(expression(
+                    ExpressionKind::ShortCircuit {
+                        conjunction: true,
+                        left: Box::new(slot(1, boolean())),
+                        right: Box::new(invoke(2, vec![moved], boolean())),
+                    },
+                    Some(boolean()),
+                )),
+                finish(result),
+            ],
+        });
+        bodies.push(Body {
+            slots: vec![inner_type],
+            statements: vec![finish(expression(
+                ExpressionKind::Boolean(true),
+                Some(boolean()),
+            ))],
+        });
+        bodies.push(Body {
+            slots: Vec::new(),
+            statements: vec![finish(made)],
+        });
+        bodies.push(Body {
+            slots: Vec::new(),
+            statements: vec![finish(expression(
+                ExpressionKind::Boolean(true),
+                Some(boolean()),
+            ))],
+        });
+        let mut signatures = IdTable::default();
+        for (parameters, result) in [
+            (Vec::new(), number()),
+            (vec![inner_type], boolean()),
+            (Vec::new(), owned_type),
+            (Vec::new(), boolean()),
+        ] {
+            signatures.push(Signature {
+                parameters,
+                erased: Vec::new(),
+                borrowed: Vec::new(),
+                result: Some(result),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                reaches: structure_elaboration::Ceiling::Inferred,
+                invokes: structure_elaboration::Ceiling::Inferred,
+                crashes: CrashCeiling::Authored(Vec::new()),
+                termination: Termination::Silent,
+            });
+        }
+        lowered_discharge::judge(structure_elaboration::lower_bodies(
+            id(1),
+            &bodies,
+            &signatures,
+            &records(),
+        ))
+    }
+
+    /// The accepted program published, lowered by Omega 00, verified by
+    /// Omega 01 and run to completion.
+    fn carried_through(
+        verdict: Result<RouteVerdict, terminal_check_tables::Refusal>,
+    ) -> terminal_psi::TerminalModule {
+        let closure = match verdict {
+            Ok(RouteVerdict::Accepted(closure)) => closure,
+            other => panic!("the program must be accepted: {other:?}"),
+        };
+        let publication = closure.publish().expect("publication");
+        let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
+            publication.artifact.semantic_module(),
+            publication.seals.clone(),
+        )
+        .expect("Omega 00 carries the join's disposal")
+        .into_optimization_artifact()
+        .into_optimization_input();
+        let (_, unit) =
+            abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+                input,
+                psi_work::WorkSchedule::CURRENT.identity(),
+            )
+            .expect("Omega 01 builds the unit")
+            .into_parts();
+        // Default compilation does not re-verify its own stage output, so the
+        // ownership replay that checks each edge's cleanup and each join's
+        // agreement runs here, as at a trust boundary.
+        optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
+            &unit,
+            &[],
+        )
+        .expect("one ownership frontier at the join");
+        let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
+            .expect("the module encodes");
+        let mut execution =
+            TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
+                .expect("the interpreter loads the module");
+        let status = execution
+            .resume(
+                &mut psi_work::WorkMeter::with_budget(1_000_000),
+                &mut NoEffects,
+            )
+            .expect("the program executes");
+        assert!(
+            matches!(status, TerminalExecutionStatus::Complete(_)),
+            "{status:?}"
+        );
+        publication.artifact.semantic_module().clone()
+    }
+
+    fn a_use_after_transfer(verdict: Result<RouteVerdict, terminal_check_tables::Refusal>) -> bool {
+        matches!(verdict, Ok(RouteVerdict::Rejected { unestablished, .. })
+            if unestablished.iter().any(|used| used.detail
+                == "owned storage is used after its value was transferred or consumed"))
+    }
+
+    #[test]
+    fn a_value_moved_whole_on_one_path_is_disposed_of_on_the_other() {
+        let constant = || {
+            expression(
+                ExpressionKind::Integer(IntegerValue::Unsigned(0)),
+                Some(number()),
+            )
+        };
+        carried_through(judged(true, constant()));
+        assert!(a_use_after_transfer(judged(
+            true,
+            field(slot(0, ValueType::Record(id(1))), 0, number())
+        )));
+    }
+
+    #[test]
+    fn a_field_moved_on_one_path_is_discarded_on_the_other_and_its_sibling_stays_owned() {
+        let pair = || slot(0, ValueType::Record(id(2)));
+        let inner_type = ValueType::Record(id(1));
+        let module = carried_through(judged(
+            false,
+            field(field(pair(), 1, inner_type), 0, number()),
+        ));
+        // The arrival that did not move `a` discards it on its edge and keeps
+        // the home, which `b` still occupies.
+        assert!(
+            module.machines[0]
+                .blocks
+                .iter()
+                .flat_map(|block| block.terminator.cleanup_rosters())
+                .any(|(_, actions)| {
+                    actions.iter().any(|action| {
+                        matches!(
+                            action,
+                            terminal_psi::TerminalAffineCleanupAction::DiscardResidual(_)
+                        )
+                    }) && !actions.iter().any(|action| {
+                        matches!(
+                            action,
+                            terminal_psi::TerminalAffineCleanupAction::RetireHome(_)
+                        )
+                    })
+                })
+        );
+        assert!(a_use_after_transfer(judged(
+            false,
+            field(field(pair(), 0, inner_type), 0, number())
+        )));
+    }
+}

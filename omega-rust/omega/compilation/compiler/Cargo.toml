@@ -148,6 +148,12 @@ path = "tests/checked_projection.rs"
 name = "route_probe"
 path = "tests/route_probe.rs"
 
+# A domain's `access Policy` clause reaches the typed trees as the named
+# implementation it selects, and a policy declared nowhere stops the program.
+[[test]]
+name = "domain_access_policy"
+path = "tests/domain_access_policy.rs"
+
 # The checker on the lowered form judges every declaration a check claims: a
 # defect in a machine the entry never calls is rejected or handed back, never
 # accepted.

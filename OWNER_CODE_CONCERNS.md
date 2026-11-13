@@ -67,6 +67,20 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### Core's `AccessPlan` and `AccessPolicy` are the superseded layout-containing shape
+- Category: one idea, several implementations
+- Where: `source/library/core/layout.omg` (`AccessPlan`, `AccessPlan::inaccessible`, `AccessPolicy::plan(schema: Schema)`); `wiki/spec/resources/access.md`, "Plans and admitted supply"
+- Saw: the spec's plan is `AccessPlan::new(&schema, issuance)` over `reflect::TypeSchema` with `Issuance::Only`/`Unrestricted`, `allow_readers`, `allow_writers`, `IssuedBy` and `IssuedByAny`; core still declares a plan that contains a `LayoutPlan`, takes `layout::Schema`, and has no issuance at all, and `alloc/vec.omg` and `samples/cli/probes/layout_access_plan` are written against it
+- Cost: a domain's `access Policy` clause now reaches the typed trees, but no policy in the library can state an issuance, so every domain that selects one stays "planned" and nobody can be shown to issue it
+- Reported: 2026-11-13, Claude Code, while reading a domain's `access` clause
+
+### Typing refuses every program that writes `=D`, `-D` or `+D`
+- Category: a verdict with nothing behind it
+- Where: `omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (`domain_cast_accounting::account`)
+- Saw: the parser reads domain-cast entries, and typing then returns a whole-program "domain cast operand accounting" error for the first one it meets, in any declaration, reached or not; the accounting needs the operand's complete qualified type, which the deleted checker computed
+- Cost: no program holding a domain cast reaches the lowered-form checker, so the judgment of `as +D` cannot be built or tested there until accounting has an owner or the refusal moves onto the declaration as a deferred row
+- Reported: 2026-11-13, Claude Code, while reading a domain's `access` clause
+
 ### Constant operands are still read from a table keyed by spelling
 - Category: a verdict with nothing behind it
 - Where: `02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs` (`module_constants::lexical_integer_const_values`), built at five call sites in `preparation_const_evaluation.rs`, `preparation_generic_data.rs` and `preparation_machine_equations.rs` and handed to `evaluate_const_argument_expression` and the fact evaluators
