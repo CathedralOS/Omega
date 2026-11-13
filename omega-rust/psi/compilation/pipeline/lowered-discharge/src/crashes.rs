@@ -33,13 +33,18 @@ itself.
 
 use semantic_vocabulary::{BlockId, CrashCause, MachineId, ObligationId, OperationId, Proposition};
 use terminal_check_tables::obligations::CrashSite;
-use terminal_check_tables::{Checked, Construct, RefusalReason};
-use terminal_psi::{CrashRouteBucket, CrashRouteGuard, OperationKind, TerminalMachine, Terminator};
+use terminal_check_tables::{Checked, Construct, MachineTables, RefusalReason};
+use terminal_psi::{
+    CrashRouteBucket, CrashRouteGuard, TargetMachineCallable, TerminalMachine, TerminalModule,
+    Terminator,
+};
 
 use crate::refusal;
 
 pub(crate) fn coverage_goal(
+    module: &TerminalModule,
     lowered: &TerminalMachine,
+    tables: &MachineTables,
     id: MachineId,
     obligation: ObligationId,
     site: CrashSite,
@@ -48,7 +53,9 @@ pub(crate) fn coverage_goal(
     let concerns = Construct::Obligation(obligation);
     let guard = match site {
         CrashSite::Block(block) => block_site(lowered, id, concerns, block, cause)?,
-        CrashSite::Operation(operation) => operation_site(lowered, id, concerns, operation, cause)?,
+        CrashSite::Operation(operation) => {
+            operation_site(module, lowered, tables, id, concerns, operation, cause)?
+        }
     };
     let coverage = coverage(&lowered.contract.crash_routes, cause);
     Ok(match guard {
@@ -94,7 +101,9 @@ fn route(continuations: &[CrashRouteBucket], cause: CrashCause) -> Option<Propos
 /// A call operation that may crash with `cause`: its guard is the callee's
 /// route.
 fn operation_site(
+    module: &TerminalModule,
     lowered: &TerminalMachine,
+    tables: &MachineTables,
     id: MachineId,
     concerns: Construct,
     operation: OperationId,
@@ -105,33 +114,39 @@ fn operation_site(
         .iter()
         .flat_map(|block| &block.operations)
         .find(|candidate| candidate.id == operation);
-    match found.map(|found| &found.kind) {
-        Some(
-            OperationKind::Call {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallUnit {
-                crash_continuations,
-                ..
-            },
-        ) => route(crash_continuations, cause)
-            .map(Guard::Route)
-            .ok_or_else(|| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    id,
-                    concerns,
-                    "the operation is not a call that may crash with this cause",
-                )
-            }),
-        _ => Err(refusal(
+    let refuse = || {
+        refusal(
             RefusalReason::ForeignIdentity,
             id,
             concerns,
             "the operation is not a call that may crash with this cause",
-        )),
-    }
+        )
+    };
+    let inputs = found
+        .and_then(|operation| operation.kind.declared_invocation())
+        .ok_or_else(refuse)?;
+    let guard = match inputs.callee {
+        TargetMachineCallable::Machine(_) => {
+            route(inputs.crash_continuations, cause).ok_or_else(refuse)?
+        }
+        TargetMachineCallable::Boundary(boundary) => {
+            // Interface calls keep their ceiling on the declaration. Bind it
+            // through the same scalar substitution as call requirements; an
+            // unavailable actual must not turn a possible crash into none.
+            let declaration = module.boundary_machine(boundary).ok_or_else(refuse)?;
+            let guard = route(&declaration.crash_routes, cause).ok_or_else(refuse)?;
+            crate::substitute(
+                &guard,
+                &mut crate::ScalarActuals {
+                    actuals: inputs.arguments,
+                    result: None,
+                    tables,
+                },
+            )
+            .map_err(|unbound| unbound.refusal(id, concerns))?
+        }
+    };
+    Ok(Guard::Route(guard))
 }
 
 /// The guard of a block site: a `Crash` terminator's clauses, or a no-normal

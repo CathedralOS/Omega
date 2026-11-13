@@ -56,7 +56,7 @@ fn slot(slot: usize, scalar_type: ScalarType) -> Expression {
 fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> Expression {
     expression(
         ExpressionKind::Call {
-            callee: id(callee),
+            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments,
         },
         result,
@@ -192,6 +192,11 @@ fn lower_records(
 ) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(body);
+    let boundary_signatures = IdTable::default();
+    let signatures = crate::body::Signatures {
+        machines: signatures,
+        boundaries: &boundary_signatures,
+    };
     let declared = crate::lower::places::declare(
         id(1),
         records,
@@ -1166,7 +1171,15 @@ fn outcomes_follow_the_ceiling_or_the_body() {
                 ..signature(Vec::new(), None)
             });
         }
-        let table = outcomes(&bodies, &signatures, &[]).unwrap();
+        let table = outcomes(
+            &bodies,
+            crate::body::Signatures {
+                machines: &signatures,
+                boundaries: &IdTable::default(),
+            },
+            &[],
+        )
+        .unwrap();
         [1, 2].map(|raw| table.get(id(raw)).unwrap().clone())
     };
     let [caller_outcome, callee_outcome] = run(CrashCeiling::Inferred, CrashCeiling::Inferred);
@@ -1209,7 +1222,15 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
                 ..signature(Vec::new(), None)
             });
         }
-        outcomes(&bodies, &signatures, &[]).map(|table| table.get(id(1)).unwrap().clone())
+        outcomes(
+            &bodies,
+            crate::body::Signatures {
+                machines: &signatures,
+                boundaries: &IdTable::default(),
+            },
+            &[],
+        )
+        .map(|table| table.get(id(1)).unwrap().clone())
     };
     let quiet = || Vec::new();
     let crashing = || vec![crash_arm(None, CrashCause::Trap)];
@@ -1262,7 +1283,15 @@ fn a_skipped_operand_cannot_end_the_machine() {
         termination: Termination::Silent,
         ..signature(Vec::new(), Some(ScalarType::Boolean))
     });
-    let table = outcomes(&bodies, &signatures, &[]).unwrap();
+    let table = outcomes(
+        &bodies,
+        crate::body::Signatures {
+            machines: &signatures,
+            boundaries: &IdTable::default(),
+        },
+        &[],
+    )
+    .unwrap();
     assert_eq!(
         table.get(id(1)).unwrap(),
         &Outcome {
@@ -1588,7 +1617,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                 5,
                 of_type(
                     ExpressionKind::Call {
-                        callee: id(2),
+                        callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                         arguments: Vec::new(),
                     },
                     point(),

@@ -15,8 +15,9 @@ fields and no case, a sum has cases and no field.
 */
 
 use semantic_vocabulary::{
-    CrashCause, IntegerValue, MachineId, PlaceId, Proposition, ScalarType, StructuralCaseId,
-    StructuralFieldId, StructuralTypeId, ValueId,
+    BoundaryMachineId, CrashCause, IdTable, IntegerValue, MachineId, PlaceId, Proposition,
+    ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId, TargetMachineCallable,
+    ValueId,
 };
 use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;
@@ -236,6 +237,38 @@ pub struct Signature {
     pub termination: Termination,
 }
 
+/// Borrow the one signature representation across the two actual declaration
+/// namespaces. A boundary signature remains a contract; looking it up neither
+/// creates a machine body nor selects a provider.
+#[derive(Clone, Copy)]
+pub(crate) struct Signatures<'a> {
+    pub machines: &'a IdTable<MachineId, Signature>,
+    pub boundaries: &'a IdTable<BoundaryMachineId, Signature>,
+}
+
+impl<'a> Signatures<'a> {
+    pub fn get(
+        self,
+        callable: TargetMachineCallable,
+        caller: MachineId,
+    ) -> terminal_check_tables::Checked<&'a Signature> {
+        match callable {
+            TargetMachineCallable::Machine(machine) => terminal_check_tables::row(
+                self.machines,
+                machine,
+                caller,
+                terminal_check_tables::Construct::Machine,
+            ),
+            TargetMachineCallable::Boundary(boundary) => terminal_check_tables::row(
+                self.boundaries,
+                boundary,
+                caller,
+                terminal_check_tables::Construct::Machine,
+            ),
+        }
+    }
+}
+
 /// One formal passed by reference.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Borrowed {
@@ -270,6 +303,16 @@ pub enum Termination {
 }
 
 impl Signature {
+    /// An interface cannot infer a ceiling from a body it does not own.
+    /// The selected declaration must supply the published routes explicitly.
+    pub fn declared_crash_routes(&self) -> Option<&[CrashRouteBucket]> {
+        match &self.crashes {
+            CrashCeiling::DeclaredNone => Some(&[]),
+            CrashCeiling::Authored(routes) => Some(routes),
+            CrashCeiling::Inferred => None,
+        }
+    }
+
     pub fn is_erased(&self, position: usize) -> bool {
         self.erased.binary_search(&position).is_ok()
     }
@@ -609,7 +652,7 @@ pub enum ExpressionKind {
     },
     /// A direct call: all arguments left to right, then the invocation.
     Call {
-        callee: MachineId,
+        callee: TargetMachineCallable,
         arguments: Vec<Expression>,
     },
 }

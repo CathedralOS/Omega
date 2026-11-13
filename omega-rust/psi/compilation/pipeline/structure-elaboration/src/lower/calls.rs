@@ -56,9 +56,12 @@ struct Arguments {
 
 impl Lowering<'_> {
     /// Evaluates a call's arguments left to right.
-    fn arguments(&mut self, callee: MachineId, arguments: &[Expression]) -> Checked<Arguments> {
-        let signature =
-            terminal_check_tables::row(self.signatures, callee, self.id, Construct::Machine)?;
+    fn arguments(
+        &mut self,
+        callee: semantic_vocabulary::TargetMachineCallable,
+        arguments: &[Expression],
+    ) -> Checked<Arguments> {
+        let signature = self.signatures.get(callee, self.id)?;
         let mut evaluated = Arguments {
             actuals: Vec::with_capacity(arguments.len()),
             scalars: Vec::new(),
@@ -182,11 +185,11 @@ impl Lowering<'_> {
         expression: &'e Expression,
     ) -> Checked<Option<(MachineId, &'e [Expression])>> {
         match &expression.kind {
-            ExpressionKind::Call { callee, arguments }
-                if !self.outcome(*callee)?.completes_normally =>
-            {
-                Ok(Some((*callee, arguments)))
-            }
+            ExpressionKind::Call {
+                callee: semantic_vocabulary::TargetMachineCallable::Machine(callee),
+                arguments,
+                ..
+            } if !self.outcome(*callee)?.completes_normally => Ok(Some((*callee, arguments))),
             ExpressionKind::Call { .. }
             | ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
@@ -221,7 +224,7 @@ impl Lowering<'_> {
         arguments: &[Expression],
         source: SourceOrigin,
     ) -> Checked<()> {
-        let arguments = self.arguments(callee, arguments)?;
+        let arguments = self.arguments(callee.into(), arguments)?;
         // A loan passed to a call that never returns is never returned to
         // its lender: the edge would have to account for it, which no
         // slice does yet.
@@ -242,7 +245,7 @@ impl Lowering<'_> {
         let edge = self.no_successor_edge(source)?;
         let requirements = self.invocation(
             InvocationSite::InvokeNoNormal(edge),
-            callee,
+            callee.into(),
             &arguments.actuals,
             before,
             source,
@@ -278,18 +281,15 @@ impl Lowering<'_> {
     fn invocation(
         &mut self,
         site: InvocationSite,
-        callee: MachineId,
+        callee: semantic_vocabulary::TargetMachineCallable,
         actuals: &[Actual],
         before: ProgramPoint,
         source: SourceOrigin,
     ) -> Checked<Vec<ObligationId>> {
-        let clauses =
-            terminal_check_tables::row(self.signatures, callee, self.id, Construct::Machine)?
-                .requires
-                .len();
+        let clauses = self.signatures.get(callee, self.id)?.requires.len();
         let invocation = self.tables.invocations.push(InvocationRow {
             site,
-            callee: Callee::Machine(callee),
+            callee: Callee::Declared(callee),
             actuals: actuals.to_vec(),
             requirements: Vec::new(),
         });
@@ -319,38 +319,57 @@ impl Lowering<'_> {
 
     pub(super) fn call(
         &mut self,
-        callee: MachineId,
+        callable: semantic_vocabulary::TargetMachineCallable,
         arguments: &[Expression],
         result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
-        // A call is an operation only when its callee may return. One with
-        // no normal completion is a terminator (`invoke_no_normal`), reached
-        // only in terminal position.
-        let outcome = self.outcome(callee)?;
-        if !outcome.completes_normally {
+        if let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callable {
+            // No-normal machine calls keep their existing terminator path.
+            // The boundary reader separately refuses external completions.
+            if !self.outcome(callee)?.completes_normally {
+                return Err(refuse(
+                    self.id,
+                    self.current.map_or(Construct::Machine, Construct::Block),
+                    Unserved::Call("no-normal call inside an expression"),
+                ));
+            }
+        }
+        if matches!(
+            callable,
+            semantic_vocabulary::TargetMachineCallable::Boundary(_)
+        ) && self.signature.termination != crate::Termination::Silent
+            && self.signatures.get(callable, self.id)?.termination == crate::Termination::Silent
+        {
             return Err(refuse(
                 self.id,
-                self.current.map_or(Construct::Machine, Construct::Block),
-                Unserved::Call("no-normal call inside an expression"),
+                Construct::Machine,
+                Unserved::Call(
+                    "a terminating caller needs the boundary's published termination guarantee",
+                ),
             ));
         }
-        let arguments = self.arguments(callee, arguments)?;
-        // A callee that may return and also publishes crash routes makes
-        // this operation a crash site: its routes, with each scalar formal
-        // replaced by the actual at its position, are the call's crash
-        // continuations, and the site owes one `CrashCoverage` per surviving
-        // cause, as an `InvokeNoNormal` terminator does at its block.
-        let crash_continuations = canonical::substituted_routes(
-            &self.outcome(callee)?.crash_routes,
-            &arguments.scalars,
-            self.id,
-        )?;
+        let arguments = self.arguments(callable, arguments)?;
+        let routes = match callable {
+            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
+                &self.outcome(callee)?.crash_routes[..]
+            }
+            semantic_vocabulary::TargetMachineCallable::Boundary(_) => self
+                .signatures
+                .get(callable, self.id)?
+                .declared_crash_routes()
+                .ok_or_else(|| self.internal("a boundary call has no published crash ceiling"))?,
+        };
+        // Both declarations owe the caller's same-cause coverage. A boundary
+        // retains these routes on its declaration instead of a second encoded
+        // continuation roster; the checker restates them at the actual call.
+        let crash_continuations =
+            canonical::substituted_routes(routes, &arguments.scalars, self.id)?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
         let requirements = self.invocation(
             InvocationSite::Operation(operation),
-            callee,
+            callable,
             &arguments.actuals,
             before,
             source,
@@ -373,16 +392,23 @@ impl Lowering<'_> {
         )?;
         let erased_arguments = arguments.erased;
         let scalars = arguments.scalars;
-        // Terminal Psi has one call operation per result lane, and the
-        // scalar-result form with no record argument is the plain `Call`.
-        let value = match result {
-            // The reader refuses a call whose result is rigid: its value
-            // would need a row that says so, which `emit` does not make.
-            Some(ValueType::Rigid(_)) => {
-                return Err(self.internal("a call returns a value of a rigid type"));
+        let kind = match callable {
+            semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
+                if !erased_arguments.is_empty() {
+                    return Err(self.internal("boundary call carries erased runtime operands"));
+                }
+                OperationKind::BoundaryCall {
+                    boundary,
+                    arguments: scalars,
+                    structural_arguments,
+                    completion_receipts: Vec::new(),
+                    requirement_obligations: requirements,
+                }
             }
-            Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
-                let kind = if structural_arguments.is_empty() {
+            semantic_vocabulary::TargetMachineCallable::Machine(callee) => match result {
+                Some(ValueType::Scalar(_) | ValueType::Qualified(..))
+                    if structural_arguments.is_empty() =>
+                {
                     OperationKind::Call {
                         callee,
                         arguments: scalars,
@@ -391,7 +417,8 @@ impl Lowering<'_> {
                         requirement_obligations: requirements,
                         crash_continuations,
                     }
-                } else {
+                }
+                Some(ValueType::Scalar(_) | ValueType::Qualified(..)) => {
                     OperationKind::CallStructuralScalar {
                         callee,
                         arguments: scalars,
@@ -402,13 +429,8 @@ impl Lowering<'_> {
                         requirement_obligations: requirements,
                         crash_continuations,
                     }
-                };
-                self.emit(operation, Some(scalar_type), kind)?
-            }
-            None => self.emit(
-                operation,
-                None,
-                OperationKind::CallUnit {
+                }
+                None => OperationKind::CallUnit {
                     callee,
                     arguments: scalars,
                     erased_arguments,
@@ -418,25 +440,36 @@ impl Lowering<'_> {
                     requirement_obligations: requirements,
                     crash_continuations,
                 },
-            )?,
+                Some(ValueType::Record(_)) => OperationKind::CallStructuralWithScalarArguments {
+                    callee,
+                    arguments: scalars,
+                    erased_arguments,
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments,
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: requirements,
+                    crash_continuations,
+                    selected_evidence: Vec::new(),
+                },
+                Some(ValueType::Rigid(_)) => {
+                    return Err(self.internal("a call returns a value of a rigid type"));
+                }
+            },
+        };
+        // The actual result keeps one constructor across both declaration
+        // classes; storage, unknown writes and loan restoration are shared.
+        let value = match result {
+            Some(ValueType::Scalar(scalar) | ValueType::Qualified(scalar, _)) => {
+                self.emit(operation, Some(scalar), kind)?
+            }
+            None => self.emit(operation, None, kind)?,
             Some(ValueType::Record(record)) => {
-                let (root, exact) = self.produce(
-                    operation,
-                    record,
-                    OperationKind::CallStructuralWithScalarArguments {
-                        callee,
-                        arguments: scalars,
-                        erased_arguments,
-                        erased_proof_arguments: Vec::new(),
-                        structural_arguments,
-                        claim_transfers: Vec::new(),
-                        requirement_obligations: requirements,
-                        crash_continuations,
-                        selected_evidence: Vec::new(),
-                    },
-                )?;
+                let (root, exact) = self.produce(operation, record, kind)?;
                 self.unknown_contents(exact, operation)?;
                 Value::Record(root)
+            }
+            Some(ValueType::Rigid(_)) => {
+                return Err(self.internal("a call returns a value of a rigid type"));
             }
         };
         self.returned_loans(&arguments.loans, operation)?;

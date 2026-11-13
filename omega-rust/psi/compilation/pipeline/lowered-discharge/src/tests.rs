@@ -25,6 +25,7 @@ use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 mod applications;
 mod arithmetic_policies;
 mod arrays;
+mod boundary_calls;
 mod build_purpose;
 mod empty_records;
 mod entry_inputs;
@@ -96,7 +97,7 @@ fn strict(operation: Strict, left: Expression, right: Expression) -> Expression 
 fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
     expression(
         ExpressionKind::Call {
-            callee: id(callee),
+            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments,
         },
         Some(u32_type()),
@@ -1918,7 +1919,7 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
                 2,
                 of_type(
                     ExpressionKind::Call {
-                        callee: id(3),
+                        callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                         arguments: Vec::new(),
                     },
                     point(),
@@ -2909,7 +2910,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                 4,
                 of_type(
                     ExpressionKind::Call {
-                        callee: id(2),
+                        callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                         arguments: vec![place(4, point())],
                     },
                     point(),
@@ -3924,7 +3925,7 @@ fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
                     0,
                     of_type(
                         ExpressionKind::Call {
-                            callee: id(2),
+                            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                             arguments: Vec::new(),
                         },
                         data(SPAN),
@@ -4533,7 +4534,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
                     0,
                     of_type(
                         ExpressionKind::Call {
-                            callee: id(3),
+                            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                             arguments: Vec::new(),
                         },
                         data(BOUNDED),
@@ -4586,7 +4587,7 @@ fn peek() -> Shaped {
 fn peeking(argument: Expression) -> Expression {
     of_type(
         ExpressionKind::Call {
-            callee: id(2),
+            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
             arguments: vec![argument],
         },
         u32_type().into(),
@@ -4634,7 +4635,7 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
             u32_type().into(),
             vec![returns(peeking(of_type(
                 ExpressionKind::Call {
-                    callee: id(3),
+                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                     arguments: Vec::new(),
                 },
                 point(),
@@ -4735,7 +4736,7 @@ fn taker(record: u64) -> Shaped {
 fn taking(callee: u64, argument: Expression) -> Expression {
     of_type(
         ExpressionKind::Call {
-            callee: id(callee),
+            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments: vec![argument],
         },
         u32_type().into(),

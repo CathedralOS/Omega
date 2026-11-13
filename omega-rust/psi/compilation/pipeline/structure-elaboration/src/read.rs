@@ -32,6 +32,7 @@ mod expressions;
 mod machine;
 mod places;
 mod reflection;
+mod services;
 mod source_records;
 mod statements;
 mod subjects;
@@ -39,7 +40,7 @@ mod transitions;
 mod types;
 
 use arena::Arena;
-use semantic_vocabulary::{CrashCause, IdTable, MachineId, StructuralTypeId};
+use semantic_vocabulary::{BoundaryMachineId, CrashCause, IdTable, MachineId, StructuralTypeId};
 use symbols::{SymbolHandle, SymbolKind};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::TypedTrees;
@@ -53,6 +54,19 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// Exact requirement declarations use their own canonical namespace and
+    /// the same formal/contract reader as body-backed machine declarations.
+    pub boundary_symbols: IdTable<BoundaryMachineId, SymbolHandle>,
+    pub boundary_signatures: IdTable<BoundaryMachineId, Signature>,
+    boundary_services: IdTable<BoundaryMachineId, semantic_vocabulary::ServiceId>,
+    services: IdTable<
+        semantic_vocabulary::ServiceId,
+        (
+            typed_trees::trait_definition::AppliedTraitScope<'t>,
+            Vec<semantic_vocabulary::ServiceId>,
+        ),
+    >,
+    resolving_services: Vec<SymbolHandle>,
     /// What diagnostics call each machine's constructs, pushed with its
     /// signature and completed as its body is read.
     pub names: IdTable<MachineId, crate::MachineNames>,
@@ -168,6 +182,11 @@ impl<'t> Program<'t> {
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            boundary_symbols: IdTable::default(),
+            boundary_signatures: IdTable::default(),
+            boundary_services: IdTable::default(),
+            services: IdTable::default(),
+            resolving_services: Vec::new(),
             names: IdTable::default(),
             rigid,
             requirements: Vec::new(),

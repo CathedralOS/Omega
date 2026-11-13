@@ -57,14 +57,7 @@ pub fn reverify(
                 "no such machine",
             )
         })?;
-    let prepared = crate::prepare(
-        &module.machines,
-        &module.structural_types,
-        domains,
-        machine,
-        tables,
-        Knowledge::All,
-    )?;
+    let prepared = crate::prepare(module, domains, machine, tables, Knowledge::All)?;
     let row = *terminal_check_tables::row(
         &tables.obligations,
         obligation,
@@ -82,7 +75,7 @@ pub fn reverify(
         &prepared.types,
     )?;
     let goal = crate::goal(
-        &module.machines,
+        module,
         lowered,
         &storage,
         machine,
@@ -134,7 +127,14 @@ pub fn reverify_at_call(
         Construct::Machine,
     )?;
     let row = terminal_check_tables::row(&tables.invocations, invocation, caller, concerns)?;
-    let callee = crate::callee(caller, invocation, &row.callee)?;
+    let terminal_psi::TargetMachineCallable::Machine(callee) =
+        crate::callee(&elaboration.module, caller, invocation, &row.callee)?
+    else {
+        return Err(refuse(
+            RefusalReason::Unsupported,
+            "an interface contract has no body proof to reuse",
+        ));
+    };
     let actuals = crate::scalar_actuals(&row.actuals);
     let verdicts =
         &terminal_check_tables::row(&discharge.machines, caller, caller, Construct::Machine)?
@@ -680,14 +680,7 @@ pub fn reverify_specialization(
                 "no such machine",
             )
         })?;
-    let prepared = crate::prepare(
-        &module.machines,
-        &module.structural_types,
-        domains,
-        specialization,
-        tables,
-        Knowledge::All,
-    )?;
+    let prepared = crate::prepare(module, domains, specialization, tables, Knowledge::All)?;
     let tables = &*tables;
     let lowered = crate::terminal_machine(&module.machines, specialization, specialization)?;
     let storage = crate::places::Storage::new(
@@ -742,7 +735,7 @@ pub fn reverify_specialization(
         }
         let verdict = (|| {
             let goal = crate::goal(
-                &module.machines,
+                module,
                 lowered,
                 &storage,
                 specialization,
@@ -1148,7 +1141,9 @@ impl Carry<'_> {
             self.specialization,
             concerns,
         )?;
-        let Callee::Machine(callee) = row.callee else {
+        let Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) =
+            row.callee
+        else {
             return Ok(None);
         };
         // A generic machine applied at this body's type parameters is held

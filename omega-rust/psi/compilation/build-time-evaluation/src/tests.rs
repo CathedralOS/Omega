@@ -193,3 +193,154 @@ fn retired_tree_receipts_cannot_be_decoded_as_canonical_scalar_receipts() {
             .contains("retired tree-evaluation receipt")
     );
 }
+
+/// Type `files` together as one retained base; the continuation is the
+/// base's pending evaluation.
+fn typed_base(
+    files: &[(&str, &str)],
+) -> (
+    std::sync::Arc<source::SourceMap>,
+    Vec<source::SourceId>,
+    symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    crate::PreCheckEvaluation,
+) {
+    let mut sources = source::SourceMap::from_files(Vec::new());
+    let mut identities = Vec::new();
+    let mut syntax: Option<syntax_trees::SyntaxTrees> = None;
+    for (path, text) in files {
+        let source_id = sources
+            .add(std::path::PathBuf::from(path), (*text).to_owned())
+            .source_id;
+        identities.push(source_id);
+        let tokens = source_files_to_tokens::Lexer::new(text)
+            .tokenize()
+            .expect("source lexes");
+        let page = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+            .expect("source parses");
+        match &mut syntax {
+            Some(syntax) => syntax.extend_from(&page),
+            None => syntax = Some(page),
+        }
+    }
+    let sources = std::sync::Arc::new(sources);
+    let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax.expect("at least one source"),
+        source_context: BuildTimeSources {
+            sources: Some(std::sync::Arc::clone(&sources)),
+            ..BuildTimeSources::default()
+        },
+    })
+    .expect("source is retained until its requests are typed");
+    let (syntax, pending) = evaluated.into_syntax_and_pre_check();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::clone(&sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        },
+    )
+    .expect("sources resolve");
+    let base =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(resolved)
+            .expect("sources reach the typed frontier");
+    (sources, identities, base, pending)
+}
+
+fn machine_names(typed: &typed_trees::TypedTrees) -> Vec<&str> {
+    let mut names = typed
+        .machines()
+        .iter()
+        .map(|machine| machine.name.as_str())
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names
+}
+
+#[test]
+fn an_activated_program_keeps_only_its_selected_sources() {
+    // A retained base holds two files and the program being compiled
+    // selects the first. The second file's machine and constant leave the
+    // program, and the constant's evaluation request stays with the base.
+    let (sources, identities, base, pending) = typed_base(&[
+        (
+            "program/main.omg",
+            "machine entry() {
+    local()
+}
+machine local() { }
+",
+        ),
+        (
+            "program/library.omg",
+            "machine unreached() { }
+const UNREACHED: u32 = 7;
+",
+        ),
+    ]);
+    assert_eq!(machine_names(base.typed()), ["entry", "local", "unreached"]);
+    assert_eq!(base.typed().const_declarations().len(), 1);
+
+    let mut selected = sources.as_ref().clone();
+    selected.retain_selected_sources(|file| file.source_id == identities[0]);
+    let selected = std::sync::Arc::new(selected);
+    let mut whole = base.typed().clone();
+    let activated = base
+        .activate_sources(
+            std::sync::Arc::clone(&selected),
+            std::sync::Arc::clone(&sources),
+            Vec::new(),
+        )
+        .expect("the selected program is narrowed out of its base");
+    assert_eq!(machine_names(activated.typed()), ["entry", "local"]);
+    assert!(activated.typed().const_declarations().is_empty());
+    assert_eq!(
+        activated
+            .resolved()
+            .roots
+            .machines
+            .iter()
+            .map(|root| activated.resolved().symbols.name(root.symbol))
+            .collect::<Vec<_>>(),
+        ["entry", "local"],
+        "a later continuation extends the same narrowed program"
+    );
+
+    let continuation = pending
+        .activate_sources(activated.typed())
+        .expect("the activated program asks for no evaluation");
+    let mut program = activated.typed().clone();
+    continuation
+        .evaluate(&mut program)
+        .expect("the activated program has no evaluation request");
+    // The base still owes its constant: no evaluator has run it.
+    let errors = pending
+        .evaluate(&mut whole)
+        .expect_err("the base's constant request is not erased");
+    assert!(errors[0].message.contains("source constant evaluation"));
+}
+
+#[test]
+fn an_activated_program_still_owes_the_constants_it_keeps() {
+    // The selected file declares the constant itself, so activation keeps it
+    // and the continuation refuses: nothing has evaluated it.
+    let (sources, identities, base, pending) = typed_base(&[
+        (
+            "program/main.omg",
+            "const KEPT: u32 = 7;\nmachine entry() { }\n",
+        ),
+        ("program/library.omg", "machine unreached() { }\n"),
+    ]);
+    let mut selected = sources.as_ref().clone();
+    selected.retain_selected_sources(|file| file.source_id == identities[0]);
+    let activated = base
+        .activate_sources(std::sync::Arc::new(selected), sources, Vec::new())
+        .expect("the selected program is narrowed out of its base");
+    assert_eq!(machine_names(activated.typed()), ["entry"]);
+    assert_eq!(activated.typed().const_declarations().len(), 1);
+    let errors = pending
+        .activate_sources(activated.typed())
+        .err()
+        .expect("a kept constant is an unserved evaluation request");
+    assert!(errors[0].message.contains("source constant evaluation"));
+}

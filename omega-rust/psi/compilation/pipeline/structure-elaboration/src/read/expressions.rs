@@ -269,7 +269,9 @@ impl<'t> Program<'t> {
                 );
                 return binary_expression(id, binary.operator, left, right, anonymous, source);
             }
-            ExpressionNode::Call(call) => return self.call_expression(id, slots, call, source),
+            ExpressionNode::Call(call) => {
+                return self.call_expression(id, slots, call, handle, source);
+            }
             ExpressionNode::TypeExpression(_) => return unserved("type expression"),
             ExpressionNode::Match(matched) => {
                 return self.match_expression(id, slots, matched, expected_scalar, source);
@@ -752,7 +754,10 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     arguments: b_arguments,
                 },
             ) => {
-                a == b
+                // A boundary may observe supplied state or issue a fresh
+                // host ticket. Equal syntax is not one observed result.
+                matches!(a, semantic_vocabulary::TargetMachineCallable::Machine(_))
+                    && a == b
                     && a_arguments.len() == b_arguments.len()
                     && a_arguments.iter().zip(b_arguments).all(|(a, b)| both(a, b))
             }

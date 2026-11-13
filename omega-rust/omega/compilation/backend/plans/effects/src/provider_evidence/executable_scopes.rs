@@ -713,13 +713,18 @@ fn inspect_boundary<'module>(
             kind: EvidenceGapKind::UnknownBoundaryService(boundary),
         });
     }
-    let mut invoked = declaration.fixed_service_reach.clone();
-    for service in invoked_services(module, declaration.owning_service) {
-        if !invoked.contains(&service) {
-            invoked.push(service);
-        }
-    }
-    for service in invoked {
+    // Catalogue ownership identifies the interface, not what it reaches.
+    // The published requirement ceiling remains binding even when a fixed
+    // contribution is narrower. Include both retained rows and their parent
+    // closure; neither a selected provider nor ownership can erase a promise.
+    for service in invoked_services(
+        module,
+        declaration
+            .published_service_ceiling
+            .iter()
+            .copied()
+            .chain(declaration.fixed_service_reach.iter().copied()),
+    ) {
         if exclusions.excludes_service(service) {
             report.prohibited.push(ProhibitedBehavior {
                 exclusion: BehaviorExclusion::Service(service),
@@ -774,9 +779,12 @@ fn inspect_boundary<'module>(
     }
 }
 
-fn invoked_services(module: &TerminalModule, owner: Option<ServiceId>) -> Vec<ServiceId> {
+fn invoked_services(
+    module: &TerminalModule,
+    roots: impl IntoIterator<Item = ServiceId>,
+) -> Vec<ServiceId> {
     let mut invoked = Vec::new();
-    let mut pending: Vec<_> = owner.into_iter().collect();
+    let mut pending: Vec<_> = roots.into_iter().collect();
     while let Some(service) = pending.pop() {
         if invoked.contains(&service) {
             continue;
@@ -817,4 +825,136 @@ pub fn authored_behavior_exclusion_set_in(
             .iter()
             .filter_map(|row| resolve_authored_behavior_exclusion(row, module)),
     )
+}
+
+#[cfg(test)]
+mod boundary_reach_tests {
+    use super::*;
+    use terminal_psi::{
+        BoundaryCompletion, BoundaryDeclarationRole, BoundaryMachineDeclaration,
+        BoundaryMachineResult, BoundaryRequirementKind, NominalDeclarationIdentity,
+        ServiceDeclaration, TerminalIdentityTableBuilder,
+    };
+
+    fn module() -> TerminalModule {
+        let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+        let mut identities = TerminalIdentityTableBuilder::default();
+        let owner = identities.intern("package:owner::Interface");
+        let parent = identities.intern("package:other::Parent");
+        let child = identities.intern("package:other::Child");
+        let callable = identities.intern("package:owner::Interface::read()");
+        module.identities = identities.build();
+        module.services = vec![
+            ServiceDeclaration {
+                id: ServiceId::new(1).unwrap(),
+                identity: owner,
+                parents: Vec::new(),
+            },
+            ServiceDeclaration {
+                id: ServiceId::new(2).unwrap(),
+                identity: parent,
+                parents: Vec::new(),
+            },
+            ServiceDeclaration {
+                id: ServiceId::new(3).unwrap(),
+                identity: child,
+                parents: vec![ServiceId::new(2).unwrap()],
+            },
+        ];
+        module.boundary_machines.push(BoundaryMachineDeclaration {
+            id: BoundaryMachineId::new(1).unwrap(),
+            declaration: None,
+            numeric_intrinsic: None,
+            role: BoundaryDeclarationRole::Callable,
+            kind: BoundaryRequirementKind::Trait,
+            completion: BoundaryCompletion::NormalReturn,
+            unconditional_termination: false,
+            identity: callable,
+            owner: NominalDeclarationIdentity::new(owner),
+            attachment: None,
+            parameter_order: Vec::new(),
+            scalar_parameters: Vec::new(),
+            crash_routes: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: BoundaryMachineResult::Unit,
+            result_reference_regions: Vec::new(),
+            requires: Vec::new(),
+            normal_qualifications: Vec::new(),
+            scalar_domain_requirements: Vec::new(),
+            scalar_requires: Vec::new(),
+            scalar_ensures: Vec::new(),
+            reference_outputs: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            fixed_service_reach: Vec::new(),
+            owning_service: Some(ServiceId::new(1).unwrap()),
+            published_service_ceiling: Vec::new(),
+        });
+        module
+    }
+
+    fn inspect(module: &TerminalModule, excluded: ServiceId) -> BehaviorExclusionReport {
+        let mut report = BehaviorExclusionReport::default();
+        inspect_boundary(
+            module,
+            MachineId::new(1).unwrap(),
+            MachineId::new(1).unwrap(),
+            BlockId::new(1).unwrap(),
+            InvocationSite::Operation(OperationId::new(1).unwrap()),
+            BoundaryMachineId::new(1).unwrap(),
+            &BehaviorExclusions::from_selections([BehaviorExclusion::Service(excluded)]),
+            &crate::SelectedProviderPlanFacts::default(),
+            "linux_x86_64",
+            &mut report,
+            &mut VecDeque::new(),
+        );
+        report
+    }
+
+    #[test]
+    fn boundary_exclusions_follow_declared_reach_without_implicit_ownership() {
+        let mut module = module();
+        let owner = ServiceId::new(1).unwrap();
+        let empty = inspect(&module, owner);
+        assert!(empty.prohibited.is_empty(), "{empty:?}");
+        assert!(empty.gaps.is_empty(), "{empty:?}");
+        module.boundary_machines[0].fixed_service_reach.push(owner);
+        let reached = inspect(&module, owner);
+        assert!(
+            reached
+                .prohibited
+                .iter()
+                .any(|row| row.exclusion == BehaviorExclusion::Service(owner)),
+            "{reached:?}"
+        );
+        module.boundary_machines[0].fixed_service_reach.clear();
+        module.boundary_machines[0]
+            .fixed_service_reach
+            .push(ServiceId::new(3).unwrap());
+        let reached = inspect(&module, ServiceId::new(2).unwrap());
+        assert!(
+            reached
+                .prohibited
+                .iter()
+                .any(|row| row.exclusion == BehaviorExclusion::Service(ServiceId::new(2).unwrap())),
+            "{reached:?}"
+        );
+        assert!(
+            inspect(&module, ServiceId::new(1).unwrap())
+                .prohibited
+                .is_empty()
+        );
+        module.boundary_machines[0].fixed_service_reach.clear();
+        module.boundary_machines[0]
+            .published_service_ceiling
+            .push(owner);
+        let report = inspect(&module, owner);
+        assert!(
+            report
+                .prohibited
+                .iter()
+                .any(|row| row.exclusion == BehaviorExclusion::Service(owner)),
+            "{report:?}"
+        );
+    }
 }

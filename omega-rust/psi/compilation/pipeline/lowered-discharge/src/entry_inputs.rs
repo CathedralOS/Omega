@@ -102,8 +102,7 @@ fn describe_calls(
     // untouched. No typed trees or completed proof products are copied.
     let mut tables = original.clone();
     let prepared = prepare(
-        &elaboration.module.machines,
-        &elaboration.module.structural_types,
+        &elaboration.module,
         &elaboration.domains,
         id,
         &mut tables,
@@ -135,7 +134,7 @@ fn describe_calls(
     let relations = knowledge != Knowledge::LiteralIntervals;
     joins::check(
         &joins::Machine {
-            machines: &elaboration.module.machines,
+            module: &elaboration.module,
             lowered,
             storage: &storage,
             id,
@@ -255,7 +254,7 @@ impl CallSites {
         };
         for (id, tables) in elaboration.tables.machines.iter() {
             if !tables.invocations.values().any(|call| {
-                matches!(call.callee, Callee::Machine(callee) if result.private.get(callee) == Some(&true))
+                matches!(call.callee, Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) if result.private.get(callee) == Some(&true))
             }) {
                 continue;
             }
@@ -286,7 +285,9 @@ impl CallSites {
                 }
             }
             for (invocation, call) in tables.invocations.iter() {
-                let Callee::Machine(callee) = call.callee else {
+                let Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) =
+                    call.callee
+                else {
                     continue;
                 };
                 if result.private.get(callee) != Some(&true) {
@@ -788,7 +789,10 @@ fn require(
             Construct::Invocation(invocation),
         )?
         .clone();
-        if call.callee != Callee::Machine(callee) || call.requirements.len() != previous.len() {
+        if call.callee
+            != Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee))
+            || call.requirements.len() != previous.len()
+        {
             return Err(refusal(
                 RefusalReason::ForeignIdentity,
                 caller.id,

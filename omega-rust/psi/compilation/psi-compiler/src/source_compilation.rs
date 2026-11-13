@@ -211,7 +211,6 @@ mod activation {
                 context.bindings.clone(),
                 observer,
             )?;
-            let original = typing.clone();
             let typing = typing.activate_sources(
                 Arc::clone(&sources),
                 Arc::clone(&request.sources),
@@ -253,7 +252,7 @@ mod activation {
             }
             let mut pre_checks = pending_pre_checks
                 .iter()
-                .map(|pending| pending.activate_sources(original.typed(), typing.typed()))
+                .map(|pending| pending.activate_sources(typing.typed()))
                 .collect::<Result<Vec<_>, _>>()?;
             let mut authority_miss = None;
             for pending in &mut pre_checks {

@@ -46,7 +46,7 @@ use terminal_check_tables::obligations::{Lender, ObligationKind};
 use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
-use terminal_psi::{StructuralAccess, TerminalMachine};
+use terminal_psi::StructuralAccess;
 
 use super::{Storage, index, lineage, overlap};
 
@@ -108,7 +108,11 @@ impl Storage<'_> {
     /// Recomputes every loan from the lowered form and refuses `tables`
     /// unless its `Loan` rows are exactly those, each once. Returns them in
     /// block and operation order, each call's loans in argument order.
-    fn formed(&self, machines: &[TerminalMachine], tables: &MachineTables) -> Checked<Vec<Formed>> {
+    fn formed(
+        &self,
+        module: &terminal_psi::TerminalModule,
+        tables: &MachineTables,
+    ) -> Checked<Vec<Formed>> {
         let mut claimed = vec![false; tables.obligations.len()];
         let mut formed = Vec::new();
         for block in &self.lowered.blocks {
@@ -120,10 +124,14 @@ impl Storage<'_> {
                     .iter()
                     .any(|argument| argument.access != StructuralAccess::Owned);
                 if lends {
-                    let Some(inputs) = operation.kind.module_invocation() else {
+                    let Some(inputs) = operation.kind.declared_invocation() else {
                         return Err(self.unsupported(concerns, "a loan to something not a call"));
                     };
-                    let callee = crate::terminal_machine(machines, inputs.callee, self.machine)?;
+                    let formals = module
+                        .callable_structural_parameters(inputs.callee)
+                        .ok_or_else(|| {
+                            self.foreign(concerns, "call has no canonical structural formals")
+                        })?;
                     let site = InvocationSite::Operation(operation.id);
                     let (invocation, row) = tables
                         .invocations
@@ -140,18 +148,14 @@ impl Storage<'_> {
                             Actual::Value(_) => None,
                         })
                         .collect();
-                    if places.len() != arguments.len()
-                        || callee.structural_parameters.len() != arguments.len()
-                    {
+                    if places.len() != arguments.len() || formals.len() != arguments.len() {
                         return Err(self.foreign(
                             concerns,
                             "an invocation row's places are not the call's structural arguments",
                         ));
                     }
-                    for ((argument, (position, place)), parameter) in arguments
-                        .iter()
-                        .zip(places)
-                        .zip(&callee.structural_parameters)
+                    for ((argument, (position, place)), parameter) in
+                        arguments.iter().zip(places).zip(formals)
                     {
                         let Some(access) = reference_access(argument.access) else {
                             continue;
@@ -270,10 +274,10 @@ impl Storage<'_> {
     /// refusal, listed once in the conflicts with what it conflicts with.
     pub(crate) fn loans(
         &self,
-        machines: &[TerminalMachine],
+        module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
-        let formed = self.formed(machines, tables)?;
+        let formed = self.formed(module, tables)?;
         let mut verdicts = Vec::with_capacity(formed.len());
         let mut conflicts = Vec::new();
         for (at, loan) in formed.iter().enumerate() {

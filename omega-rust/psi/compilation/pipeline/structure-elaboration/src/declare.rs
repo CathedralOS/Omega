@@ -152,24 +152,20 @@ fn declaration(
     let machine_identity = nominal(typed, sources, symbol, identities)?;
     let state_identity = nominal(typed, sources, state.symbol, identities)?;
 
-    let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
-    callable.hash(&mut commitment);
-    for (formal, type_text) in formals.iter().zip(&parameter_types) {
-        (
-            formal.is_mutable,
-            formal.is_const,
-            formal.relevance,
-            type_text,
-        )
-            .hash(&mut commitment);
-    }
-    result_type.hash(&mut commitment);
-    machine.contract.requires.hash(&mut commitment);
-    for clause in &machine.contract.ensures {
-        clause.proposition.hash(&mut commitment);
-    }
-    machine.contract.crash_routes.hash(&mut commitment);
-    signature.termination.hash(&mut commitment);
+    let contract = declaration_contract_commitment(
+        &callable,
+        formals,
+        &parameter_types,
+        &result_type,
+        &machine.contract.requires,
+        machine
+            .contract
+            .ensures
+            .iter()
+            .map(|clause| &clause.proposition),
+        &machine.contract.crash_routes,
+        signature.termination,
+    );
 
     Ok(CheckedMachineDeclaration {
         machine: NominalDeclarationIdentity::new(machine_identity),
@@ -181,7 +177,7 @@ fn declaration(
             .collect(),
         callable: identities.intern(&callable),
         result_type: identities.intern(&result_type),
-        contract: commitment.0.finish(),
+        contract,
         // The reader refuses a machine that declares `suspends` or `blocks`
         // (`read/machine.rs`, `machine_shape`), so every machine here
         // publishes neither.
@@ -189,6 +185,134 @@ fn declaration(
         published_may_block: false,
         specialization: None,
     })
+}
+
+/// A bodyless trait method retains its actual nominal owner and signature.
+/// There is no executable state to invent: the owning trait and requirement
+/// occupy the existing owner/entry coordinates of the declaration record.
+/// Provider checking and host installation still establish execution supply.
+pub(crate) fn boundary(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    signature: &Signature,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<
+    (
+        NominalDeclarationIdentity,
+        terminal_psi::CheckedBoundaryCallable,
+    ),
+    &'static str,
+> {
+    let (owner, requirement) = typed
+        .trait_machine_signature(symbol)
+        .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == symbol)
+        .ok_or("boundary declaration has no exact owning trait and requirement")?;
+    if !owner.type_parameters.is_empty()
+        || !owner.lifetime_parameters.is_empty()
+        || !requirement.type_parameters.is_empty()
+        || !requirement.lifetime_parameters.is_empty()
+    {
+        return Err("boundary declaration needs its complete applied telescope");
+    }
+    let sources =
+        source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            .map_err(|_| "a boundary toolchain source has no exact identity")?;
+    let owner_identity = nominal(typed, &sources, owner.symbol, identities)?;
+    let requirement_identity = nominal(typed, &sources, symbol, identities)?;
+    let semantic = match invocation_local(typed, symbol, identities)? {
+        Some(identity) => identity,
+        None => identities.intern(
+            &typed
+                .normalized_hermetic_symbol_identity(symbol)
+                .map_err(|_| "boundary requirement has no hermetic declaration identity")?,
+        ),
+    };
+    let formals = typed
+        .state_parameters
+        .span(requirement.parameters)
+        .ok_or("boundary requirement lost its complete parameter span")?;
+    let type_text = |reference| {
+        typed
+            .type_identity_text(typed.package_qualified_type_identity(reference))
+            .filter(|text| !text.is_empty())
+            .ok_or("boundary signature type has no exact identity")
+    };
+    let parameter_types = formals
+        .iter()
+        .map(|formal| type_text(formal.type_reference))
+        .collect::<Result<Vec<_>, _>>()?;
+    let result_type = type_text(requirement.return_type)?;
+    let callable = typed.trait_requirement_callable_identity_text(owner, requirement);
+    if callable.is_empty() {
+        return Err("boundary requirement has no canonical callable identity");
+    }
+    let contract = declaration_contract_commitment(
+        &callable,
+        formals,
+        &parameter_types,
+        &result_type,
+        &signature.requires,
+        signature.ensures.iter(),
+        signature
+            .declared_crash_routes()
+            .ok_or("boundary declaration has no published crash ceiling")?,
+        signature.termination,
+    );
+    let source = CheckedMachineDeclaration {
+        machine: NominalDeclarationIdentity::new(owner_identity),
+        state: NominalDeclarationIdentity::new(requirement_identity),
+        semantic_declaration: semantic,
+        parameter_types: parameter_types
+            .iter()
+            .map(|identity| identities.intern(identity))
+            .collect(),
+        callable: identities.intern(&callable),
+        result_type: identities.intern(&result_type),
+        contract,
+        published_may_suspend: requirement.suspends,
+        published_may_block: requirement.blocks,
+        specialization: None,
+    };
+    Ok((
+        NominalDeclarationIdentity::new(owner_identity),
+        terminal_psi::CheckedBoundaryCallable {
+            source,
+            execution: terminal_psi::CheckedBoundaryExecution::Provider,
+            method_arguments: Vec::new(),
+        },
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn declaration_contract_commitment<'a>(
+    callable: &str,
+    formals: &[typed_trees::signature::StateParameter],
+    parameter_types: &[String],
+    result_type: &str,
+    requires: &[semantic_vocabulary::Proposition],
+    ensures: impl IntoIterator<Item = &'a semantic_vocabulary::Proposition>,
+    crash_routes: &[terminal_psi::CrashRouteBucket],
+    termination: crate::Termination,
+) -> [u8; 32] {
+    let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
+    callable.hash(&mut commitment);
+    for (formal, type_text) in formals.iter().zip(parameter_types) {
+        (
+            formal.is_mutable,
+            formal.is_const,
+            formal.relevance,
+            type_text,
+        )
+            .hash(&mut commitment);
+    }
+    result_type.hash(&mut commitment);
+    requires.hash(&mut commitment);
+    for proposition in ensures {
+        proposition.hash(&mut commitment);
+    }
+    crash_routes.hash(&mut commitment);
+    termination.hash(&mut commitment);
+    commitment.0.finish()
 }
 
 /// The exact-owner identity of `symbol`: its package's, or its toolchain
