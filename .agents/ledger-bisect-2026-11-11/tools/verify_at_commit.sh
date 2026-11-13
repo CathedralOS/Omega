@@ -7,9 +7,13 @@ TRIALS="${3:-1}"
 ROOT="$(git rev-parse --show-toplevel)"
 TOOLCACHE="/tmp/ledger-bisect-tools"
 mkdir -p "$TOOLCACHE"
-cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/." "$TOOLCACHE/" 2>/dev/null || \
-  git -C "$ROOT" archive HEAD .agents/ledger-bisect-2026-11-11/tools | tar -x -C /tmp/.agents-tools-extract && \
-  cp -a /tmp/.agents-tools-extract/.agents/ledger-bisect-2026-11-11/tools/. "$TOOLCACHE/"
+if [[ -f "$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_test.py" ]]; then
+  cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/." "$TOOLCACHE/"
+else
+  rm -rf /tmp/ledger-tool-extract
+  git -C "$ROOT" archive HEAD .agents/ledger-bisect-2026-11-11/tools | tar -x -C /tmp/ledger-tool-extract
+  cp -a /tmp/ledger-tool-extract/.agents/ledger-bisect-2026-11-11/tools/. "$TOOLCACHE/"
+fi
 export BISECT_TOOLCACHE="$TOOLCACHE"
 
 WORK_ROOT="${LEDGER_BISECT_WORK:-$ROOT/.agents/ledger-bisect-2026-11-11/work}"
