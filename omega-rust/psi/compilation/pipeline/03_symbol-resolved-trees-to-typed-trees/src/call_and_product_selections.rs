@@ -1962,14 +1962,26 @@ pub(crate) mod construction_destinations {
             });
 
             // `owned = Record {}` is built at the type written on `owned`.
+            // Landing gives the literal its own occurrence of that type,
+            // which records the machine that owns its lifetimes
+            // (`land_one`, `fresh_occurrence`), so the two are the same
+            // type under different handles.
             let mut landed = program.clone();
             prepare(&mut landed, 0, 0, &[]).unwrap();
             assert!(landed.deferred_refusals.is_empty());
+            let required = landed
+                .expression_table
+                .construction_required_type_reference(value);
+            assert!(required.is_valid());
+            assert_eq!(
+                landed.type_reference_table.type_reference(required),
+                landed.type_reference_table.type_reference(record)
+            );
             assert_eq!(
                 landed
-                    .expression_table
-                    .construction_required_type_reference(value),
-                record
+                    .type_reference_table
+                    .operand_lifetime_owner(required),
+                writer
             );
 
             // The twins differ only in the place assigned: a field of the

@@ -48,6 +48,7 @@ use typed_trees::expression::{
 use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceNode;
 
+use super::authority::Access;
 use super::contracts::{ClauseScope, DataSubject, MathematicalTerms, ResultTerm};
 use super::{Program, Slot};
 use crate::body::{CaseType, Expression, ExpressionKind, RecordField, RecordType, ValueType};
@@ -545,7 +546,7 @@ impl Program<'_> {
                 "record pattern over a value that is not a place",
             )));
         }
-        let Some(ValueType::Record(record, _)) = subject.result else {
+        let Some(record) = self.opened(id, subject.result, Access::Read)? else {
             return Err(refused(Unserved::Typing(
                 "record pattern over a value that is not a record",
             )));
@@ -606,7 +607,7 @@ impl Program<'_> {
             ));
         }
         let base = self.expression(id, slots, member.receiver, None)?;
-        let Some(ValueType::Record(record, _)) = base.result else {
+        let Some(record) = self.opened(id, base.result, Access::Read)? else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -690,8 +691,10 @@ impl Program<'_> {
             }
             None => self.record(id, literal.type_symbol)?,
         };
-        let ValueType::Record(record, _) = result else {
-            return Err(typing("record literal of a scalar type"));
+        // A literal constructs the bare carrier: "Constructing a fresh valid
+        // carrier precedes establishing its qualification" (domains.md).
+        let ValueType::Record(record, Qualification::NONE) = result else {
+            return Err(typing("record literal of a scalar or a qualified type"));
         };
         for reference in applications {
             if reference.is_valid() {
@@ -820,7 +823,7 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let subject = self.expression(id, slots, subject, None)?;
-        let Some(ValueType::Record(record, _)) = subject.result else {
+        let Some(record) = self.opened(id, subject.result, Access::Read)? else {
             return Err(refuse(
                 id,
                 Construct::Machine,

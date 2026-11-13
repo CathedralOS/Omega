@@ -185,13 +185,13 @@ impl Program<'_> {
         }
         for domain in typed.domain_definitions() {
             if self.owner(entry, domain.symbol, subjects, purpose)? == Owner::Subject
-                && !tag_only(typed, domain)
+                && !judged_where_used(typed, domain)
             {
                 return Err(refuse(
                     entry,
                     Construct::Machine,
                     Unserved::Declaration(
-                        "domain with predicates, routes, a policy, operators or parameters",
+                        "domain with predicates, a cleanup machine, operators or parameters",
                     ),
                 ));
             }
@@ -364,21 +364,24 @@ fn names_only(data: &typed_trees::data::DataDefinition) -> bool {
         && data.retired_identities.is_empty()
 }
 
-/// Whether a domain declaration is a tag and nothing else, `domain i32::Km;`:
-/// no predicate, establishment route, access policy, cleanup selection,
-/// operator, alias or parameter. domains.md: "A declaration with neither
-/// predicates nor establishment routes adds no predicate or issuer
-/// obligation". Such a declaration has nothing to prove, so as a subject it
-/// is passed over; a type that names it resolves it where the type is read
-/// (`declared_domain`). Every other domain declaration of a subject is
-/// refused until the checker judges what it declares.
-fn tag_only(
+/// Whether everything a domain declaration says is judged where a value of
+/// the domain is used, so that as a subject it is passed over: a tag,
+/// `domain i32::Km;`, optionally with an access policy or establishment
+/// routes. It has no predicate, cleanup selection, operator, alias or
+/// parameter. A type that names it resolves it where the type is read
+/// (`declared_domain`).
+///
+/// A policy or a route list restricts who may add the domain, read inside
+/// a value of it and change one. Each of those uses asks the declaration
+/// where it occurs (`casts::issue`, `authority::authorized`), and an
+/// answer the checker cannot give refuses the use, so the declaration
+/// itself has nothing to prove. Every other domain declaration of a
+/// subject is refused until the checker judges what it declares.
+fn judged_where_used(
     typed: &typed_trees::TypedTrees,
     domain: &typed_trees::domain::DomainDefinition,
 ) -> bool {
     domain.alias.is_none()
-        && domain.access_policy.is_none()
-        && domain.establishment_routes.is_empty()
         && domain.cleanup_selection.is_none()
         && domain.facts.is_empty()
         && domain.predicate_presence == language_semantics::DomainPredicatePresence::Absent

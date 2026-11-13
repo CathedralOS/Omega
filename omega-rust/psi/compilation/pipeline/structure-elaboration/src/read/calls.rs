@@ -1239,6 +1239,11 @@ impl<'t> Program<'t> {
         if access == ReferenceAccess::Mutable && lender.borrowed.is_none() && !lender.assignable {
             return unserved("exclusive loan of an immutable binding");
         }
+        // An exclusive loan of a field hands its holder a write inside
+        // every value the path goes through.
+        if access != ReferenceAccess::Shared {
+            self.written_through(id, &place)?;
+        }
         // A scalar local that is an SSA value here gets a home for the loan;
         // its type's identity is the formal's referent identity, the same
         // scalar type.

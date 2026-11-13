@@ -16,6 +16,7 @@ use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{TableAssignment, TableLocalData};
 
+use super::authority::Access;
 use super::{Program, Slot};
 use crate::body::{ExpressionKind, Statement, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
@@ -49,6 +50,7 @@ impl Program<'_> {
                     return Err(unserved("whole assignment through a reference"));
                 }
                 let value_type = slots[slot].value_type;
+                self.authorized(id, value_type, Access::Replace)?;
                 let value = self.expression(id, slots, assignment.value, Some(value_type))?;
                 if value.result != Some(value_type) {
                     return Err(typing());
@@ -115,6 +117,8 @@ impl Program<'_> {
                 if !slots[slot].assignable {
                     return Err(unserved("store into an immutable binding"));
                 }
+                self.written_through(id, &place)?;
+                self.authorized(id, stored, Access::Replace)?;
                 let value = self.expression(id, slots, assignment.value, Some(stored))?;
                 if value.result != Some(stored) {
                     return Err(typing());
@@ -190,6 +194,7 @@ impl Program<'_> {
                 return unserved("uninitialized local without a declared type");
             }
             let value_type = self.value_type(id, local.type_reference)?;
+            self.zero_established(id, value_type)?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
                 // Its home would be declared with the identity of a

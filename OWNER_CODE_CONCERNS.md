@@ -67,6 +67,13 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### Nothing makes a new reader site ask before it looks inside a qualified data value
+- Category: a verdict with nothing behind it
+- Where: `structure-elaboration/src/read/` (`authority.rs`, and every `ValueType::Record(record, _)` pattern in `places.rs`, `expressions.rs`, `transitions.rs`, `arrays.rs`, `contracts.rs`, `statements.rs`)
+- Saw: a type is a carrier and its domains, and about thirty sites match the carrier and discard the domains with `_`. The sites that take a value apart now call `authority::opened`, but the pattern still compiles anywhere, and two sites were typing a literal with whatever qualified type its context expected until this change (`arrays.rs` array literal, `places.rs` record literal). A store's destination is also read through the expression reader, so it asks read authority where only write authority is owed.
+- Cost: the next site that projects, compares or constructs a record with `_` silently ignores a domain's reader, writer or issuer rule, and no test fails until someone writes the twin for that exact site
+- Reported: 2026-11-13, Claude Code, while reading declared domains on data carriers
+
 ### Core's `AccessPlan` and `AccessPolicy` are the superseded layout-containing shape
 - Category: one idea, several implementations
 - Where: `source/library/core/layout.omg` (`AccessPlan`, `AccessPlan::inaccessible`, `AccessPolicy::plan(schema: Schema)`); `wiki/spec/resources/access.md`, "Plans and admitted supply"
