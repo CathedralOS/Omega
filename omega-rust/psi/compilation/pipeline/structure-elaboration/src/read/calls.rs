@@ -287,6 +287,9 @@ impl<'t> Program<'t> {
         call: &TableCallExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        if let Some(description) = self.declaration_query(id, call, source)? {
+            return Ok(description);
+        }
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if call.installed_interrupt_operation.is_some() {
             return unserved("installed interrupt operation");
@@ -758,7 +761,7 @@ impl<'t> Program<'t> {
     /// rejects it after them, where a product selects the callee, so a
     /// reader that took every resolved call as permitted would accept a
     /// program that reaches into a dependency's private machine.
-    fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
+    pub(super) fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let Some(declaration) = self.typed.machine_by_symbol(callee) else {
             return unserved("target is not a machine declaration");
@@ -833,7 +836,7 @@ impl<'t> Program<'t> {
             read.push(if *erased {
                 self.erased_term(id, slots, *argument, formal.scalar())?
             } else if let Some(borrowed) = borrowed {
-                let (lent, lender) = self.lent(id, slots, *argument, borrowed)?;
+                let (lent, lender) = self.lent(id, slots, *argument, borrowed, *formal)?;
                 // Its position among the runtime actuals, as the invocation
                 // row counts them: erased arguments are not actuals.
                 let actual = formals[..read.len()]
@@ -843,10 +846,10 @@ impl<'t> Program<'t> {
                 lenders.push((actual, lender));
                 lent
             } else {
-                self.expression(id, slots, *argument, formal.scalar())?
+                self.expression(id, slots, *argument, Some(*formal))?
             });
         }
-        lent_storage_is_untouched(id, &read)?;
+        lent_storage_is_untouched(id, &read, &self.captures)?;
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
         {
@@ -902,9 +905,28 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         argument: ExpressionHandle,
         formal: &crate::body::Borrowed,
+        expected: ValueType,
     ) -> Checked<(Expression, String)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
+        if matches!(self.node(id, argument)?, ExpressionNode::String(_)) {
+            if formal.access != ReferenceAccess::Shared {
+                return unserved("byte literal cannot lend mutable storage");
+            }
+            let place = self.expression(id, slots, argument, Some(expected))?;
+            return Ok((
+                Expression {
+                    result: place.result,
+                    kind: ExpressionKind::Borrow {
+                        access: ReferenceAccess::Shared,
+                        place: Box::new(place),
+                        home: None,
+                    },
+                    source,
+                },
+                self.typed.expression_table.display_name(argument),
+            ));
+        }
         let (target, access) = match self.node(id, argument)? {
             ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
             ExpressionNode::Name(path) => {
@@ -934,7 +956,9 @@ impl<'t> Program<'t> {
         let slot = loop {
             match &at.kind {
                 ExpressionKind::Slot(slot) => break *slot,
-                ExpressionKind::Field { base, .. } => at = base,
+                ExpressionKind::Field { base, .. } | ExpressionKind::Index { base, .. } => {
+                    at = base
+                }
                 _ => return unserved("borrow of a case payload"),
             }
         };
@@ -980,42 +1004,104 @@ impl<'t> Program<'t> {
     }
 }
 
-/// The slot whose storage a place expression names.
-pub(super) fn root_slot(place: &Expression) -> Option<usize> {
-    match &place.kind {
-        ExpressionKind::Slot(slot) => Some(*slot),
-        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
-            root_slot(base)
+/// Resolve a captured subject through this reader's already-authenticated
+/// match scope. A missing, duplicated or cyclic capture cannot grant access.
+fn captured_subject<'a>(
+    id: MachineId,
+    capture: arena::Handle<typed_trees::expression::CompletedValueCapture>,
+    captures: &[(
+        arena::Handle<typed_trees::expression::CompletedValueCapture>,
+        &'a Expression,
+    )],
+) -> Checked<&'a Expression> {
+    let mut found = captures.iter().filter(|(known, _)| *known == capture);
+    let Some((_, subject)) = found.next() else {
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Call("saved subject outside its match capture"),
+        ));
+    };
+    if found.next().is_some() {
+        return Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Call("ambiguous saved subject capture"),
+        ));
+    }
+    Ok(subject)
+}
+
+/// The slot whose storage a place expression names. Captured index operands
+/// have already run; following their base retains storage provenance only.
+fn root_slot<'a>(
+    id: MachineId,
+    mut place: &'a Expression,
+    captures: &[(
+        arena::Handle<typed_trees::expression::CompletedValueCapture>,
+        &'a Expression,
+    )],
+) -> Checked<Option<usize>> {
+    let mut followed = 0;
+    loop {
+        match &place.kind {
+            ExpressionKind::Slot(slot) => return Ok(Some(*slot)),
+            ExpressionKind::Field { base, .. }
+            | ExpressionKind::Payload { base, .. }
+            | ExpressionKind::Index { base, .. } => place = base,
+            ExpressionKind::SavedSubject(capture) => {
+                followed += 1;
+                if followed > captures.len() {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Call("cyclic saved subject capture"),
+                    ));
+                }
+                place = captured_subject(id, *capture, captures)?;
+            }
+            _ => return Ok(None),
         }
-        _ => None,
     }
 }
 
-/// Refuses a call whose other arguments name storage one of its arguments
-/// lends. Arguments are evaluated left to right and each loan is formed
-/// where its argument stands (expressions.md, "Evaluation schedule";
-/// loans.md: "Loan formation captures a place"), so a read of a lent slot
-/// in a later argument would run while the loan is live, and a loan in an
-/// earlier argument's own call would end before this one forms. The
-/// lowered form forms every loan of a call at the call, which says neither,
-/// so such a call is left to the current checker. Two loans of one call are
-/// both at the call, and the checker judges them (`lowered-discharge`).
-fn lent_storage_is_untouched(id: MachineId, arguments: &[Expression]) -> Checked<()> {
-    let lent: Vec<usize> = arguments
+/// Arguments run left to right, but this lowering forms loans together at
+/// the call. Conservatively refuse any argument read or newly evaluated
+/// selector of a root this call lends, including reads before a loan. This
+/// preserves the existing restriction until loan timing is represented.
+fn lent_storage_is_untouched<'a>(
+    id: MachineId,
+    arguments: &'a [Expression],
+    captures: &'a [(
+        arena::Handle<typed_trees::expression::CompletedValueCapture>,
+        Expression,
+    )],
+) -> Checked<()> {
+    let mut captures: Vec<_> = captures
         .iter()
-        .filter_map(|argument| match &argument.kind {
-            ExpressionKind::Borrow { place, .. } => root_slot(place),
-            _ => None,
-        })
+        .map(|(capture, subject)| (*capture, subject))
         .collect();
+    let mut lent = Vec::new();
+    for argument in arguments {
+        if let ExpressionKind::Borrow { place, .. } = &argument.kind
+            && let Some(slot) = root_slot(id, place, &captures)?
+        {
+            lent.push(slot);
+        }
+    }
     if lent.is_empty() {
         return Ok(());
     }
     for argument in arguments {
-        if matches!(argument.kind, ExpressionKind::Borrow { .. }) {
-            continue;
-        }
-        if mentions(argument, &lent) {
+        if let ExpressionKind::Borrow { place, .. } = &argument.kind {
+            if selectors_mention(id, place, &lent, &mut captures)? {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("loan selector that names storage another argument lends"),
+                ));
+            }
+        } else if mentions(id, argument, &lent, &mut captures)? {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1026,11 +1112,51 @@ fn lent_storage_is_untouched(id: MachineId, arguments: &[Expression]) -> Checked
     Ok(())
 }
 
-/// Whether an expression names any of `slots`, anywhere inside it.
-fn mentions(expression: &Expression, slots: &[usize]) -> bool {
+/// A saved subject's selectors are captured, so they do not evaluate again.
+/// New index operands still run while earlier argument loans are live.
+fn selectors_mention<'a>(
+    id: MachineId,
+    place: &'a Expression,
+    slots: &[usize],
+    captures: &mut Vec<(
+        arena::Handle<typed_trees::expression::CompletedValueCapture>,
+        &'a Expression,
+    )>,
+) -> Checked<bool> {
+    match &place.kind {
+        ExpressionKind::Index { base, index } => {
+            Ok(selectors_mention(id, base, slots, captures)?
+                || mentions(id, index, slots, captures)?)
+        }
+        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+            selectors_mention(id, base, slots, captures)
+        }
+        ExpressionKind::SavedSubject(_) => {
+            root_slot(id, place, captures)?;
+            Ok(false)
+        }
+        _ => Ok(false),
+    }
+}
+
+/// A saved subject still reads its captured backing, but not its old selector.
+fn mentions<'a>(
+    id: MachineId,
+    expression: &'a Expression,
+    slots: &[usize],
+    captures: &mut Vec<(
+        arena::Handle<typed_trees::expression::CompletedValueCapture>,
+        &'a Expression,
+    )>,
+) -> Checked<bool> {
     match &expression.kind {
-        ExpressionKind::Slot(slot) => slots.contains(slot),
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) => false,
+        ExpressionKind::Slot(slot) => Ok(slots.contains(slot)),
+        ExpressionKind::SavedSubject(_) => {
+            Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))
+        }
+        ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::Boolean(_) => Ok(false),
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
@@ -1040,25 +1166,166 @@ fn mentions(expression: &Expression, slots: &[usize]) -> bool {
         | ExpressionKind::IsCase {
             subject: operand, ..
         }
-        | ExpressionKind::Borrow { place: operand, .. } => mentions(operand, slots),
+        | ExpressionKind::Borrow { place: operand, .. } => mentions(id, operand, slots, captures),
+        ExpressionKind::Array { elements } => {
+            for element in elements {
+                if mentions(id, element, slots, captures)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        }
+        ExpressionKind::Index { base, index } => {
+            Ok(mentions(id, base, slots, captures)? || mentions(id, index, slots, captures)?)
+        }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
-            fields.iter().any(|(_, operand)| mentions(operand, slots))
+            for (_, operand) in fields {
+                if mentions(id, operand, slots, captures)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
         }
         ExpressionKind::Match {
+            capture,
             subject,
             arms,
             default,
         } => {
-            mentions(subject, slots)
-                || arms.iter().any(|(_, arm)| mentions(arm, slots))
-                || default.as_ref().is_some_and(|arm| mentions(arm, slots))
+            if mentions(id, subject, slots, captures)? {
+                return Ok(true);
+            }
+            if let Some(capture) = capture {
+                captures.push((*capture, subject));
+            }
+            let result = (|| {
+                for (_, arm) in arms {
+                    if mentions(id, arm, slots, captures)? {
+                        return Ok(true);
+                    }
+                }
+                match default {
+                    Some(arm) => mentions(id, arm, slots, captures),
+                    None => Ok(false),
+                }
+            })();
+            if capture.is_some() {
+                captures.pop();
+            }
+            result
         }
         ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
-            mentions(left, slots) || mentions(right, slots)
+            Ok(mentions(id, left, slots, captures)? || mentions(id, right, slots, captures)?)
         }
         ExpressionKind::Call { arguments, .. } => {
-            arguments.iter().any(|argument| mentions(argument, slots))
+            for argument in arguments {
+                if mentions(id, argument, slots, captures)? {
+                    return Ok(true);
+                }
+            }
+            Ok(false)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Unpositioned;
+    use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
+
+    #[test]
+    fn saved_subject_reads_keep_loan_provenance_without_replaying_selectors() {
+        let id = MachineId::new(1).unwrap();
+        let mut typed = typed_trees::TypedTrees::default();
+        let marker = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let capture = typed.expression_table.insert_match_subject(marker);
+        let foreign = typed.expression_table.insert_match_subject(marker);
+        let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
+        let record = ValueType::Record(StructuralTypeId::new(1).unwrap());
+        let scalar = ValueType::Scalar(ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+        ));
+        let slot = |slot| Expression {
+            kind: ExpressionKind::Slot(slot),
+            result: Some(if slot == 1 {
+                scalar
+            } else if slot == 0 {
+                ValueType::Record(StructuralTypeId::new(2).unwrap())
+            } else {
+                record
+            }),
+            source,
+        };
+        let saved = |capture| Expression {
+            kind: ExpressionKind::SavedSubject(capture),
+            result: Some(record),
+            source,
+        };
+        let borrow = |place: Expression| {
+            let result = place.result;
+            Expression {
+                kind: ExpressionKind::Borrow {
+                    access: ReferenceAccess::Mutable,
+                    place: Box::new(place),
+                    home: None,
+                },
+                result,
+                source,
+            }
+        };
+        let payload = |capture| Expression {
+            kind: ExpressionKind::Payload {
+                base: Box::new(saved(capture)),
+                case: 0,
+                field: 0,
+            },
+            result: Some(scalar),
+            source,
+        };
+        let captures = vec![(
+            capture,
+            Expression {
+                kind: ExpressionKind::Index {
+                    base: Box::new(slot(0)),
+                    index: Box::new(slot(1)),
+                },
+                result: Some(record),
+                source,
+            },
+        )];
+        // The payload aliases the original array, but its selector was read
+        // before the call. Lending that selector's slot must not replay it.
+        let overlapping =
+            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(capture)], &captures)
+                .unwrap_err();
+        assert!(
+            overlapping
+                .detail
+                .contains("argument that names storage another argument lends")
+        );
+        assert!(
+            lent_storage_is_untouched(id, &[borrow(slot(1)), payload(capture)], &captures).is_ok()
+        );
+        assert!(
+            lent_storage_is_untouched(id, &[borrow(slot(2)), payload(capture)], &captures).is_ok()
+        );
+        let refused =
+            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(foreign)], &captures)
+                .unwrap_err();
+        assert!(refused.detail.contains("outside its match capture"));
+        assert!(
+            lent_storage_is_untouched(id, &[borrow(saved(capture)), payload(capture)], &captures)
+                .is_err()
+        );
+        assert!(
+            lent_storage_is_untouched(
+                id,
+                &[borrow(slot(2)), payload(capture)],
+                &[(capture, saved(capture))]
+            )
+            .is_err()
+        );
     }
 }

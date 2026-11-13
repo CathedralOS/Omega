@@ -222,13 +222,14 @@ impl Program<'_> {
         let table = &self.typed.expression_table;
         match table.expression(expression) {
             ExpressionNode::Name(path) => {
-                if !path.symbol.is_valid() || table.name_path_members(path.members).len() != 1 {
+                let resolved = path.resolved_symbol()?;
+                if table.name_path_members(path.members).len() != 1 {
                     return None;
                 }
                 self.static_truths
                     .iter()
                     .rev()
-                    .find(|(symbol, _)| *symbol == path.symbol)
+                    .find(|(symbol, _)| *symbol == resolved)
                     .map(|(_, truth)| *truth)
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
@@ -292,6 +293,19 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        if handle.is_valid()
+            && let Some(view) = self.byte_view_type(id, handle)?
+        {
+            return Ok(view);
+        }
+        if handle.is_valid()
+            && let TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } = self.typed.type_reference_table.type_reference(handle)
+        {
+            return self.array_type(id, handle, *element_type, length);
+        }
         // A type parameter in scope is what the scope says it stands for,
         // found by the binder's symbol.
         if handle.is_valid()
@@ -309,11 +323,19 @@ impl Program<'_> {
             && self.typed.symbols.builtin_type_atom(*symbol).is_none()
             && self.data_declaration(*symbol).is_some()
         {
-            let value = self.record(id, *symbol)?;
-            if let ValueType::Record(record) = value {
-                self.record_application(id, record, handle)?;
-            }
-            return Ok(value);
+            return self.record_at(id, handle);
+        }
+        if handle.is_valid()
+            && let TypeReferenceNode::Generic {
+                arguments,
+                lifetime_arguments,
+                ..
+            } = self.typed.type_reference_table.type_reference(handle)
+            && !arguments.is_empty()
+            && lifetime_arguments.is_empty()
+            && self.typed.closed_data_definition(handle).is_some()
+        {
+            return self.record_at(id, handle);
         }
         if handle.is_valid()
             && let TypeReferenceNode::Constrained {

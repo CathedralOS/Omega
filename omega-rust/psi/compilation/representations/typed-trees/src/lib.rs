@@ -762,6 +762,7 @@ pub(crate) use access_views_and_commitments::{access_views, commitments};
 pub(crate) mod callable_applications;
 mod calls_and_control_flow;
 pub use calls_and_control_flow::{calls, control_flow, names};
+mod data_applications;
 mod declaration_tables_and_index;
 pub use declaration_tables_and_index::declaration_index;
 pub(crate) use declaration_tables_and_index::{

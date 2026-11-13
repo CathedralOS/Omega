@@ -141,9 +141,10 @@ pub(crate) fn machine(
         if let Some(borrowed) = signature.borrowed(position) {
             let (referent, scalar) = match *value_type {
                 ValueType::Record(record) => (record, false),
-                ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
-                    (records.primitive(scalar_type, id)?, true)
-                }
+                ValueType::Scalar(_) | ValueType::Qualified(..) => (
+                    records.primitive(*value_type, borrowed.home.as_deref(), id)?,
+                    true,
+                ),
                 ValueType::Rigid(_) => {
                     return Err(lowering.internal("a borrowed formal of a rigid type"));
                 }

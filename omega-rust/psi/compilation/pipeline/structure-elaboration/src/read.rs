@@ -23,12 +23,15 @@ subset is refused with `Unsupported` and its name. A field the subset does not
 serve is refused when it is set, never ignored.
 */
 
+mod arrays;
+mod bytes;
 mod calls;
 mod casts;
 mod contracts;
 mod expressions;
 mod machine;
 mod places;
+mod reflection;
 mod source_records;
 mod statements;
 mod subjects;
@@ -99,7 +102,7 @@ pub(crate) struct Program<'t> {
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
-    resolving: Vec<SymbolHandle>,
+    resolving: Vec<(SymbolHandle, Option<typed_trees::SourceTypeApplication>)>,
     /// The data declaration whose members are being read, which is the
     /// lexical owner of the lifetimes their types name. Invalid while a
     /// machine is read: a machine that declares lifetime parameters is
@@ -384,7 +387,7 @@ mod tests {
         let remainder = binary(&mut typed, seven, BinaryOperator::Modulo, two);
         let mut program = Program::new(&typed, false);
         let read = |program: &mut Program<'_>, handle| {
-            program.expression(machine(), &[], handle, Some(i32_type))
+            program.expression(machine(), &[], handle, Some(ValueType::Scalar(i32_type)))
         };
         let landed = read(&mut program, exact).unwrap();
         assert!(matches!(

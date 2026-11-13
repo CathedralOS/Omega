@@ -244,6 +244,7 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
+ "psi-terminal-production",
  "psi-work",
  "semantic-vocabulary",
  "source",

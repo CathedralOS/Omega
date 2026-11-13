@@ -94,6 +94,10 @@ impl ExtentDomain {
 pub enum ReflectionDeclaration {
     /// `schema<T>()`.
     Schema,
+    /// `callable(declaration)`, an uninvoked declaration selector.
+    Callable,
+    /// `CallableInfo`, the descriptive result of `callable`.
+    CallableInfo,
     /// `TypeSchema`, the result of `schema`.
     TypeSchema,
     /// `CaseInfo`, active-case metadata.
@@ -325,6 +329,18 @@ const ROWS: &[CoreVocabularyRow] = &[
         "reflect::TypeSchema",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::TypeSchema),
+    ),
+    row(
+        "reflect.omg",
+        "reflect::callable",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::Callable),
+    ),
+    row(
+        "reflect.omg",
+        "reflect::CallableInfo",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::CallableInfo),
     ),
     row(
         "reflect.omg",

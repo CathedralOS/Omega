@@ -204,6 +204,117 @@ impl AcceptedClosure {
     }
 }
 
+/// Reading a callable states its declaration but does not accept its
+/// body. Publish that status only for the same discharged machine and
+/// declaration this closure owns. This neither establishes its input
+/// premises nor admits a later invocation under them.
+fn accept_proof_callables(elaboration: &mut Elaboration, discharge: &Discharge) -> Checked<()> {
+    use terminal_check_tables::{Construct, RefusalReason};
+    use terminal_psi::{ProofCallableAssociation, ProofScopeDeclaration, TargetMachineCallable};
+
+    let bodies_source = &elaboration.module.machines;
+    let scope = &mut elaboration.module.scalar_applications.proof_scope;
+    let invalid = |machine, detail: &str| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Machine,
+            detail,
+        )
+    };
+    let first = bodies_source
+        .first()
+        .map(|body| body.id)
+        .unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
+    let mut bodies = scope
+        .callables
+        .iter()
+        .filter_map(|(_, association)| match association {
+            ProofCallableAssociation::Callable {
+                declaration,
+                callable: TargetMachineCallable::Machine(machine),
+            } => Some((*declaration, *machine)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    bodies.sort_unstable_by_key(|(declaration, _)| *declaration);
+    if bodies.windows(2).any(|rows| rows[0].0 == rows[1].0) {
+        return Err(invalid(
+            first,
+            "proof callable has competing accepted body associations",
+        ));
+    }
+    let mut headers = scope
+        .callable_headers
+        .iter()
+        .map(|(_, header)| header.declaration)
+        .collect::<Vec<_>>();
+    headers.sort_unstable();
+    if headers.windows(2).any(|rows| rows[0] == rows[1]) {
+        return Err(invalid(
+            first,
+            "proof callable has competing declaration headers",
+        ));
+    }
+    for (declaration, _) in &bodies {
+        if headers.binary_search(declaration).is_err() {
+            return Err(invalid(
+                first,
+                "accepted proof body has no exact declaration header",
+            ));
+        }
+    }
+    for (_, header) in scope.callable_headers.iter() {
+        let Ok(position) =
+            bodies.binary_search_by_key(&header.declaration, |(declaration, _)| *declaration)
+        else {
+            if header.supplies_checked_body {
+                return Err(invalid(
+                    first,
+                    "proof callable claims an accepted body without this closure's machine association",
+                ));
+            }
+            continue;
+        };
+        let machine = bodies[position].1;
+        let accepted = usize::try_from(machine.get() - 1)
+            .ok()
+            .and_then(|position| bodies_source.get(position))
+            .filter(|body| body.id == machine)
+            .and_then(|body| body.declaration.as_ref())
+            .ok_or_else(|| invalid(first, "proof callable lost its accepted source declaration"))?;
+        if discharge.machines.get(machine).is_none() {
+            return Err(invalid(
+                first,
+                "proof callable has no discharged body in this closure",
+            ));
+        }
+        let position = header
+            .declaration
+            .0
+            .checked_sub(1)
+            .and_then(|position| usize::try_from(position).ok())
+            .ok_or_else(|| invalid(first, "proof callable has no declaration coordinate"))?;
+        if !matches!(scope.declarations.storage_slice().get(position), Some(ProofScopeDeclaration::Callable(saved)) if saved == accepted)
+            || header.callable.as_ref().ok() != Some(&accepted.callable)
+        {
+            return Err(invalid(
+                first,
+                "proof callable differs from this closure's accepted declaration",
+            ));
+        }
+    }
+    scope.callable_headers.for_each_mut(|_, header| {
+        if bodies
+            .binary_search_by_key(&header.declaration, |(declaration, _)| *declaration)
+            .is_ok()
+        {
+            header.supplies_checked_body = true;
+        }
+    });
+    Ok(())
+}
+
 /// One obligation the prover could not discharge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnprovedObligation {
@@ -731,6 +842,9 @@ pub(crate) fn judge_owing(
                 }
             },
         );
+    }
+    if let Err(refused) = accept_proof_callables(&mut elaboration, &discharged) {
+        return fall_back_or_defect(refused);
     }
     let seals = match discharged.operation_seals(&elaboration) {
         Ok(seals) => seals,

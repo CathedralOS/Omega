@@ -12,6 +12,20 @@ public data SchemaMembers<'graph> [copy] { graph: &'graph [u8]; handles: &'graph
 // retains its lexical author's visibility, including through generic helpers.
 public machine schema<T>() -> TypeSchema { TypeSchema { storage: "" } }
 
+// These bytes describe the selected declaration and its chosen arguments.
+// They grant no right to call it or establish a domain. A policy consumer must
+// authenticate the description against its own checked source.
+public data CallableInfo [copy] {
+    case Machine(declaration_identity: &[u8], callable_identity: &[u8], source_revision: &[u8]);
+    case Requirement(declaration_identity: &[u8], callable_identity: &[u8], source_revision: &[u8]);
+}
+
+// Only this core query interprets its operand as a declaration path. Ordinary
+// machines cannot receive a declaration in place of a runtime value.
+public machine callable(declaration: ()) -> CallableInfo {
+    CallableInfo::Machine { declaration_identity: "", callable_identity: "", source_revision: "" }
+}
+
 // An ordinary size observation used when choosing owned image storage. It
 // returns no address and does not perform another structural query.
 public machine schema_image_length(graph: &TypeSchema) -> u64 reaches none terminates {

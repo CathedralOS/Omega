@@ -569,8 +569,10 @@ fn judge_elaboration(
                 None => {
                     // The operands of a refused operation, or the actuals of
                     // a refused call requirement.
-                    if let Some(ObligationKind::OperationSafety { operation }) =
-                        tables.obligations.get(obligation).map(|row| row.kind)
+                    if let Some(ObligationKind::OperationSafety {
+                        site:
+                            terminal_check_tables::obligations::ExecutionSite::Operation(operation),
+                    }) = tables.obligations.get(obligation).map(|row| row.kind)
                         && let Some(found) = lowered
                             .blocks
                             .iter()

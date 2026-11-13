@@ -15,6 +15,7 @@ arena = { path = "../../foundation/arena" }
 access-plans = { path = "../../foundation/access-plans" }
 filesystem-authority = { path = "../../foundation/filesystem-authority" }
 terminal-interpreter = { path = "../../interpreter/terminal-interpreter" }
+psi-terminal-production = { path = "../psi-compiler/terminal-production" }
 terminal-installation = { path = "../terminal-installation" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }
 terminal-psi = { path = "../representations/terminal-psi" }

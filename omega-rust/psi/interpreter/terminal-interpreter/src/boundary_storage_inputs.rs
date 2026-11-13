@@ -68,7 +68,7 @@ pub(crate) mod borrowed_completion {
                     .ok()
                     .and_then(|position| buffer.values.get(position))
                     .ok_or_else(malformed)?;
-                let TerminalStorageContents::Scalar { value, .. } = value.contents else {
+                let TerminalStorageContents::Scalar { value, .. } = value.contents.clone() else {
                     return Err(malformed());
                 };
                 value
@@ -139,7 +139,7 @@ pub(crate) mod borrowed_completion {
                     detail: reason.to_owned(),
                 }
             })?;
-            match (&leaf.kind, value.contents) {
+            match (&leaf.kind, value.contents.clone()) {
                 (
                     StorageLeafKind::Scalar { destination, .. },
                     TerminalStorageContents::Scalar { value, .. },
@@ -244,7 +244,7 @@ pub(crate) mod borrowed_completion {
                                         ..
                                     },
                                 ..
-                            } = value.contents
+                            } = value.contents.clone()
                             else {
                                 return Err(malformed());
                             };

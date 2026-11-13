@@ -1580,37 +1580,7 @@ fn stated_goal(
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     match *kind {
-        ObligationKind::OperationSafety { operation } => {
-            let found = lowered
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .find(|candidate| candidate.id == operation)
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::ForeignIdentity,
-                        id,
-                        concerns,
-                        "operation is not in this machine",
-                    )
-                })?;
-            let semantics = terminal_semantics::proof_bearing_scalar_leaf_semantics(found, types)
-                .map_err(semantics_refusal(id, operation))?
-                .ok_or_else(|| {
-                    refusal(
-                        RefusalReason::Unsupported,
-                        id,
-                        concerns,
-                        "operation has no safety goal",
-                    )
-                })?;
-            // That this row is the one the operation names is `minted`'s
-            // check, made before any goal is stated.
-            semantics
-                .canonical_goal()
-                .kernel_proposition()
-                .map_err(semantics_refusal(id, operation))
-        }
+        ObligationKind::OperationSafety { site } => storage.safety_goal(site, obligation, types),
         ObligationKind::CallRequirement { invocation, clause } => {
             let row = terminal_check_tables::row(
                 &tables.invocations,

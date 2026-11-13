@@ -52,11 +52,13 @@ mod declare;
 mod lower;
 mod names;
 mod outcome;
+mod proof_scope;
 mod read;
 
 pub use body::{
     Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, Policy, RecordField,
-    RecordType, Signature, Statement, Strict, Target, Termination, ValueType, self_place,
+    RecordType, Signature, Statement, StorageShape, Strict, Target, Termination, ValueType,
+    self_place,
 };
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
@@ -381,7 +383,9 @@ pub fn elaborate_for(
     }
     program.selected_declarations(entry, compilation.selected)?;
     program.subject_declarations(entry, compilation.subject)?;
-    finish_reading(program, entry, IdTable::default(), Some(typed))
+    let mut elaboration = finish_reading(program, entry, IdTable::default(), Some(typed))?;
+    proof_scope::declare(typed, &mut elaboration)?;
+    Ok(elaboration)
 }
 
 /// Elaborates one machine and the closure of machines it calls, in discovery

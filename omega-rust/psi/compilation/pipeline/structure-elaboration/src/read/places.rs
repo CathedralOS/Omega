@@ -89,49 +89,112 @@ impl Program<'_> {
         self.typed.data_definition_by_symbol(symbol)
     }
 
-    /// The record type of a data declaration, resolving it the first time.
+    /// A declaration root with no explicit application. Generic declarations
+    /// need their actual retained application, never a guessed empty tuple.
     pub(super) fn record(&mut self, id: MachineId, symbol: SymbolHandle) -> Checked<ValueType> {
-        // ponytail: linear scan over the discovered record types, as for
-        // machines; a dense table by declaration position if closures grow.
-        for (record, source) in self.record_sources.iter() {
-            if source.declaration == symbol {
-                return Ok(ValueType::Record(record));
-            }
-        }
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
-        if self.resolving.contains(&symbol) {
-            return Err(unserved("data that contains itself"));
-        }
         let typed = self.typed;
         let data = typed
-            .data_definition_by_symbol(symbol)
-            .ok_or_else(|| unserved("nominal type"))?;
+            .unique_data_definition_by_symbol(symbol)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("nominal type without a unique declaration"),
+                )
+            })?;
+        if let Some(reference) = data.generic_instance {
+            return self.record_at(id, reference);
+        }
+        self.record_definition(id, data, None)
+    }
+
+    pub(super) fn record_at(
+        &mut self,
+        id: MachineId,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Checked<ValueType> {
+        let typed = self.typed;
+        let data = typed.closed_data_definition(reference).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Type("record without its exact closed application"),
+            )
+        })?;
+        let application = super::source_records::source_application(typed, data, reference, id)?;
+        self.record_definition(id, data, Some(application))
+    }
+
+    fn record_definition(
+        &mut self,
+        id: MachineId,
+        data: &DataDefinition,
+        application: Option<typed_trees::SourceTypeApplication>,
+    ) -> Checked<ValueType> {
+        let typed = self.typed;
+        let symbol = data.symbol;
+        let same = |owner: SymbolHandle, retained: &Option<typed_trees::SourceTypeApplication>| {
+            owner == symbol
+                && match (retained, &application) {
+                    (Some(retained), Some(application)) => {
+                        super::source_records::same_application(typed, retained, application)
+                    }
+                    (None, None) => true,
+                    (None, Some(application)) | (Some(application), None) => {
+                        data.generic_instance.is_none()
+                            && data.type_parameters.is_empty()
+                            && application.substitutions.is_empty()
+                    }
+                }
+        };
+        let known = self.record_sources.iter().find_map(|(record, source)| {
+            same(source.declaration, &source.application).then_some(record)
+        });
+        if let Some(record) = known {
+            if let Some(application) = &application {
+                self.record_application(id, record, application.reference)?;
+            }
+            return Ok(ValueType::Record(record));
+        }
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
+        if self
+            .resolving
+            .iter()
+            .any(|(owner, retained)| same(*owner, retained))
+        {
+            return Err(unserved("data application that contains itself"));
+        }
         let members = typed.data_members(data);
-        record_shape(id, data, members, |variant| {
+        record_shape(id, data, application.as_ref(), members, |variant| {
             typed.data_payload_fields(variant)
         })?;
         lifetime_binders(id, &data.lifetime_parameters)?;
         // Terminal Psi's declaration needs a text identity; the typed trees
         // render it. Without one the declaration cannot be emitted.
-        let identity = typed
-            .normalized_nominal_type_identity(symbol)
-            .and_then(|identity| typed.type_identity_text(identity))
-            .filter(|identity| !identity.is_empty())
-            .ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Spelling("data without a declaration identity"),
-                )
-            })?;
-        self.resolving.push(symbol);
+        let identity = match &application {
+            Some(application) => Some(typed.normalized_type_identity(application.reference)),
+            None => typed.normalized_nominal_type_identity(symbol),
+        }
+        .and_then(|identity| typed.type_identity_text(identity))
+        .filter(|identity| !identity.is_empty())
+        .ok_or_else(|| unserved("data without a complete application identity"))?;
+        self.resolving.push((symbol, application.clone()));
         // Field types are read with this declaration as the owner of the
         // lifetimes they name: lifetimes.md, a named data application must
         // "use binders declared in the lexical owner". A nested declaration
         // is read under its own, so the enclosing owner is put back whether
         // or not the members were served.
         let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
-        let read = self.declared_members(id, members);
+        let read = (|| {
+            // A closed metadata row is not argument admission. Each supplied
+            // type must itself be a type this same checked route can serve.
+            if let Some(application) = &application {
+                for (_, argument) in &application.substitutions {
+                    self.value_type(id, *argument)?;
+                }
+            }
+            self.declared_members(id, members)
+        })();
         self.lifetime_owner = enclosing;
         self.resolving.pop();
         let (fields, field_symbols, cases, case_symbols) = read?;
@@ -178,17 +241,20 @@ impl Program<'_> {
         let record: StructuralTypeId = self.records.push(RecordType {
             copyable,
             identity,
-            fields: declared,
-            cases: case_types,
+            shape: if case_types.is_empty() {
+                crate::StorageShape::Record(declared)
+            } else {
+                crate::StorageShape::Sum(case_types)
+            },
             requires: Vec::new(),
         });
         self.record_sources.push(RecordSource {
             declaration: symbol,
-            application: None,
+            application: application.clone(),
             fields: field_symbols,
             cases: case_symbols,
         });
-        if data.predicate_subject_type.is_valid() {
+        if application.is_none() && data.predicate_subject_type.is_valid() {
             self.record_application(id, record, data.predicate_subject_type)?;
         }
         // The declaration's `requires`, read once the fields and cases it
@@ -409,7 +475,7 @@ impl Program<'_> {
         field: usize,
     ) -> Checked<ValueType> {
         self.data_type(id, record)?
-            .fields
+            .fields()
             .get(field)
             .map(|field| field.value_type)
             .ok_or_else(|| {
@@ -429,7 +495,7 @@ impl Program<'_> {
         field: usize,
     ) -> Checked<ValueType> {
         self.data_type(id, record)?
-            .cases
+            .cases()
             .get(case)
             .and_then(|case| case.fields.get(field))
             .map(|field| field.value_type)
@@ -585,13 +651,7 @@ impl Program<'_> {
         if self.data_declaration(literal.type_symbol).is_none() {
             return Err(unserved("literal of a type that is not a data declaration"));
         }
-        let result = self.record(id, literal.type_symbol)?;
-        let ValueType::Record(record) = result else {
-            return Err(typing("record literal of a scalar type"));
-        };
-        // Inlined constants can retain their source-issued type on the
-        // originating declaration or constructor rather than the literal.
-        for application in [
+        let applications = [
             literal.application_type,
             self.typed
                 .expression_table
@@ -602,9 +662,34 @@ impl Program<'_> {
                     typed_trees::types::TypeReferenceHandle::invalid,
                     |constant| constant.declared_type,
                 ),
-        ] {
-            if application.is_valid() {
-                self.record_application(id, record, application)?;
+        ];
+        let result = match applications
+            .iter()
+            .copied()
+            .find(|reference| reference.is_valid())
+        {
+            Some(reference) => {
+                let selected = self
+                    .typed
+                    .closed_data_definition(reference)
+                    .ok_or_else(|| unserved("literal without its closed record application"))?;
+                if self
+                    .typed
+                    .closed_data_constructor_definition(reference, literal.type_symbol)
+                    != Some(selected)
+                {
+                    return Err(typing("literal application changed its declared owner"));
+                }
+                self.record_at(id, reference)?
+            }
+            None => self.record(id, literal.type_symbol)?,
+        };
+        let ValueType::Record(record) = result else {
+            return Err(typing("record literal of a scalar type"));
+        };
+        for reference in applications {
+            if reference.is_valid() {
+                self.record_application(id, record, reference)?;
             }
         }
         // Stage 03 also records the literal's type as a type reference; it
@@ -621,15 +706,15 @@ impl Program<'_> {
         let data = self.data_type(id, record)?;
         let declared: Vec<ValueType> = match case {
             Some(case) => data
-                .cases
+                .cases()
                 .get(case)
                 .ok_or_else(|| typing("case position past the sum's declaration"))?
                 .fields
                 .iter()
                 .map(|field| field.value_type)
                 .collect(),
-            None if data.cases.is_empty() => {
-                data.fields.iter().map(|field| field.value_type).collect()
+            None if data.cases().is_empty() => {
+                data.fields().iter().map(|field| field.value_type).collect()
             }
             None => return Err(typing("literal of a sum without a case")),
         };
@@ -658,7 +743,7 @@ impl Program<'_> {
                 return Err(typing("record literal names a field twice"));
             }
             let field_type = declared[position];
-            let operand = self.expression(id, slots, field.value, field_type.scalar())?;
+            let operand = self.expression(id, slots, field.value, Some(field_type))?;
             if operand.result != Some(field_type) {
                 return Err(typing("record literal field type"));
             }
@@ -687,7 +772,7 @@ impl Program<'_> {
             return None;
         }
         let symbol = match self.typed.expression_table.expression(handle) {
-            ExpressionNode::Name(path) => path.symbol,
+            ExpressionNode::Name(path) => path.resolved_symbol()?,
             ExpressionNode::StructLiteral(literal) => {
                 if !literal.fields.is_empty() {
                     return None;
@@ -832,6 +917,7 @@ impl Program<'_> {
 fn record_shape<'m>(
     id: MachineId,
     data: &DataDefinition,
+    application: Option<&typed_trees::SourceTypeApplication>,
     members: &'m [DataMember],
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
 ) -> Checked<()> {
@@ -842,7 +928,7 @@ fn record_shape<'m>(
     // Lifetime parameters are not generic data: they are erased regions that
     // select no type, field or layout (`lifetime_binders`).
     if !data.type_parameters.is_empty()
-        || data.generic_instance.is_some()
+        || data.generic_instance.is_some() && application.is_none()
         || !data.conformance_bounds.is_empty()
     {
         return unserved("generic data");
@@ -1033,8 +1119,7 @@ mod tests {
         let owned = records.push(RecordType {
             copyable: false,
             identity: "Owned".into(),
-            fields: Vec::new(),
-            cases: Vec::new(),
+            shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
         });
         assert!(!copy_field_is_unrestricted(
@@ -1065,7 +1150,7 @@ mod tests {
     }
 
     fn detail(data: &DataDefinition, members: &[DataMember]) -> String {
-        let refusal = record_shape(machine(), data, members, |_| &[]).unwrap_err();
+        let refusal = record_shape(machine(), data, None, members, |_| &[]).unwrap_err();
         assert_eq!(
             refusal.reason,
             terminal_check_tables::RefusalReason::Unsupported
@@ -1078,16 +1163,22 @@ mod tests {
     #[test]
     fn each_data_declaration_outside_the_slice_is_refused_by_name() {
         let (data, members) = plain();
-        assert_eq!(record_shape(machine(), &data, &members, |_| &[]), Ok(()));
+        assert_eq!(
+            record_shape(machine(), &data, None, &members, |_| &[]),
+            Ok(())
+        );
         let mut affine = data.clone();
         affine.properties.multiplicity = language_semantics::Multiplicity::Affine;
-        assert_eq!(record_shape(machine(), &affine, &members, |_| &[]), Ok(()));
+        assert_eq!(
+            record_shape(machine(), &affine, None, &members, |_| &[]),
+            Ok(())
+        );
         // Lifetime parameters select nothing a value is made of, so the
         // shape is served with them; a type parameter beside them is not.
         let mut borrowing = data.clone();
         borrowing.lifetime_parameters = vec![Identifier::generated("buffer")];
         assert_eq!(
-            record_shape(machine(), &borrowing, &members, |_| &[]),
+            record_shape(machine(), &borrowing, None, &members, |_| &[]),
             Ok(())
         );
         borrowing.type_parameters = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
@@ -1134,19 +1225,19 @@ mod tests {
         }
         // Data with no member at all is a record with an empty roster.
         let (data, _) = plain();
-        assert_eq!(record_shape(machine(), &data, &[], |_| &[]), Ok(()));
+        assert_eq!(record_shape(machine(), &data, None, &[], |_| &[]), Ok(()));
         // A sum alone, with or without payload, is served.
         let sum = vec![
             DataMember::Variant(DataVariant::default()),
             DataMember::Variant(DataVariant::default()),
         ];
-        assert_eq!(record_shape(machine(), &data, &sum, |_| &[]), Ok(()));
+        assert_eq!(record_shape(machine(), &data, None, &sum, |_| &[]), Ok(()));
         let erased = [DataField {
             relevance: language_core::BindingRelevance::Erased,
             ..DataField::default()
         }];
         assert_eq!(
-            record_shape(machine(), &data, &sum, |_| &erased)
+            record_shape(machine(), &data, None, &sum, |_| &erased)
                 .unwrap_err()
                 .detail,
             "type data with an erased field"

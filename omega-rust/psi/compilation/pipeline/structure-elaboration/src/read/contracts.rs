@@ -218,7 +218,7 @@ impl Program<'_> {
                 return unserved("case test of something that is not a sum");
             };
             let case = self.case_position(id, sum, case)?;
-            let case = self.data_type(id, sum)?.cases[case].id;
+            let case = self.data_type(id, sum)?.cases()[case].id;
             return Ok(Proposition::StructuralCaseMembership {
                 subject: StructuralCaseSubject::new(root, path),
                 case,
@@ -391,6 +391,9 @@ impl Program<'_> {
             return unserved("missing term");
         }
         match typed.expression_table.expression(expression) {
+            ExpressionNode::Name(path) if path.static_application.is_valid() => {
+                unserved("applied name used as a plain scalar term")
+            }
             // The reserved result, by the owner identity stage 02 recorded,
             // never by its spelling. calls_and_outcomes.md: "The reserved
             // result occurrence belongs to its contract owner, not any local
@@ -823,6 +826,13 @@ impl Program<'_> {
         let (root, base, record, symbol) = match self.typed.expression_table.expression(expression)
         {
             ExpressionNode::Name(path) => {
+                if path.static_application.is_valid() {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("applied name used as a plain storage subject"),
+                    ));
+                }
                 if !path.symbol.is_valid() {
                     return Err(spelling("clause name without a symbol"));
                 }
@@ -889,11 +899,13 @@ impl Program<'_> {
         let data = self.data_type(id, record)?;
         let value_type = match self.member_of(id, record, symbol)? {
             Member::Field(field) => {
-                path.push(CanonicalStructuralPathSegment::Field(data.fields[field].id));
-                data.fields[field].value_type
+                path.push(CanonicalStructuralPathSegment::Field(
+                    data.fields()[field].id,
+                ));
+                data.fields()[field].value_type
             }
             Member::Payload { case, field } => {
-                let owner = &data.cases[case];
+                let owner = &data.cases()[case];
                 path.push(CanonicalStructuralPathSegment::Case(owner.id));
                 path.push(CanonicalStructuralPathSegment::Field(
                     owner.fields[field].id,

@@ -79,7 +79,7 @@ impl Program<'_> {
         } else {
             None
         };
-        let operand = self.expression(id, slots, cast.value, landing)?;
+        let operand = self.expression(id, slots, cast.value, landing.map(ValueType::Scalar))?;
         let source_type = match operand.result {
             Some(source_type @ (ValueType::Scalar(_) | ValueType::Qualified(..))) => source_type,
             Some(ValueType::Record(_) | ValueType::Rigid(_)) | None => {
