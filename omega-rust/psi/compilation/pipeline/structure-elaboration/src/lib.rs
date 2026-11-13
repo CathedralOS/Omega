@@ -170,6 +170,9 @@ pub struct Elaboration {
     /// boundaries structural lowering emits. Publication binds these rows
     /// to the accepted artifact; the rows themselves grant no host authority.
     pub build_requests: Vec<language_semantics::build_requests::TerminalBuildRequestCall>,
+    /// Nominal storage and field identities from this same typed-tree owner.
+    /// Empty for raw bodies, which have no source declaration/application.
+    pub source_records: Vec<typed_trees::SourceRecordCorrespondence>,
     /// What diagnostics call each machine's constructs, read from the typed
     /// trees (`names`). Empty for bodies lowered without typed trees
     /// (`lower_bodies`): a message then names identities only.
@@ -621,6 +624,7 @@ fn finish_reading(
             &mut elaboration,
         );
     }
+    elaboration.source_records = program.source_record_correspondence(entry)?;
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.local_results = local_results;
@@ -812,6 +816,13 @@ fn lower_generic_for(
             }
         }
     }
+    // This is the emitted behavior before proving or publication. Keeping its
+    // inventory here lets product consumers retain the exact judged module.
+    module.unoptimized_behavior = module
+        .machines
+        .iter()
+        .map(terminal_psi::UnoptimizedMachineBehavior::capture)
+        .collect();
     let mut domains = IdTable::default();
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());
@@ -821,6 +832,7 @@ fn lower_generic_for(
         tables,
         sources,
         build_requests: Vec::new(),
+        source_records: Vec::new(),
         names: IdTable::default(),
         machines: IdTable::default(),
         private_inputs: Vec::new(),
