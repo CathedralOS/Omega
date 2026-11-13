@@ -115,14 +115,6 @@ const FIREWALL_ALLOWANCES: &[Allowance] = &[
     },
     Allowance {
         owner: SELECTED_DISPATCH,
-        dependency: "omega-rust/psi/compilation/representations/typed-trees",
-    },
-    Allowance {
-        owner: SELECTED_DISPATCH,
-        dependency: "omega-rust/psi/compilation/representations/checked-trees",
-    },
-    Allowance {
-        owner: SELECTED_DISPATCH,
         dependency: TERMINAL_PRODUCTION,
     },
     Allowance {
