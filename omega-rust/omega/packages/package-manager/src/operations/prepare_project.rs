@@ -327,19 +327,13 @@ impl LocalProjectPreparation {
             selected,
         )
         .map_err(PrepareLocalProjectError::Acquisition)?;
-        if !acquired
-            .source_capture()
-            .tree()
-            .is_file(&self.entry_relative)
-        {
-            return Err(PrepareLocalProjectError::Acquisition(
-                BuildSourceAcquisitionError::Source(SourceResolveError::Io {
-                    path: self.entry_path(),
-                    message:
-                        "required compilation source is absent from the caller-selected inventory"
-                            .to_owned(),
-                }),
-            ));
+        acquired
+            .require_compilation_source(&self.entry_relative)
+            .map_err(PrepareLocalProjectError::Acquisition)?;
+        if self.baseline.is_some() {
+            acquired
+                .require_compilation_source(Path::new("build.omg"))
+                .map_err(PrepareLocalProjectError::Acquisition)?;
         }
         Ok(acquired)
     }

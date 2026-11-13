@@ -295,3 +295,37 @@ fn package_candidate_reacquisition_keeps_the_staged_selection_and_live_lineage()
         staged.normalized().content_identity
     );
 }
+
+#[test]
+fn selected_project_and_inspection_cannot_omit_the_preflight_observed_build() {
+    use crate::operations::{PackageInspectionOptions, PackageInspectionTransaction};
+    use package_source::{SourceCaptureObligation as Obligation, SourceCaptureRequest};
+    let temporary = project("calls/machine_self_call_recursion_compile");
+    let only_main =
+        SourceCaptureRequest::new([(b"main.omg".to_vec(), Obligation::Required)]).unwrap();
+    let pending = begin(temporary.path());
+    let error = pending
+        .acquire_selected_root(&only_main)
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(
+        error.contains("required compilation source") && error.contains("build.omg"),
+        "{error}"
+    );
+    drop(pending);
+    let inspection = PackageInspectionTransaction::open(PackageInspectionOptions {
+        project_root: temporary.path().to_path_buf(),
+        targets: vec![TargetProfile::host_if_supported().unwrap()],
+        details: false,
+        offline: true,
+        build_inputs: Some(only_main),
+    })
+    .unwrap();
+    let prepared = inspection.prepare(None).unwrap();
+    let error = prepared.acquire_root().err().unwrap().to_string();
+    assert!(
+        error.contains("required compilation source") && error.contains("build.omg"),
+        "{error}"
+    );
+}

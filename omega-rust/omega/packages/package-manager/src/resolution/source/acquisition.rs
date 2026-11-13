@@ -401,6 +401,23 @@ impl AcquiredBuildSource {
         Ok(())
     }
 
+    pub(crate) fn require_compilation_source(
+        &self,
+        relative: &Path,
+    ) -> Result<(), BuildSourceAcquisitionError> {
+        if !self.capture.tree().is_file(relative) {
+            return Err(BuildSourceAcquisitionError::Source(
+                package_source::SourceResolveError::Io {
+                    path: self.capture.canonical_live_root().join(relative),
+                    message:
+                        "required compilation source is absent from the caller-selected inventory"
+                            .to_owned(),
+                },
+            ));
+        }
+        Ok(())
+    }
+
     pub(crate) fn acquisition_origin(&self) -> SourceAcquisitionOrigin<'_> {
         SourceAcquisitionOrigin {
             lineage: &self.lineage,
