@@ -2001,6 +2001,7 @@ pub(crate) mod placed {
             self.commit_boundary_result(&operation.result, &declaration.result, returned)?;
             self.effects
                 .push(crate::boundary::effects::TerminalEffect::BoundaryCall {
+                    machine: self.current_machine,
                     operation: operation.id,
                     boundary: declaration.id,
                     arguments: arguments.to_vec(),

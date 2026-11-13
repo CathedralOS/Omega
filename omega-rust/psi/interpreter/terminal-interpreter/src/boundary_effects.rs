@@ -3523,6 +3523,10 @@ pub enum TerminalEffect {
         kind: terminal_psi::MemoryFenceKind,
     },
     BoundaryCall {
+        /// The machine whose operation this call is. An operation identity
+        /// is unique within its machine only, so a host that keeps a row per
+        /// call matches the machine too.
+        machine: MachineId,
         operation: OperationId,
         boundary: BoundaryMachineId,
         arguments: Vec<TerminalScalarValue>,

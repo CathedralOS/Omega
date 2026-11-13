@@ -215,10 +215,10 @@ impl TerminalBuildHost {
         provider_slots.dedup();
         let mut host_imports = request_calls
             .iter()
-            .map(|call| call.boundary)
-            .chain(binding_calls.iter().map(|call| call.boundary))
-            .chain(query_calls.iter().map(|call| call.boundary))
-            .chain(filesystem_calls.iter().map(|call| call.boundary))
+            .map(|call| call.site.boundary)
+            .chain(binding_calls.iter().map(|call| call.site.boundary))
+            .chain(query_calls.iter().map(|call| call.site.boundary))
+            .chain(filesystem_calls.iter().map(|call| call.site.boundary))
             .collect::<Vec<_>>();
         host_imports.extend(
             self.providers
@@ -270,19 +270,26 @@ impl TerminalBuildHost {
                 .iter()
                 .find(|declaration| declaration.id == boundary)
                 .ok_or("Build import has no Terminal declaration")?;
-            if request_calls.iter().any(|call| call.boundary == boundary) {
+            if request_calls
+                .iter()
+                .any(|call| call.site.boundary == boundary)
+            {
                 instance
                     .bind_import(boundary, self.requests.adapter(declaration.into()))
                     .map_err(describe)?;
-            } else if binding_calls.iter().any(|call| call.boundary == boundary)
-                || query_calls.iter().any(|call| call.boundary == boundary)
+            } else if binding_calls
+                .iter()
+                .any(|call| call.site.boundary == boundary)
+                || query_calls
+                    .iter()
+                    .any(|call| call.site.boundary == boundary)
             {
                 instance
                     .bind_import(boundary, self.bindings.adapter(declaration.into()))
                     .map_err(describe)?;
             } else if filesystem_calls
                 .iter()
-                .any(|call| call.boundary == boundary)
+                .any(|call| call.site.boundary == boundary)
             {
                 instance
                     .bind_import(boundary, self.filesystem.adapter(declaration.into()))

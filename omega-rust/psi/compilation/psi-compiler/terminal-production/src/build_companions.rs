@@ -9,22 +9,20 @@
 //! requirement each boundary lowers, and `MachineSources::designated` holds
 //! the designated operands the reader carried to each selection call.
 //!
-//! The Build host tells calls apart by operation and boundary alone, while
-//! this route numbers operations within each machine. Two calls in different
-//! machines that share both and need different rows are refused here: the
-//! host could not tell which row a call means.
+//! Each row names its call by `BuildCallSite`: the machine, the operation
+//! within it and the boundary. Operation identities are per machine, so the
+//! machine is part of what the Build host matches against an effect.
 
 use crate::{
-    TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildFilesystemCall,
-    TerminalBuildFilesystemOperation, TerminalBuildQueryCall, TerminalBuildQueryOperation,
-    TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    BuildCallSite, TerminalBuildBindingCall, TerminalBuildBindingOperation,
+    TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation, TerminalBuildQueryCall,
+    TerminalBuildQueryOperation, TerminalBuildRequestCall, TerminalBuildRequestOperation,
 };
 use diagnostics::Diagnostic;
 use language_semantics::build_requests::{SELECTION_PROTOCOL, is_build_protocol};
 use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, ProductDeclarationRequest,
 };
-use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
 use std::sync::Arc;
 use structure_elaboration::{Elaboration, SourceOrigin};
 use symbols::SymbolHandle;
@@ -54,9 +52,7 @@ pub struct BuildProtocolUse {
 
 /// One emitted boundary call of a toolchain Build protocol.
 struct ProtocolCall<'a> {
-    machine: MachineId,
-    operation: OperationId,
-    boundary: BoundaryMachineId,
+    site: BuildCallSite,
     /// The protocol operation's declared name.
     name: &'a str,
 }
@@ -88,9 +84,11 @@ pub(crate) fn produce(
                 continue;
             };
             let call = ProtocolCall {
-                machine: machine.id,
-                operation: operation.id,
-                boundary: *boundary,
+                site: BuildCallSite {
+                    machine: machine.id,
+                    operation: operation.id,
+                    boundary: *boundary,
+                },
                 name: requirement.name.as_str(),
             };
             let protocol = |name| is_build_protocol(&source.symbols, owner.symbol, name);
@@ -102,46 +100,32 @@ pub(crate) fn produce(
                 {
                     companions.declarations.push(Arc::clone(request));
                 }
-                admit(&mut companions.bindings, row, |row| {
-                    (row.operation, row.boundary)
-                })?;
+                companions.bindings.push(row);
             } else if protocol("BuildRequestOperations") {
-                let row = TerminalBuildRequestCall {
-                    operation: call.operation,
-                    boundary: call.boundary,
+                companions.requests.push(TerminalBuildRequestCall {
+                    site: call.site,
                     action: request_operation(call.name)?,
-                };
-                admit(&mut companions.requests, row, |row| {
-                    (row.operation, row.boundary)
-                })?;
+                });
             } else if protocol("BuildFilesystemOperations") {
-                let row = TerminalBuildFilesystemCall {
-                    operation: call.operation,
-                    boundary: call.boundary,
+                companions.filesystem.push(TerminalBuildFilesystemCall {
+                    site: call.site,
                     action: filesystem_operation(call.name)?,
-                };
-                admit(&mut companions.filesystem, row, |row| {
-                    (row.operation, row.boundary)
-                })?;
+                });
             } else if protocol("BuildProductOperations") {
                 let SourceOrigin::Authored(occurrence) = elaboration
                     .sources
-                    .get(call.machine)
-                    .and_then(|sources| sources.operations.get(call.operation))
+                    .get(call.site.machine)
+                    .and_then(|sources| sources.operations.get(call.site.operation))
                     .copied()
                     .ok_or_else(|| refused("a Build product query lost its source row"))?
                 else {
                     return Err(refused("a Build product query has no authored occurrence"));
                 };
-                let row = TerminalBuildQueryCall {
-                    operation: call.operation,
-                    boundary: call.boundary,
+                companions.queries.push(TerminalBuildQueryCall {
+                    site: call.site,
                     action: query_operation(call.name)?,
                     occurrence,
-                };
-                admit(&mut companions.queries, row, |row| {
-                    (row.operation, row.boundary)
-                })?;
+                });
             } else {
                 companions.unowned += 1;
             }
@@ -159,30 +143,6 @@ pub(crate) fn produce(
         ));
     }
     Ok(companions)
-}
-
-/// Adds `row` unless an equal row is already present. A different row under
-/// the same key is the ambiguity the module comment describes.
-fn admit<Row: PartialEq>(
-    rows: &mut Vec<Row>,
-    row: Row,
-    key: impl Fn(&Row) -> (OperationId, BoundaryMachineId),
-) -> Result<(), Diagnostic> {
-    match rows.iter().find(|present| key(present) == key(&row)) {
-        None => {
-            rows.push(row);
-            Ok(())
-        }
-        Some(present) if *present == row => Ok(()),
-        Some(_) => {
-            let (operation, boundary) = key(&row);
-            Err(refused(format!(
-                "two Build calls in different machines are both operation {} of boundary {} and need different host rows; the Build host tells calls apart by operation and boundary alone",
-                operation.get(),
-                boundary.get()
-            )))
-        }
-    }
 }
 
 fn binding(
@@ -203,12 +163,12 @@ fn binding(
     };
     let designated = elaboration
         .sources
-        .get(call.machine)
+        .get(call.site.machine)
         .and_then(|sources| {
             sources
                 .designated
                 .iter()
-                .find(|(operation, _)| *operation == call.operation)
+                .find(|(operation, _)| *operation == call.site.operation)
         })
         .map(|(_, designated)| *designated)
         .ok_or_else(|| refused("a Build selection call carries no designated operands"))?;
@@ -250,8 +210,7 @@ fn binding(
         None
     };
     Ok(TerminalBuildBindingCall {
-        operation: call.operation,
-        boundary: call.boundary,
+        site: call.site,
         action,
         request,
         selecting_machine,
