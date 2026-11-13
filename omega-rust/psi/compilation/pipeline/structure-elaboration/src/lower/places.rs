@@ -2219,7 +2219,7 @@ impl<'a> Lowering<'a> {
 mod tests {
     use super::*;
     use crate::{Borrowed, CrashCeiling, Policy, Termination};
-    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PsiSemanticId};
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
     #[test]
     fn scalar_homes_keep_their_identity_beside_qualified_array_elements() {
@@ -2286,7 +2286,7 @@ mod tests {
                 },
                 Statement::Evaluate(Expression {
                     kind: ExpressionKind::Call {
-                        target: MachineId::new(2).unwrap(),
+                        callee: MachineId::new(2).unwrap(),
                         arguments: vec![Expression {
                             kind: ExpressionKind::Borrow {
                                 access: language_core::ReferenceAccess::Shared,
