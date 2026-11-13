@@ -777,9 +777,11 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
 /// contract with no body; `forward`'s own check form, judged in the same
 /// compilation, is what proves that contract for every `T`, so `relay`'s
 /// form is accepted on its own proofs. A bound the callee does not give
-/// still rejects the caller. A machine that applies itself is handed back:
-/// its form would take its own guarantee as given, and nothing in a form
-/// judges that the recursion ends.
+/// still rejects the caller. A machine that applies itself is refused by
+/// name, with or without an `ensures`: its form would take its own contract
+/// as given, and nothing in a form judges the cycle. The one with no
+/// `ensures` and a `terminates` promise is the case that was once accepted:
+/// it has no contract row to leave undecided, and it never returns.
 #[test]
 fn a_generic_body_that_applies_another_generic_machine_is_judged() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
@@ -817,9 +819,31 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
         ),
         [
             Verdict::Accepted(1),
-            Verdict::FallsBack(
-                "a requirement's guarantee is proved by each implementation, not here".to_owned()
-            )
+            Verdict::FallsBack("generic machine `again` on a call cycle".to_owned())
+        ]
+    );
+    assert_eq!(
+        judged_parts(
+            "generic_application_of_itself_with_no_guarantee",
+            "machine forever<T>(item: T, limit: u32) -> u32              terminates { forever<T>(item, limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::FallsBack("generic machine `forever` on a call cycle".to_owned())
+        ]
+    );
+    // Two generic machines that reach each other are one cycle; each is
+    // refused.
+    assert_eq!(
+        judged_parts(
+            "generic_application_cycle_of_two",
+            "machine ping<T>(item: T, limit: u32) -> u32 { pong<T>(item, limit) }
+             machine pong<T>(item: T, limit: u32) -> u32 { ping<T>(item, limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::FallsBack("generic machine `ping` on a call cycle".to_owned()),
+            Verdict::FallsBack("generic machine `pong` on a call cycle".to_owned())
         ]
     );
 }

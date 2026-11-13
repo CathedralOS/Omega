@@ -1405,9 +1405,12 @@ judged form applies, whichever package declares it, and leaves the applied
 machine's rows in the caller's form to that judgment
 (`judge_generic_forms`, [verdict.rs](src/verdict.rs)). A form judged alone
 (`judge`) still refuses those rows, because nothing it knows of proves
-them, and so does a form whose machine applies itself, directly or through
-others: every form on such a cycle would take the next one's contract as
-given, and no form judges that the recursion ends. A requirement reached
+them. A generic machine that applies itself, directly or through others, is
+refused by name (`generic machine ... on a call cycle`) whether or not it
+states a contract: every form on such a cycle would take the next one's
+contract as given, and no form judges the cycle (tail position, a
+`terminates` promise) the way elaboration judges a cycle among bodies it
+read. A requirement reached
 through an implementation parameter is not covered: its rows stay refused
 until each conformance's refinement is judged in the same compilation.
 
