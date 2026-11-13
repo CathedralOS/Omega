@@ -1912,7 +1912,7 @@ fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
     assert!(matches!(
         &operations[9].kind,
         OperationKind::StoreStructuralField {
-            disposition: terminal_psi::StructuralStoreDisposition::Vacant,
+            disposition: terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
             destination,
             path,
             field: Some(field),
