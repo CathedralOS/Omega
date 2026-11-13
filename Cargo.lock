@@ -2717,6 +2717,7 @@ dependencies = [
  "diagnostics",
  "language-core",
  "language-semantics",
+ "numerics",
  "source",
  "symbols",
  "typed-trees",

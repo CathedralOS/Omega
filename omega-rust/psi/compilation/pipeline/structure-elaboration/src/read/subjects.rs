@@ -285,6 +285,19 @@ impl<'t> Program<'t> {
             ));
         }
         for requirement in self.typed.trait_machine_signatures(declared) {
+            // A requirement with value parameters has one contract per tuple
+            // of values (`requirement`), read where a call or a selected
+            // implementation supplies them. Read as a subject it has none,
+            // and the witness its implementations owe for every value at
+            // once is not built: refused by that name, not as a mismatch of
+            // arguments nobody gave.
+            if !self.requirement_binders(entry, requirement)?.is_empty() {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Declaration("trait requirement with value parameters"),
+                ));
+            }
             self.requirement_signature(entry, requirement, &[])?;
         }
         Ok(())
