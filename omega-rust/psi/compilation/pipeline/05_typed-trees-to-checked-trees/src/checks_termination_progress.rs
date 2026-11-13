@@ -1745,7 +1745,10 @@ mod machine_summaries {
         place: validation::CanonicalPlace,
     ) -> Option<Vec<validation::CanonicalPlace>> {
         let mut pending = vec![place];
-        let mut places = Vec::new();
+        // A large fixed array supplies many distinct alternatives. Preserve
+        // their encounter order without rescanning every earlier path for
+        // each slot; full equality, not the hash alone, still deduplicates.
+        let mut places = crate::shared::collections::UniqueRoster::default();
         while let Some(mut selected) = pending.pop() {
             if let Some(selector) = selected
                 .segments
@@ -1770,10 +1773,11 @@ mod machine_summaries {
                     selected.segments[selector] = facts::PlaceSegment::FixedIndex { index };
                     pending.push(selected.clone());
                 }
-            } else if !places.contains(&selected) {
+            } else {
                 places.push(selected);
             }
         }
+        let places = places.into_vec();
         (!places.is_empty()).then_some(places)
     }
 
@@ -1906,6 +1910,114 @@ mod machine_summaries {
                         && fact_subject(semantic, fact.place).as_ref() == Some(&premise.subject)
                 })
         })
+    }
+    #[cfg(test)]
+    mod selector_place_tests {
+        use super::selector_places;
+        use checked_trees::{FlowCallFact, FlowStateFact};
+        use facts::{PlaceRoot, PlaceSegment};
+        use typed_trees::TypedTrees;
+        use typed_trees::expression::ExpressionHandle;
+        use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+        use validation::CanonicalPlace;
+
+        fn array(
+            program: &mut TypedTrees,
+            element_type: TypeReferenceHandle,
+            length: usize,
+        ) -> TypeReferenceHandle {
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: FixedArrayLength::Literal(length),
+                })
+        }
+
+        fn index() -> PlaceSegment {
+            PlaceSegment::Index {
+                expression: ExpressionHandle::invalid(),
+            }
+        }
+
+        fn selected(
+            program: &TypedTrees,
+            reference: TypeReferenceHandle,
+            segments: Vec<PlaceSegment>,
+        ) -> Option<Vec<CanonicalPlace>> {
+            selector_places(
+                program,
+                &FlowStateFact::default(),
+                &FlowCallFact::default(),
+                CanonicalPlace {
+                    root: PlaceRoot::TypeReference(reference),
+                    segments,
+                },
+            )
+        }
+
+        #[test]
+        fn large_fixed_selector_retains_every_alternative_in_encounter_order() {
+            let mut program = TypedTrees::default();
+            let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            let values = array(&mut program, unit, 65536);
+            let first = selected(&program, values, vec![index()]).unwrap();
+            assert_eq!(first.len(), 65536);
+            for (position, place) in first.iter().enumerate() {
+                assert_eq!(place.root, PlaceRoot::TypeReference(values));
+                assert_eq!(
+                    place.segments,
+                    [PlaceSegment::FixedIndex {
+                        index: 65535 - position
+                    }]
+                );
+            }
+            assert_eq!(selected(&program, values, vec![index()]).unwrap(), first);
+        }
+
+        #[test]
+        fn nested_and_overlapping_fixed_paths_preserve_the_same_alternatives() {
+            let mut program = TypedTrees::default();
+            let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            let row = array(&mut program, unit, 128);
+            let table = array(&mut program, row, 64);
+            let all = selected(&program, table, vec![index(), index()]).unwrap();
+            assert_eq!(all.len(), 64 * 128);
+            for (position, place) in all.iter().enumerate() {
+                assert_eq!(
+                    place.segments,
+                    [
+                        PlaceSegment::FixedIndex {
+                            index: 63 - position / 128
+                        },
+                        PlaceSegment::FixedIndex {
+                            index: 127 - position % 128
+                        }
+                    ]
+                );
+            }
+            let fixed = selected(
+                &program,
+                table,
+                vec![PlaceSegment::FixedIndex { index: 17 }, index()],
+            )
+            .unwrap();
+            assert_eq!(fixed, all[(63 - 17) * 128..(64 - 17) * 128]);
+            let exact = selected(&program, table, fixed[0].segments.clone()).unwrap();
+            assert_eq!(exact, fixed[..1]);
+        }
+
+        #[test]
+        fn empty_or_unknown_selector_geometry_remains_unavailable() {
+            let mut program = TypedTrees::default();
+            let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            let empty = array(&mut program, unit, 0);
+            let slice = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Slice { element_type: unit });
+            assert!(selected(&program, empty, vec![index()]).is_none());
+            assert!(selected(&program, slice, vec![index()]).is_none());
+        }
     }
 }
 mod origins {

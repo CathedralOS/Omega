@@ -697,6 +697,7 @@ pub mod product_entries {
                     slot,
                     implementation,
                     implementation_symbol,
+                    source_span: Some(binding.source_span),
                 });
             }
             if diagnostics.is_empty() {
@@ -829,36 +830,9 @@ pub mod product_entries {
         typed: &TypedTrees,
         requirement: &str,
     ) -> Result<ArrivalRequirementContract, Diagnostic> {
-        let Some((owner, _)) = requirement.split_once("::") else {
-            return Err(Diagnostic::error(
-                "target semantic arrival has no requirement owner",
-            ));
-        };
-        /*
-            The arrival requirement's owner must be the core `ProgramStorageEntry`
-            trait, declared in the product-scope toolchain source. A target that
-            names any other owner finds no declaration and is refused.
-        */
-        let mut declarations = typed.traits().iter().filter(|definition| {
-            definition.name.as_str() == owner
-                && typed.symbols.core_vocabulary(definition.symbol)
-                    == Some(language_core::core_vocabulary::CoreVocabulary::ProgramStorageEntry)
-                && typed
-                    .symbols
-                    .symbol_source_span(definition.symbol)
-                    .and_then(|span| typed.symbols.source_file(span))
-                    .is_some_and(|file| file.dependency_scope == source::DependencyScope::Product)
-        });
-        let Some(definition) = declarations.next() else {
-            return Err(Diagnostic::error(format!(
-                "target semantic arrival `{requirement}` has no exact core declaration"
-            )));
-        };
-        if declarations.next().is_some() {
-            return Err(Diagnostic::error(format!(
-                "target semantic arrival `{requirement}` has multiple core declaration instances"
-            )));
-        }
+        let (definition, _) =
+            typed_trees::product_operand::core_arrival_requirement(typed, requirement)
+                .map_err(Diagnostic::error)?;
         arrival_requirement_contract(typed, definition, requirement)
     }
 

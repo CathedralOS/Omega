@@ -29,6 +29,7 @@ without re-running type inference or inspecting surface syntax.
   - `service_declarations.rs`: boundary service and provider declaration projections (`service_declarations`, `provider_declarations`).
   - `access_views_and_commitments.rs`: placed/plan-laid access views, conformance commitments, constant recipes, and wire schema queries.
   - `callable_applications.rs`: closed machine, trait, requirement, and domain callable applications.
+  - `callable_signature_shapes.rs`: source calling-shape correspondence before body or proof elaboration.
   - `calls_and_control_flow.rs`: typed call signatures, dynamic/static dispatch families, machines, states, statements, and names.
   - `declaration_tables_and_index.rs`: declaration tables, relationship indexes, type parameters, and type-reference queries.
   - `declarations.rs`, `operator_declarations.rs`, `product_and_trait_declarations.rs`: typed domain, data, wire, visibility, operator, product-operand, and trait declarations.
@@ -754,6 +755,7 @@ pub(crate) mod build_selections {
     }
 }
 mod callable_copies;
+pub mod callable_signature_shapes;
 pub mod callable_values;
 pub mod contract_structure;
 pub mod references;

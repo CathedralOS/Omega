@@ -2429,8 +2429,7 @@ pub(crate) mod runtime_ranking {
         program: &dyn CheckingInput,
         component: &[usize],
     ) -> Result<(), &'static str> {
-        let mut dispatched = dispatched_implementations(program);
-        dispatched.extend(supplied_requirement_implementations(program));
+        let dispatched = dispatched_implementations(program);
         for position in component {
             let machine = &program.machines()[*position];
             for state in program.machine_states(machine) {
@@ -2461,7 +2460,11 @@ pub(crate) mod runtime_ranking {
         adjacency: &mut [Vec<usize>],
     ) -> Vec<usize> {
         let dispatched = dispatched_implementations(program);
-        let supplied = supplied_requirement_implementations(program);
+        // Boundary calls remain dependencies on their exact requirements. An
+        // eligible conformance is not a selected callee: expanding that roster
+        // invents source recursion, including between distinct applications.
+        // Composition resolves these dependencies and checks provider cycles;
+        // source progress judgments still use the called requirement's contract.
         let mut selector_self_recursion = Vec::new();
         for (index, machine) in program.machines().iter().enumerate() {
             if proof_only.is_proof_machine(program, machine) {
@@ -2488,15 +2491,6 @@ pub(crate) mod runtime_ranking {
                     {
                         selector_self_recursion.push(index);
                     }
-                } else if let Some((_, implementations)) = supplied
-                    .iter()
-                    .find(|(requirement, _)| *requirement == target)
-                {
-                    adjacency[index].extend(implementations.iter().copied());
-                    if implementations.contains(&index) && !selector_self_recursion.contains(&index)
-                    {
-                        selector_self_recursion.push(index);
-                    }
                 } else if let Some(callee) = target_machine(program, target)
                     && (callee != index
                         || target == machine.symbol
@@ -2512,37 +2506,6 @@ pub(crate) mod runtime_ranking {
             adjacency[index].dedup();
         }
         selector_self_recursion
-    }
-
-    fn supplied_requirement_implementations(
-        program: &dyn CheckingInput,
-    ) -> Vec<(SymbolHandle, Vec<usize>)> {
-        let mut supplied: Vec<(SymbolHandle, Vec<usize>)> = Vec::new();
-        for conformance in program.conformances() {
-            let boundary = program
-                .trait_definition_by_symbol(conformance.trait_symbol)
-                .is_some_and(|definition| definition.is_boundary);
-            if !boundary {
-                continue;
-            }
-            for row in &conformance.rows {
-                let Some(implementation) = target_machine(program, row.realization_machine) else {
-                    continue;
-                };
-                match supplied
-                    .iter_mut()
-                    .find(|(requirement, _)| *requirement == row.requirement)
-                {
-                    Some((_, implementations)) => implementations.push(implementation),
-                    None => supplied.push((row.requirement, vec![implementation])),
-                }
-            }
-        }
-        for (_, implementations) in &mut supplied {
-            implementations.sort_unstable();
-            implementations.dedup();
-        }
-        supplied
     }
 
     fn dispatched_implementations(program: &dyn CheckingInput) -> Vec<(SymbolHandle, Vec<usize>)> {

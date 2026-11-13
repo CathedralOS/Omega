@@ -1183,7 +1183,9 @@ dependencies = [
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
+ "source",
  "structure-elaboration",
+ "symbols",
  "terminal-check-tables",
  "terminal-codec",
  "terminal-psi",
@@ -2933,6 +2935,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "layout-plans",
+ "lowered-discharge",
  "numerics",
  "optimization",
  "proof-admission",
@@ -2940,7 +2943,9 @@ dependencies = [
  "representation-selections",
  "semantic-vocabulary",
  "source",
+ "structure-elaboration",
  "symbols",
+ "terminal-check-tables",
  "typed-trees",
 ]
 

@@ -362,8 +362,8 @@ that cannot fail cannot hold work back, and work went ahead
      provider inventory and target preparation also still read Psi 05's
      trees.
      `Build::validate` rows are not handled either; nothing implements them.
-     The `fail/` sweep of 2026-11-12 shows what that costs: four programs
-     the current checker rejects for their entry are accepted whole by the
+     The `fail/` sweep of 2026-11-12 found four programs
+     the current checker rejected for their entry that were accepted whole by the
      route, because nothing it roots states what the target asks of an
      entry. They are `fail/build/program_entry_returns_value` and
      `fail/build/unrequested_target_entry_returns_value` ("`ProgramEntry`
@@ -372,8 +372,13 @@ that cannot fail cannot hold work back, and work went ahead
      `fail/build/uefi_program_entry_missing_storage_roots` ("exposes exactly
      image and initial-storage roots"). A rule in the route that an entry
      takes and returns nothing would close three and wrongly accept the
-     fourth, so none is added: the repair is to root the entry-contract
-     source, which is this open item. A fifth program of that sweep,
+     fourth. The compilation now retains each executed binding's exact semantic
+     requirement and target-declared visible parameter projection. Shared callable
+     shape comparison rejects these four controls before body elaboration, including
+     a binding outside the requested target. Matching a shape introduces no backing
+     or `Granted` fact and does not prove the installed continuation's logical
+     preconditions. Those obligations remain open; physical entry-source and
+     package admission retain their existing owner. A fifth program of that sweep,
      `fail/build/executed_dependency_private_call`, was accepted for another
      reason, a call into a dependency's private machine, and is now handed
      back (`lowered_route_subjects`,

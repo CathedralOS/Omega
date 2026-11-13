@@ -94,6 +94,7 @@ fn route_messages(fixture: &str, root: &str) -> Vec<String> {
             unproved,
             unestablished,
             conflicts,
+            ..
         }) => unproved
             .iter()
             .map(|entry| entry.message())

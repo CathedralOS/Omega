@@ -486,6 +486,75 @@ fn selected_fixture_count(
     Ok(count)
 }
 
+struct ModeCoverage<'a> {
+    mode: &'static str,
+    selected: usize,
+    omitted_rejections: Vec<&'a str>,
+}
+
+impl<'a> ModeCoverage<'a> {
+    fn new(names: &'a [String], native: bool, interpret: bool) -> Self {
+        Self {
+            mode: match (native, interpret) {
+                (true, true) => "native/Psi",
+                (true, false) => "native",
+                (false, true) => "checking/Psi",
+                (false, false) => "checking",
+            },
+            selected: names.len(),
+            // The native runner visits only pass/run tiers. Interpretation
+            // alone still visits fail fixtures and checks their diagnostic pins.
+            omitted_rejections: names
+                .iter()
+                .filter(|name| native && name.starts_with("fail/"))
+                .map(String::as_str)
+                .collect(),
+        }
+    }
+
+    fn plan_summary(&self, sharded: bool) -> String {
+        let scope = if sharded { " before sharding" } else { "" };
+        format!(
+            "corpus: {} mode: {} eligible of {} selected fixture(s){scope}; {} rejection control(s) omitted",
+            self.mode,
+            self.selected - self.omitted_rejections.len(),
+            self.selected,
+            self.omitted_rejections.len(),
+        )
+    }
+
+    fn report(&self, sharded: bool, detailed: bool) {
+        eprintln!("{}", self.plan_summary(sharded));
+        if self.omitted_rejections.is_empty() {
+            return;
+        }
+        if detailed && self.selected <= SELECTION_BUDGET {
+            for fixture in &self.omitted_rejections {
+                eprintln!("corpus:   not checked in this mode: {fixture}");
+            }
+        }
+        eprintln!(
+            "corpus: verify those diagnostic pins in checking mode: use the same selection/shard without --native, --native-target, --interpret or --both"
+        );
+    }
+
+    fn clean_summary(&self, observed: usize, sweep: bool) -> String {
+        let kind = if sweep { "clean" } else { "blast clean" };
+        if !self.omitted_rejections.is_empty() {
+            format!(
+                "corpus: {kind} — {observed} observed fixture(s) verified in {} mode; selected rejection controls still require checking mode",
+                self.mode,
+            )
+        } else if sweep {
+            format!("corpus: clean — {observed} fixture(s) verified")
+        } else {
+            format!(
+                "corpus: blast clean — {observed} fixture(s) verified; nothing more to run before merging"
+            )
+        }
+    }
+}
+
 pub(crate) fn current_stamp(root: &Path) -> String {
     let rev = Command::new("git")
         .args(["rev-parse", "--short=12", "HEAD"])
@@ -878,6 +947,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         eprintln!("corpus: selection matches no fixtures");
         return Err(2);
     }
+    let selected_names = selected_fixture_names(&root, &selection).map_err(|e| {
+        eprintln!("corpus: {e}");
+        2u8
+    })?;
+    let coverage = ModeCoverage::new(&selected_names, native, interpret);
+    coverage.report(!shard.trim().is_empty(), !sweep);
     let evidence = execution::reserve_directory(&root.join("build/corpus-runs")).map_err(|e| {
         eprintln!("corpus: {e}");
         4u8
@@ -1010,14 +1085,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             observed.len()
         );
         Err(1)
-    } else if sweep {
-        println!("corpus: clean — {} fixture(s) verified", observed.len());
-        Ok(())
     } else {
-        println!(
-            "corpus: blast clean — {} fixture(s) verified; nothing more to run before merging",
-            observed.len()
-        );
+        println!("{}", coverage.clean_summary(observed.len(), sweep));
         Ok(())
     }
 }
@@ -1025,6 +1094,71 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_modes_distinguish_the_selected_blast_from_rejection_coverage() {
+        let names: Vec<String> = (0..9)
+            .map(|n| format!("pass/calls/positive_{n}"))
+            .chain(["run/fail_named_group/positive".to_owned()])
+            .chain((0..7).map(|n| format!("fail/calls/rejection_{n}")))
+            .collect();
+        for interpret in [false, true] {
+            let coverage = ModeCoverage::new(&names, true, interpret);
+            assert_eq!(coverage.omitted_rejections.len(), 7);
+            assert!(coverage.plan_summary(false).contains("10 eligible of 17"));
+            assert!(
+                coverage
+                    .omitted_rejections
+                    .iter()
+                    .all(|name| name.starts_with("fail/"))
+            );
+            for sweep in [false, true] {
+                let result = coverage.clean_summary(10, sweep);
+                assert!(result.contains("10 observed fixture(s) verified"));
+                assert!(result.contains("rejection controls still require checking mode"));
+                assert!(!result.contains("nothing more to run"));
+            }
+        }
+    }
+
+    #[test]
+    fn checking_and_interpreted_only_modes_retain_negative_controls() {
+        let names = vec![
+            "pass/calls/positive".to_owned(),
+            "fail/calls/twin".to_owned(),
+        ];
+        for interpret in [false, true] {
+            let coverage = ModeCoverage::new(&names, false, interpret);
+            assert!(coverage.omitted_rejections.is_empty());
+            assert!(coverage.plan_summary(false).contains("2 eligible of 2"));
+            assert!(
+                coverage
+                    .clean_summary(2, false)
+                    .contains("nothing more to run")
+            );
+        }
+    }
+
+    #[test]
+    fn shard_plans_label_pre_shard_counts_and_results_use_actual_observations() {
+        let names = vec![
+            "pass/calls/first".to_owned(),
+            "pass/calls/second".to_owned(),
+            "fail/calls/twin".to_owned(),
+        ];
+        let coverage = ModeCoverage::new(&names, true, true);
+        assert!(
+            coverage
+                .plan_summary(true)
+                .contains("2 eligible of 3 selected fixture(s) before sharding")
+        );
+        assert!(!coverage.plan_summary(false).contains("before sharding"));
+        assert!(
+            coverage
+                .clean_summary(1, false)
+                .contains("1 observed fixture(s) verified")
+        );
+    }
 
     /// The wave around a named fixture is its twin in another tier and the
     /// fixtures beside it by name in its own group, never another group's and

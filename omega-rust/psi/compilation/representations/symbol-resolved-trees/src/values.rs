@@ -399,12 +399,14 @@ pub mod expression {
     }
     pub(crate) mod symbol_copies {
         use crate::SymbolResolvedTrees;
+        use crate::data::{MachineParameterContract, TypeParameter, TypeParameterKind};
         use crate::domain::ProofFact;
         use crate::expression::{
             ExpressionHandle, ExpressionNode, MatchPattern, StaticMachineArgument,
         };
         use crate::types::{
-            FixedArrayLength, GenericApplicationOrigin, TypeConstraint, TypeReference,
+            FixedArrayLength, GenericApplicationOrigin, OperandLifetimeOwner,
+            OperandLifetimeOwnerHandle, TypeConstraint, TypeReference,
         };
         use arena::{Handle, HandleSpan};
         use symbols::SymbolHandle;
@@ -421,6 +423,7 @@ pub mod expression {
                     type_arguments: &[],
                     types: Vec::new(),
                     callables: Vec::new(),
+                    lifetime_owners: Vec::new(),
                     visited_payloads: Vec::new(),
                 }
                 .expression(source)
@@ -437,6 +440,7 @@ pub mod expression {
                     type_arguments: &[],
                     types: Vec::new(),
                     callables: Vec::new(),
+                    lifetime_owners: Vec::new(),
                     visited_payloads: Vec::new(),
                 }
                 .proof_fact(source)
@@ -466,9 +470,78 @@ pub mod expression {
                     type_arguments,
                     types: Vec::new(),
                     callables: Vec::new(),
+                    lifetime_owners: Vec::new(),
                     visited_payloads: Vec::new(),
                 }
                 .type_span(source)
+            }
+
+            /// Transport the complete callable type to another declaration's
+            /// parameter. Local binders receive derived children of that exact
+            /// parameter; supplied outer operands retain their own context.
+            /// Copying only parameter/result types would lose the contract and
+            /// sharing the original locals would capture another use's binders.
+            pub fn copy_callable_signature(
+                &mut self,
+                source: &crate::signature::StateSignature,
+                destination: SymbolHandle,
+                type_arguments: &[(SymbolHandle, TypeReference)],
+                selections: &[(SymbolHandle, SymbolHandle)],
+            ) -> crate::signature::StateSignature {
+                let mut substitutions = vec![(source.symbol, destination)];
+                let mut cursor = 0;
+                while cursor < substitutions.len() {
+                    let (original, copied) = substitutions[cursor];
+                    cursor += 1;
+                    let children = self
+                        .symbols
+                        .child_handles(original)
+                        .into_iter()
+                        .flatten()
+                        .map(|child| {
+                            (
+                                child,
+                                self.symbols.get(child).kind,
+                                self.symbols.name(child).to_owned(),
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let copies = self.symbols.append_generated_children_from(
+                        copied,
+                        children
+                            .iter()
+                            .map(|(origin, kind, name)| (*origin, *kind, name.as_str())),
+                    );
+                    substitutions.extend(
+                        children
+                            .iter()
+                            .zip(copies.handles())
+                            .map(|((original, _, _), copied)| (*original, copied)),
+                    );
+                }
+                substitutions.extend(
+                    selections
+                        .iter()
+                        .copied()
+                        .filter(|(original, _)| *original != source.symbol),
+                );
+                substitutions.extend(type_arguments.iter().filter_map(|(formal, actual)| {
+                    if let TypeReference::Named { symbol, .. } = actual {
+                        Some((*formal, *symbol))
+                    } else {
+                        None
+                    }
+                }));
+                SymbolCopy {
+                    program: self,
+                    substitutions: &substitutions,
+                    type_arguments,
+                    types: Vec::new(),
+                    callables: Vec::new(),
+                    lifetime_owners: Vec::new(),
+                    visited_payloads: Vec::new(),
+                }
+                .signature(source)
             }
         }
 
@@ -481,10 +554,150 @@ pub mod expression {
                 crate::callable_values::RuntimeCallableContractHandle,
                 crate::callable_values::RuntimeCallableContractHandle,
             )>,
+            lifetime_owners: Vec<(OperandLifetimeOwnerHandle, OperandLifetimeOwnerHandle)>,
             visited_payloads: Vec<ExpressionHandle>,
         }
 
         impl SymbolCopy<'_, '_> {
+            fn signature(
+                &mut self,
+                source: &crate::signature::StateSignature,
+            ) -> crate::signature::StateSignature {
+                let mut copied = source.clone();
+                copied.symbol = self.symbol(source.symbol);
+                let parameters = self
+                    .program
+                    .data_type_parameters(source.type_parameters)
+                    .to_vec();
+                let parameters = parameters
+                    .into_iter()
+                    .map(|parameter| self.parameter(parameter))
+                    .collect::<Vec<_>>();
+                copied.type_parameters = self
+                    .program
+                    .declarations_mut()
+                    .data_type_parameters
+                    .insert_many(parameters);
+                for bound in &mut copied.conformance_bounds {
+                    bound.binder = self.symbol(bound.binder);
+                    bound.trait_symbol = self.symbol(bound.trait_symbol);
+                    bound.arguments = self.type_span(bound.arguments);
+                }
+                copied.parameters = self.parameters(source.parameters);
+                copied.return_type = source
+                    .return_type
+                    .clone()
+                    .map(|reference| self.type_payload(reference));
+                let invokes = self.program.signature_invokes(source.invokes).to_vec();
+                copied.invokes = self
+                    .program
+                    .declarations_mut()
+                    .signature_invokes
+                    .insert_many(invokes);
+                let contracts = self.program.signature_contracts(source.contracts).to_vec();
+                let contracts = contracts
+                    .into_iter()
+                    .map(|mut contract| {
+                        if let crate::signature::SignatureContractKind::EnsuresForResultCase {
+                            result_data,
+                            result_case,
+                        } = &mut contract.kind
+                        {
+                            *result_data = self.symbol(*result_data);
+                            *result_case = self.symbol(*result_case);
+                        }
+                        contract.facts = self.proof_span(contract.facts);
+                        contract
+                    })
+                    .collect::<Vec<_>>();
+                copied.contracts = self
+                    .program
+                    .declarations_mut()
+                    .signature_contracts
+                    .insert_many(contracts);
+                let rows = self
+                    .program
+                    .authored_service_reach_rows_for(source.symbol)
+                    .cloned()
+                    .collect::<Vec<_>>();
+                for mut row in rows {
+                    row.owner = copied.symbol;
+                    for target in &mut row.targets {
+                        target.service = self.symbol(target.service);
+                    }
+                    // Runtime rows can share their formal namespace while their
+                    // supplying scope changes. Preserve each distinct authored
+                    // row without duplicating an unchanged declaration record.
+                    if !self.program.authored_service_reach_rows.contains(&row) {
+                        self.program.authored_service_reach_rows.push(row);
+                    }
+                }
+                copied
+            }
+
+            fn parameters(
+                &mut self,
+                source: HandleSpan<crate::signature::StateParameter>,
+            ) -> HandleSpan<crate::signature::StateParameter> {
+                let parameters = self.program.state_parameters(source).to_vec();
+                let parameters = parameters
+                    .into_iter()
+                    .map(|mut parameter| {
+                        parameter.symbol = self.symbol(parameter.symbol);
+                        parameter.type_reference = self.type_payload(parameter.type_reference);
+                        parameter
+                    })
+                    .collect::<Vec<_>>();
+                self.program
+                    .declarations_mut()
+                    .state_parameters
+                    .insert_many(parameters)
+            }
+
+            fn parameter(&mut self, mut parameter: TypeParameter) -> TypeParameter {
+                parameter.symbol = self.symbol(parameter.symbol);
+                parameter.kind = match parameter.kind {
+                    TypeParameterKind::Const { type_reference } => TypeParameterKind::Const {
+                        type_reference: self.type_payload(type_reference),
+                    },
+                    TypeParameterKind::Value { type_reference } => TypeParameterKind::Value {
+                        type_reference: self.type_payload(type_reference),
+                    },
+                    TypeParameterKind::Machine { contract } => TypeParameterKind::Machine {
+                        contract: match contract {
+                            MachineParameterContract::Structural(signature) => {
+                                MachineParameterContract::Structural(self.signature(&signature))
+                            }
+                            MachineParameterContract::AuthoredNominal {
+                                requirement,
+                                trait_arguments,
+                            } => MachineParameterContract::AuthoredNominal {
+                                requirement,
+                                trait_arguments: self.type_span(trait_arguments),
+                            },
+                            MachineParameterContract::Nominal {
+                                trait_definition,
+                                requirement,
+                                authored_path,
+                                trait_arguments,
+                            } => MachineParameterContract::Nominal {
+                                trait_definition: self.symbol(trait_definition),
+                                requirement: self.symbol(requirement),
+                                authored_path,
+                                trait_arguments: self.type_span(trait_arguments),
+                            },
+                            other => other,
+                        },
+                    },
+                    TypeParameterKind::Proposition { mut contract } => {
+                        contract.parameters = self.parameters(contract.parameters);
+                        TypeParameterKind::Proposition { contract }
+                    }
+                    other => other,
+                };
+                parameter
+            }
+
             fn proof_fact(&mut self, source: Handle<ProofFact>) -> Handle<ProofFact> {
                 if !source.is_valid() {
                     return source;
@@ -503,7 +716,11 @@ pub mod expression {
             ) -> (ProofFact, Option<source::SourceSpan>) {
                 let source_span = self.program.proof_fact_source_span(source);
                 let fact = self.program.declarations().proof_facts.get(source).clone();
-                let fact = match fact {
+                (self.fact_payload(fact), source_span)
+            }
+
+            fn fact_payload(&mut self, fact: ProofFact) -> ProofFact {
+                match fact {
                     ProofFact::Expression(expression) => {
                         ProofFact::Expression(self.expression(expression))
                     }
@@ -519,8 +736,7 @@ pub mod expression {
                         membership.domain_arguments = self.type_span(membership.domain_arguments);
                         ProofFact::Membership(membership)
                     }
-                };
-                (fact, source_span)
+                }
             }
 
             fn symbol(&self, source: SymbolHandle) -> SymbolHandle {
@@ -627,6 +843,8 @@ pub mod expression {
                         self.expression_payloads(call.receiver);
                         self.expression_span_payloads(call.arguments);
                         call.target_symbol = self.symbol(call.target_symbol);
+                        call.requirement_application =
+                            self.type_reference(call.requirement_application);
                         if let Some(binding) = &mut call.authored_call_binding {
                             binding.selected = self.symbol(binding.selected);
                         }
@@ -652,6 +870,7 @@ pub mod expression {
                     ExpressionNode::Name(path) => {
                         path.head_symbol = self.symbol(path.head_symbol);
                         path.symbol = self.symbol(path.symbol);
+                        path.reserved_result_of = self.symbol(path.reserved_result_of);
                         let symbols = self
                             .program
                             .expression_table()
@@ -844,6 +1063,37 @@ pub mod expression {
                 {
                     return actual.clone();
                 }
+                let owner = reference.supplied_operand_owner();
+                if owner.is_valid() {
+                    let declaration = self
+                        .program
+                        .tables
+                        .types
+                        .operand_lifetime_owners
+                        .get(owner)
+                        .declaration;
+                    let copied = self.symbol(declaration);
+                    if copied != declaration {
+                        let owner = match self
+                            .lifetime_owners
+                            .iter()
+                            .find(|(original, _)| *original == owner)
+                        {
+                            Some((_, copied)) => *copied,
+                            None => {
+                                let copied =
+                                    self.program.tables.types.operand_lifetime_owners.insert(
+                                        OperandLifetimeOwner {
+                                            declaration: copied,
+                                        },
+                                    );
+                                self.lifetime_owners.push((owner, copied));
+                                copied
+                            }
+                        };
+                        reference.retain_supplied_operand_owner(owner);
+                    }
+                }
                 match &mut reference {
                     TypeReference::Reference(borrow) => {
                         borrow.referee = self.type_reference(borrow.referee)
@@ -887,7 +1137,8 @@ pub mod expression {
                         application.arguments = self.type_span(application.arguments);
                     }
                     TypeReference::ConstExpression(expression) => {
-                        expression.expression = self.expression(expression.expression)
+                        expression.expression = self.expression(expression.expression);
+                        expression.lexical_owner = self.symbol(expression.lexical_owner);
                     }
                     TypeReference::Callable { contract, .. } => {
                         *contract = self.callable_contract(*contract);
@@ -938,7 +1189,7 @@ pub mod expression {
                     .append(Default::default());
                 self.callables.push((source, copied));
                 declaration.lexical_owner = self.symbol(declaration.lexical_owner);
-                declaration.signature = self.signature(declaration.signature);
+                declaration.signature = self.signature(&declaration.signature);
                 *self
                     .program
                     .tables
@@ -946,129 +1197,6 @@ pub mod expression {
                     .runtime_callable_contracts
                     .get_mut(copied) = declaration;
                 copied
-            }
-
-            fn signature(
-                &mut self,
-                mut signature: crate::signature::StateSignature,
-            ) -> crate::signature::StateSignature {
-                signature.symbol = self.symbol(signature.symbol);
-                let parameters = self
-                    .program
-                    .data_type_parameters(signature.type_parameters)
-                    .to_vec();
-                let parameters = parameters
-                    .into_iter()
-                    .map(|mut parameter| {
-                        parameter.symbol = self.symbol(parameter.symbol);
-                        use crate::data::{MachineParameterContract, TypeParameterKind};
-                        match &mut parameter.kind {
-                            TypeParameterKind::Const { type_reference }
-                            | TypeParameterKind::Value { type_reference } => {
-                                *type_reference = self.type_payload(type_reference.clone());
-                            }
-                            TypeParameterKind::Machine { contract } => match contract {
-                                MachineParameterContract::Structural(required) => {
-                                    *required = self.signature(required.clone());
-                                }
-                                MachineParameterContract::AuthoredNominal {
-                                    trait_arguments,
-                                    ..
-                                } => {
-                                    *trait_arguments = self.type_span(*trait_arguments);
-                                }
-                                MachineParameterContract::Nominal {
-                                    trait_definition,
-                                    requirement,
-                                    trait_arguments,
-                                    ..
-                                } => {
-                                    *trait_definition = self.symbol(*trait_definition);
-                                    *requirement = self.symbol(*requirement);
-                                    *trait_arguments = self.type_span(*trait_arguments);
-                                }
-                                MachineParameterContract::Inferred
-                                | MachineParameterContract::RequirementIdentity => {}
-                            },
-                            TypeParameterKind::Proposition { contract } => {
-                                contract.parameters = self.parameters(contract.parameters);
-                            }
-                            TypeParameterKind::Type | TypeParameterKind::Implementation => {}
-                        }
-                        parameter
-                    })
-                    .collect::<Vec<_>>();
-                signature.type_parameters = self
-                    .program
-                    .tables
-                    .declarations
-                    .data_type_parameters
-                    .insert_many(parameters);
-                for bound in &mut signature.conformance_bounds {
-                    bound.binder = self.symbol(bound.binder);
-                    bound.trait_symbol = self.symbol(bound.trait_symbol);
-                    bound.arguments = self.type_span(bound.arguments);
-                }
-                signature.parameters = self.parameters(signature.parameters);
-                signature.return_type = signature
-                    .return_type
-                    .take()
-                    .map(|result| self.type_payload(result));
-                let contracts = self
-                    .program
-                    .tables
-                    .declarations
-                    .signature_contracts
-                    .span_or_empty(signature.contracts)
-                    .to_vec();
-                let contracts = contracts
-                    .into_iter()
-                    .map(|mut contract| {
-                        if let crate::signature::SignatureContractKind::EnsuresForResultCase {
-                            result_data,
-                            result_case,
-                        } = &mut contract.kind
-                        {
-                            *result_data = self.symbol(*result_data);
-                            *result_case = self.symbol(*result_case);
-                        }
-                        contract.facts = self.proof_span(contract.facts);
-                        contract
-                    })
-                    .collect::<Vec<_>>();
-                signature.contracts = self
-                    .program
-                    .tables
-                    .declarations
-                    .signature_contracts
-                    .insert_many(contracts);
-                signature
-            }
-
-            fn parameters(
-                &mut self,
-                source: HandleSpan<crate::signature::StateParameter>,
-            ) -> HandleSpan<crate::signature::StateParameter> {
-                let parameters = self
-                    .program
-                    .tables
-                    .declarations
-                    .state_parameters
-                    .span_or_empty(source)
-                    .to_vec();
-                let parameters = parameters
-                    .into_iter()
-                    .map(|mut parameter| {
-                        parameter.symbol = self.symbol(parameter.symbol);
-                        parameter.type_reference = self.type_payload(parameter.type_reference);
-                        parameter
-                    })
-                    .collect::<Vec<_>>();
-                self.program
-                    .tables
-                    .declarations
-                    .state_parameters
-                    .insert_many(parameters)
             }
 
             fn proof_span(&mut self, source: HandleSpan<ProofFact>) -> HandleSpan<ProofFact> {

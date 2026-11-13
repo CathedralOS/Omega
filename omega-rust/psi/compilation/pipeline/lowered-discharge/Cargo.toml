@@ -17,7 +17,9 @@ language-core = { path = "../../../foundation/language-core" }
 optimization = { path = "../../../foundation/optimization" }
 proof-admission = { path = "../../proof/admission" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
+source = { path = "../../../foundation/source" }
 structure-elaboration = { path = "../structure-elaboration" }
+symbols = { path = "../../../foundation/symbols" }
 terminal-check-tables = { path = "../../representations/terminal-psi/check-tables" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 terminal-psi = { path = "../../representations/terminal-psi" }
