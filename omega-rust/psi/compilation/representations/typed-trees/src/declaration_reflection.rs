@@ -144,12 +144,22 @@ pub mod reflection {
             selected: &crate::expression::StaticMachineArgument,
             lexical_owner: SymbolHandle,
         ) -> Result<(bool, [Vec<u8>; 3]), String> {
+            if selected.const_literal.is_some() || selected.evidence_projection.is_some() {
+                return Err("a callable description requires one declaration operand".into());
+            }
             if selected.type_reference.is_valid()
-                || selected.const_literal.is_some()
-                || selected.evidence_projection.is_some()
+                && (!typed.symbols.symbols().nodes().is_valid(selected.symbol)
+                    || !matches!(typed.symbols.get(selected.symbol).kind, SymbolKind::Machine | SymbolKind::State))
             {
                 return Err("a callable description requires one declaration operand".into());
             }
+            let supplier = typed.static_operand_region_supplier(selected, lexical_owner)
+                .map_err(str::to_owned)?;
+            let mut normalized = std::borrow::Cow::Borrowed(selected);
+            if selected.type_reference.is_valid() {
+                normalized.to_mut().type_reference = TypeReferenceHandle::invalid();
+            }
+            let selected = normalized.as_ref();
             let (requirement, declaration, callable) = if let Some((owner, signature)) =
                 typed.trait_machine_signature(selected.symbol)
             {
@@ -255,7 +265,7 @@ pub mod reflection {
                 let identity = crate::type_identity::portable_applied_index_identity(
                     typed,
                     crate::type_identity::IndexIdentityArgument::StaticArgument(selected),
-                    lexical_owner,
+                    supplier,
                     &[],
                 )
                 .and_then(|identity| typed.type_identity_text(identity))

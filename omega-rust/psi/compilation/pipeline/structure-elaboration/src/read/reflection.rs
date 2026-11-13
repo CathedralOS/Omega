@@ -6,7 +6,7 @@ use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use typed_trees::expression::{
-    ExpressionHandle, ExpressionNode, StaticMachineArgument, TableCallExpression,
+    ExpressionHandle, TableCallExpression,
 };
 use typed_trees::references::StaticArgumentCall;
 
@@ -212,23 +212,8 @@ impl Program<'_> {
                 "callable description requires exactly one declaration path",
             ));
         };
-        let ExpressionNode::Name(path) = self.node(machine, *operand)? else {
-            return Err(fail(
-                "callable description requires a declaration path, not an invocation or value",
-            ));
-        };
-        let selected = if path.static_application.is_valid() {
-            self.typed
-                .expression_table
-                .static_member(path.static_application)
-                .cloned()
-                .ok_or_else(|| fail("callable description lost its selected application"))?
-        } else {
-            StaticMachineArgument {
-                symbol: path.symbol,
-                ..Default::default()
-            }
-        };
+        let selected = self.typed.declaration_operand_from_expression(*operand)
+            .map_err(|reason| invalid(machine, reason))?;
         let author = StaticArgumentCall::Expression(ExpressionHandle::invalid(), call)
             .lexical_owner(self.typed);
         let author_span = self
