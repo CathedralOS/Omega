@@ -70,7 +70,9 @@ fn observe(
 // Finalized selection occurrences belonged to the retired checker. Raw typed
 // nominations cannot certify the inspection this mode promises.
 fn verify_value_equality_selection(_root: &Path, _evidence: &Path) -> Result<(), &'static str> {
-    Err("no product route yet: equality selection inspection requires route-owned finalized occurrences")
+    Err(
+        "no product route yet: equality selection inspection requires route-owned finalized occurrences",
+    )
 }
 
 fn main() {

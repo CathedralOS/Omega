@@ -572,4 +572,3 @@ pub(crate) fn attribute_diagnostics(
         });
     }
 }
-
