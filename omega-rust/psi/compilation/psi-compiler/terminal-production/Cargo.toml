@@ -10,8 +10,6 @@ structure-elaboration = { path = "../../pipeline/structure-elaboration" }
 compiler-storage = { path = "../../../foundation/compiler-storage" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 typed-trees = { path = "../../representations/typed-trees" }
-checked-trees = { path = "../../representations/checked-trees" }
-optimization = { path = "../../../foundation/optimization" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 diagnostics = { path = "../../../foundation/diagnostics" }

@@ -3,9 +3,9 @@ Terminal production retains the new checker's actual accepted closure, its froze
 typed owner and the exact artifact/evidence pair. AcceptedTerminalSource is the
 production entrance; invocation identity is fixed before lowering and judgment.
 
-The deleted checked-tree lowering entrance explicitly refuses. Retained Build
-companions, external declaration records and application receipts describe the
-data a replacement producer must provide; none manufactures checking authority.
+Retained Build companions, external declaration records and application receipts
+describe the data a producer must provide; none manufactures checking authority.
+The obsolete checked-source production request interfaces have been removed.
 */
 
 #![forbid(unsafe_code)]
@@ -103,59 +103,10 @@ pub(crate) mod observation {
         }
     }
 }
-pub use checked_trees::PreparedProviderInventory;
 pub(crate) mod terminal_production {
-    use checked_trees::CheckedTrees;
     use diagnostics::Diagnostic;
 
-    use crate::custody::{ProducedTerminalProgram, TerminalProductionCustody};
-    use crate::observation::PsiCompilationObserver;
-    use crate::{TerminalMachineSelection, TerminalProgramRoots};
-
     pub use terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError;
-
-    pub struct TerminalProductionRequest<'a> {
-        pub publication: terminal_codec::TerminalPublication,
-        pub checked: &'a CheckedTrees,
-        pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
-        pub external_declarations: Option<&'a crate::PreparedExternalProviderDeclarations>,
-        pub provider_inventory: Option<&'a checked_trees::PreparedProviderInventory>,
-        pub machine: TerminalMachineSelection<'a>,
-        pub roots: TerminalProgramRoots<'a>,
-        pub optimization_selections: optimization::PsiOptimizationSelections,
-    }
-
-    impl<'a> TerminalProductionRequest<'a> {
-        pub fn new(
-            checked: &'a CheckedTrees,
-            machine: TerminalMachineSelection<'a>,
-            exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
-        ) -> Self {
-            Self {
-                publication: terminal_codec::TerminalPublication::Portable,
-                checked,
-                exact_toolchain_sources,
-                external_declarations: None,
-                provider_inventory: None,
-                machine,
-                roots: TerminalProgramRoots::default(),
-                optimization_selections: optimization::PsiOptimizationSelections::default(),
-            }
-        }
-
-        /*
-            The checked-tree lowering stage is removed. Its obsolete request
-            cannot produce an artifact; new consumers use AcceptedTerminalSource
-            with an actual accepted lowered-form closure.
-        */
-        pub fn produce(
-            self,
-            _custody: TerminalProductionCustody<'_>,
-            _observer: &mut impl PsiCompilationObserver,
-        ) -> Result<ProducedTerminalProgram, TerminalArtifactProductionError> {
-            Err(TerminalArtifactProductionError::NoProductRoute)
-        }
-    }
 
     #[derive(Debug)]
     pub enum TerminalArtifactProductionError {
@@ -174,7 +125,7 @@ pub(crate) mod terminal_production {
             match self {
                 Self::BuildContext(error) => Some(error.clone()),
                 Self::NoProductRoute => Some(Diagnostic::error(
-                    "no product route yet: the checked program has no Terminal program producer",
+                    "no product route yet: the source has no accepted Terminal program producer",
                 )),
                 _ => None,
             }
@@ -197,7 +148,7 @@ pub use build_bindings::{
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
 };
-pub use build_provider::{BuildProviderProductionRequest, ProducedBuildProvider};
+pub use build_provider::ProducedBuildProvider;
 pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
@@ -215,9 +166,7 @@ pub use external_providers::{
 };
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use production_selection::{TerminalMachineSelection, TerminalProgramRoots};
-pub use terminal_production::{
-    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
-};
+pub use terminal_production::{ProgramEntryTerminalReceiptError, TerminalArtifactProductionError};
 pub use terminal_psi::PreparedTerminalRoots;
 
 pub(crate) mod composition_roots {
