@@ -74,30 +74,16 @@ pub fn admit_build_machine(
             })?;
     let value_admission = BuildValueAdmission::admit(typed)?;
 
-    // Host authority is bounded by actual invocations of the accepted
-    // module. Every currently served Build boundary has a genuine request
-    // row emitted beside it. Other protocols (including filesystem) refuse
-    // in structural reading until their source companions exist.
-    let requests = elaboration
-        .build_requests
-        .iter()
-        .map(|request| {
-            (
-                semantic_vocabulary::InvocationSite::Operation(request.operation),
-                request.boundary,
-            )
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    for body in &elaboration.module.machines {
-        for invocation in body.boundary_invocations() {
-            if !requests.contains(&(invocation.site, invocation.boundary)) {
-                return Err(vec![Diagnostic::error(format!(
-                    "`{machine_name}` reaches a boundary outside admitted compiler-owned Build requests"
-                ))]);
-            }
-        }
+    // Host authority is bounded by the boundary calls of the accepted
+    // module: each must be an operation of a compiler-owned Build protocol,
+    // which is exactly the calls publication gives a host row.
+    let protocols = prepared.build_protocol_use()?;
+    if protocols.reaches_outside {
+        return Err(vec![Diagnostic::error(format!(
+            "`{machine_name}` reaches a boundary outside the compiler-owned Build protocols"
+        ))]);
     }
-    let filesystem_reachable = false;
+    let filesystem_reachable = protocols.filesystem;
 
     let zero_build = value_admission.initial_value(typed, machine, filesystem_scope);
 

@@ -321,6 +321,7 @@ impl Lowering<'_> {
         &mut self,
         callable: semantic_vocabulary::TargetMachineCallable,
         arguments: &[Expression],
+        designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
@@ -348,6 +349,14 @@ impl Lowering<'_> {
                     "a terminating caller needs the boundary's published termination guarantee",
                 ),
             ));
+        }
+        if designated.is_some()
+            && !matches!(
+                callable,
+                semantic_vocabulary::TargetMachineCallable::Boundary(_)
+            )
+        {
+            return Err(self.internal("designated operands on a call that is no boundary call"));
         }
         let arguments = self.arguments(callable, arguments)?;
         let routes = match callable {
@@ -396,6 +405,9 @@ impl Lowering<'_> {
             semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
                 if !erased_arguments.is_empty() {
                     return Err(self.internal("boundary call carries erased runtime operands"));
+                }
+                if let Some(designated) = designated {
+                    self.sources.designated.push((operation, designated));
                 }
                 OperationKind::BoundaryCall {
                     boundary,

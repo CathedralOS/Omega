@@ -182,6 +182,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
             ExpressionKind::Call {
                 callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
                 arguments,
+                designated: None,
             },
             result,
         )

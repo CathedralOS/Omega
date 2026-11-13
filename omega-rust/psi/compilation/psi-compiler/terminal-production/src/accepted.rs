@@ -29,9 +29,8 @@ impl AcceptedTerminalSource {
         })
     }
 
-    /// Binds source companions to this exact accepted code owner. Structural
-    /// reading refuses every unserved Build selection/query/native/filesystem
-    /// protocol; only genuinely emitted request rows can arrive here today.
+    /// Binds source companions to this exact accepted code owner. The Build
+    /// companions are read from the accepted elaboration (`build_companions`).
     pub fn produce(
         &self,
         custody: crate::TerminalProductionCustody<'_>,
@@ -94,20 +93,21 @@ impl AcceptedTerminalSource {
                 application.attach(program.view(), program.portable(), &provenance, observer)
             })
             .collect();
-        // These dimensions are absent because the closed structural reader
-        // refuses their actual source constructs, never because of portable
-        // versus invocation publication. Extend their producer before serving
-        // any such construct; publication cannot discover or erase it later.
+        // The published module is the elaboration's module, so the rows
+        // name the artifact's own operations. Native formations stay empty:
+        // the reader refuses the native binding that would need one.
+        let companions = crate::build_companions::produce(&self.source, elaboration)
+            .map_err(|diagnostic| vec![diagnostic])?;
         let build_bindings = crate::TerminalBuildBindings::new(
             program.view(),
-            Vec::new(),
-            Vec::new(),
-            Vec::new(),
+            companions.bindings,
+            companions.declarations,
+            companions.queries,
             Vec::new(),
         );
-        let build_requests =
-            crate::TerminalBuildRequests::new(program.view(), elaboration.build_requests.clone());
-        let build_filesystem = crate::TerminalBuildFilesystem::new(program.view(), Vec::new());
+        let build_requests = crate::TerminalBuildRequests::new(program.view(), companions.requests);
+        let build_filesystem =
+            crate::TerminalBuildFilesystem::new(program.view(), companions.filesystem);
         Ok(crate::ProducedTerminalProgram {
             program,
             evidence: Some(Arc::new(evidence)),
@@ -117,6 +117,17 @@ impl AcceptedTerminalSource {
             applications,
             provenance,
             source_records: elaboration.source_records.clone(),
+        })
+    }
+
+    /// What this accepted Build program asks of its host, read from the
+    /// same rows `produce` publishes.
+    pub fn build_protocol_use(&self) -> Result<crate::BuildProtocolUse, Vec<Diagnostic>> {
+        let companions = crate::build_companions::produce(&self.source, &self.closure.elaboration)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        Ok(crate::BuildProtocolUse {
+            reaches_outside: companions.unowned != 0,
+            filesystem: !companions.filesystem.is_empty(),
         })
     }
 
