@@ -23,9 +23,7 @@ a fallback artifact. This crate has no checked-tree dependency.
 [src/lib.rs](src/lib.rs) exposes the production and application contracts.
 [custody.rs](src/custody.rs) retains code, evidence, companions and source
 correspondence for portable reuse and invocation-local production. Companion
-records remain in [build_bindings.rs](src/build_bindings.rs); retained external
-declaration data and its unavailable constructors remain in
-[external_providers.rs](src/external_providers.rs).
+records remain in [build_bindings.rs](src/build_bindings.rs).
 
 The [codec entry-receipt owner](../../representations/terminal-psi/codec/src/entry_receipt.rs)
 checks the unique Unit entry in a published artifact and binds its exact
