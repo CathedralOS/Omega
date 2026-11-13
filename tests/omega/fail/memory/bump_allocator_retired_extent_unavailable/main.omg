@@ -6,7 +6,11 @@
 use omega::language::core::Extent;
 use omega::language::core::Extent::Vacant;
 use omega::language::core::Extent::Granted;
-use alloc::bump;
+use alloc::bump::Bump;
+use alloc::bump::allocate;
+use alloc::bump::check_remaining;
+use alloc::bump::Released;
+use alloc::bump::release;
 
 // Every claim the refused attempt would have left behind, so the rejection
 // under test is the only failure reported.

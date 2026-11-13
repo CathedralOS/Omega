@@ -3,7 +3,7 @@
 // release, checked extent recomposition, full reset, and resident reuse.
 use omega::language::core::Extent;
 use omega::language::core::Extent::Vacant;
-use omega::language::core::Extent::Resident;
+use omega::language::core::Resident;
 use omega::language::core::VacantContentTransfer;
 use omega::language::core::merge_vacant_extents;
 use omega::language::core::Extent::Granted;
@@ -35,7 +35,13 @@ use omega::language::core::AccessExtraction;
 use omega::language::core::read;
 use omega::language::core::write;
 use omega::language::core::ProcessExit;
-use alloc::bump;
+use alloc::bump::Bump;
+use alloc::bump::Attempt;
+use alloc::bump::try_allocate;
+use alloc::bump::allocate;
+use alloc::bump::Released;
+use alloc::bump::release;
+use alloc::bump::reset;
 use omega::language::core::Nat;
 
 data TestMemory {}

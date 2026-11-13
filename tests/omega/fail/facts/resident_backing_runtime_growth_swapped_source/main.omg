@@ -36,7 +36,11 @@ use omega::language::core::Access::view_extent_mut;
 use omega::language::core::read;
 use omega::language::core::write;
 use omega::language::core::ProcessExit;
-use alloc::bump;
+use alloc::bump::Bump;
+use alloc::bump::allocate;
+use alloc::bump::Released;
+use alloc::bump::release;
+use alloc::bump::reset;
 use omega::language::core::Nat;
 
 

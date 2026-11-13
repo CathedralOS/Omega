@@ -1,7 +1,8 @@
 use omega::language::core::Extent;
 use omega::language::core::Extent::Vacant;
 use omega::language::core::Extent::Granted;
-use alloc::bump;
+use alloc::bump::Bump;
+use alloc::bump::allocate;
 
 // An accurate capacity count does not justify a request larger than the tail.
 data Held { strategy: Bump; allocation: Extent in Granted & Vacant; }

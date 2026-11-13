@@ -19,8 +19,14 @@ use omega::language::core::ResourceRegion;
 use omega::language::core::ResourceProfile;
 use omega::language::core::ResourceProfileSupply;
 use omega::language::core::ProcessExit;
-use alloc::bump;
-use alloc::vec;
+use alloc::bump::Bump;
+use alloc::bump::allocate;
+use alloc::bump::Released;
+use alloc::bump::release;
+use alloc::bump::reset;
+use alloc::vec::Vec;
+use alloc::vec::Read;
+use alloc::vec::Growth;
 use omega::language::core::Nat;
 
 

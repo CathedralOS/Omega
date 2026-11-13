@@ -808,7 +808,7 @@ pub(crate) mod initializer_dependencies {
         binder as an ordinary body or granting execution from source readiness.
     */
 
-    use crate::selection::call_identity::{call_custody_source, call_declaration_source};
+    use crate::selection::call_identity::{call_declaration_source, selected_declaration_source};
     use crate::tables::body_expressions;
     use crate::tables::resolved_declarations;
     use language_core::data_layout_queries::is_data_layout_query_spelling;
@@ -1845,7 +1845,7 @@ pub(crate) mod initializer_dependencies {
             target: SymbolHandle,
             reference: SourceSpan,
         ) -> Result<(), String> {
-            let declaration = call_custody_source(self.program, target)?;
+            let declaration = selected_declaration_source(self.program, target)?;
             let selection = (reference, declaration);
             if !self.dependencies.calls.contains(&selection) {
                 self.dependencies.calls.push(selection);
@@ -2952,7 +2952,7 @@ pub(crate) mod initializer_normalization {
 
     use super::initializer_dependencies::DependencyPurpose;
     use crate::lowering::expression::lower_expression_into_table;
-    use crate::selection::call_identity::call_custody_source;
+    use crate::selection::call_identity::selected_declaration_source;
     use crate::tables::body_expressions;
     use crate::tables::syntax_expressions;
     use diagnostics::Diagnostic;
@@ -4185,8 +4185,9 @@ pub(crate) mod initializer_normalization {
                         SymbolKind::Machine | SymbolKind::State | SymbolKind::Operator
                     ) =>
                 {
-                    let declaration = call_custody_source(program, selected.selected_symbol())
-                        .map_err(|reason| error(reference, &reason))?;
+                    let declaration =
+                        selected_declaration_source(program, selected.selected_symbol())
+                            .map_err(|reason| error(reference, &reason))?;
                     if !custody.call_selections.contains(&(reference, declaration)) {
                         custody.call_selections.push((reference, declaration));
                     }

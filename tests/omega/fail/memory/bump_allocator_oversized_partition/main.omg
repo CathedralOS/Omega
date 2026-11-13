@@ -3,7 +3,6 @@ use omega::language::core::Extent::Vacant;
 use omega::language::core::VacantExtentParts;
 use omega::language::core::split_vacant_extent;
 use omega::language::core::Extent::Granted;
-use alloc::bump;
 // Partitioning itself requires sufficient concrete backing, independently of Bump.
 machine invalid(whole: Extent in Granted & Vacant) -> VacantExtentParts
 requires whole.length == 16

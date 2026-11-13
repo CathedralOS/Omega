@@ -74,16 +74,34 @@ fn reconcile_copy_targets(
         }
         (CandidateTarget::Resolved(_), CandidateTarget::LateBound(_)) => Ok(retained),
         (CandidateTarget::LateBound(_), CandidateTarget::Resolved(_)) => Ok(candidate),
-        (CandidateTarget::Resolved(left), CandidateTarget::Resolved(right))
-            if resolved_symbols_share_authored_declaration(program, kind, left, right) =>
-        {
-            Ok(CandidateTarget::Resolved(earlier_symbol(left, right)))
-        }
         (CandidateTarget::Resolved(left), CandidateTarget::Resolved(right)) => {
+            let correspondence = resolved_symbols_share_authored_declaration(program, left, right);
+            if matches!(correspondence, Ok(true)) {
+                return Ok(CandidateTarget::Resolved(earlier_symbol(left, right)));
+            }
+            let reason = correspondence
+                .err()
+                .map_or_else(String::new, |reason| format!("; {reason}"));
+            // Preserve the refusing coordinates so equal printed names do not hide
+            // a missing declaration or a different evidence owner.
+            let coordinate = |symbol| {
+                let row = program.symbols.get(symbol);
+                let parent = row.parent;
+                let parent_kind = parent.is_valid().then(|| program.symbols.get(parent).kind);
+                (
+                    symbol,
+                    row.kind,
+                    parent,
+                    parent_kind,
+                    program.symbols.symbol_source_span(symbol),
+                    program.symbols.symbol_provenance_source_span(symbol),
+                )
+            };
             Err(Diagnostic::error(format!(
-                "compiler-derived copies of one authored {kind:?} selection resolved inconsistently: `{}` versus `{}`",
+                "compiler-derived copies of one authored {kind:?} selection resolved inconsistently: `{}` versus `{}`{reason}; left coordinate={:?}; right coordinate={:?}",
                 program.symbols.display_path(left, "::"),
                 program.symbols.display_path(right, "::"),
+                coordinate(left), coordinate(right),
             ))
             .with_source_span(source_span))
         }
@@ -153,20 +171,23 @@ pub(crate) fn original_call_target(
 
 fn resolved_symbols_share_authored_declaration(
     program: &SymbolResolvedTrees,
-    kind: Kind,
     left: SymbolHandle,
     right: SymbolHandle,
-) -> bool {
+) -> Result<bool, String> {
     if program.symbols.get(left).kind != program.symbols.get(right).kind {
-        return false;
+        return Ok(false);
     }
-    if kind == Kind::Call {
-        let left = super::call_identity::call_declaration_source(program, left);
-        let right = super::call_identity::call_declaration_source(program, right);
-        return matches!((left, right), (Ok(left), Ok(right)) if left == right);
+    // Generated entries and evidence children have no declaration token of their
+    // own. Use their authenticated declaration for every copied selection; the
+    // executable call or static operand still retains its exact selected handle.
+    let left_custody = super::call_identity::selected_declaration_source(program, left);
+    let right_custody = super::call_identity::selected_declaration_source(program, right);
+    if matches!((&left_custody, &right_custody), (Ok(left), Ok(right)) if left == right) {
+        return Ok(true);
     }
-    program.symbols.symbol_source_span(left).is_some()
-        && program.symbols.symbol_source_span(left) == program.symbols.symbol_source_span(right)
+    Err(format!(
+        "declaration custody left={left_custody:?} right={right_custody:?}",
+    ))
 }
 
 pub(crate) fn finalize_authored_expression_selections(
@@ -1734,4 +1755,533 @@ fn top_level_static_argument_position(
         !argument.path.is_empty()
             && path_span(&argument.path, SourceSpan::default()) == occurrence_span
     })
+}
+
+#[cfg(test)]
+mod copied_call_tests {
+    use super::{CandidateTarget, Kind, reconcile_copy_targets};
+    use crate::{ResolutionRequest, resolve};
+    use std::sync::Arc;
+    use symbol_resolved_trees::expression::ExpressionNode;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn copied_calls_authenticate_evidence_methods_without_erasing_their_bindings() {
+        let text = r#"
+            trait Predicate {
+                machine valid(value: u64) -> bool;
+                machine other(value: u64) -> bool;
+            }
+            machine first<Model satisfies Predicate>(value: u64) -> bool {
+                Model::valid(value)
+            }
+            machine second<Model satisfies Predicate>(value: u64) -> bool {
+                Model::valid(value)
+            }
+            machine different<Model satisfies Predicate>(value: u64) -> bool {
+                Model::other(value)
+            }
+        "#;
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add("calls/evidence.omg".into(), text.into())
+            .source_id;
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+        let mut program = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+        let calls = program
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .filter_map(|(_, expression)| {
+                let ExpressionNode::Call(call) = expression else {
+                    return None;
+                };
+                let target = program.symbols.get(call.target_symbol);
+                (target.kind == SymbolKind::State
+                    && program.symbols.get(target.parent).kind == SymbolKind::ConformanceParameter)
+                    .then_some((
+                        call.target_symbol,
+                        call.target.source_span(),
+                        call.authored_call_binding,
+                    ))
+            })
+            .collect::<Vec<_>>();
+        let valid = calls
+            .iter()
+            .filter(|(symbol, _, _)| program.symbols.name(*symbol) == "valid")
+            .collect::<Vec<_>>();
+        assert_eq!(valid.len(), 2);
+        let left = valid[0].0;
+        let right = valid[1].0;
+        assert_ne!(left, right);
+        assert_ne!(
+            program.symbols.get(left).parent,
+            program.symbols.get(right).parent
+        );
+        assert!(program.symbols.symbol_source_span(left).is_none());
+        assert!(program.symbols.symbol_source_span(right).is_none());
+        assert_eq!(
+            reconcile_copy_targets(
+                &program,
+                valid[0].1,
+                Kind::Call,
+                CandidateTarget::Resolved(left),
+                CandidateTarget::Resolved(right)
+            )
+            .unwrap(),
+            CandidateTarget::Resolved(super::earlier_symbol(left, right))
+        );
+        for (selected, _, binding) in &calls {
+            assert_eq!(
+                binding
+                    .expect("each authored call retains its binding")
+                    .selected,
+                *selected
+            );
+        }
+        let other = calls
+            .iter()
+            .find(|(symbol, _, _)| program.symbols.name(*symbol) == "other")
+            .unwrap()
+            .0;
+        assert!(
+            reconcile_copy_targets(
+                &program,
+                valid[0].1,
+                Kind::Call,
+                CandidateTarget::Resolved(left),
+                CandidateTarget::Resolved(other)
+            )
+            .is_err()
+        );
+
+        let malformed = program.symbols.append_children(
+            program.symbols.get(left).parent,
+            [(SymbolKind::State, SymbolNameRef::Static("valid"))],
+        );
+        let malformed = SymbolTableBuilder::child_handles(malformed).next().unwrap();
+        assert_eq!(
+            program.symbols.display_path(left, "::"),
+            program.symbols.display_path(malformed, "::")
+        );
+        assert!(
+            reconcile_copy_targets(
+                &program,
+                calls[0].1,
+                Kind::Call,
+                CandidateTarget::Resolved(left),
+                CandidateTarget::Resolved(malformed)
+            )
+            .is_err()
+        );
+    }
+    #[test]
+    fn projected_evidence_metadata_survives_reactivation_without_restoring_lookup() {
+        let text = r#"
+            trait Parent<Value> { machine valid(value: Value) -> bool; }
+            trait Model<Value>: Parent<Value> {}
+            trait Base<Value> { machine check(value: Value) -> Value; }
+            trait Refined<Value, Policy satisfies Model<Value>> = Base<Value> {
+                machine Base::check
+                ensures Policy::valid(result);
+            }
+        "#;
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add("calls/activation.omg".into(), text.into())
+            .source_id;
+        let parse = || {
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap()
+        };
+        let sources = Arc::new(sources);
+        let mut projected = resolve(ResolutionRequest {
+            syntax: parse(),
+            sources: Some(Arc::clone(&sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+        let original = projected
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .find_map(|(_, expression)| {
+                let ExpressionNode::Call(call) = expression else {
+                    return None;
+                };
+                (projected.symbols.name(call.target_symbol) == "valid").then(|| {
+                    call.authored_call_binding
+                        .expect("original contract call binding")
+                        .original
+                })
+            })
+            .expect("the applied refinement carries its original call");
+        let old_binder = projected.symbols.get(original).parent;
+        let old_owner = projected.symbols.get(old_binder).parent;
+        assert_eq!(projected.symbols.name(old_owner), "Refined");
+        let bound = projected
+            .traits
+            .iter()
+            .find(|declaration| declaration.symbol == old_owner)
+            .unwrap()
+            .conformance_bounds
+            .iter()
+            .find(|bound| bound.binder == old_binder)
+            .unwrap();
+        let arguments = bound.arguments;
+        let argument_values = projected.child_type_references(arguments).to_vec();
+        assert_eq!(argument_values.len(), 1);
+        let signature =
+            crate::symbols::requirement_namespaces::evidence_requirement(&projected, original)
+                .unwrap()
+                .unwrap()
+                .clone();
+        let declared =
+            super::super::call_identity::selected_declaration_source(&projected, original).unwrap();
+        projected.roots.traits.retain(|_| false);
+        let mut inactive = sources.as_ref().clone();
+        inactive.retain_selected_sources(|_| false);
+        projected.symbols = projected
+            .symbols
+            .clone()
+            .begin_source_activation(Arc::new(inactive), Vec::new())
+            .unwrap()
+            .finish()
+            .begin_source_activation(Arc::clone(&sources), Vec::new())
+            .unwrap()
+            .finish();
+        let mut projected = projected.clone();
+        projected.rebuild_tables();
+        assert!(projected.traits.is_empty());
+        assert_eq!(projected.child_type_references(arguments), argument_values);
+        assert!(!projected.symbols.symbol_source_is_selected(old_owner));
+        let reference = source::SourceSpan::new(source, source::Span::new(0, 1));
+        assert!(
+            projected
+                .symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    "Refined",
+                    &[SymbolKind::Trait],
+                    reference
+                )
+                .is_none()
+        );
+        assert_eq!(
+            crate::symbols::requirement_namespaces::evidence_requirement(&projected, original)
+                .unwrap(),
+            Some(&signature)
+        );
+        assert_eq!(
+            super::super::call_identity::selected_declaration_source(&projected, original).unwrap(),
+            declared
+        );
+        assert!(!projected.symbols.symbol_source_is_selected(old_owner));
+        assert!(
+            projected
+                .symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    "Refined",
+                    &[SymbolKind::Trait],
+                    reference
+                )
+                .is_none()
+        );
+
+        let resumed = crate::resolve_extension(crate::ExtensionRequest {
+            base: Arc::new(projected),
+            syntax: parse(),
+            sources: Arc::clone(&sources),
+            top_level_bindings: Vec::new(),
+        })
+        .unwrap();
+        let mut resumed = resumed.trees().clone();
+        assert_eq!(resumed.child_type_references(arguments), argument_values);
+        let owners = resumed
+            .traits
+            .iter()
+            .filter(|declaration| declaration.name.as_str() == "Refined")
+            .map(|declaration| declaration.symbol)
+            .collect::<Vec<_>>();
+        assert_eq!(owners.len(), 1);
+        assert_ne!(owners[0], old_owner);
+        assert!(!resumed.symbols.symbol_source_is_selected(old_owner));
+        assert!(resumed.symbols.symbol_source_is_selected(owners[0]));
+        let active_calls = resumed
+            .traits
+            .iter()
+            .find(|declaration| declaration.symbol == owners[0])
+            .unwrap()
+            .refinement_clauses
+            .iter()
+            .flat_map(|clause| resumed.signature_contracts(clause.signature.contracts))
+            .flat_map(|contract| resumed.proof_facts(contract.facts))
+            .filter_map(|fact| match fact {
+                symbol_resolved_trees::domain::ProofFact::Expression(expression) => {
+                    Some(*expression)
+                }
+                symbol_resolved_trees::domain::ProofFact::Membership(_) => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(active_calls.len(), 1);
+        let mut selected = Vec::new();
+        let mut active_count = 0;
+        let mut retained_original_count = 0;
+        for (expression, node) in resumed.tables.bodies.expressions.iter_expressions() {
+            let ExpressionNode::Call(call) = node else {
+                continue;
+            };
+            if resumed.symbols.name(call.target_symbol) != "valid" {
+                continue;
+            }
+            let binding = call.authored_call_binding.expect("contract call binding");
+            assert_eq!(binding.original, original);
+            assert_eq!(binding.selected, call.target_symbol);
+            assert_eq!(
+                super::super::call_identity::selected_declaration_source(
+                    &resumed,
+                    binding.original
+                )
+                .unwrap(),
+                declared
+            );
+            assert_eq!(
+                super::super::call_identity::selected_declaration_source(
+                    &resumed,
+                    binding.selected
+                )
+                .unwrap(),
+                declared
+            );
+            if active_calls.contains(&expression) {
+                active_count += 1;
+                assert_ne!(binding.selected, binding.original);
+                let binder = resumed.symbols.get(binding.selected).parent;
+                assert_ne!(binder, old_binder);
+                assert_eq!(resumed.symbols.get(binder).parent, owners[0]);
+                selected.push(binding.selected);
+            } else if binding.selected == binding.original {
+                retained_original_count += 1;
+            }
+        }
+        assert_eq!(active_count, 1);
+        assert!(retained_original_count > 0);
+        assert_eq!(
+            super::super::call_identity::selected_declaration_source(&resumed, original).unwrap(),
+            declared
+        );
+        let malformed = resumed.symbols.append_children(
+            old_binder,
+            [(SymbolKind::State, SymbolNameRef::Static("valid"))],
+        );
+        let malformed = SymbolTableBuilder::child_handles(malformed).next().unwrap();
+        assert!(
+            super::super::call_identity::selected_declaration_source(&resumed, malformed).is_err()
+        );
+        assert!(
+            super::super::call_identity::selected_declaration_source(&resumed, original).is_err()
+        );
+        assert_eq!(
+            super::super::call_identity::selected_declaration_source(&resumed, selected[0])
+                .unwrap(),
+            declared
+        );
+        assert!(!resumed.symbols.symbol_source_is_selected(old_owner));
+    }
+    #[test]
+    fn copied_static_callable_entries_keep_their_selected_applications() {
+        let text = r#"
+            machine identity<Value>(value: Value) -> Value { value }
+            machine invoke<Value, machine Function>(value: Value) -> Value
+            requires machine Function(value: Value) -> Value;
+            { Function(value) }
+            machine relay<Value>(value: Value) -> Value {
+                invoke<Value, identity<Value>>(value)
+            }
+        "#;
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add("calls/static.omg".into(), text.into())
+            .source_id;
+        let parse = || {
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap()
+        };
+        let sources = Arc::new(sources);
+        let mut projected = resolve(ResolutionRequest {
+            syntax: parse(),
+            sources: Some(Arc::clone(&sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+        let machine = projected
+            .machines
+            .iter()
+            .find(|m| m.name.as_str() == "identity")
+            .unwrap();
+        let original_owner = machine.symbol;
+        let original = projected
+            .machine_state(projected.machine_state_handles(machine.states)[0])
+            .symbol;
+        assert!(projected.symbols.symbol_source_span(original).is_none());
+        let declared =
+            super::super::call_identity::selected_declaration_source(&projected, original).unwrap();
+        let occurrence = projected
+            .authored_declaration_selections()
+            .iter()
+            .find(|selection| {
+                selection.kind() == Kind::StaticArgument
+                    && selection
+                        .target()
+                        .as_resolved()
+                        .is_some_and(|target| target.selected_symbol() == original)
+            })
+            .expect("the generic callable is selected as a static argument")
+            .source_span();
+        projected.roots.machines.retain(|_| false);
+        let mut inactive = sources.as_ref().clone();
+        inactive.retain_selected_sources(|_| false);
+        projected.symbols = projected
+            .symbols
+            .clone()
+            .begin_source_activation(Arc::new(inactive), Vec::new())
+            .unwrap()
+            .finish()
+            .begin_source_activation(Arc::clone(&sources), Vec::new())
+            .unwrap()
+            .finish();
+        projected.rebuild_tables();
+        assert!(!projected.symbols.symbol_source_is_selected(original_owner));
+        let resumed = crate::resolve_extension(crate::ExtensionRequest {
+            base: Arc::new(projected),
+            syntax: parse(),
+            sources: Arc::clone(&sources),
+            top_level_bindings: Vec::new(),
+        })
+        .unwrap();
+        let mut resumed = resumed.trees().clone();
+        let machine = resumed
+            .machines
+            .iter()
+            .find(|m| m.name.as_str() == "identity")
+            .unwrap();
+        let current_owner = machine.symbol;
+        let current = resumed
+            .machine_state(resumed.machine_state_handles(machine.states)[0])
+            .symbol;
+        assert_ne!(current_owner, original_owner);
+        assert_ne!(current, original);
+        assert!(!resumed.symbols.symbol_source_is_selected(original_owner));
+        assert!(resumed.symbols.symbol_source_is_selected(current_owner));
+        assert_eq!(
+            reconcile_copy_targets(
+                &resumed,
+                occurrence,
+                Kind::StaticArgument,
+                CandidateTarget::Resolved(original),
+                CandidateTarget::Resolved(current)
+            )
+            .unwrap(),
+            CandidateTarget::Resolved(original)
+        );
+        assert!(
+            resumed
+                .authored_declaration_selections()
+                .iter()
+                .any(|selection| {
+                    selection.kind() == Kind::StaticArgument
+                        && selection.source_span() == occurrence
+                        && selection
+                            .target()
+                            .as_resolved()
+                            .is_some_and(|target| target.selected_symbol() == original)
+                })
+        );
+        let relay = resumed
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == "relay")
+            .unwrap();
+        let relay_value = resumed
+            .machine_type_parameters(relay)
+            .iter()
+            .find(|parameter| parameter.name.as_str() == "Value")
+            .unwrap()
+            .symbol;
+        let current_arguments = resumed
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .filter_map(|(_, expression)| {
+                let ExpressionNode::Call(call) = expression else {
+                    return None;
+                };
+                call.machine_arguments
+                    .iter()
+                    .find(|argument| argument.symbol == current)
+            })
+            .collect::<Vec<_>>();
+        assert!(!current_arguments.is_empty());
+        for argument in current_arguments {
+            let application = argument
+                .application
+                .as_ref()
+                .expect("selected generic application");
+            assert_eq!(application.arguments.len(), 1);
+            assert_eq!(application.arguments[0].symbol, relay_value);
+            assert_eq!(
+                resumed.symbols.get(application.arguments[0].symbol).parent,
+                relay.symbol
+            );
+            assert_eq!(argument.symbol, current);
+        }
+        assert_eq!(
+            super::super::call_identity::selected_declaration_source(&resumed, current).unwrap(),
+            declared
+        );
+        let other_machine = resumed
+            .machines
+            .iter()
+            .find(|m| m.name.as_str() == "relay")
+            .unwrap();
+        let other = resumed
+            .machine_state(resumed.machine_state_handles(other_machine.states)[0])
+            .symbol;
+        assert!(
+            reconcile_copy_targets(
+                &resumed,
+                occurrence,
+                Kind::StaticArgument,
+                CandidateTarget::Resolved(original),
+                CandidateTarget::Resolved(other)
+            )
+            .is_err()
+        );
+        let extra = resumed.symbols.append_children(
+            current_owner,
+            [(SymbolKind::State, SymbolNameRef::Static("not_entry"))],
+        );
+        let extra = SymbolTableBuilder::child_handles(extra).next().unwrap();
+        assert!(
+            reconcile_copy_targets(
+                &resumed,
+                occurrence,
+                Kind::StaticArgument,
+                CandidateTarget::Resolved(current),
+                CandidateTarget::Resolved(extra)
+            )
+            .is_err()
+        );
+    }
 }
