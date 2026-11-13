@@ -165,10 +165,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 {
                     Ok(alternatives) => alternatives,
                     Err(_) => {
-                        return format!(
-                            "route=outside\tgeneric: {}",
-                            one_line(&opaque.detail)
-                        );
+                        return format!("route=outside\tgeneric: {}", one_line(&opaque.detail));
                     }
                 },
             };
@@ -177,10 +174,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 let found = match discharge(&mut form) {
                     Ok(found) => found,
                     Err(refusal) => {
-                        return format!(
-                            "route=defect\tgeneric: {}",
-                            one_line(&refusal.detail)
-                        );
+                        return format!("route=defect\tgeneric: {}", one_line(&refusal.detail));
                     }
                 };
                 // A generic body is checked for every use it admits, so an
@@ -248,7 +242,8 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                     })
                     .map(|(machine, _)| machine)
                 else {
-                    return "route=defect\tselection names no requirement of the generic form".to_owned();
+                    return "route=defect\tselection names no requirement of the generic form"
+                        .to_owned();
                 };
                 let Some(implementation) = consumer.machines.get(selected.implementation).copied()
                 else {
@@ -263,19 +258,13 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 ) {
                     Ok(witness) => witness,
                     Err(refusal) => {
-                        return format!(
-                            "route=outside\twitness: {}",
-                            one_line(&refusal.detail)
-                        );
+                        return format!("route=outside\twitness: {}", one_line(&refusal.detail));
                     }
                 };
                 let refinement = match discharge(&mut witness) {
                     Ok(refinement) => refinement,
                     Err(refusal) => {
-                        return format!(
-                            "route=defect\twitness: {}",
-                            one_line(&refusal.detail)
-                        );
+                        return format!("route=defect\twitness: {}", one_line(&refusal.detail));
                     }
                 };
                 report(

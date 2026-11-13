@@ -32,10 +32,10 @@
 //! refuses. This is a measuring tool, not a gate, and not part of
 //! the shipped CLI.
 
-#[path = "../tests/support/unbuilt_frontier.rs"]
-mod unbuilt_frontier;
 #[path = "../tests/support/generic_certificate_carry.rs"]
 mod generic_certificate_carry;
+#[path = "../tests/support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
 
 use std::path::Path;
 

@@ -6,13 +6,13 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use unbuilt_frontier::{fixture_frontier, repository};
 use lowered_discharge::{RouteVerdict, judge_compilation};
 use structure_elaboration::Compilation;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionStatus, TerminalStructuralInputs,
 };
+use unbuilt_frontier::{fixture_frontier, repository};
 
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -31,8 +31,9 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
     let _compilation = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let frontier =
-        fixture_frontier("tests/fixtures/pass/calls/runtime_affine_record_call_results_reused_exit");
+    let frontier = fixture_frontier(
+        "tests/fixtures/pass/calls/runtime_affine_record_call_results_reused_exit",
+    );
     // Match the default router's complete scope, including every generic
     // check form it claims; one undecided form refuses the whole compilation.
     let mut verdicts = judge_compilation(
@@ -125,9 +126,9 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
             other => panic!("no check form may make the default scope undecided: {other:?}"),
         }
     }
-    let expected = std::fs::read_to_string(
-        repository("tests/fixtures/fail/borrows/owned_address_after_operand_move/expected.txt"),
-    )
+    let expected = std::fs::read_to_string(repository(
+        "tests/fixtures/fail/borrows/owned_address_after_operand_move/expected.txt",
+    ))
     .unwrap();
     assert!(
         unestablished

@@ -12,9 +12,9 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use unbuilt_frontier::repository as repo_root_at;
 use lowered_discharge::{RouteVerdict, judge};
 use structure_elaboration::elaborate_closure;
+use unbuilt_frontier::repository as repo_root_at;
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());

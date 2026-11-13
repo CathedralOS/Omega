@@ -173,14 +173,11 @@ fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
         .iter()
         .filter(|specialization| specialization.template == declared)
         .map(|specialization| {
-            let closure =
-                structure_elaboration::elaborate_closure(typed, specialization.instance);
+            let closure = structure_elaboration::elaborate_closure(typed, specialization.instance);
             match lowered_discharge::judge(closure) {
                 Ok(lowered_discharge::RouteVerdict::Accepted { .. }) => "accepted".into(),
                 Ok(lowered_discharge::RouteVerdict::Rejected { .. }) => "rejected".into(),
-                Ok(lowered_discharge::RouteVerdict::Incomplete { .. }) => {
-                    "incomplete".into()
-                }
+                Ok(lowered_discharge::RouteVerdict::Incomplete { .. }) => "incomplete".into(),
                 Ok(lowered_discharge::RouteVerdict::FallBack(refusal)) => {
                     format!("falls back: {}", refusal.detail)
                 }

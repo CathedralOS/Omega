@@ -791,10 +791,7 @@ fn suffixed_expression(
         Some(ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE)) => {
             Ok(Expression {
                 kind: ExpressionKind::Requalify(Box::new(operand)),
-                result: Some(ValueType::Scalar(
-                    carrier,
-                    Qualification::of_policy(policy),
-                )),
+                result: Some(ValueType::Scalar(carrier, Qualification::of_policy(policy))),
                 source,
             })
         }
