@@ -2,3 +2,4 @@
 //! in `preparation.rs`.
 
 pub(crate) mod record_patterns;
+pub(crate) mod specialization;

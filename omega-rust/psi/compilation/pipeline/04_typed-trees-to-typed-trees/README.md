@@ -16,7 +16,19 @@ program, and nothing here is an acceptance.
 
 | Pass | What it writes | Who reads it |
 | --- | --- | --- |
+| [specialization](src/passes/specialization.rs) | For a call that applies static arguments (`relay<u8>(..)`): which parameter each argument is for, on the call's application; and, when the arguments are closed, the machine the application selects, generated from the generic machine with each parameter replaced, which the call then enters | Structural elaboration: an open application in a generic machine is read from its bindings (`read/calls.rs`, `type_arguments`), a generated machine as any closed machine, and its declaration states the generic machine and the application (`declare.rs`, `application`) |
 | [record patterns](src/passes/record_patterns.rs) | For `let { a, b as _ } = subject;`, the subject's record symbol on the marker local and each named field's symbol on its roster row | Structural elaboration (`read/places.rs`, `record_pattern`), which refuses a marker without them |
+
+Specialization serves type parameters given plain named types (a builtin
+type, a data declaration with no parameters, a type parameter in scope) on a
+generic machine of one state with a body. A value, machine or implementation
+argument, an applied type such as `Pair<u8>`, and a generic machine that owns
+data, declares conformances, lifetimes or nested machines are not served: the
+call stays as typing wrote it and the machine holding it carries a deferred
+refusal (`DeferredRequest::StaticApplication`), raised only when a program
+demands that machine. The pass generates what applications ask for and judges
+nothing: the lowered-form checker proves a generic machine once as written
+and re-decides those proofs in each generated machine.
 
 The record-pattern pass resolves a subject that names a parameter or a typed
 local whose declared type is a plain, non-generic record. A field path, a call
@@ -29,7 +41,8 @@ The deleted preparation ran about forty passes of five kinds. Three kinds are
 this stage's work and return as passes: annotations the checker reads,
 specialization of generic machines and requirement applications, and selection
 (operator calls, authored selections, calls bound through a value receiver).
-Only the first annotation pass exists. Until the others are rebuilt, the
+The first annotation pass and specialization by type arguments exist. Until
+the others are rebuilt, the
 requests they would serve stay in the trees as typing left them, and
 structural elaboration refuses each one by name where a program demands it
 (`generic application`, `receiver call`, `static requirement dispatch` and so

@@ -100,3 +100,69 @@ fn an_uncalled_defect_of_a_standalone_program_is_rejected() {
         ["rejected"]
     );
 }
+
+/// The source of a kept fixture program, read from the repository.
+fn fixture(directory: &str) -> String {
+    let main = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../..")
+        .join(directory)
+        .join("main.omg");
+    std::fs::read_to_string(&main).unwrap_or_else(|error| panic!("{}: {error}", main.display()))
+}
+
+/// `main` calls `relay<u8>` and `relay<bool>`, and `relay<T>` calls
+/// `forward<T>`. Typed preparation generates the four machines those
+/// applications select, so the entry closure is closed and judged; the two
+/// generic machines are each judged once as written.
+#[test]
+fn a_program_applying_a_generic_machine_at_types_is_judged() {
+    assert_eq!(
+        verdicts(
+            "type_parameter",
+            &fixture("tests/fixtures/run/generics/type_parameter_contract")
+        ),
+        ["accepted", "accepted", "accepted"]
+    );
+}
+
+/// Its twin differs only in the bound `relay` promises, which `forward`'s
+/// contract does not give: `relay` is rejected as written, and so is the
+/// entry closure holding the machines generated from it. `forward` stands.
+#[test]
+fn a_generic_machine_that_exceeds_its_callee_is_rejected_where_it_is_applied() {
+    assert_eq!(
+        verdicts(
+            "type_parameter_exceeds",
+            &fixture("tests/fixtures/fail/generics/type_parameter_contract_exceeds_callee")
+        ),
+        ["rejected", "accepted", "rejected"]
+    );
+}
+
+/// A finite family: `pick<T>` admits `u8` and `u16` and is applied at both.
+/// Each generated machine is the body under its own type, and each listed
+/// type is judged once as an alternative of the generic machine.
+#[test]
+fn a_program_applying_a_finite_family_is_judged() {
+    assert_eq!(
+        verdicts(
+            "finite_family",
+            &fixture("tests/fixtures/run/generics/finite_family_contract")
+        ),
+        ["accepted", "accepted", "accepted"]
+    );
+}
+
+/// Its twin differs only in what `pick` returns at `u16`: that alternative
+/// and the entry closure holding `pick` at `u16` are rejected, and the `u8`
+/// alternative stands.
+#[test]
+fn a_finite_family_alternative_that_breaks_its_contract_is_rejected() {
+    assert_eq!(
+        verdicts(
+            "finite_family_wrong_alternative",
+            &fixture("tests/fixtures/fail/generics/finite_family_contract_wrong_alternative")
+        ),
+        ["rejected", "accepted", "rejected"]
+    );
+}

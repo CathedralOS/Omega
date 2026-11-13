@@ -51,6 +51,10 @@ pub enum DeferredRequest {
     ArrayExtentEvaluation,
     /// An expression that stands for the evaluated form of another one.
     MaterializedExpression,
+    /// A call that applies static arguments (`relay<u8>(..)`) which typed
+    /// preparation's specialization pass does not bind or does not generate
+    /// a machine for yet.
+    StaticApplication,
 }
 
 impl DeferredRequest {
@@ -79,6 +83,9 @@ impl DeferredRequest {
             }
             Self::MaterializedExpression => {
                 "holding a materialized expression, whose evaluation no pass records yet"
+            }
+            Self::StaticApplication => {
+                "holding a call whose static arguments no pass specializes yet"
             }
         }
     }
