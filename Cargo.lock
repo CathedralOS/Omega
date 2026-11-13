@@ -199,7 +199,6 @@ dependencies = [
  "build-output",
  "build-time-evaluation",
  "calling-conventions",
- "checked-trees",
  "compilation-products",
  "diagnostics",
  "effects",
@@ -214,9 +213,7 @@ dependencies = [
  "provider-planning",
  "psi-compiler",
  "psi-work",
- "representation-planning",
  "runtime-abi",
- "selected-dispatch",
  "semantic-vocabulary",
  "source",
  "symbols",
@@ -229,7 +226,6 @@ dependencies = [
  "terminal-runtime",
  "trust-model",
  "typed-trees",
- "validation",
 ]
 
 [[package]]

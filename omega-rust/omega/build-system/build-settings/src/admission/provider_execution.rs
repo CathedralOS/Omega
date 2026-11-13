@@ -1,16 +1,8 @@
 /*
-Retain and admit selected `Build`-scope provider implementations across Terminal
-artifact production and `Pure` build reuse (`BuildProviderPlans`,
-`BuildProviderInstallation`).
-
-Psi's `CheckedTrees` remain target-neutral. `BuildProviderPlans` sits alongside
-the checked `Build` program, participates in the `CompletedPureBuildInputs`
-equality key, and validates its selected provider adapters and numeric
-intrinsics against the lowered `TerminalExecutionView` before the interpreter
-starts (`BuildProviderPlans::admit`). Because `Build` execution has no admitted
-host/device review identities, numeric rows close their sealed meaning through
-the external catalog while any demanded non-numeric intrinsic remains explicitly
-unsettled and fails closed.
+Retain source-issued Build provider declarations and selected plans beside the
+accepted module. Before the Terminal interpreter starts, admit their actual
+adapters, numeric intrinsics and runtime supplies against that exact execution
+view. Source selection alone supplies no host/device authority.
 */
 
 use diagnostics::Diagnostic;
@@ -27,30 +19,6 @@ pub(crate) struct BuildProviderInstallation {
 }
 
 impl BuildProviderPlans {
-    pub(crate) fn capture(
-        checked: &checked_trees::CheckedTrees,
-        selected: effects::SelectedProviderPlanFacts,
-        provenance: &[provider_planning::SelectedProviderReviewProvenance],
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let toolchain =
-            source::source_identity::toolchain_source_identities(checked.symbols.source_files())
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let declarations =
-            provider_planning::provider_declarations::retain_selected_provider_declarations(
-                provider_planning::ProviderPlanningContext::new(
-                    checked,
-                    source::DependencyScope::Build,
-                ),
-                &toolchain,
-                &selected,
-                provenance,
-            )?;
-        Ok(Self {
-            selected,
-            declarations,
-        })
-    }
-
     pub(crate) fn admit(
         &self,
         artifact: terminal_codec::TerminalExecutionView<'_>,

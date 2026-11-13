@@ -19,7 +19,6 @@ pub struct EvaluatedBuild {
         Vec<package_compilation::build_execution::RestrictedBuildRequest>,
     pub base_source_consumption_commitment:
         Option<package_compilation::PackageSourceConsumptionCommitment>,
-    pub retained_check: Option<psi_compiler::RetainedCheck>,
     // Build admission folded a constant under Build's own provider plans. A
     // Product completed from another typed frontier must have that fold
     // repeated there, because the new frontier holds the constant unsettled.
