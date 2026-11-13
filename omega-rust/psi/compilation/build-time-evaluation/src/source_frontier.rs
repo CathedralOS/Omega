@@ -1,6 +1,6 @@
-//! The retired source evaluator has no source-checker substitute. Empty
-//! normalization requests preserve their actual input; other requests need a
-//! producer through the lowered-form route.
+//! Keep ordinary source intact until resolution identifies its actual
+//! evaluation requests. A declaration is not itself an execution request;
+//! unresolved work needs a real lowered-form producer and is never erased.
 
 use compiler_storage::{Record, RecordError, RecordReader, RecordWriter};
 use diagnostics::Diagnostic;
@@ -14,9 +14,97 @@ fn unavailable() -> Vec<Diagnostic> {
         "no product route yet: source evaluation and normalization",
     )]
 }
-fn empty_typed(typed: &TypedTrees) -> bool {
-    // No retired semantic roster may be omitted from the no-work decision.
-    typed == &TypedTrees::default()
+/// This stage consumes no evaluation job. Reject actual unresolved work,
+/// including work in type positions, before emitting a zero-work receipt.
+/// Ordinary bodies and declarations remain for the source checker to judge.
+fn require_no_source_jobs(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let unsupported = |job| vec![Diagnostic::error(format!("no product route yet: {job}"))];
+    if !typed.const_declarations().is_empty()
+        || !typed.constant_recipes.is_empty()
+        || !typed.constant_expression_contexts.is_empty()
+        || !typed.constant_recipe_closure.values.is_empty()
+        || !typed.constant_recipe_closure.receipts.is_empty()
+        || !typed.constant_recipe_closure.target_bodies.is_empty()
+    {
+        return Err(unsupported("source constant evaluation"));
+    }
+    if !typed.pending_const_range_endpoints.is_empty() {
+        return Err(unsupported("source constant range-endpoint evaluation"));
+    }
+    if typed.static_type_contexts != Default::default() {
+        return Err(unsupported(
+            "retained source type judgments need their actual producer correspondence",
+        ));
+    }
+    if typed.product_declaration_frontier.is_some() {
+        return Err(unsupported(
+            "retained product source normalization correspondence",
+        ));
+    }
+    if !typed.wire_schemas().is_empty()
+        || !typed.wire_schema_plans.is_empty()
+        || !typed.wire_placements.is_empty()
+        || !typed.wire_encode_obligations.is_empty()
+    {
+        return Err(unsupported("source wire-schema evaluation"));
+    }
+    if !typed.access_policy_invocations.is_empty()
+        || !typed.access_view_plans.is_empty()
+        || !typed.access_lifecycle_plans.is_empty()
+    {
+        return Err(unsupported("source access-policy evaluation"));
+    }
+    if !typed.plan_laid_layouts.is_empty() || !typed.plan_laid_target_layouts.is_empty() {
+        return Err(unsupported("source layout-policy evaluation"));
+    }
+    for argument in typed.designated_static_type_arguments() {
+        if !typed
+            .type_reference_table
+            .contains_type_reference(argument.reference)
+            || !typed.symbols.symbols().nodes().is_valid(argument.owner)
+        {
+            return Err(unsupported(
+                "source designated type argument has no exact declaration/type custody",
+            ));
+        }
+    }
+    // Reuse the reference owner's complete type-position inventory rather
+    // than searching selected statements or treating a type as only a name.
+    let references = typed_trees::references::collect_program_references(typed);
+    if references.expressions.iter().any(|expression| {
+        typed
+            .expression_table
+            .materialization_source(*expression)
+            .is_valid()
+    }) {
+        return Err(unsupported(
+            "source materialized-expression evaluation correspondence",
+        ));
+    }
+    for reference in references.type_references {
+        use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+        if typed.layout_storage_arguments(reference).is_some() {
+            return Err(unsupported("source layout-policy evaluation"));
+        }
+        match typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::ConstExpression(_) => {
+                return Err(unsupported("source type-expression evaluation"));
+            }
+            TypeReferenceNode::FixedArray {
+                length: FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. },
+                ..
+            } => return Err(unsupported("source array-extent evaluation")),
+            TypeReferenceNode::Reference { .. }
+            | TypeReferenceNode::Constrained { .. }
+            | TypeReferenceNode::FixedArray { .. }
+            | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::Generic { .. }
+            | TypeReferenceNode::DynamicTrait { .. }
+            | TypeReferenceNode::Named { .. }
+            | TypeReferenceNode::Unit => {}
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, Default)]
@@ -53,9 +141,9 @@ pub struct PreResolutionEvaluation {
 pub fn evaluate_pre_resolution(
     request: BuildTimeEvaluationRequest<'_>,
 ) -> Result<PreResolutionEvaluation, Vec<Diagnostic>> {
-    if !request.syntax_trees.root_item_handles().is_empty() {
-        return Err(unavailable());
-    }
+    // Resolution retains the exact source and exposes typed evaluation
+    // requests. Do not execute or discard them based on untyped root count;
+    // the continuation must account for them before it can finish.
     Ok(PreResolutionEvaluation {
         syntax_trees: request.syntax_trees,
         pre_check: PreCheckEvaluation {
@@ -142,9 +230,8 @@ impl PreCheckEvaluation {
         original: &TypedTrees,
         projection: &TypedTrees,
     ) -> Result<Self, Vec<Diagnostic>> {
-        if !empty_typed(original) || !empty_typed(projection) {
-            return Err(unavailable());
-        }
+        require_no_source_jobs(original)?;
+        require_no_source_jobs(projection)?;
         Ok(self.clone())
     }
     pub fn activate_sources(
@@ -166,8 +253,8 @@ impl PreCheckEvaluation {
         typed: &mut TypedTrees,
     ) -> Result<crate::RecordedPreCheck, Vec<Diagnostic>> {
         self.evaluate(typed)?;
-        // No job ran: emptiness was established above, rather than inferred
-        // from the absence of old facts or execution receipts.
+        // The complete source-job inventory was empty. Reading declarations
+        // produced no execution receipt and discharged no source contract.
         Ok(crate::RecordedPreCheck {
             pending: None,
             accounting: crate::SourceCompletionAccounting::default(),
@@ -185,19 +272,29 @@ impl PreCheckEvaluation {
         wire_schema_frontier: usize,
         typed: &mut TypedTrees,
     ) -> Result<Vec<Self>, Vec<Diagnostic>> {
-        if wire_schema_frontier != 0 || !empty_typed(typed) {
-            return Err(unavailable());
+        if wire_schema_frontier > typed.wire_schemas().len() {
+            return Err(vec![Diagnostic::error(
+                "source extension lost its original wire-schema frontier",
+            )]);
         }
+        if wire_schema_frontier < typed.wire_schemas().len() {
+            return Err(vec![Diagnostic::error(
+                "no product route yet: source wire-schema evaluation",
+            )]);
+        }
+        require_no_source_jobs(typed)?;
         for pending in pre_checks {
             pending.evaluate(typed)?;
         }
         Ok(Vec::new())
     }
     pub fn evaluate(self, typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-        if self.recorded_authority.is_some() || !empty_typed(typed) {
-            return Err(unavailable());
+        if self.recorded_authority.is_some() {
+            return Err(vec![Diagnostic::error(
+                "source normalization authority has not been rejoined",
+            )]);
         }
-        Ok(())
+        require_no_source_jobs(typed)
     }
 }
 impl Record for PreCheckEvaluation {

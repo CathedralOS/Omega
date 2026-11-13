@@ -1216,6 +1216,16 @@ pub fn collect_selected_program_type_occurrences(
         ..TypeOccurrences::default()
     };
     visit_program(program, &mut occurrences);
+    // These source-nominated arguments may be retained separately from a
+    // machine body. Their types still belong to the exact selecting owner.
+    for argument in program.designated_static_type_arguments() {
+        if selection.contains(argument.owner) {
+            let previous = occurrences.owner;
+            occurrences.owner = argument.owner;
+            visit_type_reference(program, &mut occurrences, argument.reference);
+            occurrences.owner = previous;
+        }
+    }
     occurrences.types
 }
 
@@ -1628,6 +1638,11 @@ pub fn collect_program_references_with_roles(
         ..ReferenceCollector::default()
     };
     visit_program(program, &mut roots);
+    for argument in program.designated_static_type_arguments() {
+        if selection.contains(argument.owner) {
+            visit_type_reference(program, &mut roots, argument.reference);
+        }
+    }
     finish_references(roots)
 }
 
@@ -3886,5 +3901,44 @@ mod declaration_description_tests {
                 .contains(&SymbolHandle::invalid())
         );
         assert!(!references.symbols.contains(&SymbolHandle::invalid()));
+    }
+}
+
+#[cfg(test)]
+mod designated_type_argument_tests {
+    use super::*;
+
+    #[test]
+    fn designated_types_keep_their_owner_and_nested_evaluation_reference() {
+        let mut program = TypedTrees::default();
+        let owner = SymbolHandle::from_parts(11, 1);
+        let other = SymbolHandle::from_parts(12, 1);
+        let computed = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(Default::default()));
+        let borrowed = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: computed,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        program.retain_designated_static_type_argument(owner, borrowed, Default::default());
+        let selected = DeclarationSelection::from_symbols([owner]);
+        let references = collect_selected_program_references(&program, &selected);
+        assert!(references.type_references.contains(&borrowed));
+        assert!(references.type_references.contains(&computed));
+        let occurrences = collect_selected_program_type_occurrences(&program, &selected);
+        assert!(occurrences.contains(&TypeOccurrence {
+            lexical_owner: owner,
+            reference: computed
+        }));
+        let excluded = DeclarationSelection::from_symbols([other]);
+        assert!(
+            collect_selected_program_references(&program, &excluded)
+                .type_references
+                .is_empty()
+        );
+        assert!(collect_selected_program_type_occurrences(&program, &excluded).is_empty());
     }
 }
