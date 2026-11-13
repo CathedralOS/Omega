@@ -298,7 +298,7 @@ pub(crate) mod patterns {
                             })
                         }
                     } else {
-                        ExpressionNode::Name(path.into())
+                        ExpressionNode::Name(path)
                     }
                 }
                 ExpressionNode::Range(range) => ExpressionNode::Range(TableRangeExpression {

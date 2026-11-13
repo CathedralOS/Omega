@@ -776,10 +776,7 @@ pub(crate) mod statements {
                         let ExpressionNode::Name(path) = node else {
                             return None;
                         };
-                        let Some(members) = path.application.is_none().then_some(path.members)
-                        else {
-                            return None;
-                        };
+                        let members = path.application.is_none().then_some(path.members)?;
                         let [identifier] = trees.expressions.identifier_path_members(members)
                         else {
                             return None;
@@ -828,7 +825,7 @@ pub(crate) mod statements {
                     };
                     trees
                         .expressions
-                        .replace_expression(handle, ExpressionNode::Name(path.into()));
+                        .replace_expression(handle, ExpressionNode::Name(path));
                 }
                 (registers, bindings)
             }
