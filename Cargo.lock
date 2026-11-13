@@ -944,6 +944,7 @@ dependencies = [
  "package-compilation",
  "package-evidence",
  "package-manager",
+ "package-source",
  "provider-planning",
  "semantic-vocabulary",
  "source-files-to-tokens",
