@@ -285,7 +285,7 @@ pub(super) fn prepare_settled_product(
     })
 }
 
-fn complete_build_source(
+pub(super) fn complete_build_source(
     frontier: TypedCompilationFrontier,
     evaluated: build_settings::EvaluatedBuild,
     package_inputs: Option<&PackageCompilationInputs>,

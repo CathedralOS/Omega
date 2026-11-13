@@ -8,7 +8,9 @@ tests, dispatch and `match` with payload bindings). It is the second piece of
 [check on the lowered form](../../../../../wiki/drafts/designs/check_on_lowered_form.md):
 it proves nothing, reads no checker fact, and mints every obligation the
 lowered form implies without discharging any. It is not wired into the
-default compile and replaces nothing yet.
+default compile and replaces nothing yet. To run it and the discharge on a source
+program without the Build or the old checker, see
+[Running the checker on a source program](../lowered-discharge/README.md#running-the-checker-on-a-source-program).
 
 Start at [lib.rs](src/lib.rs) (`elaborate`). [read.rs](src/read.rs) resolves a
 machine's typed trees into the closed body of [body.rs](src/body.rs);

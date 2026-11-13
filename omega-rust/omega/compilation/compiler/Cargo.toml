@@ -161,6 +161,13 @@ path = "tests/typed_frontier.rs"
 name = "checked_projection"
 path = "tests/checked_projection.rs"
 
+# The lowered-form checker is shown a standalone source program without its
+# Build and without the old checker, which is how it is probed while no Build
+# program can run.
+[[test]]
+name = "route_probe"
+path = "tests/route_probe.rs"
+
 # The checker on the lowered form judges every declaration a check claims: a
 # defect in a machine the entry never calls is rejected or handed back, never
 # accepted.
