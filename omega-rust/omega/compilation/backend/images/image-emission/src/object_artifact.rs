@@ -30,7 +30,7 @@ mod carriers {
         pub(crate) composition_source: Option<std::sync::Arc<ObjectArtifact>>,
         pub(crate) psi: TerminalPsiIdentity,
         pub(crate) target: NativeTarget,
-        pub(crate) x86_feature_profile: Option<target::TargetProfile>,
+        pub(crate) profile: Option<target::TargetProfile>,
         pub(crate) entry: MachineId,
         pub(crate) object: ObjectPlan,
         pub(crate) relocations: RelocationPlan,
@@ -177,8 +177,9 @@ mod carriers {
             self.target
         }
 
-        pub const fn x86_feature_profile(&self) -> Option<target::TargetProfile> {
-            self.x86_feature_profile
+        /// Returns the retained deployment, never inferred from machine geometry.
+        pub const fn profile(&self) -> Option<target::TargetProfile> {
+            self.profile
         }
 
         pub fn verify_private_entry_origin(
@@ -4563,10 +4564,7 @@ pub(crate) mod replay {
                     }
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
                         integer,
-                    )) => {
-                        let size = integer.bits().div_ceil(8);
-                        ValueShape::integer(u32::from(size), size.next_power_of_two().min(8))
-                    }
+                    )) => ValueShape::standalone_integer(*integer),
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
                         semantic_vocabulary::IeeeFloatFormat::Binary32,
                     )) => ValueShape::float(4),
@@ -4948,19 +4946,10 @@ pub(crate) mod replay {
                         Some(ValueShape::integer(1, 1))
                     }
                     terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
-                        let size = integer.bits().div_ceil(8);
-                        Some(ValueShape::integer(
-                            u32::from(size),
-                            size.next_power_of_two().min(16),
-                        ))
+                        Some(ValueShape::field_integer(*integer))
                     }
                     terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
-                        let integer = bounds.integer_type();
-                        let size = integer.bits().div_ceil(8);
-                        Some(ValueShape::integer(
-                            u32::from(size),
-                            size.next_power_of_two().min(16),
-                        ))
+                        Some(ValueShape::field_integer(bounds.integer_type()))
                     }
                     terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(
                         semantic_vocabulary::IeeeFloatFormat::Binary32,

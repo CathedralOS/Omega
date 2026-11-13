@@ -26,6 +26,18 @@ use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
 
+/// A refusal of what `declaration` writes between `<` and `>`, by the rule
+/// it broke and the declaration's name.
+fn refuse_parameters(
+    id: MachineId,
+    what: &'static str,
+    declaration: &str,
+) -> terminal_check_tables::Refusal {
+    let mut refusal = refuse(id, Construct::Machine, Unserved::Machine(what));
+    refusal.detail = format!("{}: `{declaration}`", refusal.detail);
+    refusal
+}
+
 impl<'t> Program<'t> {
     /// A helper with no written input requirement can use what every caller
     /// guarantees. A written `requires true` must still support every input.
@@ -35,10 +47,15 @@ impl<'t> Program<'t> {
     /// unserved selection refuses the whole route. Only direct calls remain
     /// for those helpers. A reached dependency need not include every caller,
     /// so its helpers and static requirement implementations keep their envelope.
-    pub(crate) fn private_input_contracts(&self, entry: MachineId) -> Checked<Vec<MachineId>> {
+    pub(crate) fn private_input_contracts(
+        &self,
+        entry: Option<MachineId>,
+        diagnostic: MachineId,
+    ) -> Checked<Vec<MachineId>> {
         let mut private = Vec::new();
         let mut fixed = self.symbols.map(|_, _| false);
-        for id in std::iter::once(&entry)
+        for id in entry
+            .iter()
             .chain(&self.fixed_inputs)
             .chain(&self.requirements)
             .chain(
@@ -70,6 +87,7 @@ impl<'t> Program<'t> {
                 "contract span",
             )?;
             if !machine.is_public
+                && self.typed.owned_conformance_realization(*symbol).is_none()
                 && !contracts.iter().any(|clause| {
                     clause.kind == SignatureContractKind::Requires
                         && clause.keyword_source_span.is_some()
@@ -95,7 +113,7 @@ impl<'t> Program<'t> {
         let uses =
             InputSymbolUses::new(self.symbols.values().copied(), targets).ok_or_else(|| {
                 refuse(
-                    entry,
+                    diagnostic,
                     Construct::Machine,
                     Unserved::Machine("private input use with an invalid symbol"),
                 )
@@ -132,9 +150,10 @@ impl<'t> Program<'t> {
     /// unknown callable or replaceable boundary uses its interface
     /// contract"), and a machine stage 04 generated keeps exactly the
     /// contract its generic form was checked against.
-    pub(crate) fn local_result_bodies(&self, entry: MachineId) -> Checked<Vec<MachineId>> {
+    pub(crate) fn local_result_bodies(&self, entry: Option<MachineId>) -> Checked<Vec<MachineId>> {
         let mut boundary = self.symbols.map(|_, _| false);
-        for id in std::iter::once(&entry)
+        for id in entry
+            .iter()
             .chain(&self.fixed_inputs)
             .chain(&self.requirements)
             .chain(
@@ -207,7 +226,11 @@ impl<'t> Program<'t> {
         reading: Reading,
     ) -> Checked<()> {
         let outer = std::mem::take(&mut self.scope);
+        // The machine owns the lifetimes its signature names, as a data
+        // declaration owns those of its fields (`lifetime_owner`).
+        let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
         let read = self.signature(id, symbol, &reading);
+        self.lifetime_owner = enclosing;
         let scope = std::mem::replace(&mut self.scope, outer);
         let (signature, names, value_parameters) = read?;
         self.symbols.push(symbol);
@@ -366,9 +389,9 @@ impl<'t> Program<'t> {
     /// parameter `value: T in D` "gives the body the fact `value in D`".
     ///
     /// The formal's type already says it, so such a contract adds nothing
-    /// to read: the type is what a caller must supply, and the body is
-    /// given no assumption from the domain's predicates, which only makes
-    /// it prove more. Any other contract on a state stays refused.
+    /// to read: the type is what a caller must supply, and the domain's
+    /// predicates join the entry clauses from the type (`predicates`). Any
+    /// other contract on a state stays refused.
     fn contracts_restate_formal_domains(&self, state: &typed_trees::state::State) -> bool {
         use typed_trees::domain::ProofFact;
         use typed_trees::expression::ExpressionNode;
@@ -513,8 +536,8 @@ impl<'t> Program<'t> {
         // something after all: one applied at type arguments, or a generic
         // one, whose parameters the body would be read under. Lifetime
         // parameters of the data type give it nothing either: the machine
-        // is read under no lifetime binder, so a formal that names one of
-        // them is refused where its type is read (`lifetime_application`).
+        // is read under its own lifetime binders, and a call gives a region
+        // only to those (`calls`, `view_regions`).
         if machine.attached_data_application.is_valid() {
             return unserved("attached data applied at type arguments");
         }
@@ -568,9 +591,13 @@ impl<'t> Program<'t> {
         if machine.suspends || machine.blocks {
             return unserved("suspends or blocks");
         }
-        if !machine.lifetime_parameters.is_empty() {
-            return unserved("generic parameters");
-        }
+        // Lifetime parameters make no second machine: lifetimes.md,
+        // "Lifetime arguments are erased regions, separate from runtime
+        // generic arity, layout and monomorphization". The machine is read
+        // once with each binder as a region of its own, which a view's type
+        // names (`bytes`), and a call gives each one the region of the view
+        // it is passed (`calls`, `view_regions`).
+        super::places::lifetime_binders(id, &machine.lifetime_parameters)?;
         // An implementation parameter binds no type and no value: the body
         // only calls through it. A value parameter (`const Units: u64`) is a
         // value of a known carrier, read as a formal no caller passes
@@ -580,31 +607,51 @@ impl<'t> Program<'t> {
         if parameters.is_empty() != machine.type_parameters.is_empty() {
             return unserved("type parameter span");
         }
-        let served = match reading {
-            Reading::Closed => parameters.is_empty(),
+        // Each refusal says which rule the parameters broke and names the
+        // declaration: they are different constructs with different work
+        // behind them, and one shared text sent a reader to the wrong one.
+        let unserved_parameters = |what| Err(refuse_parameters(id, what, machine.name.as_str()));
+        match reading {
+            Reading::Closed if parameters.is_empty() => {}
+            Reading::Closed => {
+                return unserved_parameters("generic machine read without arguments");
+            }
             // A type parameter is opaque here: a value of it can be named,
             // passed and returned, and nothing selects on it. One declared
             // `[linear]` must be used exactly once, which this route does
             // not judge, so only the default and `[copy]` are read.
-            Reading::GenericEntry => parameters.iter().all(|parameter| match parameter.kind {
-                typed_trees::data::TypeParameterKind::Implementation
-                | typed_trees::data::TypeParameterKind::Const { .. } => true,
-                typed_trees::data::TypeParameterKind::Type => {
-                    parameter.bounds.multiplicity != language_core::Multiplicity::Linear
+            Reading::GenericEntry => {
+                for parameter in parameters {
+                    match parameter.kind {
+                        typed_trees::data::TypeParameterKind::Implementation
+                        | typed_trees::data::TypeParameterKind::Const { .. } => {}
+                        typed_trees::data::TypeParameterKind::Type
+                            if parameter.bounds.multiplicity
+                                != language_core::Multiplicity::Linear => {}
+                        typed_trees::data::TypeParameterKind::Type => {
+                            return unserved_parameters("linear type parameter");
+                        }
+                        _ => {
+                            return unserved_parameters(
+                                "parameter that is no type, value or implementation",
+                            );
+                        }
+                    }
                 }
-                _ => false,
-            }),
+            }
             // Applied at one type argument per parameter, all type
             // parameters; so is one alternative of a finite family.
             Reading::Applied(arguments) | Reading::Alternative(arguments) => {
-                parameters.len() == arguments.len()
-                    && parameters.iter().all(|parameter| {
-                        parameter.kind == typed_trees::data::TypeParameterKind::Type
+                if parameters.len() != arguments.len()
+                    || parameters.iter().any(|parameter| {
+                        parameter.kind != typed_trees::data::TypeParameterKind::Type
                     })
+                {
+                    return unserved_parameters(
+                        "arguments that are not one type for each type parameter",
+                    );
+                }
             }
-        };
-        if !served {
-            return unserved("generic parameters");
         }
         if !machine.declared_type_equations.is_empty()
             || !machine.owned_data.is_empty()
@@ -719,6 +766,7 @@ impl<'t> Program<'t> {
             &binders,
             &[],
         )?;
+        self.inherit_logical_contract(id, machine, &mut signature, &mut names)?;
         signature.termination = self.termination(id, machine)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
@@ -732,6 +780,87 @@ impl<'t> Program<'t> {
         names.machine = authored.name.as_str().to_owned();
         names.state = state.name.as_str().to_owned();
         Ok((signature, names, binders.len()))
+    }
+
+    /// An inline conformer's body is checked under its requirement, unlike
+    /// a selection row that attaches a route to an independently valid body
+    /// (conformances.md, "Binding a machine to a requirement"). Read the
+    /// requirement with its own symbols, then retain the logical clauses by
+    /// formal position. Written member clauses still owe refinement; omitted
+    /// operational ceilings keep their separate inference rules.
+    fn inherit_logical_contract(
+        &mut self,
+        id: MachineId,
+        machine: &'t Machine,
+        signature: &mut Signature,
+        names: &mut MachineNames,
+    ) -> Checked<()> {
+        let Some((_, row)) = self.typed.owned_conformance_realization(machine.symbol) else {
+            return Ok(());
+        };
+        let clauses = span(
+            &self.typed.signature_contracts,
+            machine.contracts,
+            id,
+            "contract span",
+        )?;
+        let authored = |kind| {
+            clauses
+                .iter()
+                .any(|clause| clause.kind == kind && clause.keyword_source_span.is_some())
+        };
+        let requires = !authored(SignatureContractKind::Requires);
+        let ensures = !authored(SignatureContractKind::Ensures);
+        if !requires && !ensures {
+            return Ok(());
+        }
+        let requirement = self.declared_requirement(id, row.declaring_trait, row.requirement)?;
+        let (inherited, inherited_names) = self.requirement_signature(id, requirement, &[])?;
+        if signature.parameters != inherited.parameters
+            || signature.result != inherited.result
+            || signature.erased != inherited.erased
+            || signature.borrowed != inherited.borrowed
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("inline member signature differs from its requirement's"),
+            ));
+        }
+        if requires {
+            // Implicit formal-domain obligations remain alongside inherited
+            // inputs. Canonicalization may merge an obligation both declare.
+            let mut clauses = std::mem::take(&mut signature.requires);
+            clauses.extend(inherited.requires);
+            let mut texts = std::mem::take(&mut names.requires);
+            texts.extend(inherited_names.requires);
+            signature.requires = canonical::clauses(clauses.clone(), Repeated::Merge, id)?;
+            names.requires = signature
+                .requires
+                .iter()
+                .map(|clause| {
+                    let position = clauses.iter().position(|candidate| candidate == clause);
+                    position
+                        .and_then(|position| texts.get(position).cloned())
+                        .unwrap_or_default()
+                })
+                .collect();
+        }
+        if ensures {
+            for (position, clause) in inherited.ensures.into_iter().enumerate() {
+                if !signature.ensures.contains(&clause) {
+                    signature.ensures.push(clause);
+                    names.ensures.push(
+                        inherited_names
+                            .ensures
+                            .get(position)
+                            .cloned()
+                            .unwrap_or_default(),
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     /// The value parameters of a trait requirement, in declaration order,
@@ -754,7 +883,11 @@ impl<'t> Program<'t> {
         for parameter in parameters {
             let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
             else {
-                return unserved("generic parameters");
+                return Err(refuse_parameters(
+                    id,
+                    "requirement parameter that is not a value",
+                    requirement.name.as_str(),
+                ));
             };
             if !parameter.symbol.is_valid() {
                 return Err(refuse(
@@ -792,9 +925,19 @@ impl<'t> Program<'t> {
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
         }
-        if !requirement.lifetime_parameters.is_empty() || !requirement.conformance_bounds.is_empty()
-        {
-            return unserved("generic parameters");
+        if !requirement.lifetime_parameters.is_empty() {
+            return Err(refuse_parameters(
+                id,
+                "requirement with lifetime parameters",
+                requirement.name.as_str(),
+            ));
+        }
+        if !requirement.conformance_bounds.is_empty() {
+            return Err(refuse_parameters(
+                id,
+                "requirement with conformance bounds",
+                requirement.name.as_str(),
+            ));
         }
         let binders = self.requirement_binders(id, requirement)?;
         if binders.len() != arguments.len()
@@ -935,9 +1078,7 @@ impl<'t> Program<'t> {
             result: ResultTerm::Absent("result in an entry clause"),
             subject: None,
             formal_fields: false,
-            mathematical: MathematicalTerms::Refused(
-                "mathematical comparison in a crash route guard",
-            ),
+            mathematical: MathematicalTerms::Served,
         };
         // Only an entry `requires` may project a record formal.
         let required = ClauseScope {
@@ -1037,6 +1178,27 @@ impl<'t> Program<'t> {
                         ));
                     }
                 }
+            }
+        }
+        // A formal or a result in a domain with predicates states them as
+        // entry clauses and guarantees (`predicates`); a clause the
+        // callable also wrote itself is stated once.
+        let domains = self.signature_predicates(
+            id,
+            &required,
+            &exit,
+            result.map(|result| (result, result_value)),
+        )?;
+        for (clause, text) in domains.requires {
+            if !requires.contains(&clause) {
+                requires.push(clause);
+                requires_text.push(text);
+            }
+        }
+        for (clause, text) in domains.ensures {
+            if !ensures.contains(&clause) {
+                ensures.push(clause);
+                ensures_text.push(text);
             }
         }
         // effects.md: "On a public checked body omitted `crashes` means no
@@ -1170,7 +1332,7 @@ impl<'t> Program<'t> {
     /// or closed type equations decide it as true. One they decide as false
     /// is refused: the application is outside the family its declaration
     /// admits, and nothing about its body would mean anything.
-    fn states_nothing(
+    pub(super) fn states_nothing(
         &self,
         id: MachineId,
         expression: typed_trees::expression::ExpressionHandle,
@@ -1279,7 +1441,14 @@ impl<'t> Program<'t> {
         if erased {
             return unserved("erased reference parameter");
         }
-        if named_lifetime {
+        // A byte view keeps the region it names in its type (`bytes`). A
+        // reference to anything else is a loan of one place, and what its
+        // lifetime relates it to has no reader yet.
+        let is_view = matches!(
+            self.typed.type_reference_table.type_reference(referee),
+            TypeReferenceNode::Slice { .. }
+        );
+        if named_lifetime && !is_view {
             return unserved("reference parameter with a named lifetime");
         }
         // Stage 01 sets `is_mutable` for an exclusive reference; a shared
@@ -1294,10 +1463,7 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = if matches!(
-            self.typed.type_reference_table.type_reference(referee),
-            TypeReferenceNode::Slice { .. }
-        ) {
+        let value_type = if is_view {
             self.value_type(id, formal.type_reference)?
         } else {
             self.value_type(id, referee)?
@@ -1381,6 +1547,7 @@ impl<'t> Program<'t> {
         }
         let (machine, state) = self.declaration(id, symbol)?;
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
+        self.lifetime_owner = symbol;
         let formals = span(
             &typed.state_parameters,
             state.parameters,
@@ -1893,7 +2060,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
-        | ExpressionKind::Requalify(operand) => {
+        | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Establish { operand, .. } => {
             spans(operand, binder, out);
         }
         ExpressionKind::Call { arguments, .. } => {
@@ -2034,7 +2202,8 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
-        | ExpressionKind::Requalify(operand) => {
+        | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Establish { operand, .. } => {
             expression_slot_uses(operand, uses);
         }
         ExpressionKind::Call { arguments, .. } => {

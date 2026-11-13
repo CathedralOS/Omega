@@ -155,6 +155,37 @@ machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
     );
 }
 
+/// Both total carrier arithmetic and mathematical arithmetic are restated at
+/// the call, rather than rejected by a narrower crash-only term reader.
+#[test]
+fn source_crash_guards_substitute_total_operations_at_the_call() {
+    for guard in ["value +% 1 == 0", "embed(value) + 1 == 4294967296"] {
+        let call = |actual| {
+            invocation(typed(&format!(
+                r#"
+boundary trait Probe {{
+    machine read(value: u32) -> u32
+    reaches none
+    crashes Trap {guard};
+}}
+machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
+"#
+            )))
+        };
+        let accepted = judge(call(1)).unwrap();
+        let RouteVerdict::Accepted(accepted) = accepted else {
+            panic!("{guard}: {accepted:?}");
+        };
+        accepted.publish_invocation().unwrap();
+        let rejected = judge(call(u32::MAX)).unwrap();
+        assert!(
+            matches!(rejected, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CrashCoverage { .. }))),
+            "{guard}: {rejected:?}"
+        );
+    }
+}
+
 /// A boundary requirement has no body to infer a crash ceiling from and no
 /// static selection to defer to, so one that writes no `crashes` clause is
 /// refused where it is called, and the same call with `crashes none` written
@@ -229,4 +260,105 @@ fn borrowed_generic_requirements_preserve_input_proofs_and_exclusive_loans() {
     let mut alias = borrowed_requirement("left", "< 10");
     let discharged = discharge(&mut alias).unwrap();
     assert!(!discharged.machines.get(id(1)).unwrap().conflicts.is_empty());
+}
+
+fn conformer_contracts(member: &str, plain: &str) -> Vec<RouteVerdict> {
+    let text = format!(
+        r#"
+trait Step {{
+    machine apply(value: u32) -> u32
+    requires value > 0
+    ensures result < value
+    crashes none;
+}}
+Previous satisfies Step {{
+    {member}
+}}
+{plain}
+machine entry() crashes none {{}}
+"#
+    );
+    let typed = typed(&text);
+    let entry = entry(&typed);
+    let verdicts = crate::judge_compilation_for(
+        &typed,
+        structure_elaboration::Compilation {
+            entries: &[entry],
+            subjects: &[None],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    assert_eq!(verdicts.len(), 2, "{verdicts:?}");
+    verdicts.into_iter().map(Result::unwrap).collect()
+}
+
+#[test]
+fn inline_conformers_inherit_the_requirements_logical_contract() {
+    // The member deliberately uses another formal name: inherited clauses
+    // refer to the same logical input by position, not by its spelling.
+    let verdicts = conformer_contracts(
+        "machine apply(input: u32) -> u32 crashes none { input - 1 }",
+        "",
+    );
+    for verdict in verdicts {
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
+}
+
+#[test]
+fn an_omitted_member_guarantee_still_has_to_hold_of_the_actual_body() {
+    let verdicts = conformer_contracts(
+        "machine apply(input: u32) -> u32 crashes none { input }",
+        "",
+    );
+    assert!(
+        verdicts.iter().all(|verdict| matches!(
+            verdict,
+            RouteVerdict::Accepted(_) | RouteVerdict::Rejected { .. }
+        )),
+        "{verdicts:?}"
+    );
+    assert!(
+        verdicts.iter().any(|verdict| matches!(
+            verdict, RouteVerdict::Rejected { unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))
+        )),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_requirement_does_not_replace_written_inputs_or_donate_them_to_a_selection() {
+    for (member, plain) in [
+        // The originating requirement admits one, so this omission must
+        // not infer the narrower input >= 2 that a private helper could.
+        (
+            "machine apply(input: u32) -> u32 crashes none { input - 2 }",
+            "",
+        ),
+        (
+            "machine apply(input: u32) -> u32 requires true crashes none { input - 1 }",
+            "",
+        ),
+        (
+            "Step::apply = previous;",
+            "machine previous(input: u32) -> u32 requires true crashes none { input - 1 }",
+        ),
+    ] {
+        let verdicts = conformer_contracts(member, plain);
+        assert!(
+            verdicts.iter().all(|verdict| matches!(
+                verdict,
+                RouteVerdict::Accepted(_) | RouteVerdict::Rejected { .. }
+            )),
+            "{verdicts:?}"
+        );
+        assert!(verdicts.iter().any(|verdict| matches!(
+            verdict, RouteVerdict::Rejected { unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. }))
+        )), "{verdicts:?}");
+    }
 }

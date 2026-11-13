@@ -428,46 +428,66 @@ pub(crate) fn arrival_goal(
     })
 }
 
-fn rename_term(term: &ScalarTerm, renaming: &[(ValueId, ValueId)]) -> ScalarTerm {
-    if let ScalarTerm::Value { id, scalar_type } = term
-        && let Some((_, to)) = renaming.iter().find(|(from, _)| from == id)
-    {
-        return ScalarTerm::value(*to, *scalar_type);
-    }
-    let mut renamed = term.clone();
-    for operand in renamed.operands_mut() {
-        *operand = rename_term(operand, renaming);
-    }
-    renamed
-}
-
-/// `proposition` with values renamed, in the forms `infer` states; any other
-/// form is refused rather than renamed partly.
+/// Restate a predicate on an arrival using the same checked clause traversal
+/// as calls. Unmapped values keep their identity: machine inputs and values
+/// already in the destination's scope do not become block parameters.
 pub(crate) fn rename(
     proposition: &Proposition,
     renaming: &[(ValueId, ValueId)],
 ) -> Option<Proposition> {
-    let all = |parts: &[Proposition]| {
-        parts
+    crate::substitute(proposition, &mut RenamedValues(renaming)).ok()
+}
+
+struct RenamedValues<'a>(&'a [(ValueId, ValueId)]);
+
+impl crate::Bindings for RenamedValues<'_> {
+    type Error = crate::Unbound;
+
+    fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Self::Error> {
+        let renamed = self
+            .0
             .iter()
-            .map(|part| rename(part, renaming))
-            .collect::<Option<Vec<_>>>()
-    };
-    Some(match proposition {
-        Proposition::Truth | Proposition::Falsehood => proposition.clone(),
-        Proposition::Equal(left, right) => {
-            Proposition::Equal(rename_term(left, renaming), rename_term(right, renaming))
-        }
-        Proposition::LessThan(left, right) => {
-            Proposition::LessThan(rename_term(left, renaming), rename_term(right, renaming))
-        }
-        Proposition::LessOrEqual(left, right) => {
-            Proposition::LessOrEqual(rename_term(left, renaming), rename_term(right, renaming))
-        }
-        Proposition::Conjunction(parts) => Proposition::Conjunction(all(parts)?),
-        Proposition::Disjunction(parts) => Proposition::Disjunction(all(parts)?),
-        _ => return None,
-    })
+            .find(|(from, _)| *from == id)
+            .map_or(id, |(_, to)| *to);
+        Ok(ScalarTerm::value(renamed, scalar_type))
+    }
+
+    fn field(
+        &mut self,
+        root: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        // This is an identity rename within one machine, not observation of
+        // another frame. Place identities and their projected paths stay put.
+        Ok(match scalar_type {
+            ScalarType::Integer(scalar_type) => ScalarTerm::IntegerField {
+                root,
+                path: path.to_vec(),
+                scalar_type,
+            },
+            ScalarType::Boolean => ScalarTerm::BooleanField {
+                root,
+                path: path.to_vec(),
+            },
+            _ => {
+                return Err(crate::Unbound::Unsupported(
+                    "join field has no scalar observation",
+                ));
+            }
+        })
+    }
+
+    fn case(
+        &mut self,
+        _: semantic_vocabulary::PlaceId,
+        _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        _: semantic_vocabulary::StructuralCaseId,
+    ) -> Result<bool, Self::Error> {
+        Err(crate::Unbound::Unsupported(
+            "join predicate has no captured case",
+        ))
+    }
 }
 
 /// What `check` needs from the machine being discharged.

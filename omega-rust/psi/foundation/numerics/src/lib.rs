@@ -31,6 +31,7 @@ pub(crate) use optimization::digest_encoder;
 
 pub mod bignum;
 pub mod float_semantics;
+pub mod integer_carrier;
 pub mod literals;
 
 pub use float_semantics as float_semantics_catalog;

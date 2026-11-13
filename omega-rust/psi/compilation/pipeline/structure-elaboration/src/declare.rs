@@ -243,8 +243,9 @@ fn declaration(
 /// digest of the generic machine's callable identity and the identity of
 /// each type and implementation the application binds, in parameter order.
 /// Two machines generated from one generic machine at the same arguments
-/// commit alike, and no other pair does. Type and implementation arguments
-/// are stated; an application that binds anything else is left undeclared.
+/// commit alike, and no other pair does. Type, implementation and value
+/// arguments are stated; an application that binds anything else is left
+/// undeclared.
 fn application(
     typed: &TypedTrees,
     sources: &[(source::SourceId, [u8; 32])],
@@ -278,7 +279,15 @@ fn application(
     if bindings.is_empty() {
         return Err("a generated machine's application binds nothing");
     }
-    for binding in bindings {
+    let arguments = typed
+        .expression_table
+        .static_machine_application_arguments(row.binding_application);
+    if arguments.len() != bindings.len() {
+        return Err(
+            "a generated machine's application binds other than one argument per parameter",
+        );
+    }
+    for (binding, argument) in bindings.iter().zip(arguments) {
         match &binding.value {
             StaticMachineBindingValue::Type(type_reference) => typed
                 .type_identity_text(typed.package_qualified_type_identity(*type_reference))
@@ -303,9 +312,26 @@ fn application(
                     .map_err(|_| "an application's implementation argument has no identity")?;
                 ("implementation", identity).hash(&mut commitment);
             }
-            _ => {
+            // generics.md, "Closed applications and canonical identity":
+            // a value argument is part of the application's identity. It is
+            // stated by the parameter's type and the literal's canonical
+            // spelling, with its kind, so `7` given to a `u8` and to a `u64`
+            // parameter, or a value and a type, never commit alike.
+            StaticMachineBindingValue::Const(type_reference) => {
+                let literal = argument
+                    .const_literal
+                    .as_ref()
+                    .ok_or("an application's value argument is not a literal")?;
+                let carrier = typed
+                    .type_identity_text(typed.package_qualified_type_identity(*type_reference))
+                    .filter(|text| !text.is_empty())
+                    .ok_or("an application's value parameter type has no identity")?;
+                ("value", carrier, literal.canonical_spelling().as_str()).hash(&mut commitment);
+            }
+            StaticMachineBindingValue::RuntimeValue { .. }
+            | StaticMachineBindingValue::Machine(_) => {
                 return Err(
-                    "a generated machine's application binds something other than a type or an implementation",
+                    "a generated machine's application binds something other than a type, an implementation or a value",
                 );
             }
         }

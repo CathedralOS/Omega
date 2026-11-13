@@ -4,6 +4,7 @@
 */
 
 use super::{SymbolKind, SymbolNameRef};
+use numerics::integer_carrier::FixedInteger;
 
 pub const BUILTIN_TYPE_COUNT: usize = 21;
 
@@ -16,14 +17,12 @@ pub const BUILTIN_TYPE_COUNT: usize = 21;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum BuiltinTypeAtom {
     Bool,
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
+    /*
+        A fixed-width integer is its sign and width. The root roster installs
+        a symbol for each conventional spelling (`i8` through `u64`); the
+        identity is the carrier, not which spelling named it.
+    */
+    Integer(FixedInteger),
     /* Pointer-width address, distinct from integer counts. */
     Address,
     F32,
@@ -46,14 +45,14 @@ pub enum BuiltinTypeAtom {
 impl BuiltinTypeAtom {
     pub const ALL: [Self; BUILTIN_TYPE_COUNT] = [
         Self::Bool,
-        Self::I8,
-        Self::I16,
-        Self::I32,
-        Self::I64,
-        Self::U8,
-        Self::U16,
-        Self::U32,
-        Self::U64,
+        Self::Integer(FixedInteger::signed(8)),
+        Self::Integer(FixedInteger::signed(16)),
+        Self::Integer(FixedInteger::signed(32)),
+        Self::Integer(FixedInteger::signed(64)),
+        Self::Integer(FixedInteger::unsigned(8)),
+        Self::Integer(FixedInteger::unsigned(16)),
+        Self::Integer(FixedInteger::unsigned(32)),
+        Self::Integer(FixedInteger::unsigned(64)),
         Self::Address,
         Self::F32,
         Self::F64,
@@ -72,17 +71,68 @@ impl BuiltinTypeAtom {
         Self::ALL.get(ordinal).copied()
     }
 
+    pub const U8: Self = Self::Integer(FixedInteger::U8);
+    pub const U64: Self = Self::Integer(FixedInteger::U64);
+
     /*
-        The atom's slot ordinal: its position in [`Self::ALL`]. The loop
-        compares discriminant values (this vocabulary has no payload), so the
-        accessors below can index the roster in const context.
+        The atom's slot ordinal: its position in [`Self::ALL`]. Only roster
+        members have a root slot; an integer carrier outside the installed
+        spellings has none, so asking for its slot is a compiler defect.
     */
     pub const fn ordinal(self) -> usize {
+        match self.roster_ordinal() {
+            Some(ordinal) => ordinal,
+            None => panic!("a builtin type outside the root roster has no slot"),
+        }
+    }
+
+    /* The root slot of a roster member, compared in const context. */
+    pub const fn roster_ordinal(self) -> Option<usize> {
         let mut index = 0;
-        while (Self::ALL[index] as usize) != (self as usize) {
+        while index < BUILTIN_TYPE_COUNT {
+            if Self::ALL[index].same_atom(self) {
+                return Some(index);
+            }
             index += 1;
         }
-        index
+        None
+    }
+
+    const fn same_atom(self, other: Self) -> bool {
+        match (self, other) {
+            (Self::Integer(left), Self::Integer(right)) => {
+                left.width() == right.width() && left.is_signed() == right.is_signed()
+            }
+            (Self::Integer(_), _) | (_, Self::Integer(_)) => false,
+            _ => self.payload_free_tag() == other.payload_free_tag(),
+        }
+    }
+
+    const fn payload_free_tag(self) -> u8 {
+        match self {
+            Self::Bool => 0,
+            Self::Integer(_) => 1,
+            Self::Address => 2,
+            Self::F32 => 3,
+            Self::F64 => 4,
+            Self::Slice => 5,
+            Self::SyscallResult => 6,
+            Self::Terminal => 7,
+            Self::Never => 8,
+            Self::UInt => 9,
+            Self::Int => 10,
+            Self::AtomicBool => 11,
+            Self::AtomicU32 => 12,
+            Self::AtomicU64 => 13,
+        }
+    }
+
+    /* The carrier of a fixed-width integer atom. */
+    pub const fn fixed_integer(self) -> Option<FixedInteger> {
+        match self {
+            Self::Integer(carrier) => Some(carrier),
+            _ => None,
+        }
     }
 
     /*
@@ -99,7 +149,7 @@ impl BuiltinTypeAtom {
 
     /*
         Whether the atom spells a canonical constant's scalar carrier: bool,
-        the eight fixed-width integers, or the pointer-width address — the
+        the fixed-width integers, or the pointer-width address — the
         shapes `DecodedCanonicalConstValue` can hold. Arbitrary-width
         `Int`/`UInt`, floats, and composite atoms are not carriers.
     */
@@ -108,22 +158,12 @@ impl BuiltinTypeAtom {
     }
 
     /*
-        Whether the atom names one of the eight fixed-width integers
-        (`i8`–`u64`); the arbitrary-width `Int`/`UInt` and pointer-width
+        Whether the atom is a fixed-width integer of any sign and width;
+        the arbitrary-width `Int`/`UInt` and pointer-width
         `Address` are not members.
     */
     pub const fn is_fixed_integer(self) -> bool {
-        matches!(
-            self,
-            Self::U8
-                | Self::U16
-                | Self::U32
-                | Self::U64
-                | Self::I8
-                | Self::I16
-                | Self::I32
-                | Self::I64
-        )
+        matches!(self, Self::Integer(_))
     }
 
     /*
@@ -133,14 +173,14 @@ impl BuiltinTypeAtom {
     */
     const SPELLINGS: [(Self, &'static str, &'static str); BUILTIN_TYPE_COUNT] = [
         (Self::Bool, "bool", "bool"),
-        (Self::I8, "i8", "i8"),
-        (Self::I16, "i16", "i16"),
-        (Self::I32, "i32", "i32"),
-        (Self::I64, "i64", "i64"),
-        (Self::U8, "u8", "u8"),
-        (Self::U16, "u16", "u16"),
-        (Self::U32, "u32", "u32"),
-        (Self::U64, "u64", "u64"),
+        (Self::Integer(FixedInteger::signed(8)), "i8", "i8"),
+        (Self::Integer(FixedInteger::signed(16)), "i16", "i16"),
+        (Self::Integer(FixedInteger::signed(32)), "i32", "i32"),
+        (Self::Integer(FixedInteger::signed(64)), "i64", "i64"),
+        (Self::Integer(FixedInteger::unsigned(8)), "u8", "u8"),
+        (Self::Integer(FixedInteger::unsigned(16)), "u16", "u16"),
+        (Self::Integer(FixedInteger::unsigned(32)), "u32", "u32"),
+        (Self::Integer(FixedInteger::unsigned(64)), "u64", "u64"),
         (Self::Address, "address", "addr"),
         (Self::F32, "f32", "f32"),
         (Self::F64, "f64", "f64"),
@@ -924,6 +964,52 @@ mod builtin_ordinal_tests {
                 "closed builtin atom {:?} must retain its exact root slot",
                 atom,
             );
+        }
+    }
+
+    /*
+        An integer atom is its carrier. The root roster installs a slot for
+        each conventional spelling, so those carriers have an ordinal and a
+        symbol name; a carrier outside the roster is still an integer atom
+        but has no slot to index.
+    */
+    #[test]
+    fn integer_atoms_are_carriers_and_only_roster_spellings_have_slots() {
+        use numerics::integer_carrier::FixedInteger;
+        let mut installed = 0;
+        for (ordinal, atom) in BuiltinTypeAtom::ALL.into_iter().enumerate() {
+            assert_eq!(atom.roster_ordinal(), Some(ordinal));
+            assert_eq!(BuiltinTypeAtom::from_ordinal(ordinal), Some(atom));
+            let Some(carrier) = atom.fixed_integer() else {
+                assert!(!atom.is_fixed_integer());
+                continue;
+            };
+            installed += 1;
+            assert!(atom.is_fixed_integer() && atom.is_canonical_const_scalar());
+            assert_eq!(atom.symbol_name(), carrier.to_string());
+            assert_eq!(atom.identity(), carrier.to_string());
+            assert_eq!(
+                FixedInteger::from_builtin_name(atom.symbol_name()),
+                Some(carrier)
+            );
+        }
+        assert_eq!(installed, 8);
+        assert_eq!(BuiltinTypeAtom::U64.symbol_name(), "u64");
+        assert_eq!(BuiltinTypeAtom::U8.symbol_name(), "u8");
+
+        let odd = BuiltinTypeAtom::Integer(FixedInteger::unsigned(13));
+        assert!(odd.is_fixed_integer());
+        assert_eq!(odd.roster_ordinal(), None);
+        assert_ne!(
+            BuiltinTypeAtom::Integer(FixedInteger::signed(32)).roster_ordinal(),
+            BuiltinTypeAtom::Integer(FixedInteger::unsigned(32)).roster_ordinal()
+        );
+        for atom in [
+            BuiltinTypeAtom::Address,
+            BuiltinTypeAtom::UInt,
+            BuiltinTypeAtom::Int,
+        ] {
+            assert_eq!(atom.fixed_integer(), None);
         }
     }
 

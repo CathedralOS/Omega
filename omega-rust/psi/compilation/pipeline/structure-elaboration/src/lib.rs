@@ -138,6 +138,11 @@ pub struct MachineSources {
     /// which machine's body a head begins; a diagnostic about an arrival
     /// names it as the callee.
     pub heads: Vec<(BlockId, MachineId)>,
+    /// The block each `value as +D` of a domain with predicates continues
+    /// in (`lower`, `prove_membership`), with the domain and predicates the
+    /// cast owes as written. The lowered form holds only the block's
+    /// invariant; a diagnostic about the arrival names the domain.
+    pub memberships: Vec<(BlockId, String)>,
 }
 
 /// What one compilation asks to have judged. This is request information: the
@@ -147,6 +152,8 @@ pub struct MachineSources {
 #[derive(Debug, Clone, Copy)]
 pub struct Compilation<'a> {
     /// The Build's bound program entries. The first is the module's entry.
+    /// An empty slice checks the declared subjects and selections in a
+    /// declaration module with no executable entry.
     pub entries: &'a [SymbolHandle],
     /// Full checks explicitly requested in addition to the entry/selection
     /// closure. `Some(package)` selects that package; `None` selects standalone
@@ -387,24 +394,23 @@ pub fn elaborate_for(
     let mut program = read::Program::new(typed, false);
     program.publication = publication;
     let first = MachineId::new(1).expect("1 is nonzero");
-    let Some((entry, others)) = compilation.entries.split_first() else {
-        // A Terminal module names one entry machine, so a compilation that
-        // binds none has no module to elaborate into.
-        return Err(refuse(
-            first,
-            Construct::Machine,
-            Unserved::Machine("no bound entry"),
-        ));
-    };
     program.build_entry_context(first, compilation.purpose, compilation.entries)?;
-    let entry = program.machine(*entry)?;
-    program.fixed_inputs.push(entry);
-    for other in others {
-        let other = program.machine(*other)?;
-        program.fixed_inputs.push(other);
-    }
-    program.selected_declarations(entry, compilation.selected)?;
-    program.subject_declarations(entry, compilation.subjects, compilation.purpose)?;
+    let entry = if let Some((entry, others)) = compilation.entries.split_first() {
+        let entry = program.machine(*entry)?;
+        program.fixed_inputs.push(entry);
+        for other in others {
+            let other = program.machine(*other)?;
+            program.fixed_inputs.push(other);
+        }
+        Some(entry)
+    } else {
+        // A source check still claims every subject declaration. It creates
+        // a declaration module, not an executable entry inferred from a name
+        // or from whichever subject machine happens to be read first.
+        None
+    };
+    program.selected_declarations(first, compilation.selected)?;
+    program.subject_declarations(first, compilation.subjects, compilation.purpose)?;
     let mut elaboration = finish_reading(program, entry, IdTable::default(), Some(typed))?;
     proof_scope::declare(typed, &mut elaboration)?;
     Ok(elaboration)
@@ -455,7 +461,7 @@ pub fn elaborate_alternatives(
             let mut program = read::Program::new(typed, false);
             program.alternative = Some(arguments);
             let entry = program.machine(template)?;
-            finish_reading(program, entry, IdTable::default(), None)
+            finish_reading(program, Some(entry), IdTable::default(), None)
         })
         .collect()
 }
@@ -614,13 +620,13 @@ fn elaborate_witness_call(
             None => Statement::Evaluate(call),
         }],
     });
-    finish_reading(program, entry, bodies, None)
+    finish_reading(program, Some(entry), bodies, None)
 }
 
 fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, rigid);
     let entry = program.machine(entry)?;
-    finish_reading(program, entry, IdTable::default(), None)
+    finish_reading(program, Some(entry), IdTable::default(), None)
 }
 
 /// Reads every body not yet in `bodies`, callees as they are discovered,
@@ -629,16 +635,19 @@ fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Check
 /// identities (`declare`).
 fn finish_reading(
     mut program: read::Program<'_>,
-    entry: MachineId,
+    entry: Option<MachineId>,
     mut bodies: IdTable<MachineId, Body>,
     declared: Option<&TypedTrees>,
 ) -> Checked<Elaboration> {
+    // Refusals need a coordinate even for an empty declaration module. This
+    // diagnostic anchor is never installed as an entry or an input boundary.
+    let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     // `program.machine` appends callees while bodies are read, so the bound
     // is re-read on every step.
     while bodies.len() < program.symbols.len() {
         let next = MachineId::new(bodies.len() as u64 + 1).ok_or_else(|| {
             refuse(
-                entry,
+                diagnostic,
                 Construct::Machine,
                 Unserved::Machine("identity overflow"),
             )
@@ -646,7 +655,7 @@ fn finish_reading(
         let body = program.body(next)?;
         bodies.push(body);
     }
-    let private_inputs = program.private_input_contracts(entry)?;
+    let private_inputs = program.private_input_contracts(entry, diagnostic)?;
     let local_results = program.local_result_bodies(entry)?;
     let mut elaboration = lower_generic_for(
         entry,
@@ -669,7 +678,7 @@ fn finish_reading(
             &mut elaboration,
         );
     }
-    elaboration.source_records = program.source_record_correspondence(entry)?;
+    elaboration.source_records = program.source_record_correspondence(diagnostic)?;
     elaboration.machines = program.symbols;
     elaboration.boundaries = program.boundary_symbols;
     elaboration.private_inputs = private_inputs;
@@ -723,7 +732,7 @@ pub fn lower_generic(
     requirements: &[MachineId],
 ) -> Checked<Elaboration> {
     lower_generic_for(
-        entry,
+        Some(entry),
         bodies,
         body::Signatures {
             machines: signatures,
@@ -738,7 +747,7 @@ pub fn lower_generic(
 }
 
 fn lower_generic_for(
-    entry: MachineId,
+    entry: Option<MachineId>,
     bodies: &IdTable<MachineId, Body>,
     signatures: body::Signatures<'_>,
     records: &IdTable<StructuralTypeId, RecordType>,
@@ -746,8 +755,10 @@ fn lower_generic_for(
     publication: terminal_codec::TerminalPublication,
     declarations: Option<&read::Program<'_>>,
 ) -> Checked<Elaboration> {
+    let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     for requirement in requirements {
-        let body = terminal_check_tables::row(bodies, *requirement, entry, Construct::Machine)?;
+        let body =
+            terminal_check_tables::row(bodies, *requirement, diagnostic, Construct::Machine)?;
         if !body.statements.is_empty() {
             return Err(refuse(
                 *requirement,
@@ -758,12 +769,17 @@ fn lower_generic_for(
     }
     let components = components::components(bodies, signatures.machines)?;
     let outcomes = outcome::outcomes(bodies, signatures, requirements)?;
-    let mut module = TerminalModule::for_entry(entry);
-    // What running the module's entry may reach is what the entry publishes.
-    module.root_service_reach.concrete =
-        terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
-            .service_reach
-            .clone();
+    let mut module = match entry {
+        Some(entry) => TerminalModule::for_entry(entry),
+        None => TerminalModule::declarations(),
+    };
+    // Declaration checking publishes no executable arrival or root reach.
+    if let Some(entry) = entry {
+        module.root_service_reach.concrete =
+            terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
+                .service_reach
+                .clone();
+    }
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
@@ -775,16 +791,22 @@ fn lower_generic_for(
             terminal_psi::TerminalIdentityTableBuilder::for_invocation()
         }
     };
-    let declared = lower::places::declare(entry, records, bodies, signatures, identities)?;
+    let declared = lower::places::declare(diagnostic, records, bodies, signatures, identities)?;
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;
     if let Some(source) = declarations {
-        source.publish_services(entry, &mut module)?;
-        source.publish_boundaries(entry, signatures, &outcomes, &declared.records, &mut module)?;
+        source.publish_services(diagnostic, &mut module)?;
+        source.publish_boundaries(
+            diagnostic,
+            signatures,
+            &outcomes,
+            &declared.records,
+            &mut module,
+        )?;
     } else if !signatures.boundaries.is_empty() {
         return Err(refuse(
-            entry,
+            diagnostic,
             Construct::Machine,
             Unserved::Declaration("boundary contracts have no exact source owner"),
         ));
@@ -794,7 +816,7 @@ fn lower_generic_for(
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
             refuse(
-                entry,
+                diagnostic,
                 Construct::Machine,
                 Unserved::Machine("identity overflow"),
             )
@@ -947,7 +969,7 @@ mod publication_scope_tests {
         });
         let lower = |publication| {
             lower_generic_for(
-                entry,
+                Some(entry),
                 &bodies,
                 body::Signatures {
                     machines: &signatures,

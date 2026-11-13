@@ -227,12 +227,7 @@ pub(crate) mod progress {
                 TypeReferenceNode::Named { symbol, .. }
                     if matches!(
                         symbols.builtin_type_atom(*symbol),
-                        Some(
-                            symbols::BuiltinTypeAtom::U8
-                                | symbols::BuiltinTypeAtom::U16
-                                | symbols::BuiltinTypeAtom::U32
-                                | symbols::BuiltinTypeAtom::U64
-                        )
+                        Some(symbols::BuiltinTypeAtom::Integer(carrier)) if !carrier.is_signed()
                     ) =>
                 {
                     return Some(RankingViewId::NAT_DESCENDING);
@@ -1419,7 +1414,13 @@ pub(crate) mod target_machine_families {
                             name: Identifier::generated(name),
                         })
                 };
-            let signed = builtin(&mut program, symbols::BuiltinTypeAtom::I32, "i32");
+            let signed = builtin(
+                &mut program,
+                symbols::BuiltinTypeAtom::Integer(numerics::integer_carrier::FixedInteger::signed(
+                    32,
+                )),
+                "i32",
+            );
             let byte = builtin(&mut program, symbols::BuiltinTypeAtom::U8, "u8");
             for (symbol, parameter_type) in machines.into_iter().zip([signed, signed, byte, signed])
             {

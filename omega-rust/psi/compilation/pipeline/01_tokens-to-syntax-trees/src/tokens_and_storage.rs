@@ -240,6 +240,7 @@ pub(crate) mod tokens {
     }
     pub(crate) mod literals {
         use numerics::arithmetic::ArithmeticDomain;
+        use numerics::integer_carrier::FixedInteger;
         use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
         use tokens::{FloatLiteralKind, IntegerLiteralKind, NumericBase};
 
@@ -305,10 +306,19 @@ pub(crate) mod tokens {
         fn strip_integer_suffix(
             text: &str,
         ) -> Result<(&str, Option<LandedIntegerType>), &'static str> {
-            for (suffix, landed_type) in INTEGER_SUFFIXES {
+            for suffix in UNLANDED_INTEGER_SUFFIXES {
                 if let Some(digits) = text.strip_suffix(suffix) {
-                    return Ok((digits, *landed_type));
+                    return Ok((digits, None));
                 }
+            }
+            /*
+                A carrier suffix is the carrier's own spelling: its sign
+                letter, which no digit of any radix can be, then its width.
+            */
+            if let Some(start) = text.rfind(['i', 'u'])
+                && let Some(carrier) = FixedInteger::from_builtin_name(&text[start..])
+            {
+                return Ok((&text[..start], Some(LandedIntegerType::Fixed(carrier))));
             }
 
             Err("unknown integer literal suffix")
@@ -324,26 +334,73 @@ pub(crate) mod tokens {
             Err("unknown float literal suffix")
         }
 
-        const INTEGER_SUFFIXES: &[(&str, Option<LandedIntegerType>)] = &[
-            ("isize", None),
-            ("usize", None),
-            ("nat", None),
-            ("Nat", None),
-            ("i8", Some(LandedIntegerType::I8)),
-            ("i16", Some(LandedIntegerType::I16)),
-            ("i32", Some(LandedIntegerType::I32)),
-            ("i64", Some(LandedIntegerType::I64)),
-            ("u8", Some(LandedIntegerType::U8)),
-            ("u16", Some(LandedIntegerType::U16)),
-            ("u32", Some(LandedIntegerType::U32)),
-            ("u64", Some(LandedIntegerType::U64)),
-        ];
+        const UNLANDED_INTEGER_SUFFIXES: &[&str] = &["isize", "usize", "nat", "Nat"];
 
         const FLOAT_SUFFIXES: &[&str] = &["f32", "f64"];
 
         #[cfg(test)]
         mod tests {
             use super::{FloatLiteralKind, validate_float_literal};
+
+            /*
+                A literal suffix is a carrier's own spelling, read as a sign
+                and a width in every radix. A spelling that names no admitted
+                carrier is refused instead of being read as digits.
+            */
+            #[test]
+            fn an_integer_suffix_lands_the_literal_in_the_carrier_it_spells() {
+                use super::{
+                    FixedInteger, IntegerLiteralKind, LandedIntegerType, NumericBase,
+                    parse_integer_literal,
+                };
+                let suffixed = |text: &str, base| {
+                    parse_integer_literal(
+                        text,
+                        IntegerLiteralKind {
+                            base,
+                            empty_digits: false,
+                            has_suffix: true,
+                        },
+                    )
+                };
+                for (text, base, value, carrier) in [
+                    ("7u8", NumericBase::Decimal, 7, FixedInteger::unsigned(8)),
+                    (
+                        "300i16",
+                        NumericBase::Decimal,
+                        300,
+                        FixedInteger::signed(16),
+                    ),
+                    (
+                        "0xffu32",
+                        NumericBase::Hexadecimal,
+                        255,
+                        FixedInteger::unsigned(32),
+                    ),
+                    ("0b101i64", NumericBase::Binary, 5, FixedInteger::signed(64)),
+                ] {
+                    let literal = suffixed(text, base).unwrap();
+                    assert_eq!(literal.value_i64(), Some(value), "{text}");
+                    assert_eq!(
+                        literal.landing().map(|landing| landing.landed_type),
+                        Some(LandedIntegerType::Fixed(carrier)),
+                        "{text}"
+                    );
+                }
+                assert!(
+                    suffixed("7usize", NumericBase::Decimal)
+                        .unwrap()
+                        .landing()
+                        .is_none()
+                );
+                for text in ["7u13", "7i1", "7u0", "7u", "7i", "7u128", "7q8", "7u08"] {
+                    assert_eq!(
+                        suffixed(text, NumericBase::Decimal).unwrap_err(),
+                        "unknown integer literal suffix",
+                        "{text}"
+                    );
+                }
+            }
 
             #[test]
             fn real_float_suffix_is_retired_with_a_directed_diagnostic() {

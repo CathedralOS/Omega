@@ -2418,29 +2418,14 @@ pub(crate) mod proposition {
         primitive: resolved::types::PrimitiveType,
     ) -> bool {
         use resolved::types::PrimitiveType;
-        let signed_width = match primitive {
-            PrimitiveType::I8 => Some(8),
-            PrimitiveType::I16 => Some(16),
-            PrimitiveType::I32 => Some(32),
-            PrimitiveType::I64 => Some(64),
-            _ => None,
+        /* The address holds the unsigned 64-bit range. */
+        let carrier = match primitive {
+            PrimitiveType::Integer(carrier) => carrier,
+            PrimitiveType::Addr => numerics::integer_carrier::FixedInteger::U64,
+            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 => return false,
         };
-        if let Some(width) = signed_width {
-            return literal.value_i64().is_some_and(|value| {
-                width == 64 || (-(1i64 << (width - 1))..=(1i64 << (width - 1)) - 1).contains(&value)
-            });
-        }
-        let unsigned_width = match primitive {
-            PrimitiveType::U8 => Some(8),
-            PrimitiveType::U16 => Some(16),
-            PrimitiveType::U32 => Some(32),
-            PrimitiveType::U64 | PrimitiveType::Addr => Some(64),
-            _ => None,
-        };
-        unsigned_width.is_some_and(|width| {
-            literal
-                .value_u64()
-                .is_some_and(|value| width == 64 || value < (1u64 << width))
-        })
+        literal
+            .value_bignum()
+            .is_some_and(|value| carrier.admits(&value))
     }
 }

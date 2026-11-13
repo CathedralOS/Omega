@@ -5477,7 +5477,7 @@ pub(crate) mod unit {
                     semantic_vocabulary::IntegerType::address(64)
                         .map_err(|_| LegalizationError::custody())?,
                 );
-                if native.target != target::NativeTarget::uefi_x64()
+                if native.profile != Some(target::TargetProfile::UefiX64)
                     || psi_operation != expected_operation || boundary != expected_boundary
                     || *execution != target_operations::BoundaryExecutionBinding::CompilerBuiltin(
                         target_operations::CompilerBuiltinExecution::ProgramImageRetainedSuffixStart)

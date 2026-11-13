@@ -392,20 +392,11 @@ fn scalar_field_shape(
         | StructuralFieldType::Atomic(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
         StructuralFieldType::Scalar(ScalarType::Integer(integer))
         | StructuralFieldType::Atomic(ScalarType::Integer(integer)) => {
-            let size = integer.bits().div_ceil(8);
-            Ok(ValueShape::integer(
-                u32::from(size),
-                size.next_power_of_two().min(16),
-            ))
+            Ok(ValueShape::field_integer(*integer))
         }
         StructuralFieldType::BoundedInteger(bounds)
         | StructuralFieldType::AtomicBoundedInteger(bounds) => {
-            let integer = bounds.integer_type();
-            let size = integer.bits().div_ceil(8);
-            Ok(ValueShape::integer(
-                u32::from(size),
-                size.next_power_of_two().min(16),
-            ))
+            Ok(ValueShape::field_integer(bounds.integer_type()))
         }
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
         | StructuralFieldType::Atomic(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
@@ -453,10 +444,7 @@ pub fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
 pub fn scalar_shape(scalar: ScalarType) -> ValueShape {
     match scalar {
         ScalarType::Boolean => ValueShape::integer(1, 1),
-        ScalarType::Integer(integer) => {
-            let size = integer.bits().div_ceil(8);
-            ValueShape::integer(u32::from(size), size.next_power_of_two().min(8))
-        }
+        ScalarType::Integer(integer) => ValueShape::standalone_integer(integer),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
     }

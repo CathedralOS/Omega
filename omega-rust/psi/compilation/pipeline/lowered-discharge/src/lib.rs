@@ -1312,26 +1312,14 @@ impl Unbound {
     }
 }
 
-/// What each name of a clause stands for where the clause is used. A clause
-/// is written over its owner's names: a callee's formals, or the fields of
-/// the value a data type's `requires` is about.
-pub(crate) trait Bindings {
-    /// The term a value of the clause's owner stands for.
-    fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound>;
-    /// The value the scalar field at `path` beneath `root` holds.
-    fn field(
-        &mut self,
-        root: PlaceId,
-        path: &[CanonicalStructuralPathSegment],
-        scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, Unbound>;
-    /// Whether the sum at `path` beneath `root` is `case`, by structure.
-    fn case(
-        &mut self,
-        root: PlaceId,
-        path: &[CanonicalStructuralPathSegment],
-        case: StructuralCaseId,
-    ) -> Result<bool, Unbound>;
+pub(crate) use terminal_semantics::substitution::clauses::{
+    ClauseBindings as Bindings, substitute_clause as substitute, substitute_clause_term as bound,
+};
+
+impl From<&'static str> for Unbound {
+    fn from(detail: &'static str) -> Self {
+        Self::Unsupported(detail)
+    }
 }
 
 /// A call's erased lane: each `[erased]` scalar formal of the callee with the
@@ -1398,10 +1386,11 @@ fn erased_actuals(
 /// every other name is the runtime bindings' to resolve.
 pub(crate) struct ErasedTerms<'a> {
     pub(crate) terms: &'a [(ValueId, ScalarTerm)],
-    pub(crate) runtime: &'a mut dyn Bindings,
+    pub(crate) runtime: &'a mut dyn Bindings<Error = Unbound>,
 }
 
 impl Bindings for ErasedTerms<'_> {
+    type Error = Unbound;
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
         let Some((_, supplied)) = self.terms.iter().find(|(formal, _)| *formal == id) else {
             return self.runtime.value(id, scalar_type);
@@ -1471,6 +1460,7 @@ pub(crate) fn scalar_actual(
 }
 
 impl Bindings for ScalarActuals<'_> {
+    type Error = Unbound;
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
         match self.result {
             Some(result) if id.get() == self.actuals.len() as u64 + 1 => {
@@ -1509,164 +1499,6 @@ impl Bindings for ScalarActuals<'_> {
             "clause form outside the scalar subset",
         ))
     }
-}
-
-/// The one substitution: states a clause over this machine's values by
-/// replacing each of its names with what `bindings` says it stands for. The
-/// result names values and literals only; a place never survives it.
-///
-/// A case test is not a value: where the clause is used the case is known by
-/// structure or not at all, so the test becomes `Truth` or `Falsehood` and
-/// the connective around it is simplified. A conjunction with a false
-/// conjunct is false and a disjunction with a true disjunct is true whatever
-/// their other parts are, which is what lets a clause project a payload
-/// under the test of its case (data_and_literals.md: "inactive payloads
-/// cannot be projected"): the projection is only resolved when the test did
-/// not already decide its connective.
-///
-/// Any other form is refused: substituting under a construct this function
-/// does not know would be a silent change of meaning.
-pub(crate) fn substitute(
-    proposition: &Proposition,
-    bindings: &mut dyn Bindings,
-) -> Result<Proposition, Unbound> {
-    Ok(match proposition {
-        Proposition::Truth => Proposition::Truth,
-        Proposition::Falsehood => Proposition::Falsehood,
-        Proposition::Equal(left, right) => {
-            Proposition::Equal(bound(left, bindings)?, bound(right, bindings)?)
-        }
-        Proposition::LessThan(left, right) => {
-            Proposition::LessThan(bound(left, bindings)?, bound(right, bindings)?)
-        }
-        Proposition::LessOrEqual(left, right) => {
-            Proposition::LessOrEqual(bound(left, bindings)?, bound(right, bindings)?)
-        }
-        Proposition::IntegerMathEqual(left, right) => Proposition::IntegerMathEqual(
-            bound_mathematical(left, bindings)?,
-            bound_mathematical(right, bindings)?,
-        ),
-        Proposition::IntegerMathLessThan(left, right) => Proposition::IntegerMathLessThan(
-            bound_mathematical(left, bindings)?,
-            bound_mathematical(right, bindings)?,
-        ),
-        Proposition::IntegerMathLessOrEqual(left, right) => Proposition::IntegerMathLessOrEqual(
-            bound_mathematical(left, bindings)?,
-            bound_mathematical(right, bindings)?,
-        ),
-        Proposition::StructuralCaseMembership { subject, case } => {
-            if bindings.case(subject.root(), subject.path(), *case)? {
-                Proposition::Truth
-            } else {
-                Proposition::Falsehood
-            }
-        }
-        Proposition::Conjunction(parts) => connective(parts, bindings, true)?,
-        Proposition::Disjunction(parts) => connective(parts, bindings, false)?,
-        _ => {
-            return Err(Unbound::Unsupported(
-                "clause form outside the scalar subset",
-            ));
-        }
-    })
-}
-
-/// One term of a clause under substitution.
-fn bound(term: &ScalarTerm, bindings: &mut dyn Bindings) -> Result<ScalarTerm, Unbound> {
-    match term {
-        ScalarTerm::Value { id, scalar_type } => bindings.value(*id, *scalar_type),
-        ScalarTerm::IntegerField {
-            root,
-            path,
-            scalar_type,
-        } => bindings.field(*root, path, ScalarType::Integer(*scalar_type)),
-        ScalarTerm::BooleanField { root, path } => bindings.field(*root, path, ScalarType::Boolean),
-        ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => Ok(term.clone()),
-        ScalarTerm::StructuralRead { .. } => Err(Unbound::Unsupported(
-            "clause structural read is outside the scalar subset",
-        )),
-        _ if !term.operands().is_empty() => {
-            let mut bound_term = term.clone();
-            for operand in bound_term.operands_mut() {
-                *operand = bound(operand, bindings)?;
-            }
-            Ok(bound_term)
-        }
-        _ => Err(Unbound::Unsupported(
-            "clause term outside the scalar subset",
-        )),
-    }
-}
-
-/// One mathematical-integer term of a clause under substitution. An embedded
-/// name is replaced by what `bindings` says it stands for, embedded again:
-/// the value keeps its carrier, and a literal actual is the mathematical
-/// integer it denotes (`IntegerMathTerm::embed`). The arithmetic around it is
-/// over unbounded integers and is kept as written
-/// (mathematical_values.md: "These terms denote unbounded mathematical
-/// integers and cannot overflow").
-fn bound_mathematical(
-    term: &IntegerMathTerm,
-    bindings: &mut dyn Bindings,
-) -> Result<IntegerMathTerm, Unbound> {
-    let embedded = |term: ScalarTerm| {
-        IntegerMathTerm::embed(term).ok_or(Unbound::Unsupported(
-            "clause embeds a term that is not an integer",
-        ))
-    };
-    match term {
-        IntegerMathTerm::IntegerLiteral(_) => Ok(term.clone()),
-        IntegerMathTerm::MathValue { source_type, value } => {
-            embedded(bindings.value(*value, ScalarType::Integer(*source_type))?)
-        }
-        IntegerMathTerm::Embed(scalar) => embedded(bound(scalar, bindings)?),
-        IntegerMathTerm::Add(..)
-        | IntegerMathTerm::Subtract(..)
-        | IntegerMathTerm::Multiply(..)
-        | IntegerMathTerm::ShiftLeft { .. } => {
-            let mut bound_term = term.clone();
-            for operand in bound_term.operands_mut() {
-                *operand = bound_mathematical(operand, bindings)?;
-            }
-            Ok(bound_term)
-        }
-    }
-}
-
-/// A conjunction (`conjunction`) or disjunction under substitution. The
-/// deciding constant is `Falsehood` for a conjunction and `Truth` for a
-/// disjunction: one part equal to it decides the whole, and then a part
-/// that could not be stated does not matter. The other constant is the
-/// connective's unit and is dropped.
-fn connective(
-    parts: &[Proposition],
-    bindings: &mut dyn Bindings,
-    conjunction: bool,
-) -> Result<Proposition, Unbound> {
-    let (deciding, unit) = if conjunction {
-        (Proposition::Falsehood, Proposition::Truth)
-    } else {
-        (Proposition::Truth, Proposition::Falsehood)
-    };
-    let mut kept = Vec::with_capacity(parts.len());
-    let mut unstated = None;
-    for part in parts {
-        match substitute(part, bindings) {
-            Ok(part) if part == deciding => return Ok(deciding),
-            Ok(part) if part == unit => {}
-            Ok(part) => kept.push(part),
-            Err(unbound) => unstated = unstated.or(Some(unbound)),
-        }
-    }
-    if let Some(unbound) = unstated {
-        return Err(unbound);
-    }
-    Ok(match kept.len() {
-        0 => unit,
-        1 => kept.remove(0),
-        _ if conjunction => Proposition::Conjunction(kept),
-        _ => Proposition::Disjunction(kept),
-    })
 }
 
 /// The goal of one obligation, over this machine's values.
@@ -1775,7 +1607,7 @@ fn stated_goal(
             // A scalar formal is the scalar actual in its lane; a field of a
             // record formal is what that field of the record actual holds
             // when the call is made.
-            let over_actuals = |runtime: &mut dyn Bindings| {
+            let over_actuals = |runtime: &mut dyn Bindings<Error = Unbound>| {
                 substitute(
                     clause,
                     &mut ErasedTerms {

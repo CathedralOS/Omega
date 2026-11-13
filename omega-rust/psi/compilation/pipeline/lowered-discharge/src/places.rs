@@ -2736,6 +2736,7 @@ pub(crate) struct AtEntry<'s, 'a> {
 }
 
 impl crate::Bindings for AtEntry<'_, '_> {
+    type Error = crate::Unbound;
     fn value(
         &mut self,
         id: ValueId,
@@ -2823,6 +2824,7 @@ pub(crate) struct AtCall<'s, 'a> {
 }
 
 impl crate::Bindings for AtCall<'_, '_> {
+    type Error = crate::Unbound;
     fn value(
         &mut self,
         id: ValueId,
@@ -2901,6 +2903,7 @@ impl crate::Bindings for AtCall<'_, '_> {
 }
 
 impl crate::Bindings for Held<'_, '_> {
+    type Error = crate::Unbound;
     fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::Unbound> {
         Err(crate::Unbound::Unsupported(
             "a data clause names a value that is no field of its own value",
@@ -3002,6 +3005,7 @@ impl Named<'_> {
 }
 
 impl crate::Bindings for Named<'_> {
+    type Error = crate::Unbound;
     fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::Unbound> {
         Err(crate::Unbound::Unsupported(
             "a data clause names a value that is no field of its own value",
@@ -3060,6 +3064,7 @@ struct Observed<'s, 'a> {
 }
 
 impl crate::Bindings for Observed<'_, '_> {
+    type Error = crate::Unbound;
     fn value(
         &mut self,
         id: ValueId,

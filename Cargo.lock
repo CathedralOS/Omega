@@ -1673,17 +1673,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "proof"
-version = "0.1.0"
-dependencies = [
- "arena",
- "language-semantics",
- "proof-admission",
- "syntax-trees",
- "typed-trees",
-]
-
-[[package]]
 name = "proof-admission"
 version = "0.1.0"
 dependencies = [
@@ -2137,6 +2126,7 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "compiler-storage",
+ "numerics",
  "optimization",
 ]
 
@@ -2319,6 +2309,7 @@ dependencies = [
  "arena",
  "compiler-storage",
  "language-core",
+ "numerics",
  "semantic-vocabulary",
  "source",
 ]
@@ -2717,6 +2708,7 @@ dependencies = [
  "diagnostics",
  "language-core",
  "language-semantics",
+ "numerics",
  "source",
  "symbols",
  "typed-trees",
