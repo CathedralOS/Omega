@@ -1545,13 +1545,14 @@ pub(crate) mod primitive_place {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
     ) -> Option<ScalarType> {
-        walk_primitive_projection(declarations.clone(), root, path, plain_scalar_field, |_| {})
-            .and_then(|tip| tip.primitive_scalar())
-            .or_else(|| {
-                primitive_read_field(declarations, root, path)?
-                    .field_type
-                    .scalar_type()
-            })
+        walk_primitive_projection(
+            declarations,
+            root,
+            path,
+            primitive_read_scalar_field,
+            |_| {},
+        )
+        .and_then(|tip| tip.primitive_scalar())
     }
 
     pub fn primitive_read_field<'a>(
@@ -1563,15 +1564,23 @@ pub(crate) mod primitive_place {
             return None;
         };
         let field = crate::runtime_structural_field(declarations, root, path)?;
-        match field.field_type {
-            StructuralFieldType::Scalar(ScalarType::Boolean) => {}
-            StructuralFieldType::Scalar(ScalarType::Integer(_)) => {}
-            StructuralFieldType::BoundedInteger(_) | StructuralFieldType::RefinedScalar(_) => {
-                field.field_type.scalar_type()?;
-            }
-            _ => return None,
-        }
+        integer_or_boolean_field(&field.field_type)?;
         Some(field)
+    }
+
+    fn integer_or_boolean_field(field: &StructuralFieldType) -> Option<ScalarType> {
+        match field {
+            StructuralFieldType::Scalar(ScalarType::Boolean | ScalarType::Integer(_))
+            | StructuralFieldType::BoundedInteger(_)
+            | StructuralFieldType::RefinedScalar(_) => field.scalar_type(),
+            _ => None,
+        }
+    }
+
+    // Path identity and read typing must recognize the same primitive leaves.
+    // Atomic and byte storage use their own operations rather than this reader.
+    fn primitive_read_scalar_field(field: &StructuralFieldType) -> Option<ScalarType> {
+        plain_scalar_field(field).or_else(|| integer_or_boolean_field(field))
     }
 
     pub fn canonical_primitive_path<'a>(
@@ -1598,13 +1607,7 @@ pub(crate) mod primitive_place {
             declarations,
             root,
             path,
-            |field| match field {
-                StructuralFieldType::Scalar(_)
-                | StructuralFieldType::IeeeFloat(_)
-                | StructuralFieldType::BoundedInteger(_)
-                | StructuralFieldType::RefinedScalar(_) => field.scalar_type(),
-                _ => None,
-            },
+            primitive_read_scalar_field,
             |step| match (step, &mut canonical) {
                 (Some(segment), Some(canonical)) => canonical.push(segment),
                 (None, canonical) => *canonical = None,
