@@ -60875,6 +60875,21 @@ pub(crate) mod structural_judgment {
                     self.meaning == CapturedEquationMeaning::CompletedCall
                 }
 
+                /// The declared result type of the call a completed-call identity
+                /// row names; `None` for every other row.
+                pub(crate) fn completed_call_result_type(
+                    &self,
+                ) -> Option<typed_trees::types::TypeReferenceHandle> {
+                    match &self.right {
+                        StructuralTerm::Application { result_type, .. }
+                            if self.is_completed_call_identity() =>
+                        {
+                            Some(*result_type)
+                        }
+                        _ => None,
+                    }
+                }
+
                 pub(crate) fn public_scalar_replacement(
                     &self,
                     observed: &StructuralTerm,
@@ -64638,8 +64653,14 @@ pub(crate) mod structural_judgment {
                         // call's identity row names its executed occurrence; rewriting
                         // that result into its application would detach the result's
                         // own guarantees from the value a later case match observes.
+                        // A scalar result has no cases to match, and a guard on it
+                        // must still reach the state its value is forwarded to, so
+                        // only a non-scalar call result keeps its occurrence.
                         .filter(|equation| {
-                            !equation.is_data_identity() && !equation.is_completed_call_identity()
+                            !equation.is_data_identity()
+                                && equation.completed_call_result_type().is_none_or(|result| {
+                                    self.program.primitive_type_reference(result).is_some()
+                                })
                         })
                         .map(|equation| (&equation.left, &equation.right))
                         // A completed owned read already records the exact value it
