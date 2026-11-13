@@ -23,7 +23,7 @@ pub struct SampleProject {
     pub rel_path: String,
     pub entry: Option<PathBuf>,
     pub role: String,
-    pub source_inputs: Vec<String>, // Explicit root inventory; absence retains ordinary caller default.
+    pub source_inputs: Vec<String>, // The same explicit caller inventory for preparation and execution.
     pub rejection: Vec<String>,
     pub rejection_any: Vec<String>,
     pub rejection_casefold: bool,
@@ -166,7 +166,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .unwrap_or(false);
 
     let source_inputs = match meta.get("source_inputs") {
-        None => Vec::new(),
+        None => project_source_inputs(directory)?,
         Some(value) => {
             let paths = value
                 .as_array()
@@ -212,6 +212,69 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
     })
 }
 
+/// Each discovered sample is a separate invocation. A nested sample's own
+/// descriptor establishes another project boundary; capturing it as a sibling
+/// source of its parent would give two unrelated programs one namespace.
+/// This is caller input selection, not a compiler name-resolution exception.
+fn project_source_inputs(root: &Path) -> Result<Vec<String>, String> {
+    let mut inputs = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        if directory != root && has_project_descriptor(&directory) {
+            continue;
+        }
+        let entries = fs::read_dir(&directory)
+            .map_err(|error| format!("{}: {error}", directory.display()))?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("{}: {error}", directory.display()))?;
+        if entries.is_empty() && directory != root {
+            inputs.push(relative_input(root, &directory)?);
+        }
+        for entry in entries {
+            let name = entry.file_name();
+            // The local-source contract excludes Git metadata at every depth
+            // and the selected root's build output and acceptance state.
+            if name == ".git"
+                || directory == root
+                    && (name == "build"
+                        || name.as_encoded_bytes().eq_ignore_ascii_case(b"omega.lock"))
+            {
+                continue;
+            }
+            let kind = entry
+                .file_type()
+                .map_err(|error| format!("{}: {error}", entry.path().display()))?;
+            if kind.is_dir() {
+                pending.push(entry.path());
+            } else {
+                // Keep authored files and symlinks as exact inputs; capture
+                // still checks link containment and immutable source custody.
+                inputs.push(relative_input(root, &entry.path())?);
+            }
+        }
+    }
+    inputs.sort();
+    Ok(inputs)
+}
+
+fn has_project_descriptor(directory: &Path) -> bool {
+    directory.join("build.omg").is_file() || directory.join("sample.json").is_file()
+}
+
+fn relative_input(root: &Path, path: &Path) -> Result<String, String> {
+    path.strip_prefix(root)
+        .map_err(|error| error.to_string())?
+        .components()
+        .map(|component| {
+            component
+                .as_os_str()
+                .to_str()
+                .ok_or_else(|| format!("{}: sample input path is not UTF-8", path.display()))
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(|components| components.join("/"))
+}
+
 pub fn discover_samples(
     search_root: &Path,
     repo: &Path,
@@ -224,12 +287,9 @@ pub fn discover_samples(
             continue;
         };
         let mut subdirs = Vec::new();
-        let mut has_build = false;
+        let has_descriptor = has_project_descriptor(&dir);
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if name == "build.omg" {
-                has_build = true;
-            }
             if entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
                 && !matches!(name.as_str(), "build" | ".git" | "target")
             {
@@ -240,7 +300,7 @@ pub fn discover_samples(
         for sub in subdirs.into_iter().rev() {
             stack.push(sub);
         }
-        if has_build {
+        if has_descriptor {
             let rel = dir
                 .strip_prefix(repo)
                 .unwrap_or(&dir)
@@ -959,6 +1019,61 @@ mod tests {
             );
         }
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn each_project_captures_its_own_modules_and_checks_nested_projects_separately() {
+        let root = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        for directory in ["modules", "examples/second", "build"] {
+            fs::create_dir_all(root.join(directory)).unwrap();
+        }
+        for file in [
+            "main.omg",
+            "build.omg",
+            "modules/helper.omg",
+            "modules/input.txt",
+            "examples/notes.txt",
+            "examples/second/main.omg",
+            "omega.lock",
+            "build/output.txt",
+        ] {
+            fs::write(root.join(file), "").unwrap();
+        }
+        // A descriptor-only child is still independently discovered; no
+        // directory spelling supplies the boundary or its rejection oracle.
+        fs::write(root.join("examples/second/sample.json"), "{}").unwrap();
+        let projects = discover_samples(&root, &root, &[]).unwrap();
+        assert_eq!(projects.len(), 2);
+        let parent = projects
+            .iter()
+            .find(|project| project.directory == root)
+            .unwrap();
+        assert_eq!(
+            parent.source_inputs,
+            [
+                "build.omg",
+                "examples/notes.txt",
+                "main.omg",
+                "modules/helper.omg",
+                "modules/input.txt",
+            ]
+        );
+        let child = projects
+            .iter()
+            .find(|project| project.directory != root)
+            .unwrap();
+        assert_eq!(child.source_inputs, ["main.omg", "sample.json"]);
+
+        fs::write(
+            root.join("sample.json"),
+            r#"{"source_inputs":["main.omg","build.omg","examples"]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            project_at(&root, &root).unwrap().source_inputs,
+            ["main.omg", "build.omg", "examples"]
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[cfg(unix)]
