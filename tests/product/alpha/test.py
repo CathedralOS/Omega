@@ -210,6 +210,23 @@ machine escaped()->&[u8;1] {
 }
 machine chosen()->u8 { 42 }
 """, 247)
+    for name, source, status in (
+        ('single-view-owned-local',
+         b'machine escaped()->&[u8;1]{let bytes:[u8;1] in Trapping;&bytes as -Trapping}', 247),
+        ('chained-view-local-holder',
+         b'machine escaped()->&[u8;1]{let bytes:[u8;1] in Trapping;'
+         b'let view:&[u8;1]=((&bytes as -Trapping) as +Trapping) as -Trapping;view}', 247),
+        ('chained-view-owned-parameter',
+         b'machine escaped(bytes:[u8;1] in Trapping)->&[u8;1]{'
+         b'((&bytes as -Trapping) as +Trapping) as -Trapping}', 247),
+        ('chained-view-reference-parameter',
+         b'machine escaped(bytes:&[u8;1] in Trapping)->&[u8;1]{'
+         b'((bytes as -Trapping) as +Trapping) as -Trapping}', 246),
+        ('chained-view-reference-holder',
+         b'machine escaped(bytes:&[u8;1] in Trapping)->&[u8;1]{'
+         b'let view:&[u8;1]=((bytes as -Trapping) as +Trapping) as -Trapping;view}', 246),
+    ):
+        refused(name, source + b' machine chosen()->u8{42}', status)
     # Array policy casts transport values and their captured loans. These
     # positives reach the backend's explicit aggregate/signature boundary;
     # the matched ownership violations must fail in checking first.
@@ -262,14 +279,26 @@ machine moved()->[Token;1] in Trapping {
     refused('aggregate-cast-consumes-affine-operand', affine_cast, 247)
     refused('aggregate-cast-single-affine-transfer',
             affine_cast.replace(b' let reused:[Token;1]=values;\n', b''), 246)
-    refused('aggregate-cast-cannot-discard-linear-operand', b"""
+    # Bind the non-Unit value so typing admits the statement; ownership must
+    # still reject the cast result's unconsumed linear obligation at exit.
+    linear_debt = b"""
 data Token [linear] {value:u8;}
 machine chosen()->u8 {
  let values:[Token;1]=[Token{value:42}];
- values as +Trapping;
+ let qualified:[Token;1] in Trapping=values as +Trapping;
  42
 }
-""", 247)
+"""
+    refused('aggregate-cast-retains-unconsumed-linear-debt', linear_debt, 247)
+    refused('aggregate-cast-affine-local-may-drop',
+            linear_debt.replace(b'Token [linear]', b'Token'), 246)
+    refused('aggregate-cast-return-transfers-linear-debt', b"""
+data Token [linear] {value:u8;}
+machine moved()->[Token;1] in Trapping {
+ let values:[Token;1]=[Token{value:42}];
+ values as +Trapping
+}
+""", 246)
     refused('aggregate-cast-affine-temporary-remains-explicit-coverage', b"""
 data Token {value:u8;}
 machine chosen()->u8 {
