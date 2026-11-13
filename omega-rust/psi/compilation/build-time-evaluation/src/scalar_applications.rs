@@ -459,7 +459,7 @@ pub fn evaluate_scalar_applications_with_address_model<'artifact>(
 /// condition and the invocation refuses.
 #[derive(Clone, Copy)]
 pub struct InvocationTarget<'target> {
-    pub name: &'target str,
+    pub name: Option<&'target str>,
     pub layout_target: Option<&'target terminal_installation::LayoutTargetFacts>,
     pub carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
     pub address_model: Option<&'target terminal_installation::ScalarAddressModel>,
@@ -485,15 +485,16 @@ pub fn complete_invocation_scalar_applications<'artifact>(
     let facts = target
         .layout_target
         .ok_or("invocation target has no immutable layout catalogue")?;
+    let name = target.name.ok_or("scalar observations require an actual selected target")?;
     let mut closure =
-        ScalarApplicationClosure::for_invocation(artifact, target.name, &[declaration]);
+        ScalarApplicationClosure::for_invocation(artifact, name, &[declaration]);
     let mut observations =
         ScalarApplicationObservations::new(artifact, selected, providers, facts)?
             .with_target_carriers(target.carrier_layout)
             .with_invocation_roots(&[declaration])?;
     let conditions = evaluate_scope(
         &mut observations,
-        target.name,
+        name,
         requested,
         target.address_model,
         None,

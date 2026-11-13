@@ -301,6 +301,7 @@ pub enum PureTerminalEvaluationOutcome {
 /// arguments and charges; saving this receipt remains explicitly unsupported.
 #[derive(Debug, Clone)]
 pub struct PureTerminalEvaluationReceipt {
+    request_source: Arc<typed_trees::TypedTrees>,
     source: Arc<typed_trees::FrozenTypedTrees>,
     machine: symbols::SymbolHandle,
     requester: symbols::SymbolHandle,
@@ -326,6 +327,7 @@ impl PureTerminalEvaluationReceipt {
     ) -> Result<Self, String> {
         let machine = entry.symbol();
         let requester = entry.requester();
+        let request_source = entry.retained_source();
         let entry = accepted
             .entry()
             .ok_or("evaluation receipt lost its accepted entry")?;
@@ -341,6 +343,7 @@ impl PureTerminalEvaluationReceipt {
             return Err("evaluation receipt has another accepted code owner".into());
         }
         let receipt = Self {
+            request_source,
             source: Arc::clone(accepted.source()),
             machine,
             requester,
@@ -358,6 +361,9 @@ impl PureTerminalEvaluationReceipt {
 
     pub fn source(&self) -> &typed_trees::FrozenTypedTrees {
         &self.source
+    }
+    pub fn request_source(&self) -> &typed_trees::TypedTrees {
+        &self.request_source
     }
     pub const fn machine(&self) -> symbols::SymbolHandle {
         self.machine

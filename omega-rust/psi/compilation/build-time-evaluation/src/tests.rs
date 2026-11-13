@@ -582,3 +582,134 @@ machine entry() {
         .expect("the refusal points at the read");
     assert_eq!(span.span.start, read);
 }
+
+#[test]
+fn a_machine_call_constant_retains_its_accepted_value_and_receipt() {
+    let (_, _, base, pending) = typed_base(&[("main.omg", r#"
+        const SCALE: u64 = opaque();
+        machine opaque() -> u64 { 4u64 }
+        machine answer() -> u64 { SCALE }
+    "#)]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_or_defer_recorded(&mut program)
+        .expect("the actual constant invocation is accepted and evaluated");
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+    assert_eq!(recorded.accounting.receipts().len(), 1);
+    let crate::PureEvaluationRecord::Invocation(receipt) = &recorded.accounting.receipts()[0] else {
+        panic!("a source job retains its actual invocation receipt")
+    };
+    assert_eq!(receipt.admission().target(), None);
+    assert!(receipt.usage().total_units() > 0);
+    assert!(matches!(receipt.outcome(), crate::PureTerminalEvaluationOutcome::Materialized {
+        value: crate::BuildTimeValue::Int(4), ..
+    }));
+    let answer = program.realized_machine_named("answer").unwrap().symbol;
+    let entry = crate::PreparedBuildMachineProgram::prepare(&program, None).unwrap()
+        .entry(answer, answer).unwrap();
+    let mut meter = psi_work::WorkMeter::unbounded();
+    let value = entry.invoke(crate::InvocationTarget {
+        name: None, layout_target: None, carrier_layout: None, address_model: None,
+    }, &[], &mut meter).unwrap();
+    assert_eq!(value, crate::BuildTimeValue::Int(4));
+}
+
+#[test]
+fn a_constant_invocation_must_establish_the_callee_requirement() {
+    let (_, _, base, pending) = typed_base(&[("main.omg", r#"
+        const SCALE: u64 = bounded(9u64);
+        machine bounded(value: u64) -> u64 requires value <= 5 { value }
+        machine answer() -> u64 { SCALE }
+    "#)]);
+    let mut program = base.typed().clone();
+    let errors = pending.evaluate_or_defer_recorded(&mut program)
+        .err().expect("a representable result does not establish the invocation's premise");
+    let error = diagnostics::join_messages(&errors);
+    assert!(error.contains("requires") || error.contains("requirement") || error.contains("precondition"), "{error}");
+    assert!(program.const_declarations()[0].evaluated_value.is_none());
+}
+
+#[test]
+fn constant_dependencies_are_evaluated_before_their_callers() {
+    let (_, _, base, pending) = typed_base(&[("main.omg", r#"
+        const LAST: u64 = produce();
+        const FIRST: u64 = seed();
+        machine produce() -> u64 { FIRST + 1u64 }
+        machine seed() -> u64 { 4u64 }
+        machine answer() -> u64 { LAST }
+    "#)]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_or_defer_recorded(&mut program).unwrap();
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+    assert_eq!(recorded.accounting.receipts().len(), 2);
+    let last = program.const_declarations().iter().find(|row| program.symbols.name(row.symbol) == "LAST").unwrap();
+    let value = typed_trees::canonical_const_declaration_value(&program, last.symbol).unwrap();
+    assert!(matches!(value.decode_encoding(), Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value: 5, .. })));
+}
+
+#[test]
+fn a_constant_receipt_cannot_be_swapped_rewritten_or_reused_after_source_changes() {
+    let text = r#"
+        const FIRST: u64 = first();
+        const SECOND: u64 = second();
+        machine first() -> u64 { 4u64 }
+        machine second() -> u64 { 5u64 }
+    "#;
+    let (_, _, base, pending) = typed_base(&[("main.omg", text)]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_or_defer_recorded(&mut program).unwrap();
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+    let handles = program.roots.const_declarations.handles().collect::<Vec<_>>();
+    let mut changed = program.clone();
+    changed.tables.const_declarations.get_mut(handles[0]).evaluated_value =
+        Some(language_semantics::const_value::CanonicalConstIdentity::integer("u64", 99).encoding.into());
+    assert!(crate::validate_constant_evaluations(&changed, &recorded.accounting).unwrap_err().contains("outcome"));
+    let mut swapped = program.clone();
+    let other = swapped.tables.const_declarations.get(handles[1]).evaluation_entry;
+    swapped.tables.const_declarations.get_mut(handles[0]).evaluation_entry = other;
+    assert!(crate::validate_constant_evaluations(&swapped, &recorded.accounting).unwrap_err().contains("swapped"));
+    assert!(crate::validate_constant_evaluations(&program, &crate::SourceCompletionAccounting::default()).is_err());
+    let first = program.realized_machine_named("first").unwrap();
+    let state = &program.machine_states(first)[0];
+    let typed_trees::statement::StatementNode::Transition(transition) = &program.statement_table.statements(state.statement_nodes)[0] else { panic!("source returns a value") };
+    let typed_trees::statement::TransitionTargetNode::Value(expression) = program.statement_table.transition_target(transition.target) else { panic!("source returns a value") };
+    let expression = *expression;
+    let replacement = program.tables.const_declarations.get(handles[1]).materialized_initializer;
+    let value = program.expression_table.expression(replacement).clone();
+    let mut stale = program.clone();
+    *stale.expression_table.expression_mut(expression) = value;
+    assert!(crate::validate_constant_evaluations(&stale, &recorded.accounting).unwrap_err().contains("stale"));
+    let (_, _, other, pending) = typed_base(&[("main.omg", text)]);
+    let mut other = other.typed().clone();
+    pending.evaluate_or_defer_recorded(&mut other).unwrap();
+    assert!(crate::validate_constant_evaluations(&other, &recorded.accounting).unwrap_err().contains("source owner"));
+}
+
+#[test]
+fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
+    let (_, _, base, pending) = typed_base(&[("main.omg", r#"
+        const VALUE: u64 = answer();
+        machine answer() -> u64 { selected() }
+        machine selected() -> u64 { 7u64 }
+    "#)]);
+    let mut program = base.typed().clone();
+    let selected = program.roots.machines.handles().find(|handle| program.tables.machines.get(*handle).name.as_str() == "selected").unwrap();
+    program.tables.machines.get_mut(selected).authored_target = Some("linux_x86_64".into());
+    let errors = pending.evaluate_or_defer_recorded(&mut program).err().expect("no caller chose this target body");
+    assert!(diagnostics::join_messages(&errors).contains("target"));
+    assert!(program.const_declarations()[0].evaluated_value.is_none());
+}
+
+#[test]
+fn constant_evaluation_obeys_a_helpers_written_service_ceiling() {
+    let (_, _, base, pending) = typed_base(&[("main.omg", r#"
+        boundary trait Requests { machine observe() reaches none crashes none; }
+        machine helper() -> u64 reaches Requests { 7u64 }
+        const VALUE: u64 = helper();
+    "#)]);
+    let mut program = base.typed().clone();
+    let errors = pending.evaluate_or_defer_recorded(&mut program)
+        .err().expect("a pure body does not shrink a published service ceiling");
+    let error = diagnostics::join_messages(&errors);
+    assert!(error.contains("service") || error.contains("reach"), "{error}");
+    assert!(program.const_declarations()[0].evaluated_value.is_none());
+}

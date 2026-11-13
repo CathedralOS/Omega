@@ -227,7 +227,10 @@ fn require_no_unevaluated_constant_use(typed: &TypedTrees) -> Result<(), Vec<Dia
     let unevaluated = typed
         .const_declarations()
         .iter()
-        .filter(|declaration| declaration.evaluated_value.is_none())
+        .filter(|declaration| {
+            declaration.evaluated_value.is_none()
+                && !typed.tables.machines.is_valid(declaration.evaluation_entry)
+        })
         .map(|declaration| declaration.symbol)
         .collect::<Vec<_>>();
     if unevaluated.is_empty() {
@@ -443,12 +446,19 @@ impl PreCheckEvaluation {
         self,
         typed: &mut TypedTrees,
     ) -> Result<crate::RecordedPreCheck, Vec<Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![Diagnostic::error(
+                "source normalization authority has not been rejoined",
+            )]);
+        }
+        let accounting = crate::source_jobs::evaluate_constant_initializers(
+            typed,
+            self.authority.clone(),
+        )?;
         self.evaluate(typed)?;
-        // The complete source-job inventory was empty. Reading declarations
-        // produced no execution receipt and discharged no source contract.
         Ok(crate::RecordedPreCheck {
             pending: None,
-            accounting: crate::SourceCompletionAccounting::default(),
+            accounting,
         })
     }
     pub fn evaluate_or_defer(
@@ -484,6 +494,9 @@ impl PreCheckEvaluation {
             return Err(vec![Diagnostic::error(
                 "source normalization authority has not been rejoined",
             )]);
+        }
+        if crate::source_jobs::has_pending_constants(typed) {
+            return Err(unsupported("constant requests require recorded evaluation"));
         }
         defer_source_jobs(typed)
     }

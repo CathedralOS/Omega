@@ -25,8 +25,7 @@ pub(crate) fn check_product_source(
         build_sources,
         mut timings,
     } = source;
-    source_completion_accounting
-        .validate_charges()
+    build_time_evaluation::validate_constant_evaluations(&typed, &source_completion_accounting)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let build = &computed_build_config.config;
     let symbol_sources = typed.symbols.source_map();

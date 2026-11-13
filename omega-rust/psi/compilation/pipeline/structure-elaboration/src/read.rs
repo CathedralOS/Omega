@@ -29,6 +29,7 @@ mod bytes;
 mod calls;
 mod casts;
 mod contracts;
+mod constant_values;
 mod expressions;
 mod machine;
 mod places;

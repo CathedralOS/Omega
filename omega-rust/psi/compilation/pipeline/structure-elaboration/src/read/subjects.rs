@@ -206,14 +206,15 @@ impl Program<'_> {
                 self.subject_implementation(entry, declared)?;
             }
         }
+        for constant in typed.const_declarations() {
+            if self.owner(entry, constant.symbol, subjects, purpose)? == Owner::Subject {
+                self.subject_constant(entry, constant)?;
+            }
+        }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
         // judges.
         let unjudged = [
-            (
-                symbols_of(typed.const_declarations(), |row| row.symbol),
-                "const",
-            ),
             (
                 symbols_of(typed.type_aliases(), |row| row.symbol),
                 "type alias",

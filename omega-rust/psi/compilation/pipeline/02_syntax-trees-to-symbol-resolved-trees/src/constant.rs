@@ -573,7 +573,11 @@ mod declaration_values {
         definition: &ConstDefinition,
         selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> Result<(), Diagnostic> {
-        if definition.normalization.is_some() {
+        if definition.normalization.is_some()
+            || crate::constant::requires_const_initializer_evaluation(syntax, definition)
+        {
+            // Resolution retains the request and its declaration identities.
+            // Only an accepted invocation can supply a computed value.
             return Ok(());
         }
         if definition.pending_target_observation {
@@ -648,6 +652,7 @@ mod declaration_values {
         if !pending
             && definition.normalization.is_none()
             && !has_scalar_initializer(syntax, definition)
+            && !crate::constant::requires_const_initializer_evaluation(syntax, definition)
         {
             if crate::preparation::module_normalization::module_literal_constant(syntax, definition)
             {
@@ -5249,8 +5254,7 @@ mod substitution {
                 ));
             };
             if mode == crate::resolution::lowerer::ConstResolutionMode::ArgumentSelection
-                || (mode == crate::resolution::lowerer::ConstResolutionMode::InitializerSelection
-                    && declaration.evaluated_value.is_none())
+                || declaration.evaluated_value.is_none()
             {
                 selections.push(crate::resolution::lowerer::PendingConstSelection {
                     expression: occurrence.expression,

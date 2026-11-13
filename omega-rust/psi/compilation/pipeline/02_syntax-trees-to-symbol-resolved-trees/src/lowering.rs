@@ -2081,6 +2081,7 @@ pub(crate) mod item {
                     None
                 } else if definition.is_public
                     && lowerer.const_resolution_mode == ConstResolutionMode::Complete
+                    && !crate::constant::requires_const_initializer_evaluation(syntax_trees, definition)
                 {
                     Some(
                         crate::constant::evaluated_declaration_value(
