@@ -627,8 +627,39 @@ scalar lane: the callee's `k`-th scalar formal by the caller's `k`-th scalar
 actual. A record actual is a place and no clause term can name it, because
 elaboration refuses a clause that names or projects a record formal.
 
-## Loans
+## Service reach
 
+A machine that writes `reaches A + B` promises that its body reaches no
+other service, and a call that breaks the promise is a compile error at that
+call ([effects.md](../../../../wiki/spec/language/effects.md#declarations):
+"A derived reach that exceeds its ceiling rejects at the call that
+contributes the excess"). `service_reach.rs` judges this on the lowered
+module after the proof obligations: every machine publishes a row of
+services, a call contributes the row its callee publishes, and
+
+- in a machine whose header wrote a ceiling, each call's contribution must
+  lie inside the ceiling, or the call is listed in
+  `RouteVerdict::Rejected::exceeded` with the ceiling, the services left out
+  and what the call contributes;
+- in every machine, each call's contribution must lie inside the row the
+  caller itself publishes. A module that breaks this where no ceiling was
+  written, or whose rows are unordered, name an undeclared service, lost a
+  boundary parent or disagree with the written ceiling or the root reach, is
+  refused as a fault of the tables (`ForeignIdentity`), never accepted.
+
+Only the written ceiling comes from elaboration; the rows and the calls are
+read from the module. It is a judgment over finite sets and has no
+certificate, like a loan conflict. Tests: `tests/service_reach.rs`, each of
+which changes rows only and leaves the lowered calls alone.
+
+Limits. The only contributions are written ceilings,
+because elaboration refuses boundary operations, requirements that declare a
+reach and installation-bound rows; reach through a callable value is handed
+back as `Unsupported`. The diagnostic names the call and the callee's row,
+not "the identities its requirement declares", since no requirement is
+called yet.
+
+## Loans
 A call that passes a place to a borrowed formal lends it for the call
 ([structure-elaboration](../structure-elaboration/README.md#references)):
 the structural argument names the place with the loan's access, and one

@@ -74,6 +74,7 @@ pub(crate) fn declare(
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files());
     let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
+    let services = elaboration.module.services.clone();
     for machine in &mut elaboration.module.machines {
         // A requirement stands for a contract, not a source-produced body.
         if elaboration.requirements.contains(&machine.id) {
@@ -84,9 +85,15 @@ pub(crate) fn declare(
             machines.get(machine.id),
             signatures.get(machine.id),
         ) {
-            (Ok(sources), Some(symbol), Some(signature)) => {
-                declaration(typed, sources, *symbol, signature, machine, &mut identities)
-            }
+            (Ok(sources), Some(symbol), Some(signature)) => declaration(
+                typed,
+                sources,
+                *symbol,
+                signature,
+                machine,
+                &services,
+                &mut identities,
+            ),
             (Err(_), _, _) => Err("a toolchain source has no exact identity"),
             _ => Err("the machine has no typed-tree declaration"),
         };
@@ -104,6 +111,7 @@ fn declaration(
     symbol: SymbolHandle,
     signature: &Signature,
     machine: &TerminalMachine,
+    services: &[terminal_psi::ServiceDeclaration],
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
     let declared = typed
@@ -165,6 +173,26 @@ fn declaration(
     }
     machine.contract.crash_routes.hash(&mut commitment);
     signature.termination.hash(&mut commitment);
+    // A machine that names no service commits as it did before reach was
+    // stated. Service ids are positions in this module, so the row is
+    // committed by each service's identity.
+    for row in [
+        &machine.declared_service_reach,
+        &machine.published_service_ceiling,
+    ] {
+        if row.is_empty() {
+            continue;
+        }
+        for service in row {
+            services
+                .iter()
+                .find(|declared| declared.id == *service)
+                .and_then(|declared| identities.text(declared.identity))
+                .ok_or("a reach row names an undeclared service")?
+                .hash(&mut commitment);
+        }
+        0xffu8.hash(&mut commitment);
+    }
 
     Ok(CheckedMachineDeclaration {
         machine: NominalDeclarationIdentity::new(identities.intern(&machine_identity)),

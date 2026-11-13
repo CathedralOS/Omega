@@ -160,7 +160,28 @@ impl Program<'_> {
                 symbols_of(typed.mathematical_definitions(), |row| row.symbol),
                 "mathematical definition",
             ),
-            (symbols_of(typed.traits(), |row| row.symbol), "trait"),
+            (
+                // A memberless boundary trait is a service identity a
+                // `reaches` clause names. effects.md: "A memberless
+                // service-identity trait has no operation requiring an
+                // annotation", so it has nothing to judge.
+                typed
+                    .traits()
+                    .iter()
+                    .filter(|row| {
+                        !(row.is_boundary
+                            && row.machines.is_empty()
+                            && row.requires.is_empty()
+                            && row.refines.is_none()
+                            && row.refinement_clauses.is_empty()
+                            && row.type_parameters.is_empty()
+                            && row.lifetime_parameters.is_empty()
+                            && row.conformance_bounds.is_empty())
+                    })
+                    .map(|row| row.symbol)
+                    .collect(),
+                "trait",
+            ),
             (
                 symbols_of(typed.conformances(), |row| row.symbol),
                 "conformance",

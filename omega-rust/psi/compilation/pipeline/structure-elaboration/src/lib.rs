@@ -52,6 +52,7 @@ mod declare;
 mod lower;
 mod names;
 mod outcome;
+mod reach;
 mod read;
 
 pub use body::{
@@ -60,6 +61,7 @@ pub use body::{
 };
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
+pub use reach::ServiceReach;
 
 use semantic_vocabulary::{
     BlockId, EdgeId, IdTable, MachineId, ObligationId, OperationId, PackageKeyIdentity,
@@ -236,6 +238,9 @@ pub struct Elaboration {
     /// judged like any other and is never published. Empty outside
     /// `elaborate`, whose forms are not programs.
     pub undeclared: Vec<(MachineId, &'static str)>,
+    /// The service ceiling each machine's header wrote and what a diagnostic
+    /// calls each service (`reach`). The rows themselves are in `module`.
+    pub reach: ServiceReach,
 }
 
 /// One call through an implementation parameter in a machine stage 04
@@ -592,6 +597,10 @@ fn finish_reading(
         &program.records,
         &program.requirements,
     )?;
+    // The reach rows are part of the contract a declaration commits to, so
+    // they are written first.
+    elaboration.machines = program.symbols.clone();
+    reach::publish(program.typed, entry, &mut elaboration)?;
     if let Some(typed) = declared {
         declare::declare(
             typed,
@@ -719,6 +728,7 @@ pub fn lower_generic(
         value_arguments: IdTable::default(),
         generic_templates: Vec::new(),
         undeclared: Vec::new(),
+        reach: ServiceReach::default(),
     })
 }
 

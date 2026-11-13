@@ -86,6 +86,9 @@ pub enum RouteVerdict {
         unestablished: Vec<UnestablishedUse>,
         /// One per loan that may not be formed where it is.
         conflicts: Vec<ConflictingUse>,
+        /// One per call that contributes services its caller's written
+        /// `reaches` ceiling leaves out (`service_reach`).
+        exceeded: Vec<crate::ExceededReach>,
     },
     /// No obligation is unproved for want of a derivation, but the prover has
     /// no rule for the form of at least one goal, so the route can judge the
@@ -608,12 +611,19 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             });
         }
     }
-    if !unestablished.is_empty() || !conflicts.is_empty() {
+    // Service reach is judged on the module's own rows, whatever the proof
+    // obligations came to.
+    let exceeded = match crate::service_reach::judge(&elaboration) {
+        Ok(exceeded) => exceeded,
+        Err(refused) => return fall_back_or_defect(refused),
+    };
+    if !unestablished.is_empty() || !conflicts.is_empty() || !exceeded.is_empty() {
         return Ok(RouteVerdict::Rejected {
             formations: Vec::new(),
             unproved: without_restated_clauses(unproved),
             unestablished,
             conflicts,
+            exceeded,
         });
     }
     if !unproved.is_empty() {
@@ -630,6 +640,7 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
                     unproved,
                     unestablished: Vec::new(),
                     conflicts: Vec::new(),
+                    exceeded: Vec::new(),
                 }
             },
         );
@@ -673,6 +684,7 @@ pub fn judge_compilation(
                 unproved: Vec::new(),
                 unestablished: Vec::new(),
                 conflicts: Vec::new(),
+                exceeded: Vec::new(),
             })];
         }
         Ok(_) => {}
@@ -746,6 +758,7 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
                 declared: None,
             }],
             conflicts: Vec::new(),
+            exceeded: Vec::new(),
         }),
         RefusalReason::Unproved(_)
         | RefusalReason::NotConserved

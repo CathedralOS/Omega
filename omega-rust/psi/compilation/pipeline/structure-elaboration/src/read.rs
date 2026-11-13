@@ -44,7 +44,7 @@ use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
 pub(crate) struct Program<'t> {
-    typed: &'t TypedTrees,
+    pub(crate) typed: &'t TypedTrees,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,

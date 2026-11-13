@@ -616,6 +616,7 @@ fn judge_elaboration(
             unproved,
             unestablished,
             conflicts,
+            exceeded,
         }) => {
             debug_assert!(
                 formations.is_empty(),
@@ -649,12 +650,22 @@ fn judge_elaboration(
                 ));
                 best = Some(best.map_or(class, |best| best.min(class)));
             }
+            for entry in &exceeded {
+                lines.push(format!(
+                    "reach\t{}\t{}\t{:?}\t{}",
+                    main.display(),
+                    entry.machine.get(),
+                    entry.at,
+                    one_line(entry.message()),
+                ));
+            }
             if current == "rejected" {
                 let messages: Vec<String> = unproved
                     .iter()
                     .map(UnprovedObligation::message)
                     .chain(unestablished.iter().map(|entry| entry.message()))
                     .chain(conflicts.iter().map(|entry| entry.message()))
+                    .chain(exceeded.iter().map(|entry| entry.message()))
                     .collect();
                 let (fragment, expected) = pinned_fragments(main, &messages);
                 lines.push(format!(

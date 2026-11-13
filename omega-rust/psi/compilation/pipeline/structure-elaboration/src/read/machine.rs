@@ -423,14 +423,16 @@ impl<'t> Program<'t> {
         if machine.structural_type_equations_pending {
             return unserved("pending type equations");
         }
-        // Row 1 is the interned empty row (`ServiceReachRowTable::EMPTY_ROW`).
-        if !matches!(
-            machine.service_reach_row,
-            language_semantics::ServiceReachRowId::NULL
-                | language_semantics::ServiceReachRowTable::EMPTY_ROW
-        ) || machine.service_reach_is_installation_bound
+        // A written ceiling of named services is stated in the module and
+        // judged there (`reach`). One bound by an installation or by an
+        // abstract row is not a fixed set of services.
+        if machine.service_reach_is_installation_bound
+            || self
+                .typed
+                .service_reach_rows
+                .is_abstract(machine.service_reach_row)
         {
-            return unserved("service reach");
+            return unserved("service reach bound by an installation");
         }
         if machine.suspends || machine.blocks {
             return unserved("suspends or blocks");

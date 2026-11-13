@@ -65,6 +65,7 @@ mod prove;
 mod refinement;
 mod result_summaries;
 mod reuse;
+mod service_reach;
 mod verdict;
 
 pub use callable_formations::{
@@ -74,6 +75,7 @@ pub use callable_formations::{
 pub use places::{ConflictingLoan, LoanConflict};
 pub use refinement::prove_callable_refinement;
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
+pub use service_reach::ExceededReach;
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, PublicationError,
     RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge, judge_compilation,

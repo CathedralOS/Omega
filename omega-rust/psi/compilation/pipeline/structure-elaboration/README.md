@@ -57,8 +57,32 @@ call statement), where it becomes the block's no-normal invocation.
 Everything else is refused with `RefusalReason::Unsupported` and a detail
 naming the construct (`expression match`, `type reference`, `call no-normal
 call inside an expression`, ...): a reference outside [References](#references), slice, generic, callable value, suspension, assembly, float,
-domain, cast that names a domain, or service reach is never skipped, approximated or passed through. A
+domain, cast that names a domain, or boundary operation is never skipped, approximated or passed through. A
 refusal anywhere in the compilation refuses the whole compilation.
+
+### Service reach
+
+A machine header may write `reaches A + B` or `reaches none`, and a subject
+may declare the memberless boundary traits those clauses name. After the
+bodies are lowered, `reach.rs` writes the module's service declarations
+(ordered by each service's hermetic declaration identity), each machine's
+written ceiling as `declared_service_reach`, the row it publishes to callers
+as `published_service_ceiling`, and the entry's row as the module's root
+reach. A machine that wrote a ceiling publishes it; one that omitted the
+clause publishes the union of what its direct calls publish
+([effects.md](../../../../../wiki/spec/language/effects.md#declarations): "An
+explicit published ceiling may conservatively remain wider than its checked
+body"). The specification does not say whether a private machine's written
+ceiling or its narrower derived reach is what a caller in the same package
+sees; the ceiling is taken, which can only reject more. The written ceilings also travel in
+`Elaboration::reach`, because the module's row cannot tell `reaches none`
+from an omitted clause. This pass judges nothing: `lowered-discharge` reads
+the rows back and rejects a call that exceeds its caller's ceiling.
+
+Not served, each refused by name: a boundary operation (the only thing that
+adds a service a header did not write), a trait requirement that declares a
+reach, a ceiling bound by an installation or an abstract row, and reach
+through a callable value. So every row today is a union of written ceilings.
 
 ### What one compilation elaborates
 
@@ -965,8 +989,9 @@ worked around by adding to `terminal-check-tables`.
     [literals and expected types](../../../../../wiki/spec/language/domains.md#literals-and-expected-types);
     with no expected type it is refused.
 9. **Every machine carries a reach row.** A machine with no reach holds
-    `ServiceReachRowTable::EMPTY_ROW`, not `NULL`; both are accepted, any other
-    row is refused.
+    `ServiceReachRowTable::EMPTY_ROW`, not `NULL`, and the row alone does not
+    say whether the header wrote `reaches none`: that is read from
+    `authored_service_reach_rows` ([Service reach](#service-reach)).
 10. **A field read is `ScalarStructuralField`, not `PrimitiveScalarRead`.**
     The lane plan's table names `PrimitiveScalarRead`; the specification
     gives a static field path the other form
