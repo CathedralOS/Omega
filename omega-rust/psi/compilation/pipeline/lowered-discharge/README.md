@@ -1112,7 +1112,7 @@ validation's judgments, Psi 06), so it keeps working while those stages are
 removed and while no Build program can run:
 
 ```
-mbx run -p compiler --example route_probe -- tests/omega/run/calls/scalar_contract_route_exit/main.omg < /dev/null
+mbx run -p compiler --example route_probe -- tests/fixtures/run/calls/scalar_contract_route_exit/main.omg < /dev/null
 mbx run -p compiler --example route_probe -- <program>/main.omg [--entry NAME] [--target NAME] < /dev/null
 ```
 
@@ -1271,7 +1271,7 @@ reach the prover, and the tests count prover starts.
 
 `compiler`'s example `generic_certificate_carry` runs the same three steps
 from source, on the typed trees of
-`tests/omega/run/generics/implementation_parameter_contract` and its fail
+`tests/fixtures/run/generics/implementation_parameter_contract` and its fail
 twin. The twin differs only in the bound `advance` promises, `result <= 18`:
 a search over each of its two specializations alone proves that bound, and
 the generic check refuses it.
@@ -1342,7 +1342,7 @@ use, not once for every value.
 | `a_body_that_reads_the_parameter_as_an_operand_is_not_carried` | the limit below |
 
 `compiler`'s test `lowered_route_generics` runs the three steps from source
-on `tests/omega/pass/facts/lexical_generic_bound_through_local_exit`, where
+on `tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit`, where
 `Selected::value<const Units: u64>` is a trait member called as
 `Implementation::value<7>(7)`, and on its fail twin, which differs only in
 the requirement's contract (`requires true`): the member then asks `input <=

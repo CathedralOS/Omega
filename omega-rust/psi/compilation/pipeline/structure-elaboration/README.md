@@ -1272,7 +1272,7 @@ worked around by adding to `terminal-check-tables`.
     declared in, with a generated machine placed where its declaration is
     (`visible_to`). Any other call is refused as `call private machine of
     another package`, so the current checker decides the compilation
-    (`tests/omega/fail/build/executed_dependency_private_call`).
+    (`tests/fixtures/fail/build/executed_dependency_private_call`).
 34. **A runtime read of an erased binding falls back; it is not yet rejected
     here.** The current checker rejects `let total: i32 = bound;` for an
     erased `bound` ("erased parameter `bound` has no runtime value"). That is

@@ -167,7 +167,7 @@ the corpus under `tests/omega/` is retired on the owner's ruling of 2026-11-13
 history). Nothing runs it, nothing may be added to it, and nothing replaces it.
 
 A program a test reads lives beside that test, under
-`omega-rust/omega/compilation/compiler/tests/fixtures/`. Its pinned diagnostic
+`tests/fixtures/`. Its pinned diagnostic
 is a photograph of the object the compiler carries. Done means the compiler
 still holds that same object. Changing the fact, the bound, or the operation so
 a place passes is repainting that photograph: a different object, and a green

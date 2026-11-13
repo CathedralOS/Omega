@@ -22,8 +22,10 @@ effect and target facts it consumes. Checked facts may be consumed
 in-process; no item here requires shipped proofs, independent replay of the
 compiler's own rewrites, or custody-mutation matrices; follow
 [verification placement](omega-rust/pipeline.md#verification-placement). Optimizer crates have no
-Rust tests; acceptance names corpus fixtures under `tests/omega/` run through
-`tools/corpus_gate.py`.
+Rust tests; an acceptance below that names a corpus fixture names a program of
+the former corpus ([tests/README.md](tests/README.md#the-former-corpus)), kept
+under `tests/fixtures/` or restored there from history, and is met by that
+program passing `omega run --both`.
 
 ## Execution priority
 

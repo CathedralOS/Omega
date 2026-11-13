@@ -6,6 +6,7 @@
 /samples/**/build/
 /samples/*/build_win/
 /tests/omega/*/*/build/
+/tests/fixtures/*/*/build/
 
 # Package-manager state is host-local: a project's omega.lock names its
 # absolute checkout path, so a committed one fails in every other checkout
@@ -13,7 +14,9 @@
 /samples/**/omega.lock
 /samples/**/omega.admissions
 /tests/omega/**/omega.lock
+/tests/fixtures/**/omega.lock
 /tests/omega/**/omega.admissions
+/tests/fixtures/**/omega.admissions
 /tests/psi/**/build/
 /tests/psi/**/omega.lock
 /tests/psi/**/omega.admissions

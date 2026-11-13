@@ -3,7 +3,7 @@
 // retired outside the libraries themselves: package-aware consumers must reach
 // bundled libraries through declared `build.omg` dependency edges and their
 // requester-local aliases (`omega_language_std`, `alloc`). Fail-tier fixtures
-// (`tests/omega/fail`) and standalone roots without `build.omg` are excluded
+// (`tests/fixtures/fail`) and standalone roots without `build.omg` are excluded
 // from missing-edge assertions because their rejection is tested by the
 // compiler itself.
 
@@ -163,7 +163,8 @@ fn library_imports_ride_declared_edges_not_the_mount() {
         let Ok(text) = fs::read_to_string(source) else {
             continue;
         };
-        let fail_tier = source.starts_with(repo.join("tests/omega/fail"));
+        let fail_tier = source.starts_with(repo.join("tests/fixtures/fail"))
+            || source.starts_with(repo.join("tests/omega/fail"));
         for (head, is_mount) in imports_of(&text) {
             if is_mount && MOUNTED_LIBRARIES.contains(&head.as_str()) {
                 let self_dir = repo.join("source/library").join(&head);

@@ -18,7 +18,7 @@ use terminal_interpreter::{
 };
 
 fn produce(machine: &str) -> std::sync::Arc<CanonicalTerminalArtifact> {
-    let root = repo_root().join("tests/omega/pass/layouts/placed_view_call_custody/main.omg");
+    let root = repo_root().join("tests/fixtures/pass/layouts/placed_view_call_custody/main.omg");
     let prepared =
         reviewed_repository_fixture_package_inputs(&root, None).expect("sealed fixture inputs");
     let mut request = CheckedCompileRequest::new(&prepared.root_path, None);

@@ -10,7 +10,7 @@ fn schema_and_named_provider_queries_resume_the_original_build() {
         .ancestors()
         .nth(4)
         .unwrap();
-    let root = repository.join("tests/omega/pass/build/product_description_paths_exit/main.omg");
+    let root = repository.join("tests/fixtures/pass/build/product_description_paths_exit/main.omg");
     let mut session = CompilationSession::default();
     let mut invocation = session
         .begin_package_build(CheckedCompileRequest::new(&root, None))
@@ -100,7 +100,7 @@ fn admitted_build_helpers_keep_their_lexical_product_scope() {
         "product_entry_query_foreign_helper_private_entry",
         "product_entry_query_build_scope_alias",
     ] {
-        let root = repository.join("tests/omega/fail/build").join(fixture);
+        let root = repository.join("tests/fixtures/fail/build").join(fixture);
         let owner = PackageKeyIdentity::from_digest([91; 32]).unwrap();
         let helper = PackageKeyIdentity::from_digest([92; 32]).unwrap();
         // Explicit pre-admitted inputs exercise lexical visibility independently
@@ -171,7 +171,8 @@ fn authored_product_query_retains_lexical_occurrence_and_pauses() {
         .ancestors()
         .nth(4)
         .expect("compiler crate belongs to the repository");
-    let root = repository.join("tests/omega/pass/build/described_runner_entry_left_exit/main.omg");
+    let root =
+        repository.join("tests/fixtures/pass/build/described_runner_entry_left_exit/main.omg");
     let mut session = CompilationSession::default();
     let mut invocation = session
         .begin_package_build(CheckedCompileRequest::new(&root, None))

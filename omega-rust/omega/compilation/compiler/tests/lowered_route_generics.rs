@@ -60,7 +60,7 @@ fn count(rows: &[Vec<String>], label: &str, outcome: &str) -> usize {
 /// `advance<Hold>` and `advance<Shift>`.
 #[test]
 fn an_implementation_parameter_body_is_checked_once_and_carried() {
-    let (outcome, rows) = carried("tests/omega/run/generics/implementation_parameter_contract");
+    let (outcome, rows) = carried("tests/fixtures/run/generics/implementation_parameter_contract");
     // The product compile does not carry certificates yet, so it refuses
     // this program as not supported; the carry itself is what is pinned.
     assert!(outcome.ends_with("\troute=carried-accepted"), "{outcome}");
@@ -76,7 +76,7 @@ fn an_implementation_parameter_body_is_checked_once_and_carried() {
 #[test]
 fn a_bound_only_the_selected_implementations_give_is_refused_generically() {
     let (outcome, rows) = carried(
-        "tests/omega/fail/generics/implementation_parameter_contract_only_holds_for_selection",
+        "tests/fixtures/fail/generics/implementation_parameter_contract_only_holds_for_selection",
     );
     assert_eq!(outcome, "current=rejected\troute=carried-refused");
     assert_eq!(count(&rows, "concrete", "refused"), 0);
@@ -92,7 +92,7 @@ fn a_bound_only_the_selected_implementations_give_is_refused_generically() {
 #[test]
 fn a_value_parameter_body_is_checked_once_and_carried() {
     let (outcome, rows) =
-        carried("tests/omega/pass/facts/lexical_generic_bound_through_local_exit");
+        carried("tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit");
     // The product compile does not carry certificates yet, so it refuses
     // this program as not supported; the carry itself is what is pinned.
     assert!(outcome.ends_with("\troute=carried-accepted"), "{outcome}");
@@ -113,7 +113,7 @@ fn a_value_parameter_body_is_checked_once_and_carried() {
 #[test]
 fn a_member_that_asks_more_than_its_requirement_is_refused() {
     let (outcome, rows) =
-        carried("tests/omega/fail/facts/lexical_generic_bound_through_local_rejected");
+        carried("tests/fixtures/fail/facts/lexical_generic_bound_through_local_rejected");
     assert_eq!(outcome, "current=rejected\troute=carried-refused");
     assert_eq!(count(&rows, "concrete", "refused"), 0);
     let refused: Vec<_> = rows
@@ -132,7 +132,7 @@ fn a_member_that_asks_more_than_its_requirement_is_refused() {
 /// and carried into the machines generated for `u8` and for `bool`.
 #[test]
 fn a_type_parameter_body_is_checked_once_and_carried() {
-    let (outcome, rows) = carried("tests/omega/run/generics/type_parameter_contract");
+    let (outcome, rows) = carried("tests/fixtures/run/generics/type_parameter_contract");
     // The product compile does not carry certificates yet, so it refuses
     // this program as not supported; the carry itself is what is pinned.
     assert!(outcome.ends_with("\troute=carried-accepted"), "{outcome}");
@@ -152,7 +152,7 @@ fn a_type_parameter_body_is_checked_once_and_carried() {
 #[test]
 fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
     let (outcome, rows) =
-        carried("tests/omega/fail/generics/type_parameter_contract_exceeds_callee");
+        carried("tests/fixtures/fail/generics/type_parameter_contract_exceeds_callee");
     assert_eq!(outcome, "current=rejected\troute=carried-refused");
     let refused: Vec<_> = rows
         .iter()
@@ -177,7 +177,7 @@ fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
 #[test]
 fn the_comparison_witness_lowers_and_corresponds() {
     let (outcome, rows) =
-        carried("tests/omega/pass/facts/generic_comparison_body_through_match_join_exit");
+        carried("tests/fixtures/pass/facts/generic_comparison_body_through_match_join_exit");
     // The product compile does not carry certificates yet, so it refuses
     // this program as not supported; the carry itself is what is pinned.
     assert!(outcome.ends_with("\troute=carried-accepted"), "{outcome}");
@@ -244,14 +244,14 @@ fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
 fn a_generated_machine_of_a_finite_family_is_read_under_its_own_type() {
     assert_eq!(
         generated_verdicts(
-            "tests/omega/pass/contracts/generic_effective_result_comparison_exit",
+            "tests/fixtures/pass/contracts/generic_effective_result_comparison_exit",
             "threshold",
         ),
         ["accepted", "accepted"]
     );
     assert_eq!(
         generated_verdicts(
-            "tests/omega/fail/contracts/specialized_normal_call_wrong_type_contract",
+            "tests/fixtures/fail/contracts/specialized_normal_call_wrong_type_contract",
             "choose",
         ),
         ["accepted", "accepted"]
@@ -266,7 +266,7 @@ fn a_generated_machine_of_a_finite_family_is_read_under_its_own_type() {
 /// body it is, decided again by the kernel.
 #[test]
 fn a_finite_family_is_checked_once_per_alternative_and_carried() {
-    let (outcome, rows) = carried("tests/omega/run/generics/finite_family_contract");
+    let (outcome, rows) = carried("tests/fixtures/run/generics/finite_family_contract");
     assert_eq!(outcome, "current=accepted\troute=carried-accepted");
     // One guarantee per alternative.
     assert_eq!(count(&rows, "generic", "proved"), 2);
@@ -282,7 +282,7 @@ fn a_finite_family_is_checked_once_per_alternative_and_carried() {
 #[test]
 fn a_finite_family_alternative_that_breaks_its_contract_is_refused() {
     let (outcome, rows) =
-        carried("tests/omega/fail/generics/finite_family_contract_wrong_alternative");
+        carried("tests/fixtures/fail/generics/finite_family_contract_wrong_alternative");
     assert_eq!(outcome, "current=rejected\troute=carried-refused");
     assert_eq!(count(&rows, "generic", "proved"), 1);
     assert_eq!(count(&rows, "generic", "refused"), 1);
@@ -297,7 +297,7 @@ fn a_finite_family_alternative_that_breaks_its_contract_is_refused() {
 #[test]
 fn the_threshold_family_lowers_per_alternative_and_corresponds() {
     let (outcome, rows) =
-        carried("tests/omega/pass/contracts/generic_effective_result_comparison_exit");
+        carried("tests/fixtures/pass/contracts/generic_effective_result_comparison_exit");
     // The product compile does not carry certificates yet, so it refuses
     // this program as not supported; the carry itself is what is pinned.
     assert!(outcome.ends_with("\troute=carried-accepted"), "{outcome}");

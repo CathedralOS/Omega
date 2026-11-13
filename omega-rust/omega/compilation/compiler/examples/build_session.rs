@@ -9,7 +9,7 @@ use compiler::{CompilationSession, CompileRequest, RequestedCompileProduct};
 
 fn main() {
     let root = fixture_package_inputs::repo_root()
-        .join("tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg");
+        .join("tests/fixtures/pass/targets/shared_program_distinct_roots_exit/main.omg");
     let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &root,
         Some("linux_x86_64"),
@@ -86,7 +86,7 @@ fn main() {
 
     let other = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
         &fixture_package_inputs::repo_root()
-            .join("tests/omega/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg"),
+            .join("tests/fixtures/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg"),
         Some("linux_x86_64"),
     )
     .expect("distinct source admission");

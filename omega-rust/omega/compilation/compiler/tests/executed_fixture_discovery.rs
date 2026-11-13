@@ -13,7 +13,7 @@ static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 fn native_fixture_admission_does_not_upgrade_a_package_check() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let root = repo_root()
-        .join("tests/omega/pass/build/explicit_provider_readiness_exit/backing/main.omg");
+        .join("tests/fixtures/pass/build/explicit_provider_readiness_exit/backing/main.omg");
     let discovered = discover_fixture(&root, Default::default()).expect("backing source");
     let product = CompilationProduct::Native(compilation_products::NativeProductRequest {
         installation_assumptions: Vec::new(),
@@ -39,7 +39,8 @@ fn native_fixture_admission_does_not_upgrade_a_package_check() {
 #[test]
 fn executed_bindings_select_targets_and_retained_legs_keep_separate_staging() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let root = repo_root().join("tests/omega/pass/build/explicit_provider_readiness_exit/main.omg");
+    let root =
+        repo_root().join("tests/fixtures/pass/build/explicit_provider_readiness_exit/main.omg");
     let first = discover_fixture(&root, Default::default()).expect("first Build");
     assert_eq!(
         first.targets,
@@ -75,8 +76,8 @@ fn executed_bindings_select_targets_and_retained_legs_keep_separate_staging() {
 fn completed_outputs_keep_exact_bytes_after_package_staging_closes() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let repository = repo_root();
-    let root =
-        repository.join("tests/omega/pass/build/acquired_generator_completed_output_set/main.omg");
+    let root = repository
+        .join("tests/fixtures/pass/build/acquired_generator_completed_output_set/main.omg");
     let discovered = discover_fixture(&root, Default::default()).expect("generator Build");
     let mut prepared = review_fixture(
         discovered,

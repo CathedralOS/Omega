@@ -70,7 +70,7 @@ independent optimization-unit checker sits beside its IR at
 with no reverse dependency from the representation to its checker.
 
 Run the product through the `omega` package in `omega/application/cli/`; repository commands and validation policy are
-in [AGENTS.md](../AGENTS.md#commands). Language examples live in `../tests/omega/`,
+in [AGENTS.md](../AGENTS.md#commands). Programs the Rust tests read live in `../tests/fixtures/`,
 cross-owner tests in `../tests/`, and crate-specific tests beside their owner.
 Public crate roots map responsibilities; test families and implementation
 details belong in named modules, not giant entrypoint files.

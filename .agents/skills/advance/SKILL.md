@@ -88,7 +88,7 @@ that already has one, widen that mechanism and make the general fix in this PR.
    invalid one is still rejected. Pin any newly uncovered behavior with a
    test on the changed code and, when it needs a program, a focused
    positive/negative pair kept beside that test under
-   `omega-rust/omega/compilation/compiler/tests/fixtures/` (never a new 36-file fact folder).
+   `tests/fixtures/` (never a new 36-file fact folder).
    The other placements and targets are the capability's acceptance on
    `TASKS.md`; reach for one only when a result here points at it.
 
@@ -114,7 +114,7 @@ and a green check on it is not done.
      around it> | <clean, or what failed and what it turned out to be>`.
 2. **Leave no build output behind:** Ensure no leftover `omega.lock` or
    `build/` directories sit inside the kept fixtures under
-   `omega-rust/omega/compilation/compiler/tests/fixtures/` (never delete its `pass/build/` group).
+   `tests/fixtures/` (never delete its `pass/build/` group).
 3. **Update `TASKS.md`:** Delete the completed bullet or clause
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
    passes"` history prose), and run `cargo xtask check-rules --base origin/main`.
