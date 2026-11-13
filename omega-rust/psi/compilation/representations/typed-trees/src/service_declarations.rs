@@ -180,75 +180,6 @@ pub mod provider_declarations {
         }
     }
 
-    #[cfg(test)]
-    mod inventory_tests {
-        use super::PreparedProviderInventory;
-        use crate::{FrozenTypedTrees, TypedTrees};
-        use std::sync::Arc;
-
-        #[test]
-        fn catalogs_require_the_exact_immutable_owner_even_for_equal_source() {
-            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
-            let other = Arc::new(owner.as_ref().clone());
-            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
-            assert!(Arc::ptr_eq(inventory.program(), &owner));
-            assert!(inventory.services_for(&owner).is_ok());
-            assert!(inventory.direct_calls_for(&owner).is_ok());
-            assert!(inventory.origins_for(&owner).is_ok());
-            assert!(inventory.services_for(&other).is_err());
-            assert!(inventory.direct_calls_for(&other).is_err());
-            assert!(inventory.retained_direct_calls_for(&other).is_err());
-            assert!(inventory.origins_for(&other).is_err());
-        }
-
-        #[test]
-        fn retained_catalogs_and_empty_trust_are_shared_for_one_owner() {
-            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
-            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
-            assert!(Arc::ptr_eq(
-                &inventory.retained_service_catalog(),
-                &inventory.retained_service_catalog()
-            ));
-            assert!(Arc::ptr_eq(
-                &inventory.retained_direct_calls_for(&owner).unwrap(),
-                &inventory.retained_direct_calls_for(&owner).unwrap()
-            ));
-            let trust = inventory.trust_declarations().unwrap();
-            assert!(trust.machines.is_empty());
-            assert!(std::ptr::eq(trust, inventory.trust_declarations().unwrap()));
-        }
-
-        #[test]
-        fn admission_claims_cannot_recover_old_checker_trust() {
-            let mut symbols = symbols::SymbolTableBuilder::new();
-            let first = symbols.insert_root(
-                symbols::SymbolKind::Machine,
-                symbols::SymbolNameRef::Static("First"),
-            );
-            let second = symbols.insert_root(
-                symbols::SymbolKind::Machine,
-                symbols::SymbolNameRef::Static("Second"),
-            );
-            let mut typed = TypedTrees {
-                symbols: symbols.finish(),
-                ..Default::default()
-            };
-            for (symbol, name) in [(first, "First"), (second, "Second")] {
-                typed.push_machine(crate::machine::Machine {
-                    symbol,
-                    name: name.into(),
-                    supply_mode: language_semantics::MachineSupplyMode::AdmissionClaim,
-                    ..Default::default()
-                });
-            }
-            let inventory =
-                PreparedProviderInventory::new(Arc::new(FrozenTypedTrees::from(typed)), &[]);
-            let error = inventory.trust_declarations().unwrap_err();
-            assert!(error.message.contains("no product route yet"));
-            assert!(error.message.contains("First, Second"));
-        }
-    }
-
     pub fn independent_satisfactions<'program>(
         typed: &'program crate::TypedTrees,
         machine: &'program crate::machine::Machine,
@@ -355,6 +286,75 @@ pub mod provider_declarations {
             _ => return None,
         };
         (!identity.is_empty()).then_some((symbol, identity))
+    }
+
+    #[cfg(test)]
+    mod inventory_tests {
+        use super::PreparedProviderInventory;
+        use crate::{FrozenTypedTrees, TypedTrees};
+        use std::sync::Arc;
+
+        #[test]
+        fn catalogs_require_the_exact_immutable_owner_even_for_equal_source() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let other = Arc::new(owner.as_ref().clone());
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
+            assert!(Arc::ptr_eq(inventory.program(), &owner));
+            assert!(inventory.services_for(&owner).is_ok());
+            assert!(inventory.direct_calls_for(&owner).is_ok());
+            assert!(inventory.origins_for(&owner).is_ok());
+            assert!(inventory.services_for(&other).is_err());
+            assert!(inventory.direct_calls_for(&other).is_err());
+            assert!(inventory.retained_direct_calls_for(&other).is_err());
+            assert!(inventory.origins_for(&other).is_err());
+        }
+
+        #[test]
+        fn retained_catalogs_and_empty_trust_are_shared_for_one_owner() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
+            assert!(Arc::ptr_eq(
+                &inventory.retained_service_catalog(),
+                &inventory.retained_service_catalog()
+            ));
+            assert!(Arc::ptr_eq(
+                &inventory.retained_direct_calls_for(&owner).unwrap(),
+                &inventory.retained_direct_calls_for(&owner).unwrap()
+            ));
+            let trust = inventory.trust_declarations().unwrap();
+            assert!(trust.machines.is_empty());
+            assert!(std::ptr::eq(trust, inventory.trust_declarations().unwrap()));
+        }
+
+        #[test]
+        fn admission_claims_cannot_recover_old_checker_trust() {
+            let mut symbols = symbols::SymbolTableBuilder::new();
+            let first = symbols.insert_root(
+                symbols::SymbolKind::Machine,
+                symbols::SymbolNameRef::Static("First"),
+            );
+            let second = symbols.insert_root(
+                symbols::SymbolKind::Machine,
+                symbols::SymbolNameRef::Static("Second"),
+            );
+            let mut typed = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            for (symbol, name) in [(first, "First"), (second, "Second")] {
+                typed.push_machine(crate::machine::Machine {
+                    symbol,
+                    name: name.into(),
+                    supply_mode: language_semantics::MachineSupplyMode::AdmissionClaim,
+                    ..Default::default()
+                });
+            }
+            let inventory =
+                PreparedProviderInventory::new(Arc::new(FrozenTypedTrees::from(typed)), &[]);
+            let error = inventory.trust_declarations().unwrap_err();
+            assert!(error.message.contains("no product route yet"));
+            assert!(error.message.contains("First, Second"));
+        }
     }
 }
 
