@@ -1,7 +1,7 @@
 // Expected: accumulate(3, 4, 7) returns 7, so the program exits 70. The ranked
 // value is stored through a local before the self-call; the call judgment
 // reuses the body's current-value decrease at that exact occurrence.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

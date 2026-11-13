@@ -1,7 +1,16 @@
 // One established claim splits into covering children and those children merge back into that claim.
 // Expected exit: 0
 // Named constants supply the parent bound, the committed prefix, and the covering cut.
-use omega::language::core::activation;
+use omega::language::core::Activation;
+use omega::language::core::ActivationClaim;
+use omega::language::core::ActivationClaimAttempt;
+use omega::language::core::Activation::try_claim;
+use omega::language::core::ActivationClaim::bytes;
+use omega::language::core::ActivationClaim::release;
+use omega::language::core::ActivationClaimSplit;
+use omega::language::core::ActivationClaim::split;
+use omega::language::core::ActivationClaimMerge;
+use omega::language::core::ActivationClaim::merge;
 
 const PARENT_BOUND: u64 = 16;
 const COMMITTED: u64 = 8;

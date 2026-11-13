@@ -4,7 +4,7 @@
 // body: the map's rows name the head, and realization installs the member
 // authored for the realized target. The selection is spelled after the entry
 // bindings; the sibling fixture spells it before them.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Gate {
     machine open() -> i32 reaches;

@@ -1,5 +1,6 @@
 // Reject: must hold a value again before this state's exits consume the borrow.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
 data ByteUnit {}
 data Region [linear] dropped by drop_region { length: u64; }

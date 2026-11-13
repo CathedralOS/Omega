@@ -5,7 +5,8 @@
 // declaration would give: `Write` authors `reaches none terminates`, and
 // `Quiet` authors nothing but has a body that is checked to be total and pure.
 // A terminating caller and a law about the result are accepted for both.
-use omega::language::core::conversion;
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
 
 data Pair [copy] { first: u8; last: u8; }
 data Frame [copy] { tag: u8; first: u8; last: u8; }

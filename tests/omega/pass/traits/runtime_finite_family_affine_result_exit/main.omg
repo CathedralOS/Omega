@@ -1,6 +1,6 @@
 // Expected exit 70. The returned affine Packet is
 // consumed while an older nominal owner remains live and readable.
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::drop;
 data Token dropped by drop_token { value: u32; }
 machine drop_token(token: &mut Token) { token.value = 0; }

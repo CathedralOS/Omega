@@ -16,8 +16,16 @@
 //     (pins the biased-space detection for the huge-addend half)
 //
 // Expected exit: 70.
-use omega_language_std::time;
-use omega_language_std::console;
+use omega_language_std::Duration;
+use omega_language_std::Instant;
+use omega_language_std::InstantResult;
+use omega_language_std::Instant::checked_add;
+use omega_language_std::Instant::checked_subtract;
+use omega_language_std::SystemTime;
+use omega_language_std::SystemTimeResult;
+use omega_language_std::SystemTime::checked_add;
+use omega_language_std::SystemTime::checked_subtract;
+use omega_language_std::Console;
 
 data Main {
 }

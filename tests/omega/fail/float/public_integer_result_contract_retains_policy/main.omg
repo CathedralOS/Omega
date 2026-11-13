@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::U8::from_f32;
 
 machine saturating_increment(value: f32) -> u8 in Saturating {
     let converted: u8 in Saturating = U8::from_f32(value);

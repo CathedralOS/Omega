@@ -4,7 +4,7 @@
 // declaration requirement, so the gate does not refuse the store. The same
 // store is written through an exclusive parameter, a nested record field,
 // an owned local, and a state of the attached machine.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Player
 requires

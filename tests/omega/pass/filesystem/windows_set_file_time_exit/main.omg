@@ -2,10 +2,15 @@
 // through a real close/reopen metadata round trip. Native HANDLEs replace the
 // legacy CRT descriptor bridge; the fixed timestamp is still assembled from
 // the original eight literal bytes, independently of the Unix conversion.
-use omega_language_std::windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega_language_std::WindowsFileTimeResult;
+use omega_language_std::WindowsFilesystemHost;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
+use omega_language_std::Console;
+use omega::language::core::widen_u8_to_u64;
 
 data Main { handle: u64; bytes: [u8; 8]; }
 machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {

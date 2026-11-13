@@ -1,6 +1,6 @@
 // An owned affine record crosses either branch of a diamond and is disposed
 // once at the join, whichever branch carried it.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Token { id: u32; }
 data Main { }

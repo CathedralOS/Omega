@@ -1,4 +1,5 @@
-use omega::language::core::nat;
+use omega::language::core::Nat;
+use omega::language::core::saturating_sub;
 
 machine selected_pair<machine First, machine Second>(left: Nat, right: Nat) -> Nat
 requires machine First(value: Nat) -> Nat terminates;

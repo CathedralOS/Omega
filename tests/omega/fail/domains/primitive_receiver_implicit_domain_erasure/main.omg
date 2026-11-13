@@ -1,5 +1,5 @@
 // Expected exit: 0
-use omega_language_std::console;
+use omega_language_std::Console;
 domain u64::IssuedIndex requires self < 2 established by issue;
 machine issue(value: u64) -> u64 in IssuedIndex requires value < 2 { value }
 machine main() reaches Console {

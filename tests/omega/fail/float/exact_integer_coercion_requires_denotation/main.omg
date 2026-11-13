@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 machine fractional(value: f64) -> i32 requires value == 3.75 { value as i32 }
 machine negative_fraction() -> u32 { (-0.5f64) as u32 }

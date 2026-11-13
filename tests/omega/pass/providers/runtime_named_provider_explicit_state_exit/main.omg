@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data Counter { value: i32; }
 public boundary trait CounterOperations {

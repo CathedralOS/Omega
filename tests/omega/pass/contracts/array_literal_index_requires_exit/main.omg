@@ -3,7 +3,7 @@
 // `const SOURCE: [u64; 2] = [3, 9]` does. The call proves `9 <= limit` from its
 // argument, and the unsuffixed `7` takes the element's `u64` type.
 // Exit 70 means both calls ran and returned their limits.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine bounded(limit: u64) -> u64
 requires [3u64, 9u64][1] <= limit

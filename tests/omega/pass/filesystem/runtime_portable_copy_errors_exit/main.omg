@@ -2,8 +2,26 @@
 // Copy transfers only the bounded initialized prefix, preserves scratch tails,
 // and propagates acquisition errors. Canonicalization checks capacity before
 // touching output. The Linux-only full-device control separately pins write_all.
-use omega_language_std::filesystem;
-use omega_language_std::console;
+use omega_language_std::ErrorKind;
+use omega_language_std::OpenResult;
+use omega_language_std::IoResult;
+use omega_language_std::UnitResult;
+use omega_language_std::Permissions;
+use omega_language_std::PosixMetadata;
+use omega_language_std::PosixMetadataResult;
+use omega_language_std::Metadata;
+use omega_language_std::MetadataResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::open;
+use omega_language_std::Filesystem::write_all;
+use omega_language_std::Filesystem::read_all;
+use omega_language_std::Filesystem::copy;
+use omega_language_std::Filesystem::exists;
+use omega_language_std::Filesystem::metadata_path;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::set_permissions;
+use omega_language_std::Filesystem::canonicalize;
+use omega_language_std::Console;
 
 data Main {
     filesystem: Filesystem;

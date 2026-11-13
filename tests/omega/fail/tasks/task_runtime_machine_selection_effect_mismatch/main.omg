@@ -1,4 +1,7 @@
-use omega::language::core::task;
+use omega::language::core::Task;
+use omega::language::core::TaskOutcome;
+use omega::language::core::TaskLifecycle;
+use omega::language::core::TaskRuntime;
 
 // MP6/TR3: TaskRuntime's machine-parameter contract admits suspension and blocking,
 // not arbitrary service reach. A selected target must refine that authored

@@ -1,5 +1,8 @@
-use omega::language::core::extent;
-use omega::language::core::run;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Run;
+use omega::language::core::Run::empty;
 
 // Empty-cell establishment cannot silently discard spare backing.
 machine counterfeit<P, T>(storage: Extent in Granted & Vacant) -> Run<P, T> in Live<P, T>

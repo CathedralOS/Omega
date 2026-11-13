@@ -2,7 +2,7 @@
 // through its `&mut` loan, and the owner reads the stored value back.
 // exits: 9 = the write reached `v`; 1 = it did not.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

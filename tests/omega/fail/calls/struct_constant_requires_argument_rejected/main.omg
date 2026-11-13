@@ -2,7 +2,7 @@
 // The call below passes x=1 while take requires exact identity with the
 // zero-valued Point. Unfolding Point::zero exposes that differing field,
 // so the required identity must reject.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Point { x: u64; y: u64; }
 data Main { }
 machine Point::zero() -> Point {

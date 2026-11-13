@@ -1,7 +1,8 @@
 // Expected exit: 0. Exact dyadic arithmetic must produce 15 and 10.
 // A guarded named machine transition retains dense scalar arguments beside
 // interleaved borrows, including the literals and the guard call ordinal.
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
+use omega::language::core::F64::from_u32;
 data Cell { value: f64; }
 machine weighted(left: &Cell, shift: i32 in Wrapping, right: &Cell, index: u32 in Saturating, weight: f64, tail: f64) -> f64 {
     weight*left.value+tail*right.value+F64::from_i32(shift as i32)+F64::from_u32(index as u32)

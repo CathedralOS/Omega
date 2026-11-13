@@ -3,7 +3,7 @@
 // retarget it to the same target's member as it does for state calls, or
 // the member's rank cycle runs through the bodyless family interface and
 // the member has no executable body.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 windows_x86_64 machine drain(value: u64, remaining_steps: u64) -> u64
 terminates by remaining_steps

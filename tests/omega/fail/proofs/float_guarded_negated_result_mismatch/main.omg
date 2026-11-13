@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 machine wrong_false_result(flag: bool, value: f64) -> f64
 ensures flag || (!flag && Float::meaning64(result) == Float::meaning64(value))

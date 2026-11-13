@@ -7,7 +7,7 @@
 // covers both engines.
 // Supply the data reference last so nested effects finish before the outer
 // call or successor acquires its mutable argument. Effects stay in their arm.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     hits: u64 in Wrapping;

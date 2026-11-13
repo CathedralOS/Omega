@@ -1,4 +1,5 @@
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 machine read_value() -> i32 reaches Console {
     let observed: ByteRead = block Console::read_byte();
     transition observed { ByteRead::Eof -> (0 - 1) ByteRead::Byte { value } -> value }

@@ -1,6 +1,6 @@
 // A compound bound follows an explicit Main subject into its successor.
 // Reading element 2 of the stored array must produce process exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     row: i32 in Wrapping;

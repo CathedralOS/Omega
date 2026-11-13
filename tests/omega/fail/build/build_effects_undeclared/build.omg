@@ -4,7 +4,7 @@
 // through ordinary edges: a `Build::dependency` registration feeds the product source and
 // a `Build::build_dependency` registration feeds this build-scope source; an ordinary package edge
 // still grants no build authority over a runtime boundary service.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine write_build_log(builder: &mut Build)
 reaches Console

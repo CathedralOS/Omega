@@ -8,7 +8,19 @@
 // journal. The host's `/etc` is absent, so the backing cannot reach the real
 // filesystem.
 // The tests bind only the Linux targets, whose kernel calls the runner backs.
-use omega_language_std::filesystem;
+use omega_language_std::File;
+use omega_language_std::OpenResult;
+use omega_language_std::IoResult;
+use omega_language_std::UnitResult;
+use omega_language_std::Filesystem;
+use omega_language_std::FilesystemService;
+use omega_language_std::Filesystem::create_new;
+use omega_language_std::Filesystem::write;
+use omega_language_std::Filesystem::close;
+use omega_language_std::Filesystem::read_all;
+use omega_language_std::Filesystem::exists;
+use omega_language_std::Filesystem::create_dir;
+use omega_language_std::Filesystem::read_dir_count;
 
 trait Tests {
     machine journal()

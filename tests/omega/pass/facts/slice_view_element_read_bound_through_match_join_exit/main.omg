@@ -2,7 +2,6 @@
 // Place: match join. Both arms yield the guarded slice view into a joined binding.
 // Expected exit: 0
 
-use omega::language::core::slice;
 
 machine read_guarded(view: &[u64], flag: bool) -> i32
     requires view.len >= 3

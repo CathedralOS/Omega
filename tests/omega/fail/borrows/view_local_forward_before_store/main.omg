@@ -1,6 +1,6 @@
 // Forwarding a declared view local to the next state before any store would
 // hand the successor a descriptor that names no backing.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

@@ -1,7 +1,7 @@
 // A selected mutable room loan writes only the room it selects. The returned
 // `&mut Room` borrows all of `level` through its elided signature, so `update`
 // reads the sibling fields before it forms the room loan.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Marker [copy] { case First; case Second; }
 data Room [copy] { value: u64; flag: bool; }

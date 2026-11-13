@@ -1,7 +1,7 @@
 // A finite ordered subtraction establishes an f64 predicate domain, and a
 // landed literal establishes a weaker bound. Exit 70.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F64::is_finite;
+use omega_language_std::Console;
 
 domain f64::NonnegativeMass
 requires self >= 0.0;

@@ -1,6 +1,6 @@
 // The selector stays separate from a scalar and a borrowed record. Forwarding
 // preserves that mixed ABI, and the selected requirement returns a Boolean.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Matching<T> {
     machine matches(expected: i32, actual: &T) -> bool;

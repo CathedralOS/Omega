@@ -2,7 +2,6 @@
 // leaf by leaf but cannot strengthen them. `0.0..=1.0` does not establish
 // `0.0..=0.5`, so reading through the view could observe a value its own
 // declaration forbids.
-use omega::language::core::float_operations;
 
 data Reading
 requires

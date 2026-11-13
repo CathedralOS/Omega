@@ -3,8 +3,7 @@
 // argument must refuse rather than materialize the application from thin
 // air. There is no `Provider` and no build selection, so `limit()`'s `%`
 // call has no body the selected execution can run.
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
+use omega::language::core::ProcessExit;
 
 data Math {}
 

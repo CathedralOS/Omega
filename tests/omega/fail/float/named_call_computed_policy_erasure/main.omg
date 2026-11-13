@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // Computing or casting an argument grants no authority to this user-owned
 // named requirement. An F32 namespace and bare float signature do not make it

@@ -2,8 +2,7 @@
 // arithmetic. The bitmap-height store matches window_demo; the rational
 // intermediate must finish as seven before its i32 destination is checked;
 // the whole-expression cast acknowledges that intermediate.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     cells: [i32; 3];

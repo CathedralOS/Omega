@@ -1,6 +1,7 @@
 // Expected reject: declared boundary result/argument formats remain exact.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::from_i32;
+use omega::language::core::F64::from_i32;
+use omega_language_std::Console;
 data Main { integer: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.integer = 7;

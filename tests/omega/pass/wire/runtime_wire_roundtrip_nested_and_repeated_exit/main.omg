@@ -1,4 +1,22 @@
-use omega::language::core::wire;
+use omega::language::core::DecodeResult;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::scalar_field;
+use omega::language::core::ScalarSlot;
+use omega::language::core::ScalarPlanContext;
+use omega::language::core::FrameRead;
+use omega::language::core::CompactBinary::plan_scalar;
+use omega::language::core::CompactBinary::read_payload_fields;
+use omega::language::core::CompactBinary::decode_record;
+use omega::language::core::CompactBinary::blob_field;
+use omega::language::core::CompactBinary::plan_payload;
+use omega::language::core::PackedRead;
+use omega::language::core::CompactBinary::read_packed;
+use omega::language::core::CompactBinary::signed_from_word;
+use omega::language::core::CompactBinary::fixed_vec_field;
 use omega::language::core::reflect;
 // Wire NESTED MESSAGE + REPEATED field in ONE message: both features stage
 // runtime-sized payloads (the sub-message replays length-prefixed from the
@@ -24,8 +42,8 @@ use omega::language::core::reflect;
 // written = 13; the decoder consumes the same 13 bytes (read = 13,
 // ok = true) and every decoded field equals the original.
 
-use omega::language::core::fixed_vec;
-use omega_language_std::console;
+use omega::language::core::FixedVec;
+use omega_language_std::Console;
 
 data RoomHeader {
     #0 room_id: u32;

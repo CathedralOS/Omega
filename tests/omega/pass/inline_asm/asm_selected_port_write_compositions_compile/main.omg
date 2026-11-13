@@ -1,6 +1,5 @@
 // Compile only: selected-provider custody retains every physical port write
 // through a sequence, an ordinary helper call and a selected state.
-use omega::language::core::assembly;
 public data Device { marker: u64; }
 public boundary trait PortSequence {
     machine emit(device: &mut Device, enabled: bool) reaches PortIo;

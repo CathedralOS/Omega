@@ -8,7 +8,7 @@
 // contract surface — it engages the requires-contract check by name when the
 // caller has not discharged the domain obligation.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Sink { machine take(name: [u8; 7]) -> u64 reaches; }
 

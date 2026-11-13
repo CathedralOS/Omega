@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 data Captured [copy] { first: i32; replaced: bool; second: i32; }
 data Holder { amount: i32; }

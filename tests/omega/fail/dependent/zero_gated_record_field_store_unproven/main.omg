@@ -1,7 +1,7 @@
 // A zero-gated record's field replacement still binds the replacement value
 // to the declaration requirement: without a dominating `health > 30` guard,
 // `health - 30` is not proven `>= 1` and the store is refused.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Player
 requires

@@ -1,5 +1,4 @@
 // Expected exit: 0.
-use omega::language::core::float_operations;
 data Context { fraction: f64; narrow: f32; source: f64; }
 // The owned formal mutates its callee cell, leaving the caller snapshot intact.
 machine advance(mut fraction: f64) -> f64 {

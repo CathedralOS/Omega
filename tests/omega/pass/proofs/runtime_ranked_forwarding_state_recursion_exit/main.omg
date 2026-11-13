@@ -1,7 +1,7 @@
 // Expected: descend(3, 9) returns 1, so Main exits 70. A forwarding state sits
 // between the entry and the recursive invocation; the invocation, not a local
 // state jump, carries the ranked decrease and the entry-relative guarantee.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

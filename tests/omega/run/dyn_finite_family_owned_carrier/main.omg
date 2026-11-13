@@ -6,7 +6,7 @@
 // the provider as in the scalar fixture:
 //   scan(Primary, 16) stores 16 * 100      == 1600
 //   scan(Bumped,  32) stores 32 * 100 + 1  == 3201
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::drop;
 
 data Token [linear] dropped by drop_token { value: u64 in Wrapping; }

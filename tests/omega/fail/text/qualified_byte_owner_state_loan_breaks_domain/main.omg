@@ -1,7 +1,7 @@
 // A state loan of a Utf8 bounded owner never authorizes a store outside
 // its domain: "HELLO" shifted by 100 stores non-ASCII bytes, so the
 // successor cannot re-establish the loan's membership.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8]::Utf8
 requires

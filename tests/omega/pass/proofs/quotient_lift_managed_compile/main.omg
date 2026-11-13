@@ -5,7 +5,7 @@
 // identities and the checked-termination-gated admission accepts the batch
 // proof-only. The retained correspondence is never an executable callee.
 
-use omega::language::core::relation;
+use omega::language::core::Equivalence;
 
 data Representative {
     case Zero;

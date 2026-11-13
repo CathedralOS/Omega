@@ -1,4 +1,6 @@
-use omega::language::core::task;
+use omega::language::core::Task;
+use omega::language::core::StartOutcome;
+use omega::language::core::TaskRuntime;
 
 // A provider cannot narrow the callback domain published by TaskRuntime. The
 // trait admits targets that may block, so an implementation that omits

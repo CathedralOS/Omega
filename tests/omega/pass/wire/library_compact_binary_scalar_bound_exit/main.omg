@@ -1,6 +1,9 @@
 // Expected exit: 0
 // Capacity is computed from the exact owner schema by a pure source query.
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::ScalarBound;
+use omega::language::core::CompactBinary::scalar_bound;
+use omega::language::core::CompactBinary::max_scalar_field;
 use omega::language::core::reflect;
 data First { #0 counter: u32; }
 data Second { #0 counter: u32; #1 timestamp: u32; }

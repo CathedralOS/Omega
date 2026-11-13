@@ -1,4 +1,5 @@
-use omega::language::core::conversion;
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
 data Pair [copy] { first: u8; last: u8; }
 data Frame [copy] { tag: u8; first: u8; last: u8; }
 data Failure [copy] { case InvalidTag; }

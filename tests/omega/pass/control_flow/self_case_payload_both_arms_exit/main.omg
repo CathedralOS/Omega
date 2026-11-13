@@ -4,7 +4,7 @@
 // deferred read unsubstituted on the shared field carrier. Exits 70 only when
 // both arms observe their own payload.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Sum {
     case Left(v: u64);

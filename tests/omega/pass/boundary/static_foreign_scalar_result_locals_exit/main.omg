@@ -6,9 +6,9 @@
 // is at least 20,000,000 nanoseconds after the first, 71 when the clock did
 // not advance that far, and 72 when it went backwards.
 // Expected exit: 70.
-use omega_language_std::console;
-use omega_language_std::clock;
-use omega::language::core::numeric_conversion;
+use omega_language_std::Console;
+use omega_language_std::Clock;
+use omega::language::core::narrow_i64_to_u64_saturating;
 
 machine monotonic_nanoseconds() -> u64 reaches Clock {
     let now: u64 = ElapsedClock::now(6);

@@ -1,6 +1,6 @@
 // A call borrows one element of initialized local array storage. Its write
 // remains visible to the caller without changing the neighboring element.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

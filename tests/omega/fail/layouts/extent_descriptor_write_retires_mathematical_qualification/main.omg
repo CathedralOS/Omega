@@ -1,5 +1,6 @@
 // Writing the descriptor retires its existing mathematical qualification.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 
 machine preserve(storage: &mut Extent in Granted)
 ensures storage in Granted

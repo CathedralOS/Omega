@@ -1,6 +1,7 @@
 // An issuer cannot call consumed content fresh supply. Constructed children
 // retain their separate claims even when their producers return bare carriers.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 
 data Ticket [linear] { amount: u64; }
 domain Ticket::Owned established by Issuer::combine;

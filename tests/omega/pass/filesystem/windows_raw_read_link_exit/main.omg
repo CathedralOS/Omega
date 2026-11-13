@@ -2,9 +2,11 @@
 // authorized symlink-creation token) for fixture setup; never skips that setup.
 // Read dangling relative/absolute targets without following them, return a
 // byte prefix without NUL, and validate all Unicode before copying any prefix.
-use omega_language_std::windows_filesystem_host;
-use omega_language_std::console;
-use omega::language::core::filesystem_authority;
+use omega_language_std::WindowsFilesystemHost;
+use omega_language_std::Console;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 
 domain [u16; 19]::FixtureLink requires self[18] == 0;
 domain [u16; 64]::FixtureTarget requires self[63] == 0;

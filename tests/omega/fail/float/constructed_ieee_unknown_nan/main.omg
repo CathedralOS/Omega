@@ -1,3 +1,2 @@
-use omega::language::core::float_operations;
 data Reflexive [copy] requires value == value {value:f64;}
 machine make(value:f64)->Reflexive { Reflexive{value:value} }

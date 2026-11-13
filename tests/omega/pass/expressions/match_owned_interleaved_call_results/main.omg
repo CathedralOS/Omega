@@ -17,7 +17,7 @@ machine choose(selected: bool, tag: u64) -> bool {
     marker.tag == tag && observed
 }
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

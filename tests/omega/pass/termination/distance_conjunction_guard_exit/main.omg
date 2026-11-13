@@ -1,7 +1,7 @@
 // A bounded distance proved through a conjunction guard. Either conjunct of
 // `index < limit && index < 4096` that names the bound keeps the cursor
 // below it, for a scalar bound and for a collection length alike.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { bytes: [u8; 8]; }
 

@@ -1,7 +1,26 @@
 // Checking probe: lifecycle calls retain geometry without a later placed view.
 // No allocation or executed initialization is claimed by this fixture.
-use omega::language::core::extent;
-use omega::language::core::layout;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Resident;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::ResourceProfileSupply;
+use omega::language::core::Access;
+use omega::language::core::AccessOutcome;
+use omega::language::core::AccessReturn;
+use omega::language::core::AccessInitializationFailure;
+use omega::language::core::AccessExtraction;
+use omega::language::core::AccessLifecycle;
+use omega::language::core::Access::initialize_owned;
+use omega::language::core::Access::move_out_owned;
 
 data TestMemory {}
 

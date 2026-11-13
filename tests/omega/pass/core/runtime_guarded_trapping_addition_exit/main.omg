@@ -2,7 +2,7 @@
 // two routes together bound both addends, so `total + step` stays inside u8
 // whenever neither route holds: every trap the addition can reach is a
 // declared route. The caller's arguments disprove both routes.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine accumulate(total: u8, step: u8) -> u8
 crashes Trap

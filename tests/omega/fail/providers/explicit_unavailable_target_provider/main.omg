@@ -1,5 +1,5 @@
 // A selected provider may not fall back to an available sibling.
-use omega_language_std::console;
+use omega_language_std::Console;
 boundary trait Value { machine read() -> i32 reaches; }
 PortableValue satisfies Value { machine read() -> i32 { 42 } }
 FirmwareValue satisfies Value { machine read() -> i32 { bridge() } }

@@ -5,7 +5,7 @@
 // `put` at each step; `sum_from` forwards the shared loan the same way. The
 // caller then reads the bytes back: 1 + 2 + ... + 8 = 36, and byte 7 is 8.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     bytes: [u8; 8];

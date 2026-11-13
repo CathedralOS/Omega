@@ -21,7 +21,7 @@
 // operating on it; this one operates on it from two states.
 //
 // Expected exit: 66.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8; 3]::Utf8
 requires

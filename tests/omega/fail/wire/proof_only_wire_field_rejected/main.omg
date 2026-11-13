@@ -1,8 +1,11 @@
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::ScalarSlot;
+use omega::language::core::ScalarPlanContext;
+use omega::language::core::CompactBinary::plan_scalar;
 use omega::language::core::reflect;
 // N1 wire face: wire schemas serialize runtime bytes; a proof-only
 // mention has no encoding.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Nat { case Zero; case Succ(prev: Nat); }
 data Msg {
     #0 n: Nat;

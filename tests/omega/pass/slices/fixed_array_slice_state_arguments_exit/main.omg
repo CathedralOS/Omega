@@ -1,7 +1,7 @@
 // State arguments form slice descriptors over local arrays and array fields.
 // The mutable state loan must write the original caller backing, and the
 // shared state loan must retain the exact four-byte extent and contents.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Packet { values: [u8; 4]; }
 machine stamp(packet: &mut Packet) {
     transition { _ -> edit(&mut packet.values) }

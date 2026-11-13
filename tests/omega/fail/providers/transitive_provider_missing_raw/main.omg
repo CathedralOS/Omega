@@ -1,6 +1,6 @@
 // The checked selected closure must refuse the missing raw provider.
 // Selecting a complete portable provider does not admit its absent dependency.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait RawMeasure {
     machine measure(value: i32) -> i32 reaches;

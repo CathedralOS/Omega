@@ -1,5 +1,5 @@
 // A moved result field must retain the input actually stored in it.
-use omega::language::core::conversion;
+use omega::language::core::Result;
 
 data Payload<'buffer> { output: &'buffer mut [u8]; }
 data ResultSlot<'buffer> { answer: Result<Payload<'buffer>, Payload<'buffer>>; }

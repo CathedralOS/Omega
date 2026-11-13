@@ -2,7 +2,7 @@
 // The reference local owns no copied structural result. Each read observes the
 // original parameter through its checked loan and representation-view pair.
 // Expected exit: 70 in native and checked interpretation.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine read_integer(value: i32) -> i32 {
     let view: &i32 = &value;

@@ -17,7 +17,7 @@
 // 20 + 30 = 50.
 //
 // Expected exit: 50
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u64_to_u32_wrapping;
 data Desc { kind: u32; pages: u64; }
 data Main {
     buf: [u8; 48];

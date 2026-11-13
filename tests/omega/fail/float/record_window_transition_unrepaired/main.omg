@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 data Sample requires value >= 0.0 && value <= 1.0 { value: f32; }
 data Envelope { child: Sample; }

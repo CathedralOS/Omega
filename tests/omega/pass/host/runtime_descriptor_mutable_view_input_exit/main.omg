@@ -1,7 +1,6 @@
 // A foreign read borrows an existing window, never spare capacity. Direct and
 // forwarded calls must write original storage without changing its extent.
-use omega_language_std::calling;
-use byte_view_calling;
+use omega_language_std::Calling;
 
 public boundary trait DescriptorIo: Calling<ByteViewCallingPolicy> {
     machine read_bytes(descriptor: i32, bytes: &mut [u8]) -> i64 reaches blocks;

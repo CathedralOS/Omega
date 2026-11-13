@@ -5,7 +5,7 @@
 // runtime, through both an owned subject and a borrowed one. Exits 70 only
 // when every arm returns its own value.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

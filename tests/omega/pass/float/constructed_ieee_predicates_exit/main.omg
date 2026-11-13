@@ -1,5 +1,4 @@
 // Expected exit: 0
-use omega::language::core::float_operations;
 data Reading [copy] requires value >= 0.0 && value <= 0.25 { value:f64; }
 data Rounded [copy] requires value == 0.1 { value:f32; }
 machine make(value:f64)->Reading

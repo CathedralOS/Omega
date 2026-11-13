@@ -1,7 +1,9 @@
 // Expected crash: Trap (native illegal-instruction signal and Terminal Trap).
 // Runtime counterfactual: the preservation-only corrupted decoder is selected
 // without an agreement claim. The unchanged field observer must execute Trap.
-use omega::language::core::conversion;
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
+use omega::language::core::convert;
 
 data Pair [copy] { first: u8; last: u8; }
 data FirstFrame [copy] { tag: u8; first: u8; last: u8; }

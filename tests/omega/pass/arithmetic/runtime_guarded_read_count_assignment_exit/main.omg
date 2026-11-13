@@ -1,5 +1,5 @@
 // A positive signed read count fits the remaining unsigned capacity.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Reader { received: u64; count: i64; }
 machine Reader::advance(reader: &mut Reader) {

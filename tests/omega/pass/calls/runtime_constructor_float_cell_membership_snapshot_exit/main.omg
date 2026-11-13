@@ -1,5 +1,4 @@
 // Expected exit: 0. An accepted cell is copied before the input cursor advances.
-use omega::language::core::float_operations;
 data Cell [copy] { mantissa:f64; power:i32; }
 domain Cell::Admitted established by Cell::accept;
 machine Cell::accept()->Cell ensures result in Cell::Admitted { Cell { mantissa:0.75, power:-2 } }

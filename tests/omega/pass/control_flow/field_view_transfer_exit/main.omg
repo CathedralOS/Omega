@@ -12,7 +12,7 @@
 // field: `&mut store` and `store.cells` would be two live mutable paths to the
 // same view.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Store<'ext> {
     names: &'ext [u8];

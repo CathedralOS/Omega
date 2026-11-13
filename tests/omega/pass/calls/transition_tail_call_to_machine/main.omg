@@ -19,7 +19,7 @@
 //
 // A tail call that fell through, ran an arm twice or lost its argument would
 // exit with a failure code instead.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     stored: i32;

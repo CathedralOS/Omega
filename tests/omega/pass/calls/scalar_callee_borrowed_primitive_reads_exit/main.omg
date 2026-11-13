@@ -4,7 +4,7 @@
 // to that element, and finally the same element to a machine whose scalar
 // formal precedes the borrowed one. Exits 70 only when every read observed
 // the current storage; 71..74 name the read that did not.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     buf: [u8; 4];

@@ -6,7 +6,6 @@
 // selection, not the construct the planner happened to be in. The same
 // program with `Build::select_representation<Token, TokenRepresentation>` is
 // `pass/build/runtime_opaque_by_value_selected_exit`.
-use token;
 
 data Main { held: Token; hits: i32; }
 

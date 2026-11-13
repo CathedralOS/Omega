@@ -1,7 +1,12 @@
 // Exercise native frame metrics, drawing through a parameter/call result,
 // caller-owned message storage, and release-before-destroy with non-demo sizes.
-use omega_language_std::console;
-use omega_language_std::windows_gui_host;
+use omega_language_std::Console;
+use omega_language_std::WindowsMessage;
+use omega_language_std::WindowsRectangle;
+use omega_language_std::WindowsMessage::window;
+use omega_language_std::WindowsMessage::kind;
+use omega_language_std::WindowsMessage::word_parameter;
+use omega_language_std::WindowsGuiHost;
 
 data Main {
     window: u64;

@@ -7,7 +7,7 @@
 // The deployable shape exits 70 only when every selected entry's result is
 // exact.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

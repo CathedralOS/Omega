@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // F2c ARG face, reconciled with the exact-anonymous-constant law: a wholly
 // anonymous constant tree stays exact Rat until the transition parameter is
@@ -6,7 +5,7 @@ use omega::language::core::float_operations;
 // 2^-24, so exact `1 + x` rounds UP to 1 + 2^-23. This deliberately differs
 // from an explicitly f32-landed/runtime tree, whose operations round per-op.
 // Guards the validation argument landing (target params zipped with args).
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { expected: f32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.expected = 1.00000011920928955078125;

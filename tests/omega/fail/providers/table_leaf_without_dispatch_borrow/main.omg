@@ -1,4 +1,4 @@
-use omega::language::core::external_binding;
+use omega::language::core::ForeignBinding;
 // A table leaf's first parameter must borrow the record holding its field.
 data Measured { measure: addr; }
 boundary trait Measure { machine length(count: u64, table: &Measured) -> u64 reaches; }

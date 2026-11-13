@@ -1,6 +1,12 @@
 // A selected layout reorders a canary beside two sum cells. Each cell's
 // footprint must include its tag, payload and padding, not just its active value.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 public data Choice [copy] { case Empty; case Held(value: u64); }
 public data Envelope [copy] { choices: [Choice; 2]; canary: u64; }

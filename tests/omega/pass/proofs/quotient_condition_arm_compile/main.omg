@@ -1,5 +1,5 @@
 // A condition arm on a quotient subject never observes its representative, so it checks.
-use omega::language::core::relation;
+use omega::language::core::Equivalence;
 
 data Representative {
     case Zero;

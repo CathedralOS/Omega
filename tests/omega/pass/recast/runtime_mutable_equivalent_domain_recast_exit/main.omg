@@ -3,7 +3,7 @@
 // therefore denotes the same established value set. Cross-carrier predicates
 // that merely LOOK equal remain fenced until their bit-pattern sets can be
 // proved equivalent. Other canaries independently pin mutable write-through.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain u32::Small
 requires

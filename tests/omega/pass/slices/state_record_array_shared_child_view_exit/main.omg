@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 data Packet { items: [u8; 4]; marker: i32; }
 machine stamp(values: &mut [u8]) {
     transition values.len >= 4 { true -> write(values) _ -> skip() }

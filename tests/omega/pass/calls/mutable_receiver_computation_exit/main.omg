@@ -1,5 +1,5 @@
 // An embedded mutable receiver call executes once before its local crosses a state edge.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Counter { count: i32 in Wrapping; }
 data Main {

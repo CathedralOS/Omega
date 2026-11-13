@@ -4,7 +4,7 @@
 // decoder's final state does. exits: 70 = Sound reached the caller;
 // 71 = the caller still saw Invalid.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Verdict {
     case Invalid;

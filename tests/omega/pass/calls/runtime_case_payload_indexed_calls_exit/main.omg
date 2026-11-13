@@ -1,6 +1,6 @@
 // A case payload loan keeps its original storage through two named states
 // and a runtime-selected ordinary call argument.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell { value: u64 in Wrapping; }
 data Cells { values: [Cell; 4]; }

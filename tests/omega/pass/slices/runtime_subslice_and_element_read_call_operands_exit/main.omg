@@ -7,7 +7,7 @@
 // starts at element 1; `confirm_after` selects the tail's second element (42)
 // only when the read delivered element 1. Any other path exits 1, 2 or 3.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Entry {
     value: i32;

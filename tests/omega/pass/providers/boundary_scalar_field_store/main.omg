@@ -8,7 +8,7 @@
 // Record results use that same authored assignment, with a move/store/cleanup
 // window. Replace a record twice and observe its fields to check both forms.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Echo {
     machine echo(value: i32) -> i32 reaches;

@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 data Entry [copy] { value: [u64; 1]; }
 data Main { entries: [Entry; 2]; }
 machine observe(selected: Entry) -> u64 { selected.value[0] }

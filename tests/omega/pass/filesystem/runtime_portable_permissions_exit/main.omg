@@ -1,8 +1,22 @@
 // Expected exit: 0
 // A portable read-only request preserves non-write POSIX bits, using either a
 // path or an open file. Exact modes and the zero/default request stay distinct.
-use omega_language_std::filesystem;
-use omega_language_std::console;
+use omega_language_std::File;
+use omega_language_std::ErrorKind;
+use omega_language_std::OpenResult;
+use omega_language_std::UnitResult;
+use omega_language_std::Permissions;
+use omega_language_std::PosixMetadataResult;
+use omega_language_std::MetadataResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::create_new;
+use omega_language_std::Filesystem::close;
+use omega_language_std::Filesystem::metadata_path;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::set_permissions;
+use omega_language_std::Filesystem::set_file_permissions;
+use omega_language_std::Filesystem::metadata;
+use omega_language_std::Console;
 
 data Main { filesystem: Filesystem; file: File; }
 

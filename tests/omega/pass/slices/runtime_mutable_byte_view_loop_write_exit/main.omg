@@ -6,7 +6,7 @@
 // across the cycle instead of refusing the inner states for naming none of
 // their own. Encoding 300 writes [0xAC, 0x02] and counts 2 bytes; exits 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     buffer: [u8; 8];

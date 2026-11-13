@@ -1,4 +1,4 @@
-use omega::language::core::extent;
+use omega::language::core::no_wrap;
 
 machine checked_value(value: addr) -> addr
 requires no_wrap(value, 0)

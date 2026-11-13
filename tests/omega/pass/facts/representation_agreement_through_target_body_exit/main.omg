@@ -1,7 +1,14 @@
 // Fact: Selected representation agreement preserves every semantic field through its exact fallible maps and rejects malformed frames.
 // Expected exit: 0
-use omega::language::core::conversion;
-use omega::language::core::representation;
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
+use omega::language::core::convert;
+use omega::language::core::RepresentationRequest;
+use omega::language::core::RepresentationDecodeRequest;
+use omega::language::core::RepresentationModel;
+use omega::language::core::RepresentationEncoding;
+use omega::language::core::RepresentationDecoding;
+use omega::language::core::Representation;
 
 data Pair [copy] { first: u8; last: u8; }
 data FirstFrame [copy] { tag: u8; first: u8; last: u8; }

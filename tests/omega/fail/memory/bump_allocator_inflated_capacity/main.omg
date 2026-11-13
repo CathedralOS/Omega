@@ -1,4 +1,6 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
 use alloc::bump;
 // A counter cannot enlarge the concrete tail.
 machine invalid(whole: Extent in Granted & Vacant) -> Bump

@@ -1,6 +1,7 @@
 // A first read after an alias write supplies no callable-entry snapshot.
 // The issued pieces use the post-write value, so conservation must refuse.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
 
 public data ByteUnit {}

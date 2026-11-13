@@ -7,9 +7,10 @@ module board::pc::timer::pic;
 // the parsed `out` instruction contracts.
 
 use facts::pic_8259;
-use omega::language::core::assembly;
-use omega::language::core::assembly_model;
-use omega::language::core::interrupt;
+use omega::language::core::port_written;
+use omega::language::core::InterruptAcknowledgement;
+use omega::language::core::InterruptAcknowledgement::Pending;
+use omega::language::core::InterruptAcknowledgementCompletion;
 
 public data Pic8259 {
 }

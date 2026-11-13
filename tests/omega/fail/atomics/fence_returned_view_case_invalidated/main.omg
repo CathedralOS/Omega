@@ -1,4 +1,6 @@
-use omega::language::core::atomic;
+use omega::language::core::Atomic;
+use omega::language::core::FenceOrdering;
+use omega::language::core::Atomic::fence;
 data Options { ordering: FenceOrdering; }
 data View { item: &mut Options; }
 machine wrap(value: &mut Options) -> View

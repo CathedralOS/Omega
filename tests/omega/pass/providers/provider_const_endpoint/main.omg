@@ -3,7 +3,6 @@
 // during semantic const evaluation: `Provider::remainder` computes
 // `left | right` = 7 where builtin `%` would fold 1, so passing 7 to
 // `requires value <= limit()` only checks when the provider body ran.
-use omega::language::core::float_operations;
 public boundary trait Math {
     machine remainder(left: u64, right: u64) -> u64 reaches terminates;
 }

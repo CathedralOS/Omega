@@ -1,4 +1,4 @@
-use omega::language::core::math;
+use omega::language::core::min_f64;
 
 // Nested float operator applications compose in authored grouping and order
 // (exit 70).
@@ -20,8 +20,9 @@ use omega::language::core::math;
 //                      application takes a nested operand and a literal.
 // The first two are local initializers, the next two are field stores, the
 // next two are guard operands, then local initializers and a field store.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F64::maximum;
+use omega::language::core::F64::from_i32;
+use omega_language_std::Console;
 
 data Main {
     a: f64;

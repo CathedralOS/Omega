@@ -1,6 +1,5 @@
 // Expected exit: 0.
 // Structured popfq restores a saved u64 flags place; the following label reads that place.
-use omega::language::core::assembly;
 
 machine main() reaches MachineControl crashes Trap {
     restore();

@@ -1,6 +1,6 @@
 // A completed narrowing call retains its producer bounds through exact widening.
 // Expected: case constraint cannot be proved for an interval ending at 254.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i32_to_u8_wrapping;
 data ByteRead
 requires (self in ByteRead::Eof) || ((self in ByteRead::Byte) && (self.value >= 0 && self.value <= 254))
 { case Eof; case Byte(value: i32); }

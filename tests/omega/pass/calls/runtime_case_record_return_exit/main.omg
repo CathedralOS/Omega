@@ -1,6 +1,6 @@
 // Case observations retain the owned subject until the selected value returns.
 // Its disposal must join the unused parameters in reverse declaration order.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Direction { case Left; case Right; case Up; case Down; }
 data Spare { value: u64; }

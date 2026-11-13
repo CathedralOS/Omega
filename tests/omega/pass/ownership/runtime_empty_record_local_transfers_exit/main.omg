@@ -4,7 +4,7 @@
 // mutable-borrowed record beside a scalar sibling. None of them owes bytes,
 // a move window or cleanup code. Exits 70 when the sibling store survives the
 // replacement and reaches the forwarding state.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Empty {}
 data Holder { marker: Empty; value: i32; }

@@ -4,7 +4,7 @@
 // binding plan records the borrowed record as the dispatch table. A vtable
 // field passes the table as the first argument (strlen reads the text at
 // offset 0); a table function does not (abs receives -7, not the table).
-use omega::language::core::external_binding;
+use omega::language::core::ForeignBinding;
 boundary trait Symbols {
     machine open(name: addr, flags: i32) -> addr reaches;
     machine lookup(handle: addr, name: &[u8; 7]) -> addr reaches;

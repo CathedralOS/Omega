@@ -22,7 +22,7 @@
 // moving such a local into a subject field are separate gaps, as are a named
 // array source (`Packet { samples: bare }`) and array payloads of a case
 // literal.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Packet {
     samples: [i32; 4];

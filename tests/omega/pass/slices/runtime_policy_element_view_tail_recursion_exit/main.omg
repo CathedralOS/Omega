@@ -6,7 +6,7 @@
 // Sums [8, 12, 10, 5, 15, 10, 10] = 70; exits 70 only when every element
 // arrived through the narrowing view.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine sum_window(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length

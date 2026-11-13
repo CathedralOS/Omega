@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8]::Utf8 requires valid_utf8(self);
 // The copyable owner stores capacity and live length explicitly. Qualification

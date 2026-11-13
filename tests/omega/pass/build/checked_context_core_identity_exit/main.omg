@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // Core qualifications, projections and same-named local callables keep their
 // independent Build/Product owners. Selecting either other body fails its oracle.
-use omega::language::core::extent;
+use omega::language::core::no_wrap;
 
 machine checked_value(value: addr) -> addr
 requires no_wrap(value, 0)

@@ -1,10 +1,10 @@
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 
 // Named truncation accepts a field's default-domain bound and an incoming
 // guard that proves non-NaN plus both range bounds. Exact `as` cannot truncate.
 // The data clause preserves
 // the former field suffix's [0.0..=100.0] contract without a range type.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main requires bounded >= 0.0 && bounded <= 100.0 {
     bounded: f64;
     unbounded: f64;

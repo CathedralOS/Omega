@@ -2,7 +2,21 @@
 // Cathedral needs this operation to snapshot an active paging root whose
 // accessed bits may be updated by hardware. This hosted control uses ordinary
 // RAM supply and establishes neither firmware backing nor a CR3 transition.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::ExternalRead;
+use omega::language::core::FieldAccess;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::Access;
+use omega::language::core::Access::view;
+use omega::language::core::read;
 
 public data Words { entries: [u64; 512]; }
 public data WordPlacement {}

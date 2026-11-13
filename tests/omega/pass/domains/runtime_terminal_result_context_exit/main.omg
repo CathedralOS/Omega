@@ -1,5 +1,4 @@
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::Console;
 domain f64::TravelTime;
 domain f64::SurfaceOffset;
 domain i32::Positive requires self > 0;

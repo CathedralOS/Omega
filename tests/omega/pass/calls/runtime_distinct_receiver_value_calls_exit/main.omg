@@ -4,7 +4,7 @@
 // fallback that resolves both calls to the first matching base returns 7 for
 // `b` and exits 71, which is the silent wrong answer this canary exists to
 // catch -- it is a value check, not a refusal.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally { count: i32 in Wrapping; }
 

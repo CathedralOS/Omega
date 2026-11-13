@@ -1,6 +1,6 @@
 // Case dispatch on a borrowed sum-typed block parameter: the arm reads its
 // payload members and a nested leaf through the edge-carried referent.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Leaf [copy] {
     v: i32 in Wrapping;

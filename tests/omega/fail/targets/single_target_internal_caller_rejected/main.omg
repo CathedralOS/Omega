@@ -3,7 +3,7 @@
 // The same-target positive control retains a UEFI caller and helper without
 // demanding their realization. This control currently pins the early refusal;
 // moving it to Omega realization remains part of the target-family outcome.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Helper { seed: i32; }
 

@@ -1,5 +1,6 @@
-use omega::language::core::extent;
-use omega::language::core::program_image;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::ProgramImage;
 
 machine consume_granted(root: Extent in Granted) -> Extent {
     root as Extent

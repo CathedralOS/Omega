@@ -1,6 +1,6 @@
 // A requires clause written `1 <= scale` while the caller's guard proves
 // `scale >= 1` -- the operand-flipped spelling of the one bound.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine rounded(value: u64, scale: u64) -> u64
 requires 1 <= scale

@@ -10,7 +10,7 @@
 // integer it returns is discarded. The call completes the receipt's claim.
 // The same program without the sink is
 // `fail/providers/consuming_requirement_without_provider`.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Receipt [linear] {
     code: i32;

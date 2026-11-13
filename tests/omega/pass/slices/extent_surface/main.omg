@@ -1,4 +1,4 @@
-use omega::language::core::extent;
+use omega::language::core::no_wrap;
 // `no_wrap(base, length)` is a bodyless authority requires; `embed` and
 // `addr::Bound` are the geometry terms an ensures can cite. (`ExtentSlot`
 // is package-private — filed under "Gaps found" in README.)

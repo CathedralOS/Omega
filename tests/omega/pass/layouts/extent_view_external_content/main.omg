@@ -3,8 +3,37 @@
 // supplies no Stable observation, Vacant qualification, or resident custody.
 // The range is already qualified. The view must retain that exact loan, not
 // interpret the descriptor's two integers as the external bytes.
-use omega::language::core::extent;
-use omega::language::core::layout;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::ExternalRead;
+use omega::language::core::TransferRule;
+use omega::language::core::FieldAccess;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::RelativeRange;
+use omega::language::core::StableCapability;
+use omega::language::core::ExternalReadBehavior;
+use omega::language::core::TransferRules;
+use omega::language::core::ExternalCapability;
+use omega::language::core::AtomicCapability;
+use omega::language::core::PeerWritability;
+use omega::language::core::ResourceRegion;
+use omega::language::core::ResourceProfile;
+use omega::language::core::ResourceProfileSupply;
+use omega::language::core::Access;
+use omega::language::core::AccessOutcome;
+use omega::language::core::AccessBorrowReturn;
+use omega::language::core::Access::view_extent;
+use omega::language::core::AccessInitializationFailure;
+use omega::language::core::read;
 
 data TestMemory {}
 

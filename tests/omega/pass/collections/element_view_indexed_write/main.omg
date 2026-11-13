@@ -4,7 +4,7 @@
 // the index selects one element, and the stored scalar matches the view's
 // element leaf. `&mut collection[..]` establishment of locals is pinned separately
 // (pending/collections/view_write_probe).
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine FixedVec::store(slots: &mut [i32], index: u64 in Wrapping, value: i32 in Wrapping)
 requires

@@ -5,8 +5,9 @@
 // family with no body for that target rejects by name; the inert head is
 // never evaluated. `pass/capabilities/windows_provides_import_exit` is the
 // matching-target form.
-use omega::language::core::external_binding;
-use omega_language_std::console;
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
+use omega_language_std::Console;
 public boundary trait Beeper { machine beep(value: i32) -> i32 reaches; }
 data Main { m: i32; v: i32; }
 linux_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0> {

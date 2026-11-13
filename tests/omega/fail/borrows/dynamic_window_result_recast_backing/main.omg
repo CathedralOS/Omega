@@ -1,4 +1,4 @@
-use omega::language::core::option;
+use omega::language::core::Optional;
 machine select<'input>(bytes: &'input [u8], start: u64) -> Optional<&'input u32>
 requires start <= bytes.len && 4 <= bytes.len - start {
     transition { _ -> capture(bytes, start) }

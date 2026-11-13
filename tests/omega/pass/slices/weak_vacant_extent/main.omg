@@ -2,7 +2,9 @@
 // qualification into a `Vacant`-qualified field — construction is
 // admitted; only the qualifier-free source shape is an implicit
 // strengthening (fail territory).
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
 data Held {
     e: Extent in Granted & Vacant;
 }

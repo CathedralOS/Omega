@@ -1,6 +1,6 @@
 // A bound local remains the same owned value when stored inside a state graph.
 // Read the common member and selected payload after the store and state jump.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Event {
     consumed: bool;

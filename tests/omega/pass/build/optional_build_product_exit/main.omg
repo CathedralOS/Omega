@@ -1,5 +1,5 @@
 // Expected exit: 0. Build and Product preserve the exact Optional zero-home case.
-use omega::language::core::option;
+use omega::language::core::Optional;
 data Envelope { before: u64; some: Optional<u64>; none: Optional<u64>; after: u64; }
 machine default_is_none()
 ensures zero_value<Optional<u64>>() in Optional::None

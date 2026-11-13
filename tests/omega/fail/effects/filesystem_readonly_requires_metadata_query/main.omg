@@ -1,6 +1,8 @@
 // A read-modify-write permission request cannot hide its metadata query.
-use omega_language_std::filesystem;
-use omega::language::core::filesystem_authority;
+use omega_language_std::UnitResult;
+use omega_language_std::Permissions;
+use omega_language_std::FilesystemService;
+use omega::language::core::FilesystemMetadataMutation;
 
 machine mutate_without_query(path: &[u8] in Path) -> UnitResult
 reaches FilesystemMetadataMutation

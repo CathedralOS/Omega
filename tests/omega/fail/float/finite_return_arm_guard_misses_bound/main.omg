@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::from_f64;
 
 // Twin of pass/float/format_conversion_proved_finite_return_exit: each
 // returning arm's guard bounds the narrowed value from above only, so

@@ -1,5 +1,5 @@
 // Expected exit: 0
-use omega::language::core::representation;
+use omega::language::core::OpaqueRepresentation;
 public boundary data Token [copy];
 public data TokenBytes [copy] { value: u64; }
 public TokenRepresentation satisfies OpaqueRepresentation<Token, TokenBytes> { }

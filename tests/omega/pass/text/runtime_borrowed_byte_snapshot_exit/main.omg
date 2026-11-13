@@ -1,6 +1,6 @@
 // Expected exit: 0. Copy current descriptor contents into independent explicitly bounded
 // storage after proving capacity, through parameters, locals, fields and calls.
-use omega_language_std::console;
+use omega_language_std::Console;
 domain [u8]::SnapshotUtf8 requires valid_utf8(self);
 data View { text: &[u8] in SnapshotUtf8; }
 

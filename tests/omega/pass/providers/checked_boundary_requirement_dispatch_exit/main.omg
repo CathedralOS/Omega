@@ -2,7 +2,7 @@
 // reach. Build selects the checked adapter. The direct call stays on that
 // trait through Terminal Psi, and both engines return the adapter's result.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait CheckedMath {
     machine offset_zero(value: i32) -> i32

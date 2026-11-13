@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // Value-CALL TERMINALS (2026-07-11): a free value-machine call as a
 // transition's terminal value (`-> (sin(x + k))`) or a trailing implicit
@@ -11,8 +10,8 @@ use omega::language::core::float_operations;
 // single-state (72 on miss), multi-state acyclic (73), multi-state cyclic
 // through std math (74). Guarded arms still fence -- the hoist is gated to
 // ALWAYS arms so an effectful callee cannot run for a not-taken arm.
-use omega::language::core::math;
-use omega_language_std::console;
+use omega::language::core::sin;
+use omega_language_std::Console;
 data Main { }
 machine dbl(x: i32) -> i32
 requires 0 <= x && x <= 1000

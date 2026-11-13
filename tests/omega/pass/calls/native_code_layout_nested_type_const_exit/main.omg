@@ -1,7 +1,7 @@
 machine describe<T, const Salt: u64>() -> CodeLayout { code_layout<selected<T, Salt>>() }
 // The exact selected executable application supplies a nonzero native entry and finite attributed code regions at runtime.
 // Expected exit: 0
-use omega::language::core::code_layout;
+use omega::language::core::CodeLayout;
 machine selected<T, const Salt: u64>(value: T) -> T { value }
 machine inspect(layout: &CodeLayout) -> bool
 terminates

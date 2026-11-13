@@ -2,7 +2,7 @@
 // copied aggregate arguments need independent whole-result storage per emitted
 // producer instance, while exactly one RHS executes for each source equality.
 // [copy] preserves the source packet (language/ownership.md: Multiplicity).
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Packet [copy] { value: bool; stamp: u64; }
 data Main {

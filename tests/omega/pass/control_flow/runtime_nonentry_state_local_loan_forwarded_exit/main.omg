@@ -10,7 +10,7 @@
 // exits: 70 = both writes reached the shared storage; 71 = the entry guard
 // failed; 72 = bump read the wrong value; 73 = settle read the wrong value.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Score { value: u64 in Wrapping; bonus: u64 in Wrapping; }
 

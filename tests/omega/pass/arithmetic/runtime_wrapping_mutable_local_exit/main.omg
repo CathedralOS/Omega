@@ -1,5 +1,5 @@
 // Zeroed local storage and successive writes preserve wrapping arithmetic.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

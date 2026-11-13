@@ -5,7 +5,7 @@
 // would be the full i32 range and the add would be rejected as a possible
 // overflow. `compute(35)` -> 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }
