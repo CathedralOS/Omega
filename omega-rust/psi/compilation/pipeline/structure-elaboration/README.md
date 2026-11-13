@@ -425,6 +425,14 @@ serves:
 - a `requires` on the declaration, over `self` and its fields
   ([Data `requires`](#data-requires)).
 
+Data with no field and no case, `data Token {}`, is a record whose roster is
+empty. A value of it is established by `Token {}` or by a local declared
+without an initializer, copied or moved by the same rule as any record, and
+is a field, an argument and the referent of a reference like one. It has no
+leaf, so nothing reads from it and no write log row speaks of it; that a
+value which is not `[copy]` moves once is the custody replay's judgment
+(`terminal_semantics::plain_affine`), which works on places, not leaves.
+
 `[copy]` is required, not inferred
 ([ownership](../../../../../wiki/spec/language/ownership.md): "A record still
 requires an explicit `[copy]` declaration; copyable fields do not change the
@@ -590,7 +598,7 @@ the slice that serves it:
 | linear data, or data with a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
 | a lifetime binder stated twice, a lifetime application with another count of arguments than its declaration's binders or with a tag its owner does not declare, a field that names lifetime-parameterised data without its arguments | `typing data that declares a lifetime twice`, `typing lifetime argument count differs from the data declaration's`, `typing lifetime argument its owner does not declare`, `typing data field that elides a lifetime argument` |
-| data with type, const or machine parameters, an instance of such data, quotient or opaque data, data with a carry policy, an erased field, retired field identities or no field | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities`, `type data without fields` |
+| data with type, const or machine parameters, an instance of such data, quotient or opaque data, data with a carry policy, an erased field or retired field identities | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities` |
 | a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
