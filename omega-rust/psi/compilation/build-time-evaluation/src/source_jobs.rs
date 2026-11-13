@@ -704,6 +704,7 @@ mod tests {
             .expect("actual measured byte invocation");
         assert_eq!(measured.value(), &bytes);
         assert!(measured.usage().work_units > 0);
+        assert!(measured.usage().result_payload_bytes >= 3);
         assert!(accounting.has_complete_usage());
         accounting
             .validate_charges()
@@ -723,6 +724,22 @@ mod tests {
             receipt
                 .admission()
                 .require_invocation(receipt.program().view(), "windows_x86_64", selected)
+                .is_err()
+        );
+        let another = entry
+            .accept_invocation(receipt.arguments())
+            .expect("another actual caller");
+        let another = entry
+            .produce_invocation(&another)
+            .expect("another invocation-local code owner");
+        assert!(
+            receipt
+                .admission()
+                .require_invocation(
+                    another.view(),
+                    target().name,
+                    another.view().module().entry.unwrap()
+                )
                 .is_err()
         );
         let error =
