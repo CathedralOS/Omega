@@ -5,9 +5,16 @@ Host: `cursor`. Generated: 2026-11-12 15:53 UTC.
 
 ## Verdict rules (shard aggregation)
 
-Route **accepted** only when every root (`compilation` and each `machine:…` from `--every-machine`) is judged `accepted`.
-**partial** when any root accepts while another is outside, errored, or otherwise not judged; partial is outside the agreement denominator.
-**Soundness watch** = `route_verdict=accepted` and `current_verdict=rejected` (checker rejection, not `stopped`).
+Per-root verdicts live in TSV columns `roots` and `vacuous_accept_roots`. Raw harness output is under `/tmp/four-jobs-route-coverage-shard-3/` (not in git).
+
+| Rule | `route_verdict` |
+| --- | --- |
+| Any root `rejected` | `rejected` |
+| Every root `accepted` | `accepted` |
+| `accepted` mixed with outside/unjudged/no-entry (no `rejected`) | `partial` |
+| No accepting root | `outside` |
+
+**Soundness watch** = `route_verdict=accepted` and `current_verdict=rejected`.
 
 ## Commands
 
@@ -28,15 +35,19 @@ One fixture per process, serial on this VM (`tools/build_slot.md`).
 | Metric | Count |
 | --- | ---: |
 | Fixtures in shard | 2174 |
-| Route judged (accepted + rejected) | 96 |
-| Route partial | 205 |
+| Route accepted | 34 |
+| Route rejected | 78 |
+| Route partial | 189 |
 | Route outside | 1873 |
+| Rows with vacuous accept root | 200 |
+| Vacuous accept roots (total) | 250 |
 | Route timeout | 0 |
 | Route error | 0 |
-| Agreement agree | 75 |
+| Agreement agree | 91 |
 | Agreement disagree | 21 |
-| Agreement n-a (outside/partial/timeout/error) | 2078 |
+| Agreement n-a | 2062 |
 | Soundness watch (route✓ current✗) | 0 |
+| **Sum (fixtures)** | **2174** |
 
 No soundness-watch rows after partial-aware aggregation.
 
