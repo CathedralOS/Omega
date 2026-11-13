@@ -3188,7 +3188,7 @@ pub(crate) mod recursive_tail_calls {
         }
         if call.receiver.is_valid()
             && !matches!(expressions.expression(call.receiver), ExpressionNode::Name(receiver)
-            if identity.owner.is_valid() && receiver.symbol == identity.owner)
+            if !receiver.static_application.is_valid() && identity.owner.is_valid() && receiver.symbol == identity.owner)
         {
             return None;
         }

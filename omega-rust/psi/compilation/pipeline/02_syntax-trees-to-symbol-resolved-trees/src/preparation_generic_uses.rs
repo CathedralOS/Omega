@@ -1599,9 +1599,12 @@ mod patterns {
                         return None;
                     };
                     let closed = match syntax.expressions.expression(membership.value) {
-                        ExpressionNode::Name(subject_path) => {
-                            let [subject] =
-                                syntax.expressions.identifier_path_members(*subject_path)
+                        ExpressionNode::Name(subject_path)
+                            if subject_path.application.is_none() =>
+                        {
+                            let [subject] = syntax
+                                .expressions
+                                .identifier_path_members(subject_path.members)
                             else {
                                 return None;
                             };

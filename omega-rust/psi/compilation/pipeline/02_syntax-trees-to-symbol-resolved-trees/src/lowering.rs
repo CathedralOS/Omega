@@ -1183,9 +1183,10 @@ pub(crate) mod expression {
             && call.receiver.is_valid()
             && let syntax::expression::ExpressionNode::Name(receiver) =
                 syntax_trees.expressions.expression(call.receiver)
+            && receiver.application.is_none()
         {
             let mut path = syntax_expressions(syntax_trees)
-                .identifier_path_members(*receiver)
+                .identifier_path_members(receiver.members)
                 .iter()
                 .map(|value| lower_name(syntax_trees, value))
                 .collect::<Vec<_>>();

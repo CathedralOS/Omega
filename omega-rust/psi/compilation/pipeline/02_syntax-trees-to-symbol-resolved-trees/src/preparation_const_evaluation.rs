@@ -2193,7 +2193,13 @@ mod facts {
         else {
             return Ok(None);
         };
-        let [parameter_name] = syntax.expressions.identifier_path_members(*value_path) else {
+        if value_path.application.is_some() {
+            return Ok(None);
+        }
+        let [parameter_name] = syntax
+            .expressions
+            .identifier_path_members(value_path.members)
+        else {
             return Ok(None);
         };
         let Some(value) = parameter_values.get(parameter_name.as_str(syntax)).copied() else {

@@ -2499,7 +2499,10 @@ pub(crate) mod statements {
             else {
                 return Ok(None);
             };
-            let owner = exprs_of(syntax_trees).identifier_path_members(*owner);
+            if owner.application.is_some() {
+                return Ok(None);
+            }
+            let owner = exprs_of(syntax_trees).identifier_path_members(owner.members);
             if !matches!(owner, [name] if name.as_str(syntax_trees) == "Build") {
                 return Ok(None);
             }

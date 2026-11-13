@@ -215,7 +215,9 @@ pub(in crate::symbols) mod projected_receivers {
                         member.receiver
                     }
                     ExpressionNode::Borrow(borrow) => borrow.target,
-                    ExpressionNode::Name(name) => break name,
+                    ExpressionNode::Name(name) if !name.static_application.is_valid() => {
+                        break name;
+                    }
                     _ => return None,
                 };
             };

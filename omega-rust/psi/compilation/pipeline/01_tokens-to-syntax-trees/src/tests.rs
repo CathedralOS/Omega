@@ -5238,7 +5238,8 @@ pub(crate) mod items_and_selections {
                         panic!("direct receiver identity lost");
                     };
                     assert_eq!(
-                        parsed.expressions.identifier_path_members(*receiver)[0].as_str(&parsed),
+                        parsed.expressions.identifier_path_members(receiver.members)[0]
+                            .as_str(&parsed),
                         "other"
                     );
                 }
@@ -5664,7 +5665,7 @@ pub(crate) mod items_and_selections {
         assert_eq!(
             parsed
                 .expressions
-                .identifier_path_members(*mode)
+                .identifier_path_members(mode.members)
                 .iter()
                 .map(|member| member.as_str(&parsed))
                 .collect::<Vec<_>>(),
