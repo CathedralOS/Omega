@@ -4880,10 +4880,14 @@ pub(crate) mod selected_operands {
                 ExpressionNode::TypeExpression(reference) => {
                     let mut selected = self.static_operand_from_type_reference(*reference)?;
                     if !self.symbols.symbols().nodes().is_valid(selected.symbol)
-                        || !matches!(self.symbols.get(selected.symbol).kind,
-                            symbols::SymbolKind::Machine | symbols::SymbolKind::State)
+                        || !matches!(
+                            self.symbols.get(selected.symbol).kind,
+                            symbols::SymbolKind::Machine | symbols::SymbolKind::State
+                        )
                     {
-                        return Err("an applied declaration operand requires a machine or requirement");
+                        return Err(
+                            "an applied declaration operand requires a machine or requirement",
+                        );
                     }
                     // Keep the original supplying scope so the existing region
                     // owner can authenticate this exact selected application.

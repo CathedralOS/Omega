@@ -5,9 +5,7 @@
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
-use typed_trees::expression::{
-    ExpressionHandle, TableCallExpression,
-};
+use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use typed_trees::references::StaticArgumentCall;
 
 use super::Program;
@@ -212,7 +210,9 @@ impl Program<'_> {
                 "callable description requires exactly one declaration path",
             ));
         };
-        let selected = self.typed.declaration_operand_from_expression(*operand)
+        let selected = self
+            .typed
+            .declaration_operand_from_expression(*operand)
             .map_err(|reason| invalid(machine, reason))?;
         let author = StaticArgumentCall::Expression(ExpressionHandle::invalid(), call)
             .lexical_owner(self.typed);

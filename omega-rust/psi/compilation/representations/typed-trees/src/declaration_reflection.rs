@@ -149,11 +149,15 @@ pub mod reflection {
             }
             if selected.type_reference.is_valid()
                 && (!typed.symbols.symbols().nodes().is_valid(selected.symbol)
-                    || !matches!(typed.symbols.get(selected.symbol).kind, SymbolKind::Machine | SymbolKind::State))
+                    || !matches!(
+                        typed.symbols.get(selected.symbol).kind,
+                        SymbolKind::Machine | SymbolKind::State
+                    ))
             {
                 return Err("a callable description requires one declaration operand".into());
             }
-            let supplier = typed.static_operand_region_supplier(selected, lexical_owner)
+            let supplier = typed
+                .static_operand_region_supplier(selected, lexical_owner)
                 .map_err(str::to_owned)?;
             let mut normalized = std::borrow::Cow::Borrowed(selected);
             if selected.type_reference.is_valid() {

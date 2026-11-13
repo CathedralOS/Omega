@@ -581,9 +581,11 @@ mod tests {
     fn source_call_requests_keep_their_authored_operand_and_owner() {
         let source = with_reflection(
             "use omega::language::core::reflect;
+            data Cell<T> { value: T; }
             machine selected<T>(value: T) -> T { value }
             machine answer() -> reflect::CallableInfo { reflect::callable(selected<u32>) }
-            machine alternate() -> reflect::CallableInfo { reflect::callable(selected<u64>) }",
+            machine alternate() -> reflect::CallableInfo { reflect::callable(selected<u64>) }
+            machine not_callable() -> reflect::CallableInfo { reflect::callable(Cell<u32>) }",
         );
         let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
         let source = program.typed();
@@ -614,6 +616,18 @@ mod tests {
             descriptions.push(value.value().clone());
         }
         assert_ne!(descriptions[0], descriptions[1]);
+        let (requester, expression) = returned_source_call(source, "not_callable");
+        let mut meter = psi_work::WorkMeter::unbounded();
+        let error = program
+            .entry_call(requester, expression)
+            .unwrap()
+            .invoke(target(), &[], &mut meter)
+            .expect_err("an applied data declaration is not a callable declaration");
+        assert!(
+            error.contains("an applied declaration operand requires a machine or requirement"),
+            "{error}"
+        );
+        assert_eq!(meter.usage().total_units(), 0);
     }
 
     #[test]
