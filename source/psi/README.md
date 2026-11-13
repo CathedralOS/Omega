@@ -161,7 +161,7 @@ the retired authored state spelling and its separate syntax table are removed.
 
 Name resolution follows parsing over the compilation's source set
 ([`source/source.omg`](source/source.omg)): up to 64 packages, 256
-requester-local dependency edges and 128 units, each unit belonging to a
+requester-local dependency edges and 512 units, each unit belonging to a
 package and to the module its path names there (`a::b`), parsed into the
 shared syntax tables, with its position as its source id. Those tables are
 whole-program, sized above what the psi package fills: 4,096 roots, 1,024

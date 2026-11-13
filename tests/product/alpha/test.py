@@ -174,18 +174,18 @@ def domain_cast_cases():
  let mut unit:SourceUnit;
  let id:SourceId=SourceId{value:77 as u32 +Trapping};
  unit.length=19; unit.last_retained=false;
- (&mut unit.bytes as -Trapping)[0]=42;
+ unit.bytes[0]=42;
  source_unit_clear(&mut unit,id);
  transition (unit.id.value as -Trapping)==(id.value as -Trapping)
   && unit.length==0 && unit.last_retained
-  && (&unit.bytes as -Trapping)[0]==42 { true->42 false->1 }
+  && unit.bytes[0]==42 { true->42 false->1 }
 }"""
     refused('actual-SourceUnit-checked-before-storage-frontier', source_unit, 246)
     refused('SourceUnit-selector-still-owes-bounds',
             source_unit.replace(b'[0]=42', b'[131072]=42'), 247)
     refused('SourceUnit-view-keeps-shared-access',
-            source_unit.replace(b'(&mut unit.bytes as -Trapping)[0]=42',
-                                b'(&unit.bytes as -Trapping)[0]=42'), 249)
+            source_unit.replace(b'unit.bytes[0]=42',
+                                b'(&unit.bytes)[0]=42'), 249)
     refused('shared-reference-binding-does-not-make-referent-mutable',
             b'machine chosen()->u8{let mut bytes:[u8;1];let mut view:&[u8;1]=&bytes;view[0]=42;0}', 249)
     refused('chained-view-keeps-call-argument-loan', b"""

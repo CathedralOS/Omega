@@ -117,7 +117,8 @@ OMEGA_CLI=/absolute/path/to/fresh/omega OMEGA_TARGET=linux_x86_64 \
 Its executable cases exercise policy accounting and actual Alpha execution.
 The same invocation also packs the retained `SourceId`, `SourceUnit` and
 `source_unit_clear` declarations directly from their source owner, with a
-caller that removes the collection's policy through an explicit borrowed view.
-That customer must pass parsing, typing and checking before the existing
+caller that directly accesses the compiler's ordinary byte buffer. The compiler's
+private source-buffer helpers retain their explicit bounds; independent qualified
+array cases continue to check reference-view accounting. That customer must pass parsing, typing and checking before the existing
 storage-backend coverage refusal; it is not claimed as emitted by this scalar
 backend. Bound, shared-access and live-loan negatives must fail earlier.
