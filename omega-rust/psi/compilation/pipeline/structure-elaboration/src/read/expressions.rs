@@ -205,12 +205,10 @@ impl<'t> Program<'t> {
                 // this one node (`wiki/spec/language/numeric_values.md`,
                 // "Policy operators"). `Trapping` is no policy a type can
                 // carry here, so its form is refused by name.
-                use numerics::arithmetic::ArithmeticDomain;
-                let suffix = match binary.policy {
-                    ArithmeticDomain::Exact => None,
-                    ArithmeticDomain::Wrapping => Some(Policy::Wrapping),
-                    ArithmeticDomain::Saturating => Some(Policy::Saturating),
-                    ArithmeticDomain::Trapping => {
+                let suffix = match crate::policy::suffix(binary.policy) {
+                    crate::policy::Suffix::Unwritten => None,
+                    crate::policy::Suffix::Total(policy) => Some(policy),
+                    crate::policy::Suffix::Trapping => {
                         return unserved("Trapping policy operator");
                     }
                 };
@@ -760,32 +758,9 @@ fn suffixed_expression(
     source: SourceOrigin,
 ) -> Checked<Expression> {
     let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-    let shift = match operator {
-        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => true,
-        BinaryOperator::Add
-        | BinaryOperator::Subtract
-        | BinaryOperator::Multiply
-        | BinaryOperator::Divide
-        | BinaryOperator::Modulo => false,
-        BinaryOperator::And
-        | BinaryOperator::Or
-        | BinaryOperator::BitwiseAnd
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
-        | BinaryOperator::Equal
-        | BinaryOperator::NotEqual
-        | BinaryOperator::Less
-        | BinaryOperator::LessOrEqual
-        | BinaryOperator::Greater
-        | BinaryOperator::GreaterOrEqual
-        | BinaryOperator::CaseMembership => {
-            return Err(unserved(
-                "policy suffix on an operator that is neither arithmetic nor a shift",
-            ));
-        }
-    };
+    let shift = crate::policy::shifts(crate::policy::suffixed(operator).map_err(unserved)?);
     if anonymous == (true, true) {
-        return Err(unserved("policy operator on a wholly anonymous tree"));
+        return Err(unserved(crate::policy::WHOLLY_ANONYMOUS));
     }
     let under_policy = |operand: Expression| match operand.result {
         Some(ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE)) => {
@@ -795,9 +770,7 @@ fn suffixed_expression(
                 source,
             })
         }
-        _ => Err(unserved(
-            "policy operator on an operand that is not an unqualified integer",
-        )),
+        _ => Err(unserved(crate::policy::QUALIFIED_OPERAND)),
     };
     let left = if anonymous.0 {
         left

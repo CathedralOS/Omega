@@ -12,6 +12,10 @@ data Cell {
     value: u64;
 }
 
+data Other {
+    value: u64;
+}
+
 CellAccess satisfies AccessPolicy {
     machine plan(schema: Schema) -> AccessPlan {
         let mut entries: [FieldEntry; 64];
@@ -21,9 +25,21 @@ CellAccess satisfies AccessPolicy {
     }
 }
 
+NumericAccess<const Count: u64> satisfies AccessPolicy {
+    AccessPolicy::plan = CellAccess::plan;
+}
+
 domain Cell::Controlled
     requires self.value <= 100
     access CellAccess<Cell>;
+
+domain Other::Controlled
+    requires self.value <= 100
+    access CellAccess<Cell>;
+
+domain Cell::Counted
+    requires self.value <= 100
+    access NumericAccess<7>;
 
 domain Cell::Plain
     requires self.value <= 100;

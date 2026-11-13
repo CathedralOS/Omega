@@ -76,20 +76,12 @@ fn refused_with(name: &str, machines: &str, expected: &str) {
     );
 }
 
-/// The control: nothing in the shared Build script is refused, so every
+/// The control: the shared Build script is accepted and runs, so every
 /// refusal below belongs to the machine its twin adds.
 #[test]
-fn a_build_script_that_only_uses_the_build_it_was_lent_is_not_refused_for_it() {
-    // Until the refusal that stood in for this protection is removed, a
-    // Build program the checker accepts stops at it and nowhere earlier.
-    assert_eq!(
-        refusals("control", ""),
-        [
-            "no product route yet: Build activation: the compiler-owned `Build` value is not yet protected from forging by its declaration"
-        ]
-    );
+fn a_build_script_that_only_uses_the_build_it_was_lent_runs() {
+    assert_eq!(refusals("control", ""), Vec::<String>::new());
 }
-
 /// Every field written out, the seal as a literal. A literal constructs the
 /// bare `BuildSeal`, which is not a `BuildSeal in Issued`.
 #[test]

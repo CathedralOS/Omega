@@ -52,6 +52,7 @@ mod declare;
 mod lower;
 mod names;
 mod outcome;
+mod policy;
 mod proof_scope;
 mod read;
 
@@ -653,6 +654,7 @@ fn finish_reading(
         body::Signatures {
             machines: &program.signatures,
             boundaries: &program.boundary_signatures,
+            completions: &program.boundary_completions,
         },
         &program.records,
         &program.requirements,
@@ -726,6 +728,7 @@ pub fn lower_generic(
         body::Signatures {
             machines: signatures,
             boundaries: &IdTable::default(),
+            completions: &IdTable::default(),
         },
         records,
         requirements,
@@ -949,6 +952,7 @@ mod publication_scope_tests {
                 body::Signatures {
                     machines: &signatures,
                     boundaries: &IdTable::default(),
+                    completions: &IdTable::default(),
                 },
                 &IdTable::default(),
                 &[],

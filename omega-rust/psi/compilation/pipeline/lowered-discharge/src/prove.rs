@@ -66,7 +66,8 @@ const CASE_BRANCH_BUDGET: usize = 64;
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
 /// conjunctions and disjunctions of covered parts, an implication whose
-/// conclusion is covered, integer orders and equalities, a comparison of two
+/// conclusion is covered, integer orders and equalities over terms the rules
+/// bound (`reach::within_rules`), a comparison of two
 /// closed mathematical terms, and an arithmetic bound of one add, subtract,
 /// multiply, left shift or single value against a literal. Anything else the
 /// prover can only take from an equal hypothesis, so a failure on it says
@@ -86,9 +87,13 @@ fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
         }
         // The premise is only assumed; the conclusion is what is proved.
         Proposition::Implication { conclusion, .. } => covered(conclusion, fixed),
-        Proposition::LessOrEqual(left, _)
-        | Proposition::LessThan(left, _)
-        | Proposition::Equal(left, _) => matches!(left.scalar_type(), ScalarType::Integer(_)),
+        Proposition::LessOrEqual(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::Equal(left, right) => {
+            matches!(left.scalar_type(), ScalarType::Integer(_))
+                && reach::within_rules(left)
+                && reach::within_rules(right)
+        }
         // A comparison of two closed terms is the kernel's to evaluate
         // (`Prover::closed`), whatever its relation.
         Proposition::IntegerMathEqual(left, right)

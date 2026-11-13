@@ -652,7 +652,6 @@ refuses, by name, what the slice does not serve:
 | an argument for a borrowed formal that is not a borrow, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
 | `&mut` of a binding that is not `mut` (an exclusive reborrow of a shared reference is the checker's conflict) | `call exclusive loan of an immutable binding` |
 | another argument of the same call that names a lent slot (`f(&mut a, a)`): the lowered form forms every loan at the call, so it does not say that the read runs while the loan is live | `call argument that names storage another argument lends` |
-| a call that never returns and lends storage | `call no-normal call that lends storage` |
 | a loan that would give an SSA local a home inside the right of `&&` or `||` or a value `match` arm, so on some paths only | `call loan of a value local on some paths only` |
 | `let r = reference;` without a declared type, and whole assignment through a record reference | `statement local bound to a reference without a declared type`, `statement whole assignment through a reference` |
 | an `ensures` or crash guard that names a borrowed formal: what it holds at the return is a version no slice states yet | `contract clause that names a borrowed formal outside requires`, `contract clause that projects a formal or result` |
@@ -916,6 +915,38 @@ crash with is the least fixed point over the call graph
 and the bodies are walked until nothing changes. A machine whose every path
 calls it again never completes, and a call of it is an `InvokeNoNormal`
 terminator (control flow: "An infinite path has no normal return").
+
+**Calls that do not return.** One fact decides whether a call has a
+continuation: a machine's derived outcome, or a boundary requirement's
+declared completion, which the typed trees own
+(`boundary_completions::boundary_requirement_completion`) and the reader
+records beside the requirement's signature (`Signatures::completions`). The
+canonical process-exit requirement is the one requirement that completes
+externally ([process exit](../../../../../wiki/spec/language/process_exit.md):
+"It produces no normal result or continuation and permits no source crash").
+It is the leaf of the same fixed point: a machine whose every path ends in an
+exit never completes, and its callers end in `InvokeNoNormal`.
+
+Lowering has one path for a call with no continuation
+(`lower/calls.rs`, `invoke_no_normal`), as it has one for a call that
+returns: arguments left to right, the invocation row and its
+`CallRequirement` obligations at the point before, then the terminator, an
+`InvokeNoNormal` for a machine and an `ExternalCompletion` naming the
+requirement and its completion kind for a boundary
+([calls and outcomes](../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#external-process-exit):
+"a terminal transfer retaining the exact requirement and ordered arguments,
+with no normal successor, return postconditions, or implicit cleanup"). Its
+edge goes to `Destination::NoNormal`. Nothing of the machine runs after it,
+so no home is retired and no cleanup is emitted there. A loan the call
+carries is formed at the point before it like any call's and is handed to
+the transfer: the edge's one kind of disposition is `Fate::Consumed` for each
+such loan ([state contracts](../../../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
+"A caller-local loan carried into a terminal machine call closes at the last
+use of that loan and of every loan derived from it, even when that use is
+inside the callee's terminal chain"). An external completion whose
+declaration states a crash route is refused (`call external completion that
+declares a crash route`). A call with no continuation anywhere but terminal
+position, and any statement after one, is refused, not dropped.
 
 No `ranked_scc` is written: these cycles promise nothing.
 

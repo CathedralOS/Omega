@@ -216,7 +216,7 @@ pub(crate) fn boundary(
         numeric_intrinsic: None,
         role: terminal_psi::BoundaryDeclarationRole::Callable,
         kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
-        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+        completion: signatures.completion(id, caller)?,
         unconditional_termination: signature.termination != crate::Termination::Silent,
         attachment: None,
         parameter_order: formals.order,

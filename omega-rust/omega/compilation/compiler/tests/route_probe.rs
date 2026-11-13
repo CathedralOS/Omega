@@ -133,6 +133,115 @@ fn an_operator_suffix_chooses_the_policy_of_one_operation() {
     }
 }
 
+/// A suffixed operator in `requires` or `ensures` means what it means in a
+/// body (`wiki/spec/language/domains.md`, "Operands": "The rule is the same
+/// in executable code, `requires` and `ensures`"), and the Wrapping and
+/// Saturating add, subtract and multiply are total, so each forms a term
+/// (`wiki/spec/proofs/contracts.md`, "Total arithmetic").
+///
+/// A guarantee that states the Wrapping sum is established by a body that
+/// computes it. A body that computes the Saturating sum does not establish
+/// it, and a caller that knows nothing of its arguments does not establish a
+/// `requires` over a Wrapping sum: the term is never read as the other
+/// policy's or as Exact arithmetic. Neither failing program is `rejected`:
+/// the prover has no rule that says what a Wrapping or Saturating operation
+/// computes, so a goal over one that has no derivation is `incomplete`, as a
+/// goal over a value a body computes by one already is.
+///
+/// Refused by name: `+!`, which "can transfer control" and "cannot form a
+/// proof term"; `/%`, which still owes its divisor before it is total; and
+/// an operand whose type carries a policy, since both operands of a suffixed
+/// operator are unqualified.
+#[test]
+fn a_suffixed_operator_in_a_contract_is_the_operation_a_body_computes() {
+    let pair = |contract: &str, body: &str| {
+        format!(
+            "machine spare(left: u32, right: u32) -> u32 {contract} {{ {body} }}
+             machine main() {{ }}
+"
+        )
+    };
+    let gate = |clause: &str, caller: &str| {
+        format!(
+            "machine gate(left: u32, right: u32) requires {clause} {{ }}
+             {caller}
+"
+        )
+    };
+    let mut wrong = Vec::new();
+    for (name, source, expected) in [
+        (
+            "ensures_wrapping_sum",
+            pair("ensures result == left +% right", "left +% right"),
+            "accepted",
+        ),
+        (
+            "ensures_wrapping_sum_of_saturating_body",
+            pair("ensures result == left +% right", "left +| right"),
+            "incomplete",
+        ),
+        (
+            "ensures_saturating_product",
+            pair("ensures result == left *| right", "left *| right"),
+            "accepted",
+        ),
+        (
+            "requires_wrapping_sum_established",
+            gate(
+                "left +% right == right +% left",
+                "machine main() { gate(3, 4) }",
+            ),
+            "accepted",
+        ),
+        (
+            "requires_wrapping_sum_unestablished",
+            gate(
+                "left +% right == 8",
+                "machine spare(left: u32, right: u32) { gate(left, right) }
+machine main() { }",
+            ),
+            "incomplete",
+        ),
+        (
+            "ensures_trapping_sum",
+            pair("ensures result == left +! right", "left +% right"),
+            "contract Trapping policy operator in a clause, where an operation that can crash forms no term",
+        ),
+        (
+            "ensures_wrapping_quotient",
+            pair(
+                "requires right > 0 ensures result == left /% right",
+                "left /% right",
+            ),
+            "contract policy operator in a clause term that owes a condition before it is total",
+        ),
+        (
+            "requires_policy_qualified_operand",
+            "machine spare(left: u32 in Wrapping, right: u32) requires left +% right == right { }
+             machine main() { }
+"
+            .to_string(),
+            "contract policy operator on an operand that is not an unqualified integer",
+        ),
+    ] {
+        // A refusal is compared with the reason it names.
+        let judged: Vec<String> = judged(name, &source)
+            .iter()
+            .map(|verdict| match verdict {
+                Ok(RouteVerdict::Accepted(_)) => "accepted".to_string(),
+                Ok(RouteVerdict::Rejected { .. }) => "rejected".to_string(),
+                Ok(RouteVerdict::Incomplete(_)) => "incomplete".to_string(),
+                Ok(RouteVerdict::FallBack(refusal)) => refusal.detail.clone(),
+                Err(_) => "defect".to_string(),
+            })
+            .collect();
+        if judged != [expected] {
+            wrong.push(format!("{name}: {judged:?}, expected {expected}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
 #[test]
 fn an_uncalled_defect_of_a_standalone_program_is_rejected() {
     assert_eq!(
@@ -323,5 +432,134 @@ fn an_import_without_its_dependency_edge_selects_nothing() {
         stopped.iter().any(|message| message
             .contains("import `omega_language_std::Console` does not select one declaration")),
         "{stopped:?}"
+    );
+}
+
+const EXIT_PROGRAM: &str = "tests/fixtures/run/calls/process_exit_conditional_helper";
+
+/// The verdict word of each judged part of the kept program in `directory`,
+/// with `entry_start` bound and no dependency: core is bundled.
+fn exit_verdicts(directory: &str) -> Vec<&'static str> {
+    judged_with_dependencies(directory, "entry_start", &[])
+        .unwrap_or_else(|stopped| panic!("Psi 00 through 04 must complete: {stopped:?}"))
+        .iter()
+        .map(|verdict| match verdict {
+            Ok(RouteVerdict::Accepted(_)) => "accepted",
+            Ok(RouteVerdict::Rejected { .. }) => "rejected",
+            Ok(RouteVerdict::Incomplete(_)) => "incomplete",
+            Ok(RouteVerdict::FallBack(_)) => "not-supported",
+            Err(_) => "defect",
+        })
+        .collect()
+}
+
+/// The program ends through `ProcessExit::exit_process`, the boundary
+/// requirement that has no normal return. The call is the last thing its
+/// block does: `main` never returns, so the storage the entry lends it is
+/// carried into that call, and the helper that exits on one arm owes its
+/// guarantee on the other arm alone.
+#[test]
+fn a_program_that_ends_through_process_exit_is_judged() {
+    let parts = judged_with_dependencies(EXIT_PROGRAM, "entry_start", &[])
+        .unwrap_or_else(|stopped| panic!("Psi 00 through 04 must complete: {stopped:?}"));
+    let [Ok(RouteVerdict::Accepted(closure))] = &parts[..] else {
+        panic!("the entry closure accepted: {parts:?}");
+    };
+    // Each exit is a terminator that names the requirement, never a call
+    // operation with a continuation, and the requirement's declaration
+    // states the same completion.
+    let module = &closure.elaboration.module;
+    let exits = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .filter(|block| {
+            matches!(
+                block.terminator,
+                terminal_psi::Terminator::ExternalCompletion {
+                    kind: semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+                    ..
+                }
+            )
+        })
+        .count();
+    assert_eq!(exits, 2, "`require_success` and `main` each exit once");
+    assert!(module.boundary_machines.iter().all(|boundary| {
+        boundary.completion
+            == semantic_vocabulary::BoundaryCompletion::External(
+                semantic_vocabulary::ExternalCompletionKind::ProcessExit,
+            )
+    }));
+    assert!(
+        module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .all(|operation| !matches!(
+                operation.kind,
+                terminal_psi::OperationKind::BoundaryCall { .. }
+            )),
+        "no exit is lowered as a call that returns"
+    );
+}
+
+/// Its twin differs only in `main`'s ceiling, `reaches none`. The exit is
+/// charged its requirement's `reaches ProcessExit` where every call is, so
+/// the program is rejected.
+#[test]
+fn a_process_exit_outside_the_written_reach_is_rejected() {
+    assert_eq!(
+        exit_verdicts("tests/fixtures/fail/calls/process_exit_outside_reach"),
+        ["rejected"]
+    );
+}
+
+/// Its twin differs only in the helper's guard, so the arm that returns is
+/// the one where the status is not zero. An arm that exits takes nothing
+/// away from the arm that returns: that arm still owes `ensures status == 0`,
+/// and the program is rejected.
+#[test]
+fn a_returning_arm_beside_a_process_exit_still_owes_its_guarantee() {
+    assert_eq!(
+        exit_verdicts("tests/fixtures/fail/calls/process_exit_returning_arm_breaks_guarantee"),
+        ["rejected"]
+    );
+}
+
+/// `finish` never returns, and the entry lends it two locals. Each loan is
+/// formed at the call like any call's and carried into it: the call's edge
+/// consumes exactly those two loans.
+#[test]
+fn a_call_that_never_returns_carries_the_storage_it_is_lent() {
+    let parts = judged_with_dependencies(
+        "tests/fixtures/run/calls/non_returning_call_lends_storage",
+        "entry_start",
+        &[],
+    )
+    .unwrap_or_else(|stopped| panic!("Psi 00 through 04 must complete: {stopped:?}"));
+    let [Ok(RouteVerdict::Accepted(closure))] = &parts[..] else {
+        panic!("the entry closure accepted: {parts:?}");
+    };
+    let consumed = closure
+        .elaboration
+        .tables
+        .machines
+        .values()
+        .flat_map(|tables| tables.edges.values())
+        .flat_map(|edge| &edge.dispositions)
+        .filter(|disposition| disposition.fate == terminal_check_tables::edges::Fate::Consumed)
+        .count();
+    assert_eq!(consumed, 2, "one consumed loan per borrowed argument");
+}
+
+/// Its twin lends the same local twice, mutably. The loans of a call that
+/// never returns are judged by the rule every call's are, so the second
+/// conflicts with the first and the program is rejected.
+#[test]
+fn a_call_that_never_returns_may_not_be_lent_one_place_twice() {
+    assert_eq!(
+        exit_verdicts("tests/fixtures/fail/borrows/non_returning_call_lends_twice"),
+        ["rejected"]
     );
 }
