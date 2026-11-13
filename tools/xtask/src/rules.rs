@@ -1,7 +1,6 @@
 //! Repository admission rules (`cargo xtask check-rules`):
 //! - Per-file count ratchets (`source_text_reads.txt`, `contract_status_phrases.txt`,
-//!   `stage06_shape_gates.txt`, `stage06_source_context.txt`, `dense_id_maps.txt`,
-//!   `cache_state.txt`)
+//!   `dense_id_maps.txt`, `cache_state.txt`)
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
 //! - Discrete `TASKS.md` board shape
 //! - Historical corpus rows and runnable fixture reclassification
@@ -20,9 +19,6 @@ use crate::repo_root;
 const RUST_ROOT: &str = "omega-rust";
 const READS_BASELINE: &str = "tools/source_text_reads.txt";
 const STATUS_BASELINE: &str = "tools/contract_status_phrases.txt";
-const STAGE06_ROOT: &str = "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi";
-const SHAPE_GATE_BASELINE: &str = "tools/stage06_shape_gates.txt";
-const SOURCE_CONTEXT_BASELINE: &str = "tools/stage06_source_context.txt";
 const SEMANTIC_IDS: &str = "omega-rust/psi/foundation/semantic-vocabulary/src/identity.rs";
 const DENSE_MAP_BASELINE: &str = "tools/dense_id_maps.txt";
 const CACHE_STATE_BASELINE: &str = "tools/cache_state.txt";
@@ -200,13 +196,6 @@ fn product_rust_files(root: &Path) -> Vec<PathBuf> {
             !has_test_dir && !is_test_filename(name)
         })
         .collect()
-}
-
-fn stage06_files(root: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    collect_files_with_ext(&root.join(STAGE06_ROOT), root, "rs", &mut out);
-    out.sort();
-    out
 }
 
 fn contract_files(root: &Path) -> Vec<PathBuf> {
@@ -460,68 +449,7 @@ pub fn count_status_phrases(text: &str) -> usize {
     count
 }
 
-// --- 3. Psi 06 shape gates & 4. Psi 06 source context ---
-
-pub fn count_shape_gates_exact(text: &str) -> usize {
-    let bytes = text.as_bytes();
-    let mut count = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        let mut step = 1;
-        for pat in ["unsupported(", "Unsupported", "unpinned("] {
-            if bytes[i..].starts_with(pat.as_bytes()) {
-                count += 1;
-                step = pat.len();
-                break;
-            }
-        }
-        i += step;
-    }
-    count
-}
-
-pub fn count_source_context(text: &str) -> usize {
-    // `\b(?:Frozen)?TypedTrees\b|\btyped_trees::expression\b|\.typed\b`
-    let bytes = text.as_bytes();
-    let mut count = 0;
-    let mut i = 0;
-    while i < bytes.len() {
-        let mut step = 1;
-        for pat in ["FrozenTypedTrees", "TypedTrees"] {
-            if bytes[i..].starts_with(pat.as_bytes())
-                && (i == 0 || !is_ident_byte(bytes[i - 1]))
-                && !is_ident_byte(*bytes.get(i + pat.len()).unwrap_or(&b' '))
-            {
-                count += 1;
-                step = pat.len();
-                break;
-            }
-        }
-        if step == 1
-            && bytes[i..].starts_with(b"typed_trees::expression")
-            && (i == 0 || !is_ident_byte(bytes[i - 1]))
-            && !is_ident_byte(
-                *bytes
-                    .get(i + "typed_trees::expression".len())
-                    .unwrap_or(&b' '),
-            )
-        {
-            count += 1;
-            step = "typed_trees::expression".len();
-        }
-        if step == 1
-            && bytes[i..].starts_with(b".typed")
-            && !is_ident_byte(*bytes.get(i + ".typed".len()).unwrap_or(&b' '))
-        {
-            count += 1;
-            step = ".typed".len();
-        }
-        i += step;
-    }
-    count
-}
-
-// --- 5. Product text stripping, Dense-ID maps, and 6. Cache state ---
+// --- 3. Product text stripping, Dense-ID maps, and 4. Cache state ---
 
 pub fn product_text(text: &str) -> String {
     // Strip `//[^\n]*` first
@@ -1811,28 +1739,6 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
         advice: "Contracts state rules; record where the implementation stands as a remaining bullet on the owning TASKS.md item, and phrase the rule without it.",
     },
     RatchetSpec {
-        baseline: SHAPE_GATE_BASELINE,
-        flag: "update-shape-gates",
-        noun: "Psi 06 shape gates",
-        header: &[
-            "Psi 06 shape gates (unsupported(, Unsupported, unpinned() per file.",
-            "Counts may only fall: Psi 06 is a mechanical lowering of Psi 05's plans",
-            "(TASKS.md owner ruling 2026-10-04; LOC-VALUE-CUSTODY retires these gates).",
-        ],
-        advice: "Psi 06 lowers Psi 05's plans without re-checking them (TASKS.md owner ruling 2026-10-04): record the missing decision on the Psi 05 plan and lower it, or reject the program in checking with a reject twin.",
-    },
-    RatchetSpec {
-        baseline: SOURCE_CONTEXT_BASELINE,
-        flag: "update-source-context",
-        noun: "Psi 06 source-context reads",
-        header: &[
-            "Psi 06 reads of source context (TypedTrees, typed_trees::expression,",
-            ".typed) per file. Counts may only fall: stages do not reconstruct missing",
-            "input facts (omega-rust/pipeline.md \"Public contracts\").",
-        ],
-        advice: "Stages cannot reconstruct missing input facts from source context (omega-rust/pipeline.md \"Public contracts\"): read the fact from the Psi 05 plan, and record it there when Psi 05 does not yet publish it.",
-    },
-    RatchetSpec {
         baseline: DENSE_MAP_BASELINE,
         flag: "update-dense-id-maps",
         noun: "maps keyed by dense IDs",
@@ -1878,9 +1784,8 @@ pub fn compute_ratchet_counts(
     let files = match index {
         0 => rust_files(root),
         1 => contract_files(root),
-        2 | 3 => stage06_files(root),
-        4 | 5 => product_rust_files(root),
-        6 => product_rust_files(root)
+        2 | 3 => product_rust_files(root),
+        4 => product_rust_files(root)
             .into_iter()
             .filter(|path| {
                 path.strip_prefix(root)
@@ -1898,11 +1803,9 @@ pub fn compute_ratchet_counts(
         let c = match index {
             0 => count_source_reads(&text),
             1 => count_status_phrases(&text),
-            2 => count_shape_gates_exact(&text),
-            3 => count_source_context(&text),
-            4 => count_dense_id_maps(&text, semantic_ids),
-            5 => count_cache_state(&text),
-            6 => count_place_transport(&text),
+            2 => count_dense_id_maps(&text, semantic_ids),
+            3 => count_cache_state(&text),
+            4 => count_place_transport(&text),
             _ => 0,
         };
         if c > 0

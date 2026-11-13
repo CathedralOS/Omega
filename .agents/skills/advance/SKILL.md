@@ -79,8 +79,8 @@ that already has one, widen that mechanism and make the general fix in this PR.
 1. **Generalize the mechanism end to end:** Apply
    [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering)
    and the [decision-making framing](../../../AGENTS.md#decision-making-framing-for-compiler-completion)
-   (fail-closed semantics, exact projected-path scoping, full `Psi 05 -> 06 -> 08 -> Native`
-   carry-through).
+   (fail-closed semantics, exact projected-path scoping, full lowered-form checker
+   `-> 08 -> Native` carry-through).
 2. **Write inline design reasoning:** At the module entry or decision site,
    document why the mechanism fits and what invariant holds so the next reader
    does not have to reconstruct it.

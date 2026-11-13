@@ -12,7 +12,6 @@
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering_scalars.rs
 3 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering_storage.rs
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/native_execution_scope.rs
-4 omega-rust/omega/compilation/representations/abstract-operations/verified-input/src/native_execution_scope.rs
 3 omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/control_flow_analyses.rs
 4 omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/control_flow_cleanup.rs
 21 omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/global_value_numbering.rs
@@ -51,6 +50,7 @@
 2 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/graph.rs
 9 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/structural_places.rs
 8 omega-rust/omega/compilation/representations/abstract-operations/src/atomic.rs
+4 omega-rust/omega/compilation/representations/abstract-operations/verified-input/src/native_execution_scope.rs
 1 omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/original_homes.rs
 1 omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs
 1 omega-rust/omega/packages/review-evidence/src/capture/api/data/evidence.rs
@@ -74,15 +74,6 @@
 14 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products.rs
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs
 1 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/shared.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/attached_unit.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission.rs
-40 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission_cleanup.rs
-3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_bindings.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/operation_emission.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs.rs
-3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit.rs
-1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit_arguments.rs
-29 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit_composed_control.rs
 29 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/control_flow_and_retention.rs
 1 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs
 19 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/scalar_and_value_passes.rs
@@ -92,7 +83,6 @@
 2 omega-rust/psi/compilation/proof/admission/src/mathematical_core.rs
 6 omega-rust/psi/compilation/proof/admission/src/proof.rs
 5 omega-rust/psi/compilation/proof/src/mathematical_declarations.rs
-3 omega-rust/psi/compilation/psi-compiler/terminal-production/src/build_bindings.rs
 2 omega-rust/psi/compilation/representations/checked-trees/src/providers_and_trust.rs
 9 omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/codec/src/term_wire.rs

@@ -67,6 +67,20 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### Terminal production keeps a request type and readers that nothing can satisfy
+- Category: zombie machinery
+- Where: `omega-rust/psi/compilation/psi-compiler/terminal-production/src/lib.rs` (`TerminalProductionRequest::produce`), `src/external_providers.rs` (`PreparedExternalProviderDeclarations::prepare`), `src/build_bindings.rs` (`BuildProviderProductionRequest::produce`); callers in `compiler/src/terminal/product_code.rs`, `selected-dispatch/src/provider_binding.rs`, `review-evidence/src/capture/input.rs`, `build-settings/src/activation/preparation.rs`, `build-time-evaluation/src/machine_execution.rs`
+- Saw: after Psi 06 was deleted these three entries always return `no product route yet`, but their callers and everything downstream of a produced program (provider selection, package review, native realization, the corpus runner's source controls) still compile as if a program could arrive
+- Cost: a reader sees a full production pipeline and cannot tell that no program reaches Terminal Psi; the hand-off from the lowered route's published module has to replace these three entries, not add a fourth
+- Reported: 2026-11-12, Claude Code, while deleting Psi 06
+
+### The stage-coverage command still reports a column for the deleted Psi 06
+- Category: zombie machinery
+- Where: `tools/xtask/src/stage_coverage.rs` (`STAGES`), `tools/testing.md` stage-coverage section
+- Saw: `stage-coverage` counts lines under the deleted Psi 06 directory, so that column is always empty; the command exists to measure the old checker and has no reader once Psi 05 and `validation` are gone
+- Cost: the coverage table reads as if Psi 06 ran no lines, and the command outlives what it measures
+- Reported: 2026-11-12, Claude Code, while deleting Psi 06
+
 ### "Does this access cover that one" is written eight times with five different answers
 - Category: one idea, several implementations
 - Where: `omega-rust/psi/interpreter/terminal-interpreter/src/storage_references.rs:4455`; `omega-rust/psi/compilation/representations/terminal-psi/src/ownership.rs:62`; `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/references.rs:887`; `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_reference_custody.rs:4600` and `selection.rs:877`; `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:5124` and `:14940`; `omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs:350`

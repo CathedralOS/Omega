@@ -67,11 +67,10 @@ the five checks below fail:
   `CallFrameResolver`, `FactPayload`) rather than matching the surface AST shape
   of one fixture (e.g., handling only a bare `ExpressionNode::Name` when an
   operand may be a projection, cast, or call result).
-- **Full stage carry-through (`Psi 05 -> 06 -> 08 -> Native`):** Verify that a
-  construct, carrier, or cleanup disposition admitted in Stage 05 is carried
-  through Stage 06 (`06_checked-trees-to-lowered-psi`), Terminal Psi
-  execution, and native codegen (`omega run --both`), rather than stopping at
-  `--check`.
+- **Full stage carry-through (lowered-form checker `-> 08 -> Native`):** Verify
+  that a construct, carrier, or cleanup disposition admitted by the lowered-form
+  checker is carried through Terminal Psi execution and native codegen
+  (`omega run --both`), rather than stopping at `--check`.
 - **Bounce a sound patch in the wrong place:** Correct is not sufficient. Return
   a PR that adds a carrier, case or per-place branch where a shared operation
   could serve, even if every check passes; the general fix belongs in the same PR.

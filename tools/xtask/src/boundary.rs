@@ -66,7 +66,6 @@ const PARSER_STAGES: &[&str] = &[
 ];
 
 const TERMINAL_STAGES: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi",
     "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi",
     "omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi",
 ];

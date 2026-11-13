@@ -46,8 +46,6 @@ mod result_claim_controls;
 mod scalar_issuer_controls;
 #[path = "synchronous_provider_controls.rs"]
 mod synchronous_provider_controls;
-#[path = "task_activation_controls.rs"]
-mod task_activation_controls;
 
 pub(super) const ORACLE: &str = "expected_terminal_inspections.txt";
 
@@ -285,7 +283,11 @@ fn inspect_machines(root: &Path, fixture: &Path) -> Result<Vec<String>, String> 
                     let _artifact = indexed_family_controls::produce(&checked, machine)?;
                 }
                 Some(InspectionControls::TaskActivations) => {
-                    task_activation_controls::produce(checked, machine, profile)?;
+                    // The control compared task demands projected from checked trees
+                    // with the published ones; the source projection is removed.
+                    return Err(format!(
+                        "inspection {machine}: no product route yet for task activation controls"
+                    ));
                 }
                 Some(InspectionControls::CallbackBodies) => {
                     callback_body_controls::produce(checked, root)?;
