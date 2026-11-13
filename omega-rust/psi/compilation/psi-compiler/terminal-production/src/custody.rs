@@ -20,8 +20,9 @@ use terminal_codec::entry_receipt::rejoin_program_entry_receipt;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
-// Companion coordinates now include the emitting machine and block. Old
-// records must be rebuilt, never interpreted under the wider lookup key.
+// Saved Build actions need their original source meaning authenticated, which
+// this record does not retain. Version the wrapper and refuse those actions;
+// code identity and an emitted call site cannot restore their authority.
 const PRODUCTION_COMPANION_FORMAT: u32 = 2;
 
 fn require_saved_build_correspondence(
