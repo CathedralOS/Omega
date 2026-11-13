@@ -1914,10 +1914,66 @@ impl PreparationAdmission {
     }
 }
 
+/// The source checker used to provide mathematical signatures, generic
+/// family evidence and source proof receipts here. Their absence is not an
+/// empty checked result. Inspect the actual retained rosters and refuse
+/// nonempty or unresolved requests until a structural producer owns them.
+fn require_no_source_proof_requests(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let refuse = || {
+        vec![Diagnostic::error(
+            "no product route yet: source mathematical, generic-family or evidence preparation has no structural custody after retiring the source proof checker",
+        )]
+    };
+    if !program.roots.mathematical_definitions.is_empty()
+        || !program.tables.mathematical_definitions.is_empty()
+        || !program.mathematical_types.is_empty()
+        || !program.data_type_parameters.is_empty()
+        || !program.proof_facts.is_empty()
+        || !program.evidence_forwardings.is_empty()
+        || !program.roots.propositions.is_empty()
+        || !program.propositions.is_empty()
+    {
+        return Err(refuse());
+    }
+    let machines = program
+        .tables
+        .machines
+        .span(program.roots.machines)
+        .ok_or_else(refuse)?;
+    if machines.iter().any(|machine| {
+        !machine.type_parameters.is_empty() || !machine.conformance_bounds.is_empty()
+    }) {
+        return Err(refuse());
+    }
+    let data = program
+        .tables
+        .data_definitions
+        .span(program.roots.data_definitions)
+        .ok_or_else(refuse)?;
+    if data
+        .iter()
+        .any(|definition| !definition.type_parameters.is_empty())
+    {
+        return Err(refuse());
+    }
+    // An unresolved/non-machine call can denote a mathematical application.
+    // Do not reuse retired checking queries to guess that it needs no proof.
+    for (_, expression) in program.expression_table.iter_expressions() {
+        if let typed_trees::expression::ExpressionNode::Call(call) = expression
+            && (!call.target_symbol.is_valid()
+                || program
+                    .machine_by_own_or_state_symbol(call.target_symbol)
+                    .is_none())
+        {
+            return Err(refuse());
+        }
+    }
+    Ok(())
+}
+
 pub struct TypedPreparation {
     pub(crate) admits_pending_inputs: bool,
     pub(crate) deferred_layout_applications: Vec<typed_trees::types::TypeReferenceHandle>,
-    pub(crate) mathematics: proof::mathematical_declarations::CheckedMathematics,
     pub(crate) opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
     pub(crate) opaque_representation_selections: Vec<OpaqueRepresentationSelection>,
 }
@@ -1928,14 +1984,12 @@ impl TypedPreparation {
     ) -> (
         bool,
         Vec<typed_trees::types::TypeReferenceHandle>,
-        proof::mathematical_declarations::CheckedMathematics,
         Vec<validation::OpaqueDataPropertyReceipt>,
         Vec<OpaqueRepresentationSelection>,
     ) {
         (
             self.admits_pending_inputs,
             self.deferred_layout_applications,
-            self.mathematics,
             self.opaque_property_receipts,
             self.opaque_representation_selections,
         )
@@ -1946,6 +2000,7 @@ pub fn prepare_typed_trees(
     mut program: TypedTrees,
     request: &PreparationRequest<'_>,
 ) -> Result<(typed_trees::FrozenTypedTrees, TypedPreparation), Vec<Diagnostic>> {
+    require_no_source_proof_requests(&program)?;
     let type_frontier = program.type_reference_table.type_reference_count();
     crate::policy_operators::elaborate(&mut program)?;
     crate::assembly_control::validate_primitive_meanings(&program)?;
@@ -2048,13 +2103,11 @@ pub fn prepare_typed_trees(
     }?;
     crate::assembly_control::admit(&program)?;
     crate::monomorphization::require_complete_dispatch_subjects(&program)?;
-    let mathematics = proof::mathematical_declarations::check_mathematical_declarations(&program)?;
     Ok((
         program.into(),
         TypedPreparation {
             admits_pending_inputs: request.admits_pending_inputs,
             deferred_layout_applications: request.deferred_layout_applications.to_vec(),
-            mathematics,
             opaque_property_receipts,
             opaque_representation_selections,
         },
@@ -2080,6 +2133,7 @@ pub(crate) fn normalize_open_index_identities(
 }
 
 pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    require_no_source_proof_requests(program)?;
     let type_frontier = program.type_reference_table.type_reference_count();
     crate::policy_operators::elaborate(program)?;
     program
@@ -2105,14 +2159,13 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
     validation::static_bindings::validate_static_machine_bindings(&checking, &mut Vec::new())?;
     validation::conformance_applications::validate_conformance_applications(&checking)?;
     validation::validate_static_machine_selections(&checking)?;
-    // Generic proofs must read the same checked mathematical facts as ordinary
-    // source checking before a constant or layout computation can execute.
-    let mathematics = proof::mathematical_declarations::check_mathematical_declarations(&checking)?;
-    let checking = checking.with_prepared_mathematics(mathematics.prepared_view());
+    // No mathematical receipt is fabricated when the source proof checker
+    // is absent. The entry guard refused every unserved request first.
     validation::validate_generic_machine_contract_entailment(&checking)
 }
 
 pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
+    require_no_source_proof_requests(&program)?;
     let type_frontier = program.type_reference_table.type_reference_count();
     crate::policy_operators::elaborate(&mut program)?;
     value_location_alignment::settle(&mut program)?;
@@ -2178,5 +2231,28 @@ fn invalid_binding_behind(program: &TypedTrees, refusal: Vec<Diagnostic>) -> Vec
     {
         Err(bindings) if !bindings.is_empty() => bindings,
         _ => refusal,
+    }
+}
+
+#[cfg(test)]
+mod source_proof_retirement_tests {
+    use super::require_no_source_proof_requests;
+    use typed_trees::TypedTrees;
+    use typed_trees::mathematical::MathematicalDefinition;
+
+    #[test]
+    fn an_empty_source_proof_roster_needs_no_substitute_receipt() {
+        require_no_source_proof_requests(&TypedTrees::default()).unwrap();
+    }
+
+    #[test]
+    fn retained_or_missing_math_storage_cannot_be_silently_called_empty() {
+        let mut declared = TypedTrees::default();
+        declared.push_mathematical_definition(MathematicalDefinition::default());
+        assert!(require_no_source_proof_requests(&declared).is_err());
+        // A retained declaration span whose storage disappeared is not an
+        // empty declaration roster either.
+        declared.tables.mathematical_definitions = Default::default();
+        assert!(require_no_source_proof_requests(&declared).is_err());
     }
 }
