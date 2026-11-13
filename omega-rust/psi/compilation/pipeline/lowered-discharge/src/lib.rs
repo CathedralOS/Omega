@@ -934,8 +934,10 @@ fn fill_knowledge(
             Construct::Invocation(invocation),
         )?;
         // A call with no normal completion is a terminator. Its callee's
-        // guarantees "apply only on normal return" (calls_and_outcomes.md), and
-        // it has none, so it adds no knowledge.
+        // guarantees "apply only on normal return; external exit neither
+        // establishes them nor necessarily violates them"
+        // (calls_and_outcomes.md), and it has no return, so it adds no
+        // knowledge.
         let operation = match row.site {
             InvocationSite::Operation(operation) => operation,
             InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => continue,

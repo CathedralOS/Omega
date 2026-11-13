@@ -711,13 +711,16 @@ target-companion leaves from those borrowed rows. There is no placeholder-leaf
 mutation pass or per-leaf source-plan copy. The projected callable contract stays
 distinct from the original satisfied schema and accepted public-plan identity;
 native demand and receiving authority still decide which supplies may execute.
-Source-dependent grants, callbacks, selected review, host roles and direct-call
-supplies close together in `selected-dispatch/src/provider_binding.rs`.
-The returned `SelectedExecution` owns its provenance and target custody before
-Terminal production borrows it. There is no intermediate checked-provider
-result or post-Terminal source installation phase: that old operation consumed
-no artifact. Conversion to `CheckedCompilation` only assembles the completed
-custody. Checking-only task validation remains separate from artifact-based
+On the lowered route, provider settlement leaves one small record for the
+products of a target: `selected_dispatch::SelectedExecution`, the target and
+its settled provider plans, formed only from the settled supply
+(`SelectedExecution::settle`). It carries no grants, callbacks, review
+provenance, host roles or direct-call supplies: a product derives what it
+needs from those plans and the accepted Terminal artifact where it uses them,
+and a product whose inputs have no producer yet is refused by name
+(`compiler/src/product_execution.rs`). There is no intermediate
+checked-provider result or post-Terminal source installation phase.
+Conversion to `CheckedCompilation` only assembles the completed custody. Checking-only task validation remains separate from artifact-based
 native task demand. Source/role failures can therefore precede Terminal or task
 diagnostics; native source failures remain deferred, and receiving permission,
 trust admission and actual native demand stay at their existing boundaries.

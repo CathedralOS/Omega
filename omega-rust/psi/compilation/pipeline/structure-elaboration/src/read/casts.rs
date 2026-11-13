@@ -19,7 +19,7 @@ use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::TableCastExpression;
 
 use super::{Program, Slot};
-use crate::body::{Expression, ExpressionKind, Policy, ValueType};
+use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
@@ -31,6 +31,9 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        if let Some(entry) = cast.form.entry() {
+            return self.domain_entry(id, slots, cast, entry, source);
+        }
         if cast.form != language_core::CastForm::Value {
             return unserved("recast");
         }
@@ -48,14 +51,15 @@ impl Program<'_> {
             ArithmeticDomain::Trapping => return unserved("cast into Trapping"),
         };
         let target = match (self.value_type(id, cast.target_type)?, named) {
-            (ValueType::Scalar(carrier @ ScalarType::Integer(_)), Some(policy)) => {
-                ValueType::Qualified(carrier, policy)
-            }
-            (target @ (ValueType::Scalar(_) | ValueType::Qualified(..)), None) => target,
-            (ValueType::Scalar(_) | ValueType::Qualified(..), Some(_)) => {
+            (
+                ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE),
+                Some(policy),
+            ) => ValueType::Scalar(carrier, Qualification::of_policy(policy)),
+            (target @ ValueType::Scalar(..), None) => target,
+            (ValueType::Scalar(..), Some(_)) => {
                 return unserved("cast that names a policy for a type that cannot carry one");
             }
-            (ValueType::Record(_) | ValueType::Rigid(_), _) => {
+            (ValueType::Record(_, _) | ValueType::Rigid(_), _) => {
                 return unserved("cast to a type that is not a scalar");
             }
         };
@@ -79,17 +83,23 @@ impl Program<'_> {
         } else {
             None
         };
-        let operand = self.expression(id, slots, cast.value, landing.map(ValueType::Scalar))?;
+        let operand = self.expression(id, slots, cast.value, landing.map(ValueType::plain))?;
         let source_type = match operand.result {
-            Some(source_type @ (ValueType::Scalar(_) | ValueType::Qualified(..))) => source_type,
-            Some(ValueType::Record(_) | ValueType::Rigid(_)) | None => {
+            Some(source_type @ ValueType::Scalar(..)) => source_type,
+            Some(ValueType::Record(_, _) | ValueType::Rigid(_)) | None => {
                 return unserved("cast of a non-scalar");
             }
         };
         // domains.md, "Carrier casts": "The operand of a carrier cast must
         // carry no domain", and of a qualified value moved to another
         // carrier, "Rejected: each of these changes the carrier of a
-        // qualified value".
+        // qualified value". A declared domain is added and removed by an
+        // entry (`domain_entry`), never by this cast.
+        if !source_type.qualification().domains.is_empty()
+            || !target.qualification().domains.is_empty()
+        {
+            return unserved("carrier cast of or into a type that carries a declared domain");
+        }
         if source_type.policy().is_some() && source_type.scalar() != target.scalar() {
             return unserved("cast that changes the carrier of a policy-qualified integer");
         }
@@ -111,7 +121,7 @@ impl Program<'_> {
             }
             Expression {
                 kind: ExpressionKind::Cast(Box::new(operand)),
-                result: Some(ValueType::Scalar(carrier)),
+                result: Some(ValueType::Scalar(carrier, Qualification::NONE)),
                 source,
             }
         };
@@ -126,6 +136,173 @@ impl Program<'_> {
             result: Some(target),
             source,
         })
+    }
+}
+
+impl Program<'_> {
+    /// One entry of a domain cast, `value as =Keep -Remove +Add`
+    /// (`wiki/spec/language/domains.md`, "Domain-only casts"). Typing
+    /// accounted for the whole cast against the operand's declared type and
+    /// left this entry with the type after it. The reader types the operand
+    /// itself, so it does not take that accounting on trust: the entry must
+    /// do to the operand's type exactly what its sign says.
+    ///
+    /// | Entry | The operand's type | The result's type |
+    /// | `=D` | carries `D` | carries `D` |
+    /// | `-D` | carries `D` | does not carry `D` |
+    /// | `+D` | does not carry `D` | carries `D` |
+    ///
+    /// The value is never changed: "`as` never calls user code, rounds,
+    /// saturates, traps".
+    fn domain_entry(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        cast: &TableCastExpression,
+        entry: language_core::cast_form::CastEntry,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use language_core::cast_form::CastEntryKind;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let mistyped = |what| Err(refuse(id, Construct::Machine, Unserved::Typing(what)));
+        // A cast typing deferred is a row on its machine, raised before any
+        // body is read; an entry without its type here was never accounted.
+        if !cast.result_type.is_valid() {
+            return unserved("domain cast typing did not account for");
+        }
+        let result = self.value_type(id, cast.result_type)?;
+        // A literal lands in the carrier of the type the cast gives it
+        // (domains.md, "Literals and expected types": "An expected type
+        // selects the carrier in which an anonymous literal lands").
+        let landing = if self.wholly_anonymous(cast.value) {
+            result.scalar().map(ValueType::plain)
+        } else {
+            None
+        };
+        let operand = self.expression(id, slots, cast.value, landing)?;
+        let Some(operand_type) = operand.result else {
+            return unserved("domain cast of a Unit value");
+        };
+        let (before, after) = (operand_type.qualification(), result.qualification());
+        if operand_type.qualified(Qualification::NONE) != result.qualified(Qualification::NONE)
+            || operand_type.qualified(Qualification::NONE).is_none()
+        {
+            return mistyped("domain cast entry that changes the carrier");
+        }
+        // The one member the entry names: what the two sets differ by.
+        let policy_differs = before.policy != after.policy;
+        let (wider, narrower) = match entry.kind {
+            CastEntryKind::Keep => {
+                if before != after {
+                    return mistyped("kept domain that changes the type");
+                }
+                return Ok(operand);
+            }
+            CastEntryKind::Remove => (before, after),
+            CastEntryKind::Add => (after, before),
+        };
+        let mut named = wider
+            .domains
+            .members()
+            .filter(|domain| !narrower.domains.contains(*domain));
+        let domain = named.next();
+        let one_member = named.next().is_none()
+            && narrower.domains.is_subset_of(&wider.domains)
+            && match (policy_differs, domain) {
+                (true, None) => wider.policy.is_some() && narrower.policy.is_none(),
+                (false, Some(_)) => true,
+                _ => false,
+            };
+        if !one_member {
+            return mistyped("domain cast entry that does not change exactly the domain it names");
+        }
+        if let Some(domain) = domain {
+            match entry.kind {
+                CastEntryKind::Add => {
+                    if cast.semantic_domain_symbol != domain {
+                        return mistyped("added domain that is not the one the entry selected");
+                    }
+                    self.issue(id, domain)?;
+                }
+                // "Removal also never increases authority. Owned claims
+                // must be consumed or transferred, not cast away ... Access
+                // policies survive whenever they are needed to prevent
+                // authority amplification, and a view that cannot retain
+                // them rejects." What a restricted domain's removal must
+                // leave behind is not kept on the plain value here, so only
+                // a domain anyone may add again is removed.
+                _ => {
+                    let free = self
+                        .typed
+                        .domain_definition(domain)
+                        .is_some_and(|definition| {
+                            definition.issuance()
+                                == typed_trees::domain::DomainIssuance::Unrestricted
+                        });
+                    if !free {
+                        return unserved("removal of a domain with restricted issuance");
+                    }
+                }
+            }
+        }
+        Ok(Expression {
+            kind: ExpressionKind::Requalify(Box::new(operand)),
+            result: Some(result),
+            source,
+        })
+    }
+
+    /// Whether the machine being read may write `as +D` for the declared
+    /// domain `domain`, by who the declaration says may issue it
+    /// (`DomainDefinition::issuance`). This is the one place that judgment
+    /// is made. domains.md, "Domain-only casts":
+    ///
+    /// | Domain | Obligation of `+D` |
+    /// | Has predicates | Prove them for this value. |
+    /// | Has neither predicates nor establishment routes | None beyond carrier validity |
+    /// | Has establishment routes | Retain exact existing or authorized evidence; a cast cannot mint it. |
+    ///
+    /// A route names "an exact trait requirement or concrete machine as an
+    /// alternative authorized origin", and "An exact machine is authorized
+    /// during its invocation": the machine whose body holds the cast is one
+    /// of the routes, or the cast is refused. A requirement route
+    /// authorizes "the invocation through that requirement and its selected
+    /// implementation", which this reader does not follow, so it admits no
+    /// machine here. A policy states its issuers in its plan, which no pass
+    /// evaluates (`DomainIssuance::Planned`): nobody is shown to be one.
+    ///
+    /// Authorization proves no predicate ("Policy authorization cannot
+    /// prove those predicates"). Nothing here states a domain's predicates
+    /// as an obligation on the cast's operand yet, so a domain with
+    /// predicates is refused whoever asks.
+    fn issue(&mut self, id: MachineId, domain: symbols::SymbolHandle) -> Checked<()> {
+        use language_semantics::DomainEstablishmentRoute;
+        use typed_trees::domain::DomainIssuance;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let Some(definition) = self.typed.domain_definition(domain) else {
+            return unserved("cast that adds a domain with no declaration");
+        };
+        match definition.issuance() {
+            DomainIssuance::Unrestricted => {}
+            DomainIssuance::Only(routes) => {
+                let machine =
+                    *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+                let routed = routes.iter().any(|route| {
+                    matches!(route, DomainEstablishmentRoute::ExactMachine { machine: origin }
+                        if *origin == machine)
+                });
+                if !routed {
+                    return unserved("cast that adds a domain outside its establishment routes");
+                }
+            }
+            DomainIssuance::Planned(_) => {
+                return unserved("cast that adds a domain whose issuers are in an access plan");
+            }
+        }
+        if super::authority::has_predicates(definition) {
+            return unserved("cast that adds a domain with predicates");
+        }
+        Ok(())
     }
 }
 

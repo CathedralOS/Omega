@@ -332,8 +332,8 @@ impl Lowering<'_> {
             // its primitive type, read and stored like a home.
             if let Some(borrowed) = signature.borrowed(position) {
                 let (referent, scalar) = match *value_type {
-                    ValueType::Record(record) => (record, false),
-                    ValueType::Scalar(_) | ValueType::Qualified(..) => (
+                    ValueType::Record(record, _) => (record, false),
+                    ValueType::Scalar(..) => (
                         self.records
                             .primitive(*value_type, borrowed.home.as_deref(), self.id)?,
                         true,
@@ -371,7 +371,7 @@ impl Lowering<'_> {
             match *value_type {
                 // A formal of a rigid type is a value like a scalar formal: it
                 // has an identity, a call passes it, and nothing is known of it.
-                ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_) => {
+                ValueType::Scalar(..) | ValueType::Rigid(_) => {
                     let (scalar_type, rigid) = value_type
                         .declared()
                         .ok_or_else(|| self.internal("a value formal has no declaration"))?;
@@ -394,7 +394,7 @@ impl Lowering<'_> {
                 }
                 // A record formal is a root place the machine owns for the
                 // activation; what it holds at entry is entry content.
-                ValueType::Record(record) => {
+                ValueType::Record(record, _) => {
                     let lane = self.position(formals.records.len())?;
                     let (place, _) =
                         self.root(StructuralPlaceKind::Parameter { position: lane }, record)?;
@@ -423,10 +423,7 @@ impl Lowering<'_> {
         // record result is the machine's result place, a root of its own.
         let result = match signature.result {
             None => TerminalMachineResult::Unit,
-            Some(
-                value_type
-                @ (ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_)),
-            ) => {
+            Some(value_type @ (ValueType::Scalar(..) | ValueType::Rigid(_))) => {
                 let (scalar_type, rigid) = value_type
                     .declared()
                     .ok_or_else(|| self.internal("a value result has no declaration"))?;
@@ -439,7 +436,7 @@ impl Lowering<'_> {
                 }
                 TerminalMachineResult::Scalar(declaration(value, scalar_type))
             }
-            Some(ValueType::Record(record)) => {
+            Some(ValueType::Record(record, _)) => {
                 let (place, _) = self.root(StructuralPlaceKind::Result, record)?;
                 TerminalMachineResult::Structural(StructuralResultDeclaration {
                     place,
@@ -456,7 +453,7 @@ impl Lowering<'_> {
         // Terminal Psi declares it in the contract, not among the parameters
         // (`wiki/spec/terminal-psi/encoding.md`: "Erased formals occupy no tag").
         for position in &signature.erased {
-            let Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
+            let Some(ValueType::Scalar(scalar_type, _)) =
                 signature.parameters.get(*position).copied()
             else {
                 return Err(refuse(
@@ -620,9 +617,7 @@ impl<'a> Lowering<'a> {
             self.sources.heads.push((block, *member));
             let mut parameters = Vec::with_capacity(signature.parameters.len());
             for value_type in &signature.parameters {
-                let (ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
-                    *value_type
-                else {
+                let ValueType::Scalar(scalar_type, _) = *value_type else {
                     return Err(self.internal("a record formal on a call cycle"));
                 };
                 let position = self.position(parameters.len())?;

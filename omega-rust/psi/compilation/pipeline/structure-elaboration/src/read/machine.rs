@@ -4,6 +4,7 @@ gate), their signatures and formals, and
 the driver that reads one body statement by statement.
 */
 
+use crate::body::Qualification;
 use language_semantics::{TerminationGuarantee, TerminationInterface};
 use semantic_vocabulary::{MachineId, ValueId};
 use symbols::SymbolHandle;
@@ -358,6 +359,87 @@ impl<'t> Program<'t> {
     /// where it is raised. Every machine read passes here, as an entry, a
     /// Build selection, a subject declaration or a callee, so a declaration
     /// with a row is never read through.
+    /// Whether every contract on `state` only restates a domain one of its
+    /// formals' declared types carries: `requires distance in Km` for
+    /// `distance: i32 in Km`, which typing writes on the state for each
+    /// qualified formal. domains.md, "Carrier-exact membership": a
+    /// parameter `value: T in D` "gives the body the fact `value in D`".
+    ///
+    /// The formal's type already says it, so such a contract adds nothing
+    /// to read: the type is what a caller must supply, and the body is
+    /// given no assumption from the domain's predicates, which only makes
+    /// it prove more. Any other contract on a state stays refused.
+    fn contracts_restate_formal_domains(&self, state: &typed_trees::state::State) -> bool {
+        use typed_trees::domain::ProofFact;
+        use typed_trees::expression::ExpressionNode;
+        use typed_trees::signature::SignatureContractKind;
+        use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
+        let typed = self.typed;
+        let carries = |mut reference: typed_trees::types::TypeReferenceHandle,
+                       domain: SymbolHandle| {
+            // A reference formal's domains are its referent's: `seal: &Seal in
+            // Issued` lends a `Seal in Issued`.
+            while reference.is_valid()
+                && let TypeReferenceNode::Reference { referee, .. } =
+                    typed.type_reference_table.type_reference(reference)
+            {
+                reference = *referee;
+            }
+            while reference.is_valid()
+                && let TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } = typed.type_reference_table.type_reference(reference)
+            {
+                if typed
+                    .type_reference_table
+                    .constraints(*constraints)
+                    .iter()
+                    .any(|constraint| {
+                        matches!(constraint, TypeConstraintNode::Domain(listed)
+                            if listed.subject == DomainConstraintSubject::Declared
+                                && listed.symbol == domain)
+                    })
+                {
+                    return true;
+                }
+                reference = *base_type;
+            }
+            false
+        };
+        typed.state_contracts(state).iter().all(|contract| {
+            contract.kind == SignatureContractKind::Requires
+                && typed
+                    .proof_facts
+                    .span_or_empty(contract.facts)
+                    .iter()
+                    .all(|fact| {
+                        let ProofFact::Membership(membership) = fact else {
+                            return false;
+                        };
+                        if !membership.domain_symbol.is_valid()
+                            || !membership.domain_arguments.is_empty()
+                            || !typed.expression_table.expression_is_valid(membership.value)
+                        {
+                            return false;
+                        }
+                        let ExpressionNode::Name(path) =
+                            typed.expression_table.expression(membership.value)
+                        else {
+                            return false;
+                        };
+                        let Some(formal) = path.resolved_symbol() else {
+                            return false;
+                        };
+                        typed.expression_table.name_path_members(path.members).len() == 1
+                            && typed.state_parameters(state).iter().any(|parameter| {
+                                parameter.symbol == formal
+                                    && carries(parameter.type_reference, membership.domain_symbol)
+                            })
+                    })
+        })
+    }
+
     pub(super) fn served(&self, id: MachineId, declaration: SymbolHandle) -> Checked<()> {
         match self.typed.deferred_refusal(declaration) {
             None => Ok(()),
@@ -616,7 +698,7 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("type parameter without a symbol"),
             ));
         }
-        if !state.contracts.is_empty() {
+        if !self.contracts_restate_formal_domains(state) {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -984,7 +1066,7 @@ impl<'t> Program<'t> {
             });
         }
         for binder in binders {
-            let value_type = ValueType::Scalar(binder.scalar_type);
+            let value_type = ValueType::Scalar(binder.scalar_type, Qualification::NONE);
             parameters.push(value_type);
             slots.push(Slot {
                 symbol: binder.symbol,
@@ -1040,13 +1122,20 @@ impl<'t> Program<'t> {
         let exit = ClauseScope {
             result: match result {
                 // A policy-qualified result is named as its stored value.
-                Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
+                Some(ValueType::Scalar(scalar_type, qualification))
+                    if qualification.domains.is_empty() =>
+                {
                     ResultTerm::Named(result_value, scalar_type)
+                }
+                // domains.md, "Operands": a builtin operator or comparison
+                // takes unqualified operands, in `ensures` too.
+                Some(ValueType::Scalar(..)) => {
+                    ResultTerm::Absent("result that carries a declared domain")
                 }
                 // A clause over a record result projects it
                 // (`result.field`), which a later slice serves from the
                 // result place.
-                Some(ValueType::Record(_)) => ResultTerm::Absent("result of a record machine"),
+                Some(ValueType::Record(_, _)) => ResultTerm::Absent("result of a record machine"),
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
@@ -1426,7 +1515,7 @@ impl<'t> Program<'t> {
         // A data type with `requires` may be stored into by the callee, so
         // its domain is owed again where the loan returns; no slice follows
         // a domain across a call yet.
-        if let ValueType::Record(record) = value_type
+        if let ValueType::Record(record, _) = value_type
             && self.restricted(record)
         {
             return unserved("reference to data with requires");
@@ -1435,11 +1524,11 @@ impl<'t> Program<'t> {
             ValueType::Rigid(_) => None,
             // Its place would be declared with the identity of a primitive
             // type the lowered form has no row for.
-            ValueType::Qualified(..) => {
-                return unserved("reference to a policy-qualified integer");
+            ValueType::Scalar(_, qualification) if !qualification.is_none() => {
+                return unserved("reference to a qualified scalar");
             }
-            ValueType::Record(_) => None,
-            ValueType::Scalar(_) => Some(
+            ValueType::Record(_, _) => None,
+            ValueType::Scalar(..) => Some(
                 Some(self.typed.normalized_type_identity_text(referee))
                     .filter(|identity| !identity.is_empty())
                     .ok_or_else(|| {
@@ -1480,7 +1569,7 @@ impl<'t> Program<'t> {
                 .iter()
                 .chain(data.cases().iter().flat_map(|case| &case.fields))
             {
-                if let ValueType::Record(nested) = field.value_type {
+                if let ValueType::Record(nested, _) = field.value_type {
                     pending.push(nested);
                 }
             }

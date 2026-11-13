@@ -3421,6 +3421,70 @@ mod cleanup {
         if function.content_entry_claim_declared(place) {
             return Err(mismatch());
         }
+        // Residual discards with no retirement equalize a join: the arrival
+        // that still holds a part another arrival moved out discards that
+        // part and keeps the home, so both enter with one frontier. Each is
+        // the consumption a projected move performs, with the same overlap,
+        // claim and access checks; the home stays owned until its own
+        // disposal, which a missing retirement leaves for the return or the
+        // join to reject.
+        if !actions.is_empty()
+            && actions.iter().all(|action| {
+                matches!(action, TerminalAffineCleanupAction::DiscardResidual(discard) if discard.place == place)
+            })
+        {
+            for action in actions {
+                let TerminalAffineCleanupAction::DiscardResidual(discard) = action else {
+                    return Err(mismatch());
+                };
+                if discard.path.is_empty()
+                    || multiplicity != StructuralMultiplicity::Affine
+                    || resolve_structural_path(types, root, &discard.path)
+                        != Some(discard.structural_type)
+                    || types
+                        .get(&discard.structural_type)
+                        .is_none_or(|declaration| !declaration.no_code_affine_cleanup)
+                    || frontier.claims.values().any(|claim| {
+                        claim.input == Some(place)
+                            && structural_paths_may_overlap(&claim.path, &discard.path)
+                    })
+                {
+                    return Err(mismatch());
+                }
+                let ordinal = function
+                    .block(block)
+                    .and_then(|block| u32::try_from(block.nodes.len().saturating_sub(1)).ok())
+                    .ok_or_else(mismatch)?;
+                check_region_access(
+                    function,
+                    block,
+                    ordinal,
+                    &frontier.live_references,
+                    place,
+                    &discard.path,
+                )?;
+                super::references::discard_subtree(
+                    function,
+                    types,
+                    block,
+                    &mut frontier.live_references,
+                    place,
+                    &discard.path,
+                )?;
+                let moved = frontier.partial_custody_paths.entry(place).or_default();
+                if moved.iter().any(|existing| {
+                    existing.starts_with(&discard.path) || discard.path.starts_with(existing)
+                }) || !moved.insert(discard.path.clone())
+                {
+                    return Err(mismatch());
+                }
+            }
+            if super::structural::projected_root_is_fully_consumed(function, types, frontier, place)
+            {
+                frontier.owned_places.remove(&place);
+            }
+            return Ok(());
+        }
         let (actions, explicit_retirement) = match actions.split_last() {
             Some((TerminalAffineCleanupAction::RetireHome(retired), partition))
                 if *retired == place =>

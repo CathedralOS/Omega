@@ -587,7 +587,7 @@ public data ResourceProfile requires region_count <= 32 {
 // distinguishes independently selected backing policies in one artifact. It is
 // a static selector, not evidence of that backing or permission to access it.
 public boundary trait ResourceProfileSupply<Role> {
-    machine profile(storage: &Extent in Granted) -> ResourceProfile reaches none;
+    machine profile(storage: &Extent in Granted) -> ResourceProfile reaches none crashes none;
 }
 
 // Settled access-view identity and recovery vocabulary. `Access<P, T>` is an
@@ -701,11 +701,13 @@ public boundary trait AccessLifecycle<P, T> {
         AccessReturn<Extent in Granted & Vacant, T>,
         AccessInitializationFailure
     >
-    reaches ResourceProfileSupply;
+    reaches ResourceProfileSupply
+    crashes none;
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
         -> AccessExtraction<Extent in Granted & Vacant, T>
-    reaches ResourceProfileSupply;
+    reaches ResourceProfileSupply
+    crashes none;
 }
 
 // Ordinary provider orchestration keeps profile selection, call ordering and

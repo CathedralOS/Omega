@@ -1627,6 +1627,7 @@ pub(crate) mod conformance_blocks {
         if definition.predicate_presence.is_present()
             && definition.semantic_roles.is_empty()
             && definition.establishment_routes.is_empty()
+            && definition.access_policy.is_none()
         {
             return;
         }
@@ -1772,12 +1773,19 @@ pub(crate) mod domain_establishment {
     ) -> Result<(), Diagnostic> {
         let mut resolutions = Vec::new();
         collect_authored_requirement_routes(program, retained, &mut resolutions)?;
+        let policies = select_access_policies(program, retained)?;
 
         program.domain_definitions.for_each_mut(|domain| {
             if retained
                 .is_some_and(|base| base.domain_definition_by_symbol(domain.symbol).is_some())
             {
                 return;
+            }
+            if let Some(policy) = &mut domain.access_policy
+                && let Some((_, implementation)) =
+                    policies.iter().find(|(owner, _)| *owner == domain.symbol)
+            {
+                policy.symbol = *implementation;
             }
             domain.establishment_routes.clear();
             for resolution in &resolutions {
@@ -1801,6 +1809,71 @@ pub(crate) mod domain_establishment {
             }
         }
         Ok(())
+    }
+
+    /*
+        `access Policy` names one named implementation (`Policy satisfies
+        AccessPolicy { .. }`) by ordinary namespace selection, as a route names
+        one machine: access.md, "The `access` clause selects one ordinary named
+        policy implementation". Which trait that implementation satisfies is
+        checked by whoever evaluates its plan; nothing here reads the plan.
+    */
+    fn select_access_policies(
+        program: &SymbolResolvedTrees,
+        retained: Option<&SymbolResolvedTrees>,
+    ) -> Result<Vec<(SymbolHandle, SymbolHandle)>, Diagnostic> {
+        let mut selected = Vec::new();
+        for domain in &program.domain_definitions {
+            if retained
+                .is_some_and(|base| base.domain_definition_by_symbol(domain.symbol).is_some())
+            {
+                continue;
+            }
+            let Some(policy) = &domain.access_policy else {
+                continue;
+            };
+            let rendered = policy.path.joined_path();
+            let use_span = policy
+                .path
+                .last()
+                .expect("an access policy path is nonempty")
+                .source_span();
+            if domain.alias.is_some() {
+                return Err(Diagnostic::error(format!(
+                    "domain alias `{}` cannot select an access policy; a policy belongs to its atomic declarations",
+                    domain.name
+                ))
+                .with_source_span(use_span));
+            }
+            let lookup = program
+                .symbols
+                .lookup_signature_free_top_level_from_source_matching(
+                    &rendered,
+                    &[symbols::SymbolKind::Conformance],
+                    use_span,
+                    |_| true,
+                );
+            match lookup {
+                symbols::SymbolLookup::Unique(implementation) => {
+                    selected.push((domain.symbol, implementation));
+                }
+                symbols::SymbolLookup::NotFound => {
+                    return Err(Diagnostic::error(format!(
+                        "domain `{}` access policy `{rendered}` names no implementation; write `{rendered} satisfies AccessPolicy {{ ... }}` or import the one meant",
+                        domain.name
+                    ))
+                    .with_source_span(use_span));
+                }
+                symbols::SymbolLookup::Ambiguous { .. } => {
+                    return Err(Diagnostic::error(format!(
+                        "domain `{}` access policy `{rendered}` names more than one implementation",
+                        domain.name
+                    ))
+                    .with_source_span(use_span));
+                }
+            }
+        }
+        Ok(selected)
     }
 
     fn record_route_selection_once(
@@ -4367,9 +4440,14 @@ mod static_arguments {
         result?;
         let mut result = Ok(());
         program.roots.domain_definitions.for_each_mut(|domain| {
-            if result.is_ok()
-                && let Some(argument) = &mut domain.cleanup_selection
+            for argument in domain
+                .cleanup_selection
+                .iter_mut()
+                .chain(domain.access_policy.iter_mut())
             {
+                if result.is_err() {
+                    break;
+                }
                 result = bind_argument(
                     argument,
                     None,

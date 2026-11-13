@@ -10,21 +10,15 @@ pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
 pub mod program_entry;
 mod provider_planning;
-mod provider_settlement;
-pub mod service_declarations;
 #[cfg(test)]
 mod source_guards;
-pub mod target_machines;
-
-pub use provider_settlement::SettledTargetMachineDeclarations;
-pub use provider_settlement::{
-    ComponentAssumptionDemand, ProviderSettlement, verify_selected_compositions_are_realized,
-};
+pub mod target_supply;
 
 pub use build_time_evaluation::provider_declarations::{
     ProviderSelection, ProviderSelectionSubject, TargetProviderDefaults,
 };
 pub use language_semantics::declaration_selection::CompositionMode;
+pub(crate) use provider_planning::DerivedProviderPlan;
 pub use provider_planning::provider_rows::{
     DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, ProviderPlanCandidate,
 };
@@ -34,6 +28,5 @@ pub use provider_planning::{
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, same_semantic_name,
     satisfies_plan_name,
 };
-pub(crate) use provider_planning::{DerivedProviderPlan, SelectedTargetMachineOrigin};
 
 pub use provider_planning::ProviderRowRealization;

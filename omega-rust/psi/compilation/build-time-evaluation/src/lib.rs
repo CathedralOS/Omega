@@ -24,8 +24,8 @@ pub use evaluation_requests::{
 };
 pub use language_semantics::wire::WireCompatibilityDemand;
 pub use product::{
-    assumed_bindings, native_bindings, product_declarations, product_policy, provider_declarations,
-    test_groups,
+    assumed_bindings, build_requests_any, native_bindings, product_declarations, product_policy,
+    provider_declarations, test_groups,
 };
 pub use scalar_applications::{
     AdmittedImportRealizations, InvocationTarget, ScalarScopeEvaluation, TargetImportRealizations,

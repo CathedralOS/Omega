@@ -134,6 +134,13 @@ The body proves the `ensures`; callers get to use it. Exact calls checked
 together can also use routine facts from the body. Independently checked clients rely on the
 published promise, so write the result guarantees they need.
 
+A by-value parameter's name in a contract means the original input, even when
+the body changes a `mut` parameter. A promise `result == position + step`
+still uses the supplied position and step. For a mutable reference, ordinary
+postcondition reads describe the final contents; `old(...)` describes entry
+contents. These are proof observations, not extra copies or ownership. See
+[contract inputs](../spec/language/state_contracts.md#contract-inputs-and-working-values).
+
 A private helper can leave off `requires` and let the compiler infer simple
 input conditions, checked at every call. Once you write `requires`, it must
 cover everything the body needs; the compiler cannot quietly add more conditions.

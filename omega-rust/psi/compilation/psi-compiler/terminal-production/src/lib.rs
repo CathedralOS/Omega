@@ -3,7 +3,7 @@ Terminal production retains the new checker's actual accepted closure, its froze
 typed owner and the exact artifact/evidence pair. AcceptedTerminalSource is the
 production entrance; invocation identity is fixed before lowering and judgment.
 
-Retained Build companions, external declaration records and application receipts
+Retained Build companions and application receipts
 describe the data a producer must provide; none manufactures checking authority.
 The obsolete checked-source production request interfaces have been removed.
 */
@@ -11,14 +11,13 @@ The obsolete checked-source production request interfaces have been removed.
 #![forbid(unsafe_code)]
 
 mod accepted;
-pub use accepted::AcceptedTerminalSource;
+pub use accepted::{AcceptedTerminalSource, ReachedBoundaryRequirement};
 pub use structure_elaboration::Compilation as TerminalSourceCompilation;
 
 mod build_bindings;
 mod build_companions;
 pub(crate) use build_bindings::{build_filesystem, build_provider, build_queries, build_requests};
 mod custody;
-mod external_providers;
 pub(crate) mod production_selection {
     #[derive(Debug, Clone, Copy)]
     pub enum TerminalMachineSelection<'a> {
@@ -112,7 +111,6 @@ pub(crate) mod terminal_production {
     #[derive(Debug)]
     pub enum TerminalArtifactProductionError {
         BuildContext(Diagnostic),
-        NoProductRoute,
         Artifact(terminal_codec::CanonicalTerminalArtifactError),
         EntryReceipt(ProgramEntryTerminalReceiptError),
     }
@@ -125,9 +123,6 @@ pub(crate) mod terminal_production {
         pub fn diagnostic(&self) -> Diagnostic {
             match self {
                 Self::BuildContext(error) => Some(error.clone()),
-                Self::NoProductRoute => Some(Diagnostic::error(
-                    "no product route yet: the source has no accepted Terminal program producer",
-                )),
                 _ => None,
             }
             .unwrap_or_else(|| {
@@ -161,10 +156,6 @@ pub use composition_roots::{
 pub use custody::{
     PortableTerminalProgram, ProducedTerminalApplication, ProducedTerminalProgram,
     TerminalProductionCustody,
-};
-pub use external_providers::{
-    ExternalProviderDeclarations, NoProductRoute, PreparedExternalProviderDeclarations,
-    project_external_provider_declarations,
 };
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use production_selection::{TerminalMachineSelection, TerminalProgramRoots};

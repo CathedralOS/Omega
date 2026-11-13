@@ -10,7 +10,7 @@ use super::*;
 use structure_elaboration::{RecordField, RecordType};
 
 fn token() -> ValueType {
-    ValueType::Record(id(1))
+    ValueType::record(id(1))
 }
 
 /// `data Token {}`, `[copy]` or not, and `data Holder { token: Token; }`.
@@ -36,7 +36,7 @@ fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
 }
 
 fn holder() -> ValueType {
-    ValueType::Record(id(2))
+    ValueType::record(id(2))
 }
 
 /// `Token {}`

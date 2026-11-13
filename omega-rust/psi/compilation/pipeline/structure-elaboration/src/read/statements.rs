@@ -16,6 +16,7 @@ use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{TableAssignment, TableLocalData};
 
+use super::authority::Access;
 use super::{Program, Slot};
 use crate::body::{ExpressionKind, Statement, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
@@ -49,6 +50,7 @@ impl Program<'_> {
                     return Err(unserved("whole assignment through a reference"));
                 }
                 let value_type = slots[slot].value_type;
+                self.authorized(id, value_type, Access::Replace)?;
                 let value = self.expression(id, slots, assignment.value, Some(value_type))?;
                 if value.result != Some(value_type) {
                     return Err(typing());
@@ -116,6 +118,8 @@ impl Program<'_> {
                 if !slots[slot].assignable {
                     return Err(unserved("store into an immutable binding"));
                 }
+                self.written_through(id, &place)?;
+                self.authorized(id, stored, Access::Replace)?;
                 let value = self.expression(id, slots, assignment.value, Some(stored))?;
                 if value.result != Some(stored) {
                     return Err(typing());
@@ -178,8 +182,32 @@ impl Program<'_> {
                 Unserved::Spelling("local without a symbol"),
             ));
         }
-        if local.is_operand_capture || local.reflected_query_origin.is_some() {
-            return unserved("operand capture or reflected query");
+        if local.reflected_query_origin.is_some() {
+            return unserved("reflected query");
+        }
+        // A selector must keep the value captured before later operands run.
+        // Resolution emits an immutable relevant binding; typing must retain
+        // its complete carrier. The ordinary binder below evaluates it once
+        // and keeps that carrier, including any supported backing. It never
+        // turns a reference into its referent's value.
+        if local.is_operand_capture {
+            if local.role != language_core::LocalBindingRole::Value
+                || local.is_mutable
+                || local.relevance != language_core::BindingRelevance::Relevant
+            {
+                return unserved("operand capture without its immutable value binding");
+            }
+            if !self
+                .typed
+                .expression_table
+                .expression_is_valid(local.initial_value)
+                || !self
+                    .typed
+                    .type_reference_table
+                    .contains_type_reference(local.type_reference)
+            {
+                return unserved("operand capture without its retained initializer and type");
+            }
         }
         if local.relevance != language_core::BindingRelevance::Relevant {
             return self.erased_local(id, slots, local);
@@ -192,15 +220,16 @@ impl Program<'_> {
                 return unserved("uninitialized local without a declared type");
             }
             let value_type = self.value_type(id, local.type_reference)?;
+            self.zero_established(id, value_type)?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
                 // Its home would be declared with the identity of a
                 // primitive type the lowered form has no row for.
-                ValueType::Qualified(..) => {
-                    return unserved("uninitialized local of a policy-qualified type");
+                ValueType::Scalar(_, qualification) if !qualification.is_none() => {
+                    return unserved("uninitialized local of a qualified type");
                 }
-                ValueType::Record(_) => None,
-                ValueType::Scalar(_) => Some(
+                ValueType::Record(_, _) => None,
+                ValueType::Scalar(..) => Some(
                     self.typed
                         .normalized_type_identity_text(local.type_reference),
                 )

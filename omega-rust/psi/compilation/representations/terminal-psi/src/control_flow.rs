@@ -596,6 +596,49 @@ pub(crate) mod invocations {
     }
 
     impl Terminator {
+        /// A terminator that is a call, with its invocation site: a machine
+        /// call with no normal return, or a boundary requirement that
+        /// completes externally. The two declaration namespaces share call
+        /// operands and obligation custody here as they do for calls that
+        /// return (`OperationKind::declared_invocation`).
+        pub fn declared_invocation(
+            &self,
+        ) -> Option<(
+            InvocationSite,
+            ModuleInvocationInputs<'_, super::TargetMachineCallable>,
+        )> {
+            if let Self::ExternalCompletion {
+                edge,
+                boundary,
+                arguments,
+                structural_arguments,
+                requirement_obligations,
+                ..
+            } = self
+            {
+                return Some((
+                    InvocationSite::ExternalCompletion(*edge),
+                    ModuleInvocationInputs {
+                        callee: super::TargetMachineCallable::Boundary(*boundary),
+                        arguments,
+                        erased_arguments: &[],
+                        erased_proof_arguments: &[],
+                        structural_arguments,
+                        claim_transfers: &[],
+                        completion_receipts: &[],
+                        requirement_obligations,
+                        crash_continuations: &[],
+                    },
+                ));
+            }
+            self.module_invocation().map(|inputs| {
+                (
+                    InvocationSite::InvokeNoNormal(self.edge()),
+                    inputs.declared(),
+                )
+            })
+        }
+
         pub fn module_invocation(&self) -> Option<ModuleInvocationInputs<'_>> {
             let Self::InvokeNoNormal {
                 callee,

@@ -664,6 +664,11 @@ pub(crate) mod domain {
                 .map(|selection| lower_static_machine_argument(lowerer, syntax_trees, selection))
                 .transpose()?,
             authored_routes,
+            access_policy: domain
+                .access_policy
+                .as_ref()
+                .map(|policy| lower_static_machine_argument(lowerer, syntax_trees, policy))
+                .transpose()?,
             classification: domain.classification,
             predicate_presence: domain.predicate_presence,
             facts,

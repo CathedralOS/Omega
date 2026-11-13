@@ -372,12 +372,7 @@ impl CompilationSession {
                 let request = match selected.result {
                     Ok(selected) => selected
                         .into_checked_compilation()
-                        .map(
-                            |checked| crate::product_execution::ProductRequest::Component {
-                                checked,
-                                retain_native_inputs: owner.2.is_some(),
-                            },
-                        )
+                        .map(crate::product_execution::ProductRequest::Component)
                         .map_err(crate::CompilationProductError::Production),
                     Err(failure) => Err(crate::CompilationProductError::Production(
                         failure.into_diagnostics(),

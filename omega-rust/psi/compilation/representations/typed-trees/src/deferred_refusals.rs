@@ -51,6 +51,27 @@ pub enum DeferredRequest {
     ArrayExtentEvaluation,
     /// An expression that stands for the evaluated form of another one.
     MaterializedExpression,
+    /// A domain whose `access` policy is applied at static arguments
+    /// (`access IssuedBy<..>`): no pass resolves those arguments yet.
+    AccessPolicyApplication,
+    /// A call that applies static arguments (`relay<u8>(..)`) which typed
+    /// preparation's specialization pass does not bind or does not generate
+    /// a machine for yet.
+    StaticApplication,
+    /// A domain cast, `value as =A -B +C`, whose operand's declared type
+    /// typing does not read: a call result, a match or an unannotated local.
+    DomainCastOperandType,
+    /// A domain cast applied through a reference, which accounts for the
+    /// referent's domains and may owe a removed one back at the loan's end.
+    DomainCastThroughReference,
+    /// A domain cast whose operand carries a compiler-owned domain or a
+    /// constraint no declaration answered, which no entry can name yet.
+    DomainCastUnnamedConstraint,
+    /// A machine with one body per target that binds type or lifetime
+    /// parameters or conformance bounds: holding each body to the shared
+    /// signature means matching the two telescopes binder for binder, and
+    /// typing has no such comparison yet.
+    TargetFamilyGenericSignature,
 }
 
 impl DeferredRequest {
@@ -79,6 +100,24 @@ impl DeferredRequest {
             }
             Self::MaterializedExpression => {
                 "holding a materialized expression, whose evaluation no pass records yet"
+            }
+            Self::AccessPolicyApplication => {
+                "selecting an access policy applied at static arguments, which no pass resolves yet"
+            }
+            Self::StaticApplication => {
+                "holding a call whose static arguments no pass specializes yet"
+            }
+            Self::DomainCastOperandType => {
+                "holding a domain cast whose operand's declared type typing does not read yet"
+            }
+            Self::DomainCastThroughReference => {
+                "holding a domain cast through a reference, which no pass accounts for yet"
+            }
+            Self::DomainCastUnnamedConstraint => {
+                "holding a domain cast over a compiler-owned or unresolved domain, which no pass accounts for yet"
+            }
+            Self::TargetFamilyGenericSignature => {
+                "of a generic machine with one body per target, whose bodies typing does not compare with their shared signature yet"
             }
         }
     }

@@ -201,11 +201,13 @@ fn derive_entry_from_inputs(
     )
     .result
     .map_err(|failure| failure.into_diagnostics())?;
-    checked
-        .execution()
-        .candidate_service_binding(role, supplier, schema)
-        .map(Some)
-        .map_err(|diagnostic| vec![diagnostic])
+    // The supplier compiles; the binding itself needs the service schema the
+    // lowered route does not publish yet.
+    let _ = (checked, role, supplier);
+    Err(vec![Diagnostic::error(format!(
+        "no product route yet: fixture acceptance of the `{}` service requires its route-owned service schema",
+        schema
+    ))])
 }
 
 /// One fixture's retained execution and target-specific Product plans. Acquisition
@@ -797,12 +799,9 @@ fn assumed_fixture_permissions(
             "assumed-binding fixture consent names no assumed contracts",
         )]);
     }
-    if components
-        && preliminary
-            .providers()
-            .component_assumption_demands()
-            .is_empty()
-    {
+    // No verified component reaches a checked compilation on the lowered
+    // route, so a compilation carries no component assumption to consent to.
+    if components {
         return Err(vec![Diagnostic::error(
             "component-assumption fixture consent names no component assumptions",
         )]);
@@ -973,28 +972,16 @@ fn dangerous_service_bindings(
 ) -> Result<Vec<AcceptedSemanticBinding>, Vec<Diagnostic>> {
     let mut bindings = Vec::new();
     if required.filesystem {
-        bindings.push(
-            preliminary
-                .execution()
-                .candidate_service_binding(
-                    AcceptedSemanticBindingRole::FilesystemHostService,
-                    owner,
-                    "FilesystemHost",
-                )
-                .map_err(|diagnostic| vec![diagnostic])?,
-        );
+        return Err(vec![Diagnostic::error(format!(
+            "no product route yet: fixture acceptance of the `{}` service requires its route-owned service schema",
+            "FilesystemHost"
+        ))]);
     }
     if required.time {
-        bindings.push(
-            preliminary
-                .execution()
-                .candidate_service_binding(
-                    AcceptedSemanticBindingRole::TimeHostService,
-                    owner,
-                    "TimeHost",
-                )
-                .map_err(|diagnostic| vec![diagnostic])?,
-        );
+        return Err(vec![Diagnostic::error(format!(
+            "no product route yet: fixture acceptance of the `{}` service requires its route-owned service schema",
+            "TimeHost"
+        ))]);
     }
     if let Some(console) = required.console {
         bindings.push(provider_acceptance::console_exit_binding(

@@ -2858,7 +2858,7 @@ mod facts {
         {
             return Ok(None);
         }
-        if !domain.authored_routes.is_empty() {
+        if !domain.authored_routes.is_empty() || domain.access_policy.is_some() {
             return Ok(None);
         }
         let domain_target_name = match syntax.type_references.type_reference(domain.target_type) {

@@ -88,7 +88,7 @@ fn check_envelope(
                         || !(signature.is_place(position)
                             || matches!(
                                 signature.parameters[position],
-                                ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(_))
+                                ValueType::Scalar(semantic_vocabulary::ScalarType::Callable(_), _)
                             ))
                     {
                         return Err(fault(
@@ -184,7 +184,7 @@ fn schema_context(
                 scalar,
             ));
         }
-        if let ValueType::Record(record) = value_type
+        if let ValueType::Record(record, _) = value_type
             && module
                 .structural_types
                 .iter()
@@ -197,7 +197,7 @@ fn schema_context(
         }
     }
     match signature.result {
-        Some(ValueType::Scalar(scalar) | ValueType::Qualified(scalar, _)) => {
+        Some(ValueType::Scalar(scalar, _)) => {
             module
                 .callables
                 .validate_scalar_type(scalar)
@@ -224,7 +224,7 @@ fn schema_context(
                 })?;
             scalars.push((result, scalar));
         }
-        Some(ValueType::Record(record)) => {
+        Some(ValueType::Record(record, _)) => {
             if module
                 .structural_types
                 .iter()

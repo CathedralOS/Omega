@@ -52,7 +52,7 @@ impl TerminalPermissionAcceptance {
                 "assumed binding risk rows require the consuming root package",
             )]
         })?;
-        let target = input.execution.selected_target_profile.ok_or_else(|| {
+        let target = input.execution.target_profile().ok_or_else(|| {
             vec![Diagnostic::error(
                 "assumed binding risk rows require an exact product target",
             )]

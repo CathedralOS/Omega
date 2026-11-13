@@ -395,6 +395,12 @@ hex literals need no limit-name lookup. Bit layouts and masks should use clear
 radix spellings or ordinary named protocol constants instead of unexplained
 decimal encodings. Quoted-byte `\xNN` escapes below are separate literal syntax.
 
+Concrete integer suffixes accept the positive decimal widths of
+[width-indexed integers](numeric_values.md#width-indexed-integers), such as
+`17u13` or `41u257`. The abbreviated carrier name is identical to its indexed
+application. Symbolic widths use an expected indexed type or an explicit exact
+conversion; bare `i`/`u` suffixes remain unbounded computational carriers.
+
 ## Quoted bytes
 
 A quoted literal contains bytes, has ordinary shared byte-view type `&[u8]`,

@@ -31,7 +31,7 @@ fn array_types() -> IdTable<StructuralTypeId, RecordType> {
 }
 
 fn array(raw: u64) -> ValueType {
-    ValueType::Record(id(raw))
+    ValueType::record(id(raw))
 }
 
 fn index(base: Expression, selector: Expression, result: ValueType) -> Expression {

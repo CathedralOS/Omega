@@ -220,51 +220,7 @@ fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> 
 /// yet, so the reference is refused by the constant's name. The initializer
 /// is never read here as a substitute for the missing value.
 fn require_no_unevaluated_constant_use(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    use symbols::SymbolHandle;
-    use typed_trees::expression::ExpressionHandle;
-
-    fn key(symbol: SymbolHandle) -> (u32, u32) {
-        (symbol.arena_index(), symbol.generation())
-    }
-    /// Walks every declaration except the constants themselves and notes
-    /// the first expression that names an unevaluated constant.
-    struct Uses {
-        /// Constants and the derived machines that would compute them,
-        /// sorted. Their own bodies are declarations, not uses.
-        constant_owned: Vec<SymbolHandle>,
-        /// Sorted constants without a recorded value.
-        unevaluated: Vec<SymbolHandle>,
-        expression: ExpressionHandle,
-        first: Option<(SymbolHandle, ExpressionHandle)>,
-    }
-    impl Extend<SymbolHandle> for Uses {
-        fn extend<I: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: I) {
-            for symbol in symbols {
-                if self.first.is_none()
-                    && self
-                        .unevaluated
-                        .binary_search_by_key(&key(symbol), |symbol| key(*symbol))
-                        .is_ok()
-                {
-                    self.first = Some((symbol, self.expression));
-                }
-            }
-        }
-    }
-    impl typed_trees::references::TypedReferences for Uses {
-        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-            self.expression = ExpressionHandle::invalid();
-            self.constant_owned
-                .binary_search_by_key(&key(symbol), |symbol| key(*symbol))
-                .is_err()
-        }
-        fn expression(&mut self, expression: ExpressionHandle) -> bool {
-            self.expression = expression;
-            true
-        }
-    }
-
-    let mut unevaluated = typed
+    let unevaluated = typed
         .const_declarations()
         .iter()
         .filter(|declaration| declaration.evaluated_value.is_none())
@@ -273,7 +229,9 @@ fn require_no_unevaluated_constant_use(typed: &TypedTrees) -> Result<(), Vec<Dia
     if unevaluated.is_empty() {
         return Ok(());
     }
-    unevaluated.sort_unstable_by_key(|symbol| key(*symbol));
+    // Constants and the derived machines that would compute them, sorted.
+    // Their own bodies are declarations, not uses.
+    let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
     let mut constant_owned = typed
         .const_declarations()
         .iter()
@@ -293,17 +251,20 @@ fn require_no_unevaluated_constant_use(typed: &TypedTrees) -> Result<(), Vec<Dia
         })
         .collect::<Vec<_>>();
     constant_owned.sort_unstable_by_key(|symbol| key(*symbol));
-    let mut uses = Uses {
-        constant_owned,
-        unevaluated,
-        expression: ExpressionHandle::invalid(),
-        first: None,
-    };
+    let mut uses = typed_trees::references::ConstantUses::new(unevaluated, |declaration| {
+        constant_owned
+            .binary_search_by_key(&key(declaration), |symbol| key(*symbol))
+            .is_err()
+    });
     typed_trees::references::visit_program(typed, &mut uses);
     for argument in typed.designated_static_type_arguments() {
         typed_trees::references::visit_type_reference(typed, &mut uses, argument.reference);
     }
-    let Some((constant, expression)) = uses.first else {
+    let Some(typed_trees::references::ConstantUse {
+        constant,
+        expression,
+    }) = uses.into_uses().into_iter().next()
+    else {
         return Ok(());
     };
     let name = if typed.symbols.symbols().nodes().is_valid(constant) {

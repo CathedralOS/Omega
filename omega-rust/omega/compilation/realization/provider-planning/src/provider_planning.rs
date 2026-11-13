@@ -10,9 +10,7 @@ pub use effects::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation,
 };
-pub(crate) use provenance_replay::{
-    DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
-};
+pub(crate) use provenance_replay::{DerivedProviderPlan, ProviderPlanProvenance};
 pub use provenance_replay::{
     ProviderRowRealization, ProviderSchemaDeclaration, same_semantic_name, satisfies_plan_name,
 };

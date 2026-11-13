@@ -298,7 +298,7 @@ pub(super) fn complete_build_source(
         configuration: mut computed_build_config,
         restricted_build_requests,
         base_source_consumption_commitment,
-        provider_folded_constants,
+        constants: build_constants,
     } = evaluated;
     if let Some(pending) = product_sources {
         let inputs =
@@ -344,19 +344,21 @@ pub(super) fn complete_build_source(
         Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
         // This frontier holds the Build source again, typed afresh, so a
         // constant Build admission folded under its own provider plans is
-        // pending here. Repeat that settlement and discharge it before the
-        // Product completes; left pending, the constant would be retained as
-        // a Product application and evaluated by the Product's targets.
-        // Constants that need no provider fold the same way on either
-        // frontier, so only a provider fold, or package inputs that joined
-        // after Build ran and may change what defers, calls for it.
-        if provider_folded_constants || inputs_joined_after_build {
+        // pending here. Settle it before the Product completes; left
+        // pending, the constant would be retained as a Product application
+        // and evaluated by the Product's targets. Constants that need no
+        // provider fold the same way on either frontier, so only a provider
+        // fold, or package inputs that joined after Build ran and may change
+        // what defers, calls for it. The settlement decides from what the
+        // admission recorded about its accepted module, not from this call.
+        if build_constants.folded_under_providers || inputs_joined_after_build {
             let entry = selected.ok_or_else(|| {
                 vec![Diagnostic::error(
                     "deferred Product lost the Build entry whose constants it must settle",
                 )]
             })?;
             build_settings::settle_rejoined_build_slice(
+                &build_constants,
                 source.build_input(),
                 entry,
                 package_inputs,

@@ -67,6 +67,55 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
+- Category: a verdict with nothing behind it
+- Where: `source/library/std/console.omg:66` (the requirement, `reaches Console`) and `:96` (its provider); `omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs` (`exact_process_exit_requirement` with `console_adapter`, `nominate_source_completion`)
+- Saw: process_exit.md says "Any retained console-exit convenience adapter must obtain legitimate exit authority and publish its additional reach. Console must not inherit `ProcessExit` wholesale." The standard library's `Console::exit_process` declares `reaches Console` and nothing else, and the typed trees decide whether it completes externally from the trait being named `Console` plus a sealed intrinsic or a completion admission. Where neither is present, as in the route probe (`compiler/tests/route_probe.rs`, the `Console` program), the same source call is lowered as a call that returns
+- Cost: a ceiling of `reaches Console` does not mean "cannot end the process", so package review's `ProcessExit` row undercounts; and the checker models one source call as returning or as a terminal transfer depending on an admission the program text does not show, so a body judged in one mode says nothing about the other
+- Reported: 2026-11-13, Claude Code, while taking external completion (`ProcessExit::exit_process`) to the lowered-form checker
+
+### A sum's `requires` over each case's payload is refused, and it was judged before
+- Category: tests that pin the bug
+- Where: `structure-elaboration/src/read/contracts.rs` (`field_term`, `projected`); `tests/fixtures/fail/facts/four_variant_enum_payload_bound_through_local_rejected`
+- Saw: the fixture's data writes `requires ((self in Packet::Alpha) && (self.v >= 40u64 && self.v <= 80u64)) || ...` over four cases; `lowered_route_messages` pinned the route's rejection of its `main` with the fixture's whole sentence, and the route now refuses the closure as `contract data value compared whole in a clause`. The test could not run between the Build activation refusal and this change, so nothing showed which change lost it; the row was removed rather than re-pinned
+- Cost: a program whose sum states a bound per case is refused instead of judged, and no test says so
+- Reported: 2026-11-13, Claude Code, while moving the lowered-form checker's tests off the Build
+
+### The seam that kept typed trees "beside the current checker" still exists, and two examples still compare against it
+- Category: zombie machinery
+- Where: `omega-rust/omega/compilation/compiler/src/checked/checking/typed_frontier.rs` (`CurrentCheckerVerdict`, `TypedFrontierCheck`, `check_keeping_typed_frontier`); `compiler/examples/route_one_comparison.rs`, `compiler/examples/structure_elaboration_corpus.rs`; `compiler/tests/support/fixture_package_inputs.rs` (`FixtureFrontierCheck`)
+- Saw: the seam was built so a harness could run a second checker beside the old one; the old one is deleted, so "the current checker's verdict" it returns is the lowered-form checker's own, and the two examples compare that checker with itself over a corpus that no longer exists. The tests that only read what the checker concludes left the seam in this change; `lowered_route_governance`, `lowered_route_publication` and two tests of `lowered_route_ownership` still use it to read what the product compile reports
+- Cost: the names say there are two checkers; an agent reading `current=accepted route=rejected` output or `FixtureFrontierCheck::Rejected` will look for the one that is gone
+- Reported: 2026-11-13, Claude Code, while moving the lowered-form checker's tests off the Build
+
+### Suffixed policy operators are read in executable code only
+- Category: one idea, several implementations
+- Where: `omega-rust/psi/compilation/pipeline/structure-elaboration/src/read/contracts.rs` (`policy operator in a clause term`, `policy operator in a mathematical term`); `read/expressions.rs` (`suffixed_expression`)
+- Saw: typed preparation used to rewrite `a +% b` into casts and the Wrapping add for bodies and contracts alike; that pass was deleted with the old checker (#2823) and every program with a suffixed operator was refused. The body reader now reads the suffix itself; the two contract readers still refuse it, and `+!` is refused everywhere because no type on the route carries `Trapping`
+- Cost: a `requires` or `ensures` that writes `+%` (accepted before #2823, `wiki/spec/proofs/contracts.md`, "Total arithmetic") is refused by name, and the clause readers and the body reader each decide what an operator means
+- Reported: 2026-11-13, Claude Code, while restoring `+%` in machine bodies
+
+### Nothing makes a new reader site ask before it looks inside a qualified data value
+- Category: a verdict with nothing behind it
+- Where: `structure-elaboration/src/read/` (`authority.rs`, and every `ValueType::Record(record, _)` pattern in `places.rs`, `expressions.rs`, `transitions.rs`, `arrays.rs`, `contracts.rs`, `statements.rs`)
+- Saw: a type is a carrier and its domains, and about thirty sites match the carrier and discard the domains with `_`. The sites that take a value apart now call `authority::opened`, but the pattern still compiles anywhere, and two sites were typing a literal with whatever qualified type its context expected until this change (`arrays.rs` array literal, `places.rs` record literal). A store's destination is also read through the expression reader, so it asks read authority where only write authority is owed.
+- Cost: the next site that projects, compares or constructs a record with `_` silently ignores a domain's reader, writer or issuer rule, and no test fails until someone writes the twin for that exact site
+- Reported: 2026-11-13, Claude Code, while reading declared domains on data carriers
+
+### Core's `AccessPlan` and `AccessPolicy` are the superseded layout-containing shape
+- Category: one idea, several implementations
+- Where: `source/library/core/layout.omg` (`AccessPlan`, `AccessPlan::inaccessible`, `AccessPolicy::plan(schema: Schema)`); `wiki/spec/resources/access.md`, "Plans and admitted supply"
+- Saw: the spec's plan is `AccessPlan::new(&schema, issuance)` over `reflect::TypeSchema` with `Issuance::Only`/`Unrestricted`, `allow_readers`, `allow_writers`, `IssuedBy` and `IssuedByAny`; core still declares a plan that contains a `LayoutPlan`, takes `layout::Schema`, and has no issuance at all, and `alloc/vec.omg` and `samples/cli/probes/layout_access_plan` are written against it
+- Cost: a domain's `access Policy` clause now reaches the typed trees, but no policy in the library can state an issuance, so every domain that selects one stays "planned" and nobody can be shown to issue it
+- Reported: 2026-11-13, Claude Code, while reading a domain's `access` clause
+
+### Typing refuses every program that writes `=D`, `-D` or `+D`
+- Category: a verdict with nothing behind it
+- Where: `omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (`domain_cast_accounting::account`)
+- Saw: the parser reads domain-cast entries, and typing then returns a whole-program "domain cast operand accounting" error for the first one it meets, in any declaration, reached or not; the accounting needs the operand's complete qualified type, which the deleted checker computed
+- Cost: no program holding a domain cast reaches the lowered-form checker, so the judgment of `as +D` cannot be built or tested there until accounting has an owner or the refusal moves onto the declaration as a deferred row
+- Reported: 2026-11-13, Claude Code, while reading a domain's `access` clause
+
 ### Constant operands are still read from a table keyed by spelling
 - Category: a verdict with nothing behind it
 - Where: `02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs` (`module_constants::lexical_integer_const_values`), built at five call sites in `preparation_const_evaluation.rs`, `preparation_generic_data.rs` and `preparation_machine_equations.rs` and handed to `evaluate_const_argument_expression` and the fact evaluators
@@ -525,3 +574,67 @@ own to defend. Say what you saw, not what you would build.
 - Saw: these stages see the program together with all of `core` and `std` and have no notion of what an entry demands, so one such construct in an uncalled library declaration stops a program that never reaches it; the gates the route probe met (unbound calls, assignment literals, constructor field types, layout-policy and computed types) now record the refusal on the declaration instead (`typed-trees/src/deferred_refusals.rs`), and the others still refuse the program
 - Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
+
+### A generated machine is identified three ways and copied by a hand-kept list
+- Category: one idea built twice
+- Where: `typed-trees` (`MachineSpecialization` rows, `Symbol::generated_from`, `executable_application_template`); `structure-elaboration/src/lib.rs` (`template_of`), `read/calls.rs` (`applies_nothing`), `declare.rs`; `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`template`, `held_types`)
+- Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
+- Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
+- Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
+
+### An implementation's refinement witness is built twice, and its dispatch row keeps fields nobody fills
+- Category: one idea built twice
+- Where: `lowered-discharge/src/verdict.rs` (`witnesses`, and the witness parts of `judge_compilation_for`); `typed-trees` (`StaticRequirementDispatch`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
+- Saw: "this machine refines that requirement" is elaborated and discharged once to carry a generic form's proofs into a generated machine, where a failure is silently skipped, and a second time as the part that gives the verdict; the two share `elaborate_witness` and nothing else. Separately, the dispatch a generated call carries has an application fingerprint, a commitment, a selection application and a contract signature that only the deleted checker filled, so the pass writes four of nine fields
+- Cost: every selected implementation is proved twice per compilation, and a reader of the dispatch cannot tell an empty commitment from one that was never computed
+- Reported: 2026-11-13, Claude Code, while serving implementation parameters in the specialization pass
+
+### A typing unit test is red on `main` and nothing runs it before merge
+- Category: a test that pins nothing while it is red
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs`, `construction_destinations::tests::an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine`
+- Saw: at `6f829063b3ed7` the test fails with no local change: `owned = Record {}` is asserted to be built at the type handle written on `owned` and gets a different handle (index 3, not 1), so either landing now inserts an equal copy of the type or the assertion compares identity where it means equality
+- Cost: `mbx test -p symbol-resolved-trees-to-typed-trees --lib` cannot be clean for anyone changing typing, so a second regression in the same crate hides behind the first
+- Reported: 2026-11-13, Claude Code, while accounting for domain casts in typing
+
+### The Product admissions of a finished Build are signatures with nothing behind them
+- Category: a verdict with nothing behind it
+- Where: `build-time-evaluation/src/product.rs` (`native_bindings::collect`, `product_declarations::admit`, `product_policy::*`, `provider_declarations::collect_product_provider_selections`, `retain_provider_defaults`, `RetainedProviderSelection::rejoin`); callers in `psi-compiler/src/source_compilation.rs` (`admit_product_policy`) and `compiler/src/checked/checking/source_checking.rs`
+- Saw: the old checker's deletion left each admission as a function that takes the typed program and the Build activation, ignores both, and either refuses or returns an empty list. Until 2026-11-13 each refused any program whose Build ran at all, so six unrelated refusals stood between every project and its Product; the callers still prepare operands and thread results as if producers existed.
+- Cost: nobody can tell from the code which Build operations work; the unused parameters and the result types (`AdmittedProductDeclarations`, `NativeBindingSelection`) describe a design that has no implementation and will drift from whatever replaces it
+- Reported: 2026-11-13, Claude Code, while taking the witness's finished Build to its Product
+
+### The parser still accepts a boundary requirement with no `crashes` clause
+- Category: a verdict with nothing behind it
+- Where: `01_tokens-to-syntax-trees/src/declarations.rs` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `structure-elaboration/src/read/calls.rs` (`boundary`); `samples/` and `tests/fixtures/`
+- Saw: effects.md says a boundary requirement "must likewise write `crashes`". Only the lowered-form checker enforces it, and only at a call. The bundled library now writes the clause on all 400 of its requirements, but 1,745 requirements in 1,062 files under `samples/` and 70 in 40 files under `tests/fixtures/` do not, so the parser cannot refuse the omission until those are migrated, each to the ceiling its providers really have
+- Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
+- Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
+
+
+### Typing lets a bare literal be stored into a field declared in a domain
+- Category: a verdict with nothing behind it
+- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `structure-elaboration/src/read/authority.rs` (`Access::Replace`); `compiler/tests/build_value_protection.rs` (`replacing_the_seal_is_not_accepted`)
+- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };` passes typing. The program is stopped only because the lowered-form checker refuses every replacement of a policy-governed value. For a domain with no policy the store of a bare carrier into a qualified field would reach the checker with nothing refusing it
+- Cost: the rule "the supplied expression's static type must carry exactly the domains the destination declares" has two owners for construction and one accidental owner for assignment; when plans are evaluated and a writer is admitted, the assignment form loses its only guard
+- Reported: 2026-11-13, Claude Code, while declaring the seal that protects the compiler-owned `Build`
+
+### Executable products have consumers downstream and no producer in the compiler
+- Category: a verdict with nothing behind it
+- Where: `compiler/src/product_execution.rs` (`refuse_executable_product`); `CompilationOutput::{Native, Component}`, `CheckedProductReport::{Terminal, Native}`; `provider-planning/src/program_entry.rs` (`SelectedCompilerProgramEntry`), `provider_planning::{SelectedProviderReviewProvenance, ProviderPlanProvenance, DerivedProviderPlan}`, `compiler/src/checked/compilation_session.rs` (`component_products`)
+- Saw: the compiler now refuses Terminal, native and component products by name, because the selected program entry, callback roots, behavior exclusions and native provider declarations they need have no producer. Their downstream shape is still standing: output variants nothing constructs, entry and provenance records with private fields and no constructor, a component-product roster the session fills and nothing reads, and Omega 00's `TerminalNativeProposalRequest` with about seventeen inputs of the old custody
+- Cost: the lane that makes a program run has to decide for each of those whether it is derived from the accepted artifact and the settled plans or deleted; left as they are they read as working machinery and invite a producer shaped like the deleted checker's
+- Reported: 2026-11-13, Claude Code, while narrowing the selected-execution custody to the target and its settled plans
+
+### One refusal text for five different constructs
+- Category: a verdict with nothing behind it
+- Where: `structure-elaboration/src/read/machine.rs` (`unserved("generic parameters")` four times: a machine's lifetime parameters, its type parameters, a requirement's binders, a requirement's lifetimes or bounds) and `lowered-discharge/src/verdict.rs` (`examine`, leftover templates)
+- Saw: all five print `not supported yet: machine generic parameters` with no declaration name. The Build of `default_console_provider_reached` is refused for the lifetime parameter of the Build prelude's `dependency::from_source<'storage>`; a worker located the cause in `verdict.rs` by reading and it was wrong, found only by printing at each site
+- Cost: a refusal that names neither the declaration nor which of five constructs it met cannot be acted on without rebuilding the compiler with prints
+- Reported: 2026-11-13, Claude Code, while confirming what stops a Build that registers a dependency
+
+### Tests of the compiler crate assert on source text
+- Category: a test that pins a bug
+- Where: `omega-rust/omega/compilation/compiler/src/product_boundary.rs` (20 tests), `provider-planning/src/source_guards.rs`
+- Saw: each test `include_str!`s other crates' sources and asserts that a spelling is present or absent, such as `pub callback_roots: terminal_psi::PreparedTerminalRoots`. Nine of them named files or fields of the deleted custody and had to be deleted with it; none of them would have noticed that the custody had no producer
+- Cost: a refactor fails tests that say nothing about behaviour, and the architecture rules they stand for are not checked where `xtask check-boundary` could check them
+- Reported: 2026-11-13, Claude Code, while narrowing the selected-execution custody to the target and its settled plans

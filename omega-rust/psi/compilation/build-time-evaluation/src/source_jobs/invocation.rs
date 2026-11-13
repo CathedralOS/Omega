@@ -240,8 +240,29 @@ pub(crate) fn prepare_value_invocation(
     machine: &Machine,
     request: &TableCallExpression,
     arguments: &[crate::BuildTimeValue],
-    source_span: Option<source::SourceSpan>,
+    request_expression: ExpressionHandle,
 ) -> Result<(TypedTrees, SymbolHandle, ExpressionHandle), String> {
+    if request.authored_machine_application.is_valid()
+        && !program
+            .expression_table
+            .static_machine_application_is_valid(request.authored_machine_application)
+    {
+        return Err("source invocation has no retained static application".into());
+    }
+    let source_span = if request_expression.is_valid() {
+        if !program
+            .expression_table
+            .expression_is_valid(request_expression)
+            || program.expression_table.call_node(request_expression) != Some(request)
+        {
+            return Err(
+                "source invocation call differs from its retained source occurrence".into(),
+            );
+        }
+        program.expression_table.try_source_span(request_expression)
+    } else {
+        None
+    };
     let entry =
         entry_state(program, machine).ok_or("constant invocation has no exact entry state")?;
     let parameters = program.state_parameters(entry);
@@ -268,11 +289,16 @@ pub(crate) fn prepare_value_invocation(
     } else if parameters.len() != arguments.len() {
         return Err("constant invocation arguments differ from its checked entry arity".into());
     }
-    let supplied = typed_trees::references::StaticArgumentCall::Expression(
-        ExpressionHandle::invalid(),
-        request,
-    )
-    .arguments(program);
+    let static_call =
+        typed_trees::references::StaticArgumentCall::Expression(request_expression, request);
+    let mut supplied = static_call.arguments(program).to_vec();
+    if !request.machine_arguments.is_empty()
+        && request.machine_arguments.as_ref() != supplied.as_slice()
+    {
+        return Err(
+            "source invocation static arguments differ from their retained application".into(),
+        );
+    }
     let type_parameters = program.machine_type_parameters(machine);
     if !machine.lifetime_parameters.is_empty() {
         return Err("source invocation lifetime arguments are not materialized".into());
@@ -286,17 +312,65 @@ pub(crate) fn prepare_value_invocation(
     if type_parameters.len() != supplied.len() {
         return Err("source invocation lost its complete static argument list".into());
     }
+    let mut probe = program.clone();
+    let owner = static_call.lexical_owner(program);
+    if !supplied.is_empty() && !program.symbols.symbols().nodes().is_valid(owner) {
+        return Err("source invocation static arguments lost their supplying declaration".into());
+    }
     let mut substitutions = Vec::with_capacity(type_parameters.len());
-    for (parameter, argument) in type_parameters.iter().zip(supplied) {
-        if !program
-            .type_reference_table
-            .contains_type_reference(argument.type_reference)
-        {
-            return Err("source invocation type argument has no retained reference".into());
+    let mut materialized = false;
+    for (parameter, argument) in type_parameters.iter().zip(&mut supplied) {
+        if argument.type_reference.is_valid() {
+            // A stale supplied reference is malformed, not a missing operand
+            // that can be rebuilt from its remaining symbol or spelling.
+            if !program
+                .type_reference_table
+                .contains_type_reference(argument.type_reference)
+            {
+                return Err("source invocation type argument has no retained reference".into());
+            }
+        } else {
+            // A bare type retains its declaration and full static application.
+            // Form its reference through that same owner before substitution;
+            // applied type expressions already have their retained reference.
+            argument.type_reference = probe
+                .static_operand_type_reference_in_scope(argument, owner)
+                .map_err(|reason| format!("source invocation type argument: {reason}"))?;
+            materialized = true;
         }
         substitutions.push((parameter.symbol, argument.type_reference));
     }
-    let mut probe = program.clone();
+    if !substitutions.is_empty() {
+        let references = substitutions
+            .iter()
+            .map(|(_, reference)| *reference)
+            .collect::<Vec<_>>();
+        probe
+            .require_owned_application_operands(&references, owner)
+            .map_err(|reason| format!("source invocation type argument ownership: {reason}"))?;
+    }
+    if materialized {
+        let application = static_call.application();
+        if application.is_valid() {
+            let retained = probe
+                .expression_table
+                .static_machine_application_arguments_mut(application);
+            if retained.len() != supplied.len() {
+                return Err("source invocation static application lost its argument span".into());
+            }
+            retained.clone_from_slice(&supplied);
+        }
+        if request_expression.is_valid() && !request.machine_arguments.is_empty() {
+            let ExpressionNode::Call(original) =
+                probe.expression_table.expression_mut(request_expression)
+            else {
+                return Err(
+                    "source invocation lost its original call during operand preparation".into(),
+                );
+            };
+            original.machine_arguments = supplied.clone().into_boxed_slice();
+        }
+    }
     let result_type = probe
         .type_reference_table
         .instantiate(entry.return_type, &substitutions)?;
@@ -366,6 +440,9 @@ pub(crate) fn prepare_value_invocation(
         actuals.push(actual);
     }
     let mut call = request.clone();
+    if materialized && !call.machine_arguments.is_empty() {
+        call.machine_arguments = supplied.into_boxed_slice();
+    }
     if !declaration_argument {
         call.arguments = probe.expression_table.insert_expression_handles(actuals);
     }

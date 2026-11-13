@@ -19,6 +19,9 @@ pub fn default_build_source() -> &'static str {
 
 const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary.
+use omega::language::core::AccessPolicy;
+use omega::language::core::AccessPlan;
+use omega::language::core::Schema;
 public data Subsystem {
     case Console;
     case Gui;
@@ -215,9 +218,28 @@ public data ElfInterpreterSelection<'storage> {
 public data BuildTests {
     disabled: bool;
 }
+// What makes `Build` a value only the toolchain issues. The seal holds no
+// settings; it is here for its type. `BuildSeal` is not `[copy]`, and
+// `Issued` is governed by an access policy that names no source issuer
+// (wiki/spec/resources/access.md: a zeroed plan admits nobody), so source can
+// neither make a seal nor take the one in the `Build` it was lent, and a
+// record with a field it cannot supply cannot be constructed or
+// zero-established. The toolchain establishes the seal when it hands the
+// Build entry its `Build`.
+public data BuildSeal {
+}
+BuildSealAccess satisfies AccessPolicy {
+    machine plan(schema: Schema) -> AccessPlan {
+        let plan: AccessPlan;
+        plan
+    }
+}
+public domain BuildSeal::Issued
+    access BuildSealAccess;
 // Stored views share an explicit backing lifetime. Opaque mutable boundaries
 // must promise output safety; an unnamed relation cannot imply preservation.
 public data Build<'storage> {
+    seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
     subsystem: Subsystem;
     freestanding: bool;

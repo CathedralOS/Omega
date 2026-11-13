@@ -147,9 +147,8 @@ impl<'t> Program<'t> {
                 "machine value has no current callable type",
             ));
         }
-        let ValueType::Scalar(ScalarType::Callable(contract)) =
-            self.value_type(machine, value.type_reference)?
-        else {
+        let value_type = self.value_type(machine, value.type_reference)?;
+        let ValueType::Scalar(ScalarType::Callable(contract), _) = value_type else {
             return Err(refuse(
                 machine,
                 Construct::Machine,
@@ -243,7 +242,7 @@ impl<'t> Program<'t> {
                 contract,
                 descriptor,
             },
-            result: Some(ValueType::Scalar(ScalarType::Callable(contract))),
+            result: Some(value_type),
             source,
         })
     }

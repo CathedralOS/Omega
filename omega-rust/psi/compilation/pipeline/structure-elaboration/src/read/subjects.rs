@@ -11,7 +11,10 @@ is set aside for its own check form (`Elaboration::generic_templates`). Any
 other machine becomes a `MachineId` and is read, lowered and judged like a
 called one; its callees
 follow as they do from an entry, whichever package declares them. A data
-declaration is resolved as a record. Every other kind of declaration is
+declaration is resolved as a record. A plain trait has each requirement's
+contract read, and a plain implementation has each row set aside as the
+statement that its machine refines the requirement
+(`Elaboration::conformance_witnesses`). Every other kind of declaration is
 refused as `Unsupported`, because this route judges none of them yet and a
 declaration left out would be accepted without a row or a refusal.
 
@@ -178,7 +181,8 @@ impl Program<'_> {
             }
             // A generic machine is checked once as written, as its own check
             // form, not as a closed body (`Elaboration::generic_templates`).
-            if machine.type_parameters.is_empty() {
+            // One whose only parameters are implementations is generic too.
+            if !machine.has_specialization_parameters() {
                 let id = self.machine(machine.symbol)?;
                 self.subject_machines.push(id);
             } else {
@@ -190,6 +194,19 @@ impl Program<'_> {
                 && !names_only(data)
             {
                 self.record(entry, data.symbol)?;
+            }
+        }
+        for domain in typed.domain_definitions() {
+            if self.owner(entry, domain.symbol, subjects, purpose)? == Owner::Subject
+                && !judged_where_used(typed, domain)
+            {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Declaration(
+                        "domain with predicates, a cleanup machine, operators or parameters",
+                    ),
+                ));
             }
         }
         for declaration in typed.traits() {
@@ -213,10 +230,6 @@ impl Program<'_> {
             (
                 symbols_of(typed.type_aliases(), |row| row.symbol),
                 "type alias",
-            ),
-            (
-                symbols_of(typed.domain_definitions(), |row| row.symbol),
-                "domain",
             ),
             (symbols_of(typed.measures(), |row| row.symbol), "measure"),
             (symbols_of(typed.operators(), |row| row.symbol), "operator"),
@@ -272,6 +285,32 @@ fn names_only(data: &typed_trees::data::DataDefinition) -> bool {
         && data.quotient.is_none()
         && data.requires_facts.is_empty()
         && data.retired_identities.is_empty()
+}
+
+/// Whether everything a domain declaration says is judged where a value of
+/// the domain is used, so that as a subject it is passed over: a tag,
+/// `domain i32::Km;`, optionally with an access policy or establishment
+/// routes. It has no predicate, cleanup selection, operator, alias or
+/// parameter. A type that names it resolves it where the type is read
+/// (`declared_domain`).
+///
+/// A policy or a route list restricts who may add the domain, read inside
+/// a value of it and change one. Each of those uses asks the declaration
+/// where it occurs (`casts::issue`, `authority::authorized`), and an
+/// answer the checker cannot give refuses the use, so the declaration
+/// itself has nothing to prove. Every other domain declaration of a
+/// subject is refused until the checker judges what it declares.
+fn judged_where_used(
+    typed: &typed_trees::TypedTrees,
+    domain: &typed_trees::domain::DomainDefinition,
+) -> bool {
+    domain.alias.is_none()
+        && domain.cleanup_selection.is_none()
+        && domain.facts.is_empty()
+        && domain.predicate_presence == language_semantics::DomainPredicatePresence::Absent
+        && domain.operators.is_empty()
+        && domain.index_arguments.is_empty()
+        && typed.domain_type_parameters(domain).is_empty()
 }
 
 fn symbols_of<T>(rows: &[T], symbol: impl Fn(&T) -> SymbolHandle) -> Vec<SymbolHandle> {

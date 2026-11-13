@@ -70,7 +70,7 @@ machine HookProcedurePolicy::plan(signature: BoundarySignature) -> BoundaryPlanR
 }
 
 boundary trait HookProcedure: Calling<HookProcedurePolicyCallingPolicy> {
-    machine call(message: u64) -> u64 reaches none;
+    machine call(message: u64) -> u64 reaches none crashes none;
 }
 
 data HookRegistrarPolicy { }
@@ -170,7 +170,8 @@ boundary trait HookRegistrar: Calling<HookRegistrarCallingPolicy> {
         module: u64
     )
     requires machine Handler satisfies HookProcedure::call;
-    reaches none;
+    reaches none
+    crashes none;
 }
 
 data HookProvider { }

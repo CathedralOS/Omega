@@ -6600,7 +6600,7 @@ pub(crate) mod result_dispatch_terms {
             }
             if definition.predicate_presence.is_present()
                 && definition.semantic_roles.is_empty()
-                && definition.establishment_routes.is_empty()
+                && definition.issuance() == crate::domain::DomainIssuance::Unrestricted
             {
                 return;
             }

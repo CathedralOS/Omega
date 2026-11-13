@@ -365,6 +365,17 @@ header. Absence of that header does not classify a selected contract as nongener
 
 ## Field encodings
 
+The [width-indexed integer contract](../language/numeric_values.md#width-indexed-integers)
+requires a versioned migration of integer type/value and structural scalar
+encodings: retain positive `u64` semantic widths and exact values beyond 128
+bits without truncation. The legacy `u16` width and `i128`/`u128` value fields
+listed below are not source-language limits or permission to narrow a program.
+Producer and consumer must change the semantic format together and reject
+incompatible old artifacts rather than reinterpret their bytes. Validate counts,
+carrier fit and resource budgets before allocating or decoding wide payloads.
+This decision assigns no numeric wire tag; exact encoding work belongs to the
+same implementation outcome as wide arithmetic.
+
 Row fields are read in the order given. `u8`, `u16`, `u32`, `u64`, `u128`, and
 `i128` are fixed-width little-endian; `bool` is a `u8` restricted to 0 or 1.
 `id` is a nonzero `u64` stable identity; `count` and `index` are `u32`.

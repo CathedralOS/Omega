@@ -10,9 +10,14 @@ parent lifetime, and restoration obligation."). The occurrence is the call,
 the captured place is the argument's place, the access is the argument's,
 and the lineage is the root's: a borrowed formal's root reborrows the loan
 the invocation passed in (`Lender::Incoming`), any other root lends owned
-storage (`Lender::Owner`). Every loan here is formed for one call. A normal
-call ends its loans on return; a terminal transfer retains its exact loan
-dispositions on its outgoing edge.
+storage (`Lender::Owner`). A loan formed for a call that returns ends when
+it does, so it is live on no edge and no edge disposes of it. A loan formed
+for a call with no normal return is carried into that terminal transfer
+(`wiki/spec/language/state_contracts.md`: "A caller-local loan carried into
+a terminal machine call closes at the last use of that loan and of every
+loan derived from it, even when that use is inside the callee's terminal
+chain"): the transfer's edge consumes it, and nothing of this machine runs
+after to use the lent place again.
 
 The rows are recomputed from the lowered form, as every other row is
 (`minted`): one `Loan` per borrowed argument of each call, created at the
@@ -179,7 +184,7 @@ impl Storage<'_> {
                 })?;
                 let expected = match invocation.site {
                     InvocationSite::InvokeNoNormal(site) => (site, Fate::Consumed),
-                    InvocationSite::ExternalCompletion(site) => (site, Fate::Abandoned),
+                    InvocationSite::ExternalCompletion(site) => (site, Fate::Consumed),
                     _ => {
                         return Err(self.foreign(
                             Construct::Edge(edge),

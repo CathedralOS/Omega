@@ -63,9 +63,9 @@ mod read;
 mod static_contracts;
 
 pub use body::{
-    Axis, Body, Borrowed, CaseType, Ceiling, CrashCeiling, Expression, ExpressionKind, Policy,
-    RecordField, RecordType, Signature, Statement, StorageShape, Strict, Target, Termination,
-    ValueType, self_place,
+    Axis, Body, Borrowed, CaseType, Ceiling, CrashCeiling, DomainSet, Expression, ExpressionKind,
+    Policy, Qualification, RecordField, RecordType, Signature, Statement, StorageShape, Strict,
+    Target, Termination, ValueType, self_place,
 };
 pub use callable_headers::{CallableCrashPolicy, CallableHeader};
 pub use external_providers::{ExternalProviderCandidate, ProviderContractHeader};
@@ -289,6 +289,12 @@ pub struct Elaboration {
     /// applications are closed machines of this module. Empty outside
     /// `elaborate`.
     pub generic_templates: Vec<SymbolHandle>,
+    /// The operation each implementation the subject declares selects for
+    /// each requirement of its trait. Each is a declaration the compilation
+    /// must judge, and none is a machine of this module: that the operation
+    /// refines the requirement is a statement of its own
+    /// (`elaborate_witness`). Empty outside `elaborate`.
+    pub conformance_witnesses: Vec<ConformanceWitness>,
     /// The machines of a compilation's module that were given no declaration
     /// identity, each with the reason (`declare`). A module that lists one is
     /// judged like any other and is never published. Empty outside
@@ -514,6 +520,19 @@ pub fn elaborate_generic_forms(
         }
     }
     Ok(forms)
+}
+
+/// One row of an implementation: the machine it selects for a requirement of
+/// its trait. conformances.md, "Binding a machine to a requirement": the
+/// machine "refines the complete requirement: parameters, results,
+/// preconditions, guarantees", and "A matching signature is insufficient."
+/// So each row a subject declares is an obligation of its own, whether or
+/// not the program selects the implementation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConformanceWitness {
+    pub declaring_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub implementation: SymbolHandle,
 }
 
 /// The declaration a machine was generated from, when stage 04 generated it
@@ -762,6 +781,7 @@ fn finish_reading(
     elaboration.value_parameters = program.value_parameters;
     elaboration.value_arguments = program.value_arguments;
     elaboration.generic_templates = program.generic_templates;
+    elaboration.conformance_witnesses = program.conformance_witnesses;
     Ok(elaboration)
 }
 
@@ -1111,6 +1131,7 @@ fn lower_program(
         value_parameters: IdTable::default(),
         value_arguments: IdTable::default(),
         generic_templates: Vec::new(),
+        conformance_witnesses: Vec::new(),
         undeclared: Vec::new(),
         reach: ServiceReach::default(),
         external_provider_candidates,

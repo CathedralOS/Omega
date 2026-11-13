@@ -450,7 +450,42 @@ pub(crate) mod domain {
             semantic_id: domain.semantic_id,
             semantic_roles: domain.semantic_roles,
             establishment_routes: domain.establishment_routes.clone(),
+            access_policy: domain
+                .access_policy
+                .as_ref()
+                .map(|policy| {
+                    Ok::<_, Diagnostic>(typed::domain::DomainAccessPolicy {
+                        selection: crate::expressions::expression::lower_static_machine_argument(
+                            Some(lowerer.source_trees),
+                            &mut lowerer.typed_trees,
+                            lowerer.type_reference_exposure,
+                            policy,
+                        )?,
+                        source_span: policy
+                            .path
+                            .last()
+                            .map(|name| name.source_span())
+                            .unwrap_or_default(),
+                    })
+                })
+                .transpose()?,
         };
+        // Binding operand declarations does not judge the policy application
+        // or evaluate its plan. Retain the application request for that later work.
+        if let Some(policy) = &domain.access_policy
+            && policy.application.is_some()
+        {
+            let source_span = policy
+                .path
+                .last()
+                .map(|name| name.source_span())
+                .unwrap_or_default();
+            lowerer.typed_trees.record_deferred_refusal(
+                domain.symbol,
+                typed_trees::deferred_refusals::DeferredRequest::AccessPolicyApplication,
+                source_span,
+            );
+        }
 
         typed_domain.type_parameters = crate::signatures::type_parameters::lower_type_parameters(
             lowerer,

@@ -1,0 +1,10 @@
+// Rejected: `Positive` is attached to `both` and the cast does not name it.
+domain i32::Km;
+domain i32::Positive
+    requires self > 0;
+
+machine lost(both: i32 in Km & Positive) -> i32 in Km {
+    both as =Km
+}
+
+machine main() { }

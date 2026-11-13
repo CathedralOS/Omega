@@ -48,7 +48,6 @@ const TRUST_MODEL: &str = "omega-rust/omega/compilation/realization/trust-model"
 const REVIEW_EVIDENCE: &str = "omega-rust/omega/packages/review-evidence";
 const PSI_FACADE: &str = "omega-rust/psi/compilation/psi-compiler";
 const TERMINAL_PRODUCTION: &str = "omega-rust/psi/compilation/psi-compiler/terminal-production";
-const SELECTED_DISPATCH: &str = "omega-rust/omega/compilation/realization/selected-dispatch";
 const PROVIDER_PLANNING: &str = "omega-rust/omega/compilation/realization/provider-planning";
 const REPRESENTATION_PLANNING: &str =
     "omega-rust/psi/compilation/validation/representation-planning";
@@ -109,16 +108,10 @@ pub struct Allowance {
     pub dependency: &'static str,
 }
 
-const FIREWALL_ALLOWANCES: &[Allowance] = &[
-    Allowance {
-        owner: SELECTED_DISPATCH,
-        dependency: TERMINAL_PRODUCTION,
-    },
-    Allowance {
-        owner: PROVIDER_PLANNING,
-        dependency: "omega-rust/psi/compilation/build-time-evaluation",
-    },
-];
+const FIREWALL_ALLOWANCES: &[Allowance] = &[Allowance {
+    owner: PROVIDER_PLANNING,
+    dependency: "omega-rust/psi/compilation/build-time-evaluation",
+}];
 
 pub struct Rule {
     pub owners: Vec<&'static str>,

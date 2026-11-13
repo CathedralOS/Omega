@@ -37,14 +37,14 @@ pub(super) fn unit(parameters: Vec<ValueType>, statements: Vec<Statement>) -> Le
 }
 
 pub(super) fn pair() -> ValueType {
-    ValueType::Record(id(1))
+    ValueType::record(id(1))
 }
 
 fn records() -> IdTable<StructuralTypeId, RecordType> {
     let field = |raw: u64, spelled: &str| RecordField {
         id: StructuralFieldId::new(raw).unwrap(),
         identity: spelled.to_owned(),
-        value_type: ValueType::Scalar(u32_type()),
+        value_type: ValueType::plain(u32_type()),
     };
     let mut records = IdTable::default();
     records.push(RecordType {
@@ -72,7 +72,7 @@ pub(super) fn lower_lending(machines: Vec<Lending>) -> Checked<structure_elabora
             .map(|(position, access)| Borrowed {
                 position: *position,
                 access: *access,
-                home: matches!(machine.parameters[*position], ValueType::Scalar(_))
+                home: matches!(machine.parameters[*position], ValueType::Scalar(..))
                     .then(|| String::from("u32")),
             })
             .collect();

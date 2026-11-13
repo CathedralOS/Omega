@@ -2159,14 +2159,24 @@ pub(crate) mod construction_destinations {
             });
 
             // `owned = Record {}` is built at the type written on `owned`.
+            // Landing gives the literal its own occurrence of that type,
+            // which records the machine that owns its lifetimes
+            // (`land_one`, `fresh_occurrence`), so the two are the same
+            // type under different handles.
             let mut landed = program.clone();
             prepare(&mut landed, 0, 0, &[]).unwrap();
             assert!(landed.deferred_refusals.is_empty());
+            let required = landed
+                .expression_table
+                .construction_required_type_reference(value);
+            assert!(required.is_valid());
             assert_eq!(
-                landed
-                    .expression_table
-                    .construction_required_type_reference(value),
-                record
+                landed.type_reference_table.type_reference(required),
+                landed.type_reference_table.type_reference(record)
+            );
+            assert_eq!(
+                landed.type_reference_table.operand_lifetime_owner(required),
+                writer
             );
 
             // The twins differ only in the place assigned: a field of the
@@ -2938,7 +2948,7 @@ pub(crate) mod qualification_casts {
         expression_frontier: usize,
         cast_destinations: &[TypeReferenceHandle],
     ) -> Result<(), Diagnostic> {
-        super::domain_cast_accounting::account(
+        crate::domain_cast_accounting::account(
             source,
             program,
             expression_frontier,
@@ -2961,6 +2971,10 @@ pub(crate) mod qualification_casts {
         let mut updates = Vec::with_capacity(sites.len());
 
         for (handle, cast) in sites {
+            // A run typing deferred to its declaration has no types to settle.
+            if cast.form.entry().is_some() && !cast.result_type.is_valid() {
+                continue;
+            }
             if cast.semantic_domain.is_empty() {
                 // An accounted policy entry already carries its exact result.
                 if cast.form.entry().is_some() {
@@ -3166,38 +3180,6 @@ pub(crate) mod qualification_casts {
             cast.result_type = result_type;
             if cast.form.is_recast() && result_type.is_valid() {
                 cast.target_type = result_type;
-            }
-        }
-        Ok(())
-    }
-}
-
-/*
-A domain-entry cast needs the operand's full qualified type. The retired
-source checker supplied that judgment; retaining the authored entry is not a
-replacement proof that additions, removals and keeps account for that type.
-*/
-pub(crate) mod domain_cast_accounting {
-    use diagnostics::Diagnostic;
-    use typed_trees::{TypedTrees, expression::ExpressionNode, types::TypeReferenceHandle};
-
-    pub(crate) fn account(
-        _source: &symbol_resolved_trees::SymbolResolvedTrees,
-        program: &mut TypedTrees,
-        frontier: usize,
-        _cast_destinations: &[TypeReferenceHandle],
-    ) -> Result<(), Diagnostic> {
-        for (handle, expression) in program.expression_table.expression_entries() {
-            if handle.arena_index() as usize <= frontier {
-                continue;
-            }
-            if let ExpressionNode::Cast(cast) = expression
-                && cast.form.entry().is_some()
-            {
-                return Err(
-                    crate::unavailable_judgment("domain cast operand accounting")
-                        .with_source_span(program.expression_table.source_span(handle)),
-                );
             }
         }
         Ok(())

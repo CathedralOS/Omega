@@ -1,6 +1,7 @@
 // Lowering tests build closed bodies directly, so each one states the exact
 // scalar program it lowers; the reader's refusals are tested in `read.rs`.
 
+use crate::body::Qualification;
 use semantic_vocabulary::{
     BlockId, CrashCause, IdTable, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId,
     Proposition, PsiSemanticId, ScalarTerm, ScalarType, ValueId,
@@ -37,7 +38,7 @@ fn nowhere() -> SourceOrigin {
 fn expression(kind: ExpressionKind, result: Option<ScalarType>) -> Expression {
     Expression {
         kind,
-        result: result.map(ValueType::Scalar),
+        result: result.map(ValueType::plain),
         source: nowhere(),
     }
 }
@@ -93,7 +94,7 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         parameters: scalars(parameters),
         erased: Vec::new(),
         borrowed: Vec::new(),
-        result: result.map(ValueType::Scalar),
+        result: result.map(ValueType::plain),
         requires: Vec::new(),
         ensures: Vec::new(),
         reaches: crate::Ceiling::Inferred,
@@ -141,7 +142,7 @@ fn emitted_calls_have_behavior_before_any_judgment_and_raw_bodies_have_no_source
 
 /// Scalar slot or formal types as the body holds them.
 fn scalars(types: Vec<ScalarType>) -> Vec<ValueType> {
-    types.into_iter().map(ValueType::Scalar).collect()
+    types.into_iter().map(ValueType::plain).collect()
 }
 
 /// A machine that may return and publishes no crash route.
@@ -201,6 +202,7 @@ fn lower_records(
     let signatures = crate::body::Signatures {
         machines: signatures,
         boundaries: &boundary_signatures,
+        completions: &IdTable::default(),
     };
     let declared = crate::lower::places::declare(
         id(1),
@@ -1387,11 +1389,11 @@ use terminal_psi::{RecordFieldValue, StructuralAccess, StructuralArgument};
 use crate::body::{RecordField, RecordType};
 
 fn point() -> ValueType {
-    ValueType::Record(id(1))
+    ValueType::Record(id(1), Qualification::NONE)
 }
 
 fn line() -> ValueType {
-    ValueType::Record(id(2))
+    ValueType::Record(id(2), Qualification::NONE)
 }
 
 fn records() -> IdTable<StructuralTypeId, RecordType> {
@@ -1405,8 +1407,8 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         copyable: true,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![
-            field(1, "x", ValueType::Scalar(u32_type())),
-            field(2, "y", ValueType::Scalar(u32_type())),
+            field(1, "x", ValueType::Scalar(u32_type(), Qualification::NONE)),
+            field(2, "y", ValueType::Scalar(u32_type(), Qualification::NONE)),
         ]),
         requires: Vec::new(),
     });
@@ -2295,7 +2297,7 @@ const BOXED: usize = 2;
 const EMPTY: usize = 3;
 
 fn shape() -> ValueType {
-    ValueType::Record(id(2))
+    ValueType::Record(id(2), Qualification::NONE)
 }
 
 fn sums() -> IdTable<StructuralTypeId, RecordType> {
@@ -2309,7 +2311,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         identity: spelled.to_owned(),
         fields,
     };
-    let scalar = ValueType::Scalar(u32_type());
+    let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
     let mut records = IdTable::default();
     records.push(RecordType {
         copyable: true,
@@ -2502,7 +2504,7 @@ fn weighs() -> Vec<Signature> {
 #[test]
 fn a_dispatch_lists_every_declared_case_and_binds_scalar_payloads_as_block_parameters() {
     // transition s { Pair { l, r } -> r   Dot { at } -> at   _ -> 0 }
-    let scalar = ValueType::Scalar(u32_type());
+    let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
     let subject = || place(0, shape());
     let (machine, tables) = lower_sums(
         weigh(
@@ -2600,7 +2602,7 @@ fn a_dispatch_lists_every_declared_case_and_binds_scalar_payloads_as_block_param
 #[test]
 fn a_value_match_joins_its_arms_with_the_result_as_one_block_parameter() {
     // f(s: Shape) -> u32 { (match s { Dot { at } -> at, _ -> 7 }) & 1 }
-    let scalar = ValueType::Scalar(u32_type());
+    let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
     let matched = of_type(
         ExpressionKind::Match {
             capture: None,
@@ -2661,7 +2663,7 @@ fn a_value_match_joins_its_arms_with_the_result_as_one_block_parameter() {
 #[test]
 fn a_case_test_observes_the_sum_in_place_and_a_payload_read_ends_its_carrier_in_the_case() {
     // f(s: Shape) -> u32 { transition s in Shape::Dot { true -> s.at } 9 }
-    let scalar = ValueType::Scalar(u32_type());
+    let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
     let (machine, _) = lower_sums(
         Body {
             slots: vec![shape()],
@@ -2738,7 +2740,7 @@ fn a_data_payload_is_copied_out_by_its_case_and_field() {
 
 #[test]
 fn each_sum_construct_outside_the_slice_is_refused_by_name_in_lowering() {
-    let scalar = ValueType::Scalar(u32_type());
+    let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
     // A crash inside a case arm: its site guard could not state the case.
     let crash = try_lower_sums(
         Body {

@@ -179,11 +179,9 @@ impl CompilationSession {
             outcomes.push((position, owner, outcome));
         }
         outcomes.sort_unstable_by_key(|(position, _, _)| *position);
-        let mut selected = Vec::with_capacity(outcomes.len());
-        for (_, owner, mut outcome) in outcomes {
-            self.attach_component_products(&mut outcome);
-            selected.push((owner, outcome));
-        }
-        selected
+        outcomes
+            .into_iter()
+            .map(|(_, owner, outcome)| (owner, outcome))
+            .collect()
     }
 }

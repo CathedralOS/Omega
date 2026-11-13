@@ -29,6 +29,7 @@ public boundary trait BuildRequestOperations {
 public boundary trait Probe {
     machine poke(value: u64) reaches none crashes none;
 }
+public const LIMIT: u64 = 4;
 "#;
 
 fn package() -> semantic_vocabulary::PackageKeyIdentity {
@@ -78,6 +79,13 @@ fn typed(build: &str) -> typed_trees::TypedTrees {
 }
 
 fn accepted(build: &str) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
+    accepted_for(build, terminal_codec::TerminalPublication::Invocation)
+}
+
+fn accepted_for(
+    build: &str,
+    publication: terminal_codec::TerminalPublication,
+) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
     let typed = typed(build);
     let entry = typed
         .machines()
@@ -95,7 +103,7 @@ fn accepted(build: &str) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diag
             selected: &[],
             bindings: &[],
         },
-        terminal_codec::TerminalPublication::Invocation,
+        publication,
     )
 }
 
@@ -368,4 +376,135 @@ machine build(builder: &mut Build) {
             .len(),
         1
     );
+}
+
+/// A saved artifact's code digest does not authenticate separately decoded
+/// host actions. A valid site with a different action or protocol family must
+/// not acquire authority; even an unmodified saved Build row needs its source
+/// correspondence rejoined. Fresh accepted production remains available.
+#[test]
+fn saved_build_rows_do_not_authorize_changed_actions_or_protocol_families() {
+    use compiler_storage::{Record, RecordLimits, RecordWriter};
+    use psi_terminal_production::{TerminalBuildQueryCall, TerminalBuildRequestCall};
+
+    let program = accepted_for(ONE_BINDING, terminal_codec::TerminalPublication::Portable)
+        .unwrap()
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .unwrap();
+    let refused = compiler_storage::encode(&program, RecordLimits::default()).unwrap_err();
+    assert!(
+        refused.to_string().contains(
+            "saved Build companions require their accepted source protocol correspondence"
+        ),
+        "{refused}"
+    );
+    let view = program.view();
+    let original = program.build_requests().calls_for(view).unwrap()[0].clone();
+    let binding = &program.build_bindings().calls_for(view).unwrap()[0];
+    let mut different_action = original.clone();
+    different_action.action = TerminalBuildRequestOperation::Application;
+    let mut different_family = original.clone();
+    different_family.site = binding.site;
+    for request in [original, different_action, different_family] {
+        // Write one altered companion beside the real accepted artifact,
+        // using exactly the existing private record layout. No new evidence
+        // or source protocol declaration is supplied by these bytes.
+        let mut output = RecordWriter::new(RecordLimits::default());
+        output.record(|output| {
+            u64::from_le_bytes(*b"OMGBLD02").write(output)?;
+            program.artifact().unwrap().to_bytes().write(output)?;
+            Arc::<[psi_terminal_production::TerminalBuildBindingCall]>::from([]).write(output)?;
+            Arc::<[Arc<language_semantics::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
+            Arc::<[TerminalBuildQueryCall]>::from([]).write(output)?;
+            Arc::<[language_semantics::declaration_selection::NativeBindingFormation]>::from([]).write(output)?;
+            Arc::<[TerminalBuildRequestCall]>::from([request]).write(output)?;
+            Arc::<[psi_terminal_production::TerminalBuildFilesystemCall]>::from([]).write(output)
+        }).unwrap();
+        let refused = compiler_storage::decode::<ProducedTerminalProgram>(
+            &output.finish(),
+            RecordLimits::default(),
+        )
+        .unwrap_err();
+        assert!(
+            refused.to_string().contains(
+                "saved Build companions require their accepted source protocol correspondence"
+            ),
+            "{refused}"
+        );
+    }
+}
+
+/// Portable artifacts without host actions still use the normal persistence
+/// path, without a fabricated protocol witness.
+#[test]
+fn a_portable_artifact_without_build_companions_still_round_trips() {
+    let program = accepted_for(
+        "machine build(builder: &mut Build) {}",
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .unwrap()
+    .produce(
+        TerminalProductionCustody::default(),
+        &mut UnmeasuredProduction,
+    )
+    .unwrap();
+    let bytes =
+        compiler_storage::encode(&program, compiler_storage::RecordLimits::default()).unwrap();
+    let restored = compiler_storage::decode::<ProducedTerminalProgram>(
+        &bytes,
+        compiler_storage::RecordLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        restored.view().custody_identity(),
+        program.view().custody_identity()
+    );
+    assert!(
+        restored
+            .build_bindings()
+            .calls_for(restored.view())
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        restored
+            .build_requests()
+            .calls_for(restored.view())
+            .unwrap()
+            .is_empty()
+    );
+}
+
+/// A Build admission must know whether the module it accepted reads a
+/// constant: a Product frontier typed later settles nothing for a module
+/// that reads none. The accepted module answers from its own declarations.
+#[test]
+fn an_accepted_build_that_names_no_constant_reads_none() {
+    // The prelude declares `LIMIT`; a declaration nobody names is no read.
+    assert!(accepted(ONE_BINDING).unwrap().constants_read().is_empty());
+}
+
+/// The twins: the same prelude constant named in a body, in a contract of a
+/// called machine and in a type the Build declares. Each program is accepted
+/// (name resolution recorded the constant's value), so acceptance alone does
+/// not show that a Build reads no constant.
+#[test]
+fn an_accepted_build_states_each_constant_its_declarations_name() {
+    for build in [
+        "machine build(builder: &mut Build) { Probe::poke(LIMIT); }
+",
+        "machine helper(value: u64) requires value < LIMIT { }
+         machine build(builder: &mut Build) { helper(1); }
+",
+        "data Table { cells: [u64; LIMIT]; }
+         machine helper(table: &Table) { }
+         machine build(builder: &mut Build) { }
+",
+    ] {
+        let accepted = accepted(build).unwrap_or_else(|refused| panic!("{build}: {refused:?}"));
+        assert_eq!(accepted.constants_read(), ["LIMIT"], "{build}");
+    }
 }

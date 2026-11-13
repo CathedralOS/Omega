@@ -52,12 +52,12 @@ providers. Physical layout size is not semantic integer width. `u32::MAX`,
 `i32::Maximum`, and similar spellings are not aliases, keywords, or a supported
 primitive-member lookup route.
 
-Initial queries apply to admitted unqualified fixed integer carriers and the
-permanent `f32`/`f64` formats. Unsupported types reject. They do not solve the
+Extrema and width queries apply to admitted unqualified fixed integer carriers
+at every positive static width, and format queries to the permanent `f32`/`f64`
+formats. Unsupported types reject. They do not solve the
 maximum of an arbitrary domain, mint qualifications, or assign extrema to
-unbounded mathematical integers. Arbitrary-width integer families remain
-separately unspecified; their future admission must use the same general
-mechanisms, not add one compiler-recognized name per width.
+unbounded integers. Carrier-family classification below is a separate total
+query, not an extrema query or one compiler-recognized name per width.
 
 The integer query surface is supplied by ordinary checked declarations in
 `core::integer`, including exact carrier refinement and static evaluation.
@@ -147,8 +147,8 @@ or 51 bits for `f64` may be present; signaling payloads must be nonzero so the
 result is not infinity. Calls prove those requirements or use an ordinary
 explicitly failure-returning adapter; constructors never silently truncate.
 These are library conveniences, not permanent compiler mechanisms or selectable
-policies. Future unsigned narrow payload carriers may make them unnecessary;
-this decision does not admit those carriers or automatically deprecate the APIs.
+policies. Width-indexed unsigned payload carriers may make them unnecessary;
+their admission does not automatically deprecate these APIs.
 Exact bit composition and its validity/access obligations remain the foundation.
 
 `float::quiet<T>(value)` sets a signaling NaN's quiet bit while preserving sign
@@ -165,6 +165,142 @@ proof, explicit canonicalization, or an exact-bit refinement. A wrapper cannot
 launder that dependency into cross-target reproducibility. Hardware exceptions
 remain masked; signaling-state APIs do not promise an ambient hardware trap or
 replace Omega's result-based `Trapping` policy.
+
+## Width-indexed integers
+
+Named decision: `width-indexed-integers`, ratified 2026-11-13. `u<N>` and
+`i<N>` are unsigned and signed computational integer carriers whose width is
+a positive proof-static `u64`. The decimal spellings `u13`, `i257` and the
+existing fixed-width names abbreviate those applications: `u32` and `u<32>`
+are exactly the same type, not convertible wrappers. Bare `u` and `i` retain
+their separate unbounded meaning; omitting the width never requests inference.
+Zero widths and runtime width arguments reject. One-bit carriers are admitted:
+`u1` contains zero and one; `i1` contains minus one and zero. Neither is `bool`.
+
+The unsigned range is `0 <= value < 2^N`; the signed range is
+`-2^(N-1) <= value < 2^(N-1)`, with N-bit two's-complement interpretation for
+word operations. Width is numerical meaning, independent of target registers
+or physical layout. Generic formation proves positivity under the declaration's
+static requirements. Signedness and normalized width form carrier identity
+under the ordinary [index rules](generics.md#applications-and-specialization);
+proved index compatibility does not merge unrelated nominal carriers.
+
+Literal suffixes admit the concrete width spellings, including `17u13`.
+A symbolic width uses an expected `u<N>`/`i<N>` type or an explicit exact
+conversion. Literal formation, anonymous arithmetic landing and qualification
+retain their existing rules. Small widths confer no exception: a generic body
+admitting `i1` cannot assume that positive one inhabits its carrier.
+
+All existing fixed-integer operations apply at N, not at a convenient machine
+register width. Exact is still the default, with the existing Wrapping,
+Saturating and Trapping policy operators. Intermediates must satisfy their own
+contracts; a wider result type does not widen operands retroactively. Wrapping
+arithmetic reduces modulo `2^N`. Wrapping shift counts reduce by Euclidean
+modulo N, including non-power-of-two widths; hardware register masking is not
+an equivalent rule. Unsigned right shifts zero-fill and signed right shifts
+sign-extend. Bitwise operations affect exactly N semantic bits, never padding.
+The existing zero-divisor, signed `MIN / -1`, remainder and shift-count rules
+apply unchanged, including at N = 1.
+
+Comparisons retain exact mathematical-value meaning across integer carriers.
+Arithmetic still requires an explicit common typed carrier. Exact numerical
+conversion preserves value and proves destination fit, including changes of
+signedness; it is not bit reinterpretation. Existing explicitly selected
+wrapping, saturating and trapping conversion operations keep their contracts.
+Conversion and query libraries generalize over widths rather than requiring
+handwritten width-pair tables. `embed` retains the exact source value and range.
+
+### Storage and realization
+
+These are ordinary fixed-size values. Home storage has target/layout-selected
+size and alignment and may use several words; it is not implicitly heap-allocated
+when N exceeds a register. N does not promise tightly packed array elements or
+`size_of` equal to a rounded byte count. Extra physical bits are representation
+detail or padding, with no universal zero/sign-extension promise. They cannot
+affect numerical equality, arithmetic or value-based hashing. Byte observation
+and serialization require their actual layout/encoding contracts; equal storage
+sizes alone do not authorize a recast or a reference to a packed field.
+
+Complete integer support includes runtime parameters/results, locals, records,
+arrays, copies, comparisons, arithmetic, bit operations and numerical conversions
+for every width admitted by the implementation's resource limits. Missing a
+single hardware instruction is not a semantic restriction: use correct multiword
+lowering or software helpers. Result storage, scratch space and helper calls
+enter ordinary resource and stack accounting; helpers cannot introduce hidden
+heap allocation, undeclared failure paths or effects. Foreign ABI placement and
+atomic access separately require supported, validated realizations. Neither
+foreign compatibility nor lock-free access follows from integer formation.
+
+Bound evaluation and realization work before constructing enormous endpoints,
+masks, limb arrays or layout products. A width within `u64` does not promise
+unlimited compilation or storage resources. Diagnose resource refusal separately
+from an unfinished unsupported realization; neither truncates the width, changes
+the type's meaning, or counts as complete support. Checker, certificates, Psi
+execution and native lowering retain the same width and exact values, including
+beyond host scalar limits. Published encodings must preserve them losslessly.
+
+### Integer carrier families
+
+Named decision: `integer-carrier-family-constraints`, ratified 2026-11-13.
+Ordinary checked machines in `core::integer` expose these total type queries;
+each takes a type argument and returns `bool`:
+
+| Query | Accepted computational carriers |
+| --- | --- |
+| `is_integer<T>()` | Every `i<N>`, `u<N>`, unbounded `i` and `u`. |
+| `is_signed_integer<T>()` | Every `i<N>` and unbounded `i`. |
+| `is_unsigned_integer<T>()` | Every `u<N>` and unbounded `u`. |
+| `is_fixed_width_integer<T>()` | Every `i<N>` and `u<N>`, not unbounded `i`/`u`. |
+
+Other carriers return false, including `bool`, addresses, floats and proof-only
+`Int`/`Nat`. Ordinary alias resolution preserves the underlying carrier's
+classification; unrelated nominal data with an integer representation does not
+become an integer. Classification of a qualified carrier does not discard its
+domains, access, custody or operation-selection obligations.
+
+These queries derive their guarantees from authoritative semantic type metadata.
+The compiler checks those guarantees through ordinary refinement machinery,
+not function-name recognition, implicit implementation search or one trait
+implementation per width. A function returning true supplies no carrier fact
+unless its checked contract establishes that fact. The existing `is_signed<T>()`
+query remains the fixed-carrier property query; it is not a total type classifier.
+
+Carrier-family facts can constrain ordinary generic machines and domains.
+They establish only the operations common to the admitted carriers, with their
+ordinary preconditions and explicit operation selections. A symbolic family is
+not checked by enumerating its widths. Fixed-width operations and width/extrema
+queries require a fixed-width premise; an integer-family premise alone neither
+extends unbounded word operations nor supplies a finite maximum. Domain
+application checks carrier eligibility before forming the value predicate, as
+specified by [generic carrier constraints](generics.md#integer-carrier-constraints).
+
+### Width-family implementation acceptance
+
+Both compiler implementations must preserve this contract through checked
+generic use, published/reloaded Psi and native execution on hosted targets:
+
+- One-bit signed and unsigned values exercise literal fit, extrema, overflow,
+  division/remainder and conversion boundaries, with rejecting controls.
+- A non-byte-width arithmetic customer uses `u13`/`i13` at runtime, including
+  sign-extending shifts and modulo-13 wrapping shift counts, not just packing.
+- A fixed multiword arithmetic customer uses `u65` and `u257`/`i257` for carries,
+  multiplication, division, parameters and results without hidden allocation.
+- One generic width body works at narrow and multiword widths without separate
+  handwritten source implementations. Concrete shorthand and indexed names have
+  identical identity; proved-compatible symbolic widths keep canonical keys.
+- Generic nonzero domains accept signed/unsigned carriers as declared, including
+  unbounded carriers; unsigned-only membership on a signed carrier rejects as
+  an invalid application, not an empty domain. Fake classifiers do not authorize
+  integer operations; value-predicate failures remain distinct.
+- Layout, padding, packed projection and mutable recast handback controls retain
+  value semantics; unsupported foreign ABI or atomic operations reject explicitly.
+- Zero/runtime widths, missing generic premises, out-of-range exact conversion,
+  malformed wide artifacts and oversized resource requests reject before unsafe
+  allocation or truncation. Compare native and Psi results for executable cases.
+
+Genuine unspecified semantic choices discovered during delivery belong in
+`OWNER_QUESTIONS.md` with a concrete example and alternatives. Unsupported
+implementation is work to complete, not permission to invent different rules.
 
 ## Unbounded computational integers
 
@@ -227,8 +363,8 @@ for `i` or `u`. Fixed-width rotations, leading-zero counts, complement, shifts
 and policy operators do not automatically extend to them. Unbounded bitwise and
 shift operations need separately specified contracts. Runtime big-integer storage,
 allocation, copying, cleanup and ABI support remain separate delivery work.
-Arbitrary finite widths such as `i200` are also a separate proposal, not layouts
-that redefine the value domain of `i`.
+Arbitrary finite widths such as `i200` follow [width-indexed integers](#width-indexed-integers),
+not layouts that redefine the value domain of `i`.
 
 ## Mathematical division
 

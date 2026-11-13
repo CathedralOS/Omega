@@ -14,6 +14,20 @@ pub struct AcceptedTerminalSource {
     publication: terminal_codec::TerminalPublication,
 }
 
+/// One boundary requirement a machine of an accepted module calls.
+///
+/// `boundary` is the callable the module declares for it, `requirement` the
+/// source declaration of that callable and `slot` the boundary trait that
+/// owns the requirement: the two declarations a provider selection can name.
+/// `name` is the authored `Trait::requirement` spelling, for messages only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReachedBoundaryRequirement {
+    pub boundary: semantic_vocabulary::BoundaryMachineId,
+    pub requirement: symbols::SymbolHandle,
+    pub slot: symbols::SymbolHandle,
+    pub name: String,
+}
+
 impl AcceptedTerminalSource {
     pub fn judge(
         source: Arc<FrozenTypedTrees>,
@@ -97,6 +111,14 @@ impl AcceptedTerminalSource {
         // Host records also retain unexecuted native-binding formations.
         let companions = crate::build_companions::produce(self, program.view().module())
             .map_err(|diagnostic| vec![diagnostic])?;
+        crate::build_bindings::validate_companions(
+            program.view(),
+            &companions.bindings,
+            &companions.queries,
+            &companions.requests,
+            &companions.filesystem,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let build_bindings = crate::TerminalBuildBindings::new(
             program.view(),
             companions.bindings,
@@ -128,6 +150,100 @@ impl AcceptedTerminalSource {
             reaches_outside: companions.unowned != 0,
             filesystem: !companions.filesystem.is_empty(),
         })
+    }
+
+    /// The constants the declarations of this accepted module name, by
+    /// name, each once and in the order the declarations name them.
+    ///
+    /// The declarations are the ones the elaboration lowered: its machines,
+    /// its boundary requirements and the records it declares. They are read
+    /// in the judged source, so the answer is about this artifact and does
+    /// not rest on the reader having refused constants on the way here. A
+    /// Build admission settles nothing for a module that names none.
+    pub fn constants_read(&self) -> Vec<String> {
+        let elaboration = &self.closure.elaboration;
+        let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let mut lowered = elaboration
+            .machines
+            .iter()
+            .map(|(_, symbol)| *symbol)
+            .chain(elaboration.boundaries.iter().map(|(_, symbol)| *symbol))
+            .chain(
+                elaboration
+                    .source_records
+                    .iter()
+                    .map(|record| record.declaration),
+            )
+            .collect::<Vec<_>>();
+        lowered.sort_unstable_by_key(|symbol| key(*symbol));
+        let constants = self
+            .source
+            .const_declarations()
+            .iter()
+            .map(|declaration| declaration.symbol)
+            .collect();
+        let mut uses = typed_trees::references::ConstantUses::new(constants, |declaration| {
+            lowered
+                .binary_search_by_key(&key(declaration), |symbol| key(*symbol))
+                .is_ok()
+        });
+        typed_trees::references::visit_program(&self.source, &mut uses);
+        let mut names = Vec::<String>::new();
+        for found in uses.into_uses() {
+            let name = self.source.symbols.name(found.constant);
+            if !names.iter().any(|known| known == name) {
+                names.push(name.to_owned());
+            }
+        }
+        names
+    }
+
+    /// The boundary requirements this accepted module's machines call, in
+    /// the order the module declares them.
+    ///
+    /// The module holds the closure of its entry and nothing else, and it
+    /// declares a boundary callable exactly when a machine of that closure
+    /// calls one, so these are the requirements a product of this module
+    /// needs a provider for. An empty answer is a statement about the
+    /// artifact: its entry reaches no boundary requirement. Each row is
+    /// rejoined to the source declaration the elaboration lowered it from.
+    pub fn boundary_requirements_reached(
+        &self,
+    ) -> Result<Vec<ReachedBoundaryRequirement>, Diagnostic> {
+        let elaboration = &self.closure.elaboration;
+        let lost = |detail: &str| {
+            Diagnostic::error(format!(
+                "no product route yet: accepted boundary declarations {detail}"
+            ))
+        };
+        if elaboration.module.boundary_machines.len() != elaboration.boundaries.len() {
+            return Err(lost(
+                "differ from the requirements the module was lowered from",
+            ));
+        }
+        let mut reached = Vec::with_capacity(elaboration.boundaries.len());
+        for (boundary, symbol) in elaboration.boundaries.iter() {
+            if elaboration.module.boundary_machine(boundary).is_none() {
+                return Err(lost("omit a requirement the module was lowered from"));
+            }
+            let (owner, requirement) = self
+                .source
+                .trait_machine_signature(*symbol)
+                .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
+                .ok_or_else(|| lost("lost the boundary trait that owns a requirement"))?;
+            reached.push(ReachedBoundaryRequirement {
+                boundary,
+                requirement: *symbol,
+                slot: owner.symbol,
+                name: format!("{}::{}", owner.name.as_str(), requirement.name.as_str()),
+            });
+        }
+        Ok(reached)
+    }
+
+    /// The module the route judged and accepted, as publication emits it.
+    pub fn module(&self) -> &terminal_psi::TerminalModule {
+        &self.closure.elaboration.module
     }
 
     pub fn source(&self) -> &Arc<FrozenTypedTrees> {

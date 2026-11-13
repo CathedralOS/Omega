@@ -225,9 +225,10 @@ impl Lowering<'_> {
         match statement {
             Statement::Bind { slot, value } => {
                 let bound = match value.result {
-                    Some(ValueType::Record(_)) => Bound::Record(self.bind_record(value)?),
-                    Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_))
-                    | None => Bound::Scalar(self.scalar(value)?),
+                    Some(ValueType::Record(_, _)) => Bound::Record(self.bind_record(value)?),
+                    Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
+                        Bound::Scalar(self.scalar(value)?)
+                    }
                 };
                 *self.slot_mut(*slot)? = Some(bound);
                 Ok(())
@@ -356,19 +357,24 @@ impl Lowering<'_> {
         )
     }
 
-    /// The fate of each conserved obligation on an edge with no normal
-    /// successor. A crash abandons them (effects.md: "Crashes have explicit
-    /// no-successor abandonment, not a missing cleanup list"; `Fate::Abandoned`),
-    /// and a no-normal invocation consumes or transfers them. The subset
-    /// mints no conserved obligation live across an edge, and this lowering
-    /// does not track which are live, so one existing here is refused rather
-    /// than given a guessed fate; with none, the edge has no dispositions.
+    /// The edge of a terminator with no normal successor, with the fate of
+    /// each conserved obligation live on it. A crash abandons them
+    /// (effects.md: "Crashes have explicit no-successor abandonment, not a
+    /// missing cleanup list"), process exit abandons them
+    /// (`Fate::Abandoned`), and a no-normal invocation consumes the loans
+    /// it carries (`dispositions`, from `invoke_no_normal`).
     ///
-    /// A `Loan` is the one conserved kind the subset mints, and none is live
-    /// across an unrelated edge: a normal call ends its occurrence loans on
-    /// return. A terminal invocation records its own loans' exact transfer
-    /// or abandonment after this edge is created (`calls::terminal_loan_dispositions`).
-    fn no_successor_dispositions(&self) -> Checked<Vec<Disposition>> {
+    /// A `Loan` is the one conserved kind the subset mints. Every other
+    /// loan was formed for one call that returned and ended when it did, so
+    /// none but the ones in `dispositions` is live here. This lowering does
+    /// not track which obligations of any other conserved kind are live, so
+    /// one existing in the machine is refused rather than given a guessed
+    /// fate.
+    pub(super) fn no_successor_edge(
+        &mut self,
+        dispositions: Vec<Disposition>,
+        source: SourceOrigin,
+    ) -> Checked<EdgeId> {
         for raw in 1..=self.tables.obligations.len() as u64 {
             let obligation = ObligationId::new(raw).ok_or_else(|| self.internal("obligation"))?;
             let row = terminal_check_tables::row(
@@ -385,11 +391,6 @@ impl Lowering<'_> {
                 ));
             }
         }
-        Ok(Vec::new())
-    }
-
-    pub(super) fn no_successor_edge(&mut self, source: SourceOrigin) -> Checked<EdgeId> {
-        let dispositions = self.no_successor_dispositions()?;
         let edge = self.tables.edges.push(EdgeRow {
             source: self.current()?,
             destination: Destination::NoNormal,
@@ -429,7 +430,7 @@ impl Lowering<'_> {
             before,
             source,
         );
-        let edge = self.no_successor_edge(source)?;
+        let edge = self.no_successor_edge(Vec::new(), source)?;
         self.terminate(Terminator::Crash {
             edge,
             cause,

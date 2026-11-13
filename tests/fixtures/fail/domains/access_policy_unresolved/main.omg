@@ -1,0 +1,12 @@
+// The twin of `pass/domains/access_policy_selected`: the policy `Controlled`
+// names is declared nowhere.
+
+data Cell {
+    value: u64;
+}
+
+domain Cell::Controlled
+    requires self.value <= 100
+    access CellAccess;
+
+machine main() { }

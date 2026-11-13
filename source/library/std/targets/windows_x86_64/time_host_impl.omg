@@ -40,14 +40,18 @@ use omega::language::core::narrow_i64_to_u64_saturating;
 // cell receives that non-tearing read. Each requirement reaches `TimeHost`.
 boundary trait WindowsTimeRead {
     machine query_performance_counter(counter: &mut i64) -> i32
-    reaches TimeHost;
+    reaches TimeHost
+    crashes none;
     machine query_performance_frequency(frequency: &mut i64) -> i32
-    reaches TimeHost;
+    reaches TimeHost
+    crashes none;
     machine system_time_as_file_time(file_time: &mut u64)
-    reaches TimeHost;
+    reaches TimeHost
+    crashes none;
     machine sleep(milliseconds: u32)
     reaches TimeHost
-    blocks;
+    blocks
+    crashes none;
 }
 
 public WindowsTimeHost satisfies TimeHost {

@@ -19,10 +19,21 @@ pub struct EvaluatedBuild {
         Vec<package_compilation::build_execution::RestrictedBuildRequest>,
     pub base_source_consumption_commitment:
         Option<package_compilation::PackageSourceConsumptionCommitment>,
-    // Build admission folded a constant under Build's own provider plans. A
-    // Product completed from another typed frontier must have that fold
-    // repeated there, because the new frontier holds the constant unsettled.
-    pub provider_folded_constants: bool,
+    pub constants: BuildConstants,
+}
+
+/// What the Build admission's constants owe a Product frontier typed after
+/// Build ran. That frontier holds the Build source again with its constants
+/// unsettled, so whatever the admission evaluated has to be settled there
+/// too. Both fields are read from the admission itself: the fold from what
+/// it did, the names from the module it accepted.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct BuildConstants {
+    /// The admission folded a constant under Build's own provider plans.
+    pub folded_under_providers: bool,
+    /// The constants the accepted Build module names
+    /// (`AcceptedTerminalSource::constants_read`).
+    pub read: Vec<String>,
 }
 
 pub use build_time_evaluation::product_declarations::ServiceAuditRegistration;

@@ -16,9 +16,11 @@ boundary trait WindowsFilesystemTransferIo: Calling<WindowsFilesystemTransferCal
     machine write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &[u8], transferred: &mut u32, overlapped: u64) -> i32
     requires handle != 0 && bytes.len <= 4294967295 && overlapped == 0
     reaches FilesystemContentWrite
-    blocks;
+    blocks
+    crashes none;
     machine read_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: &mut [u8], transferred: &mut u32, overlapped: u64) -> i32
     requires handle != 0 && bytes.len <= 4294967295 && overlapped == 0
     reaches FilesystemContentRead
-    blocks;
+    blocks
+    crashes none;
 }

@@ -24,6 +24,30 @@ parameter on a wrapper may instead acquire its exact type by
 [inference](#inferred-callable-parameter-types). Missing or conflicting
 contracts reject. Neither route infers whole-trait conformance evidence.
 
+## Integer carrier constraints
+
+The [integer carrier families](numeric_values.md#integer-carrier-families) are
+available through ordinary `requires` clauses over type parameters. A checked
+classification fact refines the operations available for that carrier; open
+families check symbolically under their common contracts, not by enumerating
+all widths or selecting implementations implicitly. Width parameters of `i<N>`
+and `u<N>` are positive proof-static `u64` values. Their applications use normal
+static substitution, canonical identity and proved index compatibility.
+
+In a carrier-generic domain, a requirement establishing integer-family
+eligibility of its type parameter is a generic admission obligation. Establish
+it before checking the subject predicate under that carrier's operations.
+Failure rejects the domain application; it does not construct an empty domain
+over an ineligible carrier. A well-formed admitted carrier may still have an
+unsatisfiable value predicate, which retains ordinary empty-domain semantics.
+
+Recognize the checked type-classification proposition, not the query's spelling
+or a special first-clause position. Carrier eligibility depends only on the
+generic arguments and must be justified independently of the value predicate;
+the predicate cannot justify its own formation. Repeated requirements remain
+conjoined within their checking scope. Classifying a carrier grants no value
+qualification, access route, atomic realization or foreign calling convention.
+
 ## Generic machine requirements
 
 Named decision: `generic-requirement-evidence-binders`, settled 2026-11-03.

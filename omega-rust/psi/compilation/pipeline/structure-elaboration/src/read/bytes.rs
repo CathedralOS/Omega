@@ -1,6 +1,7 @@
 //! Byte literals and views use Terminal's byte carrier and real immutable
 //! backing. They have no nominal data declaration or layout authority.
 
+use crate::body::Qualification;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::{MachineId, StructuralTypeId};
 use symbols::SymbolHandle;
@@ -115,7 +116,7 @@ impl Program<'_> {
                 .then_some(id)
         });
         if let Some(row) = row {
-            return Ok(Some(ValueType::Record(row)));
+            return Ok(Some(ValueType::Record(row, Qualification::NONE)));
         }
         let row = self.records.push(RecordType {
             copyable: carrier.is_shared_readable_view(),
@@ -133,7 +134,7 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
         });
-        Ok(Some(ValueType::Record(row)))
+        Ok(Some(ValueType::Record(row, Qualification::NONE)))
     }
 
     pub(super) fn byte_literal(
@@ -147,7 +148,7 @@ impl Program<'_> {
             access: Some(StructuralAccess::SharedBorrow),
         };
         let row = match expected {
-            Some(ValueType::Record(row))
+            Some(ValueType::Record(row, _))
                 if self.data_type(machine, row)?.shape == StorageShape::ByteSequence(carrier) =>
             {
                 row
@@ -163,7 +164,7 @@ impl Program<'_> {
         };
         Ok(Expression {
             kind: ExpressionKind::ByteLiteral(bytes.to_vec()),
-            result: Some(ValueType::Record(row)),
+            result: Some(ValueType::Record(row, Qualification::NONE)),
             source,
         })
     }
@@ -282,7 +283,7 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
-        let ValueType::Record(a) = a else {
+        let ValueType::Record(a, _) = a else {
             panic!("a byte descriptor is structural")
         };
         program

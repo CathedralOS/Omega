@@ -2403,15 +2403,25 @@ pub(crate) mod results {
             cause: CrashCause,
         ) -> Result<TerminalCrash, TerminalInterpretError> {
             let TerminalEffect::BoundaryCall {
-                operation,
-                boundary,
+                site:
+                    crate::TerminalEffectWait {
+                        program,
+                        machine,
+                        block,
+                        operation,
+                        boundary,
+                    },
                 arguments,
                 ..
             } = effect
             else {
                 return Err(malformed());
             };
-            if *boundary != declaration.id {
+            if program != &self.program.identity
+                || *machine != self.current_machine
+                || *block != self.current
+                || *boundary != declaration.id
+            {
                 return Err(malformed());
             }
             let arguments = super::boundary_predicates::scalar_literals(arguments)?;
@@ -3517,12 +3527,7 @@ pub enum TerminalEffect {
         kind: terminal_psi::MemoryFenceKind,
     },
     BoundaryCall {
-        /// The machine whose operation this call is. An operation identity
-        /// is unique within its machine only, so a host that keeps a row per
-        /// call matches the machine too.
-        machine: MachineId,
-        operation: OperationId,
-        boundary: BoundaryMachineId,
+        site: crate::TerminalEffectWait,
         arguments: Vec<TerminalScalarValue>,
         structural_arguments: Vec<TerminalStructuralValue>,
         byte_sequence_arguments: Vec<Option<Vec<u8>>>,

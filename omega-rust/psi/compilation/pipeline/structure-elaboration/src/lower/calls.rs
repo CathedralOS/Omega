@@ -95,9 +95,9 @@ impl Lowering<'_> {
             }),
             CallTarget::Selected { callable, contract } => {
                 if callable.result
-                    != Some(ValueType::Scalar(
-                        semantic_vocabulary::ScalarType::Callable(*contract),
-                    ))
+                    != Some(ValueType::plain(semantic_vocabulary::ScalarType::Callable(
+                        *contract,
+                    )))
                 {
                     return Err(self.internal(
                         "selected call's evaluated operand changes its public contract",
@@ -186,7 +186,7 @@ impl Lowering<'_> {
                 continue;
             }
             match argument.result {
-                Some(ValueType::Record(_)) => {
+                Some(ValueType::Record(_, _)) => {
                     let root = self.record(argument)?;
                     evaluated
                         .actuals
@@ -196,8 +196,7 @@ impl Lowering<'_> {
                         .push((root, Vec::new(), StructuralAccess::Owned));
                     evaluated.consumed.push(root);
                 }
-                Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_))
-                | None => {
+                Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
                     let value = self.scalar(argument)?;
                     evaluated.actuals.push(Actual::Value(value));
                     evaluated.scalars.push(value);
@@ -229,7 +228,8 @@ impl Lowering<'_> {
     /// formal order. loans.md: "Loan resource | Exact occurrence, owner
     /// lineage, captured place, access, parent lifetime, and restoration
     /// obligation." The occurrence is the call: each loan is formed for it
-    /// and ends when it returns, so none is live on any edge.
+    /// and ends when it returns. A call that never returns carries its
+    /// loans on its terminal edge instead.
     pub(super) fn loans(
         &mut self,
         loans: &[(ExactPlaceId, ReferenceAccess, Lender)],
@@ -253,24 +253,15 @@ impl Lowering<'_> {
     }
 
     pub(super) fn terminal_loan_dispositions(
-        &mut self,
-        edge: semantic_vocabulary::EdgeId,
         loans: &[ObligationId],
-        fate: terminal_check_tables::edges::Fate,
-    ) -> Checked<()> {
-        let row = self.tables.edges.get_mut(edge).ok_or(Refusal {
-            reason: RefusalReason::ForeignIdentity,
-            machine: self.id,
-            concerns: Construct::Edge(edge),
-            detail: String::from("terminal loan edge is absent from this machine"),
-        })?;
-        row.dispositions.extend(loans.iter().map(|loan| {
-            terminal_check_tables::edges::Disposition {
+    ) -> Vec<terminal_check_tables::edges::Disposition> {
+        loans
+            .iter()
+            .map(|loan| terminal_check_tables::edges::Disposition {
                 obligation: *loan,
-                fate,
-            }
-        }));
-        Ok(())
+                fate: terminal_check_tables::edges::Fate::Consumed,
+            })
+            .collect()
     }
 
     /// What an exclusive loan's callee may have stored: anything beneath the
@@ -328,10 +319,22 @@ impl Lowering<'_> {
         }
     }
 
-    /// A call of a machine with no normal completion, in terminal position:
-    /// the arguments, then the invocation as the block's terminator, with the
+    /// A call with no normal completion, in terminal position: the
+    /// arguments, then the invocation as the block's terminator, with the
     /// callee's routes substituted as its crash continuations and one
-    /// `CrashCoverage` obligation per surviving cause at this site.
+    /// `CrashCoverage` obligation per surviving cause at this site. One
+    /// path serves both declaration classes, as `call` does for calls that
+    /// return: a machine no path of which returns is `InvokeNoNormal`, and a
+    /// boundary requirement that completes externally is
+    /// `ExternalCompletion` (calls_and_outcomes.md, "External process exit":
+    /// "a terminal transfer retaining the exact requirement and ordered
+    /// arguments, with no normal successor, return postconditions, or
+    /// implicit cleanup").
+    ///
+    /// Nothing of this machine runs after the transfer, so nothing is
+    /// retired, restored or cleaned up on its edge (terminal-psi
+    /// ownership.md: process exit "creates no return value, consumption
+    /// receipt, cleanup successor, or post-exit frontier").
     pub(super) fn invoke_no_normal(
         &mut self,
         callee: &CallTarget,
@@ -359,12 +362,7 @@ impl Lowering<'_> {
         let site = self.current()?;
         let before = self.here()?;
         let loans = self.loans(&arguments.loans, before, source);
-        let edge = self.no_successor_edge(source)?;
-        self.terminal_loan_dispositions(
-            edge,
-            &loans,
-            terminal_check_tables::edges::Fate::Consumed,
-        )?;
+        let edge = self.no_successor_edge(Self::terminal_loan_dispositions(&loans), source)?;
         let requirements = self.invocation(
             InvocationSite::InvokeNoNormal(edge),
             target,
@@ -471,6 +469,16 @@ impl Lowering<'_> {
             return Err(self.internal("designated operands on a call that is no boundary call"));
         }
         let signature = self.target_signature(callee)?;
+        if matches!(callee, CallTarget::Boundary { .. })
+            && self.signature.termination != crate::Termination::Silent
+            && signature.termination == crate::Termination::Silent
+        {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Call("boundary call without a termination guarantee"),
+            ));
+        }
         let target = self.evaluated_target(callee)?;
         let mut arguments = self.arguments(&signature, arguments)?;
         // A callee that may return and also publishes crash routes makes
@@ -512,112 +520,91 @@ impl Lowering<'_> {
             ExecutionSite::Operation(operation),
             source,
         )?;
-        let value = match target {
-            EvaluatedCallTarget::Selected { callable, contract } => {
-                let kind = OperationKind::CallMachine {
-                    callee: callable,
-                    contract,
-                    arguments: std::mem::take(&mut arguments.scalars),
-                    erased_arguments: std::mem::take(&mut arguments.erased),
+        let erased_arguments = std::mem::take(&mut arguments.erased);
+        let scalars = std::mem::take(&mut arguments.scalars);
+        let kind = match target {
+            EvaluatedCallTarget::Selected { callable, contract } => OperationKind::CallMachine {
+                callee: callable,
+                contract,
+                arguments: scalars,
+                erased_arguments,
+                erased_proof_arguments: Vec::new(),
+                structural_arguments,
+                claim_transfers: Vec::new(),
+                requirement_obligations: requirements,
+                crash_continuations,
+            },
+            EvaluatedCallTarget::Boundary { boundary } => {
+                if !erased_arguments.is_empty() {
+                    return Err(self.internal("boundary call cannot discard erased actuals"));
+                }
+                OperationKind::BoundaryCall {
+                    boundary,
+                    arguments: scalars,
+                    structural_arguments,
+                    completion_receipts: Vec::new(),
+                    requirement_obligations: requirements,
+                }
+            }
+            EvaluatedCallTarget::Machine(callee) => match result {
+                Some(ValueType::Scalar(..)) if structural_arguments.is_empty() => {
+                    OperationKind::Call {
+                        callee,
+                        arguments: scalars,
+                        erased_arguments,
+                        erased_proof_arguments: Vec::new(),
+                        requirement_obligations: requirements,
+                        crash_continuations,
+                    }
+                }
+                Some(ValueType::Scalar(..)) => OperationKind::CallStructuralScalar {
+                    callee,
+                    arguments: scalars,
+                    erased_arguments,
                     erased_proof_arguments: Vec::new(),
                     structural_arguments,
                     claim_transfers: Vec::new(),
                     requirement_obligations: requirements,
                     crash_continuations,
-                };
-                match result {
-                    Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
-                        self.emit(operation, Some(scalar_type), kind)?
-                    }
-                    Some(ValueType::Record(record)) => {
-                        let (root, exact) = self.produce(operation, record, kind)?;
-                        self.unknown_contents(exact, operation)?;
-                        Value::Record(root)
-                    }
-                    None => self.emit(operation, None, kind)?,
-                    Some(ValueType::Rigid(_)) => {
-                        return Err(self.internal("a call returns a value of a rigid type"));
-                    }
+                },
+                None => OperationKind::CallUnit {
+                    callee,
+                    arguments: scalars,
+                    erased_arguments,
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments,
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: requirements,
+                    crash_continuations,
+                },
+                Some(ValueType::Record(..)) => OperationKind::CallStructuralWithScalarArguments {
+                    callee,
+                    arguments: scalars,
+                    erased_arguments,
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments,
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: requirements,
+                    crash_continuations,
+                    selected_evidence: Vec::new(),
+                },
+                Some(ValueType::Rigid(_)) => {
+                    return Err(self.internal("a call returns a value of a rigid type"));
                 }
+            },
+        };
+        let value = match result {
+            Some(ValueType::Scalar(scalar_type, _)) => {
+                self.emit(operation, Some(scalar_type), kind)?
             }
-            EvaluatedCallTarget::Boundary { boundary, .. } => self.emit_boundary_call(
-                boundary,
-                &arguments,
-                structural_arguments,
-                result,
-                operation,
-                requirements,
-                crash_continuations,
-            )?,
-            EvaluatedCallTarget::Machine(callee) => {
-                let erased_arguments = std::mem::take(&mut arguments.erased);
-                let scalars = std::mem::take(&mut arguments.scalars);
-                // Terminal Psi has one call operation per result lane, and the
-                // scalar-result form with no record argument is the plain `Call`.
-                match result {
-                    // The reader refuses a call whose result is rigid: its value
-                    // would need a row that says so, which `emit` does not make.
-                    Some(ValueType::Rigid(_)) => {
-                        return Err(self.internal("a call returns a value of a rigid type"));
-                    }
-                    Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
-                        let kind = if structural_arguments.is_empty() {
-                            OperationKind::Call {
-                                callee,
-                                arguments: scalars,
-                                erased_arguments,
-                                erased_proof_arguments: Vec::new(),
-                                requirement_obligations: requirements,
-                                crash_continuations,
-                            }
-                        } else {
-                            OperationKind::CallStructuralScalar {
-                                callee,
-                                arguments: scalars,
-                                erased_arguments,
-                                erased_proof_arguments: Vec::new(),
-                                structural_arguments,
-                                claim_transfers: Vec::new(),
-                                requirement_obligations: requirements,
-                                crash_continuations,
-                            }
-                        };
-                        self.emit(operation, Some(scalar_type), kind)?
-                    }
-                    None => self.emit(
-                        operation,
-                        None,
-                        OperationKind::CallUnit {
-                            callee,
-                            arguments: scalars,
-                            erased_arguments,
-                            erased_proof_arguments: Vec::new(),
-                            structural_arguments,
-                            claim_transfers: Vec::new(),
-                            requirement_obligations: requirements,
-                            crash_continuations,
-                        },
-                    )?,
-                    Some(ValueType::Record(record)) => {
-                        let (root, exact) = self.produce(
-                            operation,
-                            record,
-                            OperationKind::CallStructuralWithScalarArguments {
-                                callee,
-                                arguments: scalars,
-                                erased_arguments,
-                                erased_proof_arguments: Vec::new(),
-                                structural_arguments,
-                                claim_transfers: Vec::new(),
-                                requirement_obligations: requirements,
-                                crash_continuations,
-                                selected_evidence: Vec::new(),
-                            },
-                        )?;
-                        self.unknown_contents(exact, operation)?;
-                        Value::Record(root)
-                    }
-                }
+            Some(ValueType::Record(record, _)) => {
+                let (root, exact) = self.produce(operation, record, kind)?;
+                self.unknown_contents(exact, operation)?;
+                Value::Record(root)
+            }
+            None => self.emit(operation, None, kind)?,
+            Some(ValueType::Rigid(_)) => {
+                return Err(self.internal("a call returns a value of a rigid type"));
             }
         };
         self.returned_loans(&arguments.loans, operation)?;

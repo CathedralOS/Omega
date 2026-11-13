@@ -2326,7 +2326,11 @@ pub fn visit_static_argument(
     retained: &mut impl TypedReferences,
     argument: &StaticMachineArgument,
 ) {
-    visit_callable_symbol(program, retained, argument.symbol);
+    // A literal supplies its value, not a declaration. Keep every nonempty
+    // handle so the receiving owner still authenticates malformed references.
+    if argument.symbol != SymbolHandle::invalid() {
+        visit_callable_symbol(program, retained, argument.symbol);
+    }
     visit_type_reference(program, retained, argument.type_reference);
     if let Some(application) = &argument.application {
         for nested in application.arguments.iter() {
@@ -2704,6 +2708,11 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
         visit_proof_facts(program, retained, domain.facts);
         visit_domain_establishment_routes(retained, &domain.establishment_routes);
+        // A reached domain reaches the policy that states its issuance, as
+        // it reaches its routes.
+        if let Some(policy) = &domain.access_policy {
+            visit_static_argument(program, retained, &policy.selection);
+        }
     }
 
     for application in &program.applied_domain_applications {
@@ -3933,6 +3942,80 @@ fn visit_mathematical_type(
                 visit_expression(program, retained, *argument);
             }
         }
+    }
+}
+
+/// One place where a visited declaration names a constant. `expression` is
+/// invalid when the name sits in a type position rather than an expression.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConstantUse {
+    pub constant: SymbolHandle,
+    pub expression: ExpressionHandle,
+}
+
+/// Collects the places where chosen declarations name chosen constants.
+///
+/// Two readers ask this. Build-time evaluation asks which declaration reads
+/// a constant no stage evaluated; a Build admission asks whether the
+/// declarations of its accepted module read any constant at all. Both walk
+/// declarations with the ordinary reference visitor, so a constant reached
+/// through a type position or a static argument counts like one named in a
+/// body.
+pub struct ConstantUses<Include> {
+    /// The constants looked for, sorted by `constant_key`.
+    constants: Vec<SymbolHandle>,
+    /// Whether a declaration's own references are uses.
+    include: Include,
+    expression: ExpressionHandle,
+    uses: Vec<ConstantUse>,
+}
+
+fn constant_key(symbol: SymbolHandle) -> (u32, u32) {
+    (symbol.arena_index(), symbol.generation())
+}
+
+impl<Include: FnMut(SymbolHandle) -> bool> ConstantUses<Include> {
+    pub fn new(mut constants: Vec<SymbolHandle>, include: Include) -> Self {
+        constants.sort_unstable_by_key(|symbol| constant_key(*symbol));
+        Self {
+            constants,
+            include,
+            expression: ExpressionHandle::invalid(),
+            uses: Vec::new(),
+        }
+    }
+
+    /// The uses in source visiting order, one per naming occurrence.
+    pub fn into_uses(self) -> Vec<ConstantUse> {
+        self.uses
+    }
+}
+
+impl<Include> Extend<SymbolHandle> for ConstantUses<Include> {
+    fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: Symbols) {
+        for symbol in symbols {
+            if self
+                .constants
+                .binary_search_by_key(&constant_key(symbol), |constant| constant_key(*constant))
+                .is_ok()
+            {
+                self.uses.push(ConstantUse {
+                    constant: symbol,
+                    expression: self.expression,
+                });
+            }
+        }
+    }
+}
+
+impl<Include: FnMut(SymbolHandle) -> bool> TypedReferences for ConstantUses<Include> {
+    fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        self.expression = ExpressionHandle::invalid();
+        (self.include)(symbol)
+    }
+    fn expression(&mut self, expression: ExpressionHandle) -> bool {
+        self.expression = expression;
+        true
     }
 }
 

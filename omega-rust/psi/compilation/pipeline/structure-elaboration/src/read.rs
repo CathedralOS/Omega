@@ -24,6 +24,7 @@ serve is refused when it is set, never ignored.
 */
 
 mod arrays;
+mod authority;
 mod boundaries;
 mod bytes;
 mod callables;
@@ -142,6 +143,9 @@ pub(crate) struct Program<'t> {
     )>,
     /// The subject's generic machines, set aside by `subject_declarations`.
     pub generic_templates: Vec<SymbolHandle>,
+    /// The operations the subject's implementations select, set aside by
+    /// `subject_declarations`.
+    pub conformance_witnesses: Vec<crate::ConformanceWitness>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
@@ -215,6 +219,7 @@ impl<'t> Program<'t> {
             cases_minted: 0,
             captures: Vec::new(),
             generic_templates: Vec::new(),
+            conformance_witnesses: Vec::new(),
         }
     }
 }
@@ -520,14 +525,28 @@ mod tests {
         let remainder = binary(&mut typed, seven, BinaryOperator::Modulo, two);
         let mut program = Program::new(&typed, false);
         let read = |program: &mut Program<'_>, handle| {
-            program.expression(machine(), &[], handle, Some(ValueType::Scalar(i32_type)))
+            program.expression(
+                machine(),
+                &[],
+                handle,
+                Some(ValueType::Scalar(
+                    i32_type,
+                    crate::body::Qualification::NONE,
+                )),
+            )
         };
         let landed = read(&mut program, exact).unwrap();
         assert!(matches!(
             landed.kind,
             ExpressionKind::Integer(IntegerValue::Signed(value)) if value == i128::from(i32::MAX)
         ));
-        assert_eq!(landed.result, Some(ValueType::Scalar(i32_type)));
+        assert_eq!(
+            landed.result,
+            Some(ValueType::Scalar(
+                i32_type,
+                crate::body::Qualification::NONE
+            ))
+        );
         for (handle, expected) in [
             (half, "expression fractional anonymous value"),
             (
@@ -549,23 +568,19 @@ mod tests {
         }
     }
 
+    /// `+!` is refused by name before its operands are read: no type carries
+    /// `Trapping` on this route. The `%` and `|` forms are read
+    /// (`compiler/tests/route_probe.rs`).
     #[test]
-    fn a_suffixed_operator_is_refused_before_its_operands_are_read() {
-        use numerics::arithmetic::ArithmeticDomain;
+    fn a_trapping_operator_is_refused_before_its_operands_are_read() {
         let typed = TypedTrees::default();
-        for policy in [
-            ArithmeticDomain::Wrapping,
-            ArithmeticDomain::Saturating,
-            ArithmeticDomain::Trapping,
-        ] {
-            let node = ExpressionNode::Binary(TableBinaryExpression {
-                policy,
-                left: ExpressionHandle::invalid(),
-                operator: BinaryOperator::Add,
-                right: ExpressionHandle::invalid(),
-            });
-            assert_eq!(refused(&typed, node), "expression policy operator");
-        }
+        let node = ExpressionNode::Binary(TableBinaryExpression {
+            policy: numerics::arithmetic::ArithmeticDomain::Trapping,
+            left: ExpressionHandle::invalid(),
+            operator: BinaryOperator::Add,
+            right: ExpressionHandle::invalid(),
+        });
+        assert_eq!(refused(&typed, node), "expression Trapping policy operator");
     }
 
     /// `result` in a contract is taken by the owner identity stage 02
@@ -666,7 +681,7 @@ mod tests {
         let value = ValueId::new(1).unwrap();
         let slot = |assignable| Slot {
             symbol: formal,
-            value_type: ValueType::Scalar(u32_type),
+            value_type: ValueType::Scalar(u32_type, crate::body::Qualification::NONE),
             assignable,
             homed: false,
             erased: false,
@@ -856,7 +871,10 @@ mod tests {
         let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
+            value_type: ValueType::Record(
+                StructuralTypeId::new(1).unwrap(),
+                crate::body::Qualification::NONE,
+            ),
             assignable: true,
             homed: false,
             erased: false,
@@ -878,7 +896,10 @@ mod tests {
         // A binding that is not `mut` is neither replaced nor stored into.
         let frozen = [Slot {
             symbol: local,
-            value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
+            value_type: ValueType::Record(
+                StructuralTypeId::new(1).unwrap(),
+                crate::body::Qualification::NONE,
+            ),
             assignable: false,
             homed: false,
             erased: false,
@@ -1050,7 +1071,10 @@ mod tests {
         ]);
         let slots = [Slot {
             symbol: local,
-            value_type: ValueType::Record(StructuralTypeId::new(1).unwrap()),
+            value_type: ValueType::Record(
+                StructuralTypeId::new(1).unwrap(),
+                crate::body::Qualification::NONE,
+            ),
             assignable: false,
             homed: false,
             erased: false,
@@ -1106,6 +1130,123 @@ mod tests {
         assert_eq!(
             detail(point, full, literal),
             "statement record pattern over a value that is not a place"
+        );
+    }
+
+    // Capturing a selector uses the ordinary local binder. Its complete type
+    // must survive; a reference must not become an integer snapshot merely
+    // because both appear in an index expression.
+    #[test]
+    fn operand_captures_keep_their_complete_binding_type() {
+        use typed_trees::statement::TableLocalData;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            builtin_type_symbols().into_iter().chain([
+                (SymbolKind::Local, SymbolNameRef::Static("capture")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("input")),
+            ]),
+        );
+        let u32_symbol = children.handle_at(7);
+        let local_symbol = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+        let input_symbol = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 1)
+            .unwrap();
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let carrier = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: u32_symbol,
+            name: Default::default(),
+        });
+        let reference = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: carrier,
+                access: ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let initial = typed
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::from_value(1)));
+        let mut members = arena::HandleSpan::empty();
+        typed.expression_table.push_name_path_member(
+            &mut members,
+            typed_trees::name::Identifier::generated("input"),
+        );
+        let borrowed_name = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                symbol: input_symbol,
+                ..Default::default()
+            }));
+        let borrowed = [Slot {
+            symbol: input_symbol,
+            value_type: ValueType::plain(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+            )),
+            assignable: false,
+            homed: true,
+            erased: false,
+            borrowed: Some(ReferenceAccess::Shared),
+        }];
+        let local = TableLocalData {
+            symbol: local_symbol,
+            type_reference: carrier,
+            initial_value: initial,
+            is_operand_capture: true,
+            relevance: language_core::BindingRelevance::Relevant,
+            ..Default::default()
+        };
+        let mut program = Program::new(&typed, false);
+        let (slot, statement) = program.local(machine(), &[], &local).unwrap();
+        assert_eq!(
+            slot.value_type,
+            ValueType::plain(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 32).unwrap()
+            ))
+        );
+        assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
+        assert!(matches!(statement, crate::Statement::Bind { slot: 0, .. }));
+        let mut refusal = |local: &TableLocalData| {
+            program
+                .local(machine(), &borrowed, local)
+                .map(drop)
+                .unwrap_err()
+                .detail
+        };
+        assert_eq!(
+            refusal(&TableLocalData {
+                type_reference: reference,
+                initial_value: borrowed_name,
+                ..local.clone()
+            }),
+            "type reference"
+        );
+        assert_eq!(
+            refusal(&TableLocalData {
+                is_mutable: true,
+                ..local.clone()
+            }),
+            "statement operand capture without its immutable value binding"
+        );
+        assert_eq!(
+            refusal(&TableLocalData {
+                type_reference: TypeReferenceHandle::invalid(),
+                ..local.clone()
+            }),
+            "statement operand capture without its retained initializer and type"
+        );
+        assert_eq!(
+            refusal(&TableLocalData {
+                initial_value: ExpressionHandle::invalid(),
+                ..local
+            }),
+            "statement operand capture without its retained initializer and type"
         );
     }
 
@@ -1285,7 +1426,7 @@ mod tests {
         let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
         let slot = |symbol| Slot {
             symbol,
-            value_type: ValueType::Scalar(u8_type),
+            value_type: ValueType::Scalar(u8_type, crate::body::Qualification::NONE),
             assignable: false,
             homed: false,
             erased: false,

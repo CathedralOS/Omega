@@ -963,6 +963,8 @@ pub mod snapshot {
                 alias: Vec<Vec<IdentifierSnapshot>>,
                 #[serde(skip_serializing_if = "Vec::is_empty")]
                 authored_routes: Vec<Vec<IdentifierSnapshot>>,
+                #[serde(skip_serializing_if = "Vec::is_empty")]
+                access_policy: Vec<IdentifierSnapshot>,
                 #[serde(skip_serializing_if = "Option::is_none")]
                 classification: Option<&'static str>,
                 predicate_presence: &'static str,
@@ -1448,6 +1450,11 @@ pub mod snapshot {
                         .iter()
                         .map(|route| snapshot_identifier_slice(syntax_trees, route))
                         .collect(),
+                    access_policy: value
+                        .access_policy
+                        .as_ref()
+                        .map(|policy| snapshot_identifier_slice(syntax_trees, &policy.path))
+                        .unwrap_or_default(),
                     classification: value.classification.map(|value| value.as_str()),
                     predicate_presence: value.predicate_presence.as_str(),
                     facts: snapshot_proof_facts(syntax_trees, value.facts),

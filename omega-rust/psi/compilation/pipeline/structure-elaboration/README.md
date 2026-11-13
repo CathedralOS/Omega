@@ -130,11 +130,16 @@ file is the subject's. A declaration with no source file is refused.
 
 Subject declarations that are not machines are also roots. A `data`
 declaration is resolved as a record, so one outside the record subset refuses
-the compilation even when no machine names it. Every other kind (`const`,
-`domain`, `operator`, `trait`, a conformance, a proposition, a measure, a
-mathematical definition, a type alias, a wire schema, a machine token
-binding) is refused as `declaration <kind>`: the route judges none of them
-yet.
+the compilation even when no machine names it. A trait that only lists
+requirements has each requirement's contract read. An implementation of such
+a trait, with no parameter of its own, has each of its rows set aside
+(`Elaboration::conformance_witnesses`): the checker judges, as a part of its
+own, that the machine the row selects refines the requirement. A trait or
+implementation with parameters, schema clauses or a refinement, and a
+boundary trait, are refused by name. Every other kind (`const`, `domain`,
+`operator`, a proposition, a measure, a mathematical definition, a type
+alias, a wire schema, a machine token binding) is refused as
+`declaration <kind>`: the route judges none of them yet.
 
 Two sets the specification's closure names are not roots, so the route's
 verdict does not cover them and a router must not treat it as if it did.
@@ -537,6 +542,16 @@ The one view a field may store is a byte view, `name: &'a [u8]`, and its type
 is keyed by the region it names under the declaration that binds it, so a
 view of any other region, an elided one included, is another type: it cannot
 be stored in the field or returned as it (`typing assigned value type`).
+In the lowered form the member is a byte field of its record
+(`StructuralFieldType::ByteSequence`, with the view type as the field's
+inline carrier), not a nested value of the view type
+([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary)):
+an assignment to it is `StructuralByteViewFieldStore` from the root that
+holds the source descriptor, a record literal takes the view as that field's
+operand, a copy out of it is the ordinary leaf copy, and a local declared
+without an initializer holds the empty shared view there. A field that
+stores an exclusive view is refused (`stored view that is not a shared byte
+view`).
 Naming the data bare therefore relates nothing. The source record
 correspondence a product keeps is the declaration's, with no lifetime
 argument in it: it keeps the type occurrence the record was read from, bare
@@ -578,7 +593,7 @@ Refused by name:
 
 | Construct | Refusal detail |
 | --- | --- |
-| an `ensures` clause or a crash route guard that names a `mut` formal: whether the name means the argument or what the body last assigned is the open owner question `mutable-parameter-contract-name` | `contract clause that names a mutable parameter outside requires` |
+| an `ensures` clause or a crash route guard that names a `mut` formal: the name denotes the original input under [contract inputs](../../../../../wiki/spec/language/state_contracts.md#contract-inputs-and-working-values); retaining that identity separately from working storage is implementation work (`MUTABLE-PARAMETER-CONTRACT-NAME` in `TASKS.md`) | `contract clause that names a mutable parameter outside requires` |
 | a `mut` formal of a type parameter, whose replaced value no slice disposes of | `parameter mutable parameter of a type parameter` |
 | a `mut` formal marked `[erased]` | `parameter mutable erased parameter` |
 | an assignment to, or a store into, a formal that is not `mut` | `statement assignment to an immutable binding`, `statement store into an immutable binding` |
@@ -644,7 +659,6 @@ refuses, by name, what the slice does not serve:
 | an argument for a borrowed formal that is not a borrow, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
 | `&mut` of a binding that is not `mut` (an exclusive reborrow of a shared reference is the checker's conflict) | `call exclusive loan of an immutable binding` |
 | another argument of the same call that names a lent slot (`f(&mut a, a)`): the lowered form forms every loan at the call, so it does not say that the read runs while the loan is live | `call argument that names storage another argument lends` |
-| a call that never returns and lends storage | `call no-normal call that lends storage` |
 | a loan that would give an SSA local a home inside the right of `&&` or `||` or a value `match` arm, so on some paths only | `call loan of a value local on some paths only` |
 | `let r = reference;` without a declared type, and whole assignment through a record reference | `statement local bound to a reference without a declared type`, `statement whole assignment through a reference` |
 | an `ensures` or crash guard that names a borrowed formal: what it holds at the return is a version no slice states yet | `contract clause that names a borrowed formal outside requires`, `contract clause that projects a formal or result` |
@@ -908,6 +922,38 @@ crash with is the least fixed point over the call graph
 and the bodies are walked until nothing changes. A machine whose every path
 calls it again never completes, and a call of it is an `InvokeNoNormal`
 terminator (control flow: "An infinite path has no normal return").
+
+**Calls that do not return.** One fact decides whether a call has a
+continuation: a machine's derived outcome, or a boundary requirement's
+declared completion, which the typed trees own
+(`boundary_completions::boundary_requirement_completion`) and the reader
+records beside the requirement's signature (`Signatures::completions`). The
+canonical process-exit requirement is the one requirement that completes
+externally ([process exit](../../../../../wiki/spec/language/process_exit.md):
+"It produces no normal result or continuation and permits no source crash").
+It is the leaf of the same fixed point: a machine whose every path ends in an
+exit never completes, and its callers end in `InvokeNoNormal`.
+
+Lowering has one path for a call with no continuation
+(`lower/calls.rs`, `invoke_no_normal`), as it has one for a call that
+returns: arguments left to right, the invocation row and its
+`CallRequirement` obligations at the point before, then the terminator, an
+`InvokeNoNormal` for a machine and an `ExternalCompletion` naming the
+requirement and its completion kind for a boundary
+([calls and outcomes](../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#external-process-exit):
+"a terminal transfer retaining the exact requirement and ordered arguments,
+with no normal successor, return postconditions, or implicit cleanup"). Its
+edge goes to `Destination::NoNormal`. Nothing of the machine runs after it,
+so no home is retired and no cleanup is emitted there. A loan the call
+carries is formed at the point before it like any call's and is handed to
+the transfer: the edge's one kind of disposition is `Fate::Consumed` for each
+such loan ([state contracts](../../../../../wiki/spec/language/state_contracts.md#terminal-calls-in-transition-arms):
+"A caller-local loan carried into a terminal machine call closes at the last
+use of that loan and of every loan derived from it, even when that use is
+inside the callee's terminal chain"). An external completion whose
+declaration states a crash route is refused (`call external completion that
+declares a crash route`). A call with no continuation anywhere but terminal
+position, and any statement after one, is refused, not dropped.
 
 No `ranked_scc` is written: these cycles promise nothing.
 

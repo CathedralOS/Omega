@@ -305,6 +305,9 @@ pub mod item {
             pub alias: Option<DomainAliasDefinition>,
             pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
             pub authored_routes: Vec<Vec<Identifier>>,
+            /// The policy named after `access`: its plan states who may
+            /// introduce the domain and who may read or write what it governs.
+            pub access_policy: Option<crate::expression::StaticMachineArgument>,
             pub classification: Option<language_core::DomainClassification>,
             pub predicate_presence: language_core::DomainPredicatePresence,
             pub facts: HandleSpan<ProofFact>,
@@ -336,6 +339,7 @@ pub mod item {
                     alias: None,
                     cleanup_selection: None,
                     authored_routes: Vec::new(),
+                    access_policy: None,
                     classification: None,
                     predicate_presence: language_core::DomainPredicatePresence::Absent,
                     facts: HandleSpan::empty(),

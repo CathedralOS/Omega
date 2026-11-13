@@ -264,6 +264,33 @@ pub(crate) fn invocation<'a>(
             {
                 return Err(refuse("boundary has no exact callable declaration"));
             }
+            // External completion transfers control permanently. Its exact
+            // declaration and occurrence must agree before any caller reads
+            // the published contract.
+            match (boundary.completion, row.site) {
+                (
+                    semantic_vocabulary::BoundaryCompletion::NormalReturn,
+                    InvocationSite::Operation(_),
+                ) => {}
+                (
+                    semantic_vocabulary::BoundaryCompletion::External(_),
+                    InvocationSite::ExternalCompletion(_),
+                ) => {
+                    if !boundary.crash_routes.is_empty() {
+                        return Err(crate::refusal(
+                            RefusalReason::Unsupported,
+                            caller.id,
+                            concerns,
+                            "external completion that declares a crash route",
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(refuse(
+                        "boundary call site does not match its declaration's completion",
+                    ));
+                }
+            }
             if boundary.declaration.as_ref().is_some_and(|declaration| {
                 declaration.source.published_may_suspend || declaration.source.published_may_block
             }) {
