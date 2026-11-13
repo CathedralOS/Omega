@@ -1131,14 +1131,7 @@ pub(crate) mod semantic_dependencies {
         PublicInterface,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
-    pub enum CheckedSemanticDependencyKind {
-        NominalIdentity,
-        Layout,
-        OwnershipBehavior,
-        AutomaticCleanup,
-        AutomaticCleanupMachine,
-    }
+    pub use semantic_vocabulary::SemanticDependencyKind as CheckedSemanticDependencyKind;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedSemanticDependency {

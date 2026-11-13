@@ -26,6 +26,9 @@ projections; `proof_applications.rs` owns proof-application verification.
 
 #![forbid(unsafe_code)]
 
+mod source_review;
+pub use source_review::{IntegerBinaryKind, SemanticDependencyKind};
+
 pub(crate) use optimization::codec_bytes;
 
 mod behavior_policy {
