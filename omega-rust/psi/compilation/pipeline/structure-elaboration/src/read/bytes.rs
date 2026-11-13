@@ -191,9 +191,14 @@ mod tests {
         // This is a typed-reference control, not source or authority admission.
         // Equal carrier geometry cannot substitute for the declared region.
         let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let builtins = symbols.insert_children(root, symbols::builtin_type_symbols());
+        let byte = builtins
+            .handles()
+            .nth(symbols::BuiltinTypeAtom::U8.ordinal())
+            .unwrap();
         let first = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("first"));
         let second = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("second"));
-        let byte = symbols.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("u8"));
         let mut typed = TypedTrees {
             symbols: symbols.finish(),
             ..Default::default()
