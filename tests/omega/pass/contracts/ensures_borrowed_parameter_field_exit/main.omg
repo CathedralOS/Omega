@@ -9,7 +9,7 @@
 //
 // Exits 70 only when `take` returns 1 and the scope's depth is 1.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Picker {
     limit: [i32; 4];

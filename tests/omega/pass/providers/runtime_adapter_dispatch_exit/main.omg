@@ -1,6 +1,6 @@
 // A static boundary call runs through the checked adapter retained by the
 // selected named implementation in both engine pipelines.
-use omega_language_std::console;
+use omega_language_std::Console;
 public boundary trait Echo {
     machine echo(x: i32) -> i32 reaches;
 }

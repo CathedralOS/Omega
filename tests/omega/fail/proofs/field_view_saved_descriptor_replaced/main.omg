@@ -1,4 +1,3 @@
-use omega::language::core::slice;
 data View<'data> [copy] { samples: &'data [u8]; }
 data Envelope<'data> [copy] { child: View<'data>; }
 machine read<'data>(value: Envelope<'data>, index: u64) -> u8

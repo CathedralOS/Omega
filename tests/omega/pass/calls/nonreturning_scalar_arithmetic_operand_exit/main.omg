@@ -1,7 +1,6 @@
 // Expected exit: 0
 // A required scalar arithmetic operand exits before addition and its receiving local.
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
+use omega::language::core::ProcessExit;
 
 machine stop_scalar() -> u64 reaches ProcessExit {
     ProcessExit::exit_process(0);

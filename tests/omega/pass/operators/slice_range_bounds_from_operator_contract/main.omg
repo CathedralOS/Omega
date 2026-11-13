@@ -1,5 +1,4 @@
 // Importing slice helpers leaves builtin bounds in force.
-use omega::language::core::slice;
 
 data Entry {
     value: i32;

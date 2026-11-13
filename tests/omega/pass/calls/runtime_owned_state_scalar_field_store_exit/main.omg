@@ -1,6 +1,6 @@
 // Whole owned homes retain direct write authority at entry and continuation.
 // The nested store preserves the sibling; values arrive through ordinary calls.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Counter { value: u64; untouched: u64; }
 data Envelope { inner: Counter; marker: u64; }
 machine entry_update(mut counter: Counter, replacement: u64) -> Counter {

@@ -1,7 +1,17 @@
 // Expected exit: 0. Controlled firmware model: every operation is ordinary
 // Source code. Numeric map tokens stand for scripted allocations and are never
 // dereferenced. This exercises the shared protocol, not physical UEFI entry.
-use omega_language_std::targets::uefi_x86_64::handoff;
+use omega_language_std::EFI_SUCCESS;
+use omega_language_std::EFI_INVALID_PARAMETER;
+use omega_language_std::EFI_BUFFER_TOO_SMALL;
+use omega_language_std::EFI_OUT_OF_RESOURCES;
+use omega_language_std::UefiBootServices;
+use omega_language_std::EfiBootServicesTable;
+use omega_language_std::UefiOsHandoffLegs;
+use omega_language_std::UefiOsHandoffTerminal;
+use omega_language_std::UefiOsHandoffCycle;
+use omega_language_std::UefiOsHandoffDisposition;
+use omega_language_std::UefiOsHandoffCycle::complete_boot_services;
 
 const MODEL_RELEASE_FAILURE: u64 = 0x8000000000000015;
 const MODEL_EXIT_FAILURE: u64 = 0x8000000000000003;

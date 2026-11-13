@@ -1,7 +1,7 @@
 // Expected exit: 0. Native records require their complete target extent before
 // the OS is called. Failure must not copy scratch bytes over caller canaries.
-use omega_language_std::posix_filesystem_host;
-use omega_language_std::console;
+use omega_language_std::PosixFilesystemHost;
+use omega_language_std::Console;
 
 data Main { bytes: [u8; 8]; record: [u8; 146]; timestamps: [u8; 34]; descriptor: i32; }
 machine Main::main(main: &mut Main) reaches Console + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemContentRead + FilesystemContentWrite + FilesystemNamespaceMutation {

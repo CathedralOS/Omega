@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // NaN takes the fallback despite failing both ordered comparisons.
 machine unordered_is_not_positive(value: f64) -> f64

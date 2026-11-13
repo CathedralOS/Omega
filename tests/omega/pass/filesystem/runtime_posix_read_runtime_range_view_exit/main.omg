@@ -1,4 +1,7 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 // POSIX `read` lends a byte-view element of the caller's backing to the
 // native descriptor: the provider's `&mut buffer[0]` on its `&mut [u8]`
 // parameter is the foreign call's structural input, an inline byte element
@@ -6,7 +9,7 @@ use omega::language::core::filesystem_authority;
 // same call: a field buffer windowed from a runtime offset while short
 // transfers accumulate to EOF, a `&mut [u8; N]` parameter windowed by its
 // caller, and a local buffer, each read twice into the same backing.
-use omega_language_std::posix_filesystem_host;
+use omega_language_std::PosixFilesystemHost;
 
 data Main requires received <= 320 {
     source: [u8; 300];

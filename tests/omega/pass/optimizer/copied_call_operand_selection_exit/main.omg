@@ -3,7 +3,7 @@
 // `CopyI64` records the rule rebinds to their copy sources. A wrong reroute
 // corrupts the product, so the exit code is the authored result: 70 iff
 // `scale(14, 3)` returns 42.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

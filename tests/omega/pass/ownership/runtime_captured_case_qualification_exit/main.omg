@@ -1,7 +1,6 @@
 // Expected exit: 0. A captured array-element loan retains its exact selected
 // case and borrows the payload's established qualification without minting one.
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
+use omega::language::core::ProcessExit;
 
 data Token [linear] { value: u64; }
 domain Token::Issued established by issue;

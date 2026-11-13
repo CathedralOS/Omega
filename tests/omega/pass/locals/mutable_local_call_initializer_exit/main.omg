@@ -8,7 +8,7 @@
 // transition guard reads `total` again after that call. A local whose
 // initializer was refused, or a read that resolved to another binding's
 // value, exits 71.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

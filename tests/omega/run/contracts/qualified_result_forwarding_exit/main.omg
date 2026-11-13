@@ -1,7 +1,7 @@
 // Expected exit: 0
 // A completed result carries its public equation through a local and a
 // reordered wrapper, independently of the input storage changed by the call.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Status [copy] { code: u64; }
 data Counter { value: u64; }
 data Main {}

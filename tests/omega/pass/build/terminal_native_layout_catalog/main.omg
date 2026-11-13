@@ -1,7 +1,17 @@
 // Expected exit: 0
 // The same artifact retains invariant and target-member private-slot layouts
 // beneath an ordinary record; runtime fields and target size remain distinct.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutTargetFacts;
+use omega::language::core::layout_target_facts;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 data Payload [copy] { value: u64; }
 boundary trait Callback { machine call(value: u64) -> u64 reaches; }

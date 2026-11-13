@@ -1,6 +1,9 @@
 // A returned nested remainder still borrows the input used below.
-use omega_language_std::console;
-use omega::language::core::wire;
+use omega_language_std::Console;
+use omega::language::core::DecodeResult;
+use omega::language::core::OpaqueWireRemainder;
+use omega::language::core::Relayed;
+use omega::language::core::PreservingDecode;
 
 data PreservePolicy {
 }

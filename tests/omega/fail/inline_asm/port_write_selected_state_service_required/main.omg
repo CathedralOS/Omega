@@ -1,6 +1,5 @@
 // The nested emitter explicitly excludes all services, so its port write
 // violates that ceiling even when a transition selects the emitter.
-use omega::language::core::assembly;
 
 public machine emit_selected_state(ready: u8) {
     transition ready == 1 { true -> emit() _ -> idle() }

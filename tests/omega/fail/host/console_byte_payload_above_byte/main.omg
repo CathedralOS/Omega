@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::ByteRead;
 
 machine main() {
     let invalid: ByteRead = ByteRead::Byte { value: 256 };

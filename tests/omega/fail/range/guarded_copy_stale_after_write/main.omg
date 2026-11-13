@@ -1,6 +1,6 @@
 // Writing 100 invalidates the earlier 0..=9 guard before the copy to Main.y.
 // The fresh value cannot satisfy store's arrival requirement or the field bound.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main requires y >= 0 && y <= 9 {
     yv: i32;

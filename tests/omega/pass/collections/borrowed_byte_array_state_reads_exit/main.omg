@@ -4,7 +4,7 @@
 // projection into the array: in a guard, in a statement, and through a
 // scalar helper's parameter. Runtime indexes read the same carrier under a
 // short-circuit guard and under a state requirement. "HELLO": exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine head(bytes: &[u8; 5]) -> u8 {
     transition { _ -> (bytes[0]) }

@@ -5,7 +5,7 @@
 // be read back as proof that the addition itself cannot overflow: its trap
 // site is judged from what holds before it runs, and nothing bounds the
 // operands, so both machines owe a published crash route.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 public machine regained(left: u64, right: u64) -> u64 {

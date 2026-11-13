@@ -1,5 +1,5 @@
 // Expected exit: 0
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 data Reading [copy] { value: f64; other: f64; }
 
 // A saved negation keeps the selected truth; writing another field is disjoint.

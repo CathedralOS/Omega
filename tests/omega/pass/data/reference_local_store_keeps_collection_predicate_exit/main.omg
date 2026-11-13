@@ -3,7 +3,7 @@
 // element store exactly as a direct `b.cells[0] = 3` would. The program exits
 // 43 only if the store reached `b.cells[0]`, and 44 otherwise.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine first_small(cells: &[u64; 4]) -> bool { cells[0] <= 4 }
 

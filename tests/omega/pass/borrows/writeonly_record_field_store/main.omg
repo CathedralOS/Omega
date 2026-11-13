@@ -1,5 +1,5 @@
 // WriteOnly borrow of a record referent: field stores through `&write`.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Node {
     value: i32;

@@ -2,7 +2,6 @@
 // Place: field. The slice view is packed into and projected from a record field.
 // Expected exit: 0
 
-use omega::language::core::slice;
 
 data Holder {
     view: &[u64];

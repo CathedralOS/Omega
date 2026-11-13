@@ -1,5 +1,5 @@
 // A nominal record cannot hide referent/descriptor authority in a closed fact call.
-use omega_language_std::console;
+use omega_language_std::Console;
 const ZERO: u64 = 0;
 data View [copy] { value: &u64; }
 data Main { }

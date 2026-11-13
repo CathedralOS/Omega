@@ -1,7 +1,7 @@
 // A sign-changing Trapping conversion traps on a negative source even when
 // the unsigned target is wider: i8 -1 has no u64 value. Wrapping would give
 // 18446744073709551615; Trapping must stop instead of ending normally.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i8_to_u64_trapping;
 
 data Inputs { source: i8; }
 

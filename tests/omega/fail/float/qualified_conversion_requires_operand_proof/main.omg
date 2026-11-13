@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 domain i32::Four requires self == 4;
 domain f32::Measured;

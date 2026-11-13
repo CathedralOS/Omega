@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 // A saved true guard does not prove bounds for storage written afterwards.
 machine convert(value: f64) -> i32 {
     let mut current: f64 = value;

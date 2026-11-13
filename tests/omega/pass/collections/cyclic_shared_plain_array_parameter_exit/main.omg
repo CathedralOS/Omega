@@ -1,4 +1,4 @@
-use omega::language::core::math;
+use omega::language::core::max_i32;
 
 // A cyclic machine may take a SHARED borrow of a plain fixed array.
 //
@@ -15,7 +15,7 @@ use omega::language::core::math;
 // the fixture stays about the parameter. `body`'s own `index < 3` requirement
 // is what makes `index + 1` exact, so no re-guard states are needed. Over
 // [4, 42, 23] the maximum is 42, the exit code, and it is not the last element.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine scan(numbers: &[i32; 3]) -> i32 {
     transition {

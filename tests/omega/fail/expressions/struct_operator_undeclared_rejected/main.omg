@@ -3,7 +3,7 @@
 // `==`/`!=` (Equatable) or a declared `domain P::... { operator ... }` meaning
 // operates on a data type. Rejected via the `resolve_spelling` authority (empty
 // candidate set for a concrete-data receiver). `Quantity + Quantity` stays valid.
-use omega_language_std::console;
+use omega_language_std::Console;
 data P { x: i32; }
 data Main { a: P; b: P; }
 machine Main::main(main: &mut Main) { let c: P = main.a + main.b; Console::exit_process(0); }

@@ -1,9 +1,13 @@
 // Expected exit: 70 (Windows only). Names-only enumeration counts a child
 // directory and two files, including a 300-byte UTF-8 name. Counting must not
 // decode into the portable 256-byte DirEntry buffer or request metadata reach.
-use omega_language_std::windows_filesystem_host;
-use omega_language_std::console;
-use omega::language::core::filesystem_authority;
+use omega_language_std::WindowsFilesystemHost;
+use omega_language_std::Console;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 
 data Main { first: u64; second: u64; }
 

@@ -1,4 +1,5 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::from_i32;
+use omega::language::core::F64::from_i32;
 data Context { value: i32; }
 machine from_i32(value: i32) -> i32 { value }
 machine parameter(value: i32) -> bool {

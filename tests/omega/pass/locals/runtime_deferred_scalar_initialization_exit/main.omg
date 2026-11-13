@@ -1,6 +1,6 @@
 // A primitive local declared without an initializer keeps its own storage
 // through assignment and observation. Native and interpreter must exit 1.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

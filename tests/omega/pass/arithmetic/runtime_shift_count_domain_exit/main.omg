@@ -6,7 +6,7 @@
 // `wrapped << count` outright. Legs: << and >> with a runtime Exact count.
 // Wrapping counts are masked by the language operand width on every target.
 // exits: 71 = << wrong; 72 = >> wrong; 73/74 = masked 32/64 leg wrong.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(context: &mut Main) {
     Main::build(context, 3);

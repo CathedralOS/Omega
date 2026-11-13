@@ -1,5 +1,4 @@
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::Console;
 machine retain(value: f32 in Finite) -> f32 in Finite {
     transition { _ -> (value) }
 }

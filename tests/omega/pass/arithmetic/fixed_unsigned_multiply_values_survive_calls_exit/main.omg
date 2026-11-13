@@ -1,6 +1,6 @@
 // Saturating u64 multiplication owns an encoding scratch and fixed inputs.
 // Both source values and an earlier product survive a second aliased multiply.
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::integer;
 machine calculate(left: u64 in Saturating, right: u64 in Saturating) -> u64 in Saturating {
     let product: u64 in Saturating = left * right;

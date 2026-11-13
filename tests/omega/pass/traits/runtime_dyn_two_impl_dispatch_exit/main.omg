@@ -5,7 +5,7 @@
 // ([dynamic dispatch](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)).
 // CircleShape reports 9 and SquareShape reads the item's 4 sides:
 // 9 * 10 + 4 == 94 -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Shape<T> {
     machine code(subject: &mut T) -> i32;

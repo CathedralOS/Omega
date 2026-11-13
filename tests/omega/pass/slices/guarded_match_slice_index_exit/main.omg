@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine first(values: &[i32], count: u64) -> i32 {
     let observed: i32 = match count > 0 && count <= values.len && 0 < values.len {

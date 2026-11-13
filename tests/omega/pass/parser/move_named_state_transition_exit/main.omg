@@ -2,7 +2,7 @@
 // value on, while `move(...)` is an ordinary transition to a state named
 // `move`. Parsing `move(count)` as the prefix applied to `(count)` dropped the
 // transition target and left `main` without an executable body.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Payload { value: i32; }
 

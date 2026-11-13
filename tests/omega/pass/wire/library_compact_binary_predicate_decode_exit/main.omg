@@ -1,7 +1,12 @@
 // Expected exit: 0
 // Parsing validates carriers; the explicit owner constructor separately proves
 // the destination's relation before a Sound value or committed cursor exists.
-use omega::language::core::wire;
+use omega::language::core::DecodeResult;
+use omega::language::core::CompactBinary;
+use omega::language::core::ScalarSlot;
+use omega::language::core::ScalarPlanContext;
+use omega::language::core::CompactBinary::plan_scalar;
+use omega::language::core::CompactBinary::decode_record;
 use omega::language::core::reflect;
 data Message { #0 v: u32; #1 delta: i8; }
 data Validated requires v <= 100u32 && delta >= (0i8 - 10i8) && delta <= 10i8 {

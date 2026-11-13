@@ -19,7 +19,7 @@
 // The `reaches Console` here and the `Build::bind(builder, ...ProgramEntry...)` lines
 // in `build.omg` are equally load-bearing: a machine with no terminal effect
 // demands no unit plan, so this program would check VACUOUSLY without them.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Command {
     case A;

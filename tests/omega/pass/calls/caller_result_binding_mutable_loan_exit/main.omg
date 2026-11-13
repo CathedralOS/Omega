@@ -2,7 +2,7 @@
 // binding into a CheckedBody callee: `find` writes through `out` into the
 // caller's `found`, and both writes must be visible after the call. Exits
 // 70 only when the mutable loan reaches the binding's whole extent.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Item {
     key: i32;

@@ -1,7 +1,7 @@
 // Expected exit: 70
 // A scalar observation of an affine local does not consume its cleanup duty.
 // Each normal record-return arm retires that exact local occurrence.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Observation { value: i32; }
 data Receipt<'storage> dropped by drop_receipt<'storage> { destination: &'storage mut i32; }

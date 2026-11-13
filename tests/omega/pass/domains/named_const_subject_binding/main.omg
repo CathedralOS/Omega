@@ -1,5 +1,5 @@
 // Logical self denotes the exact qualified constant, independently of outer names.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 const value: u64 = 99;
 const bytes: u64 = 99;

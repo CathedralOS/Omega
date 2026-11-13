@@ -5,7 +5,7 @@
 // `result < divisor` then proves that the returned u32 is representable as i32.
 // The two calls use different runtime inputs and exercise both the maximum u32
 // dividend and an ordinary dividend: 0xffff_ffff % 97 == 34 and 125 % 89 == 36.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

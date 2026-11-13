@@ -1,4 +1,3 @@
-use omega::language::core::assembly;
 public boundary trait Signal {
     machine emit() reaches PortIo;
 }

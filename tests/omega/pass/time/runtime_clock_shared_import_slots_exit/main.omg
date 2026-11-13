@@ -1,7 +1,7 @@
 // Different admitted import slots share one clock domain. Exercise Unit and
 // scalar poll results, both count widths, two read slots, and helper returns.
 // Native waits may overshoot: assert lower bounds, not exact host latency.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i64_to_u64_saturating;
 
 public boundary trait ClockProbe {
     machine read(selector: u32) -> u64 reaches invokes LinuxClockRead;

@@ -1,5 +1,4 @@
 // Qualified IEEE observation preserves the field's declaration and owner.
-use omega::language::core::float_operations;
 domain f64::Time;
 data Observation { time: f64 in Time; }
 data Nested { observation: Observation; }

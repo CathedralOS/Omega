@@ -9,7 +9,7 @@
 // write `after` instead (exit 71). `put` is a state graph, whose byte-view
 // write resolves its root through the state's own parameters. Any other
 // outcome exits 72.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8; 3]::Utf8
 requires

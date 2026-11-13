@@ -1,4 +1,9 @@
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::bytes_field;
 use omega::language::core::reflect;
 // Numbered data fields declare wire encoding membership: `#0`/`#1`
 // are field tags, not positions. `Blob::encode` is the synthesized

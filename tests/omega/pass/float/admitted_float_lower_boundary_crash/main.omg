@@ -1,8 +1,7 @@
 // A finite lower cutpoint traps; (-129, -128) still truncates into i8.
-use omega::language::core::float_operations;
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
+use omega::language::core::I8::from_f32;
+use omega::language::core::ProcessExit;
+use omega_language_std::Console;
 
 data Main {
     value: f32;

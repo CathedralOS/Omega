@@ -1,6 +1,6 @@
 // A callable boundary still needs provider identity when its effect row is
 // empty. Exercise direct, bound and helper calls without inventing an effect.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Pure { machine evaluate(value: i32) -> i32 reaches; }
 data Provider {}

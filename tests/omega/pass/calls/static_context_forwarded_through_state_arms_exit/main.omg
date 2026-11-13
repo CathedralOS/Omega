@@ -16,7 +16,7 @@
 // A read that lands on a stale copy or an ended loan misses 70.
 // Expected exit: 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Pair {
     low: i32 in Wrapping;

@@ -3,7 +3,7 @@
 // local shared, and `mark_words(words)` lends a `&mut [u32]` element view.
 // Each callee writes or reads through the caller's backing array.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { bytes: [u8; 4]; words: [u32; 3]; seen: bool; }
 

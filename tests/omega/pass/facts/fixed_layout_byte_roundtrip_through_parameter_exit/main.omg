@@ -1,7 +1,13 @@
 // Fact: A byte roundtrip through an explicit fixed layout lends a decoded view only after its payload bound is established, preserving every field and neighboring storage.
 // Expected exit: 0
-use omega::language::core::layout;
-use omega::language::core::option;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+use omega::language::core::Optional;
 
 data Payload [copy] requires self.second >= 42u64 {
     first: u8;

@@ -1,4 +1,6 @@
-use omega::language::core::float_operations;
+use omega::language::core::F64::meaning;
+use omega::language::core::FloatSemantics::negate;
+use omega::language::core::F64::negate;
 
 machine invalid_absolute(value: f64) -> f64
 ensures

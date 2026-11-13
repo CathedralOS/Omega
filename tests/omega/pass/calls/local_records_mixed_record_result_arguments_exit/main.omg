@@ -9,7 +9,7 @@
 // Exits 70 only when the reports and every local show exactly the writes
 // made through the exclusive loans.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally { hits: i32 in Wrapping; misses: i32 in Wrapping; }
 data Board { tallies: [Tally; 2]; }

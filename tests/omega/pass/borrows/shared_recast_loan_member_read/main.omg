@@ -3,7 +3,7 @@
 // exit 0. The high-ID overlay copy and the later dense Console attachment
 // must publish one canonical place roster, even when every copy declaration
 // was already retained by machine assembly.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Desc {
     tag: u32;

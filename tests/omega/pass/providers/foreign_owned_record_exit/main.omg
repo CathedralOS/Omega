@@ -1,5 +1,5 @@
 // libc returns an IPv4 address record and consumes the same record by value.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data InternetAddress { address: u32; }
 

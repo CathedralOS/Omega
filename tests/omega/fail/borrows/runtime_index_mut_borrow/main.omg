@@ -5,7 +5,7 @@
 // check to fall back to. The bounded sibling
 // (run/borrows/runtime_index_bounded_borrow) declares `off: u32 [0..=47]`
 // and runs natively.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     buf: [u8; 48];

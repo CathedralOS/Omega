@@ -1,7 +1,7 @@
 // The i8 conversion rejects inputs above 127, but the declared Trap ceiling
 // only names inputs above 255. The explicit invalid branch must remain
 // uncovered even though this caller supplies an in-range value.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine narrow(input: u16) -> i8
 crashes Trap input > 255u16 {

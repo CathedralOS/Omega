@@ -3,7 +3,6 @@
 // state a transition selects. Terminal production carries each exact
 // port/value event; this package binds no native entry, so the privileged
 // provider settlement a native artifact needs stays a separate obligation.
-use omega::language::core::assembly;
 
 public data Device {
     writes: u64;

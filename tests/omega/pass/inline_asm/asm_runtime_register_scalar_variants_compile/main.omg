@@ -1,7 +1,6 @@
 // Native-production canary: privileged register events retain their scalar
 // inputs and results through locals, parameters, fields, calls and states.
 // Compile only; executing port/MSR instructions requires a privileged host.
-use omega::language::core::assembly;
 data Main { port: u16; byte: u8; index: u32; value: u64; }
 machine port_identity(port: u16) -> u16 { port }
 machine value_identity(value: u64) -> u64 { value }

@@ -5,7 +5,7 @@
 // production at `InvalidTerminalModule(UnknownStructuralArgument)` -- the
 // arm-bound case payload's place is not registered for the named-target call
 // at emission time (composed-control emission, case-payload territory).
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data ListResponse {
     value: u64;

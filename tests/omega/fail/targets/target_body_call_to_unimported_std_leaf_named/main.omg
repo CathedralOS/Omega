@@ -2,8 +2,7 @@
 // macOS std leaf no loaded declaration provides any longer, so this call
 // resolves to nothing. The refusal names the call instead of reporting an
 // anonymous incomplete crash envelope for `pace`.
-use omega_language_std::console;
-use omega_language_std::macos_gui;
+use omega_language_std::Console;
 
 macos_arm64 machine pace(timeout: i32)
 reaches ClockObservation + ExecutionDelay

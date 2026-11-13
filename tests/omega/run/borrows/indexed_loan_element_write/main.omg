@@ -2,7 +2,7 @@
 // `borrowed` captures `main.buf[main.off]` — the canonical place ends in a
 // stored-field runtime index, and the store's primitive projection must
 // evaluate the field selector and bound it against the array's extent.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main requires off <= 47 {
     buf: [u8; 48];

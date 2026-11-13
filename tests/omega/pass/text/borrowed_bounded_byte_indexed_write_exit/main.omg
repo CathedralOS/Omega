@@ -1,6 +1,6 @@
 // A scalar-returning helper borrows a qualified owner, not a raw byte view.
 // It preserves live length and ASCII while changing only the caller's home.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8; 8]::Ascii requires ascii_only(self);
 

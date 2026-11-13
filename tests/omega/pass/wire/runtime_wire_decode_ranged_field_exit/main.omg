@@ -1,7 +1,12 @@
 // RANGE ESTABLISHMENT AT THE WIRE BOUNDARY: hostile 200 must not enter the
 // declared `u32 in WireValue` field; a later in-range 50 must establish it.
-use omega_language_std::console;
-use omega::language::core::wire;
+use omega_language_std::Console;
+use omega::language::core::DecodeResult;
+use omega::language::core::CompactBinary;
+use omega::language::core::ScalarSlot;
+use omega::language::core::ScalarPlanContext;
+use omega::language::core::CompactBinary::plan_scalar;
+use omega::language::core::CompactBinary::decode_record;
 use omega::language::core::reflect;
 data Msg {
     #0 v: u32;

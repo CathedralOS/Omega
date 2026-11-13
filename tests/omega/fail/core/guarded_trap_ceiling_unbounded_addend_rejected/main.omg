@@ -3,7 +3,7 @@
 // without a declared route, so the addition's trap is uncovered even though
 // the route names one of its operands. The caller's arguments disprove the
 // route, so the addition inside `accumulate` is the only undischarged site.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine accumulate(total: u8, step: u8) -> u8
 crashes Trap total > 200u8 {

@@ -4,7 +4,7 @@
 // ordering fix + suffix-walk boundary threading); the op carries the one
 // runtime index. Pins BOTH consumers: machine-field target (`main.got = ..`)
 // and frame LET target (`let picked = ..`). grid[1][2]=42, j=2 -> exit 1.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main requires 0 <= j, j <= 3 {
     grid: [[i32; 4]; 3];
     j: u64;

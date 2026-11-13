@@ -7,8 +7,7 @@
 // still read itself: with a = 1 and b = 4 it is 8, while the stored sum is 5.
 // A read that resolved `doubled` to the stored call result would see 5 and
 // exit 71.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     sum: f64;

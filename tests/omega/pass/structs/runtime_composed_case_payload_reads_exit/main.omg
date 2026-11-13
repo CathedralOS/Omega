@@ -1,6 +1,6 @@
 // The existing case-field observations compose in one graph. Keep every
 // failure code and payload check; splitting the graph must not change validity.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain i32::Ten requires 0 <= self && self <= 10;
 

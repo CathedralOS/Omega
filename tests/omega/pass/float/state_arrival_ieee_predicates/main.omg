@@ -1,8 +1,8 @@
 // IEEE arrival contracts preserve unordered semantics and dense scalar positions
 // when a structural formal precedes an f32/f64 scalar. Both orientations of a
 // literal comparison and two scalar subjects belong to the same predicate owner.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::I32::from_f64;
+use omega_language_std::Console;
 data Record { observed: i32; }
 data Main { record: Record; value: f64; smaller: f32; }
 machine land64(record: &mut Record, value: f64) {

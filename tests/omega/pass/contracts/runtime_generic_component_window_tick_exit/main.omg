@@ -1,5 +1,5 @@
 // Expected exit: 0.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Vitality [copy] requires maximum >= 0, current >= 0 && current <= maximum {
     current: i32; maximum: i32;

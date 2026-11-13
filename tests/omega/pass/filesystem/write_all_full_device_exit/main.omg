@@ -1,8 +1,14 @@
 // Expected exit: 0. An acquired writable descriptor can still fail its write.
 // /dev/full is Linux-specific; portable copy/capacity controls run separately.
-use omega::language::core::filesystem_authority;
-use omega_language_std::filesystem;
-use omega_language_std::console;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
+use omega_language_std::ErrorKind;
+use omega_language_std::UnitResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::write_all;
+use omega_language_std::Console;
 data Main { filesystem: Filesystem; }
 machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "/dev/full", "cannot fit");

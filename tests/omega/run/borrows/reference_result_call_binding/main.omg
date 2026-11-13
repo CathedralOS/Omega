@@ -1,7 +1,7 @@
 // A reference returned by a static machine remains a reference when bound to
 // a local. Its referent must survive the call and retain its source identity;
 // copying a scalar result is not a substitute for this behavior.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     count: u32;

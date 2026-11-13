@@ -1,7 +1,7 @@
 // `<<!` checks its count when it runs: 40 is not below the 32-bit width, so
 // the shift traps. `<<%` reduces the same count and `<<!` with a count of 3
 // returns in run/arithmetic/policy_operators_match_policy_domains.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine shifted(value: u32, count: u32) -> u32 crashes Trap {

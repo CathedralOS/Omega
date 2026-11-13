@@ -11,8 +11,8 @@
 // lending `&main.bytes[0..41]`: the unit plan admits a borrowed boundary
 // argument through the fixed-range byte-view lane when its place roots at a
 // caller parameter (here `main: &mut Main`).
-use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega_language_std::Console;
+use omega::language::core::narrow_u64_to_u16_wrapping;
 
 
 public boundary trait CellSource {

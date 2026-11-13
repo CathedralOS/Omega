@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Output { value: u64; }
 data Main { output: Output; }

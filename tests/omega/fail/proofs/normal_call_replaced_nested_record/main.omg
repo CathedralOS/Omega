@@ -1,5 +1,4 @@
 // Expected exit: 0
-use omega::language::core::content;
 data Pair { count: u64; marker: u64; }
 data Holder { pair: Pair; outer: u64; }
 machine update(record: &mut Holder) -> u64

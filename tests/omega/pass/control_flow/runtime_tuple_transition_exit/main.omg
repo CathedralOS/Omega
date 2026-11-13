@@ -1,7 +1,7 @@
 // Tuple dispatch forwards its explicit context through the selected state
 // edge. The scalar result completes the invocation and returns to the caller.
 // Expected exit: 22.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

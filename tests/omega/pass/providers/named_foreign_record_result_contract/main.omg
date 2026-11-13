@@ -26,9 +26,13 @@ ensures result.code == 0;
 // `ForeignReports` gives the wrapper a subject again. The entry is the target's
 // physical continuation, and the two selections under it are the minimum the
 // uefi entry schema asks for (provider_selection.md:3, entry_roots.md:26).
-use omega::language::core::extent;
-use omega::language::core::representation;
-use std::targets::uefi_x86_64::entry;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::OpaqueRepresentation;
+use std::EfiImageHandle;
+use std::EfiSystemTable;
+use std::EfiStatus;
+use std::UefiPhysicalEntry;
 
 data SystemTableHeader {
     signature: u64;

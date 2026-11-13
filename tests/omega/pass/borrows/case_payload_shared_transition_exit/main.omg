@@ -1,5 +1,5 @@
-use omega::language::core::option;
-use omega_language_std::console;
+use omega::language::core::Optional;
+use omega_language_std::Console;
 
 data Leaf { value: i32; }
 data Token { value: i32; leaf: Leaf; }

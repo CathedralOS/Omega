@@ -1,6 +1,6 @@
 module static_arithmetic_name_callback_exit;
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine choose_true(input: i32) -> bool { (true) }
 machine choose_true_three(input: i32, lower: i32, upper: i32) -> bool { (true) }

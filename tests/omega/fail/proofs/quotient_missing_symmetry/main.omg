@@ -1,4 +1,4 @@
-use omega::language::core::relation;
+use omega::language::core::Equivalence;
 
 data Representative {
     case Zero;

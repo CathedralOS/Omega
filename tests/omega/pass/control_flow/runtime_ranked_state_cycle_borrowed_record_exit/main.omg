@@ -1,7 +1,7 @@
 // A Unit machine's ranked state cycle carries a borrowed record through each
 // step and writes it. The composed state graph lowers the cycle under its
 // natural rank; the caller observes the last step's write.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally { count: u64; }
 data Main { tally: Tally; }

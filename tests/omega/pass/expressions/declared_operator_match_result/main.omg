@@ -7,7 +7,7 @@
 // RUN CANARY (exit 70): `main` observes all three results natively and exits
 // 70 only when `select_true` and `by_name` yield 260 and `select_false`
 // yields 1; any other result exits 71.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data Wrapped { value: u8; }
 

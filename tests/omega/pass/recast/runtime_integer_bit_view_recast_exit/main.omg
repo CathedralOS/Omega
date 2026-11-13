@@ -8,7 +8,7 @@
 // source is a selection whichever way its index is spelled. The viewed
 // fields keep their declared carriers; each byte of the region owes its own
 // index proof.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     value: i32;

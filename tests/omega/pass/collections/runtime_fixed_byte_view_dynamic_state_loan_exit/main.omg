@@ -2,7 +2,7 @@
 // A later argument resets the selector: the view must still name row 1.
 // Its descriptor crosses another state before the first read and write.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Row { bytes: [u8; 3]; }
 data Cursor { index: u64; }

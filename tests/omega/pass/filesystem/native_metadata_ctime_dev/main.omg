@@ -1,4 +1,8 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 // NATIVE MetadataExt::ctime/dev via stat (Rust os::unix::fs::MetadataExt). Two
 // files on the same filesystem: st_ctime reads a real recent change time
 // (> 1e9), and both files share a NONZERO st_dev (@0) — the device of /tmp.
@@ -6,8 +10,11 @@ use omega::language::core::filesystem_authority;
 // ctime seconds at offset 64; the Linux generic layout keeps them at offset
 // 104 — each bound target decodes its own record.
 
-use omega_language_std::posix_filesystem_host;
-use omega::language::core::numeric_conversion;
+use omega_language_std::PosixFilesystemHost;
+use omega::language::core::widen_u8_to_u32;
+use omega::language::core::widen_u8_to_u64;
+use omega::language::core::narrow_u32_to_i32_wrapping;
+use omega::language::core::narrow_u64_to_i64_wrapping;
 
 data Main {
     discard: i32;

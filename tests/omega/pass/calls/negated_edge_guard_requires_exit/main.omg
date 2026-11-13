@@ -3,7 +3,7 @@
 // `v >= 100` proves exactly that bound, so the requires discharges without a
 // restated premise. The argument is a call result, not a literal, so no
 // constant folding can stand in for the entailment.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine check(v: u64)
 requires v < 100u64

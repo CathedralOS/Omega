@@ -8,7 +8,7 @@
 // `SuitDescending` implements `Descending<Card>`, which inherits `Ranked<Card>`,
 // so `Ranked::compare<Card, SuitDescending>` selects its inherited row. Exit 70
 // shows each call ran its own implementation's machine.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Ranked<T> {
     machine compare(left: &T, right: &T) -> bool;

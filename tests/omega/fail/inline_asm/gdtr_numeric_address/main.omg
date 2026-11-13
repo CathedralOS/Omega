@@ -1,3 +1,2 @@
 // A numeric address supplies no readable descriptor storage.
-use omega::language::core::assembly;
 machine main() reaches MachineControl { asm clobbers r10 { lgdt 4096u64 } }

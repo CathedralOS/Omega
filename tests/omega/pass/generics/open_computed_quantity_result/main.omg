@@ -1,8 +1,8 @@
 // PDI3: a generic result retains an erased expression over its input indices.
 // The consuming machine's evidence binder supplies the spelled operation; the
 // bound trait's checked law slots license AC normalization.
-use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega_language_std::Console;
+use omega::language::core::narrow_i64_to_i32_wrapping;
 
 domain<T, const I: u64> T::Indexed<I>;
 

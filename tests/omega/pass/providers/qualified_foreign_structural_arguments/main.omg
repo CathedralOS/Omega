@@ -1,7 +1,7 @@
 // Whole and projected loans share established local backing. A scalar call
 // precedes construction; two foreign calls read it without consuming it, and
 // ordinary reads after those calls must still observe the authored values.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data Pair { first: i64; second: i64; }
 public domain Pair::Ordered requires self.first < self.second;

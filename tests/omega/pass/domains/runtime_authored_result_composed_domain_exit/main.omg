@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Cell [copy] { mantissa:f64; power:i32; }
 domain Cell::Admitted established by Cell::accept;
 machine Cell::accept(flag:bool)->Cell ensures result in Cell::Admitted { transition flag { true -> first() false -> second() } machine first()->Cell { Cell { mantissa:0.75,power:-2 } } machine second()->Cell { Cell { mantissa:0.5,power:-2 } } }

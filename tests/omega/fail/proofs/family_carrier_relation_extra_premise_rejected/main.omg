@@ -2,7 +2,7 @@
 // packs. `ordered` is opaque, so the requirement grants exactly
 // `ordered<Left, Right>(left, right)`; requiring the reversed pair is a
 // premise callers of the requirement never prove.
-use omega::language::core::relation;
+use omega::language::core::Symmetric;
 
 data Index {
 }

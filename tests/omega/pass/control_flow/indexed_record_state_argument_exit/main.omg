@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Kind [copy] { case First; case Second; }
 data Item [copy] { kind: Kind; value: u64; }

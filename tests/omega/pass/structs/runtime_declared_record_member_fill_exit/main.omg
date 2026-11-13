@@ -1,6 +1,6 @@
 // A declaration without an initializer may be filled member by member.
 // `mut` controls whole-local rebinding, not establishment of record fields.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Point { x: i32; y: i32; }
 data Main { }

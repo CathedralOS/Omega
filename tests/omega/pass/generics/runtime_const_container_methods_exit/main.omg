@@ -1,6 +1,6 @@
 // Explicit record parameters preserve each const application's identity and
 // concrete fixed-array layout across mutation, calls and state transitions.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // `items[0]` reads discharge against the symbolic extent: the template must
 // declare N >= 1 so index 0 is provably inside every admissible specialization.

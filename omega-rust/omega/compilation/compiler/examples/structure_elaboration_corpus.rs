@@ -126,6 +126,7 @@ fn probe(main: &Path) -> Probed {
             entries: &frontier.entries,
             subject: frontier.subject,
             selected: &frontier.selected,
+            bindings: &frontier.bindings,
         },
     ) {
         Ok(elaboration) => elaboration,

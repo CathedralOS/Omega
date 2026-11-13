@@ -1,5 +1,5 @@
 // Returned reference-array elements retain exact backing through runtime selection.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell requires value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Pair { first: Cell; second: Cell; }

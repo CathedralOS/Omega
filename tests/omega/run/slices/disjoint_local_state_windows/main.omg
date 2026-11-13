@@ -1,6 +1,6 @@
 // A later state lends two disjoint windows of an array it just built.
 // Exit 12 when both writes land in those windows.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

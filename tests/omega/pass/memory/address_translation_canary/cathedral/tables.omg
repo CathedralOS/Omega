@@ -26,7 +26,8 @@
 // which is still undeclared vocabulary, so the package never consumes its own
 // entries. The provider realization traverses hardware-side; source composes
 // only the store/invalidate boundary requirements.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 
 // One 4KiB page-table extent: 512 8-byte slots under one qualified range.
 // The record is linear through `storage`: moving or dropping the table moves

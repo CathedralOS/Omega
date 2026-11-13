@@ -1,6 +1,6 @@
 // Bare Nat subtraction must not inherit the total monus behavior. Without an
 // independent `used <= total` fact, its exact formation contract rejects.
-use omega::language::core::nat;
+use omega::language::core::Nat;
 
 machine remaining(total: Nat, used: Nat) -> Nat
 {

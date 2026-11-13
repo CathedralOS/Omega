@@ -1,6 +1,6 @@
 // Replacing a local descriptor retains the incoming window, not the previous
 // initializer. Observe both its extent and bytes before the local is discarded.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8]::Utf8 requires valid_utf8(self);
 data Slot { out: &[u8] in Utf8; }

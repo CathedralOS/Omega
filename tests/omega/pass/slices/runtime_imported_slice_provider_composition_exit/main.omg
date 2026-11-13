@@ -1,6 +1,6 @@
 // Builtin ranges and checked named helpers preserve their original backing
 // across generic calls, descriptor copies, empty windows and source rebinding.
-use omega::language::core::slice;
+use omega::language::core::slice_range;
 
 machine middle<Element>(items: &[Element], start: u64, end: u64) -> &[Element]
 requires start <= end && end <= items.len

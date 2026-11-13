@@ -12,7 +12,38 @@
 // Exit 0 when every result holds; a wrong result executes `crash Trap;`.
 // `main` takes no arguments and reaches no service, so the Terminal
 // interpreter runs the same program beside the native product.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i8_to_u8_exact;
+use omega::language::core::narrow_i8_to_u8_wrapping;
+use omega::language::core::narrow_i8_to_u8_saturating;
+use omega::language::core::narrow_i8_to_u8_trapping;
+use omega::language::core::narrow_i8_to_u16_exact;
+use omega::language::core::narrow_i8_to_u16_wrapping;
+use omega::language::core::narrow_i8_to_u16_saturating;
+use omega::language::core::narrow_i8_to_u16_trapping;
+use omega::language::core::narrow_i8_to_u32_exact;
+use omega::language::core::narrow_i8_to_u32_wrapping;
+use omega::language::core::narrow_i8_to_u32_saturating;
+use omega::language::core::narrow_i8_to_u32_trapping;
+use omega::language::core::narrow_i8_to_u64_exact;
+use omega::language::core::narrow_i8_to_u64_wrapping;
+use omega::language::core::narrow_i8_to_u64_saturating;
+use omega::language::core::narrow_i8_to_u64_trapping;
+use omega::language::core::narrow_i16_to_u8_exact;
+use omega::language::core::narrow_i16_to_u8_wrapping;
+use omega::language::core::narrow_i16_to_u8_saturating;
+use omega::language::core::narrow_i16_to_u8_trapping;
+use omega::language::core::narrow_i16_to_u16_exact;
+use omega::language::core::narrow_i16_to_u16_wrapping;
+use omega::language::core::narrow_i16_to_u16_saturating;
+use omega::language::core::narrow_i16_to_u16_trapping;
+use omega::language::core::narrow_i16_to_u32_exact;
+use omega::language::core::narrow_i16_to_u32_wrapping;
+use omega::language::core::narrow_i16_to_u32_saturating;
+use omega::language::core::narrow_i16_to_u32_trapping;
+use omega::language::core::narrow_i16_to_u64_exact;
+use omega::language::core::narrow_i16_to_u64_wrapping;
+use omega::language::core::narrow_i16_to_u64_saturating;
+use omega::language::core::narrow_i16_to_u64_trapping;
 
 data Inputs {
     min_i8: i8;

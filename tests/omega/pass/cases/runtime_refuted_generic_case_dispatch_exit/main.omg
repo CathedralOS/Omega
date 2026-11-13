@@ -3,7 +3,7 @@
 // counts the refuted case as impossible; the terminal unit's closed-sum
 // dispatch must roster the same possible cases, or the state planned no body
 // ("unsupported tail: single guarded transition").
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Value<T> 
     requires ((self in Value::Integer) && (T == i32)) || ((self in Value::Boolean) && (T == bool))

@@ -7,7 +7,8 @@
 // The checker stops at the terminating caller `wrap`; with `wrap` removed the
 // law in `covers` is refused as "not denotational: the selected machine is not
 // unconditionally terminating".
-use omega::language::core::conversion;
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
 
 data Pair [copy] { first: u8; last: u8; }
 data Frame [copy] { tag: u8; first: u8; last: u8; }

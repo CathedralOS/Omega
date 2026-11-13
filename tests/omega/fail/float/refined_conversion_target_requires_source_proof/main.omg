@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 machine sample() -> f64 ensures result == 3.0 { 3.0 }
 machine outside() -> i32 ensures result == 4 { sample() as i32 }

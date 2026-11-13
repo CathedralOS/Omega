@@ -6,7 +6,8 @@
 // read each select their expected case; the mutable view's write lands in
 // the caller's local. Exits 70 only when every dispatch selected that case.
 
-use omega_language_std::console;
+use omega_language_std::LineReadResult;
+use omega_language_std::Console;
 
 public data Scan {
     case Marked(position: u64);

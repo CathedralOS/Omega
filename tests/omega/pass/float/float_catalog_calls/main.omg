@@ -1,11 +1,14 @@
-use omega::language::core::math;
+use omega::language::core::min_f32;
+use omega::language::core::max_f32;
+use omega::language::core::sqrt_f64;
 
 // Float requirement calls are catalog-addressable:
 // `F32::square_root(64.0f32)` selects the format even with anonymous
 // operands; the bare `min`/`max`/`sqrt` shorthand runs the same
 // requirement call — including in comparisons on EITHER side and in
 // nested operands.
-use omega::language::core::float_operations;
+use omega::language::core::F32::square_root;
+use omega::language::core::F64::square_root;
 machine f32_result() -> bool {
     F32::square_root(64.0f32) == 8.0
 }

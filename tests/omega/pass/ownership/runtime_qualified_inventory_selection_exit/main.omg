@@ -1,7 +1,6 @@
 // Expected exit: 0. Runtime selection preserves the same conditional issuer
 // obligations across an inventory larger than the old selection-work ceiling.
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
+use omega::language::core::ProcessExit;
 
 data Token [linear] { value: u64; }
 domain Token::Issued established by issue;

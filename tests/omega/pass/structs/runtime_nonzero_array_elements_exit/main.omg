@@ -1,6 +1,6 @@
 // Nonzero element fields compose from a completed owner and a call result.
 // Construction cannot depend on an admissible zero value. Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain u64::Positive requires 1 <= self;
 

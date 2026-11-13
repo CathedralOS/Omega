@@ -1,4 +1,5 @@
-use omega::language::core::external_binding;
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
 machine build(builder: &mut Build) { Build::application(builder,"runtime_borrowed_ingress_no_nominal_disposal_exit"); Build::select_provider<Console, PosixConsoleWrite>(builder, linux_arm64);
 Build::select_provider<Console, PosixConsoleWrite>(builder, linux_x86_64);
 Build::select_provider<Console, PosixConsoleWrite>(builder, macos_arm64);

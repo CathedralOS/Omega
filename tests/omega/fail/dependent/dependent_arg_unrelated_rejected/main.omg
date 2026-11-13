@@ -2,7 +2,7 @@
 // scalar type suffix. Knowing the argument is six does not relate it to
 // the current count. The argument is actually outside the permitted prefix,
 // so propagation of its known value must not turn this into a passing control.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main requires count <= 11 { items: [u8; 12]; count: u32; j: u32; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.count = 3;

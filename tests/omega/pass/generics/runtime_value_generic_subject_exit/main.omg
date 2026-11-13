@@ -14,7 +14,7 @@
 // subject's requirement proof where the literal value fact is visible.
 // Exit 17 = 3 (direct n) + 5 (forwarded source) + 5 (bounded source)
 //         + 4 (closed static specialization).
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine prefix_count<Count: i32>(base: i32) -> i32 in Wrapping {
     Count as i32 in Wrapping

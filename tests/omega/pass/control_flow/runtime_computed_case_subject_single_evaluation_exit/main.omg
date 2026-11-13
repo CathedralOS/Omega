@@ -5,7 +5,7 @@
 // selected) each add exactly one call. Native and interpreter both exit 70;
 // exit 2 or 3 exposes a repeated evaluation, 4 a wrong payload, and 71 a
 // wrong arm.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Pick {
     case First(v: i32);

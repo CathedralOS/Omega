@@ -1,5 +1,5 @@
 // Invalid control for executable custody-free quotient realization.
-use omega::language::core::relation;
+use omega::language::core::Equivalence;
 
 domain i32::Issued established by Issuer::issue;
 trait Issuer { machine issue() -> i32 ensures result in i32::Issued; }

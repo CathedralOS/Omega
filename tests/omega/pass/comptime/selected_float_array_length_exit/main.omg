@@ -1,5 +1,4 @@
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // Named and spelled uses execute their selected primitive Float meanings
 // while the array type is evaluated. Runtime indexing consumes that result.

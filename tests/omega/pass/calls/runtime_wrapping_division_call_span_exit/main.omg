@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 machine decimal(value: u64 in Wrapping) reaches Console {
     transition { _ -> scale(value, 1) }
     machine scale(value: u64 in Wrapping, divisor: u64 in Wrapping) {

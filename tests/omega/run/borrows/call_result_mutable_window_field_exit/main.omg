@@ -2,7 +2,7 @@
 // A feature pair returns its mutable window beside the centered value.
 // The window is forwarded through a local, a record field, a parameter,
 // and the call result.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Centered<'row> {
     window: &'row mut [f64];

@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 data Sample requires bounded >= 0.0 && bounded <= 100.0 {
     bounded: f64;

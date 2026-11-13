@@ -1,10 +1,15 @@
-use omega::language::core::wire;
+use omega::language::core::DecodeResult;
+use omega::language::core::CompactBinary;
+use omega::language::core::ScalarSlot;
+use omega::language::core::ScalarPlanContext;
+use omega::language::core::CompactBinary::plan_scalar;
+use omega::language::core::CompactBinary::decode_record;
 use omega::language::core::reflect;
 // CANONICAL LEB128 ESTABLISHMENT. Overlong encodings and payload bits beyond
 // u64 must reject, while the canonical ten-group representation of u64::MAX
 // remains valid.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Scalar {
     #0 value: u64;

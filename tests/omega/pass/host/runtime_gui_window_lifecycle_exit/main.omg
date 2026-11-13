@@ -1,8 +1,9 @@
 // Expected Windows exit: 70. Create an invisible STATIC window, drain at
 // most eight real thread messages through caller-owned MSG storage, then
 // require IsWindow(live), successful destruction, and !IsWindow(destroyed).
-use omega_language_std::console;
-use omega_language_std::windows_gui_host;
+use omega_language_std::Console;
+use omega_language_std::WindowsMessage;
+use omega_language_std::WindowsGuiHost;
 
 data Main {
     cls: [u8; 7];

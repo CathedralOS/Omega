@@ -6,7 +6,7 @@
 // adds one), so the observed results differ across rows and providers:
 //   scan(Primary, 16) = 99 + 16     == 115
 //   scan(Bumped,  32) = 99 + 32 + 1 == 132
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Shape<T> {
     machine code<Width: u32>(subject: &T) -> u32 requires Width == 64 || Width == 16 || Width == 16 || Width == 32;

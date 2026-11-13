@@ -1,4 +1,4 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentWrite;
 
 public boundary trait SurfacePresentation {}
 public boundary trait NativeFilesystem {

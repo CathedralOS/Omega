@@ -1,7 +1,8 @@
 // Expected exit: 0.
 // A qualification-only cast transfers the same linear claim. Omitting the
 // displayed suffix does not destroy its exact origin or permit a second owner.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
 
 data Slot {}

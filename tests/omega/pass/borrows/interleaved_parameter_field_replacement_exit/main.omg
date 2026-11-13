@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Item [copy] { case Empty; case Ready; }
 data Seed { marker: u32; }

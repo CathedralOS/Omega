@@ -8,7 +8,7 @@
 // executable body ("guarded pair without exact false fallback").
 // The two-case dispatch takes the guarded-pair route, the three-case one the
 // ordered roster; element 2 holds `Data`/`Plane` -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Kind [copy] { case Use; case Data; }
 data Shape [copy] { case Point; case Line; case Plane; }

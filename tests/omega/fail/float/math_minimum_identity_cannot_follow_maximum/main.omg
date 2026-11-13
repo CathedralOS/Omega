@@ -1,6 +1,7 @@
 // A maximum result does not establish the minimum helper's meaning.
-use omega::language::core::math;
-use omega::language::core::float_operations;
+use omega::language::core::max_f64;
+use omega::language::core::F64::meaning;
+use omega::language::core::FloatSemantics::minimum;
 
 machine wrong_minimum(left: f64, right: f64) -> f64
 ensures core::Identity<FloatMeaning>(

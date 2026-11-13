@@ -1,7 +1,6 @@
 // An immediate port identity survives checked-assembly lowering into the
 // final-byte validation record: `out 0x3F8, 0x41` binds the privileged
 // destination and the closed DX/AL/out envelope.
-use omega::language::core::assembly;
 
 data Main {}
 

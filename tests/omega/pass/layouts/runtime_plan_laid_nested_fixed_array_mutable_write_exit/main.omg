@@ -1,8 +1,14 @@
 // Nested fixed primitive arrays remain one aggregate layout field. A mutable
 // byte-region view must apply both array strides below the field's validated
 // whole-extent `At` placement.
-use omega_language_std::console;
-use omega::language::core::layout;
+use omega_language_std::Console;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 
 SpreadArray satisfies FixedLayout<MatrixRecord> {

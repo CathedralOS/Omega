@@ -3,7 +3,7 @@
 // arithmetic, a float ordered comparison and float equality all execute. The
 // matrix computes d = 4.0 with flag = false; exit 1 is the authored result and
 // exit 2 is a wrong observation.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main {
     d: f64;
     e: f64;

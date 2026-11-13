@@ -1,4 +1,3 @@
-use omega::language::core::slice;
 data Cursor { low: u64; }
 machine bump(cursor: &mut Cursor) -> u64 { cursor.low = 3; 0 }
 machine can_window(items: &[u8], low: u64, marker: u64) -> bool {

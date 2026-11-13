@@ -1,5 +1,6 @@
 module split_guard;
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 
 public data Cell { value: i32 in Wrapping; }
 public data Main { left: Cell; right: Cell; }

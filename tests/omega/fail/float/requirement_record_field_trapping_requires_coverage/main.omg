@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Packet [copy] { value: f32 in Trapping; }
 machine packet(value: f32 in Trapping) -> Packet
 crashes Trap false {

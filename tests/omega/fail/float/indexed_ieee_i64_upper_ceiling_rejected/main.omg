@@ -1,5 +1,5 @@
 // The inclusive upper guard admits exactly 2^63, outside i64.
-use omega::language::core::float_operations;
+use omega::language::core::I64::from_f64;
 machine convert(values: &[f64; 2], index: u64) -> i64
 requires index < 2,
 {

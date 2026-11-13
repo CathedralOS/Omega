@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // Twin of pass/float/private_arrival_exact_integer_coercion_exit: each
 // arrival's guard admits a value binary64 cannot represent exactly -- the band

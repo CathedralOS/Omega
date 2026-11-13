@@ -3,7 +3,7 @@
 // parameter in a later state, and inside a record field store that targets
 // the referent's own nested record. Every `&write` carrier is an exclusive
 // loan whose custody ends once, exactly like a `&mut` carrier's.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Inner {
     value: i32;

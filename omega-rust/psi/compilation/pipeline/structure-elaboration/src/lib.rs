@@ -147,6 +147,9 @@ pub struct Compilation<'a> {
     /// whichever package declares them. The check claims each with its
     /// closure: "the obligations of the Build's selections".
     pub selected: &'a [SymbolHandle],
+    /// One visible-continuation shape obligation per executed Build binding.
+    /// Deduplicating machine roots must not discard distinct slot contracts.
+    pub bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
 }
 
 /// The result of elaborating everything one compilation is responsible for:
@@ -466,6 +469,40 @@ pub fn elaborate_witness(
     let mut program = read::Program::new(typed, false);
     let entry = program.witnessed(declaring_trait, requirement, arguments)?;
     let callee = program.machine(implementation)?;
+    elaborate_witness_call(program, entry, callee)
+}
+
+/// The exact declaration supplying a callable's published contract. An applied
+/// signature is already instantiated by the typed-tree application owner; this
+/// view neither discovers a selection nor invents application arguments.
+#[derive(Clone, Copy)]
+pub enum CallableDeclaration<'a> {
+    Signature(&'a typed_trees::signature::StateSignature),
+    Machine(SymbolHandle),
+}
+
+/// The logical refinement obligation between two published callable contracts.
+/// The witness has the required entry condition and one call to the supplied
+/// contract. Its normal exits owe the required guarantees. The supplied body is
+/// not read: its published contract is an abstraction, whose implementation is
+/// checked independently. Type, lifetime and operational formation remain
+/// separate obligations of the caller of this operation.
+pub fn elaborate_callable_witness<'a>(
+    typed: &'a TypedTrees,
+    required: &'a typed_trees::signature::StateSignature,
+    supplied: CallableDeclaration<'a>,
+) -> Checked<Elaboration> {
+    let mut program = read::Program::new(typed, false);
+    let entry = program.witnessed_signature(required, &[])?;
+    let callee = program.callable_contract(supplied)?;
+    elaborate_witness_call(program, entry, callee)
+}
+
+fn elaborate_witness_call(
+    program: read::Program<'_>,
+    entry: MachineId,
+    callee: MachineId,
+) -> Checked<Elaboration> {
     let required =
         terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?;
     let supplied =

@@ -1,4 +1,4 @@
-use omega::language::core::external_binding;
+use omega::language::core::ForeignBinding;
 // A table field resolves only in the record the leaf's first parameter
 // borrows; a same-named field of another declaration cannot supply it.
 data Actual { invoke: addr; }

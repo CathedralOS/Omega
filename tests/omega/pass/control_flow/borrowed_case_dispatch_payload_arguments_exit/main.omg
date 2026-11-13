@@ -4,7 +4,7 @@
 // dispatch only inspects the loan; it disposes nothing and the caller keeps
 // its value. Shared and mutable loans take the same route. Exits 70 when
 // 30 + (20 + 20) arrive.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Duo {
     case Left(a: u64 in Wrapping);

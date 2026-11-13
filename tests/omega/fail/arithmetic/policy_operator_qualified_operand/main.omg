@@ -3,7 +3,6 @@
 // that the left operand carries a policy domain. A suffixed operator neither
 // reads nor removes a domain, so the qualified operand rejects until a cast
 // removes its domain.
-use omega_language_std::console;
 data Main { }
 
 machine wrapping_sum(a: u32 in Wrapping, b: u32) -> u32 {

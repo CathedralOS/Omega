@@ -6,9 +6,12 @@
 //   write_file(handle, "winnat") == 6
 //   close_handle(handle) == 0
 // exits: 70 ok; 71 create_file returned 0; 72 write_file != 6; 73 close != 0.
-use omega_language_std::windows_filesystem_host;
-use omega::language::core::filesystem_authority;
-use omega_language_std::console;
+use omega_language_std::WindowsFilesystemHost;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
+use omega_language_std::Console;
 
 data Main {
     handle: u64;

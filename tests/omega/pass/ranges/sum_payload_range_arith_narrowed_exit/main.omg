@@ -1,7 +1,7 @@
 // A case-payload data predicate justifies the numeric `scale` contract.
 // The exact multiply is carried through the local into `apply`'s contract.
 // Cmd::Dim { amount: 7 } -> apply(7 * 10 = 70) -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Cmd requires (self in Cmd::Off) || ((self in Cmd::Dim) && 0 <= self.amount && self.amount <= 10) { case Dim(amount: i32); case Off; }
 data Main { c: Cmd; }
 machine Main::main(main: &mut Main) reaches Console {

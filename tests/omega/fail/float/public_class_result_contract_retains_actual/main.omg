@@ -1,4 +1,5 @@
-use omega::language::core::float_operations;
+use omega::language::core::FloatClass;
+use omega::language::core::F32::classify;
 
 // Both actuals are zeros; the classification still retains their own signs.
 machine category(value: f32, other: f32) -> FloatClass

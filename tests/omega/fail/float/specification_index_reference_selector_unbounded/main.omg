@@ -1,7 +1,6 @@
 // The specification_index_reference_selector_exit program without the
 // `position < 2` conjuncts: nothing bounds the borrowed selectors before
 // `values[position]` is formed, so the precondition cannot be formed.
-use omega::language::core::float_operations;
 machine admit(value: f64) -> f64 requires value >= 0.0 && value <= 0.5 { value }
 machine probe(values: &[f64; 2], position: &mut u64) -> f64
 requires values[position] >= 0.0 && values[position] <= 0.25

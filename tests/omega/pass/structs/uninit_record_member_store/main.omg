@@ -3,7 +3,7 @@
 // home, so `made.x = 7` writes through and reading it back observes the
 // stored value. Exits 77.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Point {
     x: i32;

@@ -1,6 +1,5 @@
 // Expected exit: 0. Zero selects Empty; inserting a token retains its exact debt.
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
+use omega::language::core::ProcessExit;
 
 data Token [linear] { value: u64; }
 data Slot { case Empty; case Held(token: Token); }

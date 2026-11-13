@@ -9,7 +9,7 @@
 // unit-call eligibility treats an unrestricted subloan as the transient
 // per-traversal loan it is.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell {
     value: u64;

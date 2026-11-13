@@ -3,7 +3,9 @@
 // rejected: the write would mint dormant-content custody the value never
 // established. `Resident` removal in the same position already requires an
 // explicit `as`; the `Vacant` side must not drop silently either.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
 
 data Weak {
     e: Extent in Granted & Vacant;

@@ -26,7 +26,7 @@ machine choose(selected: u64, inner: bool, first: u64, second: u64) -> u64 {
     Payload::get_right(&result.payload) ^ marker.left
 }
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

@@ -1,5 +1,5 @@
 // Discarding a returned shared reference restores mutation before the next statement.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     value: u8;

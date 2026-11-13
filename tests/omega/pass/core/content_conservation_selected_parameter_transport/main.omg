@@ -1,8 +1,9 @@
 // Selected caller claims move through an owned parameter and return.
 // The helper publishes exact scalar preservation; native and Terminal exit 70.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data ByteUnit {}
 

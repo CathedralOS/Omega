@@ -1,4 +1,8 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 // NATIVE fs read_dir ITERATION (Rust fs::read_dir's DirEntry walk) on real macOS.
 // This is the payoff of fixing the runtime-indexed-read instruction: it fills the
 // directory buffer via ___getdirentries64, then WALKS the packed dirent records
@@ -8,8 +12,8 @@ use omega::language::core::filesystem_authority;
 // runtime value) exercise `CopyRuntimeMachineIndexedToRuntimeStorage`, which now
 // lowers correctly on aarch64. Prints PASS iff exactly 4 entries are walked.
 
-use omega_language_std::posix_filesystem_host;
-use omega::language::core::numeric_conversion;
+use omega_language_std::PosixFilesystemHost;
+use omega::language::core::narrow_i64_to_u64_wrapping;
 
 data Main {
     discard: i32;

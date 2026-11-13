@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // A source-proof regression, independent of native bounded-float record
 // lowering. The selected Float calls must retain their IEEE guard meaning.
