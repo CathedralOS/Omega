@@ -396,7 +396,10 @@ impl Program<'_> {
                 &retained,
                 |tag| owner.is_valid() && lifetime_parameter_identity(typed, owner, tag).is_some(),
             )?;
-            return self.record(id, *base_symbol);
+            // The occurrence is kept as the record's source application,
+            // as a bare `Inner` is: the product's correspondence needs one
+            // for every nominal record, however its type was written.
+            return self.record_at(id, handle);
         }
         self.scalar_type(id, handle).map(ValueType::Scalar)
     }

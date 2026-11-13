@@ -208,11 +208,12 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         3,
         "u32, u64 and finite nested applications stay distinct"
     );
-    assert!(
-        records
-            .iter()
-            .all(|record| record.application.substitutions.len() == 1)
-    );
+    assert!(records.iter().all(|record| {
+        record
+            .application
+            .as_ref()
+            .is_some_and(|application| application.substitutions.len() == 1)
+    }));
     assert_ne!(records[0].record, records[1].record);
 }
 
