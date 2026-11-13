@@ -126,6 +126,12 @@ pub struct MachineSources {
     pub operations: IdTable<OperationId, SourceOrigin>,
     pub edges: IdTable<EdgeId, SourceOrigin>,
     pub obligations: IdTable<ObligationId, SourceOrigin>,
+    /// The Build selection each boundary call of the selection protocol
+    /// stands for, in emission order: the operation and the designated
+    /// operands the typed trees hold for it. The reference is no operand of
+    /// the operation; publication hands it to the Build host beside the
+    /// artifact.
+    pub designated: Vec<(OperationId, body::DesignatedOperands)>,
     /// The member of the call component each loop head stands for, in
     /// block order (`lower`, `component`). The lowered form does not say
     /// which machine's body a head begins; a diagnostic about an arrival
@@ -175,10 +181,11 @@ pub struct Elaboration {
     /// README, "Findings".
     pub tables: CheckTables,
     pub sources: IdTable<MachineId, MachineSources>,
-    /// Source-issued Build requests, joined to the exact operations and
-    /// boundaries structural lowering emits. Publication binds these rows
-    /// to the accepted artifact; the rows themselves grant no host authority.
-    pub build_requests: Vec<language_semantics::build_requests::TerminalBuildRequestCall>,
+    /// The boundary requirement each `BoundaryMachineId` of the module
+    /// lowers, as `machines` holds the machine of each `MachineId`. Empty
+    /// for raw bodies. Publication reads it to tell which boundary calls
+    /// are operations of a toolchain Build protocol.
+    pub boundaries: IdTable<semantic_vocabulary::BoundaryMachineId, SymbolHandle>,
     /// Nominal storage and field identities from this same typed-tree owner.
     /// Empty for raw bodies, which have no source declaration/application.
     pub source_records: Vec<typed_trees::SourceRecordCorrespondence>,
@@ -570,6 +577,7 @@ fn elaborate_witness_call(
                     source,
                 })
                 .collect(),
+            designated: None,
         },
         result: required.result,
         source,
@@ -642,6 +650,7 @@ fn finish_reading(
     }
     elaboration.source_records = program.source_record_correspondence(entry)?;
     elaboration.machines = program.symbols;
+    elaboration.boundaries = program.boundary_symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.local_results = local_results;
     elaboration.names = program.names;
@@ -867,7 +876,7 @@ fn lower_generic_for(
         module,
         tables,
         sources,
-        build_requests: Vec::new(),
+        boundaries: IdTable::default(),
         source_records: Vec::new(),
         names: IdTable::default(),
         machines: IdTable::default(),

@@ -1165,8 +1165,18 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 })
             }
-            ExpressionKind::Call { callee, arguments } => {
-                match self.call(*callee, arguments, expression.result, expression.source)? {
+            ExpressionKind::Call {
+                callee,
+                arguments,
+                designated,
+            } => {
+                match self.call(
+                    *callee,
+                    arguments,
+                    *designated,
+                    expression.result,
+                    expression.source,
+                )? {
                     Value::Record(root) => Ok(Located {
                         root,
                         place: self.exact_root(root)?,
@@ -2391,6 +2401,7 @@ mod tests {
                             result: Some(plain),
                             source,
                         }],
+                        designated: None,
                     },
                     result: Some(plain),
                     source,

@@ -702,10 +702,36 @@ pub enum ExpressionKind {
         home: Option<String>,
     },
     /// A direct call: all arguments left to right, then the invocation.
+    ///
+    /// `designated` is set on a call of the toolchain's Build selection
+    /// protocol (`Build::bind(builder, slot, entry)` as typing spells it):
+    /// the declarations the call names beside its ordinary arguments.
+    /// scoped_execution.md, "Selecting product declarations without
+    /// executing them": "No product receiver, function body, initializer,
+    /// or provider is executed." So it is no operand: the call computes
+    /// with its arguments alone, and lowering records which emitted
+    /// operation the reference stands beside (`MachineSources::designated`)
+    /// so the Build host can receive it.
     Call {
         callee: TargetMachineCallable,
         arguments: Vec<Expression>,
+        designated: Option<DesignatedOperands>,
     },
+}
+
+/// The designated operands of one Build selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DesignatedOperands {
+    /// The request as the typed trees hold it
+    /// (`ExpressionTable::build_selection_request`).
+    pub request: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
+    /// The machine whose source wrote the selection. The declarations a
+    /// selection names are resolved for the place that wrote it
+    /// (scoped_execution.md: "using the occurrence's package authority,
+    /// exact target, and complete expected slot/requirement signature"),
+    /// and that is not always the machine whose lowered body holds the
+    /// call: a call component lowers its members into one machine.
+    pub selecting: MachineId,
 }
 
 /// Builtin strict binary operations on `Exact` integers and `bool`.

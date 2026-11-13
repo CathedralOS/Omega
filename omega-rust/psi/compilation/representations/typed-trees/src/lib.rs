@@ -33,6 +33,8 @@ without re-running type inference or inspecting surface syntax.
   - `callable_signature_shapes.rs`: source calling-shape correspondence before body or proof elaboration.
   - `calls_and_control_flow.rs`: typed call signatures, dynamic/static dispatch families, machines, states, statements, and names.
   - `declaration_tables_and_index.rs`: declaration tables, relationship indexes, type parameters, and type-reference queries.
+  - `declared_bindings.rs`: the declared type of the parameter or local a name denotes inside one state (`declared_binding_type`).
+  - `deferred_refusals.rs`: requests no whole-program pass served, recorded on the declarations that hold them (`DeferredRefusal`).
   - `declaration_reflection.rs`: semantic schema graphs, selected applications, nominal edges, and deterministic query images.
   - `declarations.rs`, `operator_declarations.rs`, `product_and_trait_declarations.rs`: typed domain, data, wire, visibility, operator, product-operand, and trait declarations.
   - `evidence_and_inspection.rs`: typed propositions, mathematical definitions, ranking functions, and `TypedTreesSnapshot`.
@@ -755,6 +757,8 @@ pub(crate) mod build_selections {
 }
 pub mod callable_signature_shapes;
 pub mod declaration_projection;
+mod declared_bindings;
+pub mod deferred_refusals;
 pub mod references;
 pub mod service_declarations;
 pub use service_declarations::provider_declarations;
@@ -1422,6 +1426,9 @@ pub struct TypedTrees {
     pub data_implementation_applications: Arena<DataImplementationApplication>,
     pub dynamic_slots: Vec<crate::dynamic_traits::DynamicSlotSignature>,
     pub target_machine_families: Vec<crate::machine::TargetMachineFamily>,
+    /// Requests no pass served, on the declarations that hold them, ordered
+    /// by declaration (`deferred_refusals.rs`).
+    pub deferred_refusals: Vec<deferred_refusals::DeferredRefusal>,
     pub boundary_completion_declarations: Arena<BoundaryCompletionDeclaration>,
     pub evidence_forwardings: Vec<EvidenceForwarding>,
     pub proof_output_calls: Vec<ProofOutputCall>,
@@ -1694,6 +1701,7 @@ impl TypedTrees {
             data_implementation_applications: Arena::new(),
             dynamic_slots: Vec::new(),
             target_machine_families: Vec::new(),
+            deferred_refusals: Vec::new(),
             boundary_completion_declarations: Arena::default(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),

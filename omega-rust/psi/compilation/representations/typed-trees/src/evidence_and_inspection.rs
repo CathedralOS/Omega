@@ -3700,8 +3700,6 @@ pub mod inspection {
                 Assignment {
                     target: ExpressionSnapshot,
                     value: ExpressionSnapshot,
-                    #[serde(skip_serializing_if = "Option::is_none")]
-                    receiving_type: Option<TypeReferenceSnapshot>,
                 },
                 Call {
                     receiver: Option<Vec<String>>,
@@ -4027,10 +4025,6 @@ pub mod inspection {
         StatementNode::Assignment(assignment) => StatementSnapshot::Assignment {
             target: expression_snapshot(program, assignment.target),
             value: expression_snapshot(program, assignment.value),
-            receiving_type: assignment
-                .receiving_type
-                .is_valid()
-                .then(|| type_reference_snapshot(program, assignment.receiving_type)),
         },
         StatementNode::Call(call) => StatementSnapshot::Call {
             receiver: (!call.receiver.is_empty())

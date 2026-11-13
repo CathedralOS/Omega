@@ -15,6 +15,7 @@ pub use accepted::AcceptedTerminalSource;
 pub use structure_elaboration::Compilation as TerminalSourceCompilation;
 
 mod build_bindings;
+mod build_companions;
 pub(crate) use build_bindings::{build_filesystem, build_provider, build_queries, build_requests};
 mod custody;
 mod external_providers;
@@ -145,6 +146,7 @@ pub use build_bindings::{
     TerminalBuildNativeLocator, TerminalBuildProviderRequirement, TerminalBuildSelectionRequest,
     TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
 };
+pub use build_companions::BuildProtocolUse;
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
 };

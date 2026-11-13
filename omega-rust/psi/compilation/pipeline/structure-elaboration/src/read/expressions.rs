@@ -748,16 +748,19 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 ExpressionKind::Call {
                     callee: a,
                     arguments: a_arguments,
+                    designated: a_designated,
                 },
                 ExpressionKind::Call {
                     callee: b,
                     arguments: b_arguments,
+                    designated: b_designated,
                 },
             ) => {
                 // A boundary may observe supplied state or issue a fresh
                 // host ticket. Equal syntax is not one observed result.
                 matches!(a, semantic_vocabulary::TargetMachineCallable::Machine(_))
                     && a == b
+                    && a_designated == b_designated
                     && a_arguments.len() == b_arguments.len()
                     && a_arguments.iter().zip(b_arguments).all(|(a, b)| both(a, b))
             }

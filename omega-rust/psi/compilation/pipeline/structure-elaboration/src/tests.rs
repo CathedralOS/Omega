@@ -58,6 +58,7 @@ fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> 
         ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments,
+            designated: None,
         },
         result,
     )
@@ -1097,6 +1098,44 @@ fn a_no_normal_call_inside_an_expression_is_refused() {
     assert_eq!(refusal.detail, "call no-normal call inside an expression");
 }
 
+/// A Build selection's designated operands stand beside a call of the
+/// toolchain's selection protocol, which is a boundary. Lowering refuses a
+/// body that puts them on a machine call instead of dropping them: no
+/// operation of the lowered form would hand them to the Build host.
+#[test]
+fn designated_operands_on_a_machine_call_are_refused() {
+    // machine 1() { f() }, with `f()` claiming to be a Build selection.
+    let mut selection = call(2, Vec::new(), None);
+    let ExpressionKind::Call { designated, .. } = &mut selection.kind else {
+        unreachable!()
+    };
+    *designated = Some(crate::body::DesignatedOperands {
+        request: arena::Handle::invalid(),
+        selecting: id(1),
+    });
+    let twin = |statement| {
+        try_lower(
+            Body {
+                slots: Vec::new(),
+                statements: vec![Statement::Evaluate(statement)],
+            },
+            vec![signature(Vec::new(), None), signature(Vec::new(), None)],
+            vec![returns_normally(), returns_normally()],
+        )
+    };
+    let refusal = twin(selection).unwrap_err();
+    assert!(
+        refusal
+            .detail
+            .ends_with("designated operands on a call that is no boundary call"),
+        "{}",
+        refusal.detail
+    );
+    // The same call with no designated operands lowers, and records none.
+    let lowered = twin(call(2, Vec::new(), None)).unwrap();
+    assert!(lowered.sources.designated.is_empty());
+}
+
 /// `ensures result == 7` on `machine(x: u32) -> u32`: the result
 /// pseudo-value is value 2, right after the formal, with its own row; the
 /// clause names it and every exit owes the guarantee.
@@ -1645,6 +1684,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                     ExpressionKind::Call {
                         callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                         arguments: Vec::new(),
+                        designated: None,
                     },
                     point(),
                 ),

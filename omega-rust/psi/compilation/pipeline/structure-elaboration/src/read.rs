@@ -336,6 +336,120 @@ mod tests {
         assert!(wrong.is_empty(), "{wrong:?}");
     }
 
+    fn unit_machines() -> (TypedTrees, [SymbolHandle; 2]) {
+        use typed_trees::machine::{Machine, MachineBodyStatus};
+        use typed_trees::state::State;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let machines = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("served")),
+                (SymbolKind::Machine, SymbolNameRef::Static("holder")),
+            ],
+        );
+        let symbols = [machines.handle_at(0), machines.handle_at(1)];
+        let states = symbols.map(|machine| {
+            builder
+                .insert_children(machine, [(SymbolKind::State, SymbolNameRef::Static("run"))])
+                .handle_at(0)
+        });
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        for (symbol, state) in symbols.into_iter().zip(states) {
+            let states = typed.machine_states.insert_many([State {
+                symbol: state,
+                ..Default::default()
+            }]);
+            typed.push_machine(Machine {
+                symbol,
+                states,
+                body_is_present: true,
+                body_status: MachineBodyStatus::Complete,
+                ..Default::default()
+            });
+        }
+        (typed, symbols)
+    }
+
+    #[test]
+    fn a_demanded_machine_holding_an_unserved_request_is_refused_by_name() {
+        use typed_trees::deferred_refusals::DeferredRequest;
+        let (mut typed, [served, holder]) = unit_machines();
+        let state = typed.machine_states(typed.machine_by_symbol(holder).unwrap())[0].symbol;
+        typed.record_deferred_refusal(
+            state,
+            DeferredRequest::ReceiverCallSelection,
+            source::SourceSpan::default(),
+        );
+        let mut program = Program::new(&typed, false);
+        // The twin without a row is read; nothing demanded the holder yet.
+        program.machine(served).expect("a machine with no row");
+        let refusal = program.machine(holder).unwrap_err();
+        assert_eq!(
+            refusal.reason,
+            terminal_check_tables::RefusalReason::Unsupported
+        );
+        assert_eq!(
+            refusal.detail,
+            "declaration holding a call selected by its receiver's type, which no pass serves yet"
+        );
+        // The same declaration without the row is read like its twin.
+        typed.deferred_refusals.clear();
+        Program::new(&typed, false)
+            .machine(holder)
+            .expect("the holder once its request is served");
+    }
+
+    #[test]
+    fn a_call_bound_to_no_declaration_is_refused_before_its_target_is_read() {
+        use typed_trees::expression::TableCallExpression;
+        use typed_trees::name::Identifier;
+        let (typed, [served, _]) = unit_machines();
+        let call = |target_symbol| {
+            ExpressionNode::Call(TableCallExpression {
+                authored_call_selection: None,
+                authored_call_binding: None,
+                build_selection: arena::Handle::invalid(),
+                authored_machine_application: arena::Handle::invalid(),
+                exact_coercion_target: TypeReferenceHandle::invalid(),
+                requirement_application: TypeReferenceHandle::invalid(),
+                receiver: ExpressionHandle::invalid(),
+                target_symbol,
+                static_machine_parameter: SymbolHandle::invalid(),
+                target: Identifier::generated("method"),
+                static_requirement_dispatch: None,
+                machine_arguments: Box::new([]),
+                quotient_operation: None,
+                private_layout_operation: None,
+                installed_interrupt_operation: None,
+                layout_query: None,
+                native_code_layout: None,
+                arguments: Default::default(),
+                evidence_arguments: Box::new([]),
+                operational_acknowledgement: Default::default(),
+            })
+        };
+        assert_eq!(
+            refused(&typed, call(SymbolHandle::invalid())),
+            "call without a bound target"
+        );
+        // A handle of no symbol in this table is as unbound as an absent one.
+        assert_eq!(
+            refused(&typed, call(SymbolHandle::from_parts(9_999, 1))),
+            "call without a bound target"
+        );
+        // The twin: a bound call passes this refusal and its target is
+        // read. These machines have no source file, so the later visibility
+        // rule is what stops it.
+        assert_eq!(
+            refused(&typed, call(served)),
+            "call call between declarations without a source file"
+        );
+    }
+
     #[test]
     fn case_membership_is_refused_after_its_operands_read() {
         let mut typed = TypedTrees::default();
@@ -743,15 +857,7 @@ mod tests {
         let mut program = Program::new(&typed, false);
         let mut assigned = |target| {
             program
-                .assignment(
-                    machine(),
-                    &slots,
-                    &TableAssignment {
-                        target,
-                        value,
-                        ..Default::default()
-                    },
-                )
+                .assignment(machine(), &slots, &TableAssignment { target, value })
                 .unwrap_err()
                 .detail
         };
@@ -778,7 +884,6 @@ mod tests {
                     &TableAssignment {
                         target: whole,
                         value,
-                        ..Default::default()
                     },
                 )
                 .unwrap_err()
