@@ -337,3 +337,56 @@ fn artifact_only_rejects_wrong_receiver_arguments_and_indirect_shapes() {
         Err(BuildDeclarationError::AuthoredToolchainVocabulary { .. })
     ));
 }
+
+/// The boundary requirements of `source` that do not write `crashes none`,
+/// as `Trait::requirement`. effects.md: "Every boundary-trait machine
+/// requirement must declare that ceiling, using `reaches none` when it permits
+/// no services, and must likewise write `crashes`". The parser already
+/// rejects a boundary requirement with no `reaches`; nothing before the
+/// checker asks for the crash clause.
+fn requirements_with_no_crash_ceiling(source: &str) -> Vec<String> {
+    let parsed = psi_compiler::parse_text(source).unwrap_or_else(|_| panic!("source parses"));
+    let syntax = &parsed.syntax;
+    let mut open = Vec::new();
+    for item in syntax.root_items() {
+        let syntax_trees::item::Item::Trait(definition) = item else {
+            continue;
+        };
+        if !definition.is_boundary {
+            continue;
+        }
+        for handle in syntax.items.state_signatures(definition.machines) {
+            let requirement = syntax.items.state_signature(*handle);
+            // Every host operation here completes or the host refuses the
+            // whole activation; neither is a crash route of the Build
+            // program, so each writes `crashes none`.
+            if !requirement.declares_no_crash_route {
+                open.push(format!(
+                    "{}::{}",
+                    definition.name.as_str(syntax),
+                    requirement.name.as_str(syntax)
+                ));
+            }
+        }
+    }
+    open
+}
+
+#[test]
+fn every_build_host_operation_writes_its_crash_ceiling() {
+    assert_eq!(
+        requirements_with_no_crash_ceiling(&crate::build_prelude_source()),
+        Vec::<String>::new()
+    );
+    // The same reading reports a requirement that leaves the clause out.
+    assert_eq!(
+        requirements_with_no_crash_ceiling(
+            "boundary trait Host {
+             machine closed(value: u64) reaches none crashes none;
+             machine no_crash_clause(value: u64) reaches none;
+             }
+"
+        ),
+        ["Host::no_crash_clause"]
+    );
+}
