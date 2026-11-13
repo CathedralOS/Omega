@@ -67,6 +67,13 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### Constructing the source compiler repeats an hour of checking before its tests
+- Category: verifying costs more than writing
+- Where: [tests/product/gate.sh:42](tests/product/gate.sh#L42), [tests/product/gate.sh:70](tests/product/gate.sh#L70)
+- Saw: frozen Rust producer b520 checked the 269-unit, 3.8 MB compiler in 4,089 seconds during update; native construction then took 3,796 seconds, including 3,227 seconds in Psi 05, with a peak near 19 GiB; all 191 product cases took 80 seconds afterward
+- Cost: a source repair spends hours in producer checking before its executable cases run; these measurements belong to the old checker being removed, and cannot stand for seed-chain or replacement-checker performance
+- Reported: 2026-11-12, Codex, while finishing bootstrap compiler construction and storage PRs #2782 and #2788
+
 ### Every Build program runs through the old checker and the old lowering stage
 - Category: the documents disagree
 - Where: `omega-rust/omega/build-system/build-settings/src/admission/checking.rs:323` (`CheckRequest::check()` on the Build program), `build-settings/src/activation/preparation.rs` (`PreparedBuildExecution::prepare` calls `TerminalProductionRequest::produce`), `omega-rust/psi/compilation/build-time-evaluation/src/machine_execution.rs:5082` and `:5457`, `build-time-evaluation/src/const_initializers.rs:137`

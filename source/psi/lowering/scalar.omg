@@ -1,7 +1,8 @@
-// A closed in-process lowering slice. Every result is ordinary u8, its value
-// identity is its operation index, and callee identities retain declaration
-// order. These are the IntegerConstant, ExactInteger*, Call and scalar-return
-// meanings in wiki/spec/terminal-psi/{encoding,calls_and_outcomes}.md.
+// A closed in-process lowering slice with scalar values and owned storage.
+// Value identity is its operation index, type identity indexes the shared
+// layout table, and callee/field identities retain checked declarations.
+// Memory, calls and control have the ordinary meanings described in
+// wiki/spec/terminal-psi/{structural_access,calls_and_outcomes}.md.
 // The consumer needs neither syntax nor source bytes. Full portable publication
 // must additionally retain canonical declaration/contract/obligation identities;
 // checker acceptance and counts cannot substitute for those records.
@@ -13,19 +14,50 @@ public data ScalarOperationKind [copy] {
     case ExactIntegerDivide;
     case ExactIntegerRemainder;
     case Call;
+    case FrameAddress;
+    case AddressOffset;
+    case AddressIndex;
+    case Load;
+    case Store;
+    case Copy;
+    case Zero;
+    case IntegerEqual;
+    case UnsignedLess;
+    case BooleanNot;
+    case BranchZero;
+    case BranchNonzero;
+    case Label;
+    case ReturnValue;
+    case ReturnUnit;
+    case Trap;
 }
 
 public data ScalarOperation [copy] {
     kind: ScalarOperationKind;
     left: u64 in Trapping;
     right: u64 in Trapping;
+    // Memory width/stride or call argument count, according to kind.
+    extra: u64 in Trapping;
 }
 
 public data ScalarMachine [copy] {
     first: u64 in Trapping;
     count: u64 in Trapping;
-    // The scalar return terminator, distinct from the ordered operations.
-    result: u64 in Trapping;
+    storage_size: u64 in Trapping;
+    first_parameter: u64 in Trapping;
+    parameter_count: u64 in Trapping;
+    argument_capacity: u64 in Trapping;
+}
+
+public data ScalarParameter [copy] {
+    offset: u64 in Trapping;
+    type_handle: u64 in Trapping;
+}
+
+public data ScalarExpressionStage [copy] {
+    case Ready;
+    case ShortCircuitLeft;
+    case ShortCircuitRight;
 }
 
 public data ScalarStatus [copy] {
@@ -36,6 +68,15 @@ public data ScalarStatus [copy] {
 }
 
 public data ScalarProgram {
+    // Layout identity is the checked type handle. Offsets name declared
+    // fields, never source spellings; all memory consumers share this table.
+    layouts: [ScalarLayout; 8192];
+    layout_count: u64;
+    field_offsets: [u64; 1024];
+    parameters: [ScalarParameter; 32768];
+    parameter_count: u64;
+    arguments: [u64; 65536];
+    argument_count: u64 in Trapping;
     operations: [ScalarOperation; 16384];
     operation_count: u64 in Trapping;
     machines: [ScalarMachine; 10240];
@@ -46,13 +87,23 @@ public data ScalarProgram {
 
 public data ScalarLowerer {
     output: ScalarProgram;
+    layout_states: [ScalarLayoutState; 8192];
+    layout_work: [u64; 8192];
+    layout_cursors: [u64; 8192];
+    layout_sizes: [u64; 8192];
+    layout_work_count: u64 in Trapping;
+    storage_size: u64 in Trapping;
+    argument_capacity: u64 in Trapping;
+    current_machine: u64 in Trapping;
     // Handles are one-based so absence cannot accidentally name operation 0.
-    // Qualification belongs to each stored handle, never to the buffer shell.
-    // Storage indices remove that policy explicitly after their bounds check.
     values: [u64 in Trapping; 131072];
     locals: [u64 in Trapping; 16384];
     work: [u64 in Trapping; 4096];
     ready: [bool; 4096];
+    place_mode: [bool; 4096];
+    stages: [ScalarExpressionStage; 4096];
+    pending: [u64; 4096];
+    temporaries: [u64; 4096];
     work_count: u64 in Trapping;
     colors: [u8; 10240];
     cursors: [u64 in Trapping; 10240];
@@ -82,16 +133,40 @@ crashes Trap
     machine invalid() -> ScalarMachine { crash Trap; }
 }
 
-machine scalar_append(lowerer: &mut ScalarLowerer, kind: ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping) -> u64 in Trapping
+public machine scalar_parameter_at(program: &ScalarProgram, index: u64 in Trapping) -> ScalarParameter
+crashes Trap
+{
+    transition index < program.parameter_count && index < 32768 {
+        true -> read(program, index)
+        _ -> invalid()
+    }
+    machine read(program: &ScalarProgram, index: u64 in Trapping) -> ScalarParameter { program.parameters[index as -Trapping] }
+    machine invalid() -> ScalarParameter { crash Trap; }
+}
+
+public machine scalar_argument_at(program: &ScalarProgram, index: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition index < program.argument_count && index < 65536 {
+        true -> read(program, index)
+        _ -> invalid()
+    }
+    machine read(program: &ScalarProgram, index: u64 in Trapping) -> u64 in Trapping {
+        program.arguments[index as -Trapping] as u64 +Trapping
+    }
+    machine invalid() -> u64 in Trapping { crash Trap; }
+}
+
+public machine scalar_append(lowerer: &mut ScalarLowerer, kind: ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping, extra: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     let index: u64 in Trapping = lowerer.output.operation_count;
     transition index < 16384 {
-        true -> store(lowerer, kind, left, right, index)
+        true -> store(lowerer, kind, left, right, extra, index)
         _ -> full(lowerer)
     }
-    machine store(lowerer: &mut ScalarLowerer, kind: ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
-        lowerer.output.operations[(index) as -Trapping] = ScalarOperation { kind: kind, left: left, right: right };
+    machine store(lowerer: &mut ScalarLowerer, kind: ScalarOperationKind, left: u64 in Trapping, right: u64 in Trapping, extra: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+        lowerer.output.operations[(index) as -Trapping] = ScalarOperation { kind: kind, left: left, right: right, extra: extra };
         lowerer.output.operation_count = index + 1;
         index + 1
     }
@@ -103,7 +178,7 @@ crashes Trap
 
 // Syntax handles are checked again at the storage boundary. Producer
 // invariants must not become unchecked physical array accesses.
-machine scalar_value(lowerer: &ScalarLowerer, handle: u64 in Trapping) -> u64 in Trapping
+public machine scalar_value(lowerer: &ScalarLowerer, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition handle < 131072 {
@@ -116,7 +191,7 @@ crashes Trap
     machine invalid() -> u64 in Trapping { crash Trap; }
 }
 
-machine scalar_local(lowerer: &ScalarLowerer, handle: u64 in Trapping) -> u64 in Trapping
+public machine scalar_local(lowerer: &ScalarLowerer, handle: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition handle < 16384 {
@@ -129,7 +204,7 @@ crashes Trap
     machine invalid() -> u64 in Trapping { crash Trap; }
 }
 
-machine scalar_bind(lowerer: &mut ScalarLowerer, handle: u64 in Trapping, value: u64 in Trapping)
+public machine scalar_bind(lowerer: &mut ScalarLowerer, handle: u64 in Trapping, value: u64 in Trapping)
 crashes Trap
 {
     transition handle < 16384 {
@@ -165,24 +240,15 @@ crashes Trap
     machine no() -> bool { false }
 }
 
-// A checked policy cast preserves the u8 payload. This predicate permits
-// storage and identity casts only; arithmetic and callable boundaries keep
-// scalar_byte_type's unqualified requirement.
-machine scalar_byte_storage(typing: &Typing, handle: u64 in Trapping) -> bool
-crashes Trap
-{
-    let row: TypeRow = type_table_row(&typing.types, handle);
-    let policy: bool = row.domain == DomainBinding::Unqualified
-        || row.domain == DomainBinding::Wrapping || row.domain == DomainBinding::Saturating
-        || row.domain == DomainBinding::Trapping;
-    row.kind == TypeKind::Builtin && row.builtin == BuiltinType::U8 && policy
-}
-
+// The synthetic entry has no caller-provided arguments or premises. Other
+// machines retain independent parameter storage and ordinary checked calls.
 public machine scalar_lower(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, checks: &Checks, entry: u64 in Trapping)
 crashes Trap
 {
     lowerer.output.operation_count = 0 as u64 +Trapping;
     lowerer.output.machine_count = 0 as u64 +Trapping;
+    lowerer.output.argument_count = 0 as u64 +Trapping;
+    lowerer.output.parameter_count = syntax.parameter_count;
     lowerer.output.entry = entry;
     lowerer.output.status = ScalarStatus::Unchecked;
     transition syntax.accepted && resolution.accepted && typing.accepted && checks.accepted {
@@ -192,37 +258,58 @@ crashes Trap
     machine select(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, entry: u64 in Trapping) {
         lowerer.output.status = ScalarStatus::Unsupported;
         transition entry < syntax.machine_count && syntax.machine_count <= 10240
-            && syntax.erased_binding_count == 0 {
+            && syntax.erased_binding_count == 0 && syntax.parameter_count <= 32768 {
             true -> entry_root(lowerer, syntax, resolution, typing, entry)
             _ -> done()
         }
     }
-    // Lexical helpers remain ordinary resolved callees, but this synthetic
-    // external invocation does not grant access to a parent's private scope.
     machine entry_root(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, entry: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, entry);
-        transition item.parent == 0 {
+        transition item.parent == 0 && item.parameter_count == 0 && item.has_return_type
+            && item.clause_count == 0 && !item.has_owner && item.container == MachineContainer::Root {
+            true -> entry_result(lowerer, syntax, resolution, typing, item)
+            _ -> done()
+        }
+    }
+    machine entry_result(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, item: MachineItem) {
+        let handle: u64 in Trapping = reference_type(typing, item.return_type);
+        let supported: bool = scalar_byte_type(typing, handle);
+        transition supported {
             true -> begin(lowerer, syntax, resolution, typing)
             _ -> done()
         }
     }
     machine begin(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
         lowerer.output.status = ScalarStatus::Complete;
+        scalar_layout_clear(lowerer, typing);
         transition { _ -> roots(lowerer, syntax, resolution, typing, 0 as u64 +Trapping) }
     }
-    // Global declarations are outside this closed slice even when unused.
-    // Checking only machine bodies would silently admit unsupported roots.
     machine roots(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
-        transition index < syntax.root_count {
+        transition index < syntax.root_count && lowerer.output.status == ScalarStatus::Complete {
             true -> root(lowerer, syntax, resolution, typing, index)
-            _ -> next(lowerer, syntax, resolution, typing, 0 as u64 +Trapping)
+            _ -> machines(lowerer, syntax, resolution, typing, 0 as u64 +Trapping)
         }
     }
     machine root(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
         let item: RootItem = root_item(syntax, index);
         transition item.kind {
             RootItemKind::Machine -> roots(lowerer, syntax, resolution, typing, index + 1)
+            RootItemKind::Data -> data_root(lowerer, syntax, resolution, typing, index, item)
             _ -> unsupported(lowerer)
+        }
+    }
+    machine data_root(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, root: RootItem) {
+        let item: DataItem = syntax_trees_data_item(syntax, root.item_index);
+        transition item.generic_parameter_count == 0 && item.case_count == 0 && !item.is_boundary
+            && item.multiplicity != DataMultiplicity::Linear {
+            true -> roots(lowerer, syntax, resolution, typing, index + 1)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine machines(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
+        transition lowerer.output.status {
+            ScalarStatus::Complete -> next(lowerer, syntax, resolution, typing, index)
+            _ -> done()
         }
     }
     machine next(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
@@ -233,278 +320,70 @@ crashes Trap
     }
     machine body(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
-        // In particular, checking a body under its requires clauses does not
-        // establish them for the synthetic external entry. No clauses are
-        // admitted until entry call formation carries that ordinary proof.
-        transition item.has_body && item.has_return_type && item.parameter_count == 0
-            && item.generic_parameter_count == 0 && !item.is_boundary && !item.has_target
+        transition item.has_body && item.generic_parameter_count == 0 && !item.is_boundary && !item.has_target
             && !item.has_owner && item.container == MachineContainer::Root
-            && item.contract_count == 0 && item.component_count == 0 && item.clause_count == 0
-            && item.statement_count > 0 {
+            && item.contract_count == 0 && item.component_count == 0 && item.clause_count == 0 {
             true -> result(lowerer, syntax, resolution, typing, index, item)
             _ -> unsupported(lowerer)
         }
     }
     machine result(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
-        let handle: u64 in Trapping = reference_type(typing, item.return_type);
-        let valid: bool = scalar_byte_type(typing, handle);
+        let handle: u64 in Trapping = scalar_result_type(typing, item);
+        scalar_require_layout(lowerer, syntax, typing, handle);
+        transition lowerer.output.status {
+            ScalarStatus::Complete -> result_layout(lowerer, syntax, resolution, typing, index, item, handle)
+            _ -> done()
+        }
+    }
+    machine result_layout(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, handle: u64 in Trapping) {
+        let layout: ScalarLayout = scalar_layout_at(&lowerer.output, handle);
+        transition layout.kind == ScalarLayoutKind::Scalar || layout.kind == ScalarLayoutKind::Unit {
+            true -> parameters(lowerer, syntax, resolution, typing, index, item)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine parameters(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
+        lowerer.storage_size = 0 as u64 +Trapping;
+        lowerer.argument_capacity = 0 as u64 +Trapping;
+        lowerer.current_machine = index;
+        scalar_parameters(lowerer, syntax, typing, item);
+        transition lowerer.output.status {
+            ScalarStatus::Complete -> statements(lowerer, syntax, resolution, typing, index, item)
+            _ -> done()
+        }
+    }
+    machine statements(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem) {
         let first: u64 in Trapping = lowerer.output.operation_count;
-        transition valid {
-            true -> statements(lowerer, syntax, resolution, typing, index, item, 0 as u64 +Trapping, first)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine statements(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, first: u64 in Trapping) {
-        let statement: Statement = syntax_trees_statement(syntax, item.first_statement + offset);
-        transition statement.kind {
-            StatementKind::Let -> local(lowerer, syntax, resolution, typing, index, item, offset, first, statement)
-            StatementKind::Tail -> terminal(lowerer, syntax, resolution, typing, index, item, offset, first, statement)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine local(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, first: u64 in Trapping, statement: Statement) {
-        transition !statement.is_mutable && statement.has_value && offset + 1 < item.statement_count {
-            true -> local_type(lowerer, syntax, resolution, typing, index, item, offset, first, statement)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine local_type(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, first: u64 in Trapping, statement: Statement) {
-        let handle: u64 in Trapping = reference_type(typing, statement.type_reference);
-        let valid: bool = scalar_byte_storage(typing, handle);
-        transition valid {
-            true -> initialize(lowerer, syntax, resolution, typing, index, item, offset, first, statement)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine initialize(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, first: u64 in Trapping, statement: Statement) {
-        scalar_expression(lowerer, syntax, resolution, typing, statement.value);
+        scalar_statements(lowerer, syntax, resolution, typing, item);
         transition lowerer.output.status {
-            ScalarStatus::Complete -> bind(lowerer, syntax, resolution, typing, index, item, offset, first, statement)
+            ScalarStatus::Complete -> store(lowerer, syntax, resolution, typing, index, item, first)
             _ -> done()
         }
     }
-    machine bind(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, first: u64 in Trapping, statement: Statement) {
-        let value: u64 in Trapping = scalar_value(lowerer, statement.value);
-        scalar_bind(lowerer, item.first_statement + offset, value);
-        transition { _ -> statements(lowerer, syntax, resolution, typing, index, item, offset + 1, first) }
-    }
-    machine terminal(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping, first: u64 in Trapping, statement: Statement) {
-        transition offset + 1 == item.statement_count {
-            true -> value(lowerer, syntax, resolution, typing, index, first, statement)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine value(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, first: u64 in Trapping, statement: Statement) {
-        scalar_expression(lowerer, syntax, resolution, typing, statement.value);
-        transition lowerer.output.status {
-            ScalarStatus::Complete -> finish(lowerer, syntax, resolution, typing, index, first, statement)
-            _ -> done()
-        }
-    }
-    machine finish(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, first: u64 in Trapping, statement: Statement) {
-        transition index < 10240 {
-            true -> store(lowerer, syntax, resolution, typing, index, first, statement)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine store(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, first: u64 in Trapping, statement: Statement) {
-        let result: u64 in Trapping = scalar_value(lowerer, statement.value);
-        lowerer.output.machines[(index) as -Trapping] = ScalarMachine {
-            first: first,
-            count: lowerer.output.operation_count - first,
-            result: result - 1
+    machine store(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, index: u64 in Trapping, item: MachineItem, first: u64 in Trapping) {
+        lowerer.output.machines[index as -Trapping] = ScalarMachine {
+            first: first, count: lowerer.output.operation_count - first,
+            storage_size: lowerer.storage_size,
+            first_parameter: item.first_parameter, parameter_count: item.parameter_count,
+            argument_capacity: lowerer.argument_capacity
         };
         lowerer.output.machine_count = index + 1;
-        transition { _ -> next(lowerer, syntax, resolution, typing, index + 1) }
+        transition { _ -> machines(lowerer, syntax, resolution, typing, index + 1) }
     }
     machine acyclic(lowerer: &mut ScalarLowerer) { scalar_acyclic(lowerer); }
     machine unsupported(lowerer: &mut ScalarLowerer) { lowerer.output.status = ScalarStatus::Unsupported; }
     machine done() {}
 }
 
-// An explicit traversal stack preserves left-to-right evaluation without
-// making source nesting consume the host language's native call stack.
-machine scalar_expression(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, root: u64 in Trapping)
+public machine scalar_result_type(typing: &Typing, item: MachineItem) -> u64 in Trapping
 crashes Trap
 {
-    lowerer.work_count = 1 as u64 +Trapping;
-    lowerer.work[0] = root;
-    lowerer.ready[0] = false;
-    transition { _ -> next(lowerer, syntax, resolution, typing) }
-    machine next(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing) {
-        let count: u64 = lowerer.work_count as -Trapping;
-        transition count > 0 && count <= 4096 {
-            true -> node(lowerer, syntax, resolution, typing, count - 1)
-            _ -> done()
-        }
+    transition item.has_return_type {
+        true -> declared(typing, item.return_type)
+        _ -> unit(typing)
     }
-    machine node(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, slot: u64) {
-        let handle: u64 in Trapping = lowerer.work[slot];
-        let expression: Expression = syntax_trees_expression(syntax, handle);
-        transition lowerer.ready[slot] {
-            true -> completed(lowerer, syntax, resolution, typing, handle, expression)
-            _ -> classify(lowerer, syntax, resolution, typing, handle, expression)
-        }
-    }
-    machine classify(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
-        let landed: bool = typing_landed_integer(typing, handle, expression);
-        transition landed {
-            true -> literal(lowerer, syntax, resolution, typing, handle)
-            _ -> form(lowerer, syntax, resolution, typing, handle, expression)
-        }
-    }
-    machine form(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
-        transition expression.kind {
-            ExpressionKind::Integer -> literal(lowerer, syntax, resolution, typing, handle)
-            ExpressionKind::Name -> local(lowerer, syntax, resolution, typing, handle)
-            ExpressionKind::Call -> call(lowerer, syntax, resolution, typing, handle, expression)
-            ExpressionKind::Binary -> children(lowerer, syntax, resolution, typing, expression)
-            ExpressionKind::Cast -> cast(lowerer, syntax, resolution, typing, handle, expression)
-            _ -> unsupported(lowerer)
-        }
-    }
-    // Explicit anonymous landing has already typed its operand. Only a
-    // checked identity conversion within this slice can disappear here.
-    machine cast(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
-        let target: u64 in Trapping = typing_expression_type(typing, handle);
-        let operand: u64 in Trapping = typing_expression_type(typing, expression.left);
-        let supported: bool = scalar_byte_storage(typing, target) && scalar_byte_storage(typing, operand);
-        transition supported {
-            true -> cast_room(lowerer, syntax, resolution, typing, expression)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine cast_room(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression) {
-        let count: u64 = lowerer.work_count as -Trapping;
-        transition count > 0 && count < 4096 {
-            true -> cast_child(lowerer, syntax, resolution, typing, expression, count)
-            _ -> full(lowerer)
-        }
-    }
-    machine cast_child(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, count: u64) {
-        lowerer.ready[count - 1] = true;
-        lowerer.work[count] = expression.left;
-        lowerer.ready[count] = false;
-        lowerer.work_count = (count + 1) as +Trapping;
-        transition { _ -> next(lowerer, syntax, resolution, typing) }
-    }
-    machine completed(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
-        transition expression.kind {
-            ExpressionKind::Cast -> cast_value(lowerer, syntax, resolution, typing, handle, expression)
-            _ -> binary(lowerer, syntax, resolution, typing, handle, expression)
-        }
-    }
-    machine cast_value(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
-        let result: u64 in Trapping = scalar_value(lowerer, expression.left);
-        transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
-    }
-    machine literal(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) {
-        let value: ExactInteger = typing_value(typing, handle);
-        let denominator: u64 in Trapping = typing_denominator(typing, handle);
-        transition !value.negative && value.magnitude <= 255 && denominator <= 1 {
-            true -> constant(lowerer, syntax, resolution, typing, handle, (value.magnitude as -Wrapping) as +Trapping)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine constant(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, value: u64 in Trapping) {
-        let result: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::IntegerConstant, value, 0 as u64 +Trapping);
-        transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
-    }
-    machine local(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) {
-        let binding: ValueBinding = value_binding(resolution, handle);
-        transition binding {
-            ValueBinding::Local { statement } -> local_value(lowerer, syntax, resolution, typing, handle, statement)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine local_value(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, statement: u64 in Trapping) {
-        let result: u64 in Trapping = scalar_local(lowerer, statement);
-        transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
-    }
-    machine call(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
-        transition expression.count == 0 {
-            true -> selected(lowerer, syntax, resolution, typing, handle)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine selected(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping) {
-        let selection: Selection = typing_selection(typing, handle);
-        transition selection {
-            Selection::Machine { handle as callee } -> invoke(lowerer, syntax, resolution, typing, handle, callee)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine invoke(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, callee: u64 in Trapping) {
-        let result: u64 in Trapping = scalar_append(lowerer, ScalarOperationKind::Call, callee, 0 as u64 +Trapping);
-        transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
-    }
-    machine children(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression) {
-        let count: u64 = lowerer.work_count as -Trapping;
-        transition count > 0 && count <= 4094 {
-            true -> push(lowerer, syntax, resolution, typing, expression, count)
-            _ -> full(lowerer)
-        }
-    }
-    machine push(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, expression: Expression, count: u64) {
-        lowerer.ready[count - 1] = true;
-        lowerer.work[count] = expression.right;
-        lowerer.ready[count] = false;
-        lowerer.work[count + 1] = expression.left;
-        lowerer.ready[count + 1] = false;
-        lowerer.work_count = (count + 2) as +Trapping;
-        transition { _ -> next(lowerer, syntax, resolution, typing) }
-    }
-    machine binary(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
-        let result_type: u64 in Trapping = typing_expression_type(typing, handle);
-        let valid: bool = scalar_byte_type(typing, result_type);
-        transition valid {
-            true -> builtin(lowerer, syntax, resolution, typing, handle, expression)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine builtin(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
-        let selection: Selection = typing_selection(typing, handle);
-        transition selection {
-            Selection::None -> operation(lowerer, syntax, resolution, typing, handle, expression)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine operation(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression) {
-        transition expression.operator {
-            OperatorKind::Add -> arithmetic(lowerer, syntax, resolution, typing, handle, expression, ScalarOperationKind::ExactIntegerAdd)
-            OperatorKind::Subtract -> arithmetic(lowerer, syntax, resolution, typing, handle, expression, ScalarOperationKind::ExactIntegerSubtract)
-            OperatorKind::Multiply -> arithmetic(lowerer, syntax, resolution, typing, handle, expression, ScalarOperationKind::ExactIntegerMultiply)
-            OperatorKind::Divide -> arithmetic(lowerer, syntax, resolution, typing, handle, expression, ScalarOperationKind::ExactIntegerDivide)
-            OperatorKind::Modulo -> arithmetic(lowerer, syntax, resolution, typing, handle, expression, ScalarOperationKind::ExactIntegerRemainder)
-            _ -> unsupported(lowerer)
-        }
-    }
-    machine arithmetic(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, expression: Expression, kind: ScalarOperationKind) {
-        let left: u64 in Trapping = scalar_value(lowerer, expression.left);
-        let right: u64 in Trapping = scalar_value(lowerer, expression.right);
-        let result: u64 in Trapping = scalar_append(lowerer, kind, left - 1, right - 1);
-        transition { _ -> record(lowerer, syntax, resolution, typing, handle, result) }
-    }
-    machine record(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, result: u64 in Trapping) {
-        transition result > 0 && handle < 131072 {
-            true -> store(lowerer, syntax, resolution, typing, handle, result)
-            _ -> absent(lowerer)
-        }
-    }
-    machine absent(lowerer: &mut ScalarLowerer) {
-        transition lowerer.output.status {
-            ScalarStatus::Complete -> unsupported(lowerer)
-            _ -> done()
-        }
-    }
-    machine store(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, handle: u64 in Trapping, result: u64 in Trapping) {
-        lowerer.values[(handle) as -Trapping] = result;
-        lowerer.work_count = lowerer.work_count - 1;
-        transition { _ -> next(lowerer, syntax, resolution, typing) }
-    }
-    machine unsupported(lowerer: &mut ScalarLowerer) { lowerer.output.status = ScalarStatus::Unsupported; }
-    machine full(lowerer: &mut ScalarLowerer) { lowerer.output.status = ScalarStatus::Capacity; }
-    machine done() {}
+    machine declared(typing: &Typing, reference: u64 in Trapping) -> u64 in Trapping { reference_type(typing, reference) }
+    machine unit(typing: &Typing) -> u64 in Trapping { typing.unit }
 }
 
 // Runtime recursive cycles require proper tail transfer. Until that terminator

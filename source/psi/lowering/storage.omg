@@ -1,0 +1,150 @@
+// Value slots hold scalars or internal Alpha addresses. Owned storage lives
+// separately in the activation; a mutable binding never aliases an old value
+// slot. Reads of copyable aggregates snapshot their bytes before later source
+// expressions run. Checked affine moves need retained move disposition before
+// they can use this copying path, so they remain explicitly unsupported here.
+
+public machine scalar_copyable(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> type_row(syntax, typing, handle, typing.types.row_count as u64 +Trapping) }
+    machine type_row(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping, remaining: u64 in Trapping) -> bool {
+        let row: TypeRow = type_table_row(&typing.types, handle);
+        transition row.kind {
+            TypeKind::Builtin -> yes()
+            TypeKind::Unit -> yes()
+            TypeKind::Data -> record(syntax, row)
+            TypeKind::Array -> element(syntax, typing, row, remaining)
+            _ -> no()
+        }
+    }
+    machine record(syntax: &SyntaxTrees, row: TypeRow) -> bool {
+        let item: DataItem = syntax_trees_data_item(syntax, row.item);
+        item.multiplicity == DataMultiplicity::Unrestricted
+    }
+    machine element(syntax: &SyntaxTrees, typing: &Typing, row: TypeRow, remaining: u64 in Trapping) -> bool {
+        transition remaining > 0 {
+            true -> type_row(syntax, typing, row.inner, remaining - 1)
+            _ -> no()
+        }
+    }
+    machine yes() -> bool { true }
+    machine no() -> bool { false }
+}
+
+public machine scalar_storage_allocate(lowerer: &mut ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition size <= 33554432 {
+        true -> bounded(lowerer, size)
+        _ -> full(lowerer)
+    }
+    machine bounded(lowerer: &mut ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping {
+        transition lowerer.storage_size <= 33554432 - size {
+            true -> allocate(lowerer, size)
+            _ -> full(lowerer)
+        }
+    }
+    machine allocate(lowerer: &mut ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping {
+        let offset: u64 in Trapping = lowerer.storage_size;
+        lowerer.storage_size = offset + size;
+        offset
+    }
+    machine full(lowerer: &mut ScalarLowerer) -> u64 in Trapping {
+        lowerer.output.status = ScalarStatus::Capacity;
+        0 as u64 +Trapping
+    }
+}
+
+// Return an ordinary operation identity naming fresh owned storage. Allocation
+// does not read or initialize it; callers explicitly emit Zero or a complete
+// transfer after evaluating source children in their required order.
+public machine scalar_temporary(lowerer: &mut ScalarLowerer, size: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let offset: u64 in Trapping = scalar_storage_allocate(lowerer, size);
+    transition lowerer.output.status {
+        ScalarStatus::Complete -> address(lowerer, offset)
+        _ -> absent()
+    }
+    machine address(lowerer: &mut ScalarLowerer, offset: u64 in Trapping) -> u64 in Trapping {
+        scalar_append(lowerer, ScalarOperationKind::FrameAddress, offset, 0 as u64 +Trapping, 0 as u64 +Trapping)
+    }
+    machine absent() -> u64 in Trapping { 0 as u64 +Trapping }
+}
+
+public machine scalar_transfer(lowerer: &mut ScalarLowerer, layout: ScalarLayout, address: u64 in Trapping, value: u64 in Trapping)
+crashes Trap
+{
+    transition address > 0 && value > 0 && lowerer.output.status == ScalarStatus::Complete {
+        true -> kind(lowerer, layout, address, value)
+        _ -> absent(lowerer)
+    }
+    machine kind(lowerer: &mut ScalarLowerer, layout: ScalarLayout, address: u64 in Trapping, value: u64 in Trapping) {
+        transition layout.kind {
+            ScalarLayoutKind::Record -> operation(lowerer, layout, address, value, ScalarOperationKind::Copy)
+            ScalarLayoutKind::Array -> operation(lowerer, layout, address, value, ScalarOperationKind::Copy)
+            ScalarLayoutKind::Unit -> done()
+            ScalarLayoutKind::Scalar -> operation(lowerer, layout, address, value, ScalarOperationKind::Store)
+            ScalarLayoutKind::Reference -> operation(lowerer, layout, address, value, ScalarOperationKind::Store)
+            _ -> absent(lowerer)
+        }
+    }
+    machine operation(lowerer: &mut ScalarLowerer, layout: ScalarLayout, address: u64 in Trapping, value: u64 in Trapping, kind: ScalarOperationKind) {
+        let ignored: u64 in Trapping = scalar_append(lowerer, kind, address - 1, value - 1, layout.size);
+    }
+    machine absent(lowerer: &mut ScalarLowerer) {
+        transition lowerer.output.status {
+            ScalarStatus::Complete -> unsupported(lowerer)
+            _ -> done()
+        }
+    }
+    machine unsupported(lowerer: &mut ScalarLowerer) { lowerer.output.status = ScalarStatus::Unsupported; }
+    machine done() {}
+}
+
+// Materialize a checked read from an existing place. Reference values carry
+// their address; dereferencing one is a separate operation authorized by the
+// expression's checked read adaptation, never by its layout alone.
+public machine scalar_read_storage(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, address: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let layout: ScalarLayout = scalar_layout_at(&lowerer.output, type_handle);
+    transition address > 0 && lowerer.output.status == ScalarStatus::Complete {
+        true -> kind(lowerer, syntax, typing, type_handle, layout, address)
+        _ -> absent()
+    }
+    machine kind(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, layout: ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
+        transition layout.kind {
+            ScalarLayoutKind::Scalar -> load(lowerer, layout, address)
+            ScalarLayoutKind::Reference -> load(lowerer, layout, address)
+            ScalarLayoutKind::Record -> copyable(lowerer, syntax, typing, type_handle, layout, address)
+            ScalarLayoutKind::Array -> copyable(lowerer, syntax, typing, type_handle, layout, address)
+            ScalarLayoutKind::Unit -> unit(lowerer)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine load(lowerer: &mut ScalarLowerer, layout: ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
+        scalar_append(lowerer, ScalarOperationKind::Load, address - 1, layout.size, 0 as u64 +Trapping)
+    }
+    machine copyable(lowerer: &mut ScalarLowerer, syntax: &SyntaxTrees, typing: &Typing, type_handle: u64 in Trapping, layout: ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
+        let supported: bool = scalar_copyable(syntax, typing, type_handle);
+        transition supported {
+            true -> snapshot(lowerer, layout, address)
+            _ -> unsupported(lowerer)
+        }
+    }
+    machine snapshot(lowerer: &mut ScalarLowerer, layout: ScalarLayout, address: u64 in Trapping) -> u64 in Trapping {
+        let destination: u64 in Trapping = scalar_temporary(lowerer, layout.size);
+        scalar_transfer(lowerer, layout, destination, address);
+        destination
+    }
+    machine unit(lowerer: &mut ScalarLowerer) -> u64 in Trapping {
+        scalar_append(lowerer, ScalarOperationKind::IntegerConstant, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping)
+    }
+    machine unsupported(lowerer: &mut ScalarLowerer) -> u64 in Trapping {
+        lowerer.output.status = ScalarStatus::Unsupported;
+        0 as u64 +Trapping
+    }
+    machine absent() -> u64 in Trapping { 0 as u64 +Trapping }
+}
