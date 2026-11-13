@@ -1,0 +1,10 @@
+{
+  "cluster_id": "pin-c1",
+  "witness": "pass/build/default_component_abi_extents",
+  "good": "f4741abb3943ceacc9c1ff0fcf245a50dc464cb7",
+  "breaking_commit": "77271bfb91344cd3d3788e1d8563796983dfbf13",
+  "pr": "1794",
+  "mechanism": "psi: preserve saved references when pointer fields change (#1794)",
+  "status": "bisected",
+  "bisect_exit": 0
+}
