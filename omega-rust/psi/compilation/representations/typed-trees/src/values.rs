@@ -3518,6 +3518,13 @@ pub mod expression {
             self.static_machine_applications.iter()
         }
 
+        pub fn static_machine_application_is_valid(
+            &self,
+            application: StaticMachineApplicationHandle,
+        ) -> bool {
+            self.static_machine_applications.is_valid(application)
+        }
+
         pub fn static_machine_application(
             &self,
             application: StaticMachineApplicationHandle,
