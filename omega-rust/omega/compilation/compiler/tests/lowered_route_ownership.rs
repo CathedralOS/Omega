@@ -7,8 +7,8 @@ mod fixture_package_inputs;
 use fixture_package_inputs::{
     FixtureFrontierCheck, check_fixture_keeping_typed_frontier, repo_root,
 };
-use lowered_discharge::{RouteVerdict, judge};
-use structure_elaboration::{Compilation, elaborate};
+use lowered_discharge::{RouteVerdict, judge_compilation};
+use structure_elaboration::Compilation;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionStatus, TerminalStructuralInputs,
@@ -46,17 +46,27 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
     else {
         panic!("the original owned-data witness must check");
     };
-    let closure = match judge(elaborate(
+    // Match the default router's complete scope, including every generic
+    // check form it claims; one undecided form would leave it on fallback.
+    let mut verdicts = judge_compilation(
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
             subject: frontier.subject,
             selected: &frontier.selected,
         },
-    )) {
+    )
+    .into_iter();
+    let closure = match verdicts.next().expect("the entry closure is judged") {
         Ok(RouteVerdict::Accepted(closure)) => closure,
         other => panic!("the owned-data route must accept: {other:?}"),
     };
+    for verdict in verdicts {
+        assert!(
+            matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+            "every check form of the default scope must accept: {verdict:?}"
+        );
+    }
     assert!(
         closure
             .elaboration
@@ -100,18 +110,25 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
     else {
         panic!("the move-before-borrow witness must reject after the typed frontier");
     };
-    let verdict = judge(elaborate(
+    let verdicts = judge_compilation(
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
             subject: frontier.subject,
             selected: &frontier.selected,
         },
-    ))
-    .expect("the route judges the ownership obligation");
-    let RouteVerdict::Rejected { unestablished, .. } = verdict else {
-        panic!("the route must reject the moved local: {verdict:?}");
-    };
+    );
+    let mut unestablished = Vec::new();
+    for verdict in verdicts {
+        match verdict {
+            Ok(RouteVerdict::Accepted(_)) => {}
+            Ok(RouteVerdict::Rejected {
+                unestablished: uses,
+                ..
+            }) => unestablished.extend(uses),
+            other => panic!("no check form may make the default scope undecided: {other:?}"),
+        }
+    }
     let expected = std::fs::read_to_string(
         repo_root().join("tests/omega/fail/borrows/owned_address_after_operand_move/expected.txt"),
     )
