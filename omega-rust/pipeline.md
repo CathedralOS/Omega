@@ -1354,9 +1354,9 @@ Exact consumed-source and toolchain identities belong to the shared
 `psi/foundation/source/src/source_identity.rs` owner; package review and early
 Psi use the same byte protocol without importing each other's orchestration.
 
-`psi/compilation/validation/` owns reusable judgments, with source-program checking
-separate from Terminal receiving-boundary admission. Its independent
-[`terminal-installation`](psi/compilation/validation/terminal-installation/src/lib.rs)
+`psi/compilation/validation/` owns reusable judgments for source-program checking.
+Terminal receiving-boundary admission is separate: the independent
+[`terminal-installation`](psi/compilation/terminal-installation/src/lib.rs)
 package admits provider selections and assumed links against an exact Terminal
 artifact and owns shared structural-entry backing descriptions. It consumes no
 source trees, target layout, compiler driver or execution engine. Native lowering

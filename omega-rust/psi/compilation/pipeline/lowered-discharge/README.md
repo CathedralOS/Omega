@@ -1340,6 +1340,21 @@ proposes a sort beside `ScalarType`; `ScalarType` is matched at 263 places
 across the compiler and its back ends, so the sort lives in the check
 tables, which only this route reads.
 
+**Who proves an applied machine's contract.** `relay`'s form holds
+`forward<T>` as a contract with no body, and relies on its `ensures`. What
+makes that `ensures` true is `forward`'s own check form, which proves it
+with `forward`'s parameters rigid and so for every type `relay` can pass.
+`judge_compilation` therefore judges the form of every generic machine a
+judged form applies, whichever package declares it, and leaves the applied
+machine's rows in the caller's form to that judgment
+(`judge_generic_forms`, [verdict.rs](src/verdict.rs)). A form judged alone
+(`judge`) still refuses those rows, because nothing it knows of proves
+them, and so does a form whose machine applies itself, directly or through
+others: every form on such a cycle would take the next one's contract as
+given, and no form judges that the recursion ends. A requirement reached
+through an implementation parameter is not covered: its rows stay refused
+until each conformance's refinement is judged in the same compilation.
+
 **No proposition names a rigid value.** Under
 [generics.md](../../../../../wiki/spec/language/generics.md#requirements-and-conformance-evidence)
 a body can move, pass and return a value of an opaque `T`; no operator or

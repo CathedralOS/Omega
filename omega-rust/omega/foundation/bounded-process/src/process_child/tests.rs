@@ -7,7 +7,7 @@ use super::BoundedProcessChild;
 use crate::{BoundedProcessLimits, BoundedProcessPrepared};
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 #[test]
@@ -233,4 +233,41 @@ fn cleanup_probe_tree(root_name: &str) -> (PathBuf, PathBuf, PathBuf) {
         .canonicalize()
         .expect("canonical shell executable");
     (test_root, marker, shell)
+}
+
+#[test]
+fn tooling_file_streams_keep_primary_status_and_close_descendants() {
+    let (root, marker, shell) = cleanup_probe_tree("omega-tool-command-files");
+    let output = root.join("stdout");
+    let errors = root.join("stderr");
+    let mut command = Command::new(shell);
+    command
+        .args([
+            "-c",
+            "printf output; printf error >&2; (sleep 1; printf escaped > \"$1\") & exit 23",
+            "tool-command",
+        ])
+        .arg(&marker)
+        .stdin(Stdio::null())
+        .stdout(std::fs::File::create(&output).unwrap())
+        .stderr(std::fs::File::create(&errors).unwrap());
+    let mut child = crate::ToolCommandChild::spawn(&mut command).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    assert_eq!(status.code(), Some(23));
+    child.terminate().unwrap();
+    assert_eq!(child.wait().unwrap().code(), Some(23));
+    assert_eq!(child.finish().unwrap().status().code(), Some(23));
+    assert_eq!(std::fs::read_to_string(output).unwrap(), "output");
+    assert_eq!(std::fs::read_to_string(errors).unwrap(), "error");
+    std::thread::sleep(Duration::from_millis(1100));
+    assert!(!marker.exists(), "tool descendant escaped shared owner");
+    drop(command);
+    std::fs::remove_dir_all(root).unwrap();
 }

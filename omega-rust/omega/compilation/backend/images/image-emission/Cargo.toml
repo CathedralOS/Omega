@@ -49,7 +49,7 @@ isa-x86_64 = { path = "../../instruction-set-architectures/isa-x86_64" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
-terminal-installation = { path = "../../../../../psi/compilation/validation/terminal-installation" }
+terminal-installation = { path = "../../../../../psi/compilation/terminal-installation" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
 psi-work = { path = "../../../../../psi/compilation/representations/terminal-psi/work" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
@@ -63,11 +63,8 @@ executable-installation = { path = "../../runtime/executable-installation" }
 layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
 abstract-operations-to-target-operations = { path = "../../../pipeline/02_abstract-operations-to-target-operations" }
 optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
-checked-trees = { path = "../../../../../psi/compilation/representations/checked-trees" }
 extents = { path = "../../../../../psi/foundation/extents" }
-checked-trees-to-lowered-psi = { path = "../../../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi" }
 source-files-to-tokens = { path = "../../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
 tokens-to-syntax-trees = { path = "../../../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
-typed-trees-to-checked-trees = { path = "../../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees" }

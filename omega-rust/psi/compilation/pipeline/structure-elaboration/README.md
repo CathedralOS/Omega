@@ -388,9 +388,38 @@ requires an explicit `[copy]` declaration; copyable fields do not change the
 affine default."). Plain data without it is affine, moves once, and belongs
 to the ownership lane (`type data with custody`).
 
-Formals are immutable here. A `mut` formal that holds its own value is
-refused where the signature is read (`parameter mutable parameter`); a
-formal passed by reference is [References](#references).
+A `mut` formal that holds its own value (`mut x: u32`, `mut p: R`) is the
+callee's own storage, initialised from the argument, and is written as a
+`mut` local is ([ownership](../../../../../wiki/spec/language/ownership.md#owned-local-mutability):
+"the recipient may bind its own value mutably"). Nothing a caller sees
+changes: the signature, the contract and the argument are those of the same
+formal without `mut`.
+
+- A scalar is assigned by rebinding its slot to the assigned value. The
+  formal's entry value keeps its identity, so an entry `requires` stays a
+  fact about that value and proves nothing about the formal after
+  `x = x + 1`
+  ([fact validity](../../../../../wiki/spec/terminal-psi/fact_validity.md#entry-facts-and-crash-coverage):
+  "Current body values are not entry snapshots").
+- A record is stored into by field in the formal's own parameter place,
+  which holds the copy the call passed; the store logs the new content on
+  that exact field, and its siblings keep what they held at entry. A whole
+  assignment rebinds the slot to a fresh root.
+- `&mut x` and `&mut p.a` lend the formal as owned storage
+  (`Lender::Owner`), as they lend a `mut` local.
+
+Refused by name:
+
+| Construct | Refusal detail |
+| --- | --- |
+| an `ensures` clause or a crash route guard that names a `mut` formal: whether the name means the argument or what the body last assigned is the open owner question `mutable-parameter-contract-name` | `contract clause that names a mutable parameter outside requires` |
+| a `mut` formal of a type parameter, whose replaced value no slice disposes of | `parameter mutable parameter of a type parameter` |
+| a `mut` formal marked `[erased]` | `parameter mutable erased parameter` |
+| an assignment to, or a store into, a formal that is not `mut` | `statement assignment to an immutable binding`, `statement store into an immutable binding` |
+
+A `mut` formal of plain data without `[copy]` is refused as that data is
+anywhere (`type data with custody`). A formal passed by reference is
+[References](#references).
 
 ### References
 

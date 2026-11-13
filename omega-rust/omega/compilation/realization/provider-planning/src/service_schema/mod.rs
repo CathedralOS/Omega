@@ -28,6 +28,34 @@ pub(crate) fn attach_calling(
             .iter()
             .map(|requirement| requirement.source.symbol),
         prepared.boundary_arguments,
+        None,
+        calling_plans,
+    )
+}
+
+/*
+    Attach calling plans to the surface of a native Build plan bound at one
+    closed application of a generic boundary. That surface was found by the
+    application's portable identity, not through an implementation, so it has
+    no argument handles or owning declaration to compare; the plans evaluated
+    for that application are the ones whose owner application is that same
+    identity.
+*/
+pub(crate) fn attach_native_application_calling(
+    prepared: &PreparedServiceSurface<'_>,
+    application: &str,
+    calling_plans: &[BoundaryCallingPlanRealization],
+) -> ServiceSchema {
+    attach_requirement_calling(
+        prepared.declaration.clone(),
+        prepared.schema,
+        prepared.argument_owner,
+        prepared
+            .requirements
+            .iter()
+            .map(|requirement| requirement.source.symbol),
+        prepared.boundary_arguments,
+        Some(application),
         calling_plans,
     )
 }
@@ -38,6 +66,7 @@ fn attach_requirement_calling(
     argument_owner: symbols::SymbolHandle,
     requirements: impl IntoIterator<Item = symbols::SymbolHandle>,
     boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
+    native_application: Option<&str>,
     calling_plans: &[BoundaryCallingPlanRealization],
 ) -> ServiceSchema {
     let mut schema = ServiceSchema::from_declaration(declaration);
@@ -45,9 +74,14 @@ fn attach_requirement_calling(
         for (method, requirement) in schema.declaration.methods.iter().zip(requirements) {
             for application in calling_plans.iter().filter(|application| {
                 application.boundary_trait == source.symbol()
-                    && application.boundary_arguments == boundary_arguments
-                    && application.argument_owner() == argument_owner
                     && application.requirement_machine == requirement
+                    && match native_application {
+                        Some(bound) => application.calling_owner_application() == bound,
+                        None => {
+                            application.boundary_arguments == boundary_arguments
+                                && application.argument_owner() == argument_owner
+                        }
+                    }
             }) {
                 let attachment = ServiceCallingApplication {
                     requirement: method.requirement_identity,

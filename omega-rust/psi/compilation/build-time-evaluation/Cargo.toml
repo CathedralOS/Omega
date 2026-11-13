@@ -19,7 +19,7 @@ access-plans = { path = "../../foundation/access-plans" }
 checked-interpreter = { path = "../../interpreter/checked-interpreter" }
 psi-terminal-production = { path = "../psi-compiler/terminal-production" }
 terminal-interpreter = { path = "../../interpreter/terminal-interpreter" }
-terminal-installation = { path = "../validation/terminal-installation" }
+terminal-installation = { path = "../terminal-installation" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }
 terminal-psi = { path = "../representations/terminal-psi" }
 terminal-semantics = { path = "../representations/terminal-psi/semantics" }

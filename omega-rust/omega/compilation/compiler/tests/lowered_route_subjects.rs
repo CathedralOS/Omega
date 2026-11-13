@@ -728,28 +728,7 @@ fn staged_unused(name: &str, declaration: &str) -> Box<compiler::TypedFrontier> 
 #[test]
 fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let parts = |name: &str, declaration: &str| -> Vec<Verdict> {
-        let frontier = staged_unused(name, declaration);
-        lowered_discharge::judge_compilation(
-            &frontier.typed,
-            Compilation {
-                entries: &frontier.entries,
-                subject: frontier.subject,
-                selected: &frontier.selected,
-                bindings: &frontier.bindings,
-            },
-        )
-        .into_iter()
-        .map(|verdict| match verdict {
-            Ok(RouteVerdict::Accepted(accepted)) => {
-                Verdict::Accepted(accepted.elaboration.machines.len())
-            }
-            Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
-            Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
-            other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
-        })
-        .collect()
-    };
+    let parts = judged_parts;
     // The closure (the empty entry) and the generic form, both accepted.
     assert_eq!(
         parts(
@@ -765,6 +744,83 @@ fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
             "machine bump<T>(value: u64) -> u64 requires T == u8 || T == u16 { value + 1u64 }"
         ),
         [Verdict::Accepted(1), Verdict::Rejected, Verdict::Rejected]
+    );
+}
+
+/// Every part `judge_compilation` judges of `declaration` and an empty
+/// entry: the closure first, then each generic check form.
+fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
+    let frontier = staged_unused(name, declaration);
+    lowered_discharge::judge_compilation(
+        &frontier.typed,
+        Compilation {
+            entries: &frontier.entries,
+            subject: frontier.subject,
+            selected: &frontier.selected,
+            bindings: &frontier.bindings,
+        },
+    )
+    .into_iter()
+    .map(|verdict| match verdict {
+        Ok(RouteVerdict::Accepted(accepted)) => {
+            Verdict::Accepted(accepted.elaboration.machines.len())
+        }
+        Ok(RouteVerdict::Rejected { .. }) => Verdict::Rejected,
+        Ok(RouteVerdict::FallBack(refusal)) => Verdict::FallsBack(refusal.detail),
+        other => panic!("{name}: neither a verdict nor a fallback: {other:?}"),
+    })
+    .collect()
+}
+
+/// A generic body that calls another generic machine at its own type
+/// parameter is judged, not handed back. `relay<T>` holds `forward<T>` as a
+/// contract with no body; `forward`'s own check form, judged in the same
+/// compilation, is what proves that contract for every `T`, so `relay`'s
+/// form is accepted on its own proofs. A bound the callee does not give
+/// still rejects the caller. A machine that applies itself is handed back:
+/// its form would take its own guarantee as given, and nothing in a form
+/// judges that the recursion ends.
+#[test]
+fn a_generic_body_that_applies_another_generic_machine_is_judged() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let forward = "machine forward<T>(item: T, limit: u32) -> u32 \
+                   requires limit <= 10 ensures result <= 10 { limit }";
+    let relay = |bound: u32| {
+        format!(
+            "{forward}\nmachine relay<T>(item: T, limit: u32) -> u32 \
+             requires limit <= 10 ensures result <= {bound} {{ forward<T>(item, limit) + 1 }}"
+        )
+    };
+    // The closure (the empty entry), `forward`'s form, and `relay`'s form
+    // with `forward<T>` beside it.
+    assert_eq!(
+        judged_parts("generic_application", &relay(11)),
+        [
+            Verdict::Accepted(1),
+            Verdict::Accepted(1),
+            Verdict::Accepted(2)
+        ]
+    );
+    assert_eq!(
+        judged_parts("generic_application_exceeds_callee", &relay(10)),
+        [
+            Verdict::Accepted(1),
+            Verdict::Accepted(1),
+            Verdict::Rejected
+        ]
+    );
+    assert_eq!(
+        judged_parts(
+            "generic_application_of_itself",
+            "machine again<T>(item: T, limit: u32) -> u32 \
+             ensures result <= 10 { again<T>(item, limit) }"
+        ),
+        [
+            Verdict::Accepted(1),
+            Verdict::FallsBack(
+                "a requirement's guarantee is proved by each implementation, not here".to_owned()
+            )
+        ]
     );
 }
 
@@ -862,5 +918,119 @@ fn a_statement_that_drops_its_value_is_never_accepted() {
         "tests/omega/fail/calls/non_unit_compound_expression_requires_use",
         Expected::FallsBack,
     )]);
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// One program per thing the route decides about a formal the body writes.
+/// Each is the declaration followed by `machine main() {}`.
+const WRITTEN_FORMALS: &[(&str, &str)] = &[
+    // The add after the assignment reads the assigned value, at most 11.
+    (
+        "mut_scalar_assigned",
+        "machine spare(mut value: u32) -> u32 requires value <= 10 {\n    \
+         value = value + 1;\n    value + 4294967284\n}",
+    ),
+    // `value <= 10` was true of the argument; `value` now holds `other`.
+    (
+        "mut_scalar_stale_fact",
+        "machine spare(mut value: u32, other: u32) -> u32 requires value <= 10 {\n    \
+         value = other;\n    value + 4294967285\n}",
+    ),
+    // The same add with no assignment before it.
+    (
+        "mut_scalar_entry_fact",
+        "machine spare(mut value: u32, other: u32) -> u32 requires value <= 10 {\n    \
+         value + 4294967285\n}",
+    ),
+    (
+        "immutable_scalar_assigned",
+        "machine spare(value: u32) -> u32 { value = 1; value }",
+    ),
+    // The read after the store is of 5.
+    (
+        "mut_record_stored",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair.a = 5;\n    pair.a + 4294967285\n}",
+    ),
+    // `pair.a <= 10` was true of what the field held before the store.
+    (
+        "mut_record_stale_fact",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair.a = 4294967295;\n    pair.a + 4294967285\n}",
+    ),
+    // A whole assignment replaces every field the entry fact spoke of.
+    (
+        "mut_record_replaced",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair = Pair { a: 4294967295, b: 0 };\n    pair.a + 4294967285\n}",
+    ),
+    (
+        "immutable_record_stored",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(pair: Pair) -> u32 { pair.a = 5; pair.a }",
+    ),
+    // The callee stores into its own copy, so the caller's field holds 1.
+    (
+        "mut_record_callers_argument",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine set(mut pair: Pair) { pair.a = 4294967295; }\n\
+         machine spare() -> u32 {\n    \
+         let q: Pair = Pair { a: 1, b: 2 };\n    set(q);\n    q.a + 4294967294\n}",
+    ),
+    // Lent exclusively, the formal holds whatever the callee stored.
+    (
+        "mut_scalar_lent",
+        "machine clear(value: &mut u32) { value = 0; }\n\
+         machine spare(mut value: u32) -> u32 requires value <= 10 {\n    \
+         clear(&mut value);\n    value + 4294967285\n}",
+    ),
+    (
+        "mut_named_in_ensures",
+        "machine spare(mut value: u32) -> u32 ensures result == value { value }",
+    ),
+    (
+        "mut_affine_data",
+        "data Token { value: u32; }\n\
+         machine spare(mut token: Token) -> u32 { token.value = 1; token.value }",
+    ),
+];
+
+/// A `mut` formal that holds its own value is the callee's own storage and
+/// is written as a `mut` local is; the route used to refuse every machine
+/// that declared one (`parameter mutable parameter`). A fact from `requires`
+/// is about the argument: it does not survive an assignment to a scalar
+/// formal, a store into that field of a record formal, a whole assignment or
+/// an exclusive loan, and each such program is rejected for the operation
+/// that needed it. A formal that is not `mut` is still not written, and the
+/// cases the route does not serve are refused by name.
+#[test]
+fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        falls_back("statement assignment to an immutable binding"),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Rejected,
+        falls_back("statement store into an immutable binding"),
+        Verdict::Accepted(3),
+        Verdict::Rejected,
+        falls_back("contract clause that names a mutable parameter outside requires"),
+        falls_back("type data with custody"),
+    ];
+    assert_eq!(expected.len(), WRITTEN_FORMALS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in WRITTEN_FORMALS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }

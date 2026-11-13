@@ -1,0 +1,19 @@
+use omega_language_std::Console;
+
+// Expected exit: 0. Expected stdout: "K\n".
+// The Build selects no provider, so the two console calls run through the
+// provider the standard library's provider-default machine chooses for each
+// target. A check keeps that machine only for a boundary trait the program
+// reaches; this program reaches `Console` and no other service.
+data Main { }
+machine main(root: &mut Main) reaches Console {
+    Console::write_byte(75);
+    Console::write_byte(10);
+    Console::exit_process(0);
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    main(&mut entry_storage);
+}
