@@ -318,11 +318,19 @@ impl Program<'_> {
             && self.typed.symbols.builtin_type_atom(*symbol).is_none()
             && self.data_declaration(*symbol).is_some()
         {
-            let value = self.record(id, *symbol)?;
-            if let ValueType::Record(record) = value {
-                self.record_application(id, record, handle)?;
-            }
-            return Ok(value);
+            return self.record_at(id, handle);
+        }
+        if handle.is_valid()
+            && let TypeReferenceNode::Generic {
+                arguments,
+                lifetime_arguments,
+                ..
+            } = self.typed.type_reference_table.type_reference(handle)
+            && !arguments.is_empty()
+            && lifetime_arguments.is_empty()
+            && self.typed.closed_data_definition(handle).is_some()
+        {
+            return self.record_at(id, handle);
         }
         if handle.is_valid()
             && let TypeReferenceNode::Constrained {

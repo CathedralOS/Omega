@@ -1236,6 +1236,7 @@ pub(crate) mod construction_destinations {
     ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
         let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle, SymbolHandle)>::new();
         let mut calls = Vec::new();
+        let mut constructors = Vec::new();
 
         for (handle, expression) in program.expression_table.expression_entries() {
             if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier)
@@ -1243,17 +1244,7 @@ pub(crate) mod construction_destinations {
                 continue;
             }
             match expression {
-                ExpressionNode::StructLiteral(literal) => {
-                    for field in program.expression_table.struct_fields(literal.fields) {
-                        let field_type = selected_construction_field_type(
-                            program,
-                            handle,
-                            literal,
-                            field.field_symbol,
-                        )?;
-                        destinations.push((field.value, field_type, literal.type_symbol));
-                    }
-                }
+                ExpressionNode::StructLiteral(_) => constructors.push(handle),
                 ExpressionNode::Call(call) => {
                     let arguments = program.expression_table.expression_handles(call.arguments);
                     if program
@@ -1415,6 +1406,7 @@ pub(crate) mod construction_destinations {
             }
         }
         let mut cast_destinations = Vec::new();
+        let mut completed_destinations = Vec::new();
         for (value, destination, lifetime_owner) in destinations {
             land_one(
                 program,
@@ -1422,7 +1414,63 @@ pub(crate) mod construction_destinations {
                 destination,
                 lifetime_owner,
                 &mut cast_destinations,
+                &mut completed_destinations,
             )?;
+        }
+        // A child constructor may get its complete application from an
+        // enclosing field. Land explicit receiving contexts first; querying
+        // every child before its parent would discard that application.
+        for value in constructors {
+            let position = value.arena_index() as usize;
+            if completed_destinations
+                .get(position)
+                .is_some_and(|contexts| !contexts.is_empty())
+            {
+                continue;
+            }
+            let ExpressionNode::StructLiteral(literal) =
+                program.expression_table.expression(value).clone()
+            else {
+                continue;
+            };
+            let known_application = [
+                program
+                    .expression_table
+                    .construction_required_type_reference(value),
+                program
+                    .expression_table
+                    .constructed_value_type_reference(value),
+                literal.application_type,
+            ]
+            .into_iter()
+            .any(|reference| reference.is_valid());
+            let monomorphic = program
+                .unique_data_definition_by_symbol(literal.type_symbol)
+                .is_some_and(|data| {
+                    data.type_parameters.is_empty() && data.generic_instance.is_none()
+                });
+            if !known_application && !monomorphic {
+                // Keep the unresolved constructor intact. The checked reader
+                // refuses it if demanded without an exact receiving tuple;
+                // its payload cannot infer a different application here.
+                continue;
+            }
+            let fields = program
+                .expression_table
+                .struct_fields(literal.fields)
+                .to_vec();
+            for field in fields {
+                let field_type =
+                    selected_construction_field_type(program, value, &literal, field.field_symbol)?;
+                land_one(
+                    program,
+                    field.value,
+                    field_type,
+                    literal.type_symbol,
+                    &mut cast_destinations,
+                    &mut completed_destinations,
+                )?;
+            }
         }
         Ok(cast_destinations)
     }
@@ -1464,24 +1512,75 @@ pub(crate) mod construction_destinations {
         program: &mut TypedTrees,
         value: ExpressionHandle,
         destination: TypeReferenceHandle,
+        lifetime_owner: SymbolHandle,
+        cast_destinations: &mut Vec<TypeReferenceHandle>,
+        completed: &mut Vec<Vec<(TypeReferenceHandle, SymbolHandle)>>,
+    ) -> Result<bool, Diagnostic> {
+        if !value.is_valid() || !destination.is_valid() {
+            return Ok(false);
+        }
+        if !program.expression_table.expression_is_valid(value) {
+            return Err(Diagnostic::error(
+                "constructor destination refers to a missing expression occurrence",
+            ));
+        }
+        if !program
+            .type_reference_table
+            .contains_type_reference(destination)
+        {
+            return Err(Diagnostic::error(
+                "constructor destination refers to a missing receiving type occurrence",
+            ));
+        }
+        // A receiving occurrence includes its complete type handle and lexical
+        // region owner. Revisit a different context, but do not walk the same
+        // descendants again through another root or the constructor census.
+        let position = value.arena_index() as usize;
+        if completed
+            .get(position)
+            .is_some_and(|contexts| contexts.contains(&(destination, lifetime_owner)))
+        {
+            return Ok(true);
+        }
+        let landed = land_destination(
+            program,
+            value,
+            destination,
+            lifetime_owner,
+            cast_destinations,
+            completed,
+        )?;
+        if landed {
+            if completed.len() <= position {
+                completed.resize_with(position + 1, Vec::new);
+            }
+            completed[position].push((destination, lifetime_owner));
+        }
+        Ok(landed)
+    }
+
+    fn land_destination(
+        program: &mut TypedTrees,
+        value: ExpressionHandle,
+        destination: TypeReferenceHandle,
         mut lifetime_owner: SymbolHandle,
         cast_destinations: &mut Vec<TypeReferenceHandle>,
-    ) -> Result<(), Diagnostic> {
-        if !value.is_valid() || !destination.is_valid() {
-            return Ok(());
-        }
+        completed: &mut Vec<Vec<(TypeReferenceHandle, SymbolHandle)>>,
+    ) -> Result<bool, Diagnostic> {
         if let Some(dispatch) = program.expression_table.match_node(value) {
             let arms = program.expression_table.match_arms(dispatch.arms).to_vec();
+            let mut landed = true;
             for arm in arms {
-                land_one(
+                landed &= land_one(
                     program,
                     arm.value,
                     destination,
                     lifetime_owner,
                     cast_destinations,
+                    completed,
                 )?;
             }
-            return Ok(());
+            return Ok(landed);
         }
         // An expected type supplies a literal's carrier, never its domains.
         // Retain the destination at the complete cast, not at its operand:
@@ -1508,6 +1607,7 @@ pub(crate) mod construction_destinations {
                 destination,
                 lifetime_owner,
                 cast_destinations,
+                completed,
             );
         }
         let mut carrier = destination;
@@ -1524,11 +1624,9 @@ pub(crate) mod construction_destinations {
         if let ExpressionNode::StructLiteral(literal) =
             program.expression_table.expression(value).clone()
         {
-            // An application with a runtime value index is not final here.
-            // Stage 04 snapshots a computed operand into its own local and
-            // replaces a specialized one, then records the application it
-            // produced. Recording the authored application now would leave
-            // the literal checked against operands that no longer exist.
+            // Runtime value indices still need their actual source argument
+            // materialization. This type-only landing does not snapshot or
+            // invent those values and grants no construction premise.
             let exact_template = matches!(program.type_reference_table.type_reference(carrier),
             TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol)
                 && !program
@@ -1539,7 +1637,7 @@ pub(crate) mod construction_destinations {
                     .closed_data_constructor_definition(destination, literal.type_symbol)
                     .is_none()
             {
-                return Ok(());
+                return Ok(false);
             }
             let prior = expression_table(program).construction_required_type_reference(value);
             let carrier = if (!prior.is_valid() || !literal.application_type.is_valid())
@@ -1558,6 +1656,13 @@ pub(crate) mod construction_destinations {
             } else {
                 carrier
             };
+            // Normalization is complete before landing. Reuse its exact view;
+            // only a fresh receiving occurrence needs another metadata row.
+            if program.data_application_definition(carrier).is_none() {
+                program
+                    .prepare_data_application_view(carrier)
+                    .map_err(Diagnostic::error)?;
+            }
             if !prior.is_valid() {
                 expression_table_mut(program)
                     .set_construction_required_type_reference(value, carrier);
@@ -1571,18 +1676,20 @@ pub(crate) mod construction_destinations {
             let fields = expression_table(program)
                 .struct_fields(literal.fields)
                 .to_vec();
+            let mut landed = true;
             for field in fields {
                 let field_type =
                     selected_construction_field_type(program, value, &literal, field.field_symbol)?;
-                land_one(
+                landed &= land_one(
                     program,
                     field.value,
                     field_type,
                     literal.type_symbol,
                     cast_destinations,
+                    completed,
                 )?;
             }
-            return Ok(());
+            return Ok(landed);
         }
         if let (
             ExpressionNode::ArrayLiteral(elements),
@@ -1595,18 +1702,21 @@ pub(crate) mod construction_destinations {
                 .expression_handles(*elements)
                 .to_vec();
             let element_type = *element_type;
+            let mut landed = true;
             for element in elements {
-                land_one(
+                landed &= land_one(
                     program,
                     element,
                     element_type,
                     lifetime_owner,
                     cast_destinations,
+                    completed,
                 )?;
             }
-            return Ok(());
+            return Ok(landed);
         }
         crate::typing_queries::land_owned_fixed_byte_literal(program, value, destination)
+            .map(|()| true)
     }
 
     fn callee_owns_nominal_lifetimes(
@@ -1636,6 +1746,121 @@ pub(crate) mod construction_destinations {
                 )
                 .is_some()
             })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn deferred_destinations_do_not_complete_or_hide_expression_identity() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::{data::DataDefinition, expression::TableStructLiteral};
+
+            let mut symbols = SymbolTableBuilder::default();
+            let data = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Record"));
+            let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            program.push_data_definition(DataDefinition {
+                symbol: data,
+                name: "Record".into(),
+                ..Default::default()
+            });
+            let value = program
+                .expression_table
+                .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                    type_symbol: data,
+                    type_name: "Record".into(),
+                    ..Default::default()
+                }));
+            let unrelated = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            let exact = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: data,
+                    name: "Record".into(),
+                });
+            let mut casts = Vec::new();
+            let mut completed = Vec::new();
+            assert!(
+                !land_one(
+                    &mut program,
+                    value,
+                    unrelated,
+                    owner,
+                    &mut casts,
+                    &mut completed
+                )
+                .unwrap()
+            );
+            assert!(
+                completed.is_empty(),
+                "a deferred constructor stays eligible for the census"
+            );
+            assert!(
+                land_one(
+                    &mut program,
+                    value,
+                    exact,
+                    owner,
+                    &mut casts,
+                    &mut completed
+                )
+                .unwrap()
+            );
+            assert!(
+                land_one(
+                    &mut program,
+                    value,
+                    exact,
+                    owner,
+                    &mut casts,
+                    &mut completed
+                )
+                .unwrap()
+            );
+            assert_eq!(completed[value.arena_index() as usize], [(exact, owner)]);
+            assert!(
+                land_one(&mut program, value, exact, data, &mut casts, &mut completed).unwrap()
+            );
+            assert_eq!(
+                completed[value.arena_index() as usize],
+                [(exact, owner), (exact, data)]
+            );
+
+            let stale = ExpressionHandle::from_parts(value.arena_index(), value.generation() + 1);
+            let error = land_one(
+                &mut program,
+                stale,
+                exact,
+                owner,
+                &mut casts,
+                &mut completed,
+            )
+            .unwrap_err();
+            assert!(
+                error.message.contains("missing expression occurrence"),
+                "{error:?}"
+            );
+            let stale_type =
+                TypeReferenceHandle::from_parts(exact.arena_index(), exact.generation() + 1);
+            let error = land_one(
+                &mut program,
+                value,
+                stale_type,
+                owner,
+                &mut casts,
+                &mut completed,
+            )
+            .unwrap_err();
+            assert!(
+                error.message.contains("missing receiving type occurrence"),
+                "{error:?}"
+            );
+        }
     }
 }
 

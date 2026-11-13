@@ -100,7 +100,7 @@ pub(crate) struct Program<'t> {
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
-    resolving: Vec<SymbolHandle>,
+    resolving: Vec<(SymbolHandle, Option<typed_trees::SourceTypeApplication>)>,
     /// The data declaration whose members are being read, which is the
     /// lexical owner of the lifetimes their types name. Invalid while a
     /// machine is read: a machine that declares lifetime parameters is
