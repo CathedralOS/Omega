@@ -121,15 +121,26 @@ def current_verdict(path: Path) -> str:
     return cv
 
 
+def parse_route_only(raw: str) -> str:
+    for line in raw.splitlines():
+        if line.startswith("program"):
+            mr = re.search(r"[\s\t]route=(\S+)", line)
+            if mr:
+                return mr.group(1)
+    return "unknown"
+
+
 def copy_fixture_package(fixture_rel: str, dest: Path) -> None:
-    src_dir = REPO / fixture_rel
-    src_dir = src_dir.parent
+    """Copy full fixture package (build.omg, targets/, siblings) for ProgramEntry bindings."""
+    src_dir = (REPO / fixture_rel).parent
     dest.mkdir(parents=True, exist_ok=True)
     for name in src_dir.iterdir():
-        if name.is_file() and name.suffix == ".omg":
+        if name.name == "main.omg":
+            continue
+        if name.is_file():
             shutil.copy2(name, dest / name.name)
-        elif name.is_file() and name.name in ("expected.txt", "README.md"):
-            shutil.copy2(name, dest / name.name)
+        elif name.is_dir():
+            shutil.copytree(name, dest / name.name, dirs_exist_ok=True)
 
 
 @dataclass
@@ -292,6 +303,16 @@ def main() -> int:
         if orig_v != "accepted":
             stats["fixtures_skipped_original_fails"] = (
                 stats.get("fixtures_skipped_original_fails", 0) + 1
+            )
+            skip_log = stats.setdefault("original_skip_log", [])
+            _, _, detail, raw = check_both(orig_path)
+            skip_log.append(
+                {
+                    "fixture": fixture_rel,
+                    "current_verdict": orig_v,
+                    "route_verdict": parse_route_only(raw),
+                    "diagnostic": detail or raw[:500],
+                }
             )
             done.add(fixture_rel)
             prog["fixtures_done"] = list(done)

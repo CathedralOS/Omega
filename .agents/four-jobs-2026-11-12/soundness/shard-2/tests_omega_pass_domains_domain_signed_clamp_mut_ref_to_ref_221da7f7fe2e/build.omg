@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "domain_signed_clamp");
-    builder.freestanding = true;
-}

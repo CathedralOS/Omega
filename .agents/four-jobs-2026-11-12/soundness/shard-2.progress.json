@@ -1139,6 +1139,1401 @@
     "current_accepts": 810,
     "both_rejected": 1218,
     "fixtures_skipped_original_fails": 51,
-    "route_accepts": 6
+    "route_accepts": 6,
+    "run2_original_not_accepted": [
+      {
+        "fixture": "tests/omega/pass/asm/atomic_release_disposition_state_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach"
+      },
+      {
+        "fixture": "tests/omega/pass/asm/checked_asm_saved_scalar_match_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine assembly target"
+      },
+      {
+        "fixture": "tests/omega/pass/borrows/generic_record_slice_referent_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic data"
+      },
+      {
+        "fixture": "tests/omega/pass/borrows/nested_reference_write_disjoint_facts_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/borrows/runtime_computed_view_observation_composition_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters"
+      },
+      {
+        "fixture": "tests/omega/pass/borrows/runtime_copied_reference_conditional_structural_result_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/borrows/runtime_partial_reference_partition_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/build/component_declaration_scalar_conditions_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody"
+      },
+      {
+        "fixture": "tests/omega/pass/build/dependency_implementation_closure/dependency/main.omg",
+        "current_verdict": "stopped",
+        "route_verdict": "unreached",
+        "diagnostic": "Some(\"access view `Access<UnusedPlacement,UnusedRegisters>`: schema data `UnusedRegisters` field `nested` has no reflected storage geometry: representation recipe has no admitted layout\")"
+      },
+      {
+        "fixture": "tests/omega/pass/cases/case_call_premises/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/cases/case_call_premises/main.omg\tcurrent=rejected\tcurrent_us=1469461\troot=compilation\troute=no-entry\ncurrent-diagnostic\t/agent/repos/omega/tests/omega/pass/cases/case_call_premises/main.omg\tmain.omg:20 bytes 633..641\tmachine `concrete` ensures contract proof fact `empty_only(Tree) == empty_only(Tree)` speaks about proof-only `Tree`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/\ncurrent-diagnostic\t/agent/repos/omega/tests/omega/pass/cases/case_call_premises/main.omg\tmain.omg:20 bytes 633..641\tmachine `concrete` ensures contract proof fact `node_only(Tree) == node_only(Tree)` speaks about proof-only `Tree`, which"
+      },
+      {
+        "fixture": "tests/omega/pass/control_flow/runtime_ranked_state_cycle_owned_record_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/abstract_signature_call_generic_actual_through_match_join_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/as_slice_views_generic_root_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/as_slice_views_generic_through_other_machine_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type reference"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/computed_record_window_through_other_state_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/crash_entry_representation_view_through_call_result_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type reference"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/data_where_standing_borrowed_field_array_other_machine/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type reference"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/data_where_standing_nested_borrowed_field_field/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type reference"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/data_where_standing_nested_borrowed_field_parameter/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type reference"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/data_where_standing_shared_record_replacement/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/domain_pattern_match_bound_through_field_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type reference"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/installed_entry_storage_through_local_exit/main.omg",
+        "current_verdict": "stopped",
+        "route_verdict": "unreached",
+        "diagnostic": "Some(\"access view `Access<RegPlacement,Registers>`: demanded premise closure checking failed: generic-data method lost its exact template\")"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/match_computed_root_through_other_state_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/match_reference_referent_through_parameter_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type reference"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/non_owning_reference_erasure_through_const_name_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type constrained"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/recoverable_replacement_window_through_other_machine_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/filesystem/native_canonicalize/main.omg",
+        "current_verdict": "timeout",
+        "route_verdict": "timeout",
+        "diagnostic": "timeout"
+      },
+      {
+        "fixture": "tests/omega/pass/filesystem/runtime_portable_directory_names_exit/main.omg",
+        "current_verdict": "timeout",
+        "route_verdict": "timeout",
+        "diagnostic": "timeout"
+      },
+      {
+        "fixture": "tests/omega/pass/float/symbolic_integer_conversion_finite_requires_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type float"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/generic_seq_consuming_map_filter/main.omg",
+        "current_verdict": "stopped",
+        "route_verdict": "unreached",
+        "diagnostic": "Some(\"generic machine `map` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `map$specialized$168f7f0591239da4$0$4656` state `map$specialized$168f7f0591239da4$0$4656::entry`: Type slot `U` conflicts: T [identity named(name(nomi"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/open_const_float_owned_dependency/main.omg",
+        "current_verdict": "stopped",
+        "route_verdict": "unreached",
+        "diagnostic": "Some(\"constant initializer: Terminal result scalar is outside the compiler-owned vocabulary\")"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/record_const_named_literal_equivalence/main.omg",
+        "current_verdict": "stopped",
+        "route_verdict": "unreached",
+        "diagnostic": "Some(\"conformance `Selected` parameter `Setting` requires a const argument, but `<structural type>` has another static category\")"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/runtime_generic_carrier_equation_context_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/operators/crash_routes/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine attached data"
+      },
+      {
+        "fixture": "tests/omega/pass/operators/runtime_declared_open_range_preserves_operand_snapshot_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/ownership/runtime_borrowed_match_repeated_repair_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/ownership/runtime_fixed_selector_owned_argument_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach"
+      },
+      {
+        "fixture": "tests/omega/pass/packages/runtime_attached_owner_crash_guard_scope_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters"
+      },
+      {
+        "fixture": "tests/omega/pass/proofs/admitted_premises_long_equality_chain/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/proofs/admitted_premises_long_equality_chain/main.omg\tcurrent=rejected\tcurrent_us=1304816\troot=compilation\troute=no-entry\ncurrent-diagnostic\t/agent/repos/omega/tests/omega/pass/proofs/admitted_premises_long_equality_chain/main.omg\tmain.omg:3 bytes 136..143\tmachine `chained` cannot prove ensures contract proof fact `result == value16 + 16` on the transition arm guarded by `<always>`\n"
+      },
+      {
+        "fixture": "tests/omega/pass/proofs/borrowed_descriptor_bound_local_result_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/proofs/defined_proposition_premises/main.omg",
+        "current_verdict": "stopped",
+        "route_verdict": "unreached",
+        "diagnostic": "Some(\"cannot compare `Point` values with `==`: structural equality is synthesized only through a named implementation -- declare `PointEquality satisfies Equatable<Point> { }` to synthesize structural equality, or use `core::Identity<Point>(left, right)` for mathematical identity\")"
+      },
+      {
+        "fixture": "tests/omega/pass/proofs/runtime_ranked_forwarding_state_recursion_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach"
+      },
+      {
+        "fixture": "tests/omega/pass/providers/runtime_provider_reference_allocation_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach"
+      },
+      {
+        "fixture": "tests/omega/pass/slices/runtime_mutable_slice_result_nested_reborrow_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      },
+      {
+        "fixture": "tests/omega/pass/slices/runtime_stored_view_dynamic_selection_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters"
+      },
+      {
+        "fixture": "tests/omega/pass/terminal_psi/inspection_scalar_library/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/terminal_psi/inspection_scalar_library/main.omg\tcurrent=rejected\tcurrent_us=1499627\troot=compilation\troute=no-entry\ncurrent-diagnostic\t/agent/repos/omega/tests/omega/pass/terminal_psi/inspection_scalar_library/main.omg\tno-span\tterminal-artifact production failed: Lowering(CompilerEvaluationAdmission(\"machine `@constant-UNUSED` is not build-time admissible: a checked crash route remains possible (Trap); calls: [extent]; constant evaluation requires proof that no crash route can occur before execution\"))\n"
+      },
+      {
+        "fixture": "tests/omega/pass/traits/applied_default_lexical_selection_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration trait"
+      },
+      {
+        "fixture": "tests/omega/pass/write_only/returned_destination_transport_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters"
+      },
+      {
+        "fixture": "tests/omega/run/borrows/returned_descriptor_entry_snapshot/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters"
+      },
+      {
+        "fixture": "tests/omega/run/calls/outcome_specific_selected_guarantee_inputs_exit/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach"
+      },
+      {
+        "fixture": "tests/omega/run/ranges/borrowed_case_payload_alias/main.omg",
+        "current_verdict": "rejected",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: parameter mutable parameter"
+      }
+    ],
+    "run2_harness_reroute": [
+      {
+        "fixture": "tests/omega/pass/arithmetic/explicit_integer_landing_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/arithmetic/integer_multiple_remainder_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/arithmetic/observed_byte_cast_case_domain_policy_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: expression cast into a non-exact arithmetic domain",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/arithmetic/runtime_transitive_product_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "rejected",
+        "diagnostic": "route_us=7070\tdischarge_us=6260\treverify_us=879\treverified=10\tobligations=13\tjudged=12\tcore_refused=0\tunproved=1\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/arithmetic/typed_integer_remainder/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/arithmetic/typed_integer_remainder/main.omg\tcurrent=accepted\tcurrent_us=1477562\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/acquired_generator_completed_output_set/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration const",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/build_state_machine/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/build/build_state_machine/main.omg\tcurrent=accepted\tcurrent_us=1673792\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/declaration_domain_context/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/build/declaration_domain_context/main.omg\tcurrent=accepted\tcurrent_us=1686835\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/executed_dependency_shared_source_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/build/executed_dependency_shared_source_exit/main.omg\tcurrent=accepted\tcurrent_us=4241269\troot=compilation\troute=accepted\troute_us=604\tdischarge_us=308\treverify_us=62\treverified=2\tobligations=2\tjudged=2\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\nobligation\t/agent/repos/omega/tests/omega/pass/build/executed_dependency_shared_source_exit/main.omg\t1\t1\tcrash\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/omega/pass/build/executed_dependency_shared_source_exit/main.omg\t3\t1\tcrash\tdischarged-judged+interval\t-\t-\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/explicit_provider_readiness_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/build/explicit_provider_readiness_exit/main.omg\tcurrent=accepted\tcurrent_us=4619921\troot=compilation\troute=accepted\troute_us=251\tdischarge_us=63\treverify_us=0\treverified=0\tobligations=0\tjudged=0\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/generated_source_selects_authored/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/build/generated_source_selects_authored/main.omg\tcurrent=accepted\tcurrent_us=2355577\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/layout_query_constant_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/build/layout_query_constant_exit/main.omg\tcurrent=accepted\tcurrent_us=3443429\troot=compilation\troute=accepted\troute_us=242\tdischarge_us=53\treverify_us=0\treverified=0\tobligations=0\tjudged=0\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/native_component_reuse_foreign/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/nested_provider_readiness/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/build/nested_provider_readiness/main.omg\tcurrent=accepted\tcurrent_us=6178176\troot=compilation\troute=accepted\troute_us=257\tdischarge_us=63\treverify_us=0\treverified=0\tobligations=0\tjudged=0\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/product_description_paths_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/provider_nested_type_application_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/provider_package_helper_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/readiness_generated_dependency_diamond/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/build/readiness_generated_dependency_diamond/main.omg\tcurrent=accepted\tcurrent_us=7552111\troot=compilation\troute=accepted\troute_us=242\tdischarge_us=54\treverify_us=0\treverified=0\tobligations=0\tjudged=0\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/runtime_dependency_private_native_binding_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/same_leaf_runner_entry_right_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine attached data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/build/uefi_entry_schema_same_leaf/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: contract contracts on a state",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/calls/attached_parameter_overload_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine attached data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/calls/native_code_layout_shadowing_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/calls/native_code_layout_shadowing_exit/main.omg\tcurrent=accepted\tcurrent_us=2897078\troot=compilation\troute=accepted\troute_us=1024\tdischarge_us=562\treverify_us=63\treverified=2\tobligations=2\tjudged=2\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\nobligation\t/agent/repos/omega/tests/omega/pass/calls/native_code_layout_shadowing_exit/main.omg\t1\t1\tcrash\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/omega/pass/calls/native_code_layout_shadowing_exit/main.omg\t4\t1\tcrash\tdischarged-judged+interval\t-\t-\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/calls/nested_value_schedule_namespace_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/calls/nonreturning_scalar_call_initialization_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/calls/private_arrival_identity_return_range_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "rejected",
+        "diagnostic": "route_us=6095\tdischarge_us=5147\treverify_us=1826\treverified=11\tobligations=14\tjudged=11\tcore_refused=0\tunproved=3\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/calls/runtime_final_value_tail_cycle_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/calls/runtime_final_value_tail_cycle_exit/main.omg\tcurrent=accepted\tcurrent_us=3157678\troot=compilation\troute=accepted\troute_us=3480\tdischarge_us=2991\treverify_us=550\treverified=7\tobligations=12\tjudged=10\tcore_refused=2\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=2\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\nobligation\t/agent/repos/omega/tests/omega/pass/calls/runtime_final_value_tail_cycle_exit/main.omg\t1\t1\tcrash\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/omega/pass/calls/runtime_final_value_tail_cycle_exit/main.omg\t1\t2\tarrival\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/omega/pass/calls/runtime_final_value_tail_cycle_exit/main.omg\t1\t3\tarriva",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/capabilities/external_leaf_binding_forms/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine supply mode other than a checked body",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/compile_time/const_overload_nested_dependency_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration const",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/constants/static_namespace_constant/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/constants/static_namespace_constant/main.omg\tcurrent=accepted\tcurrent_us=1643329\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/core/integer_query_vectors_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: call private machine of another package",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/data/closed_literal_nested_predicates/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/data/closed_literal_nested_predicates/main.omg\tcurrent=accepted\tcurrent_us=1509256\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/dependent/match_generic_type_bound_coverage/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/dependent/match_generic_type_bound_coverage/main.omg\tcurrent=accepted\tcurrent_us=1542326\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/domains/dependent_coordinate_sum_rational_bound/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/domains/dependent_coordinate_sum_rational_bound/main.omg\tcurrent=accepted\tcurrent_us=1460994\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/domains/inherited_requirement_issuer_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine type equations, owned data or conformances",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/domains/runtime_authored_record_result_domain_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine attached data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/domains/runtime_scalar_tag_mixed_return_completion_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type constrained",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/effects/root_service_audit/driver/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/effects/root_service_audit/driver/main.omg\tcurrent=accepted\tcurrent_us=1648783\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/errors/runtime_trap_process_presentation/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/errors/runtime_trap_process_presentation/main.omg\tcurrent=accepted\tcurrent_us=3095273\troot=compilation\troute=accepted\troute_us=639\tdischarge_us=346\treverify_us=21\treverified=1\tobligations=1\tjudged=1\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\nobligation\t/agent/repos/omega/tests/omega/pass/errors/runtime_trap_process_presentation/main.omg\t1\t1\tcrash\tdischarged-judged+interval\t-\t-\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/expressions/owned_match_call_values/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/expressions/owned_match_call_values/main.omg\tcurrent=accepted\tcurrent_us=1421846\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/assumed_binding_input_authority_through_local_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/assumed_binding_result_bound_through_field_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/boundary_provider_call_through_const_name_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/build_target_provider_through_call_result_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/build_target_provider_through_match_join_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/build_target_provider_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/case_payload_layout_geometry_through_call_result_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/case_payload_layout_geometry_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine target selection",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/case_type_equation_recovery_through_match_join_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/case_where_equality_data_predicate_through_parameter_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: contract term other than a formal or literal",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/checked_asm_fence_contracts_through_parameter_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/completed_integer_carrier_bounds_through_other_machine_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/facts/completed_integer_carrier_bounds_through_other_machine_exit/main.omg\tcurrent=accepted\tcurrent_us=3025871\troot=compilation\troute=accepted\troute_us=2222\tdischarge_us=1652\treverify_us=600\treverified=5\tobligations=5\tjudged=5\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=4\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\nobligation\t/agent/repos/omega/tests/omega/pass/facts/completed_integer_carrier_bounds_through_other_machine_exit/main.omg\t1\t1\tcrash\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/omega/pass/facts/completed_integer_carrier_bounds_through_other_machine_exit/main.omg\t1\t2\tarrival\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/om",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/computed_constant_array_extent_through_call_result_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type fixed array",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/computed_constant_array_extent_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/contract_excluded_case_through_const_name_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/crash_entry_nan_equality_through_field_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type float",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/data_where_standing_const_nested_const/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type fixed array",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/domain_carrier_identity_through_match_join_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: contract domain membership",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/dynamic_float_refinement_through_match_join_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type float",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/exact_integer_narrowing_through_parameter_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/fixed_array_layout_geometry_through_field_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/float_comparison_route_through_other_state_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type float",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/foreign_indirect_float_record_result_through_const_name_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/foreign_package_service_reach_through_other_state_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/foreign_scalar_record_result_through_parameter_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/generic_case_subject_through_other_state_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/independent_call_result_bound_through_const_name_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/index_every_width_through_parameter_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type fixed array",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/integer_multiple_remainder_through_field_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/match_join_multi_variant_bound_through_match_join_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: expression match on a scalar subject",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/match_projected_product_custody_through_call_result_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/match_projected_product_custody_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/mixed_width_record_padding_geometry_through_match_join_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/narrow_to_wide_signed_16to64_extension_through_match_join_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: expression match on a scalar subject",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/narrow_to_wide_unsigned_32to64_extension_through_const_name_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration const",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/narrow_to_wide_unsigned_8to64_extension_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/nested_record_layout_geometry_through_other_machine_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/nine_arg_stack_calling_plan_through_parameter_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "rejected",
+        "diagnostic": "route_us=67905\tdischarge_us=67130\treverify_us=64366\treverified=15\tobligations=18\tjudged=15\tcore_refused=0\tunproved=2\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=1\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/nominal_declaration_owner_through_other_machine/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine attached data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/opaque_independent_qualified_input_renumbered_catalog_exit/producer/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/positional_implementation_binder_through_local_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration trait",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/predicate_type_formation_through_const_name_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/record_layout_geometry_through_parameter_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/recorded_build_role/other_state/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/facts/recorded_build_role/other_state/main.omg\tcurrent=accepted\tcurrent_us=3991515\troot=compilation\troute=accepted\troute_us=829\tdischarge_us=563\treverify_us=93\treverified=2\tobligations=2\tjudged=2\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\nobligation\t/agent/repos/omega/tests/omega/pass/facts/recorded_build_role/other_state/main.omg\t1\t1\tcrash\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/omega/pass/facts/recorded_build_role/other_state/main.omg\t3\t1\tcrash\tdischarged-judged+interval\t-\t-\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/register_stack_arg_calling_plan_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine target selection",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/representation_conversion_through_match_join_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/required_output_path/local/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/facts/required_output_path/local/main.omg\tcurrent=accepted\tcurrent_us=3095182\troot=compilation\troute=accepted\troute_us=323\tdischarge_us=133\treverify_us=15\treverified=1\tobligations=1\tjudged=1\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\nobligation\t/agent/repos/omega/tests/omega/pass/facts/required_output_path/local/main.omg\t2\t1\tcrash\tdischarged-judged+interval\t-\t-\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/runtime_index_application_call_index_through_local_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/runtime_index_application_computed_result_through_field_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic application",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/runtime_index_application_contract_index_through_call_result_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/runtime_index_application_contract_index_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/runtime_index_application_qualified_computed_through_field_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/runtime_index_application_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/scalar_array_row_construction_through_local_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type fixed array",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/scalar_boundary_parameter_through_field_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/scalar_domain_call_guarantee_through_const_name_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/scalar_sign_zero_extension_through_call_result_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "rejected",
+        "diagnostic": "route_us=27725\tdischarge_us=27384\treverify_us=24641\treverified=6\tobligations=8\tjudged=6\tcore_refused=0\tunproved=2\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/scalar_sign_zero_extension_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/scoped_scalar_initializer_through_other_machine_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: contract contracts on a state",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/selected_scalar_initializer_through_call_result_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type fixed array",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/selected_scalar_initializer_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/signed_division_quotient_through_field_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/size_align_layout_geometry_through_field_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/unannotated_direct_boundary_call_through_match_join_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/unsigned_8bit_exact_arithmetic_bound_through_const_name_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration const",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/unsigned_8bit_exact_multiplication_bound_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/unsigned_byte_to_signed_case_domain_through_local_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/facts/unsigned_byte_to_signed_case_domain_through_local_exit/main.omg\tcurrent=accepted\tcurrent_us=2988036\troot=compilation\troute=accepted\troute_us=8615\tdischarge_us=7696\treverify_us=6128\treverified=9\tobligations=9\tjudged=9\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=1\tpublished_held=0\tuses=6\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\nobligation\t/agent/repos/omega/tests/omega/pass/facts/unsigned_byte_to_signed_case_domain_through_local_exit/main.omg\t1\t1\tdomain\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/omega/pass/facts/unsigned_byte_to_signed_case_domain_through_local_exit/main.omg\t1\t2\tcrash\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/omega/pass/facts/",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/unsigned_division_quotient_through_field_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/unsigned_division_remainder_through_const_name_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration const",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/facts/unsigned_exact_addition_bound_through_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/float/private_arrival_exact_integer_coercion_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type float",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/constructor_inferred_cooked_byte_extent_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/open_const_two_requirement_methods/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine type equations, owned data or conformances",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/runtime_captured_map_record_const/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine type equations, owned data or conformances",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/runtime_closed_requirement_in_generic_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/runtime_computed_direct_result_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic application",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/runtime_computed_qualified_carrier_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/runtime_incoming_index_saved_before_mutation_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic application",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/runtime_index_predicate_second_descriptor_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/runtime_value_member_argument_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine generic parameters",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/generics/unused_selected_value_carrier/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/generics/unused_selected_value_carrier/main.omg\tcurrent=accepted\tcurrent_us=1422464\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/inline_asm/asm_block_jmp_state/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: statement assembly",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/layouts/resident_unused_lifecycle_scope/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/layouts/resident_unused_lifecycle_scope/main.omg\tcurrent=accepted\tcurrent_us=1664814\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/machines/private_division_exact_pair_excluded_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "rejected",
+        "diagnostic": "route_us=7215\tdischarge_us=6110\treverify_us=829\treverified=4\tobligations=9\tjudged=8\tcore_refused=0\tunproved=1\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/machines/private_division_unsigned_remainder_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type constrained",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/machines/private_frontier_guarded_trapping_payload_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/modules/aggregate_machine_indices/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/modules/aggregate_machine_indices/main.omg\tcurrent=accepted\tcurrent_us=1451986\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/modules/compound_constant_indices/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/modules/compound_constant_indices/main.omg\tcurrent=accepted\tcurrent_us=1475946\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/modules/public_float_constants/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/modules/public_float_constants/main.omg\tcurrent=accepted\tcurrent_us=1453294\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/modules/selected_constant_array_alias_qualification/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/modules/selected_constant_array_alias_qualification/main.omg\tcurrent=accepted\tcurrent_us=1609640\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/optimizer/equivalent_compare_selection_compile/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/optimizer/equivalent_compare_selection_compile/main.omg\tcurrent=accepted\tcurrent_us=3070663\troot=compilation\troute=accepted\troute_us=1929\tdischarge_us=1395\treverify_us=153\treverified=2\tobligations=4\tjudged=4\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\nobligation\t/agent/repos/omega/tests/omega/pass/optimizer/equivalent_compare_selection_compile/main.omg\t1\t1\tcrash\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/omega/pass/optimizer/equivalent_compare_selection_compile/main.omg\t2\t1\tarrival\tdischarged-judged+interval\tIntegerLessThan,formal\t-\nobligation\t/agent/repos/omega/tests/omega/pass/optimizer/equivalent_compar",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/optimizer/rollback_composed_partial_control/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/optimizer/rollback_composed_partial_control/main.omg\tcurrent=accepted\tcurrent_us=3107972\troot=compilation\troute=accepted\troute_us=374\tdischarge_us=92\treverify_us=0\treverified=0\tobligations=0\tjudged=0\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=0\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/optimizer/rollback_global_value_numbering_control/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type constrained",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/ownership/call_result_receiving_selection_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/ownership/free_machine_record_result_claims_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/ownership/linear_boundary_consume/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/ownership/linear_boundary_consume/main.omg\tcurrent=accepted\tcurrent_us=1628424\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/ownership/state_graph_construction_operand_moves_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/packages/implementation_parent_review/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/packages/implementation_parent_review/main.omg\tcurrent=accepted\tcurrent_us=1592066\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/patterns/named_value_before_negative_integer_pattern_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "accepted",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/patterns/named_value_before_negative_integer_pattern_exit/main.omg\tcurrent=accepted\tcurrent_us=3044933\troot=compilation\troute=accepted\troute_us=785\tdischarge_us=402\treverify_us=57\treverified=2\tobligations=2\tjudged=2\tcore_refused=0\tunproved=0\trefused_other=0\tneeded_relation=0\tneeded_branch=0\tpublished_held=0\tuses=5\tunestablished=0\twindows=0\tconsumed=0\tclosed=0\tweakened_joins=0\nobligation\t/agent/repos/omega/tests/omega/pass/patterns/named_value_before_negative_integer_pattern_exit/main.omg\t1\t1\tcrash\tdischarged-judged+interval\t-\t-\nobligation\t/agent/repos/omega/tests/omega/pass/patterns/named_value_before_negative_integer_pattern_exit/main.omg\t4\t1\tcrash\tdischarged-judged+interval\t-\t-\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/proofs/exact_widening_keeps_source_carrier/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/proofs/exact_widening_keeps_source_carrier/main.omg\tcurrent=accepted\tcurrent_us=1432391\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/proofs/representation_agreement_corrupt_decode_traps/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type generic data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/providers/assumed_result_bound_call_result_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/providers/assumed_result_bound_target_body_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration Build selection that is not a machine or a data type",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/providers/inline_member_generic_requirement_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/providers/provider_type_slot_missing_selection/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration trait",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/providers/runtime_foreign_allocation_across_component_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine service reach",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/providers/specialized_mixed_structural_result_operator_hosted_native/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine attached data",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/targets/selected_family_exclusion_closure_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: machine target selection",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/termination/rankless_boundary_operator_suffix/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "no-entry",
+        "diagnostic": "program\t/agent/repos/omega/tests/omega/pass/termination/rankless_boundary_operator_suffix/main.omg\tcurrent=accepted\tcurrent_us=1455554\troot=compilation\troute=no-entry\n",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/traits/runtime_dyn_ranked_dispatch_cycle_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: declaration trait",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/pass/traits/runtime_dyn_structural_result_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/run/calls/saved_scalar_dispatch_guard_arguments_exit/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type float",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/run/domains/vacuous_tag_call_arguments/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: contract contracts on a state",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/run/facts/float_comparison_route_through_parameter_traps/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type float",
+        "note": "now accepted; was skipped without rows"
+      },
+      {
+        "fixture": "tests/omega/run/ownership/temporary_case_observation/main.omg",
+        "current_verdict": "accepted",
+        "route_verdict": "outside",
+        "diagnostic": "Unsupported: type data with custody",
+        "note": "now accepted; was skipped without rows"
+      }
+    ]
   }
 }

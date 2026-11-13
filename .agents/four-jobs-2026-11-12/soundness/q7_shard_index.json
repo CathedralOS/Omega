@@ -1,0 +1,148 @@
+{
+  "tests/omega/pass/borrows/explicit_lifetime_select/main.omg": [
+    {
+      "binding": "selected",
+      "line": 25,
+      "kind": "field store",
+      "snippet": "selected.body = 1;"
+    }
+  ],
+  "tests/omega/pass/calls/caller_structural_result_indexed_borrow_exit/main.omg": [
+    {
+      "binding": "rooms",
+      "line": 14,
+      "kind": "writable borrow",
+      "snippet": "bump(&mut rooms[from_index]);"
+    }
+  ],
+  "tests/omega/pass/control_flow/runtime_anonymous_transition_subject_exit/main.omg": [
+    {
+      "binding": "held",
+      "line": 20,
+      "kind": "writable borrow",
+      "snippet": "CapturedLocal::fill(&mut held);"
+    }
+  ],
+  "tests/omega/pass/dependent/data_where_relational_fields_compile/main.omg": [
+    {
+      "binding": "window",
+      "line": 20,
+      "kind": "field store",
+      "snippet": "window.low = start;"
+    },
+    {
+      "binding": "window",
+      "line": 21,
+      "kind": "field store",
+      "snippet": "window.high = limit;"
+    }
+  ],
+  "tests/omega/pass/drops/runtime_named_parent_linear_cleanup_exit/main.omg": [
+    {
+      "binding": "owner",
+      "line": 33,
+      "kind": "field store",
+      "snippet": "owner.receipt = Receipt { value: 7 };"
+    }
+  ],
+  "tests/omega/pass/facts/indexed_element_mut_loan_through_other_machine_exit/main.omg": [
+    {
+      "binding": "rooms",
+      "line": 20,
+      "kind": "writable borrow",
+      "snippet": "forward(&mut rooms, from_index);"
+    }
+  ],
+  "tests/omega/pass/facts/nominal_loan_backing_cleanup_through_match_join_exit/main.omg": [
+    {
+      "binding": "room",
+      "line": 36,
+      "kind": "writable borrow",
+      "snippet": "transition { _ -> observe(&mut room) }"
+    }
+  ],
+  "tests/omega/pass/locals/runtime_local_view_member_element_read_exit/main.omg": [
+    {
+      "binding": "sample",
+      "line": 20,
+      "kind": "field store",
+      "snippet": "sample.readings = \"Hi\";"
+    }
+  ],
+  "tests/omega/pass/storage/runtime_local_slice_forward_exit/main.omg": [
+    {
+      "binding": "room",
+      "line": 12,
+      "kind": "writable borrow",
+      "snippet": "let exits: &mut [Counter] = &mut room.exits[..];"
+    }
+  ],
+  "tests/omega/pass/text/declared_record_view_field_fill_exit/main.omg": [
+    {
+      "binding": "room",
+      "line": 20,
+      "kind": "field store",
+      "snippet": "room.label = main.source.label;"
+    }
+  ],
+  "tests/omega/pass/versioning/runtime_version_migration_exit/main.omg": [
+    {
+      "binding": "current",
+      "line": 32,
+      "kind": "writable borrow",
+      "snippet": "Counter::from_v1(old, &mut current);"
+    }
+  ],
+  "tests/omega/pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit/main.omg": [
+    {
+      "binding": "overlong",
+      "line": 36,
+      "kind": "writable borrow",
+      "snippet": "&mut overlong,"
+    },
+    {
+      "binding": "overflow",
+      "line": 50,
+      "kind": "writable borrow",
+      "snippet": "&mut overflow,"
+    },
+    {
+      "binding": "good",
+      "line": 63,
+      "kind": "writable borrow",
+      "snippet": "&mut good,"
+    }
+  ],
+  "tests/omega/pass/wire/runtime_wire_signed_extremes_roundtrip_exit/main.omg": [
+    {
+      "binding": "buffer",
+      "line": 37,
+      "kind": "writable borrow",
+      "snippet": "ExtremesCodec::encode(&value, &mut buffer, &mut written);"
+    },
+    {
+      "binding": "written",
+      "line": 37,
+      "kind": "writable borrow",
+      "snippet": "ExtremesCodec::encode(&value, &mut buffer, &mut written);"
+    },
+    {
+      "binding": "decoded",
+      "line": 38,
+      "kind": "writable borrow",
+      "snippet": "ExtremesCodec::decode(&mut decoded, &buffer, &mut read, &mut verdict);"
+    },
+    {
+      "binding": "read",
+      "line": 38,
+      "kind": "writable borrow",
+      "snippet": "ExtremesCodec::decode(&mut decoded, &buffer, &mut read, &mut verdict);"
+    },
+    {
+      "binding": "verdict",
+      "line": 38,
+      "kind": "writable borrow",
+      "snippet": "ExtremesCodec::decode(&mut decoded, &buffer, &mut read, &mut verdict);"
+    }
+  ]
+}

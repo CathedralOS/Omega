@@ -212,23 +212,46 @@ def remove_mut_binding_and_line(orig: str, mut: str) -> tuple[str, str] | None:
 
 
 def ref_mutation_obligation(orig: str, mut: str, kind: str) -> tuple[str, str] | None:
-    diff_lines = [
-        b
+    kinds = {
+        "ref_to_mut_ref": "mut_ref_instead_of_shared",
+        "mut_ref_to_ref": "shared_instead_of_mut",
+        "mut_ref_instead_of_shared": "mut_ref_instead_of_shared",
+        "shared_instead_of_mut": "shared_instead_of_mut",
+    }
+    kind = kinds.get(kind, kind)
+    diff_pairs = [
+        (a, b)
         for a, b in zip(orig.splitlines(), mut.splitlines())
         if a != b and ("&" in a or "&" in b)
     ]
-    if not diff_lines:
+    if not diff_pairs:
         return None
-    line = diff_lines[0].strip()
-    if kind == "ref_to_mut_ref":
-        return line, "&mut formed where the source only authorized shared `&`"
-    if kind == "mut_ref_to_ref":
-        if re.search(r"\.[A-Za-z_]+\s*=", mut) or re.search(r"\[[^\]]+\]\s*=", mut):
-            for wl in mut.splitlines():
-                if "=" in wl and "&" not in wl.split("=")[0][-3:]:
-                    if wl.strip() and not wl.strip().startswith("//"):
-                        return wl.strip(), "write through shared `&` where `&mut` was required"
-        return line, "downgraded `&mut` to `&` while exclusive use remains"
+    line = diff_pairs[0][1].strip()
+    if kind == "mut_ref_instead_of_shared":
+        if re.search(r"&\s*mut\s+", line) or re.search(r"&\s*write\s+", line):
+            root_m = re.search(r"&\s*(?:mut|write)\s+(\w+)", line)
+            root = root_m.group(1) if root_m else None
+            if root:
+                for wl in mut.splitlines():
+                    if re.search(rf"{re.escape(root)}\.", wl) or re.search(
+                        rf"{re.escape(root)}\[", wl
+                    ):
+                        if any(op in wl for op in ("=", "+=", "-=", "*=", "/=")):
+                            return wl.strip(), (
+                                "&mut formed where the source only authorized shared `&`"
+                            )
+            return None
+        return None
+    if kind == "shared_instead_of_mut":
+        for wl in mut.splitlines():
+            s = wl.strip()
+            if s.startswith("//"):
+                continue
+            if re.search(r"\[[^\]]+\]\s*=", s) or re.search(
+                r"\.[A-Za-z_][A-Za-z0-9_]*\s*=", s
+            ):
+                return s, "write through shared `&` where `&mut` was required"
+        return None
     return None
 
 
@@ -249,12 +272,52 @@ def load_q7_hits(main_path: Path) -> list:
 
 
 def is_known_q7_gap(fixture_main: Path, binding: str, obligation_line: str) -> tuple[bool, str]:
-    if binding not in obligation_line:
-        return False, ""
+    if binding not in obligation_line and binding:
+        pass
     for h in load_q7_hits(fixture_main):
-        if h.binding == binding:
+        if h.review:
+            continue
+        if binding and h.binding == binding:
+            return True, h.snippet
+        if binding and h.binding in obligation_line:
             return True, h.snippet
     return False, ""
+
+
+def q7_binding_for_row(orig: str, mut: str, kind: str) -> str | None:
+    if kind == "remove_mut":
+        m = re.search(r"\blet mut\s+([A-Za-z_][A-Za-z0-9_]*)", orig)
+        return m.group(1) if m else None
+    if kind in ("mut_ref_instead_of_shared", "shared_instead_of_mut", "ref_to_mut_ref", "mut_ref_to_ref"):
+        for a, b in zip(orig.splitlines(), mut.splitlines()):
+            if a == b:
+                continue
+            m = re.search(r"&\s*(?:mut|write)?\s*(\w+)", b) or re.search(
+                r"&\s*(?:mut|write)?\s*(\w+)", a
+            )
+            if m:
+                return m.group(1)
+    return None
+
+
+def verbatim_spec_quote(rule_path: str, heading: str) -> str:
+    """Load a multi-sentence quote from wiki/spec under the given heading."""
+    path = REPO / rule_path
+    if not path.is_file():
+        return ""
+    text = path.read_text()
+    pat = re.compile(
+        rf"^##\s+{re.escape(heading)}\s*$", re.MULTILINE | re.IGNORECASE
+    )
+    m = pat.search(text)
+    if not m:
+        return ""
+    start = m.end()
+    nxt = re.search(r"\n##\s+", text[start:])
+    end = start + nxt.start() if nxt else len(text)
+    body = text[start:end].strip()
+    paras = [p.strip().replace("\n", " ") for p in re.split(r"\n\n+", body) if p.strip()]
+    return paras[0] if paras else ""
 
 
 SPEC_RULES = {
@@ -481,12 +544,27 @@ def read_mutant_validity(
             quote,
         )
 
-    if kind in ("ref_to_mut_ref", "mut_ref_to_ref"):
+    if kind in (
+        "ref_to_mut_ref",
+        "mut_ref_to_ref",
+        "mut_ref_instead_of_shared",
+        "shared_instead_of_mut",
+    ):
         ev = ref_mutation_obligation(orig, mut, kind)
         if not ev:
-            return False, "reference change is not tied to an exclusive-use obligation line", "", "", ""
+            return (
+                False,
+                "reference change is semantically harmless (no exclusive use through the altered loan)",
+                "",
+                "",
+                "",
+            )
         line, reason = ev
-        key = kind
+        key = "mut_ref_to_ref" if "mut_ref" in kind and "shared" in kind else "ref_to_mut_ref"
+        if kind == "shared_instead_of_mut":
+            key = "mut_ref_to_ref"
+        if kind == "mut_ref_instead_of_shared":
+            key = "ref_to_mut_ref"
         path, _, quote = SPEC_RULES[key]
         return True, reason, line, path, quote
 
