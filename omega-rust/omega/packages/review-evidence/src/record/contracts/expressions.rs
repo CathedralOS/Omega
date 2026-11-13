@@ -24,13 +24,6 @@ use symbols::BuiltinFunction;
 mod operator_policy;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewCallableRole {
-    Boundary,
-    Public,
-    Build,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewCallableSupply {
     CheckedBody,
     Requirement,

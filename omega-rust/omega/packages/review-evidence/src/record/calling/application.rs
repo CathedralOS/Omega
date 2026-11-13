@@ -86,9 +86,6 @@ impl PackagePolicyCallingPlan {
     field_projection_accessors!(optional semantic_result: Option<&PackageReviewTypeIdentity>);
     field_projection_accessors!(sliced native_parameters: &[PackagePolicyNativeParameter]);
     field_projection_accessors!(borrowed callbacks: &PackagePolicyCallbacks);
-    pub(crate) fn opaque_uses(&self) -> &[PackagePolicyCallingOpaqueUse] {
-        &self.opaque_uses
-    }
     field_projection_accessors!(borrowed physical: &PackagePolicyPhysicalCallingContract);
 }
 

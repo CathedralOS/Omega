@@ -11,10 +11,13 @@
 // digest, or `package-owner(32:<hex>)`).
 
 use super::PackageReviewOperatorCoordinate;
-use crate::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
+#[cfg(test)]
+use crate::record::PackageReviewNominalIdentity;
+use crate::record::PackageReviewNominalOwner;
 use std::fmt::Write;
 
 impl PackageReviewOperatorCoordinate {
+    #[cfg(test)]
     pub(crate) fn policy_requirement_identity(&self) -> PackageReviewNominalIdentity {
         let mut path = String::new();
         let _ = self.write_policy_requirement(&mut path);

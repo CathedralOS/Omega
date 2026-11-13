@@ -10,7 +10,6 @@ use crate::record::{
     PackageReviewContractExpression, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
     PackageReviewPropositionBinder, PackageReviewPropositionBinderKind,
     PackageReviewPropositionParameterSignature, PackageReviewTypeIdentity,
-    PackageReviewTypeParameter, PackageReviewTypeParameterKind,
 };
 use language_semantics::type_identity::normalize_requirement_lifetime_partition;
 
@@ -28,7 +27,6 @@ pub(in crate::record) enum BinderKind<'a> {
 #[derive(Clone, Copy)]
 pub(in crate::record) struct Scope<'a> {
     pub outer: Option<&'a Scope<'a>>,
-    pub statics: &'a [PackageReviewTypeParameter],
     pub policy_statics: &'a [PackagePolicyTypeParameter],
     pub proposition_binders: &'a [PackageReviewPropositionBinder],
     pub static_offset: usize,
@@ -71,25 +69,11 @@ impl Scope<'_> {
                         PackageReviewPropositionBinderKind::Machine => BinderKind::Machine,
                     });
             }
-            self.statics
-                .get(local)
-                .map(|parameter| match &parameter.kind {
-                    PackageReviewTypeParameterKind::Type => BinderKind::Type,
-                    PackageReviewTypeParameterKind::Implementation => BinderKind::Implementation,
-                    PackageReviewTypeParameterKind::Const(_)
-                    | PackageReviewTypeParameterKind::Value(_) => BinderKind::Const,
-                    PackageReviewTypeParameterKind::Machine(_) => BinderKind::Machine,
-                    PackageReviewTypeParameterKind::Proposition(signature) => {
-                        BinderKind::Proposition(signature)
-                    }
-                })
+            None
         }
     }
     pub fn static_count(&self) -> usize {
-        self.static_offset
-            + self.statics.len()
-            + self.policy_statics.len()
-            + self.proposition_binders.len()
+        self.static_offset + self.policy_statics.len() + self.proposition_binders.len()
     }
 }
 
