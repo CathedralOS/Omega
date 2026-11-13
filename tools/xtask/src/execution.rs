@@ -6,6 +6,8 @@ use std::path::Path;
 use std::process::{Command, ExitStatus, Output, Stdio};
 use std::time::{Duration, Instant};
 
+use command_group::{CommandGroup, GroupChild};
+
 pub fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<(), String> {
     let bytes = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
     fs::write(path, bytes).map_err(|e| format!("write {}: {e}", path.display()))
@@ -24,6 +26,90 @@ pub fn reserve_directory(parent: &Path) -> Result<std::path::PathBuf, String> {
 
 pub fn run(command: &mut Command, directory: &Path, name: &str) -> Result<ExitStatus, String> {
     run_with_timeout(command, directory, name, Duration::from_secs(1800))
+}
+
+/// Build preparation can wait behind other agents in mbx. Its wall time is
+/// progress evidence, not a reason to abort a queued compiler build.
+pub fn run_unlimited(
+    command: &mut Command,
+    directory: &Path,
+    name: &str,
+) -> Result<ExitStatus, String> {
+    run_bounded(command, directory, name, Duration::MAX, false)
+}
+
+/// Every invocation owns a fresh OS container, never the caller's process
+/// group. Killing only the mbx wrapper leaves Cargo and rustc using its sources
+/// and outputs. Close the container on every return, including a leader that
+/// has already exited, and retain a drop fallback for errors after spawning.
+struct OwnedCommand {
+    child: GroupChild,
+    closed: bool,
+}
+
+impl OwnedCommand {
+    fn spawn(command: &mut Command) -> std::io::Result<Self> {
+        let mut group = command.group();
+        #[cfg(windows)]
+        group.kill_on_drop(true);
+        Ok(Self {
+            child: group.spawn()?,
+            closed: false,
+        })
+    }
+
+    fn cleanup(&mut self) -> (Option<ExitStatus>, serde_json::Value) {
+        let killed = self.child.kill();
+        // macOS can report EPERM for a group containing only exiting/zombie
+        // processes. Reap the leader and retry, as the bounded-process owner does.
+        #[cfg(unix)]
+        let killed = if killed.as_ref().is_err_and(|e| e.raw_os_error() == Some(1)) {
+            let _ = self.child.try_wait();
+            self.child.kill()
+        } else {
+            killed
+        };
+        let killed = killed.or_else(|error| {
+            #[cfg(unix)]
+            let absent = error.raw_os_error() == Some(3);
+            #[cfg(not(unix))]
+            let absent = error.kind() == std::io::ErrorKind::InvalidInput;
+            if absent { Ok(()) } else { Err(error) }
+        });
+        // If termination itself failed, never block forever waiting for a live
+        // command. Report both failures and let the owned drop fallback retry.
+        let reaped = if killed.is_ok() {
+            self.child.wait()
+        } else {
+            self.child.try_wait().and_then(|status| {
+                status.ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::WouldBlock,
+                        "command remains live after failed container termination",
+                    )
+                })
+            })
+        };
+        self.closed = killed.is_ok() && reaped.is_ok();
+        let cleanup = serde_json::json!({
+            "scope": "owned_process_tree",
+            "kill_error": killed.err().map(|e| e.to_string()),
+            "wait_error": reaped.as_ref().err().map(|e| e.to_string()),
+            "reaped": reaped.is_ok(),
+        });
+        (reaped.ok(), cleanup)
+    }
+}
+
+impl Drop for OwnedCommand {
+    fn drop(&mut self) {
+        if !self.closed {
+            let (_, cleanup) = self.cleanup();
+            if !self.closed {
+                eprintln!("command container cleanup failed: {cleanup}");
+            }
+        }
+    }
 }
 
 /// Runs with no time limit, and copies the command's stderr to this process's
@@ -94,42 +180,45 @@ fn run_bounded(
     ));
     let started = Instant::now();
     let result = (|| {
-        let mut child = command.spawn().map_err(|e| format!("start {name}: {e}"))?;
-        receipt["child_id"] = serde_json::json!(child.id());
+        let mut owner = OwnedCommand::spawn(command).map_err(|e| format!("start {name}: {e}"))?;
+        receipt["child_id"] = serde_json::json!(owner.child.id());
+        receipt["process_container"] = serde_json::json!({
+            "kind": if cfg!(windows) { "windows_job" } else { "unix_process_group" },
+            "leader_id": owner.child.id(),
+        });
         let mut echoed = 0;
-        loop {
-            let finished = child.try_wait().map_err(|e| format!("wait {name}: {e}"))?;
+        let result = (|| loop {
+            let finished = owner
+                .child
+                .try_wait()
+                .map_err(|e| format!("wait {name}: {e}"))?;
             if echo_stderr {
                 echo_growth(&stderr, &mut echoed);
             }
             if let Some(status) = finished {
                 return Ok(status);
             }
-            // The workflow also bounds the whole job. Kill a stuck individual
-            // command so its original files can still be uploaded on failure.
             if started.elapsed() > timeout {
-                let killed = child.kill();
-                let reaped = child.wait();
                 receipt["timed_out"] = serde_json::json!(true);
-                receipt["timeout_cleanup"] = serde_json::json!({
-                    "kill_error": killed.as_ref().err().map(|error| error.to_string()),
-                    "wait_error": reaped.as_ref().err().map(|error| error.to_string()),
-                    "reaped": reaped.is_ok(),
-                });
-                if let Ok(status) = &reaped {
-                    receipt["exit_code"] = serde_json::json!(status.code());
-                }
-                let mut reason = format!("{name} exceeded {} seconds", timeout.as_secs_f64());
-                if let Err(error) = killed {
-                    reason.push_str(&format!("; stopping child failed: {error}"));
-                }
-                if let Err(error) = reaped {
-                    reason.push_str(&format!("; reaping child failed: {error}"));
-                }
-                return Err(reason);
+                return Err(format!("{name} exceeded {} seconds", timeout.as_secs_f64()));
             }
             std::thread::sleep(Duration::from_millis(100));
+        })();
+        let (status, cleanup) = owner.cleanup();
+        if let Some(status) = status {
+            receipt["exit_code"] = serde_json::json!(status.code());
         }
+        receipt["container_cleanup"] = cleanup.clone();
+        if receipt["timed_out"] == true {
+            receipt["timeout_cleanup"] = cleanup.clone();
+        }
+        if !owner.closed {
+            return Err(format!(
+                "{}; command container cleanup failed: {cleanup}",
+                result.err().unwrap_or_else(|| format!("{name} exited"))
+            ));
+        }
+        result
     })();
     receipt["elapsed_ms"] = serde_json::json!(started.elapsed().as_millis());
     match &result {
@@ -243,8 +332,143 @@ mod tests {
             "delayed" => std::thread::sleep(Duration::from_millis(500)),
             "hung" => std::thread::sleep(Duration::from_secs(10)),
             "failure" => std::process::exit(23),
+            "marker" => {
+                let marker =
+                    std::path::PathBuf::from(std::env::var_os("OMEGA_XTASK_TEST_MARKER").unwrap());
+                fs::write(marker.with_extension("ready"), "started").unwrap();
+                let delay = std::env::var("OMEGA_XTASK_TEST_DELAY_MS")
+                    .unwrap()
+                    .parse()
+                    .unwrap();
+                std::thread::sleep(Duration::from_millis(delay));
+                fs::write(marker, "descendant survived").unwrap();
+            }
+            "tree-timeout" | "tree-success" | "tree-failure" => {
+                let marker =
+                    std::path::PathBuf::from(std::env::var_os("OMEGA_XTASK_TEST_MARKER").unwrap());
+                // This fixture deliberately exits without joining its worker;
+                // the outer runner must own and terminate that descendant.
+                #[allow(clippy::zombie_processes)]
+                let mut descendant = fixture_command("marker")
+                    .env("OMEGA_XTASK_TEST_DELAY_MS", "2000")
+                    .spawn()
+                    .unwrap();
+                let ready = marker.with_extension("ready");
+                let deadline = Instant::now() + Duration::from_secs(3);
+                while !ready.exists() {
+                    assert!(descendant.try_wait().unwrap().is_none());
+                    assert!(Instant::now() < deadline, "descendant did not start");
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                if mode == "tree-timeout" {
+                    std::thread::sleep(Duration::from_secs(10));
+                } else if mode == "tree-failure" {
+                    std::process::exit(23);
+                }
+            }
             _ => panic!("unknown command fixture mode"),
         }
+    }
+
+    #[test]
+    fn timeout_stops_descendants_without_stopping_an_unrelated_peer() {
+        let directory = test_directory("descendant-timeout");
+        let marker = directory.join("descendant");
+        let peer_marker = directory.join("peer");
+        let mut peer = fixture_command("marker")
+            .env("OMEGA_XTASK_TEST_MARKER", &peer_marker)
+            .env("OMEGA_XTASK_TEST_DELAY_MS", "3000")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let result = run_with_timeout(
+            fixture_command("tree-timeout").env("OMEGA_XTASK_TEST_MARKER", &marker),
+            &directory,
+            "tree",
+            Duration::from_secs(1),
+        );
+        assert!(
+            peer.wait().unwrap().success(),
+            "peer must survive scoped cleanup"
+        );
+        assert!(
+            marker.with_extension("ready").exists(),
+            "descendant must have started"
+        );
+        assert!(peer_marker.exists());
+        assert!(result.unwrap_err().contains("exceeded"));
+        assert!(!marker.exists(), "descendant escaped timeout cleanup");
+        assert_eq!(receipt(&directory, "tree")["timed_out"], true);
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn completed_or_failed_wrappers_leave_no_running_descendants() {
+        let directory = test_directory("descendant-completion");
+        let peer_marker = directory.join("peer");
+        let mut peer = fixture_command("marker")
+            .env("OMEGA_XTASK_TEST_MARKER", &peer_marker)
+            .env("OMEGA_XTASK_TEST_DELAY_MS", "3000")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        for (mode, code) in [("tree-success", 0), ("tree-failure", 23)] {
+            let marker = directory.join(mode);
+            let status = run(
+                fixture_command(mode).env("OMEGA_XTASK_TEST_MARKER", &marker),
+                &directory,
+                mode,
+            )
+            .unwrap();
+            assert_eq!(status.code(), Some(code));
+            assert!(marker.with_extension("ready").exists());
+            assert_eq!(receipt(&directory, mode)["timed_out"], false);
+        }
+        assert!(peer.wait().unwrap().success());
+        for mode in ["tree-success", "tree-failure"] {
+            assert!(
+                !directory.join(mode).exists(),
+                "{mode} left a running descendant"
+            );
+        }
+        assert!(peer_marker.exists());
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn an_error_after_spawn_drops_the_owned_tree() {
+        let directory = test_directory("descendant-drop");
+        let marker = directory.join("descendant");
+        let peer_marker = directory.join("peer");
+        let mut peer = fixture_command("marker")
+            .env("OMEGA_XTASK_TEST_MARKER", &peer_marker)
+            .env("OMEGA_XTASK_TEST_DELAY_MS", "3000")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let result: Result<(), &str> = {
+            let _owner = OwnedCommand::spawn(
+                fixture_command("tree-timeout")
+                    .env("OMEGA_XTASK_TEST_MARKER", &marker)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null()),
+            )
+            .unwrap();
+            let deadline = Instant::now() + Duration::from_secs(3);
+            while !marker.with_extension("ready").exists() {
+                assert!(Instant::now() < deadline, "descendant did not start");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err("failure after starting command")
+        };
+        assert!(result.is_err());
+        assert!(peer.wait().unwrap().success());
+        assert!(peer_marker.exists());
+        assert!(!marker.exists(), "drop fallback left a running descendant");
+        fs::remove_dir_all(directory).unwrap();
     }
 
     #[test]

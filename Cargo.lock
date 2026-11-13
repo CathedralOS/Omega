@@ -3198,6 +3198,7 @@ version = "0.1.0"
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "command-group",
  "serde",
  "serde_json",
  "shlex",

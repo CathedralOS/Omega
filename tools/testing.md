@@ -201,11 +201,20 @@ before optimized code generation. CLI-only requests do not prepare the harness.
 Relevant toolchain, host, jobs, flags and profile inputs are retained; credentials
 and the full process environment are never captured.
 
-Rust compiler preparation commands have a one-hour wall-clock limit. Checking
-and execution commands keep their 30-minute limit; fixture and Psi work limits are
-unchanged. Each command receipt records its limit and whether it timed out.
-A timed-out child is stopped and reaped, with cleanup errors and the original
-stdout and stderr retained for diagnosis.
+Rust compiler preparation has no wall-clock time cap: waiting for shared mbx
+capacity is not compiler failure. Receipts retain elapsed time and use a null
+`timeout_ms` for unlimited preparation and corpus observation. Other commands
+retain their explicit/default limits; fixture, native execution and Psi work
+budgets are unchanged.
+
+Every shared command runs in its own Unix process group or suspended-start
+Windows Job Object. On timeout, wait failure, normal completion or unwinding,
+the owner terminates remaining descendants and reaps the command, preserving
+peer jobs. Receipts retain the actual command status, original stdout/stderr,
+container identity and cleanup errors; a cleanup failure cannot become a pass.
+`timeout_cleanup.reaped` records reaping the owned command, not a claim that
+every orphaned Unix descendant was adopted by this process. The same cleanup
+is recorded as `container_cleanup` for non-timeout completion.
 
 `--cli` and `--runner` cannot authenticate an arbitrary supplied executable and
 therefore refuse. Use the current-source builder. Cargo/mbx may reuse compatible
