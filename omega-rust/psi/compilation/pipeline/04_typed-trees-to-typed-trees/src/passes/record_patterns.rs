@@ -12,10 +12,10 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
-use typed_trees::expression::{ExpressionNode, TableMatchField};
+use typed_trees::expression::TableMatchField;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TableLocalData};
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::TypeReferenceNode;
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut resolutions = Vec::new();
@@ -86,12 +86,14 @@ fn subject_record<'program>(
     state: &State,
     local: &TableLocalData,
 ) -> Option<&'program DataDefinition> {
-    let declared = declared_binding_type(program, state, local.initial_value).or_else(|| {
-        local
-            .type_reference
-            .is_valid()
-            .then_some(local.type_reference)
-    })?;
+    let declared = program
+        .declared_binding_type(state, local.initial_value)
+        .or_else(|| {
+            local
+                .type_reference
+                .is_valid()
+                .then_some(local.type_reference)
+        })?;
     let carrier = program.type_reference_table.peeled_type_reference(declared);
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(carrier)
@@ -107,43 +109,6 @@ fn subject_record<'program>(
             .iter()
             .all(|member| matches!(member, DataMember::Field(_)));
     plain.then_some(record)
-}
-
-fn declared_binding_type(
-    program: &TypedTrees,
-    state: &State,
-    subject: typed_trees::expression::ExpressionHandle,
-) -> Option<TypeReferenceHandle> {
-    if !subject.is_valid() {
-        return None;
-    }
-    let ExpressionNode::Name(path) = program.expression_table.expression(subject) else {
-        return None;
-    };
-    let symbol = path.resolved_symbol()?;
-    if program
-        .expression_table
-        .name_path_members(path.members)
-        .len()
-        != 1
-    {
-        return None;
-    }
-    let declared = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == symbol)
-        .map(|parameter| parameter.type_reference)
-        .or_else(|| {
-            program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .filter_map(StatementNode::as_local_data)
-                .find(|binding| binding.symbol == symbol)
-                .map(|binding| binding.type_reference)
-        })?;
-    declared.is_valid().then_some(declared)
 }
 
 #[cfg(test)]

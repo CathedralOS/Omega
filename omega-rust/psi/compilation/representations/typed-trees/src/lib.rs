@@ -33,6 +33,7 @@ without re-running type inference or inspecting surface syntax.
   - `callable_signature_shapes.rs`: source calling-shape correspondence before body or proof elaboration.
   - `calls_and_control_flow.rs`: typed call signatures, dynamic/static dispatch families, machines, states, statements, and names.
   - `declaration_tables_and_index.rs`: declaration tables, relationship indexes, type parameters, and type-reference queries.
+  - `declared_bindings.rs`: the declared type of the parameter or local a name denotes inside one state (`declared_binding_type`).
   - `deferred_refusals.rs`: requests no whole-program pass served, recorded on the declarations that hold them (`DeferredRefusal`).
   - `declaration_reflection.rs`: semantic schema graphs, selected applications, nominal edges, and deterministic query images.
   - `declarations.rs`, `operator_declarations.rs`, `product_and_trait_declarations.rs`: typed domain, data, wire, visibility, operator, product-operand, and trait declarations.
@@ -756,6 +757,7 @@ pub(crate) mod build_selections {
 }
 pub mod callable_signature_shapes;
 pub mod declaration_projection;
+mod declared_bindings;
 pub mod deferred_refusals;
 pub mod references;
 pub mod service_declarations;
