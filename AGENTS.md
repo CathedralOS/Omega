@@ -285,6 +285,15 @@ refuses a second build or test run while one is active.
 
 ## Conventions and workflow
 
+- **Product and subsystem ownership:** Ship one `omega` binary with
+  `omega <subsystem> <action>` routing. Folders and entry points expose those
+  subsystem responsibilities; do not grow separate tools or hidden command
+  drivers for work belonging to the product.
+- **Representation-to-representation pipeline:** Stages consume their declared
+  input representation and produce the next (`X-to-Y`), or transform the same
+  representation (`Y-to-Y`). Carry needed semantic facts in that representation;
+  do not bypass the pipeline with sidecars, callbacks into earlier stages or
+  source re-analysis. Private stage scratch is not a second inter-stage product.
 - **Compositional lowering ([pipeline.md](omega-rust/pipeline.md#compositional-lowering)):**
   Generalize the touched operation across all value placements and delete the
   superseded code path in the same commit.
@@ -297,6 +306,13 @@ refuses a second build or test run while one is active.
   slot. Size scratch storage to the operation's actual domain: a query over a
   small selected family should use that family's prepared membership or a
   sorted slice, rather than allocate a table spanning every symbol on each query.
+  Favor compact arena-backed records with valid zero/default states where their
+  contracts permit (ZII), without treating zero bytes as arbitrary valid Rust
+  values. Avoid per-element small allocations and reserve from known or cheaply
+  estimated sizes. For sustained growth, consider paged arenas instead of moving
+  a growing contiguous `Vec`; use concurrent paged storage when independent
+  producers need it. Keep a bounded/pre-sized `Vec` when it fits the workload;
+  neither paging nor concurrency is a goal by itself.
 - **Verify at trust boundaries ([pipeline.md](omega-rust/pipeline.md#verification-placement)):**
   Default compilation does not re-verify its own stage output. Verifiers run
   in test harnesses, at foreign package boundaries, and on explicit
@@ -313,12 +329,15 @@ refuses a second build or test run while one is active.
 - When a genuine specification ambiguity blocks progress, record the exact
   question in `OWNER_QUESTIONS.md` and cite it in the relevant README rather
   than inventing unratified language semantics.
-- When the code or tooling itself looks rotten (one idea built twice, a stage
-  reaching across a boundary, a verdict with nothing behind it, a test that
-  pins a bug), write five lines in
-  [OWNER_CODE_CONCERNS.md](OWNER_CODE_CONCERNS.md) and keep working. It never
-  blocks your change and never gets its own pull request. Your first hour in
-  an area is when you see it best; say what you saw.
+- Repair obvious code-quality and architecture defects under the existing rules;
+  they do not need owner sign-off. If a concrete defect reaches beyond the
+  current repair (duplicated mechanisms, pipeline bypasses, unsound fallbacks,
+  misleading tests or wasteful storage), record it in the
+  [code repair queue](OWNER_CODE_CONCERNS.md) in the PR already being landed and
+  keep working. Agents may take those repairs and remove verified resolved or
+  stale entries. Keep plain implementation gaps in the existing `TASKS.md`
+  outcome instead; escalate only genuine language or high-level architecture
+  decisions, not routine refactors.
 
 ## Sessions and subagents
 
