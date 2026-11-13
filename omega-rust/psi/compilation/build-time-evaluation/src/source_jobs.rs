@@ -458,6 +458,14 @@ mod tests {
         }
         let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
         request.sources = Some(Arc::new(sources));
+        request.top_level_bindings.push(
+            symbols::SourceScopedTopLevelBinding::logical_module_import(
+                author,
+                core,
+                "omega::language::core::reflect",
+                3,
+            ),
+        );
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request)
             .expect("resolve exact core and author");
         symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
