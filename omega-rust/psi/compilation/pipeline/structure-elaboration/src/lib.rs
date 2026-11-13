@@ -697,12 +697,15 @@ fn lower_program(
         entry,
         records,
         bodies,
-        signatures.values().chain(
-            callables
-                .contracts
-                .values()
-                .map(|contract| &contract.signature),
-        ),
+        signatures
+            .values()
+            .chain(
+                callables
+                    .contracts
+                    .values()
+                    .map(|contract| &contract.signature),
+            )
+            .chain(boundaries.rows.values().map(|boundary| &boundary.signature)),
     )?;
     if !declared.structural_types.is_empty() {
         module.identities = declared.identities;
