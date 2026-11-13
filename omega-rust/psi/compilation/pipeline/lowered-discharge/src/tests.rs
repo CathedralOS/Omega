@@ -1553,10 +1553,10 @@ fn affine_residual_replay_rejects_a_wrong_subtree_type() {
     };
     for block in &mut array.machines[0].blocks {
         for operation in &mut block.operations {
-            if let OperationKind::MoveStructuralValue { source } = &mut operation.kind {
-                if source.place == id(1) {
-                    source.path = vec![terminal_psi::StructuralPathSegment::FixedIndex(0)];
-                }
+            if let OperationKind::MoveStructuralValue { source } = &mut operation.kind
+                && source.place == id(1)
+            {
+                source.path = vec![terminal_psi::StructuralPathSegment::FixedIndex(0)];
             }
         }
         match &mut block.terminator {

@@ -631,10 +631,10 @@ fn analyze(
         if no_normal {
             continue;
         }
-        if let Terminator::ReturnStructural { source, .. } = &block.terminator {
-            if analysis.root(*source)?.is_some() {
-                state.regions[index(source.get())?] = None;
-            }
+        if let Terminator::ReturnStructural { source, .. } = &block.terminator
+            && analysis.root(*source)?.is_some()
+        {
+            state.regions[index(source.get())?] = None;
         }
         // Edge IDs are machine-wide and untrusted here. Index only the
         // actual local successors, never allocate up to a serialized raw ID.
