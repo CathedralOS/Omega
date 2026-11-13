@@ -47,6 +47,7 @@ use typed_trees::expression::{
 };
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
+use typed_trees::references::{StaticArgumentCall, StaticArgumentRole};
 use typed_trees::signature::SignatureContract;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementHandle, StatementNode};
@@ -113,8 +114,8 @@ enum Site {
 }
 
 /// What a call applies: its target, its static application, and whether the
-/// call is selected some other way (a requirement dispatch, a Build
-/// selection), which is not this pass's request.
+/// call has a requirement dispatch or Build selection, which is not this
+/// pass's request. Declaration-query ownership is read before specializing.
 struct Applied {
     target: SymbolHandle,
     application: StaticMachineApplicationHandle,
@@ -122,29 +123,37 @@ struct Applied {
 }
 
 impl Site {
-    fn applied(self, program: &TypedTrees) -> Option<Applied> {
+    fn call(self, program: &TypedTrees) -> Option<StaticArgumentCall<'_>> {
         match self {
-            Self::Expression(handle) => match program.expression_table.expression(handle) {
-                ExpressionNode::Call(call) => Some(Applied {
-                    target: call.target_symbol,
-                    application: call.authored_machine_application,
-                    selected_otherwise: call.static_requirement_dispatch.is_some()
-                        || call.build_selection.is_valid(),
-                }),
-                _ => None,
-            },
-            Self::Statement(handle) => {
-                program
-                    .statement_table
-                    .statement(handle)
-                    .as_call()
-                    .map(|call| Applied {
-                        target: call.target_symbol,
-                        application: call.authored_machine_application,
-                        selected_otherwise: call.static_requirement_dispatch.is_some(),
-                    })
+            Self::Expression(handle) => {
+                let ExpressionNode::Call(call) = program.expression_table.expression(handle) else {
+                    return None;
+                };
+                Some(StaticArgumentCall::Expression(handle, call))
             }
+            Self::Statement(handle) => Some(StaticArgumentCall::Statement(
+                program.statement_table.statement(handle).as_call()?,
+            )),
         }
+    }
+
+    fn applied(self, program: &TypedTrees) -> Option<Applied> {
+        let call = self.call(program)?;
+        let (target, selected_otherwise) = match &call {
+            StaticArgumentCall::Expression(_, call) => (
+                call.target_symbol,
+                call.static_requirement_dispatch.is_some() || call.build_selection.is_valid(),
+            ),
+            StaticArgumentCall::Statement(call) => (
+                call.target_symbol,
+                call.static_requirement_dispatch.is_some(),
+            ),
+        };
+        Some(Applied {
+            target,
+            application: call.application(),
+            selected_otherwise,
+        })
     }
 
     fn source_span(self, program: &TypedTrees) -> SourceSpan {
@@ -260,6 +269,15 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut Vec<Generated>) -
         .map(|parameter| (parameter.symbol, parameter.kind))
         .collect::<Vec<_>>();
     if parameters.is_empty() {
+        return Ok(());
+    }
+    // A declaration query reads its actual type or callable operand; it
+    // does not execute this generic declaration's placeholder body. Check
+    // that ownership only for requests that would otherwise specialize.
+    if let Some(call) = site.call(program)
+        && typed_trees::reflection::construction::declaration_query_argument_role(program, call)
+            == StaticArgumentRole::DeclarationDescription
+    {
         return Ok(());
     }
     if parameters.len() != arguments.len() {

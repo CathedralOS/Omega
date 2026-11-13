@@ -64,51 +64,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - In `ensures` and in a crash route guard, does the name of a `mut` by-value parameter mean the argument or the value the body last assigned?
-
-Decision name: `mutable-parameter-contract-name`.
-
-**Customer.** A machine that counts with its own parameter and states what
-it returns:
-
-```omega
-machine advance(mut position: u32, step: u32) -> u32
-requires position <= 10, step <= 10
-ensures result == position + step
-{
-    position = position + step;
-    position
-}
-```
-
-A caller imports `ensures` by substituting its argument for `position`, so
-under one reading this contract is true and useful, and under the other it
-says `result == result + step` and the body is rejected.
-
-**Gap.** [Mathematical values](wiki/spec/terminal-psi/mathematical_values.md)
-says a caller importing an `ensures` "requires the matching result case and
-argument/result substitution", and
-[fact validity](wiki/spec/terminal-psi/fact_validity.md#entry-facts-and-crash-coverage)
-says "Entry hypotheses bind exact invocation formals" and "Current body
-values are not entry snapshots". Both point at the argument, but neither
-says what the *source name* denotes once the body has assigned it.
-[Ownership](wiki/spec/language/ownership.md#owned-local-mutability) covers
-`mut` locals and says only that "the recipient may bind its own value
-mutably". [Dependent values](wiki/spec/language/dependent_values.md) uses
-`old(entry.owner)` for the entry state of storage behind `&mut`, which
-suggests a bare name in `ensures` means the state at return; for a by-value
-parameter that state is invisible to the caller.
-
-**Options.** (a) The name always means the argument; the body's later value
-is unnameable in the contract. (b) The name means the value at return, and
-`old(position)` names the argument, as for `&mut` storage. (c) A contract
-clause other than `requires` may not name a `mut` parameter at all.
-
-**Until answered.** The lowered-form checker refuses such a clause as not
-supported (`contract clause that names a mutable parameter outside
-requires`); it accepts no program under either reading.
-
-### Q2 - Does an unsuffixed operator apply to one policy-qualified operand and one plain binding, or only to a plain literal?
+### Q1 - Does an unsuffixed operator apply to one policy-qualified operand and one plain binding, or only to a plain literal?
 
 Decision name: `policy-operator-plain-operand`.
 
@@ -146,54 +102,3 @@ applies to the comparisons core declares for these shapes.
 **Until answered.** The lowered-form checker serves the literal and refuses
 the plain binding as not supported (`operator between a policy-qualified
 operand and a plain operand that is not a literal`).
-
-### Q3 - Are `uN` and `iN` integer types for every width up to the largest built-in one, and are those names reserved now?
-
-Decision name: `finite-width-integer-carriers`.
-
-**Customer.** The lowered-form checker is the only checker since 2026-11-13,
-and its integer lanes are being written now: arithmetic, casts, domains, byte
-views, layouts and calling plans (`LOWERED-FORM-CHECKER` on
-[the task board](TASKS.md)). Each is written either against "a sign and a
-width" or against the eight built-in names. Protocol and device code is the
-language-side customer: a 31-bit sequence number or a 2-bit mode has an exact
-range today only through a wider carrier plus a domain, and its wrapping
-arithmetic is written by hand as a mask.
-
-**Gap.** [Arbitrary-width integer carriers](wiki/proposals/0008_arbitrary_width_integers.md)
-is "proposed, not accepted" and says no customer was shown when it opened.
-[Unbounded computational integers](wiki/spec/language/numeric_values.md#unbounded-computational-integers)
-were ratified on 2026-11-11 and say that decision "does not approve arbitrary
-finite widths". Nothing reserves the spellings: `i2`, `u13` and `i31` are
-ordinary identifiers today, so a program may declare a field or a machine with
-such a name, and ratifying the types later breaks it.
-
-The compiler is half shaped for either answer. The checker's vocabulary
-already states an integer type as a carrier, a sign and a bit count
-(`IntegerType` in `omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs`).
-The typed trees state it as a closed list of eight names
-(`PrimitiveType` in `omega-rust/psi/compilation/representations/typed-trees/src/type_system.rs`),
-with macros that enumerate them; code written against that list is what a
-later ratification would have to revisit.
-
-**Question.**
-
-- **(a)** Are `uN` and `iN` types for every width from 1 to the largest
-  built-in width, each a distinct type with the exact range of its width, no
-  implicit conversion between widths, and `Exact`, `Wrapping`, `Saturating`
-  and `Trapping` meaning at width `N` what they mean today (wrapping is modulo
-  `2^N`)?
-- **(b)** If (a) is not decided yet, are the spellings `u<digits>` and
-  `i<digits>` reserved now, so no program can take one as an identifier?
-- **(c)** Under (a), is `u1` a type distinct from `bool`, and does a value
-  occupy the smallest standard container that holds its width, with
-  bit-packing left to layouts as it is for the built-in widths?
-
-Outside this question, and left in the proposal: widths beyond the largest
-built-in one, which need multi-limb arithmetic and calling rules, and generic
-constraints over integer families ("any signed carrier").
-
-**Until answered.** New checker code states an integer as a sign and a width
-wherever the vocabulary already allows it and does not add to the closed list
-of names; no `uN` or `iN` spelling beyond the built-in eight is accepted, and
-none is reserved.

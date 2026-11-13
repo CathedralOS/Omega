@@ -224,19 +224,23 @@ impl Program<'_> {
                     }
                     self.issue(id, domain)?;
                 }
-                // "Removal also never increases authority ... Access
+                // "Removal also never increases authority. Owned claims
+                // must be consumed or transferred, not cast away ... Access
                 // policies survive whenever they are needed to prevent
                 // authority amplification, and a view that cannot retain
-                // them rejects." A policy's reader and writer rules are in
-                // its plan, which nothing evaluates, so what must survive
-                // the removal is unknown.
+                // them rejects." What a restricted domain's removal must
+                // leave behind is not kept on the plain value here, so only
+                // a domain anyone may add again is removed.
                 _ => {
-                    let governed = self
+                    let free = self
                         .typed
                         .domain_definition(domain)
-                        .is_none_or(|definition| definition.access_policy.is_some());
-                    if governed {
-                        return unserved("removal of a domain governed by an access policy");
+                        .is_some_and(|definition| {
+                            definition.issuance()
+                                == typed_trees::domain::DomainIssuance::Unrestricted
+                        });
+                    if !free {
+                        return unserved("removal of a domain with restricted issuance");
                     }
                 }
             }

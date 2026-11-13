@@ -569,7 +569,7 @@ Refused by name:
 
 | Construct | Refusal detail |
 | --- | --- |
-| an `ensures` clause or a crash route guard that names a `mut` formal: whether the name means the argument or what the body last assigned is the open owner question `mutable-parameter-contract-name` | `contract clause that names a mutable parameter outside requires` |
+| an `ensures` clause or a crash route guard that names a `mut` formal: the name denotes the original input under [contract inputs](../../../../../wiki/spec/language/state_contracts.md#contract-inputs-and-working-values); retaining that identity separately from working storage is implementation work (`MUTABLE-PARAMETER-CONTRACT-NAME` in `TASKS.md`) | `contract clause that names a mutable parameter outside requires` |
 | a `mut` formal of a type parameter, whose replaced value no slice disposes of | `parameter mutable parameter of a type parameter` |
 | a `mut` formal marked `[erased]` | `parameter mutable erased parameter` |
 | an assignment to, or a store into, a formal that is not `mut` | `statement assignment to an immutable binding`, `statement store into an immutable binding` |
