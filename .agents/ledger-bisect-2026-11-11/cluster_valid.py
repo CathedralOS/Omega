@@ -1,56 +1,80 @@
 #!/usr/bin/env python3
+"""Count finished part-4 clusters. A wrong closed edge does not count."""
+from __future__ import annotations
+
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
+FORBIDDEN = {PIN, "f3612364ffbb9489d7be1409397df6867fcbebc6"}
 DIR = Path(__file__).resolve().parent
-WT = DIR.parents[1] / ".agents/ledger-bisect-wt"
+WT = DIR.parents[1] / ".agents" / "ledger-bisect-wt"
 
 
 def ledger_only(sha: str) -> bool:
-    st = subprocess.run(
-        ["git", "-C", str(WT), "diff-tree", "--no-commit-id", "--name-only", "-r", sha],
+    if len(sha) != 40:
+        return False
+    proc = subprocess.run(
+        ["git", "-C", str(WT), "diff-tree", "--no-commit-id", "--name-only", "-r", "-m", sha],
         capture_output=True,
         text=True,
     )
-    files = [f for f in st.stdout.splitlines() if f.strip()]
+    files = [line for line in proc.stdout.splitlines() if line.strip()]
     if not files:
         return False
-    return all(f == "tests/omega/corpus_outcomes.txt" or f.endswith(".md") for f in files)
+    return all(item == "tests/omega/corpus_outcomes.txt" or item.endswith(".md") for item in files)
 
 
-def valid(prev: dict) -> bool:
-    if prev.get("find_good_method") != "exponential":
+def edge_ok(edge: dict) -> bool:
+    if not edge.get("accepted"):
         return False
-    m = prev.get("mechanism") or ""
-    if m.startswith("never-good since"):
-        return len(prev.get("fixture_added") or m.split()[-1]) == 40
-    if prev.get("status") != "bisected":
+    if edge.get("breaking_exit_triplet") != [1, 1, 1]:
         return False
-    brk = prev.get("breaking_commit") or ""
-    if len(brk) != 40 or brk == PIN or ledger_only(brk):
+    if edge.get("parent_exit_triplet") != [0, 0, 0]:
         return False
-    return bool(prev.get("breaking_exit_triplet"))
+    brk = edge.get("breaking_commit") or ""
+    if len(brk) != 40 or brk in FORBIDDEN or ledger_only(brk):
+        return False
+    hunk = edge.get("diff_hunk") or ""
+    if hunk != "mechanism not established" and "@@" not in hunk:
+        return False
+    return True
 
 
 def main() -> int:
-    n = 12
+    clusters = json.loads((DIR / "pin_clusters.json").read_text())
     ok = 0
-    for i in range(n):
-        p = DIR / "bisects" / f"cluster_{i}.json"
-        if not p.exists():
-            print(i, "missing")
+    for cluster in clusters:
+        path = DIR / "bisects" / f"cluster_{cluster['cluster_id']}.json"
+        if not path.exists():
+            print(cluster["cluster_id"], "missing")
             continue
-        d = json.loads(p.read_text())
-        if valid(d):
-            ok += 1
-            print(i, "ok", d["breaking_commit"][:12], d.get("pr"))
+        data = json.loads(path.read_text())
+        if data.get("witness_version") != 2 or not data.get("finished"):
+            print(cluster["cluster_id"], "old", data.get("status"))
+            continue
+        status = data.get("status")
+        if status == "never-good" and str(data.get("mechanism", "")).startswith("never-good since "):
+            sha = data["mechanism"].split()[-1]
+            good = len(sha) == 40
+        elif status == "bisected":
+            good = any(edge_ok(edge) for edge in data.get("edges") or [])
+        elif status == "unresolved":
+            good = True
         else:
-            print(i, "pending", d.get("status"), (d.get("breaking_commit") or "")[:12])
-    print(f"valid={ok}/{n}")
-    return 0 if ok == n else 1
+            good = False
+        if good:
+            ok += 1
+            print(cluster["cluster_id"], status, (data.get("breaking_commit") or data.get("mechanism") or "")[:48])
+        else:
+            print(cluster["cluster_id"], "invalid", status)
+    print(f"valid={ok}/12")
+    state = DIR / "run_state.json"
+    if state.exists():
+        queue = json.loads(state.read_text()).get("queue") or []
+        print(f"queue={len(queue)}")
+    return 0 if ok == 12 else 1
 
 
 if __name__ == "__main__":
