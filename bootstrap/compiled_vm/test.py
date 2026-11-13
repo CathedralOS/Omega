@@ -294,10 +294,14 @@ def omega_control_customer(work, timeout):
     gate = ROOT / "tests/bootstrap/omega-executable"
     lexer = (ROOT / "source/psi/lex/lexer.omg").read_bytes()
     declarations = []
-    for name in (b"is_identifier_start", b"is_identifier_continue"):
+    for name in (b"is_identifier_start", b"is_identifier_continue", b"lexer_digit_in_base"):
         start = lexer.index(b"machine " + name + b"(")
         end = lexer.index(b"\nmachine ", start + 1)
         declarations.append(lexer[start:end])
+    tokens = (ROOT / "source/psi/tokens/tokens.omg").read_bytes()
+    start = tokens.index(b"public data NumericBase ")
+    end = tokens.index(b"\n}", start) + 2
+    declarations.insert(0, tokens[start:end])
     program = b"\n".join(declarations) + b"\n" + (gate / "lexer_controls.omg").read_bytes()
     source = closure + (gate / "controls_control.epsilon").read_bytes()
     request = epsilon_request((work / "epsilon.delta").read_bytes(), source, program)
@@ -310,7 +314,7 @@ def omega_control_customer(work, timeout):
     (work / "control-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 47)):
+    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 47, 42, 43, 43, 43, 42, 43, 42, 43, 42, 42, 42, 42)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
@@ -324,7 +328,7 @@ def omega_control_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega runtime control: seven emitted executables, actual lexer boundaries, parallel transfers, short circuit, explicit domain casts and 26 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega runtime control: 19 emitted executables, actual lexer byte/base matrix, nominal sums, source-set lookup/reset and 37 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_storage_customer(work, timeout):
@@ -368,6 +372,63 @@ def omega_storage_customer(work, timeout):
     print(f"Omega storage: thirteen executables, actual SourceUnit append/read and ModulePath boundaries, 36 refusal/reset checks passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
+def omega_utf8_customer(work, timeout, batch=None):
+    """Compile the real UTF-8 decoder and execute arithmetic/trap boundaries."""
+    closure = pack("bootstrap/interpreted/5_omega/omega_compiler.epsilon.sources", work / "bootstrap-compiler.epsilon")
+    gate = ROOT / "tests/bootstrap/omega-executable"
+    unit = (ROOT / "source/psi/source/source.omg").read_bytes()
+    lexer = (ROOT / "source/psi/lex/lexer.omg").read_bytes()
+    declarations = []
+    for source, markers in ((unit, (b"public data SourceId ", b"public data SourceUnit\n",
+                                    b"machine source_unit_append(", b"machine source_unit_byte_or_nul(")),
+                            (lexer, (b"data DecodedScalar ", b"machine decode_scalar("))):
+        for marker in markers:
+            start = source.index(marker)
+            end = source.index(b"\n}", start) + 2
+            declarations.append(source[start:end])
+    program = b"\n\n".join(declarations) + b"\n" + (gate / "utf8_controls.omg").read_bytes()
+    source = closure + (gate / "controls_arithmetic.epsilon").read_bytes()
+    (work / "utf8-source.epsilon").write_bytes(source)
+    (work / "utf8-program.omg").write_bytes(program)
+    # Fresh evaluator processes bound cumulative immutable allocation without
+    # changing compiler inputs or the lifetime of any refusal/reset sequence.
+    # The last batch begins with a successful compilation, then every refusal,
+    # then the final successful canary using that same compiler instance.
+    expected_batches = ((42,), (42, -4, -4, -4, 42, 42, 42), (42, -4, -4), (42, 59))
+    batches = range(len(expected_batches)) if batch is None else (batch,)
+    for selected in batches:
+        assert 0 <= selected < len(expected_batches), selected
+        payload = bytes([selected]) + (program if selected == 0 else b"")
+        request = epsilon_request((work / "epsilon.delta").read_bytes(), source, payload)
+        (work / f"utf8-{selected}-request.bin").write_bytes(request)
+        print(f"Omega UTF-8 batch {selected}: {len(source)} Epsilon bytes; {len(payload)} input bytes; allowance {timeout}s", flush=True)
+        started = time.monotonic()
+        status, observation = execute(work / "epsilon", request, timeout)
+        (work / f"utf8-{selected}-observation.bin").write_bytes(observation)
+        assert status == 0 and observation[:5] == bytes(5), (selected, status, observation[:80])
+        offset = 5
+        first = sum(map(len, expected_batches[:selected]))
+        # -4 is Alpha's Linux SIGILL Trap, not an authored process exit.
+        # Wire marker zero requires independent observation of the signal.
+        for index, expected in enumerate(expected_batches[selected], first):
+            assert offset + 5 <= len(observation), ("truncated artifact frame", index)
+            code = observation[offset]
+            length = struct.unpack_from("<I", observation, offset + 1)[0]
+            offset += 5
+            assert code == max(expected, 0) and 0 < length <= 16777212
+            assert offset + length <= len(observation), ("truncated artifact", index)
+            tape = work / f"utf8-{index}.tape"
+            executable = work / f"utf8-{index}"
+            tape.write_bytes(observation[offset:offset + length])
+            offset += length
+            stamp(tape, executable)
+            assert execute(executable) == (expected, b""), index
+        assert offset == len(observation), "unexpected publication after the final artifact"
+        print(f"Omega UTF-8 batch {selected}: {len(expected_batches[selected])} executables passed; {time.monotonic()-started:.3f}s", flush=True)
+    if batch is None:
+        print("Omega UTF-8: thirteen executables, 28 decoder boundaries, five arithmetic traps, fourteen refusal/reset checks passed in four fresh processes", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--customer-only", action="store_true")
@@ -378,11 +439,12 @@ def main():
     parser.add_argument("--omega-values", action="store_true", help="run the parameter, local, nested-call and refusal customer")
     parser.add_argument("--omega-control", action="store_true", help="run actual lexer predicates and typed runtime control checks")
     parser.add_argument("--omega-storage", action="store_true", help="run actual SourceUnit append/read and checked storage controls")
+    parser.add_argument("--omega-utf8", action="store_true", help="run the real UTF-8 decoder and checked arithmetic boundaries")
     parser.add_argument("--omega-timeout", type=int,
                         help="Omega observation seconds (default: 7200 for runtime/storage controls, otherwise 1800)")
     args = parser.parse_args()
     if args.omega_timeout is None:
-        args.omega_timeout = 7200 if args.omega_control or args.omega_storage else 1800
+        args.omega_timeout = 7200 if args.omega_control or args.omega_storage or args.omega_utf8 else 1800
     if args.omega_timeout <= 0:
         parser.error("--omega-timeout must be positive")
     work = ROOT / "build/compiled-vm"
@@ -395,7 +457,7 @@ def main():
         controls(work, evaluator)
     if not args.controls_only:
         customer(work, evaluator)
-        if args.epsilon or args.omega or args.omega_controls or args.omega_values or args.omega_control or args.omega_storage:
+        if args.epsilon or args.omega or args.omega_controls or args.omega_values or args.omega_control or args.omega_storage or args.omega_utf8:
             epsilon_customer(work)
         if args.omega:
             omega_customer(work, args.omega_timeout)
@@ -407,6 +469,8 @@ def main():
             omega_control_customer(work, args.omega_timeout)
         if args.omega_storage:
             omega_storage_customer(work, args.omega_timeout)
+        if args.omega_utf8:
+            omega_utf8_customer(work, args.omega_timeout)
 
 
 if __name__ == "__main__":

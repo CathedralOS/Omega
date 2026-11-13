@@ -219,7 +219,8 @@ fn fetch_snapshot(repo: &Path) -> Result<(String, ClaimsRecord), u8> {
             1u8
         })?;
     if !ls.status.success() {
-        return Ok((String::new(), ClaimsRecord::default()));
+        eprintln!("claims: cannot read the remote registry reference");
+        return Err(1);
     }
     let stdout = String::from_utf8_lossy(&ls.stdout);
     let version = stdout
@@ -231,16 +232,32 @@ fn fetch_snapshot(repo: &Path) -> Result<(String, ClaimsRecord), u8> {
     if version.is_empty() {
         return Ok((String::new(), ClaimsRecord::default()));
     }
+    let record = fetch_record(repo, &version)?;
+    Ok((version, record))
+}
+
+fn fetch_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
+    // Fetch the exact advertised snapshot: another writer may move the ref
+    // between ls-remote and fetch. Reading a different or empty record under
+    // the advertised lease could overwrite other sessions' claims.
     // Only the newest record matters: each commit's message is the whole
     // registry, and the ref's history is tens of thousands of such commits,
     // so a full fetch can exhaust a session's memory.
-    let _ = Command::new("git")
-        .args(["fetch", "-q", "--depth=1", "origin", CLAIMS_REF])
+    let fetch = Command::new("git")
+        .args(["fetch", "-q", "--depth=1", "origin", version])
         .current_dir(repo)
         .stdin(Stdio::null())
-        .status();
+        .status()
+        .map_err(|error| {
+            eprintln!("claims: git fetch failed: {error}");
+            1u8
+        })?;
+    if !fetch.success() {
+        eprintln!("claims: cannot fetch registry snapshot {version}");
+        return Err(1);
+    }
     let show = Command::new("git")
-        .args(["show", "-s", "--format=%B", &version])
+        .args(["show", "-s", "--format=%B", version])
         .current_dir(repo)
         .stdin(Stdio::null())
         .output()
@@ -249,11 +266,19 @@ fn fetch_snapshot(repo: &Path) -> Result<(String, ClaimsRecord), u8> {
             1u8
         })?;
     if !show.status.success() {
-        return Ok((version, ClaimsRecord::default()));
+        eprintln!("claims: cannot read registry snapshot {version}");
+        return Err(1);
     }
     let body = String::from_utf8_lossy(&show.stdout);
-    let record: ClaimsRecord = serde_json::from_str(body.trim()).unwrap_or_default();
-    Ok((version, record))
+    let record: ClaimsRecord = serde_json::from_str(body.trim()).map_err(|error| {
+        eprintln!("claims: invalid registry snapshot {version}: {error}");
+        1u8
+    })?;
+    if record.protocol != PROTOCOL {
+        eprintln!("claims: unsupported registry protocol in snapshot {version}");
+        return Err(1);
+    }
+    Ok(record)
 }
 
 fn commit_and_push(repo: &Path, prev_version: &str, record: &ClaimsRecord) -> Result<(), u8> {
@@ -485,6 +510,163 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    struct RegistryFixture {
+        root: std::path::PathBuf,
+        reader: std::path::PathBuf,
+        remote: std::path::PathBuf,
+    }
+
+    impl RegistryFixture {
+        fn new() -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let root = std::env::temp_dir()
+                .join(format!("omega-claims-read-{}-{unique}", std::process::id()));
+            let reader = root.join("reader");
+            let remote = root.join("remote");
+            std::fs::create_dir_all(&reader).unwrap();
+            std::fs::create_dir_all(&remote).unwrap();
+            let fixture = Self {
+                root,
+                reader,
+                remote,
+            };
+            Self::git(&fixture.reader, &["init"]);
+            Self::git(&fixture.remote, &["init"]);
+            Self::git(&fixture.reader, &["config", "user.name", "Claims test"]);
+            Self::git(
+                &fixture.reader,
+                &["config", "user.email", "claims@example.invalid"],
+            );
+            Self::git(
+                &fixture.reader,
+                &["remote", "add", "origin", fixture.remote.to_str().unwrap()],
+            );
+            fixture
+        }
+
+        fn git(root: &Path, arguments: &[&str]) -> String {
+            let output = Command::new("git")
+                .args([
+                    "-c",
+                    "user.name=Claims test",
+                    "-c",
+                    "user.email=claims@example.invalid",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "-c",
+                    "core.hooksPath=/nonexistent",
+                ])
+                .args(arguments)
+                .current_dir(root)
+                .stdin(Stdio::null())
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            String::from_utf8(output.stdout).unwrap().trim().to_owned()
+        }
+
+        fn publish(&self, body: &str) -> String {
+            Self::git(&self.remote, &["commit", "--allow-empty", "-m", body]);
+            let version = Self::git(&self.remote, &["rev-parse", "HEAD"]);
+            Self::git(&self.remote, &["update-ref", CLAIMS_REF, &version]);
+            version
+        }
+    }
+
+    impl Drop for RegistryFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn absent_registry_is_empty_but_unreadable_registry_is_an_error() {
+        let fixture = RegistryFixture::new();
+        let (version, record) = fetch_snapshot(&fixture.reader).unwrap();
+        assert!(version.is_empty());
+        assert!(record.claims.is_empty());
+        RegistryFixture::git(
+            &fixture.reader,
+            &[
+                "remote",
+                "set-url",
+                "origin",
+                fixture.root.join("missing").to_str().unwrap(),
+            ],
+        );
+        assert!(fetch_snapshot(&fixture.reader).is_err());
+    }
+
+    #[test]
+    fn malformed_existing_registry_cannot_be_replaced_by_an_empty_snapshot() {
+        let fixture = RegistryFixture::new();
+        let version = fixture.publish("interrupted registry payload");
+        assert!(fetch_snapshot(&fixture.reader).is_err());
+        assert_eq!(
+            RegistryFixture::git(&fixture.remote, &["rev-parse", CLAIMS_REF]),
+            version
+        );
+    }
+
+    #[test]
+    fn unsupported_registry_protocol_cannot_be_rewritten() {
+        let fixture = RegistryFixture::new();
+        fixture.publish(r#"{"protocol":"omega-claims-future","claims":[],"notes":[]}"#);
+        assert!(fetch_snapshot(&fixture.reader).is_err());
+    }
+
+    #[test]
+    fn advertised_snapshot_survives_a_concurrent_ref_update() {
+        let fixture = RegistryFixture::new();
+        let original =
+            json!({"protocol": PROTOCOL, "claims": [{"ticket":"original"}], "notes": []});
+        let advertised = fixture.publish(&original.to_string());
+        let replacement =
+            json!({"protocol": PROTOCOL, "claims": [{"ticket":"replacement"}], "notes": []});
+        let newer = fixture.publish(&replacement.to_string());
+
+        let record = fetch_record(&fixture.reader, &advertised).unwrap();
+        assert_eq!(
+            record.claims,
+            original["claims"].as_array().unwrap().to_vec()
+        );
+        assert!(commit_and_push(&fixture.reader, &advertised, &record).is_err());
+        assert_eq!(
+            RegistryFixture::git(&fixture.remote, &["rev-parse", CLAIMS_REF]),
+            newer
+        );
+        let (current, record) = fetch_snapshot(&fixture.reader).unwrap();
+        assert_eq!(current, newer);
+        assert_eq!(
+            record.claims,
+            replacement["claims"].as_array().unwrap().to_vec()
+        );
+    }
+
+    #[test]
+    fn missing_advertised_snapshot_refuses_even_if_a_cached_record_exists() {
+        let fixture = RegistryFixture::new();
+        let version = fixture.publish(&serde_json::to_string(&ClaimsRecord::default()).unwrap());
+        fetch_record(&fixture.reader, &version).unwrap();
+        RegistryFixture::git(
+            &fixture.reader,
+            &[
+                "remote",
+                "set-url",
+                "origin",
+                fixture.root.join("missing").to_str().unwrap(),
+            ],
+        );
+        assert!(fetch_record(&fixture.reader, &version).is_err());
+    }
 
     #[test]
     fn claim_lease_starts_at_the_supplied_clock_and_lasts_eight_hours() {

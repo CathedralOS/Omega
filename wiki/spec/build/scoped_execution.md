@@ -85,6 +85,15 @@ construction alone. The readable dependency names replace `depend`, `depend_as`,
 `build_depend` and `build_depend_as`; separate alias-registration variants are
 unnecessary when the unregistered description is configurable.
 
+`DependencyRegistration` is a copyable immutable opaque Build handle to that
+exact coordinator registration, retaining its owning activation and Product or
+Build purpose scope. A fieldless value, variable name or separately constructed
+`{}` cannot stand for a distinct registration. Copies and borrows retain one
+identity within the activation; a handle from another or expired Build is not
+valid for the current builder. The handle is not a validated-package certificate
+or a persistent package identity and grants no acquisition, execution or trust
+authority. Ordinary helper delegation uses the root's actual builder and handle.
+
 Aliases are unique in their requesting package and purpose scope. A duplicate
 or conflicting registration rejects rather than choosing an order-dependent
 winner. The same spelling may name different packages in Build and Product
@@ -108,6 +117,14 @@ before it executes. Exact trait/provider installation still obeys
 [provider readiness](provider_selection.md#build-provider-readiness); a newly
 admitted dependency can supply ordinary shared non-core interfaces, without
 copying declarations or structurally identifying same-spelled traits.
+
+Preparation's by-value registration argument copies the immutable handle;
+it does not consume or retarget the caller's registration. A subsequent
+`Build::validate(builder, &registered)` can therefore identify the same dependency,
+and the validation request may also be recorded before preparation. Validation
+does not itself request immediate preparation or execute a dependency. Both
+operations use this one registration mechanism; their distinct requirements
+remain under [validation subjects](validation_subjects.md#buildvalidate).
 
 The following illustrates the selected surface.
 `dependency::from_source` and configuration helpers are ordinary library code;

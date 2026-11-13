@@ -59,6 +59,16 @@ the complete requirement contract. Neither locator construction nor selection
 proves behavior or grants execution authority. Representation or protocol
 adaptation requires a checked adapter, not an asserted locator conversion.
 
+Ordinary library packages follow [their resolved package owners](declarations.md#ordinary-library-packages)
+regardless of distribution. Only declarations genuinely requiring compiler
+realization retain exact sealed custody under the catalog and its source/owner
+correspondence rules; ordinary `std` wrappers do not become compiler-owned by
+living beside such a declaration. Separate any necessary primitive or entry
+bridge explicitly while preserving checked bindings and behavioral contracts.
+Neither a bundled path nor a copied name, signature or source file establishes
+that custody, and extracting the boundary is not permission to stop verifying
+the compiler distribution or its sealed primitive identities.
+
 ## Locator values
 
 `ForeignBinding<ObjectLength, SymbolLength, VersionLength>`
@@ -247,6 +257,36 @@ termination; [boundary realization](../terminal-psi/boundary_calls.md#consumer-o
 must preserve the canonical [ProcessExit requirement](../language/process_exit.md)
 and its explicit terminal completion and exact arguments. The syscall, provider
 name, or physical status encoding cannot supply or change that identity.
+
+Named decision: `sealed-runtime-providers`, settled 2026-11-12. Ordinary task
+runtime and interrupt/platform providers use real checked bodies, contracted
+target instructions or legitimate admitted native bindings over narrowly
+identified compiler primitives. Only exact primitives receive sealed custody;
+an ordinary package cannot obtain compiler backing through `via`, an intrinsic
+locator, a copied name/signature/source file or a same-shaped provider.
+
+Existing core recognition of task activation requirements is preserved as
+needed for plan checking and control transfer. Recognizing the requirement,
+building an activation descriptor or accepting a signature is not supplying an
+executor, hardware operation, allocation or execution custody. Unsupported
+executable demand rejects explicitly, not as a fabricated result or no-op.
+
+Retire false authored compiler-backing claims independently of delivering the
+missing providers. Refusal-only tests and compile-only planning tests do not
+complete runtime/platform implementation. Migrate each old numeric, worker,
+device or runtime site by its actual contract to a checked body, a legitimate
+native operation, or an explicit unsupported/rejection control. An invented
+foreign symbol is no replacement for an invented intrinsic. Pure compiler
+tests may exercise declaration/plan checking without presenting their stub as
+a supported executable provider.
+
+Every callable dangerous primitive also obeys
+[initial-call authority](../resources/authority.md#initial-call-authority),
+including low-level routes beneath a checked wrapper. Ordinary native admission
+retains its exact assumptions and permissions; assumed bindings are not a
+routine escape from missing proofs, authority contracts or implementations.
+The [provider delivery plan](../../drafts/designs/runtime_provider_authority.md)
+requires both unauthorized-call negatives and working authorized providers.
 
 ## Exact requirement lifetime application
 

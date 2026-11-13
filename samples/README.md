@@ -81,8 +81,8 @@ requires at least one listed literal as well; `rejection_casefold: true`
 preserves authored case-insensitive matching. `notes` is optional author text that no gate reads. These fields restate
 the control's authored contract, not whatever error happens to occur on a machine. Without it, an intended-invalid
 project uses every nonempty line of its existing diagnostic expectation file.
-Missing expectations are reported as failures, never skipped or guessed from an
-unrelated refusal. Source rejection must exit 1 and match the identity; timeout,
+Missing expectations and blank metadata fragments are reported as failures,
+never skipped or guessed from an unrelated refusal. Source rejection must exit 1 and match the identity; timeout,
 crash, unexpected acceptance, package/custody/provider refusals and wrong reasons
 cannot pass the control. Negative controls enter `--check`, never package
 acceptance or runtime execution. Runtime-invalid input cases remain cases of the

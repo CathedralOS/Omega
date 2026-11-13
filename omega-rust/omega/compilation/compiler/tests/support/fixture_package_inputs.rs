@@ -106,20 +106,38 @@ fn derive_program_entry_binding(
     standard_library_root: &Path,
     standard_library: PackageKeyIdentity,
 ) -> Result<Option<AcceptedSemanticBinding>, Vec<Diagnostic>> {
-    let inputs = PackageCompilationInputs::new_package(
-        standard_library,
-        vec![PackageSourceBinding::new(
-            standard_library,
-            "omega_language_std",
-            standard_library_root.to_path_buf(),
-        )],
-        Vec::new(),
+    // The entry's imports are logical: discovery enumerates the supplier's
+    // modules from an immutable capture and refuses a live directory. Bind the
+    // library with the capture acquisition gives every other local package,
+    // rather than by its bare path.
+    let capture = package_source::local::operations::capture_local_source_input(
+        standard_library_root,
+        package_source::LocalSourceLimits::default(),
     )
-    .map_err(|errors| {
+    .map_err(|error| {
         vec![Diagnostic::error(format!(
-            "entry fixture inputs: {errors:?}"
+            "cannot capture entry supplier {}: {error}",
+            standard_library_root.display()
         ))]
     })?;
+    let supplier = PackageSourceBinding::new(
+        standard_library,
+        "omega_language_std",
+        capture.canonical_live_root().to_path_buf(),
+    )
+    .with_captured_source(capture.tree().clone())
+    .map_err(|reason| {
+        vec![Diagnostic::error(format!(
+            "entry supplier capture: {reason}"
+        ))]
+    })?;
+    let inputs =
+        PackageCompilationInputs::new_package(standard_library, vec![supplier], Vec::new())
+            .map_err(|errors| {
+                vec![Diagnostic::error(format!(
+                    "entry fixture inputs: {errors:?}"
+                ))]
+            })?;
     derive_entry_from_inputs(target_name, inputs)
 }
 

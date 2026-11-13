@@ -1,0 +1,123 @@
+; This compiler stage consumes the existing complete Epsilon checking judgment.
+; Its one outcome distinguishes invalid source, valid unsupported lowering and
+; contradictions. No partial function text is published on any failure.
+(def epsilon_delta_append ((left EpsilonDeltaCompilation)
+  (right EpsilonDeltaCompilation)) EpsilonDeltaCompilation
+  (match left
+    ((EpsilonDeltaCompiled firstText)
+      (match right
+        ((EpsilonDeltaCompiled secondText)
+          (EpsilonDeltaCompiled (bytes_concat firstText secondText)))
+        ((EpsilonDeltaRejected reason offset) right)
+        ((EpsilonDeltaUnsupported offset) right)
+        ((EpsilonDeltaInternal offset) right)))
+    ((EpsilonDeltaRejected reason offset) left)
+    ((EpsilonDeltaUnsupported offset) left)
+    ((EpsilonDeltaInternal offset) left)))
+
+(def epsilon_delta_compile ((source Bytes)) EpsilonDeltaProgramCompilation
+  (let view EpsilonSourceView (epsilon_source_whole source)
+    (match (epsilon_check_through_body_view view)
+      ((EpsilonLocalResolutionRejected reason offset) (EpsilonDeltaProgramRejected reason offset))
+      ((EpsilonLocalResolutionInternal offset) (EpsilonDeltaProgramInternal offset))
+      ((EpsilonLocalResolutionAccepted resolved) (epsilon_delta_resolved view resolved)))))
+
+(def epsilon_delta_resolved ((source EpsilonSourceView)
+  (resolved EpsilonLocallyResolvedProgram)) EpsilonDeltaProgramCompilation
+  (match resolved
+    ((EpsilonLocallyResolvedProgramSyntax cataloged locals fields callables control types candidate)
+      (match cataloged
+        ((EpsilonCatalogedProgramSyntax formed catalogState)
+          (match catalogState
+            ((EpsilonCatalogStateSyntax catalog finalCandidate)
+              (match formed
+                ((EpsilonFormedProgramSyntax collected shapes edges)
+                  (match collected
+                    ((EpsilonCollectedProgramSyntax program owners machines)
+                      (match program
+                        ((EpsilonSyntaxProgram start end declarations)
+                          (epsilon_delta_program_result (epsilon_delta_program_runtime declarations)
+                            (epsilon_delta_append (epsilon_delta_type_declarations source declarations)
+                              (epsilon_delta_append
+                                (epsilon_delta_declarations source catalog declarations locals fields callables control)
+                                (match (epsilon_delta_program_runtime declarations)
+                                  (EpsilonDeltaPureRuntime (EpsilonDeltaCompiled ""))
+                                  (EpsilonDeltaStoredRuntime (epsilon_delta_program_entry source declarations)))))))))))))))))))
+
+(def epsilon_delta_declarations
+  ((source EpsilonSourceView) (catalog EpsilonResolutionCatalog)
+   (declarations EpsilonDeclarationList)
+   (locals EpsilonResolvedLocalReferenceList)
+   (fields EpsilonResolvedFieldReferenceList)
+   (callables EpsilonResolvedCallableReferenceList)
+   (control EpsilonControlReferenceLedger)) EpsilonDeltaCompilation
+  (match declarations
+    (NoEpsilonDeclarations (EpsilonDeltaCompiled ""))
+    ((MoreEpsilonDeclarations declaration rest)
+      (match (epsilon_delta_declaration
+        (EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+        declaration)
+        ((EpsilonDeltaCompiled text)
+          (epsilon_delta_append (EpsilonDeltaCompiled text)
+            (epsilon_delta_declarations source catalog rest locals fields callables control)))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
+
+; Data/boundary declarations have no authored executable body. Their resolved
+; identities remain in the checked context; uses materialize runtime metadata.
+; Every machine body, including an unreachable one, must lower successfully.
+(def epsilon_delta_declaration ((context EpsilonDeltaContext)
+  (declaration EpsilonDeclaration)) EpsilonDeltaCompilation
+  (match declaration
+    ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaCompiled ""))
+    ((EpsilonDataDeclaration start end name members) (EpsilonDeltaCompiled ""))
+    ((EpsilonMachineDeclaration start end name inputs returnType body)
+      (epsilon_delta_machine context name inputs returnType body))))
+
+(def epsilon_delta_context_source ((context EpsilonDeltaContext)) EpsilonSourceView
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration) source)))
+
+(def epsilon_delta_program_result ((runtime EpsilonDeltaRuntime)
+  (compilation EpsilonDeltaCompilation)) EpsilonDeltaProgramCompilation
+  (match compilation
+    ((EpsilonDeltaCompiled text) (EpsilonDeltaProgramCompiled runtime text))
+    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaProgramRejected reason offset))
+    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaProgramUnsupported offset))
+    ((EpsilonDeltaInternal offset) (EpsilonDeltaProgramInternal offset))))
+
+; A nonempty receiver machine carries a place and effects. This conservative
+; calling convention does not infer transitive purity or scan source text.
+(def epsilon_delta_receiver_runtime ((body EpsilonMachineBody)) EpsilonDeltaRuntime
+  (match body
+    ((EpsilonMachineBodySyntax start end statements terminal states)
+      (match statements
+        ((MoreEpsilonStatements statement rest) EpsilonDeltaStoredRuntime)
+        (NoEpsilonStatements
+          (match terminal
+            ((SomeEpsilonTerminal value) EpsilonDeltaStoredRuntime)
+            (NoEpsilonTerminal
+              (match states
+                (NoEpsilonStates EpsilonDeltaPureRuntime)
+                ((MoreEpsilonStates state rest) EpsilonDeltaStoredRuntime)))))))))
+
+(def epsilon_delta_machine_runtime ((inputs EpsilonMachineInputs)
+  (body EpsilonMachineBody)) EpsilonDeltaRuntime
+  (match inputs
+    ((NoEpsilonMachineInputs start end) EpsilonDeltaPureRuntime)
+    ((EpsilonPlainMachineInputs start end parameters) EpsilonDeltaPureRuntime)
+    ((EpsilonReceiverMachineInputs start end name parameters)
+      (epsilon_delta_receiver_runtime body))))
+
+(def epsilon_delta_program_runtime ((declarations EpsilonDeclarationList)) EpsilonDeltaRuntime
+  (match declarations
+    (NoEpsilonDeclarations EpsilonDeltaPureRuntime)
+    ((MoreEpsilonDeclarations declaration rest)
+      (match declaration
+        ((EpsilonBoundaryDeclaration start end name members) (epsilon_delta_program_runtime rest))
+        ((EpsilonDataDeclaration start end name members) (epsilon_delta_program_runtime rest))
+        ((EpsilonMachineDeclaration start end name inputs returnType body)
+          (match (epsilon_delta_machine_runtime inputs body)
+            (EpsilonDeltaStoredRuntime EpsilonDeltaStoredRuntime)
+            (EpsilonDeltaPureRuntime (epsilon_delta_program_runtime rest))))))))

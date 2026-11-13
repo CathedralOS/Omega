@@ -197,7 +197,7 @@ pub struct Borrowed {
 /// `wiki/spec/language/termination.md`: "Bare `terminates` authors the
 /// promise", and `terminates by subject` supplies "a witness [that]
 /// discharges that promise rather than redefining it".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Termination {
     /// No clause. termination.md: "A private acyclic body needs no
     /// annotation and derives a local `Terminates` summary", and "A

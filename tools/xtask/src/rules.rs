@@ -1213,6 +1213,33 @@ pub fn gate_movement_violations(title: &str, body: &str, ledger_delta: i64) -> V
     violations
 }
 
+/// A compiler-lane PR says what proved it: the tests on the change itself,
+/// how many fixtures `cargo xtask corpus` ran around it, and whether that
+/// blast was clean. The line is a statement of what was run; the corpus gate,
+/// not this check, decides what a pre-merge run may be.
+pub fn proof_violations(title: &str, body: &str) -> Vec<String> {
+    let lane = title.split(':').next().unwrap_or("").trim();
+    if !GATE_LANES.contains(&lane) {
+        return Vec::new();
+    }
+    const FORM: &str = "`Proof: <tests on the change> | blast: <n> fixtures | <clean, or what the rows that moved turned out to be>` (AGENTS.md 'Explain the change')";
+    let Some(line) = body.lines().find_map(|line| line.strip_prefix("Proof: ")) else {
+        return vec![format!("{lane} pull request description has no {FORM}")];
+    };
+    let fields: Vec<&str> = line.split('|').map(str::trim).collect();
+    let count = fields
+        .get(1)
+        .and_then(|field| field.strip_prefix("blast:"))
+        .and_then(|value| value.split_whitespace().next())
+        .and_then(|count| count.parse::<usize>().ok());
+    let verdict = fields.get(2).is_some_and(|verdict| !verdict.is_empty());
+    if count.is_some() && !fields[0].is_empty() && verdict {
+        Vec::new()
+    } else {
+        vec![format!("`Proof:` line is not of the form {FORM}")]
+    }
+}
+
 // --- TASKS.md board check ---
 
 fn is_tasks_item_line(line: &str) -> bool {
@@ -2108,6 +2135,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(provenance_violations(&body));
         if let Some(t) = &title {
             violations.extend(gate_movement_violations(t, &body, ledger_delta));
+            violations.extend(proof_violations(t, &body));
         }
     }
 
@@ -2648,6 +2676,20 @@ struct Ledger;
         assert_eq!(golden_row_quality_violations(dirty, false).len(), 2);
     }
 
+    #[test]
+    fn proof_line_states_the_tests_the_blast_and_its_verdict() {
+        let check = |body: &str| proof_violations("psi: keep a bound", body);
+        assert!(check("Proof: codec round trips | blast: 6 fixtures | clean\n").is_empty());
+        assert!(
+            check("Proof: unit tests | blast: 4 fixtures | 1 moved: main rejects it too\n")
+                .is_empty()
+        );
+        // Missing and incomplete.
+        assert!(!check("Summary\n").is_empty());
+        assert!(!check("Proof: unit tests | blast: 6 fixtures\n").is_empty());
+        // Other lanes carry no proof line.
+        assert!(proof_violations("docs: explain a page", "Summary\n").is_empty());
+    }
     #[test]
     fn gate_line_must_name_a_gate_and_a_row_change() {
         // One fixture turns green, a second stays red under a new stamp, and a

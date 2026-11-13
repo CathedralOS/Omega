@@ -752,12 +752,49 @@ is replaced. For a native binding the clause, or its omission, is the claim
 that [foreign admission](../build/foreign_bindings.md#operational-coherence)
 accepts for that exact binding; unknown native behavior is not an empty claim.
 
-Source checking also requires the `invokes` edges of every declared checked
-provider to be acyclic, whether or not a Build selects it. A cycle among
-providers that only a future Build could combine is rejected where it is
-written, not deferred until some Build selects it. Which applications of a
-generic provider take part is decided separately
-(`applied-provider-cycle-selection`).
+Named decision: `applied-provider-cycle-selection`, settled 2026-11-12.
+Source checking validates every supplied implementation's body against its
+types, ownership, call preconditions, effects and promised guarantees. Generic
+implementations satisfy their contracts for every admitted application.
+Source checking records the exact call dependencies; a call to a requirement
+remains an edge to that requirement, not to every implementation eligible to
+satisfy it. This replaces the earlier policy rejecting provider cycles that
+only a hypothetical future Build could combine, for generic and nongeneric
+providers alike.
+
+Composition resolves each provider-controlled dependency through the actual
+selected provider for its exact requirement application and target. The selected
+graph retains the complete possible synchronous behavior of the admitted
+composition, including helpers, callbacks and native-call envelopes; it is not
+a trace of one successful execution. Unavailable or abstract call summaries
+remain explicit and conservative, never an empty call set. Requirement and
+provider applications retain every relevant static argument: `Stage<1>` and
+`Stage<2>` are different slots, not one node keyed only by a declaration name.
+
+For `FirstStage<Phase>` calling `Stage<2>`, the dependency remains
+`FirstStage<Phase>::read -> Stage<2>::read` until selected wiring resolves it.
+Selecting `FirstStage<1>` for `Stage<1>` and `SecondStage<2>` for `Stage<2>`
+yields no provider cycle when the latter returns directly. The eligibility of
+`FirstStage<2>` adds no call edge. Selecting that implementation for `Stage<2>`
+instead produces a selected self-reentry cycle and rejects under the existing
+composition rule, independently of any authored `terminates` promise.
+
+An independently checked library can retain unresolved requirement dependencies
+without choosing consumers' providers. Executable composition must resolve its
+required supply and check the complete selected closure. Replacement reruns
+the affected graph, `invokes`-coverage and existing resource, authority, trust,
+stack, lifecycle and admission obligations before accepting the new wiring.
+Adding an unused eligible alternative alone does not change another call's
+selected target.
+
+Direct calls to exact machines remain concrete edges regardless of Build.
+Their recursion follows the ordinary [recursion rules](termination.md#calls-and-productive-loops);
+permitted internal tail recursion is not automatically a provider dependency
+cycle. An acyclic provider graph alone proves no termination of a provider's
+internal algorithm. Every authored or inherited progress promise and retained
+provider-dependent premise still needs justification; selection cannot excuse
+an invalid body, strengthen an abstract interface, or justify termination
+circularly between providers.
 
 No `invokes` clause, present or absent, establishes that an unfinished
 invariant is safe to expose. Access, observation and custody checks apply to

@@ -48,6 +48,7 @@ Gaps found against the contract are listed in the crate README, "Findings".
 mod body;
 mod canonical;
 mod components;
+mod declare;
 mod lower;
 mod names;
 mod outcome;
@@ -153,8 +154,10 @@ pub struct Compilation<'a> {
 /// and every machine those call.
 #[derive(Debug, Clone)]
 pub struct Elaboration {
-    /// Unsealed: no proof fields and no evidence. Its only declarations are
-    /// the record types its machines name and the subject declares.
+    /// Unsealed: no proof fields and no evidence. Its only type declarations
+    /// are the record types its machines name and the subject declares. In a
+    /// compilation's module (`elaborate`) each machine also states the
+    /// declaration identity of the typed-tree machine it lowers (`declare`).
     pub module: TerminalModule,
     /// One `MachineTables` per machine. `summaries` stays empty; see the
     /// README, "Findings".
@@ -218,6 +221,11 @@ pub struct Elaboration {
     /// applications are closed machines of this module. Empty outside
     /// `elaborate`.
     pub generic_templates: Vec<SymbolHandle>,
+    /// The machines of a compilation's module that were given no declaration
+    /// identity, each with the reason (`declare`). A module that lists one is
+    /// judged like any other and is never published. Empty outside
+    /// `elaborate`, whose forms are not programs.
+    pub undeclared: Vec<(MachineId, &'static str)>,
 }
 
 /// One call through an implementation parameter in a machine stage 04
@@ -340,7 +348,7 @@ pub fn elaborate(typed: &TypedTrees, compilation: Compilation<'_>) -> Checked<El
     }
     program.selected_declarations(entry, compilation.selected)?;
     program.subject_declarations(entry, compilation.subject)?;
-    finish_reading(program, entry, IdTable::default())
+    finish_reading(program, entry, IdTable::default(), Some(typed))
 }
 
 /// Elaborates one machine and the closure of machines it calls, in discovery
@@ -388,7 +396,7 @@ pub fn elaborate_alternatives(
             let mut program = read::Program::new(typed, false);
             program.alternative = Some(arguments);
             let entry = program.machine(template)?;
-            finish_reading(program, entry, IdTable::default())
+            finish_reading(program, entry, IdTable::default(), None)
         })
         .collect()
 }
@@ -533,21 +541,24 @@ fn elaborate_witness_call(
             None => Statement::Evaluate(call),
         }],
     });
-    finish_reading(program, entry, bodies)
+    finish_reading(program, entry, bodies, None)
 }
 
 fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, rigid);
     let entry = program.machine(entry)?;
-    finish_reading(program, entry, IdTable::default())
+    finish_reading(program, entry, IdTable::default(), None)
 }
 
 /// Reads every body not yet in `bodies`, callees as they are discovered,
-/// and lowers the closure.
+/// and lowers the closure. `declared` is the typed trees when the closure is a
+/// compilation's program, whose machines are then given their declaration
+/// identities (`declare`).
 fn finish_reading(
     mut program: read::Program<'_>,
     entry: MachineId,
     mut bodies: IdTable<MachineId, Body>,
+    declared: Option<&TypedTrees>,
 ) -> Checked<Elaboration> {
     // `program.machine` appends callees while bodies are read, so the bound
     // is re-read on every step.
@@ -570,6 +581,14 @@ fn finish_reading(
         &program.records,
         &program.requirements,
     )?;
+    if let Some(typed) = declared {
+        declare::declare(
+            typed,
+            &program.symbols,
+            &program.signatures,
+            &mut elaboration,
+        );
+    }
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
     elaboration.names = program.names;
@@ -686,6 +705,7 @@ pub fn lower_generic(
         value_parameters: IdTable::default(),
         value_arguments: IdTable::default(),
         generic_templates: Vec::new(),
+        undeclared: Vec::new(),
     })
 }
 

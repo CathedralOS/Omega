@@ -1,0 +1,7 @@
+; Share the evaluator's checked I32 arithmetic, division and shift meaning.
+(def epsilon_compiled_finish_scalar ((outcome EpsilonEvaluatorScalarOutcome))
+  EpsilonCompiledOutcome
+  (match outcome
+    ((EpsilonEvaluatorScalarValue value) (EpsilonCompiledScalar value))
+    ((EpsilonEvaluatorScalarTrapped kind) (EpsilonCompiledTrap kind))
+    (EpsilonEvaluatorScalarInternal (EpsilonCompiledInternal 0))))

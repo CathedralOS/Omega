@@ -1,0 +1,102 @@
+; Operator identities stay named through generation. Existing checked I32
+; helpers own overflow/division/shift behavior in both interpreter and target.
+(def epsilon_delta_operator_name ((operator EpsilonBinaryOperator)) Bytes
+  (match operator
+    (EpsilonLogicalOr "EpsilonLogicalOr")
+    (EpsilonLogicalAnd "EpsilonLogicalAnd")
+    (EpsilonBitOr "EpsilonBitOr")
+    (EpsilonBitXor "EpsilonBitXor")
+    (EpsilonBitAnd "EpsilonBitAnd")
+    (EpsilonEqual "EpsilonEqual")
+    (EpsilonNotEqual "EpsilonNotEqual")
+    (EpsilonLess "EpsilonLess")
+    (EpsilonLessEqual "EpsilonLessEqual")
+    (EpsilonGreater "EpsilonGreater")
+    (EpsilonGreaterEqual "EpsilonGreaterEqual")
+    (EpsilonShiftLeft "EpsilonShiftLeft")
+    (EpsilonShiftRight "EpsilonShiftRight")
+    (EpsilonAdd "EpsilonAdd")
+    (EpsilonSubtract "EpsilonSubtract")
+    (EpsilonMultiply "EpsilonMultiply")
+    (EpsilonDivide "EpsilonDivide")
+    (EpsilonRemainder "EpsilonRemainder")))
+
+(def epsilon_emit_guarded_boolean ((coordinate Int)) Bytes
+  (let scalar Bytes (epsilon_emit_generated "scalar" coordinate)
+    (epsilon_emit_if (epsilon_emit_if
+      (epsilon_emit_call "eq" (epsilon_emit_spaced scalar "0")) "1"
+      (epsilon_emit_call "eq" (epsilon_emit_spaced scalar "1")))
+      (epsilon_emit_scalar scalar) "(EpsilonCompiledTrap 7)")))
+
+(def epsilon_delta_binary_flow ((operator EpsilonBinaryOperator)) EpsilonDeltaBinaryFlow
+  (match operator
+    (EpsilonLogicalOr EpsilonDeltaShortOnTrue)
+    (EpsilonLogicalAnd EpsilonDeltaShortOnFalse)
+    (EpsilonBitOr EpsilonDeltaEvaluateBoth)
+    (EpsilonBitXor EpsilonDeltaEvaluateBoth)
+    (EpsilonBitAnd EpsilonDeltaEvaluateBoth)
+    (EpsilonEqual EpsilonDeltaEvaluateBoth)
+    (EpsilonNotEqual EpsilonDeltaEvaluateBoth)
+    (EpsilonLess EpsilonDeltaEvaluateBoth)
+    (EpsilonLessEqual EpsilonDeltaEvaluateBoth)
+    (EpsilonGreater EpsilonDeltaEvaluateBoth)
+    (EpsilonGreaterEqual EpsilonDeltaEvaluateBoth)
+    (EpsilonShiftLeft EpsilonDeltaEvaluateBoth)
+    (EpsilonShiftRight EpsilonDeltaEvaluateBoth)
+    (EpsilonAdd EpsilonDeltaEvaluateBoth)
+    (EpsilonSubtract EpsilonDeltaEvaluateBoth)
+    (EpsilonMultiply EpsilonDeltaEvaluateBoth)
+    (EpsilonDivide EpsilonDeltaEvaluateBoth)
+    (EpsilonRemainder EpsilonDeltaEvaluateBoth)
+))
+
+(def epsilon_delta_checked_binary_result ((operator EpsilonBinaryOperator)
+  (left Int) (right Int)) Bytes
+  (let operands Bytes (epsilon_emit_spaced
+    (epsilon_emit_generated "scalar" left) (epsilon_emit_generated "scalar" right))
+    (epsilon_emit_call "epsilon_compiled_finish_scalar"
+      (epsilon_emit_call "epsilon_evaluate_core_binary_values"
+        (epsilon_emit_spaced (epsilon_delta_operator_name operator) operands)))))
+
+(def epsilon_delta_binary_result ((operator EpsilonBinaryOperator)
+  (left Int) (right Int)) Bytes
+  (match (epsilon_delta_binary_flow operator)
+    (EpsilonDeltaEvaluateBoth (epsilon_delta_checked_binary_result operator left right))
+    (EpsilonDeltaShortOnTrue (epsilon_emit_guarded_boolean right))
+    (EpsilonDeltaShortOnFalse (epsilon_emit_guarded_boolean right))))
+
+; The right expression occurs only in the selected branch for && and ||.
+; Both operands are still compiled, so an unreachable unsupported construct
+; cannot disappear from the declared capability boundary. The stop value is
+; the ordinary target boolean value, not an operation identity.
+(def epsilon_delta_logical_after_left ((coordinate Int)
+  (stopValue Bytes) (rightText Bytes)) Bytes
+  (let scalar Bytes (epsilon_emit_generated "scalar" coordinate)
+    (let shortCircuit Bytes (epsilon_emit_call "eq" (epsilon_emit_spaced scalar stopValue))
+      (let boolean Bytes (epsilon_emit_if
+        (epsilon_emit_call "eq" (epsilon_emit_spaced scalar "0")) "1"
+        (epsilon_emit_call "eq" (epsilon_emit_spaced scalar "1")))
+        (epsilon_emit_if boolean
+          (epsilon_emit_if shortCircuit (epsilon_emit_scalar scalar) rightText)
+          "(EpsilonCompiledTrap 7)")))))
+
+(def epsilon_delta_binary_after_left ((operator EpsilonBinaryOperator)
+  (coordinate Int) (rightText Bytes)) Bytes
+  (match (epsilon_delta_binary_flow operator)
+    (EpsilonDeltaEvaluateBoth rightText)
+    (EpsilonDeltaShortOnTrue (epsilon_delta_logical_after_left coordinate "1" rightText))
+    (EpsilonDeltaShortOnFalse (epsilon_delta_logical_after_left coordinate "0" rightText))))
+
+(def epsilon_delta_binary ((context EpsilonDeltaContext)
+  (operator EpsilonBinaryOperator) (left EpsilonExpression)
+  (right EpsilonExpression)) EpsilonDeltaCompilation
+  (let leftCoordinate Int (epsilon_expression_start left)
+    (let rightCoordinate Int (epsilon_expression_start right)
+      (match (epsilon_delta_scalar_then context right
+        (epsilon_delta_binary_result operator leftCoordinate rightCoordinate))
+        ((EpsilonDeltaCompiled evaluatedRight)
+          (epsilon_delta_scalar_then context left
+            (epsilon_delta_binary_after_left operator leftCoordinate evaluatedRight)))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))

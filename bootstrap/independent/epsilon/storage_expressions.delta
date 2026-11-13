@@ -1,0 +1,266 @@
+; Stored parameters are live homes, not the immutable variables of the pure
+; ABI. Only literal leaves reuse direct scalar lowering; every other operation
+; reads and threads its actual store, including receiver and argument effects.
+(def epsilon_delta_stored_expression ((context EpsilonDeltaContext)
+  (expression EpsilonExpression) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (epsilon_delta_stored_nonpure context expression store output))
+
+(def epsilon_delta_stored_read ((context EpsilonDeltaContext)
+  (expression EpsilonExpression) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match (epsilon_delta_stored_place context expression)
+    ((EpsilonDeltaPlaceUnsupported offset) (EpsilonDeltaUnsupported offset))
+    ((EpsilonDeltaPlaceInternal offset) (EpsilonDeltaInternal offset))
+    ((EpsilonDeltaPlaceCompiled typeValue place)
+      (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_compiled_read"
+            (epsilon_emit_spaced place (epsilon_emit_spaced store (epsilon_emit_spaced output
+              (epsilon_emit_decimal (epsilon_expression_start expression))))))))))
+
+(def epsilon_delta_stored_negate ((context EpsilonDeltaContext)
+  (operand EpsilonExpression) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match (epsilon_delta_stored_expression context operand store output)
+    ((EpsilonDeltaCompiled text)
+      (let coordinate Int (epsilon_expression_start operand)
+        (let negative Bytes (epsilon_emit_call "-" (epsilon_emit_spaced "0"
+          (epsilon_emit_generated "scalar" coordinate)))
+          (EpsilonDeltaCompiled (epsilon_emit_stored_scalar_then coordinate text
+            (epsilon_emit_call "epsilon_evaluator_complete_scalar"
+              (epsilon_emit_spaced (epsilon_emit_call "epsilon_evaluator_i32_outcome" negative)
+                (epsilon_emit_spaced (epsilon_emit_generated "store" coordinate)
+                  (epsilon_emit_generated "output" coordinate)))))))))
+    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+
+(def epsilon_delta_stored_binary_result ((operator EpsilonBinaryOperator)
+  (left Int) (right Int)) Bytes
+  (epsilon_emit_call "epsilon_compiled_from_pure"
+    (epsilon_emit_spaced (epsilon_delta_binary_result operator left right)
+      (epsilon_emit_spaced (epsilon_emit_generated "store" right)
+        (epsilon_emit_generated "output" right)))))
+
+(def epsilon_delta_stored_logical_left ((coordinate Int)
+  (stopValue Bytes) (rightText Bytes)) Bytes
+  (let scalar Bytes (epsilon_emit_generated "scalar" coordinate)
+    (let boolean Bytes (epsilon_emit_if
+      (epsilon_emit_call "eq" (epsilon_emit_spaced scalar "0")) "1"
+      (epsilon_emit_call "eq" (epsilon_emit_spaced scalar "1")))
+      (let stop Bytes (epsilon_emit_call "eq" (epsilon_emit_spaced scalar stopValue))
+        (epsilon_emit_if boolean (epsilon_emit_if stop
+          (epsilon_emit_stored_integer scalar (epsilon_emit_generated "store" coordinate)
+            (epsilon_emit_generated "output" coordinate)) rightText)
+          (epsilon_emit_stored_trap 7 (epsilon_emit_generated "output" coordinate)))))))
+
+(def epsilon_delta_stored_binary_left ((operator EpsilonBinaryOperator)
+  (coordinate Int) (rightText Bytes)) Bytes
+  (match (epsilon_delta_binary_flow operator)
+    (EpsilonDeltaEvaluateBoth rightText)
+    (EpsilonDeltaShortOnTrue (epsilon_delta_stored_logical_left coordinate "1" rightText))
+    (EpsilonDeltaShortOnFalse (epsilon_delta_stored_logical_left coordinate "0" rightText))))
+
+(def epsilon_delta_stored_binary ((context EpsilonDeltaContext)
+  (operator EpsilonBinaryOperator) (left EpsilonExpression) (right EpsilonExpression)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match (epsilon_delta_stored_expression context left store output)
+    ((EpsilonDeltaCompiled leftText)
+      (let leftCoordinate Int (epsilon_expression_start left)
+        (let rightCoordinate Int (epsilon_expression_start right)
+          (match (epsilon_delta_stored_expression context right
+            (epsilon_emit_generated "store" leftCoordinate) (epsilon_emit_generated "output" leftCoordinate))
+            ((EpsilonDeltaCompiled rightText)
+              (let next Bytes (epsilon_emit_stored_scalar_then rightCoordinate rightText
+                (epsilon_delta_stored_binary_result operator leftCoordinate rightCoordinate))
+                (EpsilonDeltaCompiled (epsilon_emit_stored_scalar_then leftCoordinate leftText
+                  (epsilon_delta_stored_binary_left operator leftCoordinate next)))))
+            ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+            ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
+    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+
+(def epsilon_delta_stored_nonpure ((context EpsilonDeltaContext)
+  (expression EpsilonExpression) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match expression
+    ((EpsilonFieldExpression start end base member)
+      (epsilon_delta_stored_field context expression base member store output))
+    ((EpsilonGroupedExpression start end inner) (epsilon_delta_stored_expression context inner store output))
+    ((EpsilonNegateExpression start end operand) (epsilon_delta_stored_negate context operand store output))
+    ((EpsilonBinaryExpression start end operator operatorStart operatorEnd left right)
+      (epsilon_delta_stored_binary context operator left right store output))
+    ((EpsilonCallExpression start end base arguments)
+      (epsilon_delta_stored_call context expression base arguments store output))
+    ((EpsilonNameExpression start end name) (epsilon_delta_stored_read context expression store output))
+    ((EpsilonIntegerExpression start end literal)
+      (EpsilonDeltaCompiled (epsilon_emit_stored_integer
+        (epsilon_emit_decimal (epsilon_integer_literal_value literal)) store output)))
+    ((EpsilonCharacterExpression start end literal)
+      (match literal
+        ((EpsilonCharacterSpan literalStart literalEnd value)
+          (EpsilonDeltaCompiled (epsilon_emit_stored_integer (epsilon_emit_decimal value) store output)))))
+    ((EpsilonTrueExpression start end) (EpsilonDeltaCompiled (epsilon_emit_stored_integer "1" store output)))
+    ((EpsilonFalseExpression start end) (EpsilonDeltaCompiled (epsilon_emit_stored_integer "0" store output)))
+    ((EpsilonStringExpression start end literal) (EpsilonDeltaUnsupported start))
+    ((EpsilonQualifiedExpression start end owner member arguments) (EpsilonDeltaUnsupported start))
+    ((EpsilonIndexExpression start end base index)
+      (epsilon_delta_stored_index context base index store output))
+    ((EpsilonSliceExpression start end base low high)
+      (epsilon_delta_stored_slice context base low high store output))))
+
+(def epsilon_delta_stored_slice_high ((context EpsilonDeltaContext)
+  (high EpsilonOptionalExpression) (view Bytes) (low Bytes)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match high
+    (NoEpsilonExpression (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_evaluator_slice_bounds"
+      (epsilon_emit_spaced view (epsilon_emit_spaced low (epsilon_emit_spaced
+        (epsilon_emit_call "epsilon_runtime_view_length" view) (epsilon_emit_spaced store output)))))))
+    ((SomeEpsilonExpression expression)
+      (let coordinate Int (epsilon_expression_start expression)
+        (match (epsilon_delta_stored_expression context expression store output)
+          ((EpsilonDeltaCompiled text)
+            (EpsilonDeltaCompiled (epsilon_emit_stored_scalar_then coordinate text
+              (epsilon_emit_call "epsilon_evaluator_slice_bounds" (epsilon_emit_spaced view
+                (epsilon_emit_spaced low (epsilon_emit_spaced (epsilon_emit_generated "scalar" coordinate)
+                  (epsilon_emit_spaced (epsilon_emit_generated "store" coordinate)
+                    (epsilon_emit_generated "output" coordinate)))))))))
+          ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+          ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+          ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))))
+
+(def epsilon_delta_stored_slice_low ((context EpsilonDeltaContext)
+  (low EpsilonOptionalExpression) (high EpsilonOptionalExpression)
+  (view Bytes) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match low
+    (NoEpsilonExpression (epsilon_delta_stored_slice_high context high view "0" store output))
+    ((SomeEpsilonExpression expression)
+      (let coordinate Int (epsilon_expression_start expression)
+        (match (epsilon_delta_stored_expression context expression store output)
+          ((EpsilonDeltaCompiled text)
+            (match (epsilon_delta_stored_slice_high context high view
+              (epsilon_emit_generated "scalar" coordinate)
+              (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate))
+              ((EpsilonDeltaCompiled continuation)
+                (EpsilonDeltaCompiled (epsilon_emit_stored_scalar_then coordinate text continuation)))
+              ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+              ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+              ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+          ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+          ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+          ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))))
+
+; Slice normalization has a separate lexical namespace from the base snapshot.
+; Bounds then run left-to-right against the captured ultimate backing view.
+(def epsilon_delta_stored_slice_value_then ((coordinate Int)
+  (expression Bytes) (continuation Bytes)) Bytes
+  (let invalid Bytes (epsilon_emit_stored_internal coordinate)
+    (let categories Bytes (bytes_concat
+      (epsilon_emit_case "(EpsilonRuntimeInteger ep_slice_scalar)" invalid)
+      (bytes_concat (epsilon_emit_case "(EpsilonRuntimeAggregate ep_slice_type ep_slice_children)" invalid)
+        (bytes_concat (epsilon_emit_case "(EpsilonRuntimeSumValue ep_slice_owner ep_slice_case ep_slice_payload)" invalid)
+          (epsilon_emit_case (epsilon_emit_call "EpsilonRuntimeViewValue"
+            (epsilon_emit_generated "slice_view" coordinate)) continuation))))
+      (let valueCase Bytes (epsilon_emit_case
+        (epsilon_emit_call "EpsilonEvaluatorValue" (epsilon_emit_stored_fields
+          (epsilon_emit_generated "slice_value" coordinate) (epsilon_emit_generated "slice_place" coordinate)
+          (epsilon_emit_generated "slice_store" coordinate) (epsilon_emit_generated "slice_output" coordinate)))
+        (epsilon_emit_match (epsilon_emit_generated "slice_value" coordinate) categories))
+        (epsilon_emit_match expression (bytes_concat valueCase (bytes_concat
+          (epsilon_emit_case "(EpsilonEvaluatorResultless ep_slice_unused_store ep_slice_unused_output)" invalid)
+          (epsilon_emit_stored_propagation))))))))
+
+(def epsilon_delta_stored_slice ((context EpsilonDeltaContext)
+  (base EpsilonExpression) (low EpsilonOptionalExpression) (high EpsilonOptionalExpression)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (let coordinate Int (epsilon_expression_start base)
+    (match (epsilon_delta_stored_expression context base store output)
+      ((EpsilonDeltaCompiled text)
+        (match (epsilon_delta_stored_slice_low context low high
+          (epsilon_emit_generated "slice_view" coordinate)
+          (epsilon_emit_generated "slice_store" coordinate) (epsilon_emit_generated "slice_output" coordinate))
+          ((EpsilonDeltaCompiled continuation)
+            (let normalized Bytes (epsilon_emit_call "epsilon_evaluator_slice_base"
+              (epsilon_emit_stored_fields (epsilon_emit_generated "value" coordinate)
+                (epsilon_emit_generated "place" coordinate) (epsilon_emit_generated "store" coordinate)
+                (epsilon_emit_generated "output" coordinate)))
+              (EpsilonDeltaCompiled (epsilon_emit_stored_value_then coordinate text
+                (epsilon_delta_stored_slice_value_then coordinate normalized continuation)))))
+          ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+          ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+          ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+      ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+      ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+      ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))
+
+(def epsilon_delta_stored_field_result ((context EpsilonDeltaContext)
+  (expression EpsilonExpression) (member EpsilonName) (coordinate Int)) EpsilonDeltaCompilation
+  (let value Bytes (epsilon_emit_generated "value" coordinate)
+    (let place Bytes (epsilon_emit_generated "place" coordinate)
+      (let effects Bytes (epsilon_emit_spaced (epsilon_emit_generated "store" coordinate)
+        (epsilon_emit_generated "output" coordinate))
+        (match context
+          ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+            (match (epsilon_find_resolved_field_reference expression fields)
+              (NoEpsilonResolvedFieldReference
+                (if (epsilon_name_is_len source member)
+                  (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_evaluator_array_length"
+                    (epsilon_emit_spaced value effects)))
+                  (if (epsilon_name_is_as_slice source member)
+                    (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_evaluator_as_slice"
+                      (epsilon_emit_spaced value (epsilon_emit_spaced place effects))))
+                    (EpsilonDeltaInternal (epsilon_expression_start expression)))))
+              ((OneEpsilonResolvedFieldReference owner field)
+                (match owner
+                  ((EpsilonDataDeclaration ownerStart ownerEnd ownerName members)
+                    (match field
+                      ((EpsilonFieldMember fieldStart fieldEnd fieldName typeValue)
+                        (let descriptor Bytes (epsilon_delta_type_descriptor typeValue)
+                          (let projection Bytes (epsilon_emit_call "EpsilonRuntimeField"
+                            (epsilon_emit_spaced (epsilon_delta_span ownerStart ownerEnd)
+                              (epsilon_emit_spaced (epsilon_delta_span fieldStart fieldEnd) descriptor)))
+                            (EpsilonDeltaCompiled (epsilon_emit_call "epsilon_evaluator_project_value"
+                              (epsilon_emit_spaced value (epsilon_emit_spaced place
+                                (epsilon_emit_spaced projection (epsilon_emit_spaced descriptor effects)))))))))
+                      ((EpsilonCaseMember start end name payload) (EpsilonDeltaInternal start))))
+                  ((EpsilonBoundaryDeclaration start end name members) (EpsilonDeltaInternal start))
+                  ((EpsilonMachineDeclaration start end name inputs returnType body) (EpsilonDeltaInternal start)))))))))))
+
+(def epsilon_delta_stored_field ((context EpsilonDeltaContext)
+  (expression EpsilonExpression) (base EpsilonExpression) (member EpsilonName)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (let coordinate Int (epsilon_expression_start base)
+    (match (epsilon_delta_stored_expression context base store output)
+      ((EpsilonDeltaCompiled text)
+        (match (epsilon_delta_stored_field_result context expression member coordinate)
+          ((EpsilonDeltaCompiled continuation)
+            (EpsilonDeltaCompiled (epsilon_emit_stored_value_then coordinate text continuation)))
+          ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+          ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+          ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+      ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+      ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+      ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))
+
+; Base snapshot and place are captured before the index. The shared primitive
+; rereads a live array from the post-index store, and checks view/array bounds.
+(def epsilon_delta_stored_index ((context EpsilonDeltaContext)
+  (base EpsilonExpression) (index EpsilonExpression) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (let baseCoordinate Int (epsilon_expression_start base)
+    (let indexCoordinate Int (epsilon_expression_start index)
+      (match (epsilon_delta_stored_expression context base store output)
+        ((EpsilonDeltaCompiled baseText)
+          (match (epsilon_delta_stored_expression context index
+            (epsilon_emit_generated "store" baseCoordinate) (epsilon_emit_generated "output" baseCoordinate))
+            ((EpsilonDeltaCompiled indexText)
+              (let selected Bytes (epsilon_emit_call "epsilon_evaluator_index_value"
+                (epsilon_emit_spaced (epsilon_emit_generated "value" baseCoordinate)
+                  (epsilon_emit_spaced (epsilon_emit_generated "place" baseCoordinate)
+                    (epsilon_emit_spaced (epsilon_emit_generated "scalar" indexCoordinate)
+                      (epsilon_emit_spaced (epsilon_emit_generated "store" indexCoordinate)
+                        (epsilon_emit_generated "output" indexCoordinate))))))
+                (EpsilonDeltaCompiled (epsilon_emit_stored_value_then baseCoordinate baseText
+                  (epsilon_emit_stored_scalar_then indexCoordinate indexText selected)))))
+            ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+            ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))

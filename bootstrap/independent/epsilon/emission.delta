@@ -50,54 +50,52 @@
       (epsilon_emit_owned_function_name source owner member))))
 
 ; A source parameter's retained coordinate is its lexical identity. User
-; spellings cannot capture generated store/output names in the Delta target.
-(def epsilon_compiled_parameter_name ((name EpsilonName)) Bytes
+; spellings cannot capture generated temporaries in the Delta target.
+(def epsilon_compiled_parameter_name ((source EpsilonSourceView) (name EpsilonName)) Bytes
   (match name
     ((EpsilonNameSpan start end)
-      (bytes_concat "ep_local_" (epsilon_emit_decimal start)))))
+      (bytes_concat "ep_local_" (bytes_concat (epsilon_emit_decimal start)
+        (bytes_concat "_" (epsilon_emit_name source name)))))))
 
-(def epsilon_emit_parameter ((parameter EpsilonParameter)) Bytes
+(def epsilon_emit_parameter ((source EpsilonSourceView) (parameter EpsilonParameter)) Bytes
   (match parameter
     ((EpsilonParameterSyntax start end name typeValue)
       (let named Bytes
-        (bytes_concat "(" (epsilon_compiled_parameter_name name))
-        (bytes_concat named " EpsilonRuntimeValue) ")))))
+        (bytes_concat "(" (epsilon_compiled_parameter_name source name))
+        (bytes_concat named " Int) ")))))
 
-(def epsilon_emit_parameters ((parameters EpsilonParameterList)) Bytes
+(def epsilon_emit_parameters ((source EpsilonSourceView) (parameters EpsilonParameterList)) Bytes
   (match parameters
     (NoEpsilonParameters "")
     ((MoreEpsilonParameters parameter rest)
-      (bytes_concat (epsilon_emit_parameter parameter)
-        (epsilon_emit_parameters rest)))))
+      (bytes_concat (epsilon_emit_parameter source parameter)
+        (epsilon_emit_parameters source rest)))))
 
-(def epsilon_emit_inputs ((inputs EpsilonMachineInputs)) Bytes
+(def epsilon_emit_inputs ((source EpsilonSourceView) (inputs EpsilonMachineInputs)) Bytes
   (match inputs
     ((NoEpsilonMachineInputs start end) "")
     ((EpsilonPlainMachineInputs start end parameters)
-      (epsilon_emit_parameters parameters))
+      (epsilon_emit_parameters source parameters))
     ((EpsilonReceiverMachineInputs start end receiver parameters)
-      (bytes_concat "(ep_receiver EpsilonRuntimeOptionalPlace) "
-        (epsilon_emit_parameters parameters)))))
+      (epsilon_emit_parameters source parameters))))
 
-; Every compiled machine returns the existing effect-threaded outcome. Scalar,
-; resultless, exit, trap and contradiction results therefore stay distinct.
+; Pure compiled machines return named scalar/resultless/trap/internal outcomes.
+; The checked capability boundary excludes storage and Console effects.
 (def epsilon_emit_compiled_function
   ((source EpsilonSourceView) (name EpsilonQualifiedName)
-   (inputs EpsilonMachineInputs) (body Bytes)) Bytes
+   (parameterText Bytes) (body Bytes)) Bytes
   (let named Bytes
     (bytes_concat "(def " (epsilon_compiled_function_name source name))
     (let parameters Bytes
-      (bytes_concat " (" (epsilon_emit_inputs inputs))
+      (bytes_concat " (" parameterText)
       (let signature Bytes
         (bytes_concat parameters
-          "(ep_store EpsilonRuntimeStore) (ep_output Bytes)) EpsilonEvaluatorOutcome\n  ")
+          ") EpsilonCompiledOutcome\n  ")
         (bytes_concat named
           (bytes_concat signature (bytes_concat body ")\n")))))))
 
-(def epsilon_emit_resultless () Bytes
-  "(EpsilonEvaluatorResultless ep_store ep_output)")
+(def epsilon_emit_resultless () Bytes "EpsilonCompiledResultless")
 
 (def epsilon_emit_integer ((value Int)) Bytes
-  (bytes_concat "(EpsilonEvaluatorValue (EpsilonRuntimeInteger "
-    (bytes_concat (epsilon_emit_decimal value)
-      ") NoEpsilonRuntimePlace ep_store ep_output)")))
+  (bytes_concat "(EpsilonCompiledScalar "
+    (bytes_concat (epsilon_emit_decimal value) ")")))

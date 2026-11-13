@@ -31,8 +31,14 @@ def main():
     parser.add_argument("--reuse-constructed", action="store_true")
     parser.add_argument("--seconds", type=int, default=1800)
     parser.add_argument("--omega", action="store_true")
+    parser.add_argument("--omega-control", action="store_true",
+                        help="construct the real lexer classifiers and execute nominal/control checks")
+    parser.add_argument("--omega-utf8", action="store_true",
+                        help="construct the real decoder and execute arithmetic/refusal controls")
     parser.add_argument("--literals", action="store_true",
                         help="validate Delta byte literals and the actual Epsilon source encoder")
+    parser.add_argument("--compile-epsilon", action="store_true",
+                        help="compile production lexical/request modules and exercise receiver storage/views")
     args = parser.parse_args()
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
@@ -44,7 +50,10 @@ def main():
     result = {"state": "running", "stage": "preflight", "passed_stages": [],
               "pid": os.getpid(), "started_at": datetime.now(timezone.utc).isoformat(),
               "reused_constructed_predecessor": args.reuse_constructed,
-              "omega_fixture": args.omega, "byte_literals": args.literals}
+              "omega_fixture": args.omega, "omega_utf8": args.omega_utf8,
+              "omega_control": args.omega_control,
+              "byte_literals": args.literals,
+              "compile_epsilon": args.compile_epsilon}
 
     def checkpoint(stage, subjects):
         result["stage"] = stage
@@ -107,16 +116,49 @@ def main():
         checkpoint("epsilon", ())
     vm.epsilon_customer(work, producer=NativeCompiler, realize=construction.realize)
     result["passed_stages"].append("epsilon")
-    checkpoint("omega" if args.omega else "complete",
+    next_stage = "omega" if args.omega or args.omega_utf8 or args.omega_control else "complete"
+    checkpoint("compiled_epsilon" if args.compile_epsilon else next_stage,
                (("epsilon_request", "epsilon-request.bin"),
                 ("epsilon_gamma_receipt", "epsilon.gamma"),
                 ("epsilon_elf", "epsilon.elf")))
+    if args.compile_epsilon:
+        compilation_spec = importlib.util.spec_from_file_location(
+            "epsilon_compilation_controls", Path(__file__).parent / "epsilon/compile_test.py")
+        compilation_controls = importlib.util.module_from_spec(compilation_spec)
+        compilation_spec.loader.exec_module(compilation_controls)
+        result["compiled_epsilon"] = compilation_controls.run(
+            work, vm, NativeCompiler, construction.realize, args.seconds)
+        result["passed_stages"].append("compiled_epsilon_lexical_customer")
+        checkpoint(next_stage, ())
     if args.omega:
         vm.omega_customer(work, args.seconds)
         result["passed_stages"].append("omega_fixture")
         checkpoint("complete", (("omega_request", "omega-request.bin"),
                                 ("omega_observation", "omega-observation.bin"),
                                 ("omega_tape", "omega.tape")))
+    if args.omega_control:
+        checkpoint("omega_control", ())
+        vm.omega_control_customer(work, args.seconds)
+        result["passed_stages"].append("omega_control")
+        subjects = [("omega_bootstrap_compiler", "bootstrap-compiler.epsilon"),
+                    ("omega_control_source", "control-source.epsilon"),
+                    ("omega_control_program", "control-program.omg"),
+                    ("omega_control_request", "control-request.bin"),
+                    ("omega_control_observation", "control-observation.bin")]
+        subjects.extend((f"omega_control_tape_{index}", f"control-{index}.tape")
+                        for index in range(17))
+        checkpoint("complete", subjects)
+    if args.omega_utf8:
+        checkpoint("omega_utf8", ())
+        vm.omega_utf8_customer(work, args.seconds)
+        result["passed_stages"].append("omega_utf8")
+        subjects = [("omega_bootstrap_compiler", "bootstrap-compiler.epsilon"),
+                    ("omega_utf8_source", "utf8-source.epsilon"),
+                    ("omega_utf8_program", "utf8-program.omg")]
+        for batch in range(4):
+            subjects.extend(((f"omega_utf8_request_{batch}", f"utf8-{batch}-request.bin"),
+                             (f"omega_utf8_observation_{batch}", f"utf8-{batch}-observation.bin")))
+        checkpoint("complete", subjects)
     result["state"] = "passed"
     checkpoint("complete", ())
     print(json.dumps(result, sort_keys=True), flush=True)
