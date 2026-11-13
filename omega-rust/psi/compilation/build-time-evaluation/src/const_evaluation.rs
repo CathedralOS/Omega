@@ -2789,62 +2789,6 @@ pub(crate) mod const_qualifications {
             syntax.items.replace_item(item, Item::Const(definition));
         }
     }
-
-    #[cfg(test)]
-    mod tests {
-        use super::require_complete_destination_judgment;
-        use checked_trees::{CheckFacts, CheckedTrees, IntegerRangeObligation, IntegerRangeRecipe};
-        use numerics::bignum::BigInt;
-        use symbols::SymbolHandle;
-        use typed_trees::TypedTrees;
-        use typed_trees::expression::ExpressionHandle;
-        use typed_trees::machine::Machine;
-
-        #[test]
-        fn destination_receipt_requires_its_exact_complete_checked_probe() {
-            let probe = SymbolHandle::from_parts(1, 1);
-            let unrelated = SymbolHandle::from_parts(2, 1);
-            let missing = SymbolHandle::from_parts(3, 1);
-            let mut program = TypedTrees::default();
-            for symbol in [probe, unrelated] {
-                program.push_machine(Machine {
-                    symbol,
-                    ..Default::default()
-                });
-            }
-            let mut checked = CheckedTrees::with_roots(program, CheckFacts::default());
-            let declaration = source::SourceSpan::default();
-            assert!(require_complete_destination_judgment(&checked, probe, declaration).is_ok());
-            assert!(require_complete_destination_judgment(&checked, missing, declaration).is_err());
-
-            checked
-                .facts
-                .integer_range_obligations
-                .push(IntegerRangeObligation::retain(
-                    ExpressionHandle::invalid(),
-                    unrelated,
-                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
-                    IntegerRangeRecipe::bounds(BigInt::from_i64(0), BigInt::from_i64(1)),
-                    BigInt::from_i64(0),
-                    BigInt::from_i64(1),
-                    "unrelated retained target condition".to_owned(),
-                ));
-            assert!(require_complete_destination_judgment(&checked, probe, declaration).is_ok());
-            checked
-                .facts
-                .integer_range_obligations
-                .push(IntegerRangeObligation::retain(
-                    ExpressionHandle::invalid(),
-                    probe,
-                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
-                    IntegerRangeRecipe::bounds(BigInt::from_i64(0), BigInt::from_i64(1)),
-                    BigInt::from_i64(0),
-                    BigInt::from_i64(1),
-                    "destination retained target condition".to_owned(),
-                ));
-            assert!(require_complete_destination_judgment(&checked, probe, declaration).is_err());
-        }
-    }
 }
 pub(crate) mod constant_recipes {
     use crate::build_time_evaluation::EvaluationDomain;

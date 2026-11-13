@@ -635,27 +635,6 @@ pub(crate) mod admission {
                     .map(crate::MeasuredEvaluation::into_value)
             }
 
-            /// Run one invocation whose machine has an authored `requires`: the
-            /// concrete arguments are the only proof of that premise, so this is
-            /// the entry a constant call with literal arguments uses.
-            fn evaluate_under_concrete_premises(
-                admission: &BuildTimeAdmissionPlan,
-                program: &typed_trees::TypedTrees,
-                machine_name: &str,
-                arguments: Vec<BuildTimeValue>,
-            ) -> Result<BuildTimeValue, String> {
-                let symbol = program
-                    .realized_machine_named(machine_name)
-                    .expect("the invoked machine exists")
-                    .symbol;
-                admission.evaluate_const_evaluable_machine_symbol_for_concrete_premise_invocation(
-                    program,
-                    symbol,
-                    arguments,
-                    BuildTimeInvocationCustody::Symbol(symbol),
-                )
-            }
-
             #[test]
             fn source_admission_proves_guarded_actuals_before_execution() {
                 on_compilation_stack(|| {
