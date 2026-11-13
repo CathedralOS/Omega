@@ -19,8 +19,8 @@ fn unavailable() -> Vec<Diagnostic> {
 /// Ordinary bodies and declarations remain for the source checker to judge.
 fn require_no_source_jobs(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let unsupported = |job| vec![Diagnostic::error(format!("no product route yet: {job}"))];
-    if !typed.const_declarations().is_empty()
-        || !typed.constant_recipes.is_empty()
+    require_no_unevaluated_constant_use(typed)?;
+    if !typed.constant_recipes.is_empty()
         || !typed.constant_expression_contexts.is_empty()
         || !typed.constant_recipe_closure.values.is_empty()
         || !typed.constant_recipe_closure.receipts.is_empty()
@@ -105,6 +105,117 @@ fn require_no_source_jobs(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         }
     }
     Ok(())
+}
+
+/// Refuse the first use of a constant whose value no stage has recorded.
+///
+/// Declaring a constant asks for nothing: the program can carry it unread.
+/// What needs a value is a reference to the constant from some other
+/// declaration, such as a machine body or a type. Resolution records the
+/// value of each initializer it owns the folding of; a referenced constant
+/// without a recorded value is work for an evaluator that does not exist
+/// yet, so the reference is refused by the constant's name. The initializer
+/// is never read here as a substitute for the missing value.
+fn require_no_unevaluated_constant_use(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    use symbols::SymbolHandle;
+    use typed_trees::expression::ExpressionHandle;
+
+    fn key(symbol: SymbolHandle) -> (u32, u32) {
+        (symbol.arena_index(), symbol.generation())
+    }
+    /// Walks every declaration except the constants themselves and notes
+    /// the first expression that names an unevaluated constant.
+    struct Uses {
+        /// Constants and the derived machines that would compute them,
+        /// sorted. Their own bodies are declarations, not uses.
+        constant_owned: Vec<SymbolHandle>,
+        /// Sorted constants without a recorded value.
+        unevaluated: Vec<SymbolHandle>,
+        expression: ExpressionHandle,
+        first: Option<(SymbolHandle, ExpressionHandle)>,
+    }
+    impl Extend<SymbolHandle> for Uses {
+        fn extend<I: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: I) {
+            for symbol in symbols {
+                if self.first.is_none()
+                    && self
+                        .unevaluated
+                        .binary_search_by_key(&key(symbol), |symbol| key(*symbol))
+                        .is_ok()
+                {
+                    self.first = Some((symbol, self.expression));
+                }
+            }
+        }
+    }
+    impl typed_trees::references::TypedReferences for Uses {
+        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+            self.expression = ExpressionHandle::invalid();
+            self.constant_owned
+                .binary_search_by_key(&key(symbol), |symbol| key(*symbol))
+                .is_err()
+        }
+        fn expression(&mut self, expression: ExpressionHandle) -> bool {
+            self.expression = expression;
+            true
+        }
+    }
+
+    let mut unevaluated = typed
+        .const_declarations()
+        .iter()
+        .filter(|declaration| declaration.evaluated_value.is_none())
+        .map(|declaration| declaration.symbol)
+        .collect::<Vec<_>>();
+    if unevaluated.is_empty() {
+        return Ok(());
+    }
+    unevaluated.sort_unstable_by_key(|symbol| key(*symbol));
+    let mut constant_owned = typed
+        .const_declarations()
+        .iter()
+        .flat_map(|declaration| {
+            let entry = typed
+                .tables
+                .machines
+                .is_valid(declaration.evaluation_entry)
+                .then(|| {
+                    typed
+                        .tables
+                        .machines
+                        .get(declaration.evaluation_entry)
+                        .symbol
+                });
+            [Some(declaration.symbol), entry].into_iter().flatten()
+        })
+        .collect::<Vec<_>>();
+    constant_owned.sort_unstable_by_key(|symbol| key(*symbol));
+    let mut uses = Uses {
+        constant_owned,
+        unevaluated,
+        expression: ExpressionHandle::invalid(),
+        first: None,
+    };
+    typed_trees::references::visit_program(typed, &mut uses);
+    for argument in typed.designated_static_type_arguments() {
+        typed_trees::references::visit_type_reference(typed, &mut uses, argument.reference);
+    }
+    let Some((constant, expression)) = uses.first else {
+        return Ok(());
+    };
+    let name = if typed.symbols.symbols().nodes().is_valid(constant) {
+        typed.symbols.name(constant)
+    } else {
+        "<unnamed>"
+    };
+    let mut refusal = Diagnostic::error(format!(
+        "no product route yet: source constant evaluation: `{name}` is used but no stage has \
+         evaluated it"
+    ));
+    if expression.is_valid() {
+        refusal = refusal.with_source_span(typed.expression_table.source_span(expression));
+    }
+    Err(vec![refusal])
 }
 
 #[derive(Clone, Default)]
