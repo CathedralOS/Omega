@@ -55,6 +55,8 @@ Write each item so any agent can start from it alone: current state, files and e
   - Foundation and core generator, then suspension leases and pause-protocol/per-step progress contracts; rebuild tasks on it.
   Acceptance: a copying generator and a scheduler run as libraries over stepping under `--both`.
 
+- **RUNTIME-PLATFORM-PROVIDERS.** Deliver authorized task/lifecycle and interrupt save/restore packages over exact primitives ([acceptance](wiki/drafts/designs/runtime_provider_authority.md#acceptance)); fake-intrinsic rejection alone is not delivery.
+
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers/family codecs and migrate `core/targets`, `std/targets`, `source/`, `samples/cli/facts/placed_stable_write/target_body` (a selected provider's placed `Access` write rejects natively: a formal pointer is not backing authority), `audio_playback`, and target fixtures.
   - Transport requirement/implementation identities, lifetimes, const/evidence telescopes, callbacks, and `invokes` ceilings.
@@ -65,7 +67,7 @@ Write each item so any agent can start from it alone: current state, files and e
   Acceptance: float/FMA/conversion fixtures keep their documented behavior under `--both`; reports name each realization with its ISA/control admissions.
 
 - **BUILD-OWNED-NATIVE-BINDINGS.** Replace `via` with [Build-owned bindings](wiki/spec/build/foreign_bindings.md#build-owned-native-binding).
-  - First **SEALED-INTRINSIC-CATALOG** (`sealed-runtime-providers`); migrate table/vtable, user-intrinsic, generic-trait and Windows `ProcessExit` sites. Repair UEFI release custody and positional dispatch per [table acceptance](wiki/spec/build/foreign_bindings.md#migration-acceptance).
+  - Finish exact catalog custody and reject false authored backing ([controls](wiki/drafts/designs/runtime_provider_authority.md)); migrate table/vtable, user-intrinsic, generic-trait and Windows `ProcessExit`. Keep executable-provider delivery separate; repair [UEFI/table custody](wiki/spec/build/foreign_bindings.md#migration-acceptance).
   Acceptance: PlaySoundW, ALSA, and AudioQueue bindings pass `omega run --both` on matching hosts, and `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Finish retiring standalone `boundary requirement` declarations ([machines.md](wiki/spec/language/machines.md#supply)).
