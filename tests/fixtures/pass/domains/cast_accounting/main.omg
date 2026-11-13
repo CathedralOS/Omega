@@ -1,0 +1,42 @@
+// A domain cast names every domain its operand carries: `=` keeps, `-`
+// removes, `+` adds. Each machine below is one accounted form. `deferred`
+// casts a call result, whose type typing does not read: that run is recorded
+// on `deferred` alone and stops no other machine.
+domain i32::Km;
+domain i32::Positive
+    requires self > 0;
+domain i32::Positive::Small
+    requires self < 100;
+domain i64::Far;
+
+machine previous(distance: i32 in Km & Positive) -> i32 in Km {
+    let plain: i32 = distance as -Km -Positive;
+    (plain - 1) as +Km
+}
+
+machine keeps(both: i32 in Km & Positive) -> i32 in Km {
+    both as =Km -Positive
+}
+
+machine literal() -> i32 in Km & Positive {
+    let both: i32 in Km & Positive = 5 as +Km +Positive;
+    both
+}
+
+machine ancestors(small: i32 in Positive::Small) -> i32 in Positive {
+    small as =Positive -Positive::Small
+}
+
+machine widened(near: i32 in Km) -> i64 in Far {
+    near as -Km as i64 +Far
+}
+
+machine seven() -> i32 {
+    7
+}
+
+machine deferred() -> i32 in Km {
+    seven() as +Km
+}
+
+machine main() { }

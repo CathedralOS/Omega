@@ -58,6 +58,15 @@ pub enum DeferredRequest {
     /// preparation's specialization pass does not bind or does not generate
     /// a machine for yet.
     StaticApplication,
+    /// A domain cast, `value as =A -B +C`, whose operand's declared type
+    /// typing does not read: a call result, a match or an unannotated local.
+    DomainCastOperandType,
+    /// A domain cast applied through a reference, which accounts for the
+    /// referent's domains and may owe a removed one back at the loan's end.
+    DomainCastThroughReference,
+    /// A domain cast whose operand carries a compiler-owned domain or a
+    /// constraint no declaration answered, which no entry can name yet.
+    DomainCastUnnamedConstraint,
 }
 
 impl DeferredRequest {
@@ -92,6 +101,15 @@ impl DeferredRequest {
             }
             Self::StaticApplication => {
                 "holding a call whose static arguments no pass specializes yet"
+            }
+            Self::DomainCastOperandType => {
+                "holding a domain cast whose operand's declared type typing does not read yet"
+            }
+            Self::DomainCastThroughReference => {
+                "holding a domain cast through a reference, which no pass accounts for yet"
+            }
+            Self::DomainCastUnnamedConstraint => {
+                "holding a domain cast over a compiler-owned or unresolved domain, which no pass accounts for yet"
             }
         }
     }
