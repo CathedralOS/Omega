@@ -159,6 +159,13 @@ computed initializers follow the same rule.
 
 Entry hypotheses bind exact invocation formals or structural entry paths, with
 their retained types and access. Current body values are not entry snapshots.
+Under [contract inputs](../language/state_contracts.md#contract-inputs-and-working-values),
+by-value names in postconditions and declared crash-route guards retain the
+invocation's logical input identities even when their executable bindings are
+mutable. Retain the input-to-working-value relationship at entry, and version
+subsequent working-storage writes independently. Caller substitution and body
+verification must refer to the same inputs; borrowed observations still use
+their appropriate storage revisions, not an invented deep snapshot.
 Nested-machine requirements do not become ambient invocation-entry assumptions.
 A block parameter is a forwarded formal only when every incoming edge proves
 the same typed origin; unknown, conflicting, or unestablished cyclic origins
