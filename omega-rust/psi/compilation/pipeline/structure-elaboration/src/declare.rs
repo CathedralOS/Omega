@@ -51,7 +51,7 @@ const COMMITMENT_DOMAIN: &[u8] = b"omega.lowered-machine-public-contract.v1\0";
 
 /// Feeds what `Hash` writes into the commitment digest, as the current
 /// checker's `ContractHasher` does for its own commitment.
-struct Commitment(DomainDigestEncoder);
+pub(crate) struct Commitment(pub(crate) DomainDigestEncoder);
 
 impl Hasher for Commitment {
     fn finish(&self) -> u64 {

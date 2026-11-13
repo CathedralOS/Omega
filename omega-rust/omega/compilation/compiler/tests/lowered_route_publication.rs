@@ -209,6 +209,13 @@ fn the_published_route_prepares_the_selected_native_proposal() {
     let request = checked
         .terminal_native_proposal_request(selections.effective(), &[])
         .expect("the actual target's native proposal inputs");
+    let selected_realization = request
+        .provider_declarations
+        .iter()
+        .flat_map(|declaration| declaration.row_numeric_realizations.iter().flatten())
+        .next()
+        .expect("the target selects an external numeric realization")
+        .clone();
 
     // These are the Build's real selected providers, rather than a hand-built
     // empty plan that could conceal metadata the ordinary product requires.
@@ -218,6 +225,89 @@ fn the_published_route_prepares_the_selected_native_proposal() {
         &artifact, receipt, request,
     )
     .expect("the route's artifact supports the selected native proposal");
+
+    let module = publication.artifact.semantic_module();
+    let selected = module
+        .external_providers
+        .iter()
+        .position(|row| {
+            module.identities.text(row.realization.machine.identity())
+                == Some(selected_realization.as_str())
+        })
+        .expect("the exact selected realization is retained");
+    let other_signature = module
+        .external_providers
+        .iter()
+        .find(|row| {
+            row.provider == module.external_providers[selected].provider
+                && row.realization.parameter_types.len()
+                    == module.external_providers[selected]
+                        .realization
+                        .parameter_types
+                        .len()
+                && row.realization.parameter_types
+                    != module.external_providers[selected]
+                        .realization
+                        .parameter_types
+        })
+        .expect("another actual signature from the same provider")
+        .realization
+        .callable;
+    let reject = |mut module: terminal_psi::TerminalModule, reason: &str| {
+        module.external_providers.sort();
+        let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
+        let record = terminal_codec::PsiOptimizationExecutionRecord::new(
+            Default::default(),
+            identity,
+            identity,
+        )
+        .unwrap();
+        // These controls are canonical metadata snapshots, never executions:
+        // no evidence from the real publication is attached to their changed
+        // module identities.
+        let artifact = std::sync::Arc::new(
+            terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
+                .expect("the metadata control is canonical"),
+        );
+        let receipt = terminal_codec::entry_receipt::prepare_program_entry_receipt(
+            &root, signature, &artifact,
+        )
+        .expect("the unchanged entry still resolves");
+        let request = checked
+            .terminal_native_proposal_request(selections.effective(), &[])
+            .unwrap();
+        let errors =
+            terminal_psi_to_abstract_operations::project_terminal_native_realization_proposal(
+                &artifact, receipt, request,
+            )
+            .expect_err("substituted external metadata must refuse");
+        assert!(
+            errors.iter().any(|error| error.message.contains(reason)),
+            "{errors:?}"
+        );
+    };
+    let mut missing = module.clone();
+    missing.external_providers.remove(selected);
+    reject(missing, "no retained external implementation");
+
+    let mut wrong_owner = module.clone();
+    // Retain the provider's display label and package, but substitute a
+    // genuine different declaration from this artifact.
+    wrong_owner.external_providers[selected]
+        .provider
+        .as_mut()
+        .unwrap()
+        .declaration = module.external_providers[selected]
+        .realization
+        .machine
+        .clone();
+    reject(wrong_owner, "different exact declaring owner");
+
+    let mut wrong_signature = module.clone();
+    wrong_signature.external_providers[selected]
+        .realization
+        .callable = other_signature;
+    reject(wrong_signature, "no retained external implementation");
 }
 
 /// The Terminal product the default compile builds for `fixture`, which is

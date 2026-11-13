@@ -49,6 +49,7 @@ mod body;
 mod canonical;
 mod components;
 mod declare;
+mod external_providers;
 mod lower;
 mod names;
 mod outcome;
@@ -591,6 +592,7 @@ fn finish_reading(
             &program.signatures,
             &mut elaboration,
         );
+        external_providers::retain(typed, &mut elaboration.module, entry)?;
     }
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
