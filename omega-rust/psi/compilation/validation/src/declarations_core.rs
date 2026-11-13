@@ -896,7 +896,6 @@ pub mod selection_authority {
     use checked_trees::CheckedTrees;
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
-    use semantic_vocabulary::PackageKeyIdentity;
     use source::SourceOrigin;
     use symbols::FixedCoreDeclaration;
 
