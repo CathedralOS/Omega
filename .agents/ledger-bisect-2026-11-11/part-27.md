@@ -11,14 +11,14 @@ Re-measured with a commit-scoped target directory `/tmp/bisect-target-<sha>`. Bi
 | Rows re-measured | 13 |
 | Fixed on PIN | 5 |
 | Still broken on PIN | 8 |
-| Clusters with a finished result | 1 |
+| Clusters with a finished result | 2 |
 
 ## Clusters
 
 | id | rows | witness | good | breaking | PR | parent 3x | bad 3x | status |
 | --- | ---: | --- | --- | --- | --- | --- | --- | --- |
 | c01 | 2 | `pass/targets/private_target_supplies_remain_disclosed` | `a48219f5cf97b2d7d766d07c48e1d8946a2b6477` | `eacdc3114349460f12c4a923026824330a8381d3` | 1617 | 0,0,0 | 1,1,1 | bisected |
-| c02 |  |  |  |  |  |  |  | pending |
+| c02 | 1 | `pass/targets/retained_target_family_bodies` | `c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30` | `6f0848b9beab89da25edf4054e9f32c5df962a90` | 2012 | 0,0,0 | 1,1,1 | bisected |
 | c03 |  |  |  |  |  |  |  | pending |
 | c04 |  |  |  |  |  |  |  | pending |
 | c05 |  |  |  |  |  |  |  | pending |
@@ -43,6 +43,22 @@ Member checks at the parent and at the breaking commit:
 
 - `pass/targets/private_target_supplies_remain_disclosed` parent=0 breaking=1
 - `pass/targets/retained_target_provider_family_exit` parent=0 breaking=1
+
+### c02
+
+Witness: `pass/targets/retained_target_family_bodies`
+
+Members: `pass/targets/retained_target_family_bodies`
+
+Mechanism:
+
+```
+mechanism not established
+```
+
+Member checks at the parent and at the breaking commit:
+
+- `pass/targets/retained_target_family_bodies` parent=0 breaking=1
 
 ## Fixed on PIN
 

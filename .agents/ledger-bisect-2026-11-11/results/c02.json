@@ -1,0 +1,33 @@
+{
+  "cluster": "c02",
+  "witness": "pass/targets/retained_target_family_bodies",
+  "members": [
+    "pass/targets/retained_target_family_bodies"
+  ],
+  "good": "c417f61c95ba2b5078d36f367dc9b3c8e2ea0e30",
+  "good_subject": "compiler: preserve array contracts across calls and state changes (#1880)",
+  "breaking": "6f0848b9beab89da25edf4054e9f32c5df962a90",
+  "breaking_subject": "compiler: carry target layouts through owned sum storage (#2012)",
+  "pr": "2012",
+  "parent": "8c53e425dd79473ace9300d869a2e9bff7a34b67",
+  "bad_runs": [
+    1,
+    1,
+    1
+  ],
+  "parent_runs": [
+    0,
+    0,
+    0
+  ],
+  "stop_matching": "6f0848b9beab89da25edf4054e9f32c5df962a90",
+  "mechanism": "mechanism not established",
+  "status": "bisected",
+  "member_runs": {
+    "pass/targets/retained_target_family_bodies": {
+      "at_parent": 0,
+      "at_bad": 1
+    }
+  },
+  "note": ""
+}
