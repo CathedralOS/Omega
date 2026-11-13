@@ -1,91 +1,26 @@
-// We capture source declaration details needed to generate direct boundary calls
-// and placed memory accesses (`CapturedProviderRows`) while keeping each
-// operation paired with its original candidate (`ProviderPlanCandidate`).
-// Direct-call identity errors are reported when attaching Calling details
-// (`attach_physical_rows`), while intrinsic and exit-process declaration errors
-// wait until after `ProgramEntry` checks (`finish_row_declarations`).
-
+// Retained provider plans and canonical direct-boundary data. Source declaration
+// discharge objects have no producer after the old checker connection is cut.
 use crate::DerivedProviderPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DeferredProviderRows {
-    direct: Vec<Option<DirectBoundaryInput>>,
-    declarations: Result<RowDeclarations, Diagnostic>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct RowDeclarations {
-    placed: Result<Option<crate::SealedAccessor>, Diagnostic>,
-    rows: Vec<Option<ProviderRowDeclarations>>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PreparedProviderRows {
-    placed: Result<Option<crate::SealedAccessor>, Diagnostic>,
-    rows: Vec<ProviderRow>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ProviderRow {
-    declarations: Option<ProviderRowDeclarations>,
-    direct: Option<DirectBoundaryInput>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProviderRowDeclarations {
-    pub intrinsic: Option<crate::intrinsic_declarations::IntrinsicDeclaration>,
-    pub exit_process: crate::intrinsic_declarations::ExitProcessDeclaration,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProviderPlanCandidate<Rows = PreparedProviderRows> {
+pub struct ProviderPlanCandidate {
     source: DerivedProviderPlan,
-    rows: Rows,
 }
 
-impl<Rows> ProviderPlanCandidate<Rows> {
+impl ProviderPlanCandidate {
     pub fn plan(&self) -> &ProviderPlan {
         &self.source.plan
     }
-
     pub fn direct_source(
         &self,
         input: &DirectBoundaryInput,
     ) -> Result<DirectBoundarySource<'_>, Diagnostic> {
         derived_direct_source(&self.source, input.row_index)
     }
-}
-
-impl ProviderPlanCandidate {
-    pub fn direct_boundaries(&self) -> impl Iterator<Item = &DirectBoundaryInput> {
-        self.rows.rows.iter().filter_map(|row| row.direct.as_ref())
-    }
-
-    pub fn row_declarations(&self, row: usize) -> Option<&ProviderRowDeclarations> {
-        self.rows.rows.get(row)?.declarations.as_ref()
-    }
-
-    pub fn direct_declarations(
-        &self,
-        input: &DirectBoundaryInput,
-    ) -> Result<&ProviderRowDeclarations, Diagnostic> {
-        self.row_declarations(input.row_index).ok_or_else(|| {
-            Diagnostic::error("direct boundary has no prepared original-row declaration")
-        })
-    }
-
     pub fn matches_selection(&self, selected: &crate::SelectedProviderReviewProvenance) -> bool {
         self.plan() == &selected.plan && self.source.provenance == selected.provider
-    }
-
-    pub fn accessor(&self) -> Result<Option<&crate::SealedAccessor>, Diagnostic> {
-        self.rows
-            .placed
-            .as_ref()
-            .map(Option::as_ref)
-            .map_err(Clone::clone)
     }
 }
 
@@ -194,28 +129,5 @@ impl DirectBoundaryInput {
         };
         leaf.validate_calling_custody().map_err(Diagnostic::error)?;
         Ok(leaf)
-    }
-}
-
-impl ProviderPlanCandidate<DeferredProviderRows> {
-    pub(crate) fn finish_row_declarations(self) -> Result<ProviderPlanCandidate, Diagnostic> {
-        let Self { source, rows } = self;
-        let declarations = rows.declarations?;
-        let rows = declarations
-            .rows
-            .into_iter()
-            .zip(rows.direct)
-            .map(|(declarations, direct)| ProviderRow {
-                declarations,
-                direct,
-            })
-            .collect();
-        Ok(ProviderPlanCandidate {
-            source,
-            rows: PreparedProviderRows {
-                placed: declarations.placed,
-                rows,
-            },
-        })
     }
 }

@@ -21,10 +21,7 @@ pub use boundary_signatures::{
 };
 pub use build_time_decoding::decode_boundary_plan_result;
 pub use callback_bindings::BoundaryCallingPlanRealization;
-pub use callback_layout_catalog::{
-    BoundaryCallbackLayoutEntry, CallbackFieldReviewSource, CallbackLayoutReviewSource,
-    CallbackRecordReviewSource, CallbackSlotReviewSource,
-};
+pub use callback_layout_catalog::BoundaryCallbackLayoutEntry;
 pub use calling_program::CallingProgram;
 pub use opaque_representations::{
     BoundaryOpaqueRepresentationMovementRole, BoundaryOpaqueRepresentationPathElement,

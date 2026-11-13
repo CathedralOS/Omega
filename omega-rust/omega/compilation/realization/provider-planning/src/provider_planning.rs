@@ -17,8 +17,6 @@ pub use provenance_replay::{
     ProviderRowRealization, ProviderSchemaDeclaration, same_semantic_name, satisfies_plan_name,
 };
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderSelectionProvenance {
@@ -46,24 +44,6 @@ pub struct SelectedProviderReviewProvenance {
 
 pub(crate) fn trait_name_text(schema: &ServiceSchema) -> &str {
     schema.identity_text(schema.declaration.trait_name)
-}
-
-pub(crate) fn type_reference_node(
-    typed: &TypedTrees,
-    handle: TypeReferenceHandle,
-) -> &TypeReferenceNode {
-    typed.type_reference_table.type_reference(handle)
-}
-
-pub(crate) fn is_unit_type(typed: &TypedTrees, handle: TypeReferenceHandle) -> bool {
-    matches!(type_reference_node(typed, handle), TypeReferenceNode::Unit)
-}
-
-pub(crate) fn entry_state<'typed>(
-    typed: &'typed TypedTrees,
-    machine: &typed_trees::machine::Machine,
-) -> Option<&'typed typed_trees::state::State> {
-    typed.machine_states(machine).first()
 }
 
 pub(crate) mod selection_declarations {

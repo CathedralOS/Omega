@@ -1,5 +1,5 @@
-// Unit tests for Build-supplied native binding locator checking across selected
-// and unselected targets.
+// Locator normalization retains authored targets and refuses unsupported
+// mechanisms before any provider selection or admission.
 
 use super::*;
 use crate::native_bindings::NativeBuildEvaluation;
@@ -10,6 +10,7 @@ use evaluation_accounting::{
 };
 use language_semantics::declaration_selection::{NativeBindingProducer, ProductTarget};
 use semantic_vocabulary::{PackageKeyIdentity, WorkScheduleIdentity};
+use std::sync::Arc;
 
 const REQUIREMENT: &str = "Clock::now";
 
@@ -54,56 +55,36 @@ fn supply(target: ProductTarget, locator: NativeBindingLocator) -> NativeBuildSu
     }
 }
 
-fn prepared(supplies: &[NativeBuildSupply]) -> PreparedNativeBuildBindings {
-    PreparedNativeBuildBindings {
-        rows: supplies
-            .iter()
-            .map(|supply| PreparedNativeBuildBinding {
-                selection: supply.selection.clone(),
-                requirement: Ok(PreparedNativeRequirement {
-                    application: None,
-                    owner: Default::default(),
-                    signature: Default::default(),
-                    identity: REQUIREMENT.into(),
-                    declared_identity: REQUIREMENT.into(),
-                    calling_signature: None,
-                    method: "now".into(),
-                    surface: None,
-                }),
-            })
-            .collect(),
-    }
-}
-
-fn form(supplies: &[NativeBuildSupply]) -> Result<Vec<DerivedProviderPlan>, Vec<Diagnostic>> {
-    prepared(supplies).form(
-        supplies,
-        Some(target::TargetProfile::LinuxX64),
-        &mut Default::default(),
-    )
-}
-
 #[test]
 fn a_target_that_is_not_selected_still_refuses_its_invalid_locator() {
-    let refused = form(&[supply(
-        ProductTarget::WindowsX86_64,
-        NativeBindingLocator::Syscall { number: 60 },
-    )])
+    let refused = normalize_native_binding(
+        &supply(
+            ProductTarget::WindowsX86_64,
+            NativeBindingLocator::Syscall { number: 60 },
+        ),
+        REQUIREMENT,
+        &mut Default::default(),
+    )
     .expect_err("every authored target's locator is checked under that target");
     assert!(
-        refused
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("not applicable to its target")),
+        refused.contains("not applicable to its target"),
         "{refused:?}"
     );
 }
 
 #[test]
-fn a_valid_locator_for_a_target_that_is_not_selected_forms_no_candidate() {
-    let plans = form(&[supply(
-        ProductTarget::LinuxArm64,
-        NativeBindingLocator::Syscall { number: 60 },
-    )])
-    .expect("a valid locator on another target is checked, then left unselected");
-    assert!(plans.is_empty());
+fn a_native_locator_receipt_retains_its_authored_target() {
+    let binding = normalize_native_binding(
+        &supply(
+            ProductTarget::LinuxArm64,
+            NativeBindingLocator::Syscall { number: 60 },
+        ),
+        REQUIREMENT,
+        &mut Default::default(),
+    )
+    .expect("an authored target's valid locator retains its evaluation receipt");
+    let crate::evaluated_via_bindings::EvaluatedNativeBinding::Syscall(binding) = binding else {
+        panic!("the syscall locator must retain its mechanism");
+    };
+    assert_eq!(binding.target(), target::TargetProfile::LinuxArm64);
 }

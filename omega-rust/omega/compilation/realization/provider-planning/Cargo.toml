@@ -24,7 +24,6 @@ target = { path = "../../backend/target" }
 arena = { path = "../../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../../psi/compilation/build-time-evaluation" }
 build-time-values = { path = "../../../../psi/foundation/build-time-values" }
-typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
@@ -41,10 +40,5 @@ source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 
 [dev-dependencies]
-# Layout builder tests type small source fixtures.
-source-files-to-tokens = { path = "../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
-tokens-to-syntax-trees = { path = "../../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
 # The source guards delegate their scan to the shared audit crate.
 source-audit = { path = "../../../../psi/foundation/source-audit" }

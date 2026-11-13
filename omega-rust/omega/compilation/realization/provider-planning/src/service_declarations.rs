@@ -4,13 +4,11 @@
 // target join never reopens checked trees, while unused unsupported or local
 // declarations retain deferred refusals until demanded.
 
-use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ServiceSchema;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use typed_trees::service_declarations::PreparedServiceDeclaration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceDeclaration {
@@ -57,46 +55,6 @@ impl SourceServiceDeclaration {
 }
 
 impl ServiceDeclarations {
-    pub fn prepare<'catalog>(
-        declarations: impl IntoIterator<Item = PreparedServiceDeclaration<'catalog>>,
-        calling_plans: &[BoundaryCallingPlanRealization],
-    ) -> Self {
-        let mut sources = Vec::new();
-        for definition in declarations {
-            let symbol = definition.schema.symbol();
-            let nominal_identity = definition.nominal_identity.clone();
-            let projection = (|| {
-                let nominal_identity = nominal_identity.as_ref().map_err(Clone::clone)?.clone();
-                let projected = definition.surface.as_ref().ok_or_else(|| {
-                    Diagnostic::error("service declaration has no supported exact schema")
-                })?;
-                let schema = crate::service_schema::attach_calling(projected, calling_plans);
-                let requirements = projected.exact_requirements()?;
-                let identities = projected
-                    .requirements
-                    .iter()
-                    .map(|requirement| requirement.nominal_identity.clone())
-                    .collect::<Result<Vec<_>, _>>()?;
-                Ok(ServiceProjection {
-                    declaration: Arc::new(ServiceDeclaration {
-                        nominal_identity,
-                        schema,
-                        requirements: identities,
-                    }),
-                    requirements,
-                })
-            })();
-            sources.push(SourceServiceDeclaration {
-                symbol,
-                package: definition.package,
-                path: definition.path.to_owned(),
-                nominal_identity,
-                projection,
-            });
-        }
-        Self { sources }
-    }
-
     pub fn select(
         &self,
         package: PackageKeyIdentity,

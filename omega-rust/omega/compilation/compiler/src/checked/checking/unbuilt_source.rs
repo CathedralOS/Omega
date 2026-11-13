@@ -128,8 +128,7 @@ fn frozen_frontier(
 ) -> Result<TypedFrontier, Vec<Diagnostic>> {
     let layout_scopes = super::source_checking::layout_target_scopes(&typed, build)?;
     let entries = build.program_roots();
-    let bindings =
-        provider_planning::program_entry::bound_program_entry_shapes(&typed, &build.root_bindings)?;
+    let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
     // The standalone source is its own subject: the one package identity its
     // authored product files carry.
     let mut subject = None;

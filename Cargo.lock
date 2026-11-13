@@ -1778,16 +1778,12 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "source-audit",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
- "tokens-to-syntax-trees",
 ]
 
 [[package]]
