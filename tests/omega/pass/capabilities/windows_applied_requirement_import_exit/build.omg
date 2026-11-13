@@ -1,0 +1,22 @@
+// Bind two closed applications of a generic boundary to different native
+// imports; the program uses the `<i32>` one.
+
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
+machine build(builder: &mut Build) {
+    Build::application(builder, "windows_applied_requirement_import_exit");
+    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
+    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
+    Build::bind<Magnitude<i32>::of>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "abs",
+        },
+    });
+    Build::bind<Magnitude<i64>::of>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName {
+            library: "msvcrt.dll",
+            export: "labs",
+        },
+    });
+}
