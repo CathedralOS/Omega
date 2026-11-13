@@ -19,10 +19,9 @@ sealing or a grant of native entry authority.
 
 Boundary applications and checked candidate bodies are canonical Terminal
 semantics. Publication emits no checked-application scope or source-index
-companion for native realization. The independent
-[result-policy verifier](src/result_policy_verification.rs) remains available for
-source-correspondence audits; ordinary production does not rerun it after the
-emitter has already constructed the call and its policy adapter.
+companion for native realization. The unused checked-source result-policy audit
+is removed with its old-checker dependency. Canonical decoding and Terminal
+semantic checks remain responsible for the artifact they consume.
 
 Receipt fields remain private. Source custody cannot replace canonical coverage
 or grant downstream realization authority. The Psi production owner in

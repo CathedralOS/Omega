@@ -2,16 +2,15 @@
 We seal validated `PsiOptimizationStageResult` carriers into canonical Terminal
 Psi artifacts (`finalize_terminal_program`), bind and rejoin source-entry
 correspondence receipts (`prepare_program_entry_receipt` and
-`rejoin_program_entry_receipt`), and verify boundary result policies
-(`verify_boundary_result_policies`).
+`rejoin_program_entry_receipt`).
 */
 
 /*
 Our publication stage validates activation-storage custody across the complete
 pre-Terminal CFG before constructing either a portable `PSITERM\0` artifact or
-an invocation-local Terminal code carrier. Source-entry receipt preparation and
-boundary result-policy verification remain separate from canonical artifact
-sealing so source custody never substitutes for canonical Terminal semantics.
+an invocation-local Terminal code carrier. Source-entry receipt preparation
+remains separate from canonical artifact sealing, so source custody never
+substitutes for canonical Terminal semantics.
 */
 
 /*
@@ -22,8 +21,6 @@ for the Psi interpreter and Omega native realization.
 */
 
 #![forbid(unsafe_code)]
-
-mod result_policy_verification;
 
 pub(crate) use terminal_codec::entry_receipt;
 
@@ -66,4 +63,3 @@ pub use entry_receipt::{
     ProgramEntryTerminalReceiptError, prepare_program_entry_receipt, rejoin_program_entry_receipt,
 };
 pub use publish_artifact::finalize_terminal_program;
-pub use result_policy_verification::verify_boundary_result_policies;
