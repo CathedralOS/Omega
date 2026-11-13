@@ -744,8 +744,13 @@ pub fn judge_compilation(
 ///
 /// A machine that reaches itself through such calls is the exception. Each
 /// form on the cycle would take the next one's contract as given, and no
-/// form holds the cycle's bodies together, so nothing would judge that the
-/// recursion ends. Those forms keep the applied rows undecided.
+/// form holds the cycle's bodies together, so nothing would judge the cycle:
+/// termination.md, "Calls and productive loops", asks that a runtime call
+/// cycle stand in tail position and that a `terminates` promise over it be
+/// ranked, and `structure_elaboration` judges both only for a cycle among
+/// bodies it read. Such a template is refused by name as not supported yet,
+/// whatever contract it states: one with no `ensures` has no applied row
+/// left undecided, and would otherwise be accepted unjudged.
 fn judge_generic_forms(
     typed: &typed_trees::TypedTrees,
     mut templates: Vec<symbols::SymbolHandle>,
@@ -782,14 +787,26 @@ fn judge_generic_forms(
     }
     let mut verdicts = Vec::new();
     for (template, elaborated) in forms.into_iter().enumerate() {
-        let applied = if reaches_itself(&applies, template) {
-            AppliedContracts::Undecided
-        } else {
-            AppliedContracts::OwnCheckForms
-        };
+        if reaches_itself(&applies, template) {
+            let first = MachineId::new(1).expect("1 is nonzero");
+            verdicts.push(Ok(RouteVerdict::FallBack(refusal(
+                RefusalReason::Unsupported,
+                first,
+                Construct::Machine,
+                &format!(
+                    "generic machine `{}` on a call cycle",
+                    typed.symbols.name(templates[template])
+                ),
+            ))));
+            continue;
+        }
         match elaborated {
             Ok(forms) => {
-                verdicts.extend(forms.into_iter().map(|form| judge_owing(Ok(form), applied)));
+                verdicts.extend(
+                    forms
+                        .into_iter()
+                        .map(|form| judge_owing(Ok(form), AppliedContracts::OwnCheckForms)),
+                );
             }
             Err(refused) => verdicts.push(judge(Err(refused))),
         }
