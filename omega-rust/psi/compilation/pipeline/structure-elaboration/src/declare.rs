@@ -229,11 +229,16 @@ fn invocation_local(
         let mut origin = symbol;
         loop {
             let previous = typed.symbols.get(origin).generated_from;
-            if !previous.is_valid()
-                || !typed.symbols.symbols().nodes().is_valid(previous)
-                || previous.arena_index() >= origin.arena_index()
-            {
-                return Err("a generated invocation declaration has no exact source derivation");
+            if !previous.is_valid() {
+                return Err("a generated invocation declaration has no derivation origin");
+            }
+            if !typed.symbols.symbols().nodes().is_valid(previous) {
+                return Err("a generated invocation declaration has a foreign derivation origin");
+            }
+            if previous.arena_index() >= origin.arena_index() {
+                return Err(
+                    "a generated invocation declaration has a nonpreceding derivation origin",
+                );
             }
             origin = previous;
             let Some(span) = typed.symbols.symbol_source_span(origin) else {
