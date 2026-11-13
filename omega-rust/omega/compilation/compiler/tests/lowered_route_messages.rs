@@ -1,20 +1,18 @@
 //! When the checker on the lowered form rejects a program, its message states
-//! the condition that was not proved, in the current checker's words: the
-//! callee and caller of a requirement with the clause over the caller's
-//! actuals, the machine and clause of a guarantee, and the operation, carrier
-//! and binder of an arithmetic safety obligation. Each fixture here is a
-//! `fail/` program the route rejects, and each message must contain the
-//! fragment its `expected.txt` pins, as the corpus runner matches it.
+//! the condition that was not proved: the callee and caller of a requirement
+//! with the clause over the caller's actuals, the machine and clause of a
+//! guarantee, and the operation, carrier and binder of an arithmetic safety
+//! obligation. Each fixture here is a `fail/` program with a machine the
+//! route rejects, and each message must contain the fragment the fixture's
+//! `expected.txt` pins: every nonempty line occurs in some message.
 //!
 //! Before these names were carried, every message read `unproved obligation:
 //! <kind>: <cause>`, and 1 of 292 measured `fail/` rejections contained its
 //! pinned fragment (`wiki/drafts/designs/route_one_diagnostics.md`).
-#[path = "support/fixture_package_inputs.rs"]
-mod fixture_package_inputs;
+#[path = "support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
 
-use fixture_package_inputs::{
-    FixtureFrontierCheck, check_fixture_keeping_typed_frontier, repo_root,
-};
+use unbuilt_frontier::repository as repo_root_at;
 use lowered_discharge::{RouteVerdict, judge};
 use structure_elaboration::elaborate_closure;
 
@@ -69,29 +67,13 @@ const REJECTIONS: &[(&str, &str)] = &[
     ),
 ];
 
-/// The route's messages for the closure of the machine `root` names.
-fn route_messages(fixture: &str, root: &str) -> Vec<String> {
-    let main = repo_root().join(fixture).join("main.omg");
-    // Discovery and checking recurse deeply; give them the compiler worker's
-    // stack rather than the small one libtest gives each test thread.
-    let checked = std::thread::scope(|scope| {
-        compiler::checked::spawn_compile_worker(scope, || {
-            check_fixture_keeping_typed_frontier(&main, "linux_x86_64")
-        })
-        .expect("compiler worker")
-        .join()
-        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-    });
-    let FixtureFrontierCheck::Rejected { frontier, .. } = checked else {
-        panic!("{fixture}: the current checker must reject this program after Psi 04");
-    };
+/// The route's messages for the closure of the machine `root` names, or the
+/// verdict that is not a rejection.
+fn route_messages(fixture: &str, root: &str) -> Result<Vec<String>, String> {
+    let frontier = unbuilt_frontier::fixture_frontier(fixture);
     let typed = &frontier.typed;
-    let symbol = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == root)
-        .unwrap_or_else(|| panic!("{fixture}: no machine `{root}`"))
-        .symbol;
+    let symbol = unbuilt_frontier::program_machine(typed, root)
+        .unwrap_or_else(|| panic!("{fixture}: no machine `{root}`"));
     match judge(elaborate_closure(typed, symbol)) {
         Ok(RouteVerdict::Rejected {
             unproved,
@@ -99,27 +81,35 @@ fn route_messages(fixture: &str, root: &str) -> Vec<String> {
             conflicts,
             exceeded,
             ..
-        }) => unproved
+        }) => Ok(unproved
             .iter()
             .map(|entry| entry.message())
             .chain(unestablished.iter().map(|entry| entry.message()))
             .chain(conflicts.iter().map(|entry| entry.message()))
             .chain(exceeded.iter().map(|entry| entry.message()))
-            .collect(),
-        verdict => panic!("{fixture}: the route must reject `{root}`: {verdict:?}"),
+            .collect()),
+        verdict => Err(format!(
+            "{fixture}: the route must reject `{root}`: {verdict:?}"
+        )),
     }
 }
 
 #[test]
-fn a_rejection_states_the_condition_the_current_checker_pins() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+fn a_rejection_states_the_condition_its_fixture_pins() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut missing = Vec::new();
     for (fixture, root) in REJECTIONS {
-        let expected = std::fs::read_to_string(repo_root().join(fixture).join("expected.txt"))
+        let expected = std::fs::read_to_string(repo_root_at(fixture).join("expected.txt"))
             .expect("expected.txt");
-        let messages = route_messages(fixture, root);
-        // The corpus runner's rule: every nonempty line occurs in some
-        // message.
+        let messages = match route_messages(fixture, root) {
+            Ok(messages) => messages,
+            Err(verdict) => {
+                missing.push(verdict);
+                continue;
+            }
+        };
         for line in expected
             .lines()
             .map(str::trim)

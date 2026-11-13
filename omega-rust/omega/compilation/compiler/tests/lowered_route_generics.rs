@@ -5,15 +5,17 @@
 //! condition 3 of the gate, asks for that and for the negative twin to be
 //! rejected.
 //!
-//! Each fixture is checked by the current pipeline first, which is the only
-//! way to obtain the frozen typed trees; the route's three steps then run on
-//! those trees (`support/generic_certificate_carry.rs`).
-#[path = "support/fixture_package_inputs.rs"]
-mod fixture_package_inputs;
+//! Each fixture is typed without running its Build
+//! (`support/unbuilt_frontier.rs`); the route's three steps then run on
+//! those trees (`support/generic_certificate_carry.rs`). Whether the whole
+//! program is accepted or rejected is pinned from source in
+//! `route_probe.rs`; what is pinned here is the carry.
 #[path = "support/generic_certificate_carry.rs"]
 mod generic_certificate_carry;
+#[path = "support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
 
-use fixture_package_inputs::repo_root;
+use unbuilt_frontier::repository;
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -25,18 +27,9 @@ fn carried(fixture: &str) -> (String, Vec<Vec<String>>) {
     let _guard = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let main = repo_root().join(fixture).join("main.omg");
-    // The current pipeline needs a compile worker's stack.
-    let (outcome, lines) = std::thread::scope(|scope| {
-        compiler::checked::spawn_compile_worker(scope, || {
-            let mut lines = Vec::new();
-            let outcome = generic_certificate_carry::probe(&main, &mut lines);
-            (outcome, lines)
-        })
-        .expect("spawn a compile worker")
-        .join()
-        .expect("the carry does not panic")
-    });
+    let main = repository(fixture).join("main.omg");
+    let mut lines = Vec::new();
+    let outcome = generic_certificate_carry::probe(&main, &mut lines);
     let rows = lines
         .iter()
         .map(|line| {
@@ -61,9 +54,7 @@ fn count(rows: &[Vec<String>], label: &str, outcome: &str) -> usize {
 #[test]
 fn an_implementation_parameter_body_is_checked_once_and_carried() {
     let (outcome, rows) = carried("tests/fixtures/run/generics/implementation_parameter_contract");
-    // The product compile does not carry certificates yet, so it refuses
-    // this program as not supported; the carry itself is what is pinned.
-    assert!(outcome.ends_with("\troute=carried-accepted"), "{outcome}");
+    assert_eq!(outcome, "route=carried-accepted");
     assert_eq!(count(&rows, "generic", "proved"), 3);
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "accepted"), 6);
@@ -78,53 +69,39 @@ fn a_bound_only_the_selected_implementations_give_is_refused_generically() {
     let (outcome, rows) = carried(
         "tests/fixtures/fail/generics/implementation_parameter_contract_only_holds_for_selection",
     );
-    assert_eq!(outcome, "current=rejected\troute=carried-refused");
+    assert_eq!(outcome, "route=carried-refused");
     assert_eq!(count(&rows, "concrete", "refused"), 0);
     assert_eq!(count(&rows, "generic", "refused"), 1);
     assert_eq!(count(&rows, "carried", "refused"), 2);
 }
 
 /// A value parameter, with an implementation parameter beside it:
-/// `Selected::value<const Units: u64>` is proved once with `Units` a formal
-/// and carried into `Selected::value<7>`; `selected<Implementation
-/// satisfies Bounded>` is proved once against `Bounded::value`'s contract
-/// at `Units == 7` and carried into `selected<Selected>`.
+/// `Selected::value<const Units: u64>` applied at `7`, and
+/// `selected<Implementation satisfies Bounded>` applied at `Selected`.
+///
+/// Typed preparation generates machines for type and implementation
+/// applications and not yet for a value application, so it records the call
+/// as one it did not specialize and the reader refuses the declaration that
+/// holds it by that name. Nothing is carried, and neither the program nor
+/// its twin is accepted. When value applications are generated, the carry
+/// to pin is: three generic obligations proved (the call's requirement and
+/// guarantee in `selected`, the guarantee in `value`) and three carried for
+/// the positive program; for the twin, whose requirement states `requires
+/// true`, the member's refinement proof and the carried requirement refused.
 #[test]
-fn a_value_parameter_body_is_checked_once_and_carried() {
-    let (outcome, rows) =
-        carried("tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit");
-    // The product compile does not carry certificates yet, so it refuses
-    // this program as not supported; the carry itself is what is pinned.
-    assert!(outcome.ends_with("\troute=carried-accepted"), "{outcome}");
-    // `selected`: the call's requirement and its guarantee. `value`: its
-    // guarantee.
-    assert_eq!(count(&rows, "generic", "proved"), 3);
-    assert_eq!(count(&rows, "generic", "refused"), 0);
-    assert_eq!(count(&rows, "witness", "refused"), 0);
-    assert_eq!(count(&rows, "carried", "accepted"), 3);
-    assert_eq!(count(&rows, "carried", "refused"), 0);
-}
-
-/// Its twin differs only in the requirement's own contract (`requires
-/// true`): the member then asks `input <= Units`, which the requirement
-/// does not give. The one call passes 7, so a search over the
-/// specialization proves the call's requirement; the member's refinement
-/// proof does not exist, and the carried requirement is refused.
-#[test]
-fn a_member_that_asks_more_than_its_requirement_is_refused() {
-    let (outcome, rows) =
-        carried("tests/fixtures/fail/facts/lexical_generic_bound_through_local_rejected");
-    assert_eq!(outcome, "current=rejected\troute=carried-refused");
-    assert_eq!(count(&rows, "concrete", "refused"), 0);
-    let refused: Vec<_> = rows
-        .iter()
-        .filter(|row| row[4] == "refused")
-        .map(|row| (row[0].as_str(), row[3].as_str()))
-        .collect();
-    assert_eq!(
-        refused,
-        [("witness", "requirement"), ("carried", "requirement")]
-    );
+fn a_value_parameter_application_is_refused_until_one_is_generated() {
+    for fixture in [
+        "tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit",
+        "tests/fixtures/fail/facts/lexical_generic_bound_through_local_rejected",
+    ] {
+        let (outcome, rows) = carried(fixture);
+        assert_eq!(
+            outcome,
+            "route=outside\tdeclaration holding a call whose static arguments no pass specializes yet",
+            "{fixture}"
+        );
+        assert!(rows.is_empty(), "{fixture}: {rows:?}");
+    }
 }
 
 /// An opaque type parameter: `relay<T>` and `forward<T>` are each proved
@@ -133,9 +110,7 @@ fn a_member_that_asks_more_than_its_requirement_is_refused() {
 #[test]
 fn a_type_parameter_body_is_checked_once_and_carried() {
     let (outcome, rows) = carried("tests/fixtures/run/generics/type_parameter_contract");
-    // The product compile does not carry certificates yet, so it refuses
-    // this program as not supported; the carry itself is what is pinned.
-    assert!(outcome.ends_with("\troute=carried-accepted"), "{outcome}");
+    assert_eq!(outcome, "route=carried-accepted");
     // `relay`: the call's requirement, the add and the guarantee.
     // `forward`: its guarantee.
     assert_eq!(count(&rows, "generic", "proved"), 4);
@@ -153,7 +128,7 @@ fn a_type_parameter_body_is_checked_once_and_carried() {
 fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
     let (outcome, rows) =
         carried("tests/fixtures/fail/generics/type_parameter_contract_exceeds_callee");
-    assert_eq!(outcome, "current=rejected\troute=carried-refused");
+    assert_eq!(outcome, "route=carried-refused");
     let refused: Vec<_> = rows
         .iter()
         .filter(|row| row[4] == "refused" && row[0] != "concrete")
@@ -178,9 +153,7 @@ fn a_type_parameter_body_that_exceeds_its_callee_is_refused() {
 fn the_comparison_witness_lowers_and_corresponds() {
     let (outcome, rows) =
         carried("tests/fixtures/pass/facts/generic_comparison_body_through_match_join_exit");
-    // The product compile does not carry certificates yet, so it refuses
-    // this program as not supported; the carry itself is what is pinned.
-    assert!(outcome.ends_with("\troute=carried-accepted"), "{outcome}");
+    assert_eq!(outcome, "route=carried-accepted");
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "refused"), 0);
 }
@@ -188,50 +161,33 @@ fn the_comparison_witness_lowers_and_corresponds() {
 /// The route's verdict on each machine stage 04 generated from the machine
 /// named `template`, each as the root of its own closure.
 fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
-    use fixture_package_inputs::{FixtureFrontierCheck, check_fixture_keeping_typed_frontier};
     let _guard = FIXTURE_COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let main = repo_root().join(fixture).join("main.omg");
-    std::thread::scope(|scope| {
-        compiler::checked::spawn_compile_worker(scope, || {
-            let frontier = match check_fixture_keeping_typed_frontier(&main, "linux_x86_64") {
-                FixtureFrontierCheck::Accepted { frontier, .. }
-                | FixtureFrontierCheck::Rejected { frontier, .. } => frontier,
-                _ => panic!("{fixture}: no typed trees"),
-            };
-            let typed = &frontier.typed;
-            let declared = typed
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == template)
-                .unwrap_or_else(|| panic!("{fixture}: no machine `{template}`"))
-                .symbol;
-            typed
-                .machine_specializations
-                .iter()
-                .filter(|specialization| specialization.template == declared)
-                .map(|specialization| {
-                    let closure =
-                        structure_elaboration::elaborate_closure(typed, specialization.instance);
-                    match lowered_discharge::judge(closure) {
-                        Ok(lowered_discharge::RouteVerdict::Accepted { .. }) => "accepted".into(),
-                        Ok(lowered_discharge::RouteVerdict::Rejected { .. }) => "rejected".into(),
-                        Ok(lowered_discharge::RouteVerdict::Incomplete { .. }) => {
-                            "incomplete".into()
-                        }
-                        Ok(lowered_discharge::RouteVerdict::FallBack(refusal)) => {
-                            format!("falls back: {}", refusal.detail)
-                        }
-                        Err(refusal) => format!("defect: {}", refusal.detail),
-                    }
-                })
-                .collect()
+    let frontier = unbuilt_frontier::fixture_frontier(fixture);
+    let typed = &frontier.typed;
+    let declared = unbuilt_frontier::program_machine(typed, template)
+        .unwrap_or_else(|| panic!("{fixture}: no machine `{template}`"));
+    typed
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.template == declared)
+        .map(|specialization| {
+            let closure =
+                structure_elaboration::elaborate_closure(typed, specialization.instance);
+            match lowered_discharge::judge(closure) {
+                Ok(lowered_discharge::RouteVerdict::Accepted { .. }) => "accepted".into(),
+                Ok(lowered_discharge::RouteVerdict::Rejected { .. }) => "rejected".into(),
+                Ok(lowered_discharge::RouteVerdict::Incomplete { .. }) => {
+                    "incomplete".into()
+                }
+                Ok(lowered_discharge::RouteVerdict::FallBack(refusal)) => {
+                    format!("falls back: {}", refusal.detail)
+                }
+                Err(refusal) => format!("defect: {}", refusal.detail),
+            }
         })
-        .expect("spawn a compile worker")
-        .join()
-        .expect("the judgment does not panic")
-    })
+        .collect()
 }
 
 /// A finite type family: `threshold<T>` requires `T == u32 || T == u64` and
@@ -267,7 +223,7 @@ fn a_generated_machine_of_a_finite_family_is_read_under_its_own_type() {
 #[test]
 fn a_finite_family_is_checked_once_per_alternative_and_carried() {
     let (outcome, rows) = carried("tests/fixtures/run/generics/finite_family_contract");
-    assert_eq!(outcome, "current=accepted\troute=carried-accepted");
+    assert_eq!(outcome, "route=carried-accepted");
     // One guarantee per alternative.
     assert_eq!(count(&rows, "generic", "proved"), 2);
     assert_eq!(count(&rows, "generic", "refused"), 0);
@@ -283,7 +239,7 @@ fn a_finite_family_is_checked_once_per_alternative_and_carried() {
 fn a_finite_family_alternative_that_breaks_its_contract_is_refused() {
     let (outcome, rows) =
         carried("tests/fixtures/fail/generics/finite_family_contract_wrong_alternative");
-    assert_eq!(outcome, "current=rejected\troute=carried-refused");
+    assert_eq!(outcome, "route=carried-refused");
     assert_eq!(count(&rows, "generic", "proved"), 1);
     assert_eq!(count(&rows, "generic", "refused"), 1);
     assert_eq!(count(&rows, "carried", "accepted"), 1);
@@ -298,8 +254,6 @@ fn a_finite_family_alternative_that_breaks_its_contract_is_refused() {
 fn the_threshold_family_lowers_per_alternative_and_corresponds() {
     let (outcome, rows) =
         carried("tests/fixtures/pass/contracts/generic_effective_result_comparison_exit");
-    // The product compile does not carry certificates yet, so it refuses
-    // this program as not supported; the carry itself is what is pinned.
-    assert!(outcome.ends_with("\troute=carried-accepted"), "{outcome}");
+    assert_eq!(outcome, "route=carried-accepted");
     assert!(rows.iter().all(|row| row[4] != "refused"), "{rows:?}");
 }

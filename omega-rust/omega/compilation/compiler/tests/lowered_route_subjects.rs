@@ -10,12 +10,9 @@
 //! from every declaration of every subject, including unused ones". So each
 //! program must be rejected or reported as unsupported by the route, and
 //! none may be accepted.
-#[path = "support/fixture_package_inputs.rs"]
-mod fixture_package_inputs;
+#[path = "support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
 
-use fixture_package_inputs::{
-    FixtureFrontierCheck, check_fixture_keeping_typed_frontier, repo_root,
-};
 use lowered_discharge::{RouteVerdict, judge};
 use semantic_vocabulary::{IdTable, MachineId};
 use structure_elaboration::{Compilation, elaborate, elaborate_closure};
@@ -254,25 +251,10 @@ const OTHER_SWEPT_DEFECTS: &[(&str, Expected)] = &[
     ),
 ];
 
-/// The typed trees the current checker judged, with the request's entries
-/// and subject. Every fixture here is one the current checker rejects after
-/// Psi 04.
+/// The typed trees of a kept `fail/` program that types, with `main` bound
+/// and the program's own package as the subject.
 fn rejected_frontier(fixture: &str) -> Box<compiler::TypedFrontier> {
-    let main = repo_root().join(fixture).join("main.omg");
-    // Discovery and checking recurse deeply; give them the compiler worker's
-    // stack rather than the small one libtest gives each test thread.
-    let checked = std::thread::scope(|scope| {
-        compiler::checked::spawn_compile_worker(scope, || {
-            check_fixture_keeping_typed_frontier(&main, "linux_x86_64")
-        })
-        .expect("compiler worker")
-        .join()
-        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-    });
-    match checked {
-        FixtureFrontierCheck::Rejected { frontier, .. } => frontier,
-        _ => panic!("{fixture}: the current checker must reject this program after Psi 04"),
-    }
+    unbuilt_frontier::fixture_frontier(fixture)
 }
 
 /// The route's verdict on everything the check claims, and the typed-tree
@@ -322,7 +304,9 @@ fn wrong_verdicts(programs: &[(&str, Expected)]) -> Vec<String> {
 
 #[test]
 fn a_defect_in_a_machine_the_entry_never_calls_is_never_accepted() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let wrong = wrong_verdicts(UNCALLED_DEFECTS);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
@@ -330,7 +314,9 @@ fn a_defect_in_a_machine_the_entry_never_calls_is_never_accepted() {
 #[test]
 #[ignore = "36 more fixture compilations, several minutes; run with --ignored"]
 fn no_other_swept_program_with_an_uncalled_defect_is_accepted() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let wrong = wrong_verdicts(OTHER_SWEPT_DEFECTS);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
@@ -342,7 +328,9 @@ fn no_other_swept_program_with_an_uncalled_defect_is_accepted() {
 /// nothing against the entry.
 #[test]
 fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier =
         rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
     let entry = *frontier.entries.first().expect("the Build binds an entry");
@@ -385,10 +373,8 @@ fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
 /// machine here. Integer landing also "requires ... explicit `as` when
 /// acknowledging fractional intermediates", so `(7 / 2) * 2` must not land
 /// as 7 either, and builtin remainder has no anonymous meaning at all. Each
-/// tree is now evaluated exactly and refused, so the current checker decides
-/// the closure. None of these fixtures binds an entry, so each machine is
-/// judged as the root of its own closure, as `route_one_comparison
-/// --every-machine` judges it.
+/// tree is now evaluated exactly and refused. None of these fixtures binds
+/// an entry, so each machine is judged as the root of its own closure.
 const ANONYMOUS_TREES_WITHOUT_A_LANDING: &[(&str, &str, &str)] = &[
     (
         "tests/fixtures/fail/arithmetic/fractional_integer_landing",
@@ -434,7 +420,9 @@ const ANONYMOUS_TREES_WITHOUT_A_LANDING: &[(&str, &str, &str)] = &[
 
 #[test]
 fn an_anonymous_tree_that_cannot_land_is_handed_back_not_truncated() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut wrong = Vec::new();
     let mut frontiers: Vec<(&str, Box<compiler::TypedFrontier>)> = Vec::new();
     for (fixture, machine, detail) in ANONYMOUS_TREES_WITHOUT_A_LANDING {
@@ -446,19 +434,9 @@ fn an_anonymous_tree_that_cannot_land_is_handed_back_not_truncated() {
             .find(|(checked, _)| checked == fixture)
             .expect("checked above");
         let typed = &frontier.typed;
-        let root = typed
-            .machines()
-            .iter()
-            .find(|declared| {
-                declared.name.as_str() == *machine
-                    && typed
-                        .symbols
-                        .symbol_source_span(declared.symbol)
-                        .and_then(|span| typed.symbols.source_file(span))
-                        .is_some_and(|file| file.origin == source::SourceOrigin::User)
-            })
+        let root = unbuilt_frontier::program_machine(typed, machine)
             .unwrap_or_else(|| panic!("{fixture} declares `{machine}`"));
-        match judge(elaborate_closure(typed, root.symbol)) {
+        match judge(elaborate_closure(typed, root)) {
             Ok(RouteVerdict::FallBack(refusal)) if refusal.detail == *detail => {}
             other => wrong.push(format!("{fixture} `{machine}`: {other:?}")),
         }
@@ -481,7 +459,9 @@ fn another_package(frontier: &compiler::TypedFrontier) -> semantic_vocabulary::P
 /// brings the uncalled machine in.
 #[test]
 fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier =
         rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
     let another = another_package(&frontier);
@@ -511,7 +491,9 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
 /// compilation back instead of leaving the selection unjudged.
 #[test]
 fn a_declaration_the_build_selects_is_judged_or_handed_back() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier =
         rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
     let entry = *frontier.entries.first().expect("the Build binds an entry");
@@ -597,8 +579,11 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
         "data_invariant",
         "data Small [copy] requires self.value <= 9 { value: u64; }",
     ),
-    // Data that is not `[copy]` has custody, and so cleanup.
-    ("data_cleanup", "data Owned { value: u64; }"),
+    // Plain affine data: owned, moved at most once, discarded with no code
+    // (ownership.md, "Affine ownership permits eligible automatic
+    // cleanup"). Nothing holds a value of it here, so nothing is owed; its
+    // moves are judged where a value exists (`lowered_route_ownership.rs`).
+    ("data_affine", "data Owned { value: u64; }"),
     (
         "generic_machine",
         "machine keep<T>(value: u64) -> u64 { value }",
@@ -654,13 +639,8 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
     ),
 ];
 
-/// Writes `declaration` and an empty entry as a package under the
-/// repository's ignored `build` directory (the fixture loader takes only
-/// paths inside the repository, and `target` may be a link to a cache
-/// outside it, as `mbx` makes it), checks it, and returns the route's
-/// verdict.
-/// The Build binds `main` for the four hosted targets, as the corpus
-/// fixtures' Builds do.
+/// The route's verdict on `declaration` and an empty `main`, staged as a
+/// standalone source with `main` bound.
 fn verdict_on_unused(name: &str, declaration: &str) -> Verdict {
     let frontier = staged_unused(name, declaration);
     match route_verdict(&frontier).1 {
@@ -676,48 +656,7 @@ fn verdict_on_unused(name: &str, declaration: &str) -> Verdict {
 /// `declaration` and an empty entry, staged as `verdict_on_unused` stages
 /// them and checked through Psi 04.
 fn staged_unused(name: &str, declaration: &str) -> Box<compiler::TypedFrontier> {
-    let root = repo_root()
-        .join("build")
-        .join("lowered_route_subjects")
-        .join(name);
-    std::fs::create_dir_all(&root).expect("staging directory");
-    let targets = [
-        "macos_arm64",
-        "linux_x86_64",
-        "linux_arm64",
-        "windows_x86_64",
-    ];
-    let binds: String = targets
-        .iter()
-        .map(|target| format!("    Build::bind(builder, {target}::ProgramEntry, main);\n"))
-        .collect();
-    std::fs::write(
-        root.join("build.omg"),
-        format!(
-            "machine build(builder: &mut Build) {{\n    \
-             Build::application(builder, \"{name}\");\n{binds}}}\n"
-        ),
-    )
-    .expect("staged Build");
-    let main = root.join("main.omg");
-    std::fs::write(&main, format!("{declaration}\nmachine main() {{}}\n")).expect("staged source");
-    let checked = std::thread::scope(|scope| {
-        compiler::checked::spawn_compile_worker(scope, || {
-            check_fixture_keeping_typed_frontier(&main, "linux_x86_64")
-        })
-        .expect("compiler worker")
-        .join()
-        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-    });
-    let _ = std::fs::remove_dir_all(&root);
-    match checked {
-        FixtureFrontierCheck::Accepted { frontier, .. }
-        | FixtureFrontierCheck::Rejected { frontier, .. }
-        | FixtureFrontierCheck::ReviewRefused { frontier, .. } => frontier,
-        FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics) => {
-            panic!("{name}: the staged program must reach Psi 04: {diagnostics:?}")
-        }
-    }
+    unbuilt_frontier::staged_frontier(name, &format!("{declaration}\nmachine main() {{}}\n"))
 }
 
 /// A generic machine nothing applies is still in the check, as its own
@@ -730,7 +669,9 @@ fn staged_unused(name: &str, declaration: &str) -> Box<compiler::TypedFrontier> 
 /// type or any other.
 #[test]
 fn an_unused_generic_machine_is_judged_as_its_own_check_form() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let parts = judged_parts;
     // The closure (the empty entry) and the generic form, both accepted.
     assert_eq!(
@@ -788,7 +729,9 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
 /// it has no contract row to leave undecided, and it never returns.
 #[test]
 fn a_generic_body_that_applies_another_generic_machine_is_judged() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let forward = "machine forward<T>(item: T, limit: u32) -> u32 \
                    requires limit <= 10 ensures result <= 10 { limit }";
     let relay = |bound: u32| {
@@ -859,14 +802,16 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
 /// so none is skipped.
 #[test]
 fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
     let expected = [
         Verdict::Accepted(2),
         Verdict::Rejected,
         Verdict::Accepted(1),
         Verdict::Accepted(1),
-        falls_back("type data with custody"),
+        Verdict::Accepted(1),
         falls_back("machine generic parameters"),
         falls_back("machine generic parameters"),
         falls_back("declaration const"),
@@ -895,11 +840,12 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
 /// `requires denominator != 0u64` makes both `denominator == 0u64` routes
 /// unreachable, the machine's own arm and a callee's published route, and the
 /// route accepts the whole program. The twin requires `denominator != 1u64`,
-/// which admits zero, and is rejected. Both are refused by the current
-/// checker, which is why the positive program waits in `pending/`.
+/// which admits zero, and is rejected.
 #[test]
 fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let ruled_out = rejected_frontier(
         "tests/fixtures/pending/contracts/requires_disequality_rules_out_crash_route_exit",
     );
@@ -919,19 +865,28 @@ fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
 }
 
 /// A call into a dependency's private machine. The typed trees hold the call
-/// resolved, and the current checker rejects the program after them, where
-/// the product selects the callee ("selects private machine"). The route
-/// took every resolved call as permitted and accepted the program whole,
-/// with two obligations discharged. It now hands the compilation back at
-/// the call.
+/// resolved. The route took every resolved call as permitted and accepted
+/// the program whole, with two obligations discharged. It now refuses the
+/// compilation at the call.
 #[test]
 fn a_call_into_another_packages_private_machine_is_never_accepted() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let wrong = wrong_verdicts(&[(
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    // The edge the fixture's Build registers, under the alias it gives.
+    let frontier = unbuilt_frontier::bound_fixture_frontier(
         "tests/fixtures/fail/build/executed_dependency_private_call",
-        Expected::FallsBack,
-    )]);
-    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+        None,
+        &[(
+            "selected",
+            "tests/fixtures/pass/build/executed_dependency_source_library",
+        )],
+    );
+    let verdict = route_verdict(&frontier).1;
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::FallBack(_))),
+        "{verdict:?}"
+    );
 }
 
 /// A statement that computes a value and drops it is a defect: "A non-Unit
@@ -941,7 +896,9 @@ fn a_call_into_another_packages_private_machine_is_never_accepted() {
 /// hands the machine back.
 #[test]
 fn a_statement_that_drops_its_value_is_never_accepted() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let wrong = wrong_verdicts(&[(
         "tests/fixtures/fail/calls/non_unit_compound_expression_requires_use",
         Expected::FallsBack,
@@ -1036,7 +993,9 @@ const WRITTEN_FORMALS: &[(&str, &str)] = &[
 /// case the route does not serve is refused by name.
 #[test]
 fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
     let expected = [
         Verdict::Accepted(2),
@@ -1176,7 +1135,9 @@ const POLICY_INTEGERS: &[(&str, &str)] = &[
 /// that the value fits. What the route does not serve is refused by name.
 #[test]
 fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
     let expected = [
         Verdict::Accepted(2),
@@ -1254,7 +1215,9 @@ const EMPTY_RECORDS: &[(&str, &str)] = &[
 /// to find empty.
 #[test]
 fn an_empty_record_is_a_record_with_no_field() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let expected = [
         Verdict::Accepted(2),
         Verdict::Accepted(2),

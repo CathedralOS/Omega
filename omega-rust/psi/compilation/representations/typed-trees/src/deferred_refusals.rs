@@ -67,6 +67,11 @@ pub enum DeferredRequest {
     /// A domain cast whose operand carries a compiler-owned domain or a
     /// constraint no declaration answered, which no entry can name yet.
     DomainCastUnnamedConstraint,
+    /// A machine with one body per target that binds type or lifetime
+    /// parameters or conformance bounds: holding each body to the shared
+    /// signature means matching the two telescopes binder for binder, and
+    /// typing has no such comparison yet.
+    TargetFamilyGenericSignature,
 }
 
 impl DeferredRequest {
@@ -110,6 +115,9 @@ impl DeferredRequest {
             }
             Self::DomainCastUnnamedConstraint => {
                 "holding a domain cast over a compiler-owned or unresolved domain, which no pass accounts for yet"
+            }
+            Self::TargetFamilyGenericSignature => {
+                "of a generic machine with one body per target, whose bodies typing does not compare with their shared signature yet"
             }
         }
     }

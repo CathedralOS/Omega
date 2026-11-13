@@ -1,8 +1,8 @@
 //! The generics experiment of the lowered-form checker, on real programs.
 //!
-//! For each `main.omg` given on the command line it checks the fixture with
-//! the ordinary pipeline (the only way to obtain the frozen typed trees and
-//! the bound entry) and elaborates the entry's closure. For every machine in
+//! For each `main.omg` given on the command line it types the program
+//! without running its Build (`tests/support/unbuilt_frontier.rs`), binds
+//! `main` as the entry and elaborates the entry's closure. For every machine in
 //! that closure that stage 04 generated for a static application of a
 //! generic machine, it then:
 //!
@@ -20,20 +20,20 @@
 //!
 //! Tab-separated lines:
 //!
-//!     program <path> current=<accepted|rejected> route=<..>
+//!     program <path> route=<..>
 //!     generic <path> <first specialization> <obligation> <kind> <proved|refused> <detail>
 //!     concrete <path> <specialization> <obligation> <kind> <proved|refused> <detail>
 //!     witness <path> <specialization> <obligation> <kind> <proved|refused> <detail>
 //!     carried <path> <specialization> <obligation> <kind> <accepted|refused> <detail>
 //!
-//! A program the current checker rejects still has typed trees when stage
-//! 04 produced them, and elaboration proves nothing, so the same three
-//! steps run on it and the `generic` lines show what the lowered-form
-//! checker refuses. This is a measuring tool, not a gate, and not part of
+//! A program the checker rejects still has typed trees when stage 04
+//! produced them, and elaboration proves nothing, so the same three steps
+//! run on it and the `generic` lines show what the lowered-form checker
+//! refuses. This is a measuring tool, not a gate, and not part of
 //! the shipped CLI.
 
-#[path = "../tests/support/fixture_package_inputs.rs"]
-mod fixture_package_inputs;
+#[path = "../tests/support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
 #[path = "../tests/support/generic_certificate_carry.rs"]
 mod generic_certificate_carry;
 

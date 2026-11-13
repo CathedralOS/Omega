@@ -1,12 +1,12 @@
 //! Plain owned data is judged from actual transfers on the lowered form. The
 //! positive retains call-result/local identities through publication and runs;
 //! the negative borrows the same local after an earlier operand consumed it.
-#[path = "support/fixture_package_inputs.rs"]
-mod fixture_package_inputs;
+//! Each program is typed without running its Build
+//! (`support/unbuilt_frontier.rs`).
+#[path = "support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
 
-use fixture_package_inputs::{
-    FixtureFrontierCheck, check_fixture_keeping_typed_frontier, repo_root,
-};
+use unbuilt_frontier::{fixture_frontier, repository};
 use lowered_discharge::{RouteVerdict, judge_compilation};
 use structure_elaboration::Compilation;
 use terminal_interpreter::{
@@ -15,18 +15,6 @@ use terminal_interpreter::{
 };
 
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-fn check(fixture: &str) -> FixtureFrontierCheck {
-    let main = repo_root().join(fixture).join("main.omg");
-    std::thread::scope(|scope| {
-        compiler::checked::spawn_compile_worker(scope, || {
-            check_fixture_keeping_typed_frontier(&main, "linux_x86_64")
-        })
-        .expect("compiler worker")
-        .join()
-        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-    })
-}
 
 struct NoEffects;
 
@@ -40,12 +28,11 @@ impl TerminalEffectHandler for NoEffects {
 
 #[test]
 fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let FixtureFrontierCheck::Accepted { frontier, .. } =
-        check("tests/fixtures/pass/calls/runtime_affine_record_call_results_reused_exit")
-    else {
-        panic!("the original owned-data witness must check");
-    };
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let frontier =
+        fixture_frontier("tests/fixtures/pass/calls/runtime_affine_record_call_results_reused_exit");
     // Match the default router's complete scope, including every generic
     // check form it claims; one undecided form refuses the whole compilation.
     let mut verdicts = judge_compilation(
@@ -113,12 +100,10 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
 
 #[test]
 fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
-    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let FixtureFrontierCheck::Rejected { frontier, .. } =
-        check("tests/fixtures/fail/borrows/owned_address_after_operand_move")
-    else {
-        panic!("the move-before-borrow witness must reject after the typed frontier");
-    };
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let frontier = fixture_frontier("tests/fixtures/fail/borrows/owned_address_after_operand_move");
     let verdicts = judge_compilation(
         &frontier.typed,
         Compilation {
@@ -141,8 +126,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
         }
     }
     let expected = std::fs::read_to_string(
-        repo_root()
-            .join("tests/fixtures/fail/borrows/owned_address_after_operand_move/expected.txt"),
+        repository("tests/fixtures/fail/borrows/owned_address_after_operand_move/expected.txt"),
     )
     .unwrap();
     assert!(
