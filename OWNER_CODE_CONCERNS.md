@@ -80,6 +80,12 @@ own to defend. Say what you saw, not what you would build.
 - Saw: Terminal semantics has the substitution of values in any proposition; the reader keeps one of its own for route guards and for a cycle member's `requires`, which accepts a formal or a literal and refuses every other term. A route guard over a field, a mathematical comparison or a suffixed operator is refused by name where a call restates it (`route guard term outside formals and literals`), while the same clause is served as a `requires` or an `ensures`
 - Cost: each new term a clause may hold is served in two clause kinds and refused in the third until someone widens the second substitution by hand
 - Reported: 2026-11-13, Claude Code, while reading suffixed operators in contracts
+### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
+- Category: a verdict with nothing behind it
+- Where: `source/library/std/console.omg:66` (the requirement, `reaches Console`) and `:96` (its provider); `omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs` (`exact_process_exit_requirement` with `console_adapter`, `nominate_source_completion`)
+- Saw: process_exit.md says "Any retained console-exit convenience adapter must obtain legitimate exit authority and publish its additional reach. Console must not inherit `ProcessExit` wholesale." The standard library's `Console::exit_process` declares `reaches Console` and nothing else, and the typed trees decide whether it completes externally from the trait being named `Console` plus a sealed intrinsic or a completion admission. Where neither is present, as in the route probe (`compiler/tests/route_probe.rs`, the `Console` program), the same source call is lowered as a call that returns
+- Cost: a ceiling of `reaches Console` does not mean "cannot end the process", so package review's `ProcessExit` row undercounts; and the checker models one source call as returning or as a terminal transfer depending on an admission the program text does not show, so a body judged in one mode says nothing about the other
+- Reported: 2026-11-13, Claude Code, while taking external completion (`ProcessExit::exit_process`) to the lowered-form checker
 
 ### A sum's `requires` over each case's payload is refused, and it was judged before
 - Category: tests that pin the bug
@@ -604,12 +610,27 @@ own to defend. Say what you saw, not what you would build.
 - Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
 
+
+### Typing lets a bare literal be stored into a field declared in a domain
+- Category: a verdict with nothing behind it
+- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `structure-elaboration/src/read/authority.rs` (`Access::Replace`); `compiler/tests/build_value_protection.rs` (`replacing_the_seal_is_not_accepted`)
+- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };` passes typing. The program is stopped only because the lowered-form checker refuses every replacement of a policy-governed value. For a domain with no policy the store of a bare carrier into a qualified field would reach the checker with nothing refusing it
+- Cost: the rule "the supplied expression's static type must carry exactly the domains the destination declares" has two owners for construction and one accidental owner for assignment; when plans are evaluated and a writer is admitted, the assignment form loses its only guard
+- Reported: 2026-11-13, Claude Code, while declaring the seal that protects the compiler-owned `Build`
+
 ### Executable products have consumers downstream and no producer in the compiler
 - Category: a verdict with nothing behind it
-- Where: `compiler/src/product_execution.rs` (`refuse_executable_product`); `CompilationOutput::{Native, Component}`, `CheckedProductReport::{Terminal, Native}`; `provider-planning/src/program_entry.rs` (`SelectedCompilerProgramEntry`), `provider_planning::{SelectedProviderReviewProvenance, ProviderPlanProvenance, DerivedProviderPlan}`, `psi-compiler/terminal-production/src/external_providers.rs` (`PreparedExternalProviderDeclarations`), `compiler/src/checked/compilation_session.rs` (`component_products`)
+- Where: `compiler/src/product_execution.rs` (`refuse_executable_product`); `CompilationOutput::{Native, Component}`, `CheckedProductReport::{Terminal, Native}`; `provider-planning/src/program_entry.rs` (`SelectedCompilerProgramEntry`), `provider_planning::{SelectedProviderReviewProvenance, ProviderPlanProvenance, DerivedProviderPlan}`, `compiler/src/checked/compilation_session.rs` (`component_products`)
 - Saw: the compiler now refuses Terminal, native and component products by name, because the selected program entry, callback roots, behavior exclusions and native provider declarations they need have no producer. Their downstream shape is still standing: output variants nothing constructs, entry and provenance records with private fields and no constructor, a component-product roster the session fills and nothing reads, and Omega 00's `TerminalNativeProposalRequest` with about seventeen inputs of the old custody
 - Cost: the lane that makes a program run has to decide for each of those whether it is derived from the accepted artifact and the settled plans or deleted; left as they are they read as working machinery and invite a producer shaped like the deleted checker's
 - Reported: 2026-11-13, Claude Code, while narrowing the selected-execution custody to the target and its settled plans
+
+### One refusal text for five different constructs
+- Category: a verdict with nothing behind it
+- Where: `structure-elaboration/src/read/machine.rs` (`unserved("generic parameters")` four times: a machine's lifetime parameters, its type parameters, a requirement's binders, a requirement's lifetimes or bounds) and `lowered-discharge/src/verdict.rs` (`examine`, leftover templates)
+- Saw: all five print `not supported yet: machine generic parameters` with no declaration name. The Build of `default_console_provider_reached` is refused for the lifetime parameter of the Build prelude's `dependency::from_source<'storage>`; a worker located the cause in `verdict.rs` by reading and it was wrong, found only by printing at each site
+- Cost: a refusal that names neither the declaration nor which of five constructs it met cannot be acted on without rebuilding the compiler with prints
+- Reported: 2026-11-13, Claude Code, while confirming what stops a Build that registers a dependency
 
 ### Tests of the compiler crate assert on source text
 - Category: a test that pins a bug

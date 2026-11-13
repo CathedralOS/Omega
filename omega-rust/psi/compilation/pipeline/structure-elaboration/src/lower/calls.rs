@@ -19,7 +19,7 @@ use language_core::ReferenceAccess;
 use semantic_vocabulary::{
     InvocationSite, MachineId, ObligationId, OperationId, PlaceId, ScalarTerm, ValueId,
 };
-use terminal_check_tables::edges::{Actual, Callee, InvocationRow};
+use terminal_check_tables::edges::{Actual, Callee, Disposition, Fate, InvocationRow};
 use terminal_check_tables::obligations::{CrashSite, ExecutionSite, Lender, ObligationKind};
 use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, ProgramPoint, Refusal, RefusalReason,
@@ -177,18 +177,34 @@ impl Lowering<'_> {
         terminal_check_tables::row(self.outcomes, callee, self.id, Construct::Machine)
     }
 
+    /// Whether a call of `callable` can return to its caller: a machine
+    /// when some path of its body does, a boundary requirement unless its
+    /// declaration completes externally.
+    fn completes_normally(
+        &self,
+        callable: semantic_vocabulary::TargetMachineCallable,
+    ) -> Checked<bool> {
+        Ok(match callable {
+            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
+                self.outcome(callee)?.completes_normally
+            }
+            semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
+                self.signatures.completion(boundary, self.id)?
+                    == semantic_vocabulary::BoundaryCompletion::NormalReturn
+            }
+        })
+    }
+
     /// The callee and arguments of a call in terminal position whose callee
     /// has no normal completion; such a call is the block's terminator.
     pub(super) fn no_normal<'e>(
         &self,
         expression: &'e Expression,
-    ) -> Checked<Option<(MachineId, &'e [Expression])>> {
+    ) -> Checked<Option<(semantic_vocabulary::TargetMachineCallable, &'e [Expression])>> {
         match &expression.kind {
             ExpressionKind::Call {
-                callee: semantic_vocabulary::TargetMachineCallable::Machine(callee),
-                arguments,
-                ..
-            } if !self.outcome(*callee)?.completes_normally => Ok(Some((*callee, arguments))),
+                callee, arguments, ..
+            } if !self.completes_normally(*callee)? => Ok(Some((*callee, arguments))),
             ExpressionKind::Call { .. }
             | ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
@@ -213,42 +229,71 @@ impl Lowering<'_> {
         }
     }
 
-    /// A call of a machine with no normal completion, in terminal position:
-    /// the arguments, then the invocation as the block's terminator, with the
+    /// A call with no normal completion, in terminal position: the
+    /// arguments, then the invocation as the block's terminator, with the
     /// callee's routes substituted as its crash continuations and one
-    /// `CrashCoverage` obligation per surviving cause at this site.
+    /// `CrashCoverage` obligation per surviving cause at this site. One
+    /// path serves both declaration classes, as `call` does for calls that
+    /// return: a machine no path of which returns is `InvokeNoNormal`, and a
+    /// boundary requirement that completes externally is
+    /// `ExternalCompletion` (calls_and_outcomes.md, "External process exit":
+    /// "a terminal transfer retaining the exact requirement and ordered
+    /// arguments, with no normal successor, return postconditions, or
+    /// implicit cleanup").
+    ///
+    /// Nothing of this machine runs after the transfer, so nothing is
+    /// retired, restored or cleaned up on its edge (terminal-psi
+    /// ownership.md: process exit "creates no return value, consumption
+    /// receipt, cleanup successor, or post-exit frontier").
     pub(super) fn invoke_no_normal(
         &mut self,
-        callee: MachineId,
+        callee: semantic_vocabulary::TargetMachineCallable,
         arguments: &[Expression],
         source: SourceOrigin,
     ) -> Checked<()> {
-        let arguments = self.arguments(callee.into(), arguments)?;
-        // A loan passed to a call that never returns is never returned to
-        // its lender: the edge would have to account for it, which no
-        // slice does yet.
-        if !arguments.loans.is_empty() {
-            return Err(refuse(
-                self.id,
-                self.current.map_or(Construct::Machine, Construct::Block),
-                Unserved::Call("no-normal call that lends storage"),
-            ));
-        }
-        let crash_continuations = canonical::substituted_routes(
-            &self.outcome(callee)?.crash_routes,
-            &arguments.scalars,
-            self.id,
-        )?;
+        let signature = self.signatures.get(callee, self.id)?;
+        let arguments = self.arguments(callee, arguments)?;
+        let routes = match callee {
+            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
+                &self.outcome(callee)?.crash_routes[..]
+            }
+            semantic_vocabulary::TargetMachineCallable::Boundary(_) => signature
+                .declared_crash_routes()
+                .ok_or_else(|| self.internal("a boundary call has no published crash ceiling"))?,
+        };
+        let crash_continuations =
+            canonical::substituted_routes(routes, &arguments.scalars, self.id)?;
         let site = self.current()?;
         let before = self.here()?;
-        let edge = self.no_successor_edge(source)?;
-        let requirements = self.invocation(
-            InvocationSite::InvokeNoNormal(edge),
-            callee.into(),
-            &arguments.actuals,
-            before,
-            source,
-        )?;
+        // state_contracts.md, "Terminal calls in transition arms": "A
+        // caller-local loan carried into a terminal machine call closes at
+        // the last use of that loan and of every loan derived from it, even
+        // when that use is inside the callee's terminal chain". The callee
+        // never returns, so each loan is formed here like any call's and is
+        // handed to the transfer whole: this machine's edge consumes it and
+        // no place of this machine is read again.
+        let lent = self.tables.obligations.len();
+        self.loans(&arguments.loans, before, source);
+        let mut carried = Vec::with_capacity(arguments.loans.len());
+        for raw in lent + 1..=self.tables.obligations.len() {
+            let obligation = ObligationId::new(raw as u64)
+                .ok_or_else(|| self.internal("a loan of a no-normal call has no identity"))?;
+            carried.push(Disposition {
+                obligation,
+                fate: Fate::Consumed,
+            });
+        }
+        let edge = self.no_successor_edge(carried, source)?;
+        let invocation_site = match callee {
+            semantic_vocabulary::TargetMachineCallable::Machine(_) => {
+                InvocationSite::InvokeNoNormal(edge)
+            }
+            semantic_vocabulary::TargetMachineCallable::Boundary(_) => {
+                InvocationSite::ExternalCompletion(edge)
+            }
+        };
+        let requirements =
+            self.invocation(invocation_site, callee, &arguments.actuals, before, source)?;
         for bucket in &crash_continuations {
             self.obligation(
                 ObligationKind::CrashCoverage {
@@ -261,18 +306,59 @@ impl Lowering<'_> {
         }
         let structural_arguments =
             self.structural_arguments(arguments.structural, ExecutionSite::Block(site), source)?;
-        self.terminate(Terminator::InvokeNoNormal {
-            edge,
-            static_reach_binding: None,
-            callee,
-            structural_arguments,
-            arguments: arguments.scalars,
-            erased_arguments: arguments.erased,
-            erased_proof_arguments: Vec::new(),
-            claim_transfers: Vec::new(),
-            requirement_obligations: requirements,
-            crash_continuations,
-        })
+        match callee {
+            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
+                self.terminate(Terminator::InvokeNoNormal {
+                    edge,
+                    static_reach_binding: None,
+                    callee,
+                    structural_arguments,
+                    arguments: arguments.scalars,
+                    erased_arguments: arguments.erased,
+                    erased_proof_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: requirements,
+                    crash_continuations,
+                })
+            }
+            semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
+                let semantic_vocabulary::BoundaryCompletion::External(kind) =
+                    self.signatures.completion(boundary, self.id)?
+                else {
+                    return Err(self.internal("a returning boundary call as a terminator"));
+                };
+                // process_exit.md: the canonical operation "permits no
+                // source crash". Its declaration is the one place that could
+                // say otherwise, and the terminator has no continuation
+                // roster to hold a route. A caller that promises termination
+                // owes nothing more for it: "Under its requirements and
+                // admitted provider progress premises, the canonical
+                // operation eventually ends the bound domain", and "An exit
+                // leaf needs no further cycle decrease".
+                if !crash_continuations.is_empty() {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Block(site),
+                        Unserved::Call("external completion that declares a crash route"),
+                    ));
+                }
+                if !arguments.erased.is_empty() {
+                    return Err(self.internal("boundary call carries erased runtime operands"));
+                }
+                self.terminate(Terminator::ExternalCompletion {
+                    edge,
+                    boundary,
+                    kind,
+                    arguments: arguments.scalars,
+                    structural_arguments,
+                    requirement_obligations: requirements,
+                    // calls_and_outcomes.md: "The frontier lower bound
+                    // reports obligations definitely live at the site." The
+                    // route mints no claim, so none is definitely live.
+                    frontier_lower_bound: Vec::new(),
+                })
+            }
+        }
     }
 
     /// The invocation row of one call and its `CallRequirement` obligations,
@@ -324,16 +410,14 @@ impl Lowering<'_> {
         result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
-        if let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callable {
-            // No-normal machine calls keep their existing terminator path.
-            // The boundary reader separately refuses external completions.
-            if !self.outcome(callee)?.completes_normally {
-                return Err(refuse(
-                    self.id,
-                    self.current.map_or(Construct::Machine, Construct::Block),
-                    Unserved::Call("no-normal call inside an expression"),
-                ));
-            }
+        // A call with no normal completion is a terminator (`invoke_no_normal`)
+        // and has no value, so an expression cannot hold one.
+        if !self.completes_normally(callable)? {
+            return Err(refuse(
+                self.id,
+                self.current.map_or(Construct::Machine, Construct::Block),
+                Unserved::Call("no-normal call inside an expression"),
+            ));
         }
         if matches!(
             callable,

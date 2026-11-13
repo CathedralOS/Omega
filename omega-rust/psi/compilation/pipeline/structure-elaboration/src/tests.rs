@@ -202,6 +202,7 @@ fn lower_records(
     let signatures = crate::body::Signatures {
         machines: signatures,
         boundaries: &boundary_signatures,
+        completions: &IdTable::default(),
     };
     let declared = crate::lower::places::declare(
         id(1),
@@ -1230,6 +1231,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
             crate::body::Signatures {
                 machines: &signatures,
                 boundaries: &IdTable::default(),
+                completions: &IdTable::default(),
             },
             &[],
         )
@@ -1285,6 +1287,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
             crate::body::Signatures {
                 machines: &signatures,
                 boundaries: &IdTable::default(),
+                completions: &IdTable::default(),
             },
             &[],
         )
@@ -1352,6 +1355,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
         crate::body::Signatures {
             machines: &signatures,
             boundaries: &IdTable::default(),
+            completions: &IdTable::default(),
         },
         &[],
     )

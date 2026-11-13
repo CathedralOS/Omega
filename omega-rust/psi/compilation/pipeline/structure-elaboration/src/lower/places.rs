@@ -2522,6 +2522,7 @@ mod tests {
             crate::body::Signatures {
                 machines: &signatures,
                 boundaries: &IdTable::default(),
+                completions: &IdTable::default(),
             },
             TerminalIdentityTableBuilder::default(),
         )

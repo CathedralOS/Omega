@@ -24,6 +24,16 @@ pub(super) fn initial_value(
 ) -> BuildTimeValue {
     let mut build_fields = Vec::new();
     if admission.has_toolchain_build_activation {
+        // The seal the toolchain establishes for the `Build` it lends
+        // (`BuildSeal in Issued`). It has no contents: source cannot make
+        // one, and the admitted vocabulary says so.
+        build_fields.push((
+            "seal".to_owned(),
+            BuildTimeValue::Struct {
+                type_name: "$OmegaBuildSeal".to_owned(),
+                fields: Vec::new(),
+            },
+        ));
         build_fields.push((
             "x86_deployment_features".to_owned(),
             BuildTimeValue::Case {

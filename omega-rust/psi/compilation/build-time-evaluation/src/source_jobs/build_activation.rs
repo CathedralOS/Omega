@@ -11,20 +11,27 @@
 //!
 //! The second is that source cannot construct, store or return a `Build`
 //! value of its own, because the host would decode a forged one as if it had
-//! issued it. The stage that walked source for those shapes was deleted with
-//! the old checker and is not rebuilt: the rule belongs to `Build`'s
-//! declaration, as a routed domain whose issuance admits nobody
-//! ([domains](../../../../../wiki/spec/language/domains.md): an empty
-//! `Issuance::Only` list "permits nobody"). Neither the parser nor the
-//! lowered-form checker has that mechanism yet, so every program that has a
-//! Build activation is refused here, by that reason. Removing that refusal is
-//! the last step once `Build` is declared that way and the checker judges it.
-
+//! issued it. That rule belongs to `Build`'s declaration: its one `seal`
+//! field is the toolchain's `BuildSeal`, which is not `[copy]`, in the
+//! toolchain's domain that an access policy governs
+//! ([access policies](../../../../../wiki/spec/resources/access.md)). The
+//! lowered-form checker admits no source issuer for such a domain and no
+//! zero-established or literal value of a record holding one, so the only
+//! `Build` a script holds is the one it was lent. That the declaration has
+//! this shape is checked here; the checker judges the program against it.
+//!
+//! Every program that has a Build activation is still refused here until the
+//! protection is shown on the real `Build`
+//! (`compiler/tests/build_value_protection.rs`); removing the refusal is the
+//! next change.
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::DataMember;
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::domain::DomainIssuance;
+use typed_trees::types::{
+    DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+};
 
 use super::is_exact_toolchain_build_prelude_data;
 
@@ -82,7 +89,58 @@ fn build_activation_symbol(typed: &TypedTrees) -> Result<Option<SymbolHandle>, V
             "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type".into(),
         ));
     }
+    let mut seals = typed
+        .data_members(build)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) if field.name.as_str() == "seal" => Some(field),
+            _ => None,
+        });
+    let (Some(seal), None) = (seals.next(), seals.next()) else {
+        return Err(refused(
+            "toolchain Build must declare exactly one `seal` field".into(),
+        ));
+    };
+    if !is_issued_seal(typed, seal.type_reference) {
+        return Err(refused(
+            "toolchain Build.seal must be the toolchain BuildSeal, not `[copy]`, in the toolchain domain an access policy governs".into(),
+        ));
+    }
     Ok(Some(build.symbol))
+}
+
+/// Whether `reference` is what keeps source from producing a `Build`: the
+/// prelude's own `BuildSeal`, which cannot be duplicated, in exactly one
+/// domain, the prelude's own, whose issuers are those its access policy
+/// plans. The checker admits no source issuer for such a domain, so the only
+/// `Build` a script can hold is the one it was lent.
+fn is_issued_seal(typed: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    let types = &typed.type_reference_table;
+    let TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = types.type_reference(reference)
+    else {
+        return false;
+    };
+    let TypeReferenceNode::Named { symbol, .. } = types.type_reference(*base_type) else {
+        return false;
+    };
+    let affine = typed.data_definitions().iter().any(|definition| {
+        definition.symbol == *symbol
+            && definition.properties.multiplicity != language_semantics::Multiplicity::Unrestricted
+    });
+    let [TypeConstraintNode::Domain(domain)] = types.constraints(*constraints) else {
+        return false;
+    };
+    affine
+        && is_exact_toolchain_build_prelude_data(typed, *symbol, "BuildSeal")
+        && domain.subject == DomainConstraintSubject::Declared
+        && domain.arguments.is_empty()
+        && typed.symbols.is_build_prelude_symbol(domain.symbol)
+        && typed
+            .domain_definition(domain.symbol)
+            .is_some_and(|definition| matches!(definition.issuance(), DomainIssuance::Planned(_)))
 }
 
 #[cfg(test)]
@@ -92,7 +150,12 @@ mod tests {
 
     const PRELUDE: &str = r#"
 public data X86DeploymentFeatures { avx2: bool; }
+public trait AccessPolicy { machine plan() -> u64; }
+public data BuildSeal { }
+BuildSealAccess satisfies AccessPolicy { machine plan() -> u64 { 0u64 } }
+public domain BuildSeal::Issued access BuildSealAccess;
 public data Build<'storage> {
+    seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
     identifier: &'storage [u8];
 }
@@ -181,5 +244,36 @@ public data Build<'storage> {
             refusal(&foreign),
             "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type"
         );
+    }
+
+    /// The seal is what keeps source from producing a `Build`, so a prelude
+    /// whose `Build` has none, or one source could make or duplicate, is
+    /// refused before anything runs. Each prelude changes one declaration
+    /// of `PRELUDE`.
+    #[test]
+    fn a_toolchain_build_that_source_could_produce_is_refused_as_that() {
+        const SEAL: &str = "toolchain Build.seal must be the toolchain BuildSeal, not `[copy]`, in the toolchain domain an access policy governs";
+        let unsealed = PRELUDE.replace("    seal: BuildSeal in Issued;\n", "");
+        assert_ne!(unsealed, PRELUDE);
+        assert_eq!(
+            refusal(&typed("machine build_entry() { }", Some(&unsealed))),
+            "toolchain Build must declare exactly one `seal` field"
+        );
+        for (declared, changed) in [
+            // The bare carrier: a literal makes one.
+            ("seal: BuildSeal in Issued;", "seal: BuildSeal;"),
+            // No policy: anybody may add the domain.
+            ("Issued access BuildSealAccess;", "Issued;"),
+            // A seal that copies out of the lent `Build`.
+            ("data BuildSeal { }", "data BuildSeal [copy] { }"),
+        ] {
+            let prelude = PRELUDE.replace(declared, changed);
+            assert_ne!(prelude, PRELUDE, "{declared}");
+            assert_eq!(
+                refusal(&typed("machine build_entry() { }", Some(&prelude))),
+                SEAL,
+                "{changed}"
+            );
+        }
     }
 }
