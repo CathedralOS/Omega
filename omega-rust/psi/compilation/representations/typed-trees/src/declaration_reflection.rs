@@ -932,7 +932,19 @@ pub mod reflection {
         #[test]
         fn schema_construction_retains_selected_application_and_nominal_edges() {
             let mut symbols = SymbolTableBuilder::default();
-            let cell = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Cell"));
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static(""));
+            let declarations = symbols.insert_children(
+                root,
+                [
+                    (SymbolKind::Data, SymbolNameRef::Static("Cell")),
+                    (SymbolKind::Data, SymbolNameRef::Static("Left")),
+                    (SymbolKind::Data, SymbolNameRef::Static("Right")),
+                ],
+            );
+            let mut declarations = declarations.handles();
+            let cell = declarations.next().unwrap();
+            let left = declarations.next().unwrap();
+            let right = declarations.next().unwrap();
             let parameter = symbols
                 .insert_children(
                     cell,
@@ -941,8 +953,6 @@ pub mod reflection {
                 .handles()
                 .next()
                 .unwrap();
-            let left = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Left"));
-            let right = symbols.insert_root(SymbolKind::Data, SymbolNameRef::Static("Right"));
             let mut program = TypedTrees {
                 symbols: symbols.finish(),
                 ..TypedTrees::default()
