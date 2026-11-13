@@ -190,12 +190,14 @@ fn whole_owned_transfers_consume_their_homes_once() {
     records.push(RecordType {
         copyable: false,
         identity: "Owned".into(),
-        fields: vec![RecordField {
-            id: id(1),
-            identity: "number".into(),
-            value_type: scalar,
-        }],
-        cases: Vec::new(),
+        form: structure_elaboration::RecordForm::Data {
+            fields: vec![RecordField {
+                id: id(1),
+                identity: "number".into(),
+                value_type: scalar,
+            }],
+            cases: Vec::new(),
+        },
         requires: Vec::new(),
     });
     let mut bodies = IdTable::default();

@@ -77,7 +77,10 @@ impl Program<'_> {
         // ponytail: linear scan over the discovered record types, as for
         // machines; a dense table by declaration position if closures grow.
         for (record, source) in self.record_sources.iter() {
-            if source.declaration == symbol {
+            if source
+                .as_ref()
+                .is_some_and(|source| source.declaration == symbol)
+            {
                 return Ok(ValueType::Record(record));
             }
         }
@@ -191,15 +194,17 @@ impl Program<'_> {
         let record: StructuralTypeId = self.records.push(RecordType {
             copyable,
             identity,
-            fields: declared,
-            cases: case_types,
+            form: crate::RecordForm::Data {
+                fields: declared,
+                cases: case_types,
+            },
             requires: Vec::new(),
         });
-        self.record_sources.push(RecordSource {
+        self.record_sources.push(Some(RecordSource {
             declaration: symbol,
             fields: field_symbols,
             cases: case_symbols,
-        });
+        }));
         // The declaration's `requires`, read once the fields and cases it
         // names have their identities, by the clause reader the machine
         // contracts use.
@@ -257,7 +262,15 @@ impl Program<'_> {
     }
 
     fn source(&self, id: MachineId, record: StructuralTypeId) -> Checked<&RecordSource> {
-        terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)
+        terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)?
+            .as_ref()
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("byte view has no nominal declaration"),
+                )
+            })
     }
 
     pub(super) fn data_type(
@@ -338,7 +351,7 @@ impl Program<'_> {
         field: usize,
     ) -> Checked<ValueType> {
         self.data_type(id, record)?
-            .fields
+            .fields()
             .get(field)
             .map(|field| field.value_type)
             .ok_or_else(|| {
@@ -358,7 +371,7 @@ impl Program<'_> {
         field: usize,
     ) -> Checked<ValueType> {
         self.data_type(id, record)?
-            .cases
+            .cases()
             .get(case)
             .and_then(|case| case.fields.get(field))
             .map(|field| field.value_type)
@@ -407,8 +420,7 @@ impl Program<'_> {
                 "record pattern over a value that is not a record",
             )));
         };
-        let source =
-            terminal_check_tables::row(&self.record_sources, record, id, Construct::Machine)?;
+        let source = self.source(id, record)?;
         if source.declaration != local.pattern_subject {
             return Err(refused(Unserved::Typing(
                 "record pattern resolved against another record",
@@ -531,15 +543,15 @@ impl Program<'_> {
         let data = self.data_type(id, record)?;
         let declared: Vec<ValueType> = match case {
             Some(case) => data
-                .cases
+                .cases()
                 .get(case)
                 .ok_or_else(|| typing("case position past the sum's declaration"))?
                 .fields
                 .iter()
                 .map(|field| field.value_type)
                 .collect(),
-            None if data.cases.is_empty() => {
-                data.fields.iter().map(|field| field.value_type).collect()
+            None if data.cases().is_empty() => {
+                data.fields().iter().map(|field| field.value_type).collect()
             }
             None => return Err(typing("literal of a sum without a case")),
         };
@@ -749,8 +761,7 @@ fn record_shape<'m>(
     if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
         return unserved("data without a checked shape");
     }
-    if !data.lifetime_parameters.is_empty()
-        || !data.type_parameters.is_empty()
+    if !data.type_parameters.is_empty()
         || data.generic_instance.is_some()
         || !data.conformance_bounds.is_empty()
     {
@@ -775,9 +786,6 @@ fn record_shape<'m>(
     // where a local of the type is declared without an initializer.
     if !data.retired_identities.is_empty() {
         return unserved("data with retired field identities");
-    }
-    if members.is_empty() {
-        return unserved("data without fields");
     }
     let relevant = |field: &DataField| field.relevance == language_core::BindingRelevance::Relevant;
     let mut fields = false;
@@ -842,8 +850,10 @@ mod tests {
         let owned = records.push(RecordType {
             copyable: false,
             identity: "Owned".into(),
-            fields: Vec::new(),
-            cases: Vec::new(),
+            form: crate::RecordForm::Data {
+                fields: Vec::new(),
+                cases: Vec::new(),
+            },
             requires: Vec::new(),
         });
         assert!(!copy_field_is_unrestricted(

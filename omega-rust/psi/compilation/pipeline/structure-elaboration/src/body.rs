@@ -84,11 +84,7 @@ impl ValueType {
 pub struct RecordType {
     pub copyable: bool,
     pub identity: String,
-    pub fields: Vec<RecordField>,
-    /// The declared cases in declaration order; empty for a record. A case
-    /// is named by its position here and by its `StructuralCaseId`, fixed
-    /// once by the reader from the case's symbol.
-    pub cases: Vec<CaseType>,
+    pub form: RecordForm,
     /// The clauses of the declaration's `requires`, in authored order: the
     /// type's default domain (`wiki/spec/language/dependent_values.md`: "A
     /// data declaration's field qualifications and `requires` clauses define
@@ -102,6 +98,36 @@ pub struct RecordType {
     /// whether the place is that case, before it states a goal
     /// (`lowered-discharge`).
     pub requires: Vec<Proposition>,
+}
+
+/// The structural carrier, before Terminal declaration identities are interned.
+/// A borrowed byte descriptor is its own form; it never impersonates nominal
+/// data or acquires a source declaration merely by sharing structural storage.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RecordForm {
+    Data {
+        fields: Vec<RecordField>,
+        cases: Vec<CaseType>,
+    },
+    ByteView {
+        access: language_core::ReferenceAccess,
+    },
+}
+
+impl RecordType {
+    pub fn fields(&self) -> &[RecordField] {
+        match &self.form {
+            RecordForm::Data { fields, .. } => fields,
+            RecordForm::ByteView { .. } => &[],
+        }
+    }
+
+    pub fn cases(&self) -> &[CaseType] {
+        match &self.form {
+            RecordForm::Data { cases, .. } => cases,
+            RecordForm::ByteView { .. } => &[],
+        }
+    }
 }
 
 /// The root that stands for `self` in a data type's `requires` clauses
@@ -438,6 +464,8 @@ pub struct Expression {
 pub enum ExpressionKind {
     Integer(IntegerValue),
     Boolean(bool),
+    /// Exact immutable octets, established at this expression's operation.
+    ByteLiteral(Vec<u8>),
     /// A formal or local. A scalar slot is the value it holds, or for a
     /// local declared without an initializer a fresh read of its home; a
     /// record slot is the root place it holds.

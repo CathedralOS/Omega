@@ -905,6 +905,24 @@ impl<'t> Program<'t> {
     ) -> Checked<(Expression, String)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
+        if matches!(self.node(id, argument)?, ExpressionNode::String(_)) {
+            if formal.access != ReferenceAccess::Shared {
+                return unserved("byte literal cannot lend mutable storage");
+            }
+            let place = self.expression(id, slots, argument, None)?;
+            return Ok((
+                Expression {
+                    result: place.result,
+                    kind: ExpressionKind::Borrow {
+                        access: ReferenceAccess::Shared,
+                        place: Box::new(place),
+                        home: None,
+                    },
+                    source,
+                },
+                self.typed.expression_table.display_name(argument),
+            ));
+        }
         let (target, access) = match self.node(id, argument)? {
             ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
             ExpressionNode::Name(path) => {
@@ -1025,7 +1043,9 @@ fn lent_storage_is_untouched(id: MachineId, arguments: &[Expression]) -> Checked
 fn mentions(expression: &Expression, slots: &[usize]) -> bool {
     match &expression.kind {
         ExpressionKind::Slot(slot) => slots.contains(slot),
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) => false,
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::ByteLiteral(_) => false,
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
@@ -1054,5 +1074,56 @@ fn mentions(expression: &Expression, slots: &[usize]) -> bool {
         ExpressionKind::Call { arguments, .. } => {
             arguments.iter().any(|argument| mentions(argument, slots))
         }
+    }
+}
+
+#[cfg(test)]
+mod byte_literal_tests {
+    use super::*;
+
+    #[test]
+    fn exact_literal_octets_lend_shared_and_cannot_supply_mutable_backing() {
+        let mut typed = typed_trees::TypedTrees::default();
+        let bytes = vec![0, 0xff, b'x'];
+        let argument =
+            typed
+                .expression_table
+                .insert(ExpressionNode::String(source::SourceBytes::from(
+                    bytes.clone(),
+                )));
+        let mut program = Program::new(&typed, false);
+        let view = program.records.push(crate::RecordType {
+            identity: "test shared byte view".into(),
+            copyable: true,
+            form: crate::RecordForm::ByteView {
+                access: ReferenceAccess::Shared,
+            },
+            requires: Vec::new(),
+        });
+        program.record_sources.push(None);
+        let id = MachineId::new(1).unwrap();
+        let formal = crate::Borrowed {
+            position: 0,
+            access: ReferenceAccess::Shared,
+            home: None,
+        };
+        let (actual, _) = program.lent(id, &[], argument, &formal).unwrap();
+        assert_eq!(actual.result, Some(ValueType::Record(view)));
+        let ExpressionKind::Borrow { place, access, .. } = actual.kind else {
+            panic!("shared literal loan")
+        };
+        assert_eq!(access, ReferenceAccess::Shared);
+        assert_eq!(place.kind, ExpressionKind::ByteLiteral(bytes));
+        let mutable = crate::Borrowed {
+            access: ReferenceAccess::Mutable,
+            ..formal
+        };
+        assert_eq!(
+            program
+                .lent(id, &[], argument, &mutable)
+                .unwrap_err()
+                .detail,
+            "call byte literal cannot lend mutable storage"
+        );
     }
 }

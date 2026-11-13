@@ -177,17 +177,31 @@ pub(crate) fn declare<'a>(
             }
             Ok((indexes, fields))
         };
-        let (indexes, fields) = declare_fields(&record.fields)?;
-        let mut case_indexes = Vec::with_capacity(record.cases.len());
-        let mut cases = Vec::with_capacity(record.cases.len());
-        for case in &record.cases {
+        let (indexes, fields) = declare_fields(record.fields())?;
+        let mut case_indexes = Vec::with_capacity(record.cases().len());
+        let mut cases = Vec::with_capacity(record.cases().len());
+        for case in record.cases() {
             let (indexes, fields) = declare_fields(&case.fields)?;
             case_indexes.push(indexes);
             cases.push((case, fields));
         }
         field_identities.push(indexes);
         payload_identities.push(case_indexes);
-        let shape = if cases.is_empty() {
+        let shape = if let crate::RecordForm::ByteView { access } = record.form {
+            StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(match access {
+                    language_core::ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
+                    language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
+                    language_core::ReferenceAccess::WriteOnly => {
+                        return Err(refuse(
+                            entry,
+                            Construct::Machine,
+                            Unserved::Type("write-only byte view"),
+                        ));
+                    }
+                }),
+            })
+        } else if cases.is_empty() {
             // The natural layout row of a record with no authored layout:
             // no policy and no realization. Its nominal native identities
             // are left absent, as the current pipeline leaves any it cannot
@@ -359,7 +373,10 @@ fn expression_homes<'b>(
     homes: &mut Vec<(ScalarType, Option<&'b String>)>,
 ) {
     match &expression.kind {
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {}
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::Slot(_) => {}
         ExpressionKind::Borrow { place, home, .. } => {
             if let (Some(home), Some(ValueType::Scalar(scalar_type))) = (home, place.result) {
                 homes.push((scalar_type, Some(home)));
@@ -675,14 +692,14 @@ impl<'a> Lowering<'a> {
             ValueType::Scalar(scalar_type) => self.entry_content(place, scalar_type).map(drop),
             ValueType::Record(record) => {
                 let data = self.record_type(record)?;
-                for field in &data.fields {
+                for field in data.fields() {
                     let leaf = self.project(place, Segment::Field(field.id))?;
                     self.entry_leaves(leaf, field.value_type)?;
                 }
                 // Which case a formal holds is not known, so every case's
                 // payload leaves get their entry content; the checker lets
                 // a read reach one only where that case is established.
-                for case in &data.cases {
+                for case in data.cases() {
                     let payload = self.project(place, Segment::Case(case.id))?;
                     for field in &case.fields {
                         let leaf = self.project(payload, Segment::Field(field.id))?;
@@ -697,10 +714,10 @@ impl<'a> Lowering<'a> {
     /// The declared field or payload field a step selects.
     fn declared(&self, step: Step) -> Checked<&'a RecordField> {
         match step {
-            Step::Field { owner, field } => self.record_type(owner)?.fields.get(field),
+            Step::Field { owner, field } => self.record_type(owner)?.fields().get(field),
             Step::Payload { owner, case, field } => self
                 .record_type(owner)?
-                .cases
+                .cases()
                 .get(case)
                 .and_then(|case| case.fields.get(field)),
         }
@@ -709,7 +726,7 @@ impl<'a> Lowering<'a> {
 
     fn case_of(&self, owner: StructuralTypeId, case: usize) -> Checked<&'a crate::body::CaseType> {
         self.record_type(owner)?
-            .cases
+            .cases()
             .get(case)
             .ok_or_else(|| self.internal("a case is past its sum's declaration"))
     }
@@ -803,6 +820,44 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a scalar expression is used as a record"));
         };
         match &expression.kind {
+            ExpressionKind::ByteLiteral(bytes) => {
+                if self.record_type(record)?.form
+                    != (crate::RecordForm::ByteView {
+                        access: language_core::ReferenceAccess::Shared,
+                    })
+                {
+                    return Err(self.internal("a byte literal has no shared view type"));
+                }
+                let operation = self.operation_identity(expression.source);
+                let (root, place) = self.root(
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        declaration_ordinal: self.position(self.roots.len())?,
+                        structural_type: record,
+                    },
+                    record,
+                )?;
+                self.emit(
+                    operation,
+                    None,
+                    OperationKind::EstablishByteSequenceLiteral {
+                        destination: root,
+                        bytes: bytes.clone(),
+                        qualifications: Vec::new(),
+                    },
+                )?;
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )?;
+                Ok(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                })
+            }
             ExpressionKind::Slot(slot) => {
                 let bound = *self.slot_mut(*slot)?;
                 match bound {
@@ -1053,7 +1108,10 @@ impl<'a> Lowering<'a> {
             }
             (_, ValueType::Record(_)) => {
                 let at = self.located(place)?;
-                if at.fresh {
+                if at.fresh
+                    && !(access == language_core::ReferenceAccess::Shared
+                        && matches!(place.kind, ExpressionKind::ByteLiteral(_)))
+                {
                     return Err(self.internal("a loan of a value no slot names"));
                 }
                 (at.root, at.path, at.place)
@@ -1119,7 +1177,7 @@ impl<'a> Lowering<'a> {
         fields: &[(usize, Expression)],
         source: SourceOrigin,
     ) -> Checked<(PlaceId, ExactPlaceId)> {
-        let declared = &self.record_type(record)?.fields;
+        let declared = self.record_type(record)?.fields();
         let mut operands: Vec<Option<Operand>> = vec![None; declared.len()];
         for (position, operand) in fields {
             let field = declared
@@ -1309,7 +1367,7 @@ impl<'a> Lowering<'a> {
     ) -> Checked<(Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>)> {
         let at = self.located(subject)?;
         let data = self.record_type(at.record)?;
-        if data.cases.is_empty() {
+        if data.cases().is_empty() {
             return Err(self.internal("a dispatch on storage that is no sum"));
         }
         let path = self.storage_path(&at.path)?;
@@ -1350,8 +1408,8 @@ impl<'a> Lowering<'a> {
             payloads.push(payload_fields);
         }
         let mut rest: Option<(BlockId, Chosen)> = None;
-        let mut edges = Vec::with_capacity(data.cases.len());
-        for (position, case) in data.cases.iter().enumerate() {
+        let mut edges = Vec::with_capacity(data.cases().len());
+        for (position, case) in data.cases().iter().enumerate() {
             let (target, payload_fields) = match arms.iter().position(|arm| *arm == position) {
                 Some(arm) => (blocks[arm].0, payloads[arm].clone()),
                 None if wildcard => {
@@ -1836,9 +1894,9 @@ impl<'a> Lowering<'a> {
     ) -> Checked<()> {
         let data = self.record_type(record)?;
         *owed += data.requires.len();
-        let (fields, case) = match data.cases.first() {
-            Some(first) => (&first.fields, Some(first.id)),
-            None => (&data.fields, None),
+        let (fields, case) = match data.cases().first() {
+            Some(first) => (first.fields.as_slice(), Some(first.id)),
+            None => (data.fields(), None),
         };
         if let Some(case) = case {
             prefix.push(Segment::Case(case));

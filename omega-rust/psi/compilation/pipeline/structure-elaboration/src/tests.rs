@@ -1258,18 +1258,22 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Point"),
-        fields: vec![
-            field(1, "x", ValueType::Scalar(u32_type())),
-            field(2, "y", ValueType::Scalar(u32_type())),
-        ],
-        cases: Vec::new(),
+        form: crate::RecordForm::Data {
+            fields: vec![
+                field(1, "x", ValueType::Scalar(u32_type())),
+                field(2, "y", ValueType::Scalar(u32_type())),
+            ],
+            cases: Vec::new(),
+        },
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Line"),
-        fields: vec![field(3, "from", point()), field(4, "to", point())],
-        cases: Vec::new(),
+        form: crate::RecordForm::Data {
+            fields: vec![field(3, "from", point()), field(4, "to", point())],
+            cases: Vec::new(),
+        },
         requires: Vec::new(),
     });
     records
@@ -2152,24 +2156,28 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Point"),
-        fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
-        cases: Vec::new(),
+        form: crate::RecordForm::Data {
+            fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
+            cases: Vec::new(),
+        },
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Shape"),
-        fields: Vec::new(),
-        cases: vec![
-            case(1, "Dot", vec![field(3, "at", scalar)]),
-            case(
-                2,
-                "Pair",
-                vec![field(4, "l", scalar), field(5, "r", scalar)],
-            ),
-            case(3, "Boxed", vec![field(6, "inner", point())]),
-            case(4, "Empty", Vec::new()),
-        ],
+        form: crate::RecordForm::Data {
+            fields: Vec::new(),
+            cases: vec![
+                case(1, "Dot", vec![field(3, "at", scalar)]),
+                case(
+                    2,
+                    "Pair",
+                    vec![field(4, "l", scalar), field(5, "r", scalar)],
+                ),
+                case(3, "Boxed", vec![field(6, "inner", point())]),
+                case(4, "Empty", Vec::new()),
+            ],
+        },
         requires: Vec::new(),
     });
     records
@@ -2966,3 +2974,73 @@ fn an_erased_binding_is_refused_as_a_runtime_value() {
     );
 }
 mod loops;
+
+#[test]
+fn literal_establishment_precedes_the_shared_call_that_reads_its_exact_bytes() {
+    let mut types = IdTable::default();
+    let view = types.push(RecordType {
+        identity: "test shared byte view".into(),
+        copyable: true,
+        form: crate::RecordForm::ByteView {
+            access: language_core::ReferenceAccess::Shared,
+        },
+        requires: Vec::new(),
+    });
+    let bytes = vec![0, 0xff, b'x'];
+    let literal = of_type(
+        ExpressionKind::ByteLiteral(bytes.clone()),
+        ValueType::Record(view),
+    );
+    let loan = of_type(
+        ExpressionKind::Borrow {
+            access: language_core::ReferenceAccess::Shared,
+            place: Box::new(literal),
+            home: None,
+        },
+        ValueType::Record(view),
+    );
+    let mut bodies = IdTable::default();
+    bodies.push(Body {
+        slots: Vec::new(),
+        statements: vec![Statement::Evaluate(call(2, vec![loan], None))],
+    });
+    bodies.push(Body {
+        slots: vec![ValueType::Record(view)],
+        statements: Vec::new(),
+    });
+    let mut signatures = IdTable::default();
+    signatures.push(signature(Vec::new(), None));
+    let mut callee = signature(Vec::new(), None);
+    callee.parameters.push(ValueType::Record(view));
+    callee.borrowed.push(crate::Borrowed {
+        position: 0,
+        access: language_core::ReferenceAccess::Shared,
+        home: None,
+    });
+    signatures.push(callee);
+    let lowered = crate::lower_bodies(id(1), &bodies, &signatures, &types).unwrap();
+    let caller = &lowered.module.machines[0];
+    let operations = &caller.blocks[0].operations;
+    let OperationKind::EstablishByteSequenceLiteral {
+        destination,
+        bytes: captured,
+        ..
+    } = &operations[0].kind
+    else {
+        panic!("the literal must be established before its call");
+    };
+    assert_eq!(captured, &bytes);
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &operations[1].kind
+    else {
+        panic!("shared call")
+    };
+    assert_eq!(structural_arguments[0].place, *destination);
+    assert_eq!(
+        structural_arguments[0].access,
+        terminal_psi::StructuralAccess::SharedBorrow
+    );
+    terminal_semantics::activation_storage::validate_module(&lowered.module).unwrap();
+}

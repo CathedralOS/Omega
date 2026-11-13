@@ -1279,18 +1279,22 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Point"),
-        fields: vec![
-            field(1, "x", ValueType::Scalar(u32_type())),
-            field(2, "y", ValueType::Scalar(u32_type())),
-        ],
-        cases: Vec::new(),
+        form: structure_elaboration::RecordForm::Data {
+            fields: vec![
+                field(1, "x", ValueType::Scalar(u32_type())),
+                field(2, "y", ValueType::Scalar(u32_type())),
+            ],
+            cases: Vec::new(),
+        },
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Line"),
-        fields: vec![field(3, "from", point()), field(4, "to", point())],
-        cases: Vec::new(),
+        form: structure_elaboration::RecordForm::Data {
+            fields: vec![field(3, "from", point()), field(4, "to", point())],
+            cases: Vec::new(),
+        },
         requires: Vec::new(),
     });
     records
@@ -1448,12 +1452,14 @@ fn an_affine_empty_case_cannot_be_moved_twice() {
     records.push(RecordType {
         copyable: false,
         identity: "EmptyCase".into(),
-        fields: Vec::new(),
-        cases: vec![structure_elaboration::CaseType {
-            id: id(1),
-            identity: "Empty".into(),
+        form: structure_elaboration::RecordForm::Data {
             fields: Vec::new(),
-        }],
+            cases: vec![structure_elaboration::CaseType {
+                id: id(1),
+                identity: "Empty".into(),
+                fields: Vec::new(),
+            }],
+        },
         requires: Vec::new(),
     });
     let caller = |again| Shaped {
@@ -2842,12 +2848,14 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     types.push(RecordType {
         copyable: true,
         identity: String::from("Gated"),
-        fields: vec![RecordField {
-            id: id(5),
-            identity: String::from("v"),
-            value_type: ValueType::Scalar(u32_type()),
-        }],
-        cases: Vec::new(),
+        form: structure_elaboration::RecordForm::Data {
+            fields: vec![RecordField {
+                id: id(5),
+                identity: String::from("v"),
+                value_type: ValueType::Scalar(u32_type()),
+            }],
+            cases: Vec::new(),
+        },
         requires: vec![Proposition::LessOrEqual(number(1), field_of_self(5))],
     });
     let gated = ValueType::Record(id(3));
@@ -2993,31 +3001,37 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Point"),
-        fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
-        cases: Vec::new(),
+        form: structure_elaboration::RecordForm::Data {
+            fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
+            cases: Vec::new(),
+        },
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Shape"),
-        fields: Vec::new(),
-        cases: vec![
-            case(1, "Dot", vec![field(3, "at", scalar)]),
-            case(
-                2,
-                "Pair",
-                vec![field(4, "l", scalar), field(5, "r", scalar)],
-            ),
-            case(3, "Boxed", vec![field(6, "inner", point())]),
-            case(4, "Empty", Vec::new()),
-        ],
+        form: structure_elaboration::RecordForm::Data {
+            fields: Vec::new(),
+            cases: vec![
+                case(1, "Dot", vec![field(3, "at", scalar)]),
+                case(
+                    2,
+                    "Pair",
+                    vec![field(4, "l", scalar), field(5, "r", scalar)],
+                ),
+                case(3, "Boxed", vec![field(6, "inner", point())]),
+                case(4, "Empty", Vec::new()),
+            ],
+        },
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Holder"),
-        fields: vec![field(7, "shape", shape())],
-        cases: Vec::new(),
+        form: structure_elaboration::RecordForm::Data {
+            fields: vec![field(7, "shape", shape())],
+            cases: Vec::new(),
+        },
         requires: Vec::new(),
     });
     records
@@ -3643,8 +3657,10 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
     let record = |spelled: &str, fields, requires| RecordType {
         copyable: true,
         identity: spelled.to_owned(),
-        fields,
-        cases: Vec::new(),
+        form: structure_elaboration::RecordForm::Data {
+            fields,
+            cases: Vec::new(),
+        },
         requires,
     };
     let mut records = IdTable::default();
@@ -3672,19 +3688,21 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("ByteRead"),
-        fields: Vec::new(),
-        cases: vec![
-            CaseType {
-                id: id(1),
-                identity: String::from("Eof"),
-                fields: Vec::new(),
-            },
-            CaseType {
-                id: id(2),
-                identity: String::from("Byte"),
-                fields: vec![field(6, "value", scalar)],
-            },
-        ],
+        form: structure_elaboration::RecordForm::Data {
+            fields: Vec::new(),
+            cases: vec![
+                CaseType {
+                    id: id(1),
+                    identity: String::from("Eof"),
+                    fields: Vec::new(),
+                },
+                CaseType {
+                    id: id(2),
+                    identity: String::from("Byte"),
+                    fields: vec![field(6, "value", scalar)],
+                },
+            ],
+        },
         requires: vec![Proposition::Disjunction(vec![
             self_is(1),
             Proposition::Conjunction(vec![
@@ -5168,22 +5186,28 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Both"),
-        fields: vec![field(10, "a"), field(11, "b")],
-        cases: Vec::new(),
+        form: structure_elaboration::RecordForm::Data {
+            fields: vec![field(10, "a"), field(11, "b")],
+            cases: Vec::new(),
+        },
         requires: vec![at_least_one(10), at_least_one(11)],
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Half"),
-        fields: vec![field(12, "a"), field(13, "b")],
-        cases: Vec::new(),
+        form: structure_elaboration::RecordForm::Data {
+            fields: vec![field(12, "a"), field(13, "b")],
+            cases: Vec::new(),
+        },
         requires: vec![at_least_one(12)],
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Limits"),
-        fields: vec![field(14, "a"), field(15, "b")],
-        cases: Vec::new(),
+        form: structure_elaboration::RecordForm::Data {
+            fields: vec![field(14, "a"), field(15, "b")],
+            cases: Vec::new(),
+        },
         requires: vec![
             Proposition::LessOrEqual(field_of_self(14), number(5)),
             at_least_one(15),

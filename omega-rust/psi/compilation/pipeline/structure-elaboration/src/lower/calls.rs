@@ -171,6 +171,7 @@ impl Lowering<'_> {
             ExpressionKind::Call { .. }
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
+            | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::Slot(_)
             | ExpressionKind::Record { .. }
             | ExpressionKind::Case { .. }

@@ -282,7 +282,30 @@ impl<'t> Program<'t> {
             ExpressionNode::StructLiteral(literal) => {
                 return self.record_literal(id, slots, literal, source);
             }
-            ExpressionNode::String(_) => return unserved("string literal"),
+            ExpressionNode::String(bytes) => {
+                let view = self
+                    .records
+                    .iter()
+                    .find_map(|(view, record)| {
+                        (record.form
+                            == crate::RecordForm::ByteView {
+                                access: language_core::ReferenceAccess::Shared,
+                            })
+                        .then_some(view)
+                    })
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Expression("byte literal without a declared byte-view type"),
+                        )
+                    })?;
+                return Ok(Expression {
+                    kind: ExpressionKind::ByteLiteral(bytes.as_ref().to_vec()),
+                    result: Some(ValueType::Record(view)),
+                    source,
+                });
+            }
             ExpressionNode::ZeroValue(_) => return unserved("zero value"),
         };
         Ok(Expression {
@@ -412,6 +435,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         ExpressionKind::Borrow { .. }
         | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
+        | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Record { .. }
         | ExpressionKind::Case { .. }
         | ExpressionKind::IsCase { .. }
@@ -565,6 +589,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
         && match (&left.kind, &right.kind) {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
+            (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
             (
                 ExpressionKind::Strict {
@@ -689,6 +714,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (
                 ExpressionKind::Integer(_)
                 | ExpressionKind::Boolean(_)
+        | ExpressionKind::ByteLiteral(_)
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Record { .. }
                 | ExpressionKind::Case { .. }

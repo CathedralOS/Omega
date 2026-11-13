@@ -55,8 +55,8 @@ mod outcome;
 mod read;
 
 pub use body::{
-    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType,
-    Signature, Statement, Strict, Target, Termination, ValueType, self_place,
+    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordForm,
+    RecordType, Signature, Statement, Strict, Target, Termination, ValueType, self_place,
 };
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;

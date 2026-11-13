@@ -211,7 +211,10 @@ fn target(target: &Target, sites: &mut Vec<CallSite>) {
 
 fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
     match &value.kind {
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {}
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::Slot(_) => {}
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
@@ -266,9 +269,10 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             return true;
         }
         match &value.kind {
-            ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {
-                false
-            }
+            ExpressionKind::Integer(_)
+            | ExpressionKind::Boolean(_)
+            | ExpressionKind::ByteLiteral(_)
+            | ExpressionKind::Slot(_) => false,
             ExpressionKind::Record { .. }
             | ExpressionKind::Field { .. }
             | ExpressionKind::Case { .. }

@@ -170,9 +170,9 @@ impl Lowering<'_> {
                 let scalar_type = self.result_type(expression)?;
                 self.match_value(subject, arms, default.as_deref(), scalar_type, source)
             }
-            ExpressionKind::Record { .. } | ExpressionKind::Case { .. } => {
-                Err(self.internal("a data literal has a scalar type"))
-            }
+            ExpressionKind::ByteLiteral(_)
+            | ExpressionKind::Record { .. }
+            | ExpressionKind::Case { .. } => Err(self.internal("a data literal has a scalar type")),
             ExpressionKind::Borrow { .. } => {
                 Err(self.internal("a loan outside a call's arguments"))
             }

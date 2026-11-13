@@ -94,7 +94,7 @@ pub(crate) struct Program<'t> {
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
     /// The symbols each record type was resolved from, by the same identity.
-    record_sources: IdTable<StructuralTypeId, places::RecordSource>,
+    record_sources: IdTable<StructuralTypeId, Option<places::RecordSource>>,
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
     resolving: Vec<SymbolHandle>,
@@ -913,11 +913,11 @@ mod tests {
             borrowed: None,
         }];
         let mut program = Program::new(&typed, false);
-        program.record_sources.push(places::RecordSource {
+        program.record_sources.push(Some(places::RecordSource {
             declaration: point,
             fields: vec![a, b],
             cases: Vec::new(),
-        });
+        }));
         let mut read = |pattern_subject, pattern_fields, initial_value| {
             program.record_pattern(
                 machine(),

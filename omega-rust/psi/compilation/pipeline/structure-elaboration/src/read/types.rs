@@ -290,6 +290,52 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        if handle.is_valid()
+            && let TypeReferenceNode::Reference {
+                referee, access, ..
+            } = self.typed.type_reference_table.type_reference(handle)
+            && let TypeReferenceNode::Slice { element_type } =
+                self.typed.type_reference_table.type_reference(*referee)
+        {
+            let access = *access;
+            if access == language_core::ReferenceAccess::WriteOnly {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("write-only byte view"),
+                ));
+            }
+            if self.scalar_type(id, *element_type)? != atom_type(BuiltinTypeAtom::U8, id)? {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("non-byte slice"),
+                ));
+            }
+            if let Some((view, _)) = self
+                .records
+                .iter()
+                .find(|(_, record)| record.form == crate::RecordForm::ByteView { access })
+            {
+                return Ok(ValueType::Record(view));
+            }
+            let identity = self.typed.normalized_type_identity_text(handle);
+            if identity.is_empty() {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Spelling("byte view without a type identity"),
+                ));
+            }
+            let view = self.records.push(crate::RecordType {
+                copyable: access == language_core::ReferenceAccess::Shared,
+                identity,
+                form: crate::RecordForm::ByteView { access },
+                requires: Vec::new(),
+            });
+            self.record_sources.push(None);
+            return Ok(ValueType::Record(view));
+        }
         // A type parameter in scope is what the scope says it stands for,
         // found by the binder's symbol.
         if handle.is_valid()

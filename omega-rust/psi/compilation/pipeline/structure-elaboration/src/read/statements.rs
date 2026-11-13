@@ -90,6 +90,7 @@ impl Program<'_> {
                         }
                         ExpressionKind::Integer(_)
                         | ExpressionKind::Boolean(_)
+                        | ExpressionKind::ByteLiteral(_)
                         | ExpressionKind::Case { .. }
                         | ExpressionKind::IsCase { .. }
                         | ExpressionKind::Match { .. }

@@ -418,8 +418,7 @@ impl<'t> Program<'t> {
             let plain = self
                 .data_declaration(machine.attached_data_symbol)
                 .is_some_and(|data| {
-                    data.lifetime_parameters.is_empty()
-                        && data.type_parameters.is_empty()
+                    data.type_parameters.is_empty()
                         && data.generic_instance.is_none()
                         && data.conformance_bounds.is_empty()
                 });
@@ -1168,7 +1167,14 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = self.value_type(id, referee)?;
+        let value_type = if matches!(
+            self.typed.type_reference_table.type_reference(referee),
+            TypeReferenceNode::Slice { .. }
+        ) {
+            self.value_type(id, formal.type_reference)?
+        } else {
+            self.value_type(id, referee)?
+        };
         // A data type with `requires` may be stored into by the callee, so
         // its domain is owed again where the loan returns; no slice follows
         // a domain across a call yet.
@@ -1214,9 +1220,9 @@ impl<'t> Program<'t> {
                 return true;
             }
             for field in data
-                .fields
+                .fields()
                 .iter()
-                .chain(data.cases.iter().flat_map(|case| &case.fields))
+                .chain(data.cases().iter().flat_map(|case| &case.fields))
             {
                 if let ValueType::Record(nested) = field.value_type {
                     pending.push(nested);
@@ -1710,7 +1716,10 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {}
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::Slot(_) => {}
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, field) in fields {
                 spans(field, binder, out);
@@ -1833,7 +1842,9 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 *count += 1;
             }
         }
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) => {}
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::ByteLiteral(_) => {}
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, field) in fields {
                 expression_slot_uses(field, uses);
