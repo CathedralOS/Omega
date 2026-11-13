@@ -142,7 +142,27 @@ while [[ "$lo" -lt "$hi" ]]; do
   fi
 done
 FIRST="${COMMITS[$hi]}"
+first_idx=$hi
 first_rc=$(test_ref "$FIRST")
+is_noncompiler_commit() {
+  local c="$1"
+  mapfile -t changed < <(git diff-tree --no-commit-id --name-only -r "$c")
+  local only_noncompiler=1
+  for f in "${changed[@]}"; do
+    case "$f" in
+      tests/omega/corpus_outcomes.txt|tests/*|*.md|.agents/*|tools/*|wiki/*|AGENTS.md) ;;
+      omega-rust/*|source/*|samples/*) only_noncompiler=0; break ;;
+      *) only_noncompiler=0; break ;;
+    esac
+  done
+  [[ "$only_noncompiler" -eq 1 ]]
+}
+while [[ "$first_idx" -gt 1 ]] && is_noncompiler_commit "$FIRST"; do
+  echo "skip_noncompiler_first_bad idx=$first_idx $FIRST" | tee -a "$LOG"
+  first_idx=$((first_idx + 1))
+  FIRST="${COMMITS[$first_idx]}"
+  first_rc=$(test_ref "$FIRST")
+done
 if [[ "$first_rc" -ne 1 ]]; then
   echo "refine_bad linear from PIN^1 (first_rc=$first_rc)" | tee -a "$LOG"
   FIRST=""
