@@ -65,7 +65,7 @@ public data FixedVec<T, const N: u64> {
 boundary trait FixedVecAccess {
     // Length in LIVE elements (`length`, not the static capacity `N`).
     // Cheap O(1) measure for `requires`/`ensures`.
-    machine Length<T, const N: u64>(items: &FixedVec<T, N>) -> u64 reaches none;
+    machine Length<T, const N: u64>(items: &FixedVec<T, N>) -> u64 reaches none crashes none;
 
     // Append a value. Requires provable spare room — there is no growth
     // path and no trap; a call without a discharged capacity fact is a
@@ -73,7 +73,8 @@ boundary trait FixedVecAccess {
     machine push<T, const N: u64>(items: &mut FixedVec<T, N>, value: T)
     reaches none
     requires
-        items.length < items.items.len;
+        items.length < items.items.len
+    crashes none;
 
     // Remove and return the last element of a provably non-empty vector. The
     // zero-case is a proof failure at the call site, not a runtime Option:
@@ -83,14 +84,16 @@ boundary trait FixedVecAccess {
     machine pop<T, const N: u64>(items: &mut FixedVec<T, N>) -> T
     reaches none
     requires
-        items.length > 0;
+        items.length > 0
+    crashes none;
 
     // Read the element at `index`, which must be provably within the live
     // length.
     machine get<T, const N: u64>(items: &FixedVec<T, N>, index: u64) -> T
     reaches none
     requires
-        index < items.length;
+        index < items.length
+    crashes none;
 
     // Borrow the LIVE elements as a slice view; the view length matches the
     // vector length, not the capacity.
@@ -99,5 +102,6 @@ boundary trait FixedVecAccess {
     requires
         items.length <= items.items.len
     ensures
-        result.len == items.length;
+        result.len == items.length
+    crashes none;
 }

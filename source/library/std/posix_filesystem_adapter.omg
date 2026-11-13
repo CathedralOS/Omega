@@ -1945,11 +1945,14 @@ invokes
 // caller's view is copied only after the resulting extent is checked.
 boundary trait PosixCanonicalLibc {
     machine resolve(path: &[u8; 4096], output: &mut [u8; 4096]) -> u64
-    reaches FilesystemMetadataQuery;
+    reaches FilesystemMetadataQuery
+    crashes none;
     machine error_location() -> u64
-    reaches none;
+    reaches none
+    crashes none;
     machine copy_error(destination: &mut [u8; 4], source: u64, count: u64) -> u64
-    reaches none;
+    reaches none
+    crashes none;
 }
 // `PosixCanonicalLibc` requirements are bound by Build rows in the std package
 // (`std/build.omg`); no provider machine forwards them.

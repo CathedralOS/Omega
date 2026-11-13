@@ -11,7 +11,7 @@ use omega::language::core::ProgramStorageEntry;
 // loader admission, receiver, or numeric stack guarantee. ProviderSelected
 // requires independent backing.
 boundary trait WindowsProcessEntry {
-    machine enter() -> u32 reaches none;
+    machine enter() -> u32 reaches none crashes Trap crashes Abort;
 }
 
 data WindowsX86_64 {}

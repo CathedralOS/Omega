@@ -31,12 +31,12 @@ use omega::language::core::min_u64;
 
 // The explicit policy exports the borrowed view as pointer/count, not one byte.
 boundary trait PosixFilesystemDarwinByteViews: Calling<DarwinArm64ByteViewCalling> {
-    machine c_read(fd: i32, buffer: &mut [u8]) -> i64 reaches FilesystemContentRead;
-    machine c_write(fd: i32, bytes: &[u8]) -> i64 reaches FilesystemContentWrite;
-    machine c_read_at(fd: i32, buffer: &mut [u8], offset: i64) -> i64 reaches FilesystemContentRead;
-    machine c_write_at(fd: i32, bytes: &[u8], offset: i64) -> i64 reaches FilesystemContentWrite;
-    machine c_read_link(path: &[u8; 4096], buffer: &mut [u8]) -> i64 reaches FilesystemMetadataQuery;
-    machine c_read_dir(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64 reaches DirectoryEnumeration;
+    machine c_read(fd: i32, buffer: &mut [u8]) -> i64 reaches FilesystemContentRead crashes none;
+    machine c_write(fd: i32, bytes: &[u8]) -> i64 reaches FilesystemContentWrite crashes none;
+    machine c_read_at(fd: i32, buffer: &mut [u8], offset: i64) -> i64 reaches FilesystemContentRead crashes none;
+    machine c_write_at(fd: i32, bytes: &[u8], offset: i64) -> i64 reaches FilesystemContentWrite crashes none;
+    machine c_read_link(path: &[u8; 4096], buffer: &mut [u8]) -> i64 reaches FilesystemMetadataQuery crashes none;
+    machine c_read_dir(fd: i32, buffer: &mut [u8], position: &mut i64) -> i64 reaches DirectoryEnumeration crashes none;
 }
 
 
@@ -63,68 +63,99 @@ requires bytes.len == 8
 // `PosixFilesystemHost` requirement publishes this trait through `invokes`.
 boundary trait PosixFilesystemDarwin {
     machine c_open(path: &[u8; 4096], flags: i32) -> i32
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
     machine c_open_create(path: &[u8; 4096], flags: i32, mode: u16) -> i32
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
     machine c_create(path: &[u8; 4096], mode: u16) -> i32
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
     machine c_close(fd: i32) -> i32
-    reaches none;
+    reaches none
+    crashes none;
     machine c_remove(path: &[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine c_seek(fd: i32, offset: i64, whence: i32) -> i64
-    reaches none;
+    reaches none
+    crashes none;
     machine c_create_dir(path: &[u8; 4096], mode: u16) -> i32
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
     machine c_remove_dir(path: &[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine c_create_dir_name(name: &[u8; 4096], mode: u16) -> i32
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
     machine c_open_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
+    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    crashes none;
     machine c_unlink_at(dirfd: i32, name: &[u8; 4096], flags: i32) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine c_set_permissions(path: &[u8; 4096], mode: u16) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
     machine c_set_file_permissions(fd: i32, mode: u16) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
     machine c_rename(from: &[u8; 4096], to: &[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine c_hard_link(original: &[u8; 4096], link: &[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine c_symlink(target: &[u8; 4096], link: &[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine c_remove_name(path: &[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine c_remove_dir_name(path: &[u8; 4096]) -> i32
-    reaches FilesystemNamespaceMutation;
+    reaches FilesystemNamespaceMutation
+    crashes none;
     machine c_read_file_metadata(fd: i32, buffer: &mut [u8; 144]) -> i32
-    reaches FilesystemMetadataQuery;
+    reaches FilesystemMetadataQuery
+    crashes none;
     machine c_read_metadata_at(directory_descriptor: i32, name: &[u8; 4096], buffer: &mut [u8; 144], flags: i32) -> i32
-    reaches FilesystemMetadataQuery;
+    reaches FilesystemMetadataQuery
+    crashes none;
     machine c_set_len(fd: i32, length: i64) -> i32
-    reaches FilesystemContentWrite + FilesystemMetadataMutation;
+    reaches FilesystemContentWrite + FilesystemMetadataMutation
+    crashes none;
     machine c_set_file_times(fd: i32, times: &DarwinFileTimes) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
     machine c_sync(fd: i32) -> i32
-    reaches none;
+    reaches none
+    crashes none;
     machine c_sync_data(fd: i32) -> i32
-    reaches none;
+    reaches none
+    crashes none;
     machine c_duplicate(fd: i32) -> i32
-    reaches none;
+    reaches none
+    crashes none;
     machine c_lock_file(fd: i32, operation: i32) -> i32
-    reaches none;
+    reaches none
+    crashes none;
     machine c_change_owner(path: &[u8; 4096], uid: u32, gid: u32) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
     machine c_change_owner_no_follow(path: &[u8; 4096], uid: u32, gid: u32) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
     machine c_change_file_owner(fd: i32, uid: u32, gid: u32) -> i32
-    reaches FilesystemMetadataMutation;
+    reaches FilesystemMetadataMutation
+    crashes none;
     machine c_error_location() -> u64
-    reaches none;
+    reaches none
+    crashes none;
     machine c_copy_from_address(destination: &mut [u8; 4], source: u64, count: u64) -> u64
     reaches none
-    requires count <= 4;
+    requires count <= 4
+    crashes none;
 }
 // The negated `errno` of the call that just failed.
 macos_arm64 machine darwin_failure_i32() -> i32

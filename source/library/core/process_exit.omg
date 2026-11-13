@@ -14,5 +14,6 @@
 public boundary trait ProcessExit {
     machine exit_process(return_code: i32)
     reaches
-        ProcessExit;
+        ProcessExit
+    crashes none;
 }

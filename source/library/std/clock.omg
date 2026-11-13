@@ -11,5 +11,6 @@ public boundary trait Clock {
     reaches Clock
     invokes LinuxClockWait
     invokes LinuxArmClockWait
-    invokes DarwinClockWait;
+    invokes DarwinClockWait
+    crashes none;
 }

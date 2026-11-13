@@ -25,7 +25,8 @@ public boundary trait UefiPhysicalEntry {
         system_table: &EfiSystemTable
     ) -> EfiStatus
         reaches ProgramImage
-        invokes ProgramImage;
+        invokes ProgramImage
+        crashes Trap crashes Abort;
 }
 
 data UefiX86_64 { }

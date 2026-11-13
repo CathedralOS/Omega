@@ -80,7 +80,8 @@ public boundary trait WindowsFilesystemHost {
     invokes WindowsFilesystemIo
     invokes WindowsFilesystemMetadataIo
     invokes WindowsFilesystemDirectoryIo
-    invokes WindowsFilesystemRemovalIo;
+    invokes WindowsFilesystemRemovalIo
+    crashes none;
     // Stored target bytes, not the display PrintName. Writes at most count,
     // excludes NUL, and returns that byte count; a full buffer may be a prefix.
     // Zero or out-of-buffer count refuses before opening the path.
@@ -89,71 +90,84 @@ public boundary trait WindowsFilesystemHost {
     invokes WindowsFilesystemIo
     invokes WindowsFilesystemMetadataIo
     invokes WindowsFilesystemReparseIo
-    invokes WindowsFilesystemUtf8Io;
+    invokes WindowsFilesystemUtf8Io
+    crashes none;
     // Same-object synchronous whole-file range locking, including future
     // growth. Try conflicts return -33; repeated locks/unmatched unlocks keep
     // native semantics. No cursor movement, access upgrade or reopening.
     machine lock_file(handle: u64, exclusive: bool, nonblocking: bool) -> i32 reaches none blocks
     invokes WindowsFilesystemIo
-    invokes WindowsFilesystemLockIo;
+    invokes WindowsFilesystemLockIo
+    crashes none;
     machine unlock_file(handle: u64) -> i32 reaches none blocks
     invokes WindowsFilesystemIo
-    invokes WindowsFilesystemLockIo;
+    invokes WindowsFilesystemLockIo
+    crashes none;
     machine directory_nth(path: &[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery blocks
     invokes WindowsFilesystemIo
     invokes WindowsFilesystemDirectoryIo
-    invokes WindowsFilesystemUtf8Io;
+    invokes WindowsFilesystemUtf8Io
+    crashes none;
     machine canonicalize(path: &[u8] in Path, output: &mut [u8]) -> i32
     reaches FilesystemMetadataQuery blocks
     invokes WindowsFilesystemIo
     invokes WindowsFilesystemMetadataIo
     invokes WindowsFilesystemPathIo
-    invokes WindowsFilesystemUtf8Io;
+    invokes WindowsFilesystemUtf8Io
+    crashes none;
     // Counts every non-dot native name without UTF-8 decoding or metadata
     // queries. A private synchronous directory object owns the complete scan.
     machine directory_count(path: &[u8] in Path) -> i64
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration blocks
     invokes WindowsFilesystemIo
-    invokes WindowsFilesystemDirectoryIo;
+    invokes WindowsFilesystemDirectoryIo
+    crashes none;
     // Reopen an independent synchronous file object without increasing the
     // pinned original's granted data rights. The original cursor is untouched.
     machine read_at(handle: u64, buffer: &mut [u8], count: u64, offset: i64) -> i64
     reaches FilesystemContentRead blocks
     invokes WindowsFilesystemIo
     invokes WindowsFilesystemTransferIo
-    invokes WindowsFilesystemPositionIo;
+    invokes WindowsFilesystemPositionIo
+    crashes none;
     machine write_at(handle: u64, bytes: &[u8], offset: i64) -> i64
     reaches FilesystemContentWrite blocks
     invokes WindowsFilesystemIo
     invokes WindowsFilesystemTransferIo
-    invokes WindowsFilesystemPositionIo;
+    invokes WindowsFilesystemPositionIo
+    crashes none;
     machine set_file_length(handle: u64, length: i64) -> i32
     reaches FilesystemContentWrite + FilesystemMetadataMutation blocks
     invokes WindowsFilesystemIo
-    invokes WindowsFilesystemFileControlIo;
+    invokes WindowsFilesystemFileControlIo
+    crashes none;
     machine set_handle_readonly(handle: u64, readonly: bool) -> i32
     reaches FilesystemMetadataQuery + FilesystemMetadataMutation blocks
     invokes WindowsFilesystemIo
     invokes WindowsFilesystemMetadataIo
-    invokes WindowsFilesystemFileControlIo;
+    invokes WindowsFilesystemFileControlIo
+    crashes none;
     machine set_path_readonly(path: &[u8] in Path, readonly: bool) -> i32
     reaches FilesystemMetadataQuery + FilesystemMetadataMutation blocks
     invokes WindowsFilesystemIo
     invokes WindowsFilesystemMetadataIo
-    invokes WindowsFilesystemFileControlIo;
+    invokes WindowsFilesystemFileControlIo
+    crashes none;
     machine metadata(handle: u64) -> WindowsMetadataResult
     reaches FilesystemMetadataQuery
     blocks
     invokes WindowsFilesystemIo
-    invokes WindowsFilesystemMetadataIo;
+    invokes WindowsFilesystemMetadataIo
+    crashes none;
     // OPEN_EXISTING with FILE_READ_ATTRIBUTES only. Unlike a general creating
     // open, this operation has no content or namespace mutation reach.
     machine read_metadata(path: &[u8] in Path, no_follow: bool) -> WindowsMetadataResult
     reaches FilesystemMetadataQuery
     blocks
     invokes WindowsFilesystemIo
-    invokes WindowsFilesystemMetadataIo;
+    invokes WindowsFilesystemMetadataIo
+    crashes none;
     machine create_file(
         path: &[u8] in Path,
         desired_access: u32,
@@ -162,59 +176,74 @@ public boundary trait WindowsFilesystemHost {
         flags_and_attributes: u32
     ) -> u64 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     machine write_file(handle: u64, bytes: &[u8]) -> i64 reaches FilesystemContentWrite
     blocks
     invokes WindowsFilesystemIo
-    invokes WindowsFilesystemTransferIo;
+    invokes WindowsFilesystemTransferIo
+    crashes none;
     // Byte counts must fit DWORD and the caller's live buffer. Invalid extents
     // refuse with -ERROR_INVALID_PARAMETER before entering the OS.
     machine read_file(handle: u64, buffer: &mut [u8], count: u64) -> i64 reaches FilesystemContentRead
     blocks
     invokes WindowsFilesystemIo
-    invokes WindowsFilesystemTransferIo;
+    invokes WindowsFilesystemTransferIo
+    crashes none;
     machine flush_file_buffers(handle: u64) -> i32 reaches none blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     machine set_file_pointer(handle: u64, distance: i64, method: u32) -> i64 reaches none blocks
-    invokes WindowsFilesystemIo;
-    machine duplicate_handle(handle: u64) -> u64 reaches none invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
+    machine duplicate_handle(handle: u64) -> u64 reaches none invokes WindowsFilesystemIo crashes none;
     machine set_file_attributes(path: &[u8] in Path, attributes: u32) -> i32 reaches FilesystemMetadataMutation
     blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     // Flags include MOVEFILE_COPY_ALLOWED: cross-volume moves can copy data
     // and attributes before deleting, so this raw ceiling is not rename-only.
     machine move_file(from: &[u8] in Path, to: &[u8] in Path, flags: u32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
     blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     // Same-volume replacement only: no copy fallback or delayed deletion.
     // A constant at a call of move_file cannot narrow its declared reach.
     machine rename_file(from: &[u8] in Path, to: &[u8] in Path) -> i32
     reaches FilesystemNamespaceMutation
     blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32
     reaches FilesystemNamespaceMutation
     blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     machine create_directory(path: &[u8] in Path) -> i32 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     machine remove_directory(path: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation
     blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     machine delete_file(path: &[u8] in Path) -> i32 reaches FilesystemNamespaceMutation
     blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     // FILETIME values are unsigned 100-ns ticks since 1601. Creation time stays
     // unchanged; access/write retain Win32's zero (unchanged) and all-ones
     // (suppress automatic updates through this handle) special values.
     machine set_file_time(handle: u64, access_time: u64, write_time: u64) -> i32 reaches FilesystemMetadataMutation
     blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     machine get_file_time(handle: u64) -> WindowsFileTimeResult reaches FilesystemMetadataQuery
     blocks
-    invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
     machine close_handle(handle: u64) -> i32 reaches none blocks
-    invokes WindowsFilesystemIo;
-    machine last_error() -> u32 reaches none invokes WindowsFilesystemIo;
+    invokes WindowsFilesystemIo
+    crashes none;
+    machine last_error() -> u32 reaches none invokes WindowsFilesystemIo crashes none;
 }

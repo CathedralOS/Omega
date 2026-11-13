@@ -11,21 +11,23 @@ use omega::language::core::min_u64;
 
 // This native requirement application fixes its kernel calling convention.
 boundary trait PosixFilesystemLinuxArm64ByteViews: Calling<LinuxArm64ByteViewCalling> {
-    machine read(fd: i32, buffer: &mut [u8]) -> i64 reaches FilesystemContentRead;
-    machine write(fd: i32, bytes: &[u8]) -> i64 reaches FilesystemContentWrite;
-    machine pread64(fd: i32, buffer: &mut [u8], offset: i64) -> i64 reaches FilesystemContentRead;
-    machine pwrite64(fd: i32, bytes: &[u8], offset: i64) -> i64 reaches FilesystemContentWrite;
-    machine readlinkat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8]) -> i64 reaches FilesystemMetadataQuery;
-    machine getdents64(fd: i32, buffer: &mut [u8]) -> i64 reaches DirectoryEnumeration;
+    machine read(fd: i32, buffer: &mut [u8]) -> i64 reaches FilesystemContentRead crashes none;
+    machine write(fd: i32, bytes: &[u8]) -> i64 reaches FilesystemContentWrite crashes none;
+    machine pread64(fd: i32, buffer: &mut [u8], offset: i64) -> i64 reaches FilesystemContentRead crashes none;
+    machine pwrite64(fd: i32, bytes: &[u8], offset: i64) -> i64 reaches FilesystemContentWrite crashes none;
+    machine readlinkat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8]) -> i64 reaches FilesystemMetadataQuery crashes none;
+    machine getdents64(fd: i32, buffer: &mut [u8]) -> i64 reaches DirectoryEnumeration crashes none;
 }
 
 // Linux arm64 writes its 128-byte kernel stat record. The caller lends that
 // complete checked window rather than the first byte of a larger view.
 boundary trait PosixFilesystemLinuxArm64Metadata {
     machine newfstatat(dirfd: i32, path: &[u8; 4096], buffer: &mut [u8; 128], flags: i32) -> i32
-    reaches FilesystemMetadataQuery;
+    reaches FilesystemMetadataQuery
+    crashes none;
     machine fstat(fd: i32, buffer: &mut [u8; 128]) -> i32
-    reaches FilesystemMetadataQuery;
+    reaches FilesystemMetadataQuery
+    crashes none;
 }
 
 

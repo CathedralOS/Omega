@@ -46,11 +46,14 @@ public boundary trait WindowsGuiHost {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-    invokes WindowsGuiIo;
+    invokes WindowsGuiIo
+    crashes none;
     machine foreground_window() -> u64 reaches WindowManagement
-    invokes WindowsGuiIo;
+    invokes WindowsGuiIo
+    crashes none;
     machine is_window(window: u64) -> bool reaches WindowManagement
-    invokes WindowsGuiIo;
+    invokes WindowsGuiIo
+    crashes none;
     machine window_destroy(window: u64) -> bool reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
@@ -58,7 +61,8 @@ public boundary trait WindowsGuiHost {
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit
-    invokes WindowsGuiIo;
+    invokes WindowsGuiIo
+    crashes none;
     // Remove at most one message from this thread, translate and dispatch it.
     // A false result means the queue had no message; this operation never waits.
     machine pump_message(message: &mut WindowsMessage) -> bool reaches
@@ -68,7 +72,8 @@ public boundary trait WindowsGuiHost {
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
         ProcessOutput + ProcessExit
-    invokes WindowsGuiIo;
+    invokes WindowsGuiIo
+    crashes none;
     // Add native frame metrics to the requested client size. Windows may
     // enforce its own minimum window size during creation.
     machine window_create_client(class_name: &[u8], title: &[u8], style: u32,
@@ -79,16 +84,19 @@ public boundary trait WindowsGuiHost {
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
             ProcessOutput + ProcessExit
-    invokes WindowsGuiIo;
+    invokes WindowsGuiIo
+    crashes none;
     machine get_dc(window: u64) -> u64 reaches
         SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
         FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-        FilesystemNamespaceMutation;
+        FilesystemNamespaceMutation
+        crashes none;
     machine release_dc(window: u64, device: u64) -> i32 reaches
         SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
         FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-        FilesystemNamespaceMutation;
-    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 reaches WindowManagement;
+        FilesystemNamespaceMutation
+        crashes none;
+    machine client_rectangle(window: u64, rectangle: &mut WindowsRectangle) -> i32 reaches WindowManagement crashes none;
     // The caller lends live BITMAPINFO and pixel storage for this synchronous call.
     machine stretch_dibits(device: u64, destination_x: i32, destination_y: i32,
         destination_width: i32, destination_height: i32, source_x: i32, source_y: i32,
@@ -96,9 +104,11 @@ public boundary trait WindowsGuiHost {
         usage: u32, raster_operation: u32) -> i32 reaches
             SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
             FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
-            FilesystemNamespaceMutation;
+            FilesystemNamespaceMutation
+        crashes none;
     // Asynchronous virtual-key state. One means the key was down at call time;
     // the raw pressed-since-last-call latch of GetAsyncKeyState is discarded.
     machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation
-    invokes WindowsGuiIo;
+    invokes WindowsGuiIo
+    crashes none;
 }
