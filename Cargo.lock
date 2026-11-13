@@ -1615,34 +1615,25 @@ dependencies = [
 name = "package-evidence"
 version = "0.1.0"
 dependencies = [
- "arena",
  "calling-conventions",
- "checked-trees",
  "compilation-products",
  "diagnostics",
  "effects",
- "facts",
  "flow-effects",
  "language-core",
  "language-semantics",
- "layout",
  "layout-plans",
  "numerics",
  "optimization-core",
  "package-compilation",
- "proof",
  "provider-planning",
- "psi-terminal-production",
- "representation-planning",
  "selected-dispatch",
  "semantic-vocabulary",
  "source",
  "symbols",
  "target",
  "terminal-psi",
- "trust-model",
  "typed-trees",
- "validation",
 ]
 
 [[package]]

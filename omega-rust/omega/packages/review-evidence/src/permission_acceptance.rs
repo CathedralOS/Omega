@@ -12,7 +12,6 @@ publication and admits them for that single activation only. Target selection
 and provider admission remain independent requirements.
 */
 
-use crate::capture::EvidenceOption;
 pub use crate::capture::PreparedRuntimePolicy;
 use crate::record::{PACKAGE_POLICY_ROW_VERSION, PackagePolicyRowKind};
 use diagnostics::Diagnostic;
@@ -48,14 +47,16 @@ pub struct TerminalPermissionAcceptance {
 
 impl TerminalPermissionAcceptance {
     pub fn from_public_build(input: &RuntimePermissionInput<'_>) -> Result<Self, Vec<Diagnostic>> {
-        let package = input
-            .sources
-            .package_identity()
-            .or_evidence("assumed binding risk rows require the consuming root package")?;
-        let target = input
-            .execution
-            .selected_target_profile
-            .or_evidence("assumed binding risk rows require an exact product target")?;
+        let package = input.sources.package_identity().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "assumed binding risk rows require the consuming root package",
+            )]
+        })?;
+        let target = input.execution.selected_target_profile.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "assumed binding risk rows require an exact product target",
+            )]
+        })?;
         let evaluated = input.declarations.evaluated_assumptions();
         let installed = input.execution.plans().assumed_bindings().len();
         if evaluated == 0 || evaluated != installed {
