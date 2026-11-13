@@ -27,6 +27,7 @@ mod guard_contradiction;
 mod inferred_bounds;
 mod mutable_formals;
 mod ranges;
+mod reach;
 mod references;
 mod result_summaries;
 mod type_parameters;
