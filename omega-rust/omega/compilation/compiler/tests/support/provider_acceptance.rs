@@ -137,7 +137,7 @@ fn accept(
         binding_role,
         owner,
         checked
-                .symbols
+            .symbols
             .display_path(provenance.provider.schema.symbol(), "::"),
         plan.schema.identity_digest(),
         plan.identity_digest(),
