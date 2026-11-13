@@ -1739,19 +1739,10 @@ name = "proof"
 version = "0.1.0"
 dependencies = [
  "arena",
- "checked-trees",
- "diagnostics",
- "facts",
- "language-core",
  "language-semantics",
- "numerics",
  "proof-admission",
- "semantic-vocabulary",
- "source",
- "symbols",
  "syntax-trees",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -2805,7 +2796,6 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
- "proof",
  "source",
  "symbols",
  "typed-trees",
