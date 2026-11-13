@@ -467,7 +467,6 @@ dependencies = [
  "terminal-psi-to-abstract-operations",
  "trust-model",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -1214,20 +1213,9 @@ dependencies = [
 name = "lowered-psi-to-terminal-psi"
 version = "0.1.0"
 dependencies = [
- "checked-trees",
- "language-core",
- "language-semantics",
- "lowered-psi",
  "lowered-psi-to-lowered-psi",
- "numerics",
- "proof-admission",
- "semantic-vocabulary",
- "symbols",
  "terminal-codec",
- "terminal-psi",
  "terminal-semantics",
- "typed-trees",
- "validation",
 ]
 
 [[package]]

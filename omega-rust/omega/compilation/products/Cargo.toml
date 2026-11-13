@@ -23,7 +23,6 @@ symbols = { path = "../../../psi/foundation/symbols" }
 psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
 task-plans = { path = "../backend/runtime/task-plans" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
-validation = { path = "../../../psi/compilation/validation" }
 artifacts = { path = "../../foundation/artifacts" }
 backend-plan = { path = "../backend/plans/backend-plan" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
