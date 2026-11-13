@@ -1441,7 +1441,7 @@ How to read it:
 
 - **A line is counted by source path.** Psi 05 is
   `pipeline/05_typed-trees-to-checked-trees/`, validation is `validation/src/`
-  (not its `terminal-installation` or `representation-planning` subcrates) and
+  (not its `representation-planning` subcrate) and
   Psi 06 is `pipeline/06_checked-trees-to-lowered-psi/`, all under
   `omega-rust/psi/compilation/`.
 - **Instrumented** lines are the lines that carry a coverage counter in this

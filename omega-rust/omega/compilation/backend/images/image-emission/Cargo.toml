@@ -49,7 +49,7 @@ isa-x86_64 = { path = "../../instruction-set-architectures/isa-x86_64" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../../../psi/compilation/representations/terminal-psi/semantics" }
-terminal-installation = { path = "../../../../../psi/compilation/validation/terminal-installation" }
+terminal-installation = { path = "../../../../../psi/compilation/terminal-installation" }
 terminal-codec = { path = "../../../../../psi/compilation/representations/terminal-psi/codec" }
 psi-work = { path = "../../../../../psi/compilation/representations/terminal-psi/work" }
 iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }

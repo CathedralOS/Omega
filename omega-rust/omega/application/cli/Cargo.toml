@@ -29,4 +29,4 @@ diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
-terminal-installation = { path = "../../../psi/compilation/validation/terminal-installation" }
+terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
