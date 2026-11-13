@@ -7,14 +7,12 @@ mod propositions;
 
 pub use callable_contracts::{PackageReviewCallableContract, PackageReviewSynchronousInvocation};
 pub(crate) use callable_contracts::{PackageReviewContractFact, PackageReviewResultCaseIdentity};
-pub(crate) use declarations::{
-    PackageReviewConstMeaning, PackageReviewConstShape, PackageReviewOperatorShape,
-};
+pub(crate) use declarations::{PackageReviewConstMeaning, PackageReviewConstShape};
 
 pub(crate) use expressions::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
-    PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCallableSupply,
-    PackageReviewCastForm, PackageReviewConstructorField, PackageReviewContractBinaryOperator,
+    PackageReviewByteSequencePredicate, PackageReviewCallableSupply, PackageReviewCastForm,
+    PackageReviewConstructorField, PackageReviewContractBinaryOperator,
     PackageReviewContractCallTarget, PackageReviewContractEvidenceArgument,
     PackageReviewContractEvidenceTerm, PackageReviewContractExpression, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,

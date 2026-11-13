@@ -109,7 +109,6 @@ pub(in crate::record) fn scope(
 ) -> Scope<'_> {
     Scope {
         outer: None,
-        statics: &[],
         policy_statics: parameters,
         proposition_binders: &[],
         static_offset: 0,

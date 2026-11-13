@@ -5,11 +5,7 @@
 // identity. `PackageReviewDataProperties` carries declaration multiplicity and
 // movement policy without retaining a typed-tree declaration node.
 
-use super::{
-    contracts::PackageReviewContractFact,
-    identity::PackageReviewNominalIdentity,
-    signatures::{PackageReviewTypeIdentity, PackageReviewTypeParameter},
-};
+use crate::record::{PackageReviewNominalIdentity, PackageReviewTypeIdentity};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewDataField {
@@ -48,17 +44,3 @@ pub struct PackageReviewDataProperties {
 }
 
 impl PackageReviewDataProperties {}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageReviewDataShape {
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) kind: PackageReviewDataKind,
-    pub(crate) supply: language_semantics::DataSupplyMode,
-    pub(crate) lifetime_parameter_count: usize,
-    pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
-    pub(crate) properties: PackageReviewDataProperties,
-    pub(crate) zero_gated: bool,
-    pub(crate) invariants: Vec<PackageReviewContractFact>,
-    pub(crate) retired_identities: Vec<u64>,
-    pub(crate) members: Vec<PackageReviewDataMember>,
-}

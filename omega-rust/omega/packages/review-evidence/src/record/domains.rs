@@ -6,11 +6,7 @@
 // inert issuer identity without inventing traits for concrete machines or
 // granting invocation/admission.
 
-use super::{
-    contracts::PackageReviewContractFact,
-    identity::PackageReviewNominalIdentity,
-    signatures::{PackageReviewTypeIdentity, PackageReviewTypeParameter},
-};
+use crate::record::PackageReviewNominalIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackageReviewDomainClassification {
@@ -63,18 +59,4 @@ impl PackageReviewDomainEstablishmentRoute {
 pub(crate) enum PackageReviewDomainAliasAtom {
     Declared(PackageReviewNominalIdentity),
     Carry(language_semantics::CarryPermission),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PackageReviewDomainShape {
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
-    pub(crate) target_type: PackageReviewTypeIdentity,
-    pub(crate) index_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) predicate_presence: language_semantics::DomainPredicatePresence,
-    pub(crate) predicate_facts: Vec<PackageReviewContractFact>,
-    pub(crate) alias_expansion: Option<Vec<PackageReviewDomainAliasAtom>>,
-    pub(crate) classification: Option<PackageReviewDomainClassification>,
-    pub(crate) semantic_roles: Vec<PackageReviewDomainSemanticRole>,
-    pub(crate) establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,
 }

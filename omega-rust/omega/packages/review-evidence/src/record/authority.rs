@@ -6,8 +6,7 @@
 // identity. Neither classifies exercised physical authority or grants
 // permission. `PackageReviewDangerousAuthoritySlack` records a dangerous
 // service present in a callable's published ceiling but absent from its checked
-// transitive body reach. Crash route guards (`Expression`) retain selected
-// nominal package identity for abstract public-operator crash ceilings.
+// transitive body reach.
 
 pub(crate) use super::authority_expressions::{
     PackageReviewBooleanExpression, PackageReviewIeeeFloatComparisonKind,
@@ -16,7 +15,7 @@ pub(crate) use super::authority_expressions::{
     PackageReviewPrimitiveType, PackageReviewRuntimeIndex, PackageReviewScalarExpression,
     PackageReviewStructuralParameterField, PackageReviewStructuralPredicatePathSegment,
 };
-use super::{contracts::PackageReviewContractExpression, identity::PackageReviewNominalIdentity};
+use super::identity::PackageReviewNominalIdentity;
 use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -85,42 +84,9 @@ pub enum PackageReviewCrashInterface {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewCrashPredicate {
-    pub(crate) canonical_bytes: Vec<u8>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewCrashRouteGuard {
-    Truth,
-    Predicate(PackageReviewCrashPredicate),
-    Expression(PackageReviewContractExpression),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewCrashRoute {
-    pub(crate) cause: PackageReviewCrashCause,
-    pub(crate) alternative_guards: Vec<PackageReviewCrashRouteGuard>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewProgressSubject {
     Declaration(PackageReviewNominalIdentity),
     Parameter(u32),
 }
 
 impl PackageReviewProgressSubject {}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewProgressPremise {
-    pub(crate) profile: PackageReviewNominalIdentity,
-    pub(crate) subject: PackageReviewProgressSubject,
-    pub(crate) projections: Vec<PackageReviewNominalIdentity>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewTermination {
-    NoGuarantee,
-    Terminates {
-        premises: Vec<PackageReviewProgressPremise>,
-    },
-}
