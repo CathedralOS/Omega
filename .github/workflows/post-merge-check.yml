@@ -89,14 +89,14 @@ jobs:
       - name: Check out the commit at the session path
         run: |
           git config --global --add safe.directory '*'
-          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
-          git -C /home/user/Omega fetch -q origin "${{ github.sha }}"
-          git -C /home/user/Omega checkout -q --detach "${{ github.sha }}"
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /workspace/Omega
+          git -C /workspace/Omega fetch -q origin "${{ github.sha }}"
+          git -C /workspace/Omega checkout -q --detach "${{ github.sha }}"
       - name: Set up the host and restore main's warm build
-        run: cd /home/user/Omega && bash tools/ci/session_host.sh
+        run: cd /workspace/Omega && bash tools/ci/session_host.sh
       - name: Run a sample natively and in the interpreter
         run: |
-          cd /home/user/Omega
+          cd /workspace/Omega
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
             mbx xtask sample-gate --filter samples/cli/facts/length/local < /dev/null
 
@@ -123,14 +123,14 @@ jobs:
       - name: Check out the commit at the session path
         run: |
           git config --global --add safe.directory '*'
-          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /home/user/Omega
-          git -C /home/user/Omega fetch -q origin "${{ github.sha }}"
-          git -C /home/user/Omega checkout -q --detach "${{ github.sha }}"
+          git clone -q --filter=blob:none "https://github.com/${{ github.repository }}" /workspace/Omega
+          git -C /workspace/Omega fetch -q origin "${{ github.sha }}"
+          git -C /workspace/Omega checkout -q --detach "${{ github.sha }}"
       - name: Set up the host and restore main's warm build
-        run: cd /home/user/Omega && bash tools/ci/session_host.sh
+        run: cd /workspace/Omega && bash tools/ci/session_host.sh
       - name: Run every Rust test in the workspace
         run: |
-          cd /home/user/Omega
+          cd /workspace/Omega
           # A session is not a CI job: Cargo and mbx change their defaults when
           # CI is set, and the warm build was made without it.
           CARGO_TARGET_DIR=$PWD/target env -u CI -u GITHUB_ACTIONS \
