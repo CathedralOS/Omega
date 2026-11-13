@@ -42,7 +42,6 @@ backend-plan = { path = "../backend/plans/backend-plan" }
 artifacts = { path = "../../foundation/artifacts" }
 build-time-evaluation = { path = "../../../psi/compilation/build-time-evaluation" }
 validation = { path = "../../../psi/compilation/validation" }
-representation-planning = { path = "../../../psi/compilation/validation/representation-planning" }
 target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 # The checker on the lowered form, which governs a compilation's verdict where

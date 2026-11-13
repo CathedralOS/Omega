@@ -509,7 +509,6 @@ dependencies = [
  "psi-compiler",
  "psi-work",
  "register-model",
- "representation-planning",
  "runtime-abi",
  "selected-dispatch",
  "selected-instructions",

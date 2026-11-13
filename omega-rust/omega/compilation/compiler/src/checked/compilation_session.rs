@@ -199,7 +199,6 @@ impl CompilationSession {
                 package_inputs: inputs,
                 build: request.build.resolve_compilation_defaults(inputs),
                 optimization_rollback: request.optimization_rollback,
-                settled_check_reuse: self.reuse(),
             };
             super::checking::unbuilt_source::typed_frontier_without_build(
                 &request.root_path,
@@ -249,11 +248,7 @@ impl CompilationSession {
         invocation: super::checking::PreparedPackageInvocation,
         returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
-        let settled = invocation.settle(returned)?;
-        if let Some(check) = &settled.source.evaluated.retained_check {
-            retain_judgment(&mut self.checks.sibling_build_checks, check);
-        }
-        Ok(settled)
+        invocation.settle(returned)
     }
 
     fn prepare_source(
