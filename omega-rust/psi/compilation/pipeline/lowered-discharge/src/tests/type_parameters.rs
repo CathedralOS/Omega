@@ -52,6 +52,8 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> structure_elaboration::El
             result: Some(u32_value()),
             requires: machine.requires,
             ensures: machine.ensures,
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::DeclaredNone,
             termination: structure_elaboration::Termination::Silent,
         });
@@ -97,8 +99,9 @@ fn relay(item_type: ValueType, bound: u128) -> Shape {
             Strict::Add,
             Expression {
                 kind: ExpressionKind::Call {
-                    callee: id(2),
+                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                     arguments: vec![item(item_type), slot(1, u32_type())],
+                    designated: None,
                 },
                 result: Some(u32_value()),
                 source: nowhere(),

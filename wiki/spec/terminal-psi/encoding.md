@@ -42,8 +42,9 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 256 adds runtime callable
-contracts and descriptors while retaining those flat term tables. Marker 255,
+Marker 255 introduced term tables. Current marker 257 combines runtime callable
+contracts and descriptors with published synchronous-entry rows while retaining
+those flat term tables. The two independent marker 256 layouts, marker 255,
 marker 254 (which nested terms inline), and older modules reject at the header.
 
 Content terms do not nest: a separation's members are projections, so a
@@ -91,7 +92,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 256 even when every table
+order below. This layout uses semantic format marker 257 even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -939,7 +940,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 256 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 257 + `u16` vocabulary
 marker 135 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -1430,7 +1431,7 @@ a ranked-cycle byte, a machine
 result row, counted structural place declarations, counted invocation entry
 claims, counted block-entry claim bindings, counted loan completions, the
 declared service reach and published service ceiling, a closed reach
-application, counted content entry claims, counted content identity
+application, the published synchronous entries, counted content entry claims, counted content identity
 reshuffles, counted content partition compositions, the entry block id,
 counted block rows, and the machine contract.
 
@@ -1449,6 +1450,7 @@ checked on canonical reload.
 | entry claim | claim id + input place id + structural path; strictly ordered by claim id |
 | block-entry claim binding | claim id + owned block parameter place id + structural path; strictly ordered by claim id; names the arriving obligation without establishing one |
 | service ceiling | counted service ids; the published ceiling is strictly ordered |
+| synchronous entries | counted service ids, strictly ordered: the requirement identities of the callbacks and inbound entries control may arrive at before the machine returns ([direct synchronous invocation](../language/effects.md#direct-synchronous-invocation)); no parent closure |
 | structural result declaration | place id + structural type id + structural multiplicity + counted domain identities + counted projected qualifications + counted reference result sources |
 | reference result source | result structural path + source structural argument; strictly ordered by result path |
 | machine contract | contract id + crash routes + counted erased scalar formal declarations + counted erased proof formals + counted requires propositions + counted ensures clauses + counted outcome-specific ensures |
@@ -1948,12 +1950,13 @@ requires a format change; display spelling does not select a provider.
 
 | Row | Fields |
 | --- | --- |
-| boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + optional owning service id + published service ceiling |
+| boundary machine | boundary machine id + identity string + declaring schema nominal identity + declaration-role tag + requirement-kind tag + completion tag + `bool` unconditional termination + optional attachment structural type id + counted parameter order + counted scalar parameter types + crash routes + counted structural parameters + result + counted structural requirements + counted scalar requires propositions + counted scalar ensures propositions + counted program-local root introductions + counted content guarantees + fixed service reach + optional owning service id + published service ceiling + published synchronous entries |
 | optional structural type id | `u8` 0 absent; `u8` 1 + structural type id |
 | structural requirement | `u32` argument index + domain id |
 | program-local root introduction | `u32` argument index + `u32` source parameter position + qualification domain id + carrier structural type id + projection domain id + `u64` projection report fingerprint + content algebra + content projection expression + `u64` compatibility report identity |
 | structural parameter | the machine-row structural parameter encoding |
 | service reach | counted service ids |
+| synchronous entries | counted service ids; strictly ordered |
 | provider candidate | boundary machine id + requirement identity index + source requirement identity index + declaration application identity index + receiving application identity index + counted receiving region identity indices + provider identity index + selecting declaration nominal identity index + candidate identity index + source candidate identity index + optional source candidate package identity + candidate machine id + counted signature parameters + counted positional refinements + counted required domains + counted realized service-ceiling ids |
 | optional source candidate package identity | `bool` present + 32-byte package digest when present |
 | signature parameter | `u32` position + structural type id + structural multiplicity + structural access + counted qualification domain ids + counted projected qualifications |
@@ -2070,10 +2073,11 @@ it receives. Neither operation uses the legacy implementation-table roster to
 choose a signature or replace the current value with a named body.
 
 The callable catalog immediately follows the legacy dynamic-dispatch catalog.
-It contains three counted tables, in order: contracts, descriptors, and optional
-named-machine envelopes. The envelope table is indexed by machine id minus one;
-a present row repeats that exact machine id. These rows retain checked named
-body ceilings independently of a descriptor's refinement assertion.
+It contains four counted tables, in order: contracts, descriptors, optional
+named-machine envelopes, and optional boundary envelopes. Each sparse envelope
+table is indexed by its machine or boundary id minus one; a present row repeats
+that exact id. These rows retain complete checked declaration ceilings
+independently of a descriptor's refinement assertion.
 
 | Row | Fields, in wire order |
 | --- | --- |
@@ -2082,12 +2086,13 @@ body ceilings independently of a descriptor's refinement assertion.
 | machine descriptor | descriptor id + contract id + machine id + origin + refinement obligation ids + ordinary obligation certificates |
 | descriptor origin | application identity-table index + optional conformance identity-table index + optional requirement identity-table index |
 | named-machine envelope | machine id + operational envelope |
+| boundary envelope | boundary machine id + operational envelope |
 | operational envelope | service ids + invocation dependencies + suspension Boolean + blocking Boolean + termination guarantee |
 | termination premise | `u32` parameter position + structural path + domain id |
 
 Lists use ordinary counted-table encoding. Optional identity-table indices use a
-presence Boolean followed by a `u32` index; the named-envelope table likewise
-uses a presence Boolean before each present row. The existing declaration,
+presence Boolean followed by a `u32` index; both envelope tables likewise
+use a presence Boolean before each present row. The existing declaration,
 result, claim, proof and certificate encodings apply to the corresponding fields.
 Runtime parameter-order tags are `0` scalar and `1` structural; erased formals
 have no runtime position. An invocation dependency is tag `1` plus a `u32`
@@ -2629,7 +2634,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 255 | yes |
+| semantic module | `PSITERM\0` | 256 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

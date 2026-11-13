@@ -51,7 +51,7 @@ fn check_envelope(
     signature: Option<&Signature>,
 ) -> Checked<()> {
     if let StaticServiceCeiling::Closed(row) = &envelope.service_reach {
-        crate::service_reach::well_formed(module, machine, row)?;
+        crate::ceilings::well_formed_reach(module, machine, row)?;
     }
     if envelope
         .invocations

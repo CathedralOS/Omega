@@ -58,8 +58,8 @@ use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    BoundaryParameterKind, OperationKind, StructuralTypeDeclaration, TerminalMachine,
-    TerminalMachineResult, Terminator, ValueDeclaration,
+    BoundaryParameterKind, CrashRouteBucket, OperationKind, StructuralTypeDeclaration,
+    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
 use crate::{call_contracts, refusal, semantics_refusal};
@@ -202,7 +202,7 @@ impl Minted<'_> {
         inputs: call_contracts::Inputs<'_>,
         before: ProgramPoint,
         concerns: Construct,
-    ) -> Checked<()> {
+    ) -> Checked<Vec<CrashRouteBucket>> {
         let mut rows = self
             .tables
             .invocations
@@ -248,6 +248,14 @@ impl Minted<'_> {
         }
         let call =
             call_contracts::invocation(self.module, self.lowered, self.tables, invocation, row)?;
+        if !inputs.claim_transfers.is_empty() || !inputs.completion_receipts.is_empty() {
+            return Err(refusal(
+                RefusalReason::Unsupported,
+                self.machine,
+                concerns,
+                "call needs its exact claim-transfer and completion-receipt proof",
+            ));
+        }
         crate::erased_actuals(&call.contract, inputs, self.machine, invocation)?;
         if inputs.arguments.len() != call.contract.scalar_parameters.len()
             || inputs.structural_arguments.len() != call.contract.structural_parameters.len()
@@ -301,24 +309,16 @@ impl Minted<'_> {
             inputs.arguments,
             self.machine,
         )?;
-        match inputs.crash_continuations {
-            Some(retained) if retained == crash_routes.as_slice() => {}
-            None if crash_routes.is_empty() => {}
-            None => {
-                return Err(crate::refusal(
-                    RefusalReason::Unsupported,
-                    self.machine,
-                    concerns,
-                    "boundary invocation has no retained crash continuation lane",
-                ));
-            }
-            Some(_) => {
-                return Err(self.foreign(
-                    concerns,
-                    "call crash continuations differ from its public contract",
-                ));
-            }
+        if let Some(retained) = inputs.crash_continuations
+            && retained != crash_routes.as_slice()
+        {
+            return Err(self.foreign(
+                concerns,
+                "call crash continuations differ from its public contract",
+            ));
         }
+        // Bodyless declarations keep their routes on the public header.
+        // The same substituted routes still owe coverage at this occurrence.
         let clauses = call.contract.requires.len();
         if inputs.requirements.len() != clauses || row.requirements != inputs.requirements {
             return Err(self.foreign(
@@ -337,7 +337,7 @@ impl Minted<'_> {
         if let Some(claimed) = self.invocations.get_mut(index(invocation.get())) {
             *claimed = true;
         }
-        Ok(())
+        Ok(crash_routes)
     }
 }
 
@@ -465,36 +465,9 @@ pub(crate) fn follow_the_lowered_form(
             }
             let site = InvocationSite::Operation(operation.id);
             if let Some(inputs) = call_contracts::inputs_at(lowered, site)? {
-                minted.call(site, inputs, before, Construct::Operation(operation.id))?;
-            }
-            // A call that may return and crash is a crash site of its own,
-            // owing coverage per cause among its continuations.
-            if let OperationKind::Call {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallUnit {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallMachine {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallStructural {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallStructuralScalar {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallStructuralWithScalarArguments {
-                crash_continuations,
-                ..
-            } = &operation.kind
-            {
-                for bucket in crash_continuations {
+                let routes =
+                    minted.call(site, inputs, before, Construct::Operation(operation.id))?;
+                for bucket in routes {
                     minted.owed(
                         ObligationKind::CrashCoverage {
                             site: CrashSite::Operation(operation.id),
@@ -529,7 +502,17 @@ pub(crate) fn follow_the_lowered_form(
             _ => InvocationSite::InvokeNoNormal(block.terminator.edge()),
         };
         if let Some(inputs) = call_contracts::inputs_at(lowered, site)? {
-            minted.call(site, inputs, before, Construct::Block(block.id))?;
+            let routes = minted.call(site, inputs, before, Construct::Block(block.id))?;
+            for bucket in routes {
+                minted.owed(
+                    ObligationKind::CrashCoverage {
+                        site: CrashSite::Block(block.id),
+                        cause: bucket.cause,
+                    },
+                    before,
+                    Construct::Block(block.id),
+                )?;
+            }
         }
         // A crashing terminator owes coverage at the point before it: its one
         // cause, or each cause among a no-normal call's continuations. An
@@ -545,18 +528,6 @@ pub(crate) fn follow_the_lowered_form(
                     cause: *cause,
                 };
                 minted.owed(kind, before, concerns)?;
-            }
-            Terminator::InvokeNoNormal {
-                crash_continuations,
-                ..
-            } => {
-                for bucket in crash_continuations {
-                    let kind = ObligationKind::CrashCoverage {
-                        site,
-                        cause: bucket.cause,
-                    };
-                    minted.owed(kind, before, concerns)?;
-                }
             }
             Terminator::Jump {
                 edge, arguments, ..

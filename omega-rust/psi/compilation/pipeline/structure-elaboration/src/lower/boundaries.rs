@@ -96,10 +96,7 @@ impl Lowering<'_> {
         )?;
         let requirements = self.invocation(
             InvocationSite::ExternalCompletion(edge),
-            EvaluatedCallTarget::Boundary {
-                boundary,
-                build: None,
-            },
+            EvaluatedCallTarget::Boundary { boundary },
             signature.requires.len(),
             &arguments.actuals,
             before,

@@ -63,9 +63,9 @@ mod read;
 mod static_contracts;
 
 pub use body::{
-    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, Policy, RecordField,
-    RecordType, Signature, Statement, StorageShape, Strict, Target, Termination, ValueType,
-    self_place,
+    Axis, Body, Borrowed, CaseType, Ceiling, CrashCeiling, Expression, ExpressionKind, Policy,
+    RecordField, RecordType, Signature, Statement, StorageShape, Strict, Target, Termination,
+    ValueType, self_place,
 };
 pub use callable_headers::{CallableCrashPolicy, CallableHeader};
 pub use external_providers::{ExternalProviderCandidate, ProviderContractHeader};
@@ -147,6 +147,12 @@ pub struct MachineSources {
     pub operations: IdTable<OperationId, SourceOrigin>,
     pub edges: IdTable<EdgeId, SourceOrigin>,
     pub obligations: IdTable<ObligationId, SourceOrigin>,
+    /// The Build selection each boundary call of the selection protocol
+    /// stands for, in emission order: the operation and the designated
+    /// operands the typed trees hold for it. The reference is no operand of
+    /// the operation; publication hands it to the Build host beside the
+    /// artifact.
+    pub designated: Vec<(OperationId, body::DesignatedOperands)>,
     /// The member of the call component each loop head stands for, in
     /// block order (`lower`, `component`). The lowered form does not say
     /// which machine's body a head begins; a diagnostic about an arrival
@@ -166,6 +172,12 @@ pub struct Compilation<'a> {
     /// closure. `Some(package)` selects that package; `None` selects standalone
     /// user source. An empty slice requests only the concrete root closure.
     pub subjects: &'a [Option<PackageKeyIdentity>],
+    /// Which of a subject's two checked contexts this compilation judges
+    /// (`wiki/spec/build/scoped_execution.md`, "Two checked contexts"). A
+    /// package's Build sources and Product sources are separate programs: a
+    /// Build activation's subject declarations are the ones read under the
+    /// Build dependency scope, and its entry must come from that context.
+    pub purpose: source::DependencyScope,
     /// The declarations the Build's selections name (selected providers and
     /// what each provides, layout-scope entries, chosen representations),
     /// whichever package declares them. The check claims each with its
@@ -176,30 +188,13 @@ pub struct Compilation<'a> {
     pub bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
 }
 
-/// Exact authored occurrence of an emitted compiler-owned Build call.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildCallOccurrence {
-    Expression(typed_trees::expression::ExpressionHandle),
-    Statement(typed_trees::statement::StatementHandle),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BuildCallSource {
-    pub owner: SymbolHandle,
-    pub declaration: SymbolHandle,
-    pub occurrence: BuildCallOccurrence,
-}
-
-/// The source protocol association and the physical operation it produced.
-/// It grants no host authority; accepted publication authenticates that later.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct EmittedBuildCall {
-    pub machine: MachineId,
-    pub operation: OperationId,
-    pub boundary: semantic_vocabulary::BoundaryMachineId,
-    pub owner: SymbolHandle,
-    pub declaration: SymbolHandle,
-    pub occurrence: BuildCallOccurrence,
+/// Original ceiling clauses for one abstract proof interface or its caller.
+/// These rows are not executable declarations, encoded evidence or permission
+/// to close an interface whose implementation remains unknown.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequirementCeilings {
+    pub reaches: Ceiling,
+    pub invokes: Ceiling,
 }
 
 /// The result of elaborating everything one compilation is responsible for:
@@ -216,7 +211,11 @@ pub struct Elaboration {
     /// README, "Findings".
     pub tables: CheckTables,
     pub sources: IdTable<MachineId, MachineSources>,
-    pub build_calls: Vec<EmittedBuildCall>,
+    /// The boundary requirement each `BoundaryMachineId` of the module
+    /// lowers, as `machines` holds the machine of each `MachineId`. Empty
+    /// for raw bodies. Publication reads it to tell which boundary calls
+    /// are operations of a toolchain Build protocol.
+    pub boundaries: IdTable<semantic_vocabulary::BoundaryMachineId, SymbolHandle>,
     /// Nominal storage and field identities from this same typed-tree owner.
     /// Empty for raw bodies, which have no source declaration/application.
     pub source_records: Vec<typed_trees::SourceRecordCorrespondence>,
@@ -254,6 +253,11 @@ pub struct Elaboration {
     /// encoded or run (generics.md: "Generic bodies use the abstract
     /// requirement envelope").
     pub requirements: Vec<MachineId>,
+    /// Every supplied signature's original clauses when this is an abstract
+    /// witness. The exact `requirements` roster identifies its bodyless rows;
+    /// callers retain their own inference request instead of a closed empty row.
+    /// Empty for concrete modules, which publish complete operational envelopes.
+    pub requirement_ceilings: IdTable<MachineId, RequirementCeilings>,
     /// Every call through an implementation parameter that a static
     /// application closed, with the member it selects.
     pub selections: Vec<Selected>,
@@ -296,8 +300,6 @@ pub struct Elaboration {
     pub external_provider_candidates: Vec<ExternalProviderCandidate>,
     pub static_schemas: Vec<StaticSchemaQuestion>,
     pub static_conformances: Vec<StaticConformanceQuestion>,
-    /// Each retained boundary's original declaration in the same typed frontier.
-    pub boundary_declarations: IdTable<semantic_vocabulary::BoundaryMachineId, SymbolHandle>,
 }
 
 /// One call through an implementation parameter in a machine stage 04
@@ -428,6 +430,7 @@ pub fn elaborate_for(
             Unserved::Machine("no bound entry"),
         ));
     };
+    program.build_entry_context(first, compilation.purpose, compilation.entries)?;
     let entry = program.machine(*entry)?;
     program.fixed_inputs.push(entry);
     for other in others {
@@ -435,7 +438,7 @@ pub fn elaborate_for(
         program.fixed_inputs.push(other);
     }
     program.selected_declarations(entry, compilation.selected)?;
-    program.subject_declarations(entry, compilation.subjects)?;
+    program.subject_declarations(entry, compilation.subjects, compilation.purpose)?;
     let mut elaboration = finish_reading(program, entry, IdTable::default(), Some(typed))?;
     proof_scope::declare(typed, &mut elaboration)?;
     Ok(elaboration)
@@ -615,6 +618,7 @@ fn elaborate_witness_call(
                     source,
                 })
                 .collect(),
+            designated: None,
         },
         result: required.result,
         source,
@@ -663,7 +667,10 @@ fn finish_logical_witness(
     let mut witness = lower_program(
         entry,
         &bodies,
-        &program.signatures,
+        body::Signatures {
+            machines: &program.signatures,
+            boundaries: &program.boundaries,
+        },
         &program.records,
         &program.requirements,
         &program.callables,
@@ -720,7 +727,10 @@ fn finish_reading(
     let mut elaboration = lower_program(
         entry,
         &bodies,
-        &program.signatures,
+        body::Signatures {
+            machines: &program.signatures,
+            boundaries: &program.boundaries,
+        },
         &program.records,
         &program.requirements,
         &program.callables,
@@ -733,7 +743,6 @@ fn finish_reading(
     )?;
     elaboration.machines = program.symbols.clone();
     crate::reach::publish(program.typed, entry, &services, &mut elaboration)?;
-    elaboration.boundary_declarations = program.boundaries.rows.map(|_, source| source.source);
     if let Some(typed) = declared {
         declare::declare(
             typed,
@@ -744,6 +753,7 @@ fn finish_reading(
     }
     elaboration.source_records = program.source_record_correspondence(entry)?;
     elaboration.machines = program.symbols;
+    elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
     elaboration.private_inputs = private_inputs;
     elaboration.local_results = local_results;
     elaboration.names = program.names;
@@ -796,20 +806,25 @@ pub fn lower_generic(
     lower_generic_for(
         entry,
         bodies,
-        signatures,
+        body::Signatures {
+            machines: signatures,
+            boundaries: &boundaries::BoundaryNamespace::default(),
+        },
         records,
         requirements,
         terminal_codec::TerminalPublication::Portable,
+        None,
     )
 }
 
 fn lower_generic_for(
     entry: MachineId,
     bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
+    signatures: body::Signatures<'_>,
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
     publication: terminal_codec::TerminalPublication,
+    typed_source: Option<&TypedTrees>,
 ) -> Checked<Elaboration> {
     lower_program(
         entry,
@@ -823,14 +838,14 @@ fn lower_generic_for(
         &external_providers::ExternalProviderNamespace::default(),
         &static_contracts::StaticContracts::default(),
         publication,
-        None,
+        typed_source,
     )
 }
 
 fn lower_program(
     entry: MachineId,
     bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
+    signatures: body::Signatures<'_>,
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
     callables: &callables::CallableNamespace,
@@ -841,7 +856,17 @@ fn lower_program(
     publication: terminal_codec::TerminalPublication,
     typed_source: Option<&TypedTrees>,
 ) -> Checked<Elaboration> {
+    let mut required_ids = requirements.to_vec();
+    required_ids.sort_unstable();
+    if required_ids.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(refuse(
+            entry,
+            Construct::Machine,
+            Unserved::Machine("abstract requirements repeat a declaration identity"),
+        ));
+    }
     for requirement in requirements {
+        signatures.get((*requirement).into(), entry)?;
         let body = terminal_check_tables::row(bodies, *requirement, entry, Construct::Machine)?;
         if !body.statements.is_empty() {
             return Err(refuse(
@@ -851,9 +876,31 @@ fn lower_program(
             ));
         }
     }
-    let components = components::components(bodies, signatures)?;
+    let requirement_ceilings = if requirements.is_empty() {
+        IdTable::default()
+    } else {
+        if !signatures.machines.keys().eq(bodies.keys()) {
+            return Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Machine(
+                    "abstract signature clauses do not cover the exact body namespace",
+                ),
+            ));
+        }
+        signatures.machines.map(|_, signature| RequirementCeilings {
+            reaches: signature.reaches.clone(),
+            invokes: signature.invokes.clone(),
+        })
+    };
+    let components = components::components(bodies, signatures.machines)?;
     let outcomes = outcome::outcomes(bodies, signatures, requirements, callables, boundaries)?;
     let mut module = TerminalModule::for_entry(entry);
+    // What running the module's entry may reach is what the entry publishes.
+    module.root_service_reach.concrete =
+        terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
+            .service_reach
+            .clone();
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
@@ -870,6 +917,7 @@ fn lower_program(
         records,
         bodies,
         signatures
+            .machines
             .values()
             .chain(
                 callables
@@ -897,7 +945,6 @@ fn lower_program(
     module.native_layouts = declared.native_layouts;
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();
-    let mut build_calls = Vec::new();
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
             refuse(
@@ -924,7 +971,6 @@ fn lower_program(
         module.scalar_block_invariants.extend(lowered.invariants);
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
-        build_calls.extend(lowered.build_calls);
     }
     for machine in &mut module.machines {
         let plan = terminal_semantics::plain_affine::plan(machine, &module.structural_types)
@@ -996,7 +1042,7 @@ fn lower_program(
     }
     boundaries.publish(
         entry,
-        signatures,
+        signatures.machines,
         &outcomes,
         &declared.records,
         callables,
@@ -1005,7 +1051,7 @@ fn lower_program(
     )?;
     callables.publish(
         entry,
-        signatures,
+        signatures.machines,
         &outcomes,
         &declared.records,
         boundaries,
@@ -1015,7 +1061,7 @@ fn lower_program(
     )?;
     let external_provider_candidates = external_providers.publish(
         entry,
-        signatures,
+        signatures.machines,
         &outcomes,
         &declared.records,
         callables,
@@ -1034,7 +1080,7 @@ fn lower_program(
     let mut domains = IdTable::default();
     let (static_schemas, static_conformances) = static_contracts.publish(
         entry,
-        signatures,
+        signatures.machines,
         &outcomes,
         &declared.records,
         callables,
@@ -1051,7 +1097,7 @@ fn lower_program(
         module,
         tables,
         sources,
-        build_calls,
+        boundaries: IdTable::default(),
         source_records: Vec::new(),
         names: IdTable::default(),
         machines: IdTable::default(),
@@ -1059,6 +1105,7 @@ fn lower_program(
         local_results: Vec::new(),
         domains,
         requirements: requirements.to_vec(),
+        requirement_ceilings,
         selections: Vec::new(),
         applications: Vec::new(),
         value_parameters: IdTable::default(),
@@ -1069,7 +1116,6 @@ fn lower_program(
         external_provider_candidates,
         static_schemas,
         static_conformances,
-        boundary_declarations: IdTable::default(),
     })
 }
 
@@ -1096,6 +1142,8 @@ mod publication_scope_tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
+            reaches: crate::Ceiling::Inferred,
+            invokes: crate::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
@@ -1103,10 +1151,14 @@ mod publication_scope_tests {
             lower_generic_for(
                 entry,
                 &bodies,
-                &signatures,
+                body::Signatures {
+                    machines: &signatures,
+                    boundaries: &boundaries::BoundaryNamespace::default(),
+                },
                 &IdTable::default(),
                 &[],
                 publication,
+                None,
             )
             .unwrap()
         };

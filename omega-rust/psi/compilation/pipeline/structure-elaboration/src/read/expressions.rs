@@ -274,13 +274,7 @@ impl<'t> Program<'t> {
                 return binary_expression(id, binary.operator, left, right, anonymous, source);
             }
             ExpressionNode::Call(call) => {
-                let read = self.call_expression(id, slots, call, source)?;
-                return self.retain_build_call(
-                    id,
-                    call.target_symbol,
-                    crate::BuildCallOccurrence::Expression(handle),
-                    read,
-                );
+                return self.call_expression(id, slots, call, handle, source);
             }
             ExpressionNode::TypeExpression(_) => return unserved("type expression"),
             ExpressionNode::Match(matched) => {
@@ -763,18 +757,19 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 ExpressionKind::Call {
                     callee: a,
                     arguments: a_arguments,
+                    designated: a_designated,
                 },
                 ExpressionKind::Call {
                     callee: b,
                     arguments: b_arguments,
+                    designated: b_designated,
                 },
             ) => {
-                (match (a, b) {
-                    (crate::body::CallTarget::Machine(a), crate::body::CallTarget::Machine(b)) => a == b,
-                    (crate::body::CallTarget::Boundary { boundary: a, build: aa }, crate::body::CallTarget::Boundary { boundary: b, build: bb }) => a == b && aa == bb,
-                    (crate::body::CallTarget::Selected { callable: a, contract: ac }, crate::body::CallTarget::Selected { callable: b, contract: bc }) => ac == bc && both(a, b),
-                    _ => false,
-                })
+                // A boundary may observe supplied state or issue a fresh
+                // host ticket. Equal syntax is not one observed result.
+                matches!(a, crate::body::CallTarget::Machine(_))
+                    && a == b
+                    && a_designated == b_designated
                     && a_arguments.len() == b_arguments.len()
                     && a_arguments.iter().zip(b_arguments).all(|(a, b)| both(a, b))
             }

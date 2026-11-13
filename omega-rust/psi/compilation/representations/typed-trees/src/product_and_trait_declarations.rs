@@ -4069,7 +4069,48 @@ pub mod trait_definition {
                 self
             }
 
-            /// Visit every applied parent or return the missing source relationship.
+            /// A retained service needs every declared parent application.
+            /// Return missing declarations or incomplete argument frames to
+            /// that producer instead of silently publishing a smaller graph.
+            pub fn parent_scopes(
+                &self,
+                program: &'program TypedTrees,
+            ) -> Result<Vec<Self>, &'static str> {
+                let parents = program.trait_requirements(self.declaration);
+                if parents.len() != self.declaration.requires.len() {
+                    return Err("applied trait lost its complete parent declaration span");
+                }
+                parents
+                    .iter()
+                    .chain(self.declaration.refines.iter())
+                    .map(|parent| self.parent_scope(program, parent))
+                    .collect()
+            }
+
+            fn parent_scope(
+                &self,
+                program: &'program TypedTrees,
+                parent: &super::TraitRequirement,
+            ) -> Result<Self, &'static str> {
+                let declaration = program
+                    .trait_definition_by_symbol(parent.symbol)
+                    .ok_or("applied trait parent has no exact declaration")?;
+                let scope = Self::new(
+                    program,
+                    declaration,
+                    TraitApplicationArguments {
+                        lexical_owner: self.argument_owner,
+                        enclosing_data_applications: &[],
+                        arguments: program.type_reference_handles(parent.arguments),
+                        lifetimes: &parent.lifetime_arguments,
+                    },
+                )
+                .ok_or("applied trait parent has no complete type and lifetime application")?;
+                Ok(scope.preceded_by(self))
+            }
+
+            /// Visit the complete applied inheritance graph or report its
+            /// missing relationship. Parent formation has one owner.
             pub fn try_visit(
                 &self,
                 program: &'program TypedTrees,
@@ -4082,31 +4123,12 @@ pub mod trait_definition {
                     visit: &mut impl FnMut(&AppliedTraitScope<'p>) -> Result<(), &'static str>,
                 ) -> Result<(), &'static str> {
                     if active.contains(&scope.declaration.symbol) {
-                        return Err("trait law application has an inherited declaration cycle");
+                        return Err("applied trait traversal has an inherited declaration cycle");
                     }
                     active.push(scope.declaration.symbol);
                     visit(scope)?;
-                    for parent in program
-                        .trait_requirements(scope.declaration)
-                        .iter()
-                        .chain(scope.declaration.refines.iter())
-                    {
-                        let declaration = program
-                            .trait_definition_by_symbol(parent.symbol)
-                            .ok_or("trait law application has a missing inherited declaration")?;
-                        let nested = AppliedTraitScope::new(
-                            program,
-                            declaration,
-                            TraitApplicationArguments {
-                                lexical_owner: scope.argument_owner,
-                                enclosing_data_applications: &[],
-                                arguments: program.type_reference_handles(parent.arguments),
-                                lifetimes: &parent.lifetime_arguments,
-                            },
-                        )
-                        .ok_or("trait law application has an unresolved inherited argument frame")?
-                        .preceded_by(scope);
-                        walk(&nested, program, active, visit)?;
+                    for parent in scope.parent_scopes(program)? {
+                        walk(&parent, program, active, visit)?;
                     }
                     active.pop();
                     Ok(())
@@ -4143,23 +4165,9 @@ pub mod trait_definition {
                     .iter()
                     .chain(self.declaration.refines.iter())
                 {
-                    let Some(declaration) = program.trait_definition_by_symbol(parent.symbol)
-                    else {
+                    let Ok(scope) = self.parent_scope(program, parent) else {
                         continue;
                     };
-                    let Some(scope) = Self::new(
-                        program,
-                        declaration,
-                        TraitApplicationArguments {
-                            lexical_owner: self.argument_owner,
-                            enclosing_data_applications: &[],
-                            arguments: program.type_reference_handles(parent.arguments),
-                            lifetimes: &parent.lifetime_arguments,
-                        },
-                    ) else {
-                        continue;
-                    };
-                    let scope = scope.preceded_by(self);
                     scope.visit_inherited(program, active, visit, after);
                 }
                 after(self);

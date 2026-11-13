@@ -83,6 +83,8 @@ pub(super) fn lower_lending(machines: Vec<Lending>) -> Checked<structure_elabora
             result: None,
             requires: machine.requires,
             ensures: Vec::new(),
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
@@ -130,6 +132,7 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
         kind: ExpressionKind::Call {
             callee: id::<MachineId>(callee).into(),
             arguments,
+            designated: None,
         },
         result: None,
         source: nowhere(),
@@ -585,6 +588,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                                 named(1, u32_type().into()),
                                 true,
                             )],
+                            designated: None,
                         },
                         result: None,
                         source: nowhere(),

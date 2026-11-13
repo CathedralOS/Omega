@@ -25,11 +25,15 @@ use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 mod applications;
 mod arithmetic_policies;
 mod arrays;
+mod boundary_calls;
+mod build_purpose;
 mod callable_contracts;
+mod ceilings;
 mod empty_records;
 mod entry_inputs;
 mod guard_contradiction;
 mod inferred_bounds;
+mod lifetime_elision;
 mod mathematical_clauses;
 mod mutable_formals;
 mod owned_records;
@@ -38,7 +42,6 @@ mod ranges;
 mod reach;
 mod references;
 mod result_summaries;
-mod service_reach;
 mod type_parameters;
 mod value_parameters;
 
@@ -99,6 +102,7 @@ fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
         ExpressionKind::Call {
             callee: id::<MachineId>(callee).into(),
             arguments,
+            designated: None,
         },
         Some(u32_type()),
     )
@@ -179,6 +183,8 @@ fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> 
             result: Some(machine.result.into()),
             requires: machine.requires,
             ensures: machine.ensures,
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
@@ -1760,6 +1766,8 @@ fn elaborate_over(
             result: Some(machine.result),
             requires: machine.requires,
             ensures: Vec::new(),
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
@@ -1919,8 +1927,9 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
                 2,
                 of_type(
                     ExpressionKind::Call {
-                        callee: id(3),
+                        callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                         arguments: Vec::new(),
+                        designated: None,
                     },
                     point(),
                 ),
@@ -2910,8 +2919,9 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                 4,
                 of_type(
                     ExpressionKind::Call {
-                        callee: id(2),
+                        callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                         arguments: vec![place(4, point())],
+                        designated: None,
                     },
                     point(),
                 ),
@@ -3925,8 +3935,9 @@ fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
                     0,
                     of_type(
                         ExpressionKind::Call {
-                            callee: id(2),
+                            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                             arguments: Vec::new(),
+                            designated: None,
                         },
                         data(SPAN),
                     ),
@@ -4534,8 +4545,9 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
                     0,
                     of_type(
                         ExpressionKind::Call {
-                            callee: id(3),
+                            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                             arguments: Vec::new(),
+                            designated: None,
                         },
                         data(BOUNDED),
                     ),
@@ -4587,8 +4599,9 @@ fn peek() -> Shaped {
 fn peeking(argument: Expression) -> Expression {
     of_type(
         ExpressionKind::Call {
-            callee: id(2),
+            callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
             arguments: vec![argument],
+            designated: None,
         },
         u32_type().into(),
     )
@@ -4635,8 +4648,9 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
             u32_type().into(),
             vec![returns(peeking(of_type(
                 ExpressionKind::Call {
-                    callee: id(3),
+                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(3)),
                     arguments: Vec::new(),
+                    designated: None,
                 },
                 point(),
             )))],
@@ -4738,6 +4752,7 @@ fn taking(callee: u64, argument: Expression) -> Expression {
         ExpressionKind::Call {
             callee: id::<MachineId>(callee).into(),
             arguments: vec![argument],
+            designated: None,
         },
         u32_type().into(),
     )
@@ -6080,6 +6095,8 @@ mod generic_bodies {
                 result: Some(machine.result.into()),
                 requires: machine.requires,
                 ensures: machine.ensures,
+                reaches: structure_elaboration::Ceiling::Inferred,
+                invokes: structure_elaboration::Ceiling::Inferred,
                 crashes: CrashCeiling::DeclaredNone,
                 termination: structure_elaboration::Termination::Silent,
             });
@@ -6407,6 +6424,8 @@ fn crashing_below_ten(
         result: Some(u32_type().into()),
         requires: Vec::new(),
         ensures: Vec::new(),
+        reaches: structure_elaboration::Ceiling::Inferred,
+        invokes: structure_elaboration::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(routes),
         termination: structure_elaboration::Termination::Silent,
     });
@@ -6494,6 +6513,8 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (structure_elaboration::Elabo
         result: Some(u32_type().into()),
         requires,
         ensures: Vec::new(),
+        reaches: structure_elaboration::Ceiling::Inferred,
+        invokes: structure_elaboration::Ceiling::Inferred,
         crashes: CrashCeiling::DeclaredNone,
         termination: structure_elaboration::Termination::Silent,
     });
@@ -6546,6 +6567,8 @@ fn calling_a_zero_route(
         result: Some(u32_type().into()),
         requires,
         ensures: Vec::new(),
+        reaches: structure_elaboration::Ceiling::Inferred,
+        invokes: structure_elaboration::Ceiling::Inferred,
         crashes: CrashCeiling::DeclaredNone,
         termination: structure_elaboration::Termination::Silent,
     });
@@ -6567,6 +6590,8 @@ fn calling_a_zero_route(
         result: Some(u32_type().into()),
         requires: Vec::new(),
         ensures: Vec::new(),
+        reaches: structure_elaboration::Ceiling::Inferred,
+        invokes: structure_elaboration::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Predicate(
             terminal_psi::CrashPredicateTerm::new(Proposition::Equal(
                 formal(1, u32_type()),
@@ -6666,6 +6691,8 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             result: Some(u32_type().into()),
             requires: Vec::new(),
             ensures: Vec::new(),
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(caller_routes),
             termination: structure_elaboration::Termination::Silent,
         });
@@ -6687,6 +6714,8 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             result: Some(u32_type().into()),
             requires: Vec::new(),
             ensures: Vec::new(),
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
             termination: structure_elaboration::Termination::Silent,
         });

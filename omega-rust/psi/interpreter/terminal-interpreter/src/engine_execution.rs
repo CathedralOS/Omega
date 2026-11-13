@@ -815,6 +815,7 @@ pub(crate) mod capabilities {
                 ranked_scc: None,
                 declared_service_reach: Vec::new(),
                 closed_reach_application: None,
+                published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 content_identity_reshuffles: Vec::new(),
                 content_partition_compositions: Vec::new(),
@@ -955,6 +956,7 @@ pub(crate) mod capabilities {
                 reference_outputs: Vec::new(),
                 fixed_service_reach: Vec::new(),
                 owning_service: None,
+                published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
             }
         }

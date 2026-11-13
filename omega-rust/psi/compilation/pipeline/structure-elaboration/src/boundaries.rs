@@ -49,6 +49,14 @@ impl BoundaryNamespace {
         Some(Outcome {
             completes_normally: matches!(source.completion, BoundaryCompletion::NormalReturn),
             crash_routes,
+            service_reach: match &source.signature.reaches {
+                crate::Ceiling::Authored(row) => row.clone(),
+                crate::Ceiling::Inferred => return None,
+            },
+            synchronous_entries: match &source.signature.invokes {
+                crate::Ceiling::Authored(row) => row.clone(),
+                crate::Ceiling::Inferred => return None,
+            },
         })
     }
     pub fn publish(
@@ -109,24 +117,15 @@ impl BoundaryNamespace {
                     })
                 }
             };
-            let declaration = if source.native {
-                crate::declare::provider_declaration(
-                    &source.declaration,
-                    &source.signature,
-                    &header.proof,
-                    &envelope,
-                    services,
-                    &mut identities,
-                )
-                .map_err(refusal)?
-            } else {
-                crate::declare::boundary_declaration(
-                    &source.declaration,
-                    &source.signature,
-                    &header.proof,
-                    &mut identities,
-                )
-            };
+            let declaration = crate::declare::provider_declaration(
+                &source.declaration,
+                &source.signature,
+                &header.proof,
+                &envelope,
+                services,
+                &mut identities,
+            )
+            .map_err(refusal)?;
             module.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
                 declaration: Some(CheckedBoundaryCallable { source: declaration, execution: CheckedBoundaryExecution::Provider, method_arguments: Vec::new() }),
@@ -155,6 +154,7 @@ impl BoundaryNamespace {
                 fixed_service_reach: envelope.service_reach.clone(),
                 owning_service: source.owning_service.map(|service| services.service(context, service)).transpose()?,
                 published_service_ceiling: envelope.service_reach,
+                published_synchronous_entries: envelope.invocations.iter().filter_map(|entry| match entry { terminal_psi::TerminalCallableInvocation::Service(service) => Some(*service), terminal_psi::TerminalCallableInvocation::Parameter(_) => None }).collect(),
             });
         }
         module.identities = identities.build();

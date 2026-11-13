@@ -2341,6 +2341,7 @@ pub(crate) mod structural_encoding {
                 content_guarantees: Vec::new(),
                 fixed_service_reach: Vec::new(),
                 owning_service: None,
+                published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
             };
             PsiOptimizationUnit {
@@ -2618,6 +2619,12 @@ pub(crate) mod unit_encoding {
         bytes.slice(&catalog.machine_envelopes, |bytes, row| {
             encode_optional(bytes, row.as_ref(), |bytes, row| {
                 bytes.id(row.machine);
+                encode_callable_envelope(bytes, &row.envelope);
+            });
+        });
+        bytes.slice(&catalog.boundary_envelopes, |bytes, row| {
+            encode_optional(bytes, row.as_ref(), |bytes, row| {
+                bytes.id(row.boundary);
                 encode_callable_envelope(bytes, &row.envelope);
             });
         });

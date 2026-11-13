@@ -16,14 +16,14 @@ fn validate_envelope(
     services: &BTreeSet<ServiceId>,
     envelope: &TerminalCallableEnvelope,
     order: &[BoundaryParameterKind],
-    scalars: &[ValueDeclaration],
+    mut scalar_types: impl ExactSizeIterator<Item = ScalarType>,
     structures: &[StructuralParameterDeclaration],
 ) -> Result<(), &'static str> {
     if order
         .iter()
         .filter(|kind| **kind == BoundaryParameterKind::Scalar)
         .count()
-        != scalars.len()
+        != scalar_types.len()
         || order
             .iter()
             .filter(|kind| **kind == BoundaryParameterKind::Structural)
@@ -47,6 +47,9 @@ fn validate_envelope(
     {
         return Err("callable envelope has a repeated, unordered or unknown authority");
     }
+    // Invocation positions are ordered, so consume each formal once. Read its
+    // actual scalar type instead of manufacturing declaration/value identities.
+    let mut next_parameter = 0;
     for invocation in &envelope.invocations {
         match invocation {
             TerminalCallableInvocation::Service(service) if !services.contains(service) => {
@@ -55,23 +58,25 @@ fn validate_envelope(
             TerminalCallableInvocation::Parameter(position) => {
                 let position = usize::try_from(*position)
                     .map_err(|_| "callable invocation position does not fit its namespace")?;
-                match order.get(position) {
-                    Some(BoundaryParameterKind::Structural) => {}
-                    Some(BoundaryParameterKind::Scalar) => {
-                        let ordinal = order[..position]
-                            .iter()
-                            .filter(|kind| **kind == BoundaryParameterKind::Scalar)
-                            .count();
-                        if !matches!(
-                            scalars.get(ordinal).map(|formal| formal.scalar_type),
-                            Some(ScalarType::Callable(_))
-                        ) {
-                            return Err(
-                                "callable invocation ceiling names a non-callable scalar formal",
-                            );
-                        }
+                let (kind, scalar_type) = loop {
+                    let kind = order
+                        .get(next_parameter)
+                        .ok_or("callable invocation ceiling escapes its formal namespace")?;
+                    let scalar_type = if *kind == BoundaryParameterKind::Scalar {
+                        scalar_types.next()
+                    } else {
+                        None
+                    };
+                    let requested = next_parameter == position;
+                    next_parameter += 1;
+                    if requested {
+                        break (kind, scalar_type);
                     }
-                    None => return Err("callable invocation ceiling escapes its formal namespace"),
+                };
+                if *kind == BoundaryParameterKind::Scalar
+                    && !matches!(scalar_type, Some(ScalarType::Callable(_)))
+                {
+                    return Err("callable invocation ceiling names a non-callable scalar formal");
                 }
             }
             TerminalCallableInvocation::Service(_) => {}
@@ -120,7 +125,10 @@ pub fn validate_callable_operational_refinements(
             &services,
             &contract.envelope,
             &contract.parameter_order,
-            &contract.scalar_parameters,
+            contract
+                .scalar_parameters
+                .iter()
+                .map(|formal| formal.scalar_type),
             &contract.structural_parameters,
         )?;
     }
@@ -134,19 +142,45 @@ pub fn validate_callable_operational_refinements(
             &services,
             &row.envelope,
             &machine.parameter_order,
-            &machine.parameters,
+            machine.parameters.iter().map(|formal| formal.scalar_type),
             &machine.structural_parameters,
         )?;
         let declaration = machine
             .declaration
             .as_ref()
             .ok_or("named callable envelope lost its checked declaration")?;
+        let entries: Vec<_> = row
+            .envelope
+            .invocations
+            .iter()
+            .filter_map(|entry| match entry {
+                TerminalCallableInvocation::Service(service) => Some(*service),
+                TerminalCallableInvocation::Parameter(_) => None,
+            })
+            .collect();
+        if entries != machine.published_synchronous_entries {
+            return Err("named callable invocation envelope differs from its checked publication");
+        }
         if row.envelope.service_reach != machine.published_service_ceiling
             || row.envelope.suspends != declaration.published_may_suspend
             || row.envelope.blocks != declaration.published_may_block
         {
             return Err("named callable operational envelope differs from its checked publication");
         }
+    }
+    for row in module.callables.boundary_envelopes.iter().flatten() {
+        let boundary = module
+            .boundary_machine(row.boundary)
+            .filter(|boundary| boundary.declaration.is_some())
+            .ok_or("boundary callable envelope has no exact checked declaration")?;
+        validate_envelope(
+            module,
+            &services,
+            &row.envelope,
+            &boundary.parameter_order,
+            boundary.scalar_parameters.iter().copied(),
+            &boundary.structural_parameters,
+        )?;
     }
     for descriptor in &module.callables.descriptors {
         let required = module
@@ -177,7 +211,14 @@ pub fn validate_callable_envelope(
     structures: &[StructuralParameterDeclaration],
 ) -> Result<(), &'static str> {
     let services = module.services.iter().map(|service| service.id).collect();
-    validate_envelope(module, &services, envelope, order, scalars, structures)
+    validate_envelope(
+        module,
+        &services,
+        envelope,
+        order,
+        scalars.iter().map(|formal| formal.scalar_type),
+        structures,
+    )
 }
 
 /// A supplied contract may use only permissions the required contract grants.
@@ -251,4 +292,48 @@ pub fn callable_operational_refines(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{CallableContractId, MachineId};
+
+    #[test]
+    fn boundary_formal_types_retain_callable_invocation_positions() {
+        let module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+        let types = [
+            ScalarType::Boolean,
+            ScalarType::Callable(CallableContractId::new(1).unwrap()),
+        ];
+        let order = [BoundaryParameterKind::Scalar; 2];
+        let mut envelope = TerminalCallableEnvelope {
+            service_reach: Vec::new(),
+            invocations: vec![TerminalCallableInvocation::Parameter(1)],
+            suspends: false,
+            blocks: false,
+            termination: TerminalCallableTermination::NotGuaranteed,
+        };
+        let check = |envelope: &TerminalCallableEnvelope| {
+            validate_envelope(
+                &module,
+                &BTreeSet::new(),
+                envelope,
+                &order,
+                types.iter().copied(),
+                &[],
+            )
+        };
+        check(&envelope).expect("the second actual formal is callable");
+        envelope.invocations[0] = TerminalCallableInvocation::Parameter(0);
+        assert_eq!(
+            check(&envelope),
+            Err("callable invocation ceiling names a non-callable scalar formal")
+        );
+        envelope.invocations[0] = TerminalCallableInvocation::Parameter(2);
+        assert_eq!(
+            check(&envelope),
+            Err("callable invocation ceiling escapes its formal namespace")
+        );
+    }
 }

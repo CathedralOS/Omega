@@ -351,6 +351,24 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
+    /// Refuses a demanded declaration that holds a request no pass served
+    /// (`typed_trees::deferred_refusals`). Typing and typed preparation see
+    /// the whole program with every library and record such a request on its
+    /// declaration instead of refusing programs that never reach it; this is
+    /// where it is raised. Every machine read passes here, as an entry, a
+    /// Build selection, a subject declaration or a callee, so a declaration
+    /// with a row is never read through.
+    pub(super) fn served(&self, id: MachineId, declaration: SymbolHandle) -> Checked<()> {
+        match self.typed.deferred_refusal(declaration) {
+            None => Ok(()),
+            Some(row) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration(row.request.construct()),
+            )),
+        }
+    }
+
     pub(super) fn declaration(
         &self,
         id: MachineId,
@@ -453,9 +471,9 @@ impl<'t> Program<'t> {
         if machine.structural_type_equations_pending {
             return unserved("pending type equations");
         }
-        // A written ceiling of named services is stated in the module and
-        // judged there (`reach`). One bound by an installation or by an
-        // abstract row is not a fixed set of services.
+        // A written `reaches` ceiling is read with the signature
+        // (`reach_ceiling`). A ceiling bound by an installation is an
+        // abstract row with no concrete services to compare.
         if machine.service_reach_is_installation_bound
             || self
                 .typed
@@ -512,9 +530,6 @@ impl<'t> Program<'t> {
         {
             return unserved("type equations, owned data or conformances");
         }
-        if !machine.invokes.is_empty() {
-            return unserved("invokes");
-        }
         Ok(())
     }
 
@@ -562,6 +577,7 @@ impl<'t> Program<'t> {
         reading: &Reading,
     ) -> Checked<(Signature, MachineNames, usize)> {
         let (machine, state) = self.declaration(id, symbol)?;
+        self.served(id, symbol)?;
         // The entry of a generic check form keeps its value parameters as
         // formals; `machine_shape` refuses them on every other machine.
         let binders = match reading {
@@ -621,6 +637,20 @@ impl<'t> Program<'t> {
             &[],
         )?;
         signature.termination = self.termination(id, machine)?;
+        // A machine's header clauses belong to the machine declaration; its
+        // formals belong to its one state, which `contract` was given.
+        signature.reaches = self.reach_ceiling(id, machine.symbol)?;
+        signature.invokes = self.entry_ceiling(
+            id,
+            self.typed.machine_invokes(machine),
+            span(
+                &self.typed.state_parameters,
+                state.parameters,
+                id,
+                "entry parameter span",
+            )?,
+            false,
+        )?;
         // Diagnostics name the declaration the author wrote, not a clone
         // stage 04 generated from it.
         let authored = crate::template_of(self.typed, symbol)
@@ -678,7 +708,7 @@ impl<'t> Program<'t> {
     /// the literals of its value parameters, in declaration order: its
     /// clauses are read with each binder standing for its literal, so the
     /// contract is the one a call with those static arguments is held to.
-    fn requirement_signature(
+    pub(super) fn requirement_signature(
         &mut self,
         id: MachineId,
         requirement: &'t StateSignature,
@@ -812,6 +842,7 @@ impl<'t> Program<'t> {
         arguments: &[semantic_vocabulary::ScalarTerm],
         declared: Declarer,
     ) -> Checked<(Signature, MachineNames)> {
+        self.served(id, requirement.symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
@@ -837,25 +868,18 @@ impl<'t> Program<'t> {
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
         }
-        if matches!(declared, Declarer::Requirement { .. }) {
-            // Boundary and runtime readers retain these axes through the
-            // same envelope owner. Abstract requirements do not yet do so.
-            if !requirement.invokes.is_empty() {
-                return unserved("invokes");
-            }
-            if !matches!(
-                requirement.service_reach_row,
-                language_semantics::ServiceReachRowId::NULL
-                    | language_semantics::ServiceReachRowTable::EMPTY_ROW
-            ) || requirement.service_reach_is_installation_bound
-            {
-                return unserved("service reach");
-            }
-            if requirement.suspends || requirement.blocks {
-                return unserved("suspends or blocks");
-            }
+        if requirement.service_reach_is_installation_bound
+            || self
+                .typed
+                .service_reach_rows
+                .is_abstract(requirement.service_reach_row)
+        {
+            return unserved("service reach bound by an installation");
         }
-        let (signature, mut names) = self.contract(
+        if requirement.suspends || requirement.blocks {
+            return unserved("suspends or blocks");
+        }
+        let (mut signature, mut names) = self.contract(
             id,
             requirement.symbol,
             requirement.parameters,
@@ -864,6 +888,17 @@ impl<'t> Program<'t> {
             declared,
             &[],
             &bound,
+        )?;
+        signature.invokes = self.entry_ceiling(
+            id,
+            self.typed.state_signature_invokes(requirement),
+            span(
+                &self.typed.state_parameters,
+                requirement.parameters,
+                id,
+                "callable parameter span",
+            )?,
+            true,
         )?;
         names.machine = requirement.name.as_str().to_owned();
         Ok((signature, names))
@@ -1159,6 +1194,7 @@ impl<'t> Program<'t> {
                 ));
             }
         };
+        let reaches = self.reach_ceiling(id, owner)?;
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         // Each clause's text follows it into canonical order. A repeated
@@ -1192,6 +1228,11 @@ impl<'t> Program<'t> {
                 result,
                 requires,
                 ensures,
+                reaches,
+                // The declaration's own reader states this axis: a machine
+                // and a requirement keep their `invokes` rows in different
+                // tables and read omission differently.
+                invokes: crate::Ceiling::Inferred,
                 crashes,
                 // A requirement's termination is its selected member's to
                 // keep; a machine's is read from its plan by its caller.
@@ -1575,23 +1616,8 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Assignment(assignment) => self.assignment(id, &slots, assignment)?,
                 StatementNode::Call(call) => {
-                    let ordinal = u32::try_from(position).map_err(|_| {
-                        refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Machine("statement ordinal exceeds its typed span"),
-                        )
-                    })?;
                     let source = SourceOrigin::of(call.source_span);
                     let called = self.call_statement(id, &slots, call, source)?;
-                    let called = self.retain_build_call(
-                        id,
-                        call.target_symbol,
-                        crate::BuildCallOccurrence::Statement(
-                            state.statement_nodes.handle_at(ordinal),
-                        ),
-                        called,
-                    )?;
                     if !call.discards_result {
                         undiscarded(id, &called)?;
                     }
@@ -1993,7 +2019,9 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         | ExpressionKind::Requalify(operand) => {
             spans(operand, binder, out);
         }
-        ExpressionKind::Call { callee, arguments } => {
+        ExpressionKind::Call {
+            callee, arguments, ..
+        } => {
             if let Some(operand) = callee.operand() {
                 spans(operand, binder, out);
             }
@@ -2148,7 +2176,9 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         | ExpressionKind::Requalify(operand) => {
             expression_slot_uses(operand, uses);
         }
-        ExpressionKind::Call { callee, arguments } => {
+        ExpressionKind::Call {
+            callee, arguments, ..
+        } => {
             if let Some(operand) = callee.operand() {
                 expression_slot_uses(operand, uses);
             }

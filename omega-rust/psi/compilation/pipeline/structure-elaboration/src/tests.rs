@@ -58,6 +58,7 @@ fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> 
         ExpressionKind::Call {
             callee: id::<MachineId>(callee).into(),
             arguments,
+            designated: None,
         },
         result,
     )
@@ -95,6 +96,8 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         result: result.map(ValueType::Scalar),
         requires: Vec::new(),
         ensures: Vec::new(),
+        reaches: crate::Ceiling::Inferred,
+        invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Authored(Vec::new()),
         termination: Termination::Silent,
     }
@@ -145,6 +148,8 @@ fn scalars(types: Vec<ScalarType>) -> Vec<ValueType> {
 fn returns_normally() -> Outcome {
     Outcome {
         completes_normally: true,
+        service_reach: Vec::new(),
+        synchronous_entries: Vec::new(),
         crash_routes: Vec::new(),
     }
 }
@@ -192,11 +197,16 @@ fn lower_records(
 ) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(body);
+    let boundary_signatures = crate::boundaries::BoundaryNamespace::default();
+    let signatures = crate::body::Signatures {
+        machines: signatures,
+        boundaries: &boundary_signatures,
+    };
     let declared = crate::lower::places::declare(
         id(1),
         records,
         &bodies,
-        signatures,
+        signatures.machines.values(),
         terminal_psi::TerminalIdentityTableBuilder::default(),
     )?;
     crate::lower::machine(
@@ -206,6 +216,8 @@ fn lower_records(
         signatures,
         outcomes,
         &declared.records,
+        &crate::callables::CallableNamespace::default(),
+        &crate::boundaries::BoundaryNamespace::default(),
         false,
     )
 }
@@ -866,6 +878,8 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
             returns_normally(),
             Outcome {
                 completes_normally: false,
+                service_reach: Vec::new(),
+                synchronous_entries: Vec::new(),
                 crash_routes: callee_routes,
             },
         ],
@@ -984,10 +998,14 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
         vec![
             Outcome {
                 completes_normally: true,
+                service_reach: Vec::new(),
+                synchronous_entries: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap, CrashCause::Abort]),
             },
             Outcome {
                 completes_normally: true,
+                service_reach: Vec::new(),
+                synchronous_entries: Vec::new(),
                 crash_routes: callee_routes,
             },
         ],
@@ -1072,12 +1090,52 @@ fn a_no_normal_call_inside_an_expression_is_refused() {
             returns_normally(),
             Outcome {
                 completes_normally: false,
+                service_reach: Vec::new(),
+                synchronous_entries: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap]),
             },
         ],
     )
     .unwrap_err();
     assert_eq!(refusal.detail, "call no-normal call inside an expression");
+}
+
+/// A Build selection's designated operands stand beside a call of the
+/// toolchain's selection protocol, which is a boundary. Lowering refuses a
+/// body that puts them on a machine call instead of dropping them: no
+/// operation of the lowered form would hand them to the Build host.
+#[test]
+fn designated_operands_on_a_machine_call_are_refused() {
+    // machine 1() { f() }, with `f()` claiming to be a Build selection.
+    let mut selection = call(2, Vec::new(), None);
+    let ExpressionKind::Call { designated, .. } = &mut selection.kind else {
+        unreachable!()
+    };
+    *designated = Some(crate::body::DesignatedOperands {
+        request: arena::Handle::invalid(),
+        selecting: id(1),
+    });
+    let twin = |statement| {
+        try_lower(
+            Body {
+                slots: Vec::new(),
+                statements: vec![Statement::Evaluate(statement)],
+            },
+            vec![signature(Vec::new(), None), signature(Vec::new(), None)],
+            vec![returns_normally(), returns_normally()],
+        )
+    };
+    let refusal = twin(selection).unwrap_err();
+    assert!(
+        refusal
+            .detail
+            .ends_with("designated operands on a call that is no boundary call"),
+        "{}",
+        refusal.detail
+    );
+    // The same call with no designated operands lowers, and records none.
+    let lowered = twin(call(2, Vec::new(), None)).unwrap();
+    assert!(lowered.sources.designated.is_empty());
 }
 
 /// `ensures result == 7` on `machine(x: u32) -> u32`: the result
@@ -1162,11 +1220,23 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
         for crashes in [first, second] {
             signatures.push(Signature {
+                reaches: crate::Ceiling::Inferred,
+                invokes: crate::Ceiling::Inferred,
                 crashes,
                 ..signature(Vec::new(), None)
             });
         }
-        let table = outcomes(&bodies, &signatures, &[]).unwrap();
+        let table = outcomes(
+            &bodies,
+            crate::body::Signatures {
+                machines: &signatures,
+                boundaries: &crate::boundaries::BoundaryNamespace::default(),
+            },
+            &[],
+            &crate::callables::CallableNamespace::default(),
+            &crate::boundaries::BoundaryNamespace::default(),
+        )
+        .unwrap();
         [1, 2].map(|raw| table.get(id(raw)).unwrap().clone())
     };
     let [caller_outcome, callee_outcome] = run(CrashCeiling::Inferred, CrashCeiling::Inferred);
@@ -1174,6 +1244,8 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         callee_outcome,
         Outcome {
             completes_normally: false,
+            service_reach: Vec::new(),
+            synchronous_entries: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
     );
@@ -1205,11 +1277,23 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
                 statements,
             });
             signatures.push(Signature {
+                reaches: crate::Ceiling::Inferred,
+                invokes: crate::Ceiling::Inferred,
                 crashes,
                 ..signature(Vec::new(), None)
             });
         }
-        outcomes(&bodies, &signatures, &[]).map(|table| table.get(id(1)).unwrap().clone())
+        outcomes(
+            &bodies,
+            crate::body::Signatures {
+                machines: &signatures,
+                boundaries: &crate::boundaries::BoundaryNamespace::default(),
+            },
+            &[],
+            &crate::callables::CallableNamespace::default(),
+            &crate::boundaries::BoundaryNamespace::default(),
+        )
+        .map(|table| table.get(id(1)).unwrap().clone())
     };
     let quiet = || Vec::new();
     let crashing = || vec![crash_arm(None, CrashCause::Trap)];
@@ -1221,6 +1305,8 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
     // never completes normally and still publishes nothing.
     let never_returns = Outcome {
         completes_normally: false,
+        service_reach: Vec::new(),
+        synchronous_entries: Vec::new(),
         crash_routes: Vec::new(),
     };
     assert_eq!(run(crashing(), quiet()).unwrap(), never_returns);
@@ -1253,20 +1339,36 @@ fn a_skipped_operand_cannot_end_the_machine() {
     bodies.push(crashing);
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(Signature {
+        reaches: crate::Ceiling::Inferred,
+        invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Inferred,
         termination: Termination::Silent,
         ..signature(vec![ScalarType::Boolean], Some(ScalarType::Boolean))
     });
     signatures.push(Signature {
+        reaches: crate::Ceiling::Inferred,
+        invokes: crate::Ceiling::Inferred,
         crashes: CrashCeiling::Inferred,
         termination: Termination::Silent,
         ..signature(Vec::new(), Some(ScalarType::Boolean))
     });
-    let table = outcomes(&bodies, &signatures, &[]).unwrap();
+    let table = outcomes(
+        &bodies,
+        crate::body::Signatures {
+            machines: &signatures,
+            boundaries: &crate::boundaries::BoundaryNamespace::default(),
+        },
+        &[],
+        &crate::callables::CallableNamespace::default(),
+        &crate::boundaries::BoundaryNamespace::default(),
+    )
+    .unwrap();
     assert_eq!(
         table.get(id(1)).unwrap(),
         &Outcome {
             completes_normally: true,
+            service_reach: Vec::new(),
+            synchronous_entries: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
     );
@@ -1590,6 +1692,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                     ExpressionKind::Call {
                         callee: id::<MachineId>(2).into(),
                         arguments: Vec::new(),
+                        designated: None,
                     },
                     point(),
                 ),
@@ -1972,9 +2075,11 @@ fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
             disposition: terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
             destination,
             path,
-            field: Some(field),
+            field: None,
             value,
-        } if *destination == l && path.is_empty() && *field == id(4)
+        } if *destination == l
+            // The stored field is the one step of the path, by identity.
+            && path.len() == 1
             && value.place == copied && value.path.is_empty()
     ));
     let to = projected(&tables, l, &[4]);
@@ -2650,22 +2755,18 @@ fn each_sum_construct_outside_the_slice_is_refused_by_name_in_lowering() {
     .unwrap_err();
     assert_eq!(crash.reason, RefusalReason::Unsupported);
     assert_eq!(crash.detail, "transition crash in a case arm");
-    // A field read through a data payload would put the `Case` step inside
-    // the read's carrier.
+    // A field read through a data payload is lowered: the `Case` step is a
+    // segment of the read's path, and the checker's payload judgment decides
+    // whether that case is established where the read stands.
     let inner = payload(place(0, shape()), BOXED, 0, point());
-    let beneath = try_lower_sums(
+    try_lower_sums(
         Body {
             slots: vec![shape()],
             statements: vec![returns(member(inner, 0, scalar))],
         },
         weighs(),
     )
-    .unwrap_err();
-    assert_eq!(beneath.reason, RefusalReason::Unsupported);
-    assert_eq!(
-        beneath.detail,
-        "expression field read beneath a case payload"
-    );
+    .unwrap();
 }
 
 #[test]

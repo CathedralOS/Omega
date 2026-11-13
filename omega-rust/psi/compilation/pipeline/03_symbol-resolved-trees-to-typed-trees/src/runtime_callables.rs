@@ -905,9 +905,8 @@ pub(crate) fn bind_calls(
         error: None,
     };
     typed::references::visit_program(program, &mut inventory);
-    for (contract, _) in program.runtime_callable_contracts.iter() {
-        typed::references::TypedReferences::callable_contract(&mut inventory, contract);
-    }
+    // Retained arena storage is not another declaration root. The shared
+    // walk follows each live Callable type into its complete signature.
     if let Some(error) = inventory.error {
         return Err(error);
     }

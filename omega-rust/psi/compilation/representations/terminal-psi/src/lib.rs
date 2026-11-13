@@ -958,10 +958,10 @@ mod source_guards {
 }
 
 pub use callable_values::{
-    TerminalCallableCatalog, TerminalCallableContract, TerminalCallableEnvelope,
-    TerminalCallableEvidenceLane, TerminalCallableInvocation, TerminalCallableTermination,
-    TerminalCallableTerminationPremise, TerminalMachineDescriptor, TerminalMachineDescriptorOrigin,
-    TerminalMachineEnvelope,
+    TerminalBoundaryEnvelope, TerminalCallableCatalog, TerminalCallableContract,
+    TerminalCallableEnvelope, TerminalCallableEvidenceLane, TerminalCallableInvocation,
+    TerminalCallableTermination, TerminalCallableTerminationPremise, TerminalMachineDescriptor,
+    TerminalMachineDescriptorOrigin, TerminalMachineEnvelope,
 };
 pub use language_core::BindingRelevance;
 pub use semantic_vocabulary::{

@@ -26,12 +26,14 @@ without re-running type inference or inspecting surface syntax.
 - Flat module layout:
   - `lib.rs`: `TypedTrees`, `FrozenTypedTrees`, `TypedTreeRoots`, `TypedTreeTables`, `boundary_values`, `direct_calls`, and `source_review`.
   - `references.rs`: typed declaration and expression reference occurrences (`references`).
+  - `declaration_projection.rs`: narrowing a program to selected declarations and their closure (`declaration_projection`).
   - `service_declarations.rs`: boundary service and provider declaration projections (`service_declarations`, `provider_declarations`).
   - `access_views_and_commitments.rs`: placed/plan-laid access views, conformance commitments, constant recipes, and wire schema queries.
   - `callable_applications.rs`: closed machine, trait, requirement, and domain callable applications.
   - `callable_signature_shapes.rs`: source calling-shape correspondence before body or proof elaboration.
   - `calls_and_control_flow.rs`: typed call signatures, dynamic/static dispatch families, machines, states, statements, and names.
   - `declaration_tables_and_index.rs`: declaration tables, relationship indexes, type parameters, and type-reference queries.
+  - `deferred_refusals.rs`: requests no whole-program pass served, recorded on the declarations that hold them (`DeferredRefusal`).
   - `declaration_reflection.rs`: semantic schema graphs, selected applications, nominal edges, and deterministic query images.
   - `declarations.rs`, `operator_declarations.rs`, `product_and_trait_declarations.rs`: typed domain, data, wire, visibility, operator, product-operand, and trait declarations.
   - `evidence_and_inspection.rs`: typed propositions, mathematical definitions, ranking functions, and `TypedTreesSnapshot`.
@@ -792,6 +794,8 @@ mod callable_copies;
 pub mod callable_signature_shapes;
 pub mod callable_values;
 pub mod contract_structure;
+pub mod declaration_projection;
+pub mod deferred_refusals;
 pub mod native_locators;
 pub mod references;
 pub mod runtime_callable_identity;
@@ -1463,6 +1467,9 @@ pub struct TypedTrees {
     pub data_implementation_applications: Arena<DataImplementationApplication>,
     pub dynamic_slots: Vec<crate::dynamic_traits::DynamicSlotSignature>,
     pub target_machine_families: Vec<crate::machine::TargetMachineFamily>,
+    /// Requests no pass served, on the declarations that hold them, ordered
+    /// by declaration (`deferred_refusals.rs`).
+    pub deferred_refusals: Vec<deferred_refusals::DeferredRefusal>,
     pub boundary_completion_declarations: Arena<BoundaryCompletionDeclaration>,
     pub evidence_forwardings: Vec<EvidenceForwarding>,
     pub proof_output_calls: Vec<ProofOutputCall>,
@@ -1737,6 +1744,7 @@ impl TypedTrees {
             data_implementation_applications: Arena::new(),
             dynamic_slots: Vec::new(),
             target_machine_families: Vec::new(),
+            deferred_refusals: Vec::new(),
             boundary_completion_declarations: Arena::default(),
             evidence_forwardings: Vec::new(),
             proof_output_calls: Vec::new(),
@@ -1974,7 +1982,5 @@ pub use values::subtrees::{SubtreeEdges, SubtreeVisit};
 pub mod typed_trees {
     pub use crate::*;
 }
-
-
 
 pub mod source_index_algebra;

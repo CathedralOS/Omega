@@ -207,6 +207,15 @@ impl CallableNamespace {
                     .transpose()
             })
             .collect::<Checked<Vec<_>>>()?;
+        catalog.boundary_envelopes = boundaries
+            .rows
+            .iter()
+            .map(|(boundary, row)| {
+                services.envelope(context, &row.envelope).map(|envelope| {
+                    Some(terminal_psi::TerminalBoundaryEnvelope { boundary, envelope })
+                })
+            })
+            .collect::<Checked<Vec<_>>>()?;
         for (id, selection) in self.descriptors.iter() {
             if !matches!(self.envelopes.get(selection.machine), Some(Some(_))) {
                 return Err(refuse(

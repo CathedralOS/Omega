@@ -1954,6 +1954,7 @@ pub(crate) mod declaration_foundations {
         }
         require_known_services(module, &boundary.published_service_ceiling)?;
         require_known_services(module, &boundary.fixed_service_reach)?;
+        require_known_services(module, &boundary.published_synchronous_entries)?;
         validate_boundary_scalar_rows(boundary)?;
         if let Some(owner) = boundary.owning_service {
             if boundary.kind != terminal_psi::BoundaryRequirementKind::Trait {
@@ -2413,6 +2414,7 @@ pub(crate) mod machine_foundations {
         validate_block_parameter_places(machine)?;
         validate_provider_attachment_foundation(module, machine)?;
         require_known_services(module, &machine.published_service_ceiling)?;
+        require_known_services(module, &machine.published_synchronous_entries)?;
         validate_parameter_places(machine)?;
         validate_entry_claims(module, machine)?;
         validate_loan_completions(module, machine)?;
@@ -3979,6 +3981,7 @@ pub(crate) mod scalar_applications {
                 content_guarantees: Vec::new(),
                 fixed_service_reach: Vec::new(),
                 owning_service: None,
+                published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
             };
             module.boundary_machines.push(boundary);
@@ -10299,6 +10302,53 @@ fn validate_callable_scalar_types(module: &TerminalModule) -> Result<(), CodecEr
             return malformed("named callable envelope has no exact checked machine declaration");
         }
     }
+    let boundaries: std::collections::BTreeMap<_, _> = module
+        .boundary_machines
+        .iter()
+        .map(|boundary| (boundary.id, boundary))
+        .collect();
+    for (ordinal, row) in module.callables.boundary_envelopes.iter().enumerate() {
+        let Some(row) = row else {
+            continue;
+        };
+        if usize::try_from(row.boundary.get() - 1).ok() != Some(ordinal) {
+            return malformed("boundary callable envelope has a stale catalog coordinate");
+        }
+        let Some(boundary) = boundaries.get(&row.boundary) else {
+            return malformed("boundary callable envelope has no exact boundary declaration");
+        };
+        let Some(declaration) = boundary.declaration.as_ref() else {
+            return malformed("boundary callable envelope has no checked source declaration");
+        };
+        let entries: Vec<_> = row
+            .envelope
+            .invocations
+            .iter()
+            .filter_map(|entry| match entry {
+                terminal_psi::TerminalCallableInvocation::Service(service) => Some(*service),
+                terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
+            })
+            .collect();
+        let unconditional_termination = matches!(
+            &row.envelope.termination,
+            terminal_psi::TerminalCallableTermination::Terminates { premises } if premises.is_empty()
+        );
+        if row.envelope.service_reach != boundary.published_service_ceiling
+            || entries != boundary.published_synchronous_entries
+            || row.envelope.suspends != declaration.source.published_may_suspend
+            || row.envelope.blocks != declaration.source.published_may_block
+            || unconditional_termination != boundary.unconditional_termination
+        {
+            return malformed("boundary callable envelope differs from its checked publication");
+        }
+    }
+    for boundary in boundaries.values() {
+        if boundary.declaration.is_some()
+            && module.callables.boundary_envelope(boundary.id).is_none()
+        {
+            return malformed("checked boundary declaration has no complete callable envelope");
+        }
+    }
     for domain in &module.scalar_qualifications.domains {
         check(domain.carrier)?;
     }
@@ -11948,7 +11998,7 @@ fn require_known_services(
         .iter()
         .any(|service| !has_service(module, *service))
     {
-        return malformed("published service ceiling references an unknown service");
+        return malformed("published service row references an unknown service");
     }
     Ok(())
 }

@@ -29,8 +29,8 @@ impl AcceptedTerminalSource {
         })
     }
 
-    /// Bind the source-issued host requests to this exact accepted code owner.
-    /// A source request with no matching emitted operation cannot open a host.
+    /// Binds source companions to this exact accepted code owner. The Build
+    /// companions are read from the accepted elaboration (`build_companions`).
     pub fn produce(
         &self,
         custody: crate::TerminalProductionCustody<'_>,
@@ -93,14 +93,10 @@ impl AcceptedTerminalSource {
                 application.attach(program.view(), program.portable(), &provenance, observer)
             })
             .collect();
-        // The reader retained each actual source call before lowering, and
-        // lowering paired it with its physical operation. Capture checks that
-        // association against this exact published module before opening hosts.
-        let companions = crate::invocation_companions::InvocationCompanions::capture(
-            self,
-            program.view().module(),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+        // Join source selections to the calls this exact artifact emits.
+        // Host records also retain unexecuted native-binding formations.
+        let companions = crate::build_companions::produce(self, program.view().module())
+            .map_err(|diagnostic| vec![diagnostic])?;
         let build_bindings = crate::TerminalBuildBindings::new(
             program.view(),
             companions.bindings,
@@ -120,6 +116,17 @@ impl AcceptedTerminalSource {
             applications,
             provenance,
             source_records: elaboration.source_records.clone(),
+        })
+    }
+
+    /// What this accepted Build program asks of its host, read from the
+    /// same rows `produce` publishes.
+    pub fn build_protocol_use(&self) -> Result<crate::BuildProtocolUse, Vec<Diagnostic>> {
+        let companions = crate::build_companions::produce(self, &self.closure.elaboration.module)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        Ok(crate::BuildProtocolUse {
+            reaches_outside: companions.unowned != 0,
+            filesystem: !companions.filesystem.is_empty(),
         })
     }
 
@@ -233,6 +240,8 @@ mod tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });

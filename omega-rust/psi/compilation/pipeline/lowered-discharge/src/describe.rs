@@ -47,8 +47,13 @@ pub(crate) fn unproved(
                 .invocations
                 .get(invocation)
                 .and_then(|row| match row.callee {
-                    Callee::Machine(callee) => Some(callee),
-                    Callee::Selected { .. } | Callee::Boundary { .. } => None,
+                    Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(
+                        callee,
+                    )) => Some(callee),
+                    Callee::Selected { .. }
+                    | Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(_)) => {
+                        None
+                    }
                 });
             let callee_names = callee.and_then(|callee| elaboration.names.get(callee));
             let text = callee_names.and_then(|callee_names| {
@@ -243,8 +248,11 @@ fn crash_coverage(
             _ => false,
         })
         .and_then(|(_, row)| match row.callee {
-            Callee::Machine(callee) => elaboration.names.get(callee),
-            Callee::Selected { .. } | Callee::Boundary { .. } => None,
+            Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => {
+                elaboration.names.get(callee)
+            }
+            Callee::Selected { .. }
+            | Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(_)) => None,
         });
     match callee {
         Some(callee) => format!(

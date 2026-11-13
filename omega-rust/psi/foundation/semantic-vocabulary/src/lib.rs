@@ -26,6 +26,21 @@ projections; `proof_applications.rs` owns proof-application verification.
 
 #![forbid(unsafe_code)]
 
+// Call obligations and runtime lowering use the same two declaration
+// namespaces. Keeping this existing target identity in the shared vocabulary
+// lets check tables name a boundary without depending on the artifact crate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TargetMachineCallable {
+    Machine(MachineId),
+    Boundary(BoundaryMachineId),
+}
+
+impl From<MachineId> for TargetMachineCallable {
+    fn from(machine: MachineId) -> Self {
+        Self::Machine(machine)
+    }
+}
+
 mod source_review;
 pub use source_review::{IntegerBinaryKind, SemanticDependencyKind};
 

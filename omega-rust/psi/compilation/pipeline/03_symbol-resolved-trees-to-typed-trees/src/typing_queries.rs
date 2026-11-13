@@ -230,14 +230,33 @@ fn static_namespace(program: &TypedTrees, symbol: SymbolHandle) -> bool {
         )
 }
 
-fn declared_callable(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+fn declared_call_target(
+    program: &TypedTrees,
+    symbol: SymbolHandle,
+    receiver: Option<SymbolHandle>,
+) -> bool {
     // A requirement has a declaration before it has a supplied body. Retain
     // its exact signature for lowering; availability and call obligations do
     // not become facts merely because preparation can identify the target.
-    symbol.is_valid()
-        && (program.machine_by_own_or_state_symbol(symbol).is_some()
-            || program.operator_definition_by_symbol(symbol).is_some()
-            || program.trait_machine_signature(symbol).is_some())
+    if !symbol.is_valid() || !program.symbols.symbols().nodes().is_valid(symbol) {
+        return false;
+    }
+    if program.machine_by_own_or_state_symbol(symbol).is_some()
+        || program.operator_definition_by_symbol(symbol).is_some()
+        || program.trait_machine_signature(symbol).is_some()
+    {
+        return receiver.is_none_or(|receiver| static_namespace(program, receiver));
+    }
+    // An evidence child belongs to its actual bound namespace. Reuse the
+    // applied-requirement query; a similarly named binder or a value receiver
+    // cannot supply this declaration, and ambiguity remains unavailable.
+    let binder = program.symbols.get(symbol).parent;
+    binder.is_valid()
+        && receiver.is_none_or(|receiver| receiver == binder)
+        && matches!(
+            program.evidence_bound_requirement(program.symbols.get(binder).parent, binder, symbol,),
+            Ok(Some(_))
+        )
 }
 
 /// Read a value's retained type in the exact formal scope. This operation
@@ -403,9 +422,19 @@ pub(crate) fn require_prebound_calls(program: &TypedTrees) -> Result<(), Diagnos
             }
             continue;
         }
-        let receiver_is_namespace = !call.receiver.is_valid()
-            || matches!(program.expression_table.expression(call.receiver), ExpressionNode::Name(path) if static_namespace(program, path.symbol));
-        if !declared_callable(program, call.target_symbol) || !receiver_is_namespace {
+        let receiver = if !call.receiver.is_valid() {
+            None
+        } else if let ExpressionNode::Name(path) =
+            program.expression_table.expression(call.receiver)
+        {
+            Some(path.symbol)
+        } else {
+            return Err(
+                crate::unavailable_judgment("static or dynamic callable target binding")
+                    .with_source_span(program.expression_table.source_span(handle)),
+            );
+        };
+        if !declared_call_target(program, call.target_symbol, receiver) {
             return Err(
                 crate::unavailable_judgment("static or dynamic callable target binding")
                     .with_source_span(program.expression_table.source_span(handle)),
@@ -435,12 +464,12 @@ pub(crate) fn require_prebound_calls(program: &TypedTrees) -> Result<(), Diagnos
                     }
                     continue;
                 }
-                let receiver_is_namespace = program
+                let receiver = (!program
                     .statement_table
                     .name_path_members(call.receiver)
-                    .is_empty()
-                    || static_namespace(program, call.receiver_symbol);
-                if !declared_callable(program, call.target_symbol) || !receiver_is_namespace {
+                    .is_empty())
+                .then_some(call.receiver_symbol);
+                if !declared_call_target(program, call.target_symbol, receiver) {
                     return Err(crate::unavailable_judgment(
                         "projected or dynamic statement-call target binding",
                     )
@@ -478,10 +507,13 @@ pub(crate) fn require_prebound_transitions(
                     // binds the arguments/result and emits every callee
                     // requirement at this terminal call. Unbound or value-based
                     // dispatch still needs its real selected correspondence.
-                    if !declared_callable(program, path.symbol)
-                        || (path.receiver_symbol.is_valid()
-                            && !static_namespace(program, path.receiver_symbol))
-                    {
+                    if !declared_call_target(
+                        program,
+                        path.symbol,
+                        path.receiver_symbol
+                            .is_valid()
+                            .then_some(path.receiver_symbol),
+                    ) {
                         return Err(crate::unavailable_judgment(
                             "terminal callable transition target binding",
                         )

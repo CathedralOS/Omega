@@ -2807,6 +2807,7 @@ pub mod scalar_demand {
                 loan_completions: Vec::new(),
                 declared_service_reach: Vec::new(),
                 closed_reach_application: None,
+                published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 content_entry_claims: Vec::new(),
                 content_identity_reshuffles: Vec::new(),

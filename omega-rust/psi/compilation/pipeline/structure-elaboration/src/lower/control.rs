@@ -159,6 +159,7 @@ impl Lowering<'_> {
             ExpressionKind::Call {
                 callee: crate::body::CallTarget::Machine(callee),
                 arguments,
+                ..
             } if self.heads.iter().any(|head| head.member == *callee) => Some((*callee, arguments)),
             _ => None,
         }

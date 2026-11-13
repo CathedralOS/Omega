@@ -48,72 +48,83 @@ pub(crate) struct SourceEnvelope {
 
 #[derive(Debug, Clone)]
 struct ServiceSource {
-    source: ServiceReachId,
+    id: ServiceId,
     identity: String,
     name: String,
-    parents: Vec<ServiceReachId>,
+    parents: Vec<ServiceId>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ServiceMap {
-    sources: Vec<ServiceSource>,
+    declarations: Vec<ServiceSource>,
+    bindings: Vec<(ServiceReachId, ServiceId)>,
 }
 impl ServiceMap {
     pub(crate) fn prepare(
         typed: &TypedTrees,
         context: MachineId,
-        roots: &[ServiceReachId],
+        registry: &IdTable<
+            ServiceId,
+            (
+                typed_trees::trait_definition::AppliedTraitScope<'_>,
+                Vec<ServiceId>,
+            ),
+        >,
+        bindings: Vec<(ServiceReachId, ServiceId)>,
     ) -> Checked<Self> {
-        let used = source_closure(typed, context, roots)?;
-        let mut sources = Vec::with_capacity(used.len());
-        for source in used {
-            let definition = typed
-                .service_reaches
-                .definition(source)
-                .ok_or_else(|| unavailable(context, "service declaration is absent"))?;
-            let identity = typed
-                .normalized_hermetic_symbol_identity(definition.symbol)
-                .map_err(|_| {
-                    unavailable(context, "service has no hermetic declaration identity")
+        let mut declarations = Vec::with_capacity(registry.len());
+        for (id, (scope, parents)) in registry.iter() {
+            let identity = scope
+                .portable_application_identity(typed)
+                .and_then(|identity| typed.type_identity_text(identity))
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    unavailable(
+                        context,
+                        "service has no complete exact application identity",
+                    )
                 })?;
-            if identity.is_empty() {
+            if declarations
+                .iter()
+                .any(|known: &ServiceSource| known.identity == identity)
+            {
                 return Err(unavailable(
                     context,
-                    "service declaration identity is empty",
+                    "distinct source services have one application identity",
                 ));
             }
-            sources.push(ServiceSource {
-                source,
+            declarations.push(ServiceSource {
+                id,
                 identity,
-                name: definition.name.clone(),
-                parents: definition.parents.clone(),
+                name: scope.declaration.name.as_str().to_owned(),
+                parents: parents.clone(),
             });
         }
-        sources.sort_by(|left, right| left.identity.cmp(&right.identity));
-        if sources
-            .windows(2)
-            .any(|pair| pair[0].identity == pair[1].identity)
-        {
-            return Err(unavailable(
-                context,
-                "distinct source services have one hermetic identity",
-            ));
+        for (_, id) in &bindings {
+            if !declarations.iter().any(|row| row.id == *id) {
+                return Err(unavailable(
+                    context,
+                    "source service binding has no exact registry row",
+                ));
+            }
         }
-        Ok(Self { sources })
+        Ok(Self {
+            declarations,
+            bindings,
+        })
     }
     pub(crate) fn service(&self, context: MachineId, source: ServiceReachId) -> Checked<ServiceId> {
-        self.sources
+        self.bindings
             .iter()
-            .position(|candidate| candidate.source == source)
-            .and_then(|position| ServiceId::new(position as u64 + 1))
+            .find_map(|(known, id)| (*known == source).then_some(*id))
             .ok_or_else(|| {
                 unavailable(context, "service is outside the retained canonical closure")
             })
     }
     pub(crate) fn identity(&self, service: ServiceId) -> Option<&str> {
-        let position = usize::try_from(service.get()).ok()?.checked_sub(1)?;
-        self.sources
-            .get(position)
+        self.declarations
+            .iter()
+            .find(|source| source.id == service)
             .map(|source| source.identity.as_str())
     }
     pub(crate) fn row(
@@ -164,12 +175,12 @@ impl ServiceMap {
             ));
         }
         let mut identities = std::mem::take(&mut module.identities).into_builder();
-        let mut names = Vec::with_capacity(self.sources.len());
-        for source in &self.sources {
+        let mut names = Vec::with_capacity(self.declarations.len());
+        for source in &self.declarations {
             module.services.push(ServiceDeclaration {
-                id: self.service(context, source.source)?,
+                id: source.id,
                 identity: identities.intern(&source.identity),
-                parents: self.row(context, &source.parents)?,
+                parents: source.parents.clone(),
             });
             names.push(source.name.clone());
         }
@@ -234,6 +245,14 @@ pub(crate) fn has_authored_ceiling(
     context: MachineId,
     symbol: symbols::SymbolHandle,
 ) -> Checked<bool> {
+    authored_ceiling_owner(typed, context, symbol).map(|owner| owner.is_some())
+}
+
+pub(crate) fn authored_ceiling_owner(
+    typed: &TypedTrees,
+    context: MachineId,
+    symbol: symbols::SymbolHandle,
+) -> Checked<Option<symbols::SymbolHandle>> {
     let mut current = symbol;
     let mut visited = Vec::new();
     loop {
@@ -249,7 +268,7 @@ pub(crate) fn has_authored_ceiling(
             .next()
             .is_some()
         {
-            return Ok(true);
+            return Ok(Some(current));
         }
         if let Some(application) = typed.closed_requirement_application(current) {
             current = application.template;
@@ -265,7 +284,7 @@ pub(crate) fn has_authored_ceiling(
                 continue;
             }
         }
-        return Ok(false);
+        return Ok(None);
     }
 }
 

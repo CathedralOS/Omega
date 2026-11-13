@@ -5,8 +5,9 @@
     We have one entrance, `resolve`, in `resolution`; its `drive` is the
     route, one call per phase. `begin` first runs `preparation`, which rewrites
     syntax to syntax before any symbol exists: target families, type aliases
-    and generic data normalize, trait defaults are synthesized, and machine
-    equation declarations are validated. `drive` then runs the phases in the
+    and generic data normalize, closed scalar constant initializers fold to
+    their values, trait defaults are synthesized, and machine equation
+    declarations are validated. `drive` then runs the phases in the
     one order their preconditions allow: `lowering` translates items and
     mathematical definitions into the symbol-resolved carrier; `selection`
     binds operator homes, which need no symbols yet; `symbols` builds the
@@ -26,7 +27,11 @@
     phase: it owns constant declarations, substitution and initializer custody
     across every phase, and `preparation` and `lowering` reach it directly.
     Const value semantics end here: each selected use receives a fresh copy of
-    its initializer, so no later stage grows a const-value concept.
+    its initializer, so no later stage grows a const-value concept. An
+    initializer that needs no machine (a literal, an alias, or builtin integer
+    arithmetic over literals and other such constants) is folded by
+    `preparation` itself; one that would have to run a machine is not
+    evaluated in this stage.
 
     Each phase lives in one file named after its module, and the larger
     sub-phases live beside it as `<phase>_<submodule>.rs`, attached with a

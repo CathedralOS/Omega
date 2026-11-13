@@ -82,7 +82,20 @@ pub(super) fn invocations(
                         .get(ordinal as usize)
                         .is_some_and(|parameter| parameter.symbol == symbol) =>
             {
-                Invocation::Parameter(ordinal)
+                let source = ordinal as usize;
+                if parameters[source].relevance != language_core::BindingRelevance::Relevant {
+                    return Err(unavailable(
+                        context,
+                        "invocation permission names an erased formal",
+                    ));
+                }
+                let runtime = parameters[..source]
+                    .iter()
+                    .filter(|formal| formal.relevance == language_core::BindingRelevance::Relevant)
+                    .count();
+                Invocation::Parameter(u32::try_from(runtime).map_err(|_| {
+                    unavailable(context, "invocation runtime parameter coordinate overflow")
+                })?)
             }
             AuthoredInvocationTarget::Service(symbol) if symbol.is_valid() => {
                 let id = typed.service_reaches.id_for_symbol(symbol).ok_or_else(|| {
@@ -160,6 +173,23 @@ impl Program<'_> {
         &mut self,
         bodies: &IdTable<MachineId, Body>,
     ) -> Checked<()> {
+        // An abstract requirement can defer its operational contract to a
+        // later application. The generic witness retains that open Signature;
+        // it cannot publish a complete callable envelope or supply descriptors.
+        if let Some(requirement) = self.requirements.iter().copied().find(|id| {
+            self.symbols
+                .get(*id)
+                .is_some_and(|symbol| self.typed.machine_by_symbol(*symbol).is_none())
+                && !matches!(self.callables.envelopes.get(*id), Some(Some(_)))
+        }) {
+            if !self.callables.contracts.is_empty() || !self.callables.descriptors.is_empty() {
+                return Err(unavailable(
+                    requirement,
+                    "runtime callable needs the abstract requirement's complete operational contract",
+                ));
+            }
+            return Ok(());
+        }
         let mut policies = IdTable::default();
         let mut published = IdTable::default();
         let mut calls = IdTable::default();
@@ -200,7 +230,7 @@ impl Program<'_> {
                 };
                 Policy {
                     reach: crate::reach::written_ceiling(self.typed, id, *symbol)?,
-                    invokes: if machine.is_public || !authored.is_empty() {
+                    invokes: if !authored.is_empty() {
                         Some(invocations(self.typed, id, authored, parameters)?)
                     } else {
                         None
@@ -246,6 +276,7 @@ impl Program<'_> {
             for (id, uses) in calls.iter() {
                 let mut reached = empty();
                 for invocation in uses {
+                    let target_signature = self.source_call_signature(id, invocation.target)?;
                     let envelope = match invocation.target {
                         CallTarget::Machine(callee) => {
                             terminal_check_tables::row(&published, *callee, id, Construct::Machine)?
@@ -285,10 +316,16 @@ impl Program<'_> {
                                 union(&mut reached.invocations, &[Invocation::Service(*service)])
                             }
                             Invocation::Parameter(position) => {
-                                let actual = invocation
-                                    .arguments
-                                    .get(*position as usize)
+                                let source_position = target_signature
+                                    .source_parameter_position(*position as usize)
                                     .ok_or_else(|| {
+                                        unavailable(
+                                            id,
+                                            "invocation permission names no runtime formal",
+                                        )
+                                    })?;
+                                let actual =
+                                    invocation.arguments.get(source_position).ok_or_else(|| {
                                         unavailable(
                                             id,
                                             "invocation permission lost its exact actual",
@@ -309,11 +346,10 @@ impl Program<'_> {
                                         union(
                                             &mut reached.invocations,
                                             &[Invocation::Parameter(
-                                                u32::try_from(*slot).map_err(|_| {
-                                                    unavailable(
-                                                        id,
-                                                        "invocation parameter coordinate overflow",
-                                                    )
+                                                u32::try_from(self.signatures.get(id)
+                                                    .and_then(|signature| signature.runtime_parameter_position(*slot))
+                                                    .ok_or_else(|| unavailable(id, "invocation actual names no runtime caller formal"))?).map_err(|_| {
+                                                    unavailable(id, "invocation parameter coordinate overflow")
                                                 })?,
                                             )],
                                         )
@@ -366,9 +402,24 @@ impl Program<'_> {
                     {
                         union(
                             &mut reached.invocations,
-                            &[Invocation::Parameter(u32::try_from(slot).map_err(
-                                |_| unavailable(id, "invocation parameter coordinate overflow"),
-                            )?)],
+                            &[Invocation::Parameter(
+                                u32::try_from(
+                                    self.signatures
+                                        .get(id)
+                                        .and_then(|signature| {
+                                            signature.runtime_parameter_position(slot)
+                                        })
+                                        .ok_or_else(|| {
+                                            unavailable(
+                                                id,
+                                                "selected callee names no runtime caller formal",
+                                            )
+                                        })?,
+                                )
+                                .map_err(|_| {
+                                    unavailable(id, "invocation parameter coordinate overflow")
+                                })?,
+                            )],
                         );
                     }
                 }
@@ -591,7 +642,9 @@ fn collect_target<'a>(target: &'a Target, calls: &mut Vec<Use<'a>>) {
 }
 fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) {
     match &expression.kind {
-        E::Call { callee, arguments } => {
+        E::Call {
+            callee, arguments, ..
+        } => {
             if let CallTarget::Selected { callable, .. } = callee {
                 collect_expression(callable, calls);
             }
@@ -653,7 +706,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
 }
 
 impl Program<'_> {
-    pub(crate) fn service_map(&self, context: MachineId) -> Checked<crate::reach::ServiceMap> {
+    pub(crate) fn service_map(&mut self, context: MachineId) -> Checked<crate::reach::ServiceMap> {
         let mut roots = Vec::new();
         for (_, row) in self.callables.contracts.iter() {
             source_roots(&row.envelope, &mut roots);
@@ -671,7 +724,72 @@ impl Program<'_> {
             source_roots(&row.envelope, &mut roots);
         }
         self.static_contracts.service_roots(&mut roots);
-        crate::reach::ServiceMap::prepare(self.typed, context, &roots)
+        let roots = crate::reach::source_closure(self.typed, context, &roots)?;
+        let mut bindings = Vec::with_capacity(roots.len());
+        for source in roots {
+            let symbol = self
+                .typed
+                .service_reaches
+                .definition(source)
+                .ok_or_else(|| unavailable(context, "service declaration is absent"))?
+                .symbol;
+            let declaration = self
+                .typed
+                .trait_definition_by_symbol(symbol)
+                .filter(|declaration| declaration.is_boundary)
+                .ok_or_else(|| {
+                    unavailable(context, "service does not name its exact boundary trait")
+                })?;
+            let id = self.declared_service(context, declaration)?;
+            bindings.push((source, id));
+        }
+        let services =
+            crate::reach::ServiceMap::prepare(self.typed, context, &self.services, bindings)?;
+        let contracts = self.callables.contracts.keys().collect::<Vec<_>>();
+        for contract in contracts {
+            let row = self.callables.contracts.get_mut(contract).ok_or_else(|| {
+                unavailable(
+                    context,
+                    "callable contract disappeared while projecting its envelope",
+                )
+            })?;
+            row.signature.reaches =
+                crate::Ceiling::Authored(services.row(context, &row.envelope.service_reach)?);
+            row.signature.invokes = crate::Ceiling::Authored(
+                services
+                    .envelope(context, &row.envelope)?
+                    .invocations
+                    .into_iter()
+                    .filter_map(|entry| match entry {
+                        terminal_psi::TerminalCallableInvocation::Service(service) => Some(service),
+                        terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
+                    })
+                    .collect(),
+            );
+        }
+        let boundaries = self.boundaries.rows.keys().collect::<Vec<_>>();
+        for boundary in boundaries {
+            let row = self.boundaries.rows.get_mut(boundary).ok_or_else(|| {
+                unavailable(
+                    context,
+                    "boundary disappeared while projecting its envelope",
+                )
+            })?;
+            row.signature.reaches =
+                crate::Ceiling::Authored(services.row(context, &row.envelope.service_reach)?);
+            row.signature.invokes = crate::Ceiling::Authored(
+                services
+                    .envelope(context, &row.envelope)?
+                    .invocations
+                    .into_iter()
+                    .filter_map(|entry| match entry {
+                        terminal_psi::TerminalCallableInvocation::Service(service) => Some(service),
+                        terminal_psi::TerminalCallableInvocation::Parameter(_) => None,
+                    })
+                    .collect(),
+            );
+        }
+        Ok(services)
     }
 }
 fn source_roots(envelope: &SourceEnvelope, roots: &mut Vec<ServiceReachId>) {
@@ -685,4 +803,238 @@ fn source_roots(envelope: &SourceEnvelope, roots: &mut Vec<ServiceReachId>) {
                 Invocation::Parameter(_) => None,
             }),
     );
+}
+
+use semantic_vocabulary::ServiceId;
+use typed_trees::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
+
+use crate::{Unserved, refuse};
+
+impl<'t> Program<'t> {
+    pub(super) fn service(
+        &mut self,
+        caller: MachineId,
+        scope: AppliedTraitScope<'t>,
+    ) -> Checked<ServiceId> {
+        let unavailable =
+            |reason| refuse(caller, Construct::Machine, Unserved::Declaration(reason));
+        if let Some((service, _)) = self
+            .services
+            .iter()
+            .find(|(_, (known, _))| known.same_application(self.typed, &scope))
+        {
+            return Ok(service);
+        }
+        if self.resolving_services.contains(&scope.declaration.symbol) {
+            return Err(unavailable("cyclic applied service parent declarations"));
+        }
+        if scope.portable_application_identity(self.typed).is_none() {
+            return Err(unavailable(
+                "service has no complete exact application identity",
+            ));
+        }
+        self.resolving_services.push(scope.declaration.symbol);
+        let parents = (|| {
+            scope
+                .parent_scopes(self.typed)
+                .map_err(unavailable)?
+                .into_iter()
+                .map(|parent| self.service(caller, parent))
+                .collect::<Checked<Vec<_>>>()
+        })();
+        self.resolving_services.pop();
+        let mut parents = parents?;
+        parents.sort_unstable();
+        parents.dedup();
+        Ok(self.services.push((scope, parents)))
+    }
+
+    pub(super) fn declared_service(
+        &mut self,
+        caller: MachineId,
+        owner: &'t typed_trees::trait_definition::TraitDefinition,
+    ) -> Checked<ServiceId> {
+        let scope = AppliedTraitScope::new(
+            self.typed,
+            owner,
+            TraitApplicationArguments {
+                lexical_owner: owner.symbol,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .ok_or_else(|| {
+            refuse(
+                caller,
+                Construct::Machine,
+                Unserved::Declaration("boundary service needs its complete applied declaration"),
+            )
+        })?;
+        self.service(caller, scope)
+    }
+
+    /// What `owner`'s header says about service reach: its `reaches` clause
+    /// as the services it names and their boundary parents, or `Inferred`
+    /// when it wrote none. One reader for a checked body, a requirement and
+    /// a boundary requirement.
+    ///
+    /// effects.md, "Declarations": "`reaches A + B` bounds service reach by
+    /// the named boundary services and their boundary parents"; "Boundary
+    /// traits supply identities that may be named in `reaches`"; "Ordinary
+    /// traits are not service identities." The typed trees keep one authored
+    /// row per written clause, with no target for `reaches none`, so a
+    /// clause is told from an omission by the row and never by an empty
+    /// set. A ceiling bound by an installation (`reaches <= Bound`) is an
+    /// abstract row, which no slice reads yet.
+    pub(super) fn reach_ceiling(
+        &mut self,
+        caller: MachineId,
+        owner: symbols::SymbolHandle,
+    ) -> Checked<crate::Ceiling> {
+        let typed = self.typed;
+        let unserved = |what| refuse(caller, Construct::Machine, Unserved::Machine(what));
+        let Some(owner) = crate::reach::authored_ceiling_owner(typed, caller, owner)? else {
+            return Ok(crate::Ceiling::Inferred);
+        };
+        let mut named = Vec::new();
+        for row in typed.authored_service_reach_rows_for(owner) {
+            if row.installation_bound {
+                return Err(unserved("service reach bound by an installation"));
+            }
+            named.extend(row.targets.iter().map(|target| target.service));
+        }
+        Ok(crate::Ceiling::Authored(self.named_row(
+            caller,
+            named,
+            crate::body::Axis::Reach,
+        )?))
+    }
+
+    /// What a header says about synchronous entry: its `invokes` rows as
+    /// the requirement identities they name. `bodyless` is a requirement,
+    /// boundary or not.
+    ///
+    /// effects.md, "Direct synchronous invocation": on a checked body an
+    /// omitted clause means "Infer and publish its entries" and a written
+    /// one bounds them; on a bodyless requirement omission is "No
+    /// synchronous entry", an empty written row. "A row names a parameter
+    /// path or a requirement identity." A parameter path stands for the
+    /// binding a call supplies, so charging a caller for it needs the
+    /// actual substituted at each call. The complete SourceEnvelope retains
+    /// that origin while this signature row records only service entries.
+    pub(super) fn entry_ceiling(
+        &mut self,
+        caller: MachineId,
+        rows: &[typed_trees::signature::AuthoredInvocation],
+        parameters: &[typed_trees::signature::StateParameter],
+        bodyless: bool,
+    ) -> Checked<crate::Ceiling> {
+        use typed_trees::signature::AuthoredInvocationTarget as Named;
+        if rows.is_empty() && !bodyless {
+            return Ok(crate::Ceiling::Inferred);
+        }
+        let mut named = Vec::with_capacity(rows.len());
+        for row in rows {
+            match row.target {
+                Named::Service(requirement) => named.push(requirement),
+                Named::Parameter { ordinal, symbol }
+                    if symbol.is_valid()
+                        && parameters
+                            .get(ordinal as usize)
+                            .is_some_and(|formal| formal.symbol == symbol) =>
+                {
+                    // The full envelope retains this exact formal origin;
+                    // this header row is only its service projection.
+                }
+                Named::Parameter { .. } => {
+                    return Err(refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Machine("invokes has no exact formal origin"),
+                    ));
+                }
+                Named::Unresolved => {
+                    return Err(refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Typing("invokes names nothing this program declares"),
+                    ));
+                }
+            }
+        }
+        Ok(crate::Ceiling::Authored(self.named_row(
+            caller,
+            named,
+            crate::body::Axis::Entries,
+        )?))
+    }
+
+    /// The row a clause on `axis` writes by naming `named`: the one reading
+    /// of a written ceiling. Each name must be a boundary trait, whose
+    /// applied declaration is its service identity in the module's catalog.
+    /// A reach row is closed under boundary parents; an entry row is not
+    /// (`invokes_entry_ceiling.md`, "No parent closure").
+    ///
+    /// For reach a name that is not a boundary trait is a mistake of the
+    /// program ("Ordinary traits are not service identities"). For entries
+    /// it may be a valid requirement identity ("Route and direction decide
+    /// what a row may name, not declaration kind"), which the catalog has
+    /// no identity for yet, so it is not served.
+    fn named_row(
+        &mut self,
+        caller: MachineId,
+        named: Vec<symbols::SymbolHandle>,
+        axis: crate::body::Axis,
+    ) -> Checked<Vec<ServiceId>> {
+        let typed = self.typed;
+        let mut row = Vec::with_capacity(named.len());
+        for service in named {
+            let declaration = typed
+                .trait_definition_by_symbol(service)
+                .filter(|declaration| declaration.is_boundary)
+                .ok_or_else(|| {
+                    refuse(
+                        caller,
+                        Construct::Machine,
+                        match axis {
+                            crate::body::Axis::Reach => Unserved::Typing(
+                                "reaches names something that is not a boundary trait",
+                            ),
+                            crate::body::Axis::Entries => Unserved::Machine(
+                                "invokes naming a requirement that is not a boundary trait",
+                            ),
+                        },
+                    )
+                })?;
+            row.push(self.declared_service(caller, declaration)?);
+        }
+        Ok(match axis {
+            crate::body::Axis::Reach => self.with_parents(row),
+            crate::body::Axis::Entries => {
+                row.sort_unstable();
+                row.dedup();
+                row
+            }
+        })
+    }
+
+    /// `services` and every boundary parent of one, strictly increasing.
+    /// effects.md: "parents(R) subset-of normalize(R)".
+    fn with_parents(&self, mut services: Vec<ServiceId>) -> Vec<ServiceId> {
+        let mut next = 0;
+        while let Some(service) = services.get(next).copied() {
+            next += 1;
+            if let Some((_, parents)) = self.services.get(service) {
+                for parent in parents {
+                    if !services.contains(parent) {
+                        services.push(*parent);
+                    }
+                }
+            }
+        }
+        services.sort_unstable();
+        services.dedup();
+        services
+    }
 }

@@ -73,6 +73,37 @@ pub fn prove_callable_refinement<'a>(
             consumed.verdict.as_ref().map_err(Clone::clone)?;
         }
     }
+    // effects.md: "provider reach subset-of requirement reach ceiling, when
+    // one is declared". The witness stands for the required contract and
+    // calls the supplied one, so the per-call containment is that rule. A
+    // supplied callable outside the ceiling is refused here, not reported
+    // as a rejection: this operation has no rejection of its own. The same
+    // containment on the entries axis is "Bound the entries of every
+    // admitted implementation".
+    if let Some(excess) = crate::ceilings::judge(&witness)?.into_iter().next() {
+        return Err(crate::refusal(
+            RefusalReason::Unsupported,
+            excess.machine,
+            excess.at,
+            match excess.axis {
+                crate::ceilings::Axis::Reach => {
+                    "supplied callable reaches a service outside the required ceiling"
+                }
+                crate::ceilings::Axis::Entries => {
+                    "supplied callable enters a callback outside the required invokes ceiling"
+                }
+                crate::ceilings::Axis::Suspension => {
+                    "supplied callable may suspend outside the required ceiling"
+                }
+                crate::ceilings::Axis::Blocking => {
+                    "supplied callable may block outside the required ceiling"
+                }
+                crate::ceilings::Axis::Termination => {
+                    "supplied callable lacks the required termination guarantee"
+                }
+            },
+        ));
+    }
     Ok(())
 }
 

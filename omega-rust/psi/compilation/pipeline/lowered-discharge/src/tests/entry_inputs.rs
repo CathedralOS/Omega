@@ -170,6 +170,8 @@ fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
             result: Some(u32_type().into()),
             requires,
             ensures: Vec::new(),
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(trap_when(vec![terminal_psi::CrashRouteGuard::Truth])),
             termination: Termination::Silent,
         });
@@ -193,8 +195,9 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
         slots: vec![u32_type().into()],
         statements: vec![Statement::Evaluate(expression(
             ExpressionKind::Call {
-                callee: id(2),
+                callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                 arguments: vec![slot(0, u32_type())],
+                designated: None,
             },
             None,
         ))],
@@ -217,6 +220,8 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
                 result: None,
                 requires,
                 ensures: Vec::new(),
+                reaches: structure_elaboration::Ceiling::Inferred,
+                invokes: structure_elaboration::Ceiling::Inferred,
                 crashes: CrashCeiling::Authored(Vec::new()),
                 termination: Termination::Silent,
             });

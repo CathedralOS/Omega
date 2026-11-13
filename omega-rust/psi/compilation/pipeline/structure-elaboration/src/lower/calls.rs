@@ -64,17 +64,19 @@ pub(super) enum EvaluatedCallTarget {
     },
     Boundary {
         boundary: semantic_vocabulary::BoundaryMachineId,
-        build: Option<crate::BuildCallSource>,
     },
 }
 
 impl Lowering<'_> {
     fn target_signature(&self, target: &CallTarget) -> Checked<Signature> {
         match target {
-            CallTarget::Machine(machine) => {
-                terminal_check_tables::row(self.signatures, *machine, self.id, Construct::Machine)
-                    .cloned()
-            }
+            CallTarget::Machine(machine) => terminal_check_tables::row(
+                self.signatures.machines,
+                *machine,
+                self.id,
+                Construct::Machine,
+            )
+            .cloned(),
             CallTarget::Selected { contract, .. } => self
                 .callables
                 .contracts
@@ -88,9 +90,8 @@ impl Lowering<'_> {
     fn evaluated_target(&mut self, target: &CallTarget) -> Checked<EvaluatedCallTarget> {
         match target {
             CallTarget::Machine(machine) => Ok(EvaluatedCallTarget::Machine(*machine)),
-            CallTarget::Boundary { boundary, build } => Ok(EvaluatedCallTarget::Boundary {
+            CallTarget::Boundary { boundary } => Ok(EvaluatedCallTarget::Boundary {
                 boundary: *boundary,
-                build: *build,
             }),
             CallTarget::Selected { callable, contract } => {
                 if callable.result
@@ -129,6 +130,22 @@ impl Lowering<'_> {
                 Ok(Outcome {
                     completes_normally: true,
                     crash_routes,
+                    service_reach: match signature.reaches {
+                        crate::Ceiling::Authored(row) => row,
+                        crate::Ceiling::Inferred => {
+                            return Err(
+                                self.internal("selected callable has no published service ceiling")
+                            );
+                        }
+                    },
+                    synchronous_entries: match signature.invokes {
+                        crate::Ceiling::Authored(row) => row,
+                        crate::Ceiling::Inferred => {
+                            return Err(
+                                self.internal("selected callable has no published entry ceiling")
+                            );
+                        }
+                    },
                 })
             }
         }
@@ -283,11 +300,9 @@ impl Lowering<'_> {
         expression: &'e Expression,
     ) -> Checked<Option<(&'e CallTarget, &'e [Expression])>> {
         match &expression.kind {
-            ExpressionKind::Call { callee, arguments }
-                if !self.target_outcome(callee)?.completes_normally =>
-            {
-                Ok(Some((callee, arguments)))
-            }
+            ExpressionKind::Call {
+                callee, arguments, ..
+            } if !self.target_outcome(callee)?.completes_normally => Ok(Some((callee, arguments))),
             ExpressionKind::Call { .. }
             | ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
@@ -398,9 +413,13 @@ impl Lowering<'_> {
         let invocation = self.tables.invocations.push(InvocationRow {
             site,
             callee: match callee {
-                EvaluatedCallTarget::Machine(machine) => Callee::Machine(machine),
+                EvaluatedCallTarget::Machine(machine) => {
+                    Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(machine))
+                }
                 EvaluatedCallTarget::Selected { callable, .. } => Callee::Selected { callable },
-                EvaluatedCallTarget::Boundary { boundary, .. } => Callee::Boundary { boundary },
+                EvaluatedCallTarget::Boundary { boundary, .. } => Callee::Declared(
+                    semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
+                ),
             },
             actuals: actuals.to_vec(),
             requirements: Vec::new(),
@@ -433,6 +452,7 @@ impl Lowering<'_> {
         &mut self,
         callee: &CallTarget,
         arguments: &[Expression],
+        designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
@@ -443,9 +463,12 @@ impl Lowering<'_> {
         if !outcome.completes_normally {
             return Err(refuse(
                 self.id,
-                self.current.map_or(Construct::Machine, Construct::Block),
+                Construct::Machine,
                 Unserved::Call("no-normal call inside an expression"),
             ));
+        }
+        if designated.is_some() && !matches!(callee, CallTarget::Boundary { .. }) {
+            return Err(self.internal("designated operands on a call that is no boundary call"));
         }
         let signature = self.target_signature(callee)?;
         let target = self.evaluated_target(callee)?;
@@ -462,6 +485,9 @@ impl Lowering<'_> {
         )?;
         let before = self.here()?;
         let operation = self.operation_identity(source);
+        if let Some(designated) = designated {
+            self.sources.designated.push((operation, designated));
+        }
         let requirements = self.invocation(
             InvocationSite::Operation(operation),
             target,
@@ -594,20 +620,6 @@ impl Lowering<'_> {
                 }
             }
         };
-        if let EvaluatedCallTarget::Boundary {
-            boundary,
-            build: Some(build),
-        } = target
-        {
-            self.build_calls.push(crate::EmittedBuildCall {
-                machine: self.id,
-                operation,
-                boundary,
-                owner: build.owner,
-                declaration: build.declaration,
-                occurrence: build.occurrence,
-            });
-        }
         self.returned_loans(&arguments.loans, operation)?;
         if !arguments.consumed.is_empty() {
             self.retire_homes(&arguments.consumed, source)?;

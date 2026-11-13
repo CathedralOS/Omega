@@ -3123,25 +3123,36 @@ pub mod types {
                         base_type,
                         constraints,
                     } => {
-                        let mut mentions_binder = false;
-                        for constraint in self.constraints(constraints) {
-                            if let TypeConstraintNode::Domain(domain) = constraint {
-                                for argument in &domain.arguments {
-                                    mentions_binder |=
-                                        self.names_any_binder(*argument, substitutions)?;
-                                }
+                        // `run: Run<P, T> in Live<P, T>` applied at `<u8, Item>`
+                        // is `Run<u8, Item> in Live<u8, Item>`: a domain's
+                        // arguments are types of the same telescope as the
+                        // carrier, so they take the same substitution. The
+                        // authored span stays as written for the template;
+                        // whether the applied domain holds is not asked here.
+                        let instantiated = self.instantiate(base_type, substitutions)?;
+                        let mut applied = self.constraints(constraints).to_vec();
+                        let mut changed = false;
+                        for constraint in &mut applied {
+                            let TypeConstraintNode::Domain(domain) = constraint else {
+                                continue;
+                            };
+                            for argument in &mut domain.arguments {
+                                let actual = self.instantiate(*argument, substitutions)?;
+                                changed |= actual != *argument;
+                                *argument = actual;
                             }
                         }
-                        if mentions_binder {
-                            return Err(
-                                "a trait parameter inside a domain argument has no instantiation",
-                            );
-                        }
-                        let instantiated = self.instantiate(base_type, substitutions)?;
-                        (instantiated != base_type).then_some(TypeReferenceNode::Constrained {
-                            base_type: instantiated,
-                            constraints,
-                        })
+                        let constraints = if changed {
+                            self.insert_constraints(applied)
+                        } else {
+                            constraints
+                        };
+                        (changed || instantiated != base_type).then_some(
+                            TypeReferenceNode::Constrained {
+                                base_type: instantiated,
+                                constraints,
+                            },
+                        )
                     }
                     TypeReferenceNode::FixedArray {
                         element_type,
@@ -3228,45 +3239,6 @@ pub mod types {
                 }
                 Ok((instantiated != original)
                     .then(|| self.insert_type_reference_handles(instantiated)))
-            }
-
-            fn names_any_binder(
-                &self,
-                handle: TypeReferenceHandle,
-                substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-            ) -> Result<bool, &'static str> {
-                if !handle.is_valid() {
-                    return Ok(false);
-                }
-                Ok(match self.type_reference(handle) {
-                    TypeReferenceNode::Named { symbol, .. } => {
-                        substitutions.iter().any(|(binder, _)| binder == symbol)
-                    }
-                    TypeReferenceNode::Reference { referee, .. } => {
-                        self.names_any_binder(*referee, substitutions)?
-                    }
-                    TypeReferenceNode::Constrained { base_type, .. } => {
-                        self.names_any_binder(*base_type, substitutions)?
-                    }
-                    TypeReferenceNode::FixedArray { element_type, .. }
-                    | TypeReferenceNode::Slice { element_type } => {
-                        self.names_any_binder(*element_type, substitutions)?
-                    }
-                    TypeReferenceNode::Generic { arguments, .. }
-                    | TypeReferenceNode::DynamicTrait { arguments, .. } => {
-                        let mut mentions = false;
-                        for argument in self.type_reference_handles(*arguments) {
-                            mentions |= self.names_any_binder(*argument, substitutions)?;
-                        }
-                        mentions
-                    }
-                    TypeReferenceNode::Callable { .. } => {
-                        return Err(
-                            "machine contract binder dependencies require the complete typed tables",
-                        );
-                    }
-                    TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => false,
-                })
             }
         }
     }
@@ -5295,6 +5267,88 @@ pub mod types {
                 },
             });
             assert!(table.instantiate(array, &[(binder, element)]).is_err());
+        }
+
+        /// `u64 in Live<T>` and its refused twin `u64 in Live<[Item; T]>`,
+        /// both applied at `T := Item`.
+        #[test]
+        fn instantiation_applies_the_substitution_to_domain_arguments() {
+            let mut builder = SymbolTableBuilder::default();
+            let binder = builder.insert_root(SymbolKind::TypeParameter, SymbolNameRef::Static("T"));
+            let item = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("Item"));
+            let carrier = builder.insert_root(SymbolKind::Data, SymbolNameRef::Static("Carrier"));
+            let mut table = TypeReferenceTable::new();
+            let mut named = |symbol, name: &'static str| {
+                table.insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::from(name),
+                })
+            };
+            let formal = named(binder, "T");
+            let actual = named(item, "Item");
+            let carrier = named(carrier, "Carrier");
+            let constrained = |table: &mut TypeReferenceTable, argument| {
+                let constraints = table.insert_constraints([
+                    TypeConstraintNode::Named(Identifier::from("Plain")),
+                    TypeConstraintNode::Domain(crate::types::DomainConstraint {
+                        name: Identifier::from("Live"),
+                        arguments: vec![argument, carrier],
+                        ..Default::default()
+                    }),
+                ]);
+                let reference = table.insert(TypeReferenceNode::Constrained {
+                    base_type: carrier,
+                    constraints,
+                });
+                (reference, constraints)
+            };
+            let substitutions = [(binder, actual)];
+
+            let (open, authored) = constrained(&mut table, formal);
+            let applied = table
+                .instantiate(open, &substitutions)
+                .expect("a domain argument naming the binder instantiates");
+            assert_ne!(applied, open);
+            let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = table.type_reference(applied).clone()
+            else {
+                panic!("the applied type keeps its constraint")
+            };
+            assert_eq!(base_type, carrier);
+            let domain_arguments = |table: &TypeReferenceTable, span| {
+                let [
+                    TypeConstraintNode::Named(_),
+                    TypeConstraintNode::Domain(domain),
+                ] = table.constraints(span)
+                else {
+                    panic!("both constraints stay in their authored order")
+                };
+                domain.arguments.clone()
+            };
+            assert_eq!(domain_arguments(&table, constraints), [actual, carrier]);
+            // The template keeps the arguments it was written with.
+            assert_eq!(domain_arguments(&table, authored), [formal, carrier]);
+
+            // A constraint that names no binder is the same row afterwards.
+            let (closed, _) = constrained(&mut table, actual);
+            assert_eq!(table.instantiate(closed, &substitutions), Ok(closed));
+
+            // The binder as an array length inside the argument has no type
+            // to become, so the whole application is refused.
+            let array = table.insert(TypeReferenceNode::FixedArray {
+                element_type: actual,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: binder,
+                    name: Identifier::from("T"),
+                },
+            });
+            let (unsubstitutable, _) = constrained(&mut table, array);
+            assert_eq!(
+                table.instantiate(unsubstitutable, &substitutions),
+                Err("a trait parameter as an array length has no instantiation")
+            );
         }
     }
 }

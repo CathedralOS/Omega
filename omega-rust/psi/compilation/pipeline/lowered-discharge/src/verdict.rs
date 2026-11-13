@@ -79,8 +79,9 @@ pub enum RouteVerdict {
     /// prover could not discharge, in machine and obligation order;
     /// `unestablished` one per use of storage that some path reaches with
     /// nothing established in it; `conflicts` one per loan that may not be
-    /// formed; `formations` one per invalid bound calling shape. At least one
-    /// list is not empty.
+    /// formed; `exceeded` one per call outside its caller's service reach;
+    /// `formations` one per invalid bound calling shape. At least one list
+    /// is not empty.
     Rejected {
         /// Calling-shape failures known before any body is elaborated.
         formations: Vec<crate::CallableFormationFailure>,
@@ -88,9 +89,8 @@ pub enum RouteVerdict {
         unestablished: Vec<UnestablishedUse>,
         /// One per loan that may not be formed where it is.
         conflicts: Vec<ConflictingUse>,
-        /// One per call that contributes services its caller's written
-        /// `reaches` ceiling leaves out (`service_reach`).
-        exceeded: Vec<crate::ExceededReach>,
+        /// One per call that reaches a service outside its caller's reach.
+        exceeded: Vec<ExceededReach>,
     },
     /// No obligation is unproved for want of a derivation, but the prover has
     /// no rule for the form of at least one goal, so the route can judge the
@@ -456,6 +456,126 @@ impl UnestablishedUse {
     }
 }
 
+/// One call outside a ceiling its caller publishes: it reaches a service
+/// outside the caller's service reach, or may enter a callback outside the
+/// caller's `invokes`. A compile error of the program with no certificate:
+/// effects.md, "A derived reach that exceeds its ceiling rejects at the call
+/// that contributes the excess. The diagnostic names that call, the
+/// identities its requirement declares, and the ceiling."
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExceededReach {
+    pub axis: crate::ceilings::Axis,
+    pub machine: MachineId,
+    /// The call operation or edge.
+    pub at: Construct,
+    pub site: Option<SourceOrigin>,
+    /// Diagnostic text only.
+    pub statement: String,
+}
+
+impl ExceededReach {
+    pub fn message(&self) -> String {
+        match self.axis {
+            crate::ceilings::Axis::Reach => format!("{} (service reach)", self.statement),
+            crate::ceilings::Axis::Entries => {
+                format!("{} (synchronous invocation)", self.statement)
+            }
+            crate::ceilings::Axis::Suspension => format!("{} (suspension)", self.statement),
+            crate::ceilings::Axis::Blocking => format!("{} (blocking)", self.statement),
+            crate::ceilings::Axis::Termination => format!("{} (termination)", self.statement),
+        }
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site.and_then(SourceOrigin::span) {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
+        }
+    }
+}
+
+fn exceeded_reach(
+    elaboration: &Elaboration,
+    excess: crate::ceilings::Excess,
+) -> Checked<ExceededReach> {
+    let module = &elaboration.module;
+    let permissions = |row: &[crate::ceilings::Permission]| {
+        if row.is_empty() {
+            return "none".to_owned();
+        }
+        row.iter()
+            .map(|entry| match entry {
+                crate::ceilings::Permission::Entry(
+                    terminal_psi::TerminalCallableInvocation::Parameter(position),
+                ) => {
+                    format!("parameter {}", u64::from(*position) + 1)
+                }
+                crate::ceilings::Permission::Entry(
+                    terminal_psi::TerminalCallableInvocation::Service(service),
+                ) => module
+                    .services
+                    .iter()
+                    .find(|declaration| declaration.id == *service)
+                    .and_then(|declaration| module.identities.text(declaration.identity))
+                    .unwrap_or("an unnamed service")
+                    .to_owned(),
+                crate::ceilings::Permission::MaySuspend => "suspension".to_owned(),
+                crate::ceilings::Permission::MayBlock => "blocking".to_owned(),
+                crate::ceilings::Permission::MayDiverge => "nontermination".to_owned(),
+            })
+            .collect::<Vec<_>>()
+            .join(" + ")
+    };
+    let machine_name = |machine: MachineId| {
+        elaboration
+            .names
+            .get(machine)
+            .map(|names| names.machine.as_str())
+            .filter(|name| !name.is_empty())
+            .unwrap_or("a machine")
+    };
+    let callee = match excess.callee {
+        terminal_check_tables::edges::Callee::Declared(
+            semantic_vocabulary::TargetMachineCallable::Machine(callee),
+        ) => machine_name(callee).to_owned(),
+        terminal_check_tables::edges::Callee::Declared(
+            semantic_vocabulary::TargetMachineCallable::Boundary(callee),
+        ) => module
+            .boundary_machine(callee)
+            .and_then(|declaration| module.identities.text(declaration.identity))
+            .unwrap_or("a boundary requirement")
+            .to_owned(),
+        terminal_check_tables::edges::Callee::Selected { callable } => {
+            format!("evaluated callable value {}", callable.get())
+        }
+    };
+    let ceiling_description = match excess.axis {
+        crate::ceilings::Axis::Reach => format!("reaches `{}`", permissions(&excess.ceiling)),
+        crate::ceilings::Axis::Entries => format!("invokes `{}`", permissions(&excess.ceiling)),
+        crate::ceilings::Axis::Suspension => "permits no suspension".to_owned(),
+        crate::ceilings::Axis::Blocking => "permits no blocking".to_owned(),
+        crate::ceilings::Axis::Termination => "guarantees termination".to_owned(),
+    };
+    let site = match elaboration.sources.get(excess.machine) {
+        Some(sources) => Some(source_of(sources, excess.machine, excess.at)?),
+        None => None,
+    };
+    Ok(ExceededReach {
+        axis: excess.axis,
+        machine: excess.machine,
+        at: excess.at,
+        site,
+        statement: format!(
+            "machine `{}` {ceiling_description} but its call of `{callee}` contributes `{}`, which adds `{}`",
+            machine_name(excess.machine),
+            permissions(&excess.contributes),
+            permissions(&excess.outside),
+        ),
+    })
+}
+
 /// One loan that may not be formed where it is: a call that lends storage
 /// another of its arguments lends with an incompatible access, or an
 /// exclusive reborrow of storage held shared. A compile error of the program
@@ -504,9 +624,13 @@ fn conflict_statement(
         .invocations
         .get(conflict.invocation)
         .and_then(|row| match row.callee {
-            terminal_check_tables::edges::Callee::Machine(callee) => Some(callee),
+            terminal_check_tables::edges::Callee::Declared(
+                semantic_vocabulary::TargetMachineCallable::Machine(callee),
+            ) => Some(callee),
             terminal_check_tables::edges::Callee::Selected { .. }
-            | terminal_check_tables::edges::Callee::Boundary { .. } => None,
+            | terminal_check_tables::edges::Callee::Declared(
+                semantic_vocabulary::TargetMachineCallable::Boundary(_),
+            ) => None,
         })
         .and_then(|callee| elaboration.names.get(callee))
         .map(|names| names.machine.clone())
@@ -824,10 +948,11 @@ pub(crate) fn judge_owing(
             });
         }
     }
-    // Service reach is judged on the module's own rows, whatever the proof
-    // obligations came to.
-    let exceeded = match crate::service_reach::judge(&elaboration) {
-        Ok(exceeded) => exceeded,
+    let exceeded = match crate::ceilings::judge(&elaboration) {
+        Ok(found) => found
+            .into_iter()
+            .map(|excess| exceeded_reach(&elaboration, excess))
+            .collect::<Checked<Vec<_>>>()?,
         Err(refused) => return fall_back_or_defect(refused),
     };
     if !unestablished.is_empty() || !conflicts.is_empty() || !exceeded.is_empty() {

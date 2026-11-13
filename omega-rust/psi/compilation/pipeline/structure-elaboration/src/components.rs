@@ -199,7 +199,9 @@ fn target(target: &Target, sites: &mut Vec<CallSite>) {
     match target {
         Target::Unit | Target::Crash(_) => {}
         Target::Value(value) => match &value.kind {
-            ExpressionKind::Call { callee, arguments } => {
+            ExpressionKind::Call {
+                callee, arguments, ..
+            } => {
                 call(callee, arguments, true, sites);
             }
             _ => expression(value, sites),
@@ -276,7 +278,9 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
             expression(left, sites);
             expression(right, sites);
         }
-        ExpressionKind::Call { callee, arguments } => {
+        ExpressionKind::Call {
+            callee, arguments, ..
+        } => {
             call(callee, arguments, false, sites);
         }
     }
@@ -313,9 +317,9 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::Requalify(operand) => stored(operand),
             ExpressionKind::Strict { left, right, .. }
             | ExpressionKind::ShortCircuit { left, right, .. } => stored(left) || stored(right),
-            ExpressionKind::Call { callee, arguments } => {
-                callee.operand().is_some_and(stored) || arguments.iter().any(stored)
-            }
+            ExpressionKind::Call {
+                callee, arguments, ..
+            } => callee.operand().is_some_and(stored) || arguments.iter().any(stored),
         }
     }
     fn arm(target: &Target) -> bool {

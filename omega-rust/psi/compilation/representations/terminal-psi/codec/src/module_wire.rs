@@ -2694,9 +2694,9 @@ pub(crate) mod callable_values_wire {
     use super::dynamic_dispatch_wire::{ClaimPath, Region};
     use super::evidence_wire::{LaneKind, Subject, Term};
     use terminal_psi::{
-        TerminalCallableCatalog, TerminalCallableContract, TerminalCallableEnvelope,
-        TerminalCallableEvidenceLane, TerminalCallableInvocation, TerminalCallableTermination,
-        TerminalCallableTerminationPremise, TerminalMachineDescriptor,
+        TerminalBoundaryEnvelope, TerminalCallableCatalog, TerminalCallableContract,
+        TerminalCallableEnvelope, TerminalCallableEvidenceLane, TerminalCallableInvocation,
+        TerminalCallableTermination, TerminalCallableTerminationPremise, TerminalMachineDescriptor,
         TerminalMachineDescriptorOrigin, TerminalMachineEnvelope,
     };
 
@@ -2705,6 +2705,7 @@ pub(crate) mod callable_values_wire {
             contracts: List<Contract>,
             descriptors: List<Descriptor>,
             machine_envelopes: List<Optional<NamedEnvelope>>,
+            boundary_envelopes: List<Optional<BoundaryEnvelope>>,
         }
         Contract: TerminalCallableContract {
             id: Id,
@@ -2743,6 +2744,7 @@ pub(crate) mod callable_values_wire {
             requirement: Optional<Index>,
         }
         NamedEnvelope: TerminalMachineEnvelope { machine: Id, envelope: Envelope }
+        BoundaryEnvelope: TerminalBoundaryEnvelope { boundary: Id, envelope: Envelope }
         Envelope: TerminalCallableEnvelope {
             service_reach: Ids,
             invocations: List<Invocation>,

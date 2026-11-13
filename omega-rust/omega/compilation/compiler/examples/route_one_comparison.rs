@@ -314,6 +314,7 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
         let compilation = structure_elaboration::Compilation {
             entries: &frontier.entries,
             subjects: &[frontier.subject],
+            purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         };
@@ -618,6 +619,7 @@ fn judge_elaboration(
             unproved,
             unestablished,
             conflicts,
+            exceeded,
         }) => {
             debug_assert!(
                 formations.is_empty(),
@@ -657,6 +659,7 @@ fn judge_elaboration(
                     .map(UnprovedObligation::message)
                     .chain(unestablished.iter().map(|entry| entry.message()))
                     .chain(conflicts.iter().map(|entry| entry.message()))
+                    .chain(exceeded.iter().map(|entry| entry.message()))
                     .collect();
                 let (fragment, expected) = pinned_fragments(main, &messages);
                 lines.push(format!(

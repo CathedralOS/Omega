@@ -77,8 +77,8 @@ use terminal_psi::{
 
 use super::{Lowering, Value};
 use crate::body::{
-    Body, Expression, ExpressionKind, RecordField, RecordType, Signature, Statement, StorageShape,
-    Target, ValueType,
+    Body, Expression, ExpressionKind, RecordField, RecordType, Statement, StorageShape, Target,
+    ValueType,
 };
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -327,25 +327,8 @@ pub(crate) fn declare<'a, 'b>(
             }
             continue;
         }
-        let id = StructuralTypeId::new(structural_types.len() as u64 + 1).ok_or_else(|| {
-            refuse(
-                entry,
-                Construct::Machine,
-                Unserved::Type("structural type identity overflow"),
-            )
-        })?;
-        structural_types.push(StructuralTypeDeclaration {
-            requires: Vec::new(),
-            quotient_carrier: None,
-            id,
-            identity: identities.intern(home),
-            owns_linear_claim: false,
-            copyable: true,
-            no_code_affine_cleanup: true,
-            descriptor_cleanup: true,
-            shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
-            scalar_restriction: None,
-        });
+        let id = declare_scalar_type(&mut structural_types, identities.intern(home), scalar_type)
+            .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Type(reason)))?;
         primitives.push((value_type, home.clone(), id));
     }
     Ok(Declared {
@@ -359,6 +342,56 @@ pub(crate) fn declare<'a, 'b>(
         structural_types,
         native_layouts,
     })
+}
+
+// Calling storage and scalar homes name the same primitive structural type.
+// Publish it here once; a matching identity with another shape is a broken
+// correspondence, never permission to relabel that existing declaration.
+pub(crate) fn declare_scalar_type(
+    types: &mut Vec<StructuralTypeDeclaration>,
+    identity: TerminalIdentityIndex,
+    scalar_type: ScalarType,
+) -> Result<StructuralTypeId, &'static str> {
+    if identity.is_absent() {
+        return Err("primitive structural type has no exact identity");
+    }
+    let mut matching = types
+        .iter()
+        .filter(|declared| declared.identity == identity);
+    if let Some(declared) = matching.next() {
+        if matching.next().is_some()
+            || declared.shape != StructuralTypeShape::PrimitiveScalar(scalar_type)
+        {
+            return Err("primitive structural type has ambiguous or different storage");
+        }
+        return Ok(declared.id);
+    }
+    append_scalar_type(types, identity, scalar_type)
+}
+
+fn append_scalar_type(
+    types: &mut Vec<StructuralTypeDeclaration>,
+    identity: TerminalIdentityIndex,
+    scalar_type: ScalarType,
+) -> Result<StructuralTypeId, &'static str> {
+    let ordinal = u64::try_from(types.len())
+        .ok()
+        .and_then(|length| length.checked_add(1))
+        .ok_or("structural type identity overflow")?;
+    let id = StructuralTypeId::new(ordinal).ok_or("structural type identity overflow")?;
+    types.push(StructuralTypeDeclaration {
+        requires: Vec::new(),
+        quotient_carrier: None,
+        id,
+        identity,
+        owns_linear_claim: false,
+        copyable: true,
+        no_code_affine_cleanup: true,
+        descriptor_cleanup: true,
+        shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+        scalar_restriction: None,
+    });
+    Ok(id)
 }
 
 /// The scalar homes the loans in `statement` give SSA locals, with the text
@@ -467,7 +500,9 @@ fn expression_homes<'b>(
             expression_homes(left, homes);
             expression_homes(right, homes);
         }
-        ExpressionKind::Call { callee, arguments } => {
+        ExpressionKind::Call {
+            callee, arguments, ..
+        } => {
             if let crate::body::CallTarget::Selected { callable, .. } = callee {
                 expression_homes(callable, homes);
             }
@@ -1132,8 +1167,18 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 })
             }
-            ExpressionKind::Call { callee, arguments } => {
-                match self.call(callee, arguments, expression.result, expression.source)? {
+            ExpressionKind::Call {
+                callee,
+                arguments,
+                designated,
+            } => {
+                match self.call(
+                    callee,
+                    arguments,
+                    *designated,
+                    expression.result,
+                    expression.source,
+                )? {
                     Value::Record(root) => Ok(Located {
                         root,
                         place: self.exact_root(root)?,
@@ -2280,7 +2325,8 @@ impl<'a> Lowering<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Borrowed, CrashCeiling, Policy, Termination};
+    use crate::body::CallTarget;
+    use crate::{Borrowed, CrashCeiling, Policy, Signature, Termination};
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
     #[test]
@@ -2321,6 +2367,8 @@ mod tests {
             result: Some(plain),
             requires: Vec::new(),
             ensures: Vec::new(),
+            reaches: crate::Ceiling::Inferred,
+            invokes: crate::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
@@ -2348,7 +2396,7 @@ mod tests {
                 },
                 Statement::Evaluate(Expression {
                     kind: ExpressionKind::Call {
-                        callee: MachineId::new(2).unwrap(),
+                        callee: CallTarget::Machine(MachineId::new(2).unwrap()),
                         arguments: vec![Expression {
                             kind: ExpressionKind::Borrow {
                                 access: language_core::ReferenceAccess::Shared,
@@ -2362,6 +2410,7 @@ mod tests {
                             result: Some(plain),
                             source,
                         }],
+                        designated: None,
                     },
                     result: Some(plain),
                     source,
@@ -2394,7 +2443,7 @@ mod tests {
             machine,
             &types,
             &bodies,
-            &signatures,
+            signatures.values(),
             TerminalIdentityTableBuilder::default(),
         )
         .unwrap();

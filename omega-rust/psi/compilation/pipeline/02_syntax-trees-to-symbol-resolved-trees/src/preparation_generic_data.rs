@@ -4049,7 +4049,7 @@ pub(in crate::preparation::generic_data) use arguments::{
 pub(crate) use const_evaluation::{
     ConstFactValue, ConstScalarSpelling, ConstScalarValue, closed_fixed_array_length,
     evaluate_const_fact_binary, evaluate_const_fact_expression, evaluate_const_membership_fact,
-    prove_const_literal_predicates,
+    fold_closed_scalar_initializers, prove_const_literal_predicates,
 };
 pub(in crate::preparation::generic_data) use const_evaluation::{
     ConstPredicateAdmission, EvaluatedConst, canonicalize_closed_domain_indices,

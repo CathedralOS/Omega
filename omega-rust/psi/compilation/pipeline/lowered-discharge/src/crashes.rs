@@ -31,15 +31,21 @@ An unconditional callee route is `Truth`, and the goal is the coverage
 itself.
 */
 
-use semantic_vocabulary::{BlockId, CrashCause, MachineId, ObligationId, OperationId, Proposition};
+use semantic_vocabulary::{
+    BlockId, CrashCause, InvocationSite, MachineId, ObligationId, Proposition,
+};
 use terminal_check_tables::obligations::CrashSite;
-use terminal_check_tables::{Checked, Construct, RefusalReason};
-use terminal_psi::{CrashRouteBucket, CrashRouteGuard, OperationKind, TerminalMachine, Terminator};
+use terminal_check_tables::{Checked, Construct, MachineTables, RefusalReason};
+use terminal_psi::{
+    CrashRouteBucket, CrashRouteGuard, TerminalMachine, TerminalModule, Terminator,
+};
 
 use crate::refusal;
 
 pub(crate) fn coverage_goal(
+    module: &TerminalModule,
     lowered: &TerminalMachine,
+    tables: &MachineTables,
     id: MachineId,
     obligation: ObligationId,
     site: CrashSite,
@@ -47,8 +53,16 @@ pub(crate) fn coverage_goal(
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     let guard = match site {
-        CrashSite::Block(block) => block_site(lowered, id, concerns, block, cause)?,
-        CrashSite::Operation(operation) => operation_site(lowered, id, concerns, operation, cause)?,
+        CrashSite::Block(block) => block_site(module, lowered, tables, id, concerns, block, cause)?,
+        CrashSite::Operation(operation) => call_site(
+            module,
+            lowered,
+            tables,
+            id,
+            concerns,
+            InvocationSite::Operation(operation),
+            cause,
+        )?,
     };
     let coverage = coverage(&lowered.contract.crash_routes, cause);
     Ok(match guard {
@@ -91,69 +105,58 @@ fn route(continuations: &[CrashRouteBucket], cause: CrashCause) -> Option<Propos
     has_cause(continuations, cause).then(|| coverage(continuations, cause))
 }
 
-/// A call operation that may crash with `cause`: its guard is the callee's
-/// route.
-fn operation_site(
+/// Use the same actual invocation and public contract as call obligations.
+/// Stored routes name the evaluated machine or callable operand; a boundary
+/// header's formal routes are substituted at this exact occurrence.
+fn call_site(
+    module: &TerminalModule,
     lowered: &TerminalMachine,
+    tables: &MachineTables,
     id: MachineId,
     concerns: Construct,
-    operation: OperationId,
+    site: InvocationSite,
     cause: CrashCause,
 ) -> Checked<Guard> {
-    let found = lowered
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|candidate| candidate.id == operation);
-    match found.map(|found| &found.kind) {
-        Some(
-            OperationKind::Call {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallUnit {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallMachine {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallStructural {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallStructuralScalar {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallStructuralWithScalarArguments {
-                crash_continuations,
-                ..
-            },
-        ) => route(crash_continuations, cause)
-            .map(Guard::Route)
-            .ok_or_else(|| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    id,
-                    concerns,
-                    "the operation is not a call that may crash with this cause",
-                )
-            }),
-        _ => Err(refusal(
+    let refuse = || {
+        refusal(
             RefusalReason::ForeignIdentity,
             id,
             concerns,
-            "the operation is not a call that may crash with this cause",
-        )),
-    }
+            "the invocation is not a call that may crash with this cause",
+        )
+    };
+    let mut rows = tables
+        .invocations
+        .iter()
+        .filter(|(_, row)| row.site == site);
+    let (Some((invocation, row)), None) = (rows.next(), rows.next()) else {
+        return Err(refuse());
+    };
+    let call = crate::call_contracts::invocation(module, lowered, tables, invocation, row)?;
+    let guard = match call.inputs.crash_continuations {
+        Some(routes) => route(routes, cause).ok_or_else(refuse)?,
+        None => {
+            let guard = route(call.contract.crash_routes, cause).ok_or_else(refuse)?;
+            crate::substitute(
+                &guard,
+                &mut crate::ScalarActuals {
+                    actuals: call.inputs.arguments,
+                    result: None,
+                    tables,
+                },
+            )
+            .map_err(|unbound| unbound.refusal(id, concerns))?
+        }
+    };
+    Ok(Guard::Route(guard))
 }
 
 /// The guard of a block site: a `Crash` terminator's clauses, or a no-normal
 /// call's callee route.
 fn block_site(
+    module: &TerminalModule,
     lowered: &TerminalMachine,
+    tables: &MachineTables,
     id: MachineId,
     concerns: Construct,
     site: BlockId,
@@ -182,12 +185,24 @@ fn block_site(
                 .map(|term| term.proposition().clone())
                 .collect(),
         )),
-        Terminator::InvokeNoNormal {
-            crash_continuations,
-            ..
-        } if has_cause(crash_continuations, cause) => {
-            Ok(Guard::Route(coverage(crash_continuations, cause)))
-        }
+        Terminator::InvokeNoNormal { edge, .. } => call_site(
+            module,
+            lowered,
+            tables,
+            id,
+            concerns,
+            InvocationSite::InvokeNoNormal(*edge),
+            cause,
+        ),
+        Terminator::ExternalCompletion { edge, .. } => call_site(
+            module,
+            lowered,
+            tables,
+            id,
+            concerns,
+            InvocationSite::ExternalCompletion(*edge),
+            cause,
+        ),
         _ => Err(refusal(
             RefusalReason::ForeignIdentity,
             id,

@@ -17,6 +17,12 @@ layout/access-policy execution, checked snapshots and tree replay are deleted.
 source authority metadata; nonempty source normalization/pre-check work is
 refused with `no product route yet` until a producer through the lowered-form
 route serves it. Refusal does not claim that the source program is wrong.
+A program activated out of a retained base answers only for the requests of the
+declarations it keeps; the base's other sources stay with the base.
+Declaring a constant is not a request. A reference to a constant from another
+declaration is one only when no stage recorded the constant's value; that
+reference is refused by the constant's name, and its initializer is never read
+in place of the value.
 [source_jobs.rs](src/source_jobs.rs) retains real request configuration and
 explicit refusals for unavailable jobs. No interpreter default replaces a value.
 

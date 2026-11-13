@@ -101,8 +101,11 @@ fn callees(elaboration: &Elaboration, id: MachineId) -> Checked<Vec<MachineId>> 
             .invocations
             .values()
             .filter_map(|call| match call.callee {
-                Callee::Machine(callee) => Some(callee),
-                Callee::Selected { .. } | Callee::Boundary { .. } => None,
+                Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => {
+                    Some(callee)
+                }
+                Callee::Selected { .. }
+                | Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(_)) => None,
             })
             .collect(),
     )
@@ -254,6 +257,11 @@ fn summarize(
     let TerminalMachineResult::Scalar(declared) = &lowered.result else {
         return Ok(());
     };
+    // Callable values cross the result boundary with their contract type.
+    // They have no mathematical equality to strengthen with a body summary.
+    if matches!(declared.scalar_type, ScalarType::Callable(_)) {
+        return Ok(());
+    }
     let result = ScalarTerm::value(declared.id, declared.scalar_type);
     let exits: Vec<(EdgeId, ValueId)> = lowered
         .blocks
@@ -271,14 +279,7 @@ fn summarize(
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let mut scratch = original.clone();
-    let prepared = prepare(
-        module,
-        &module.structural_types,
-        &elaboration.domains,
-        id,
-        &mut scratch,
-        knowledge,
-    )?;
+    let prepared = prepare(module, &elaboration.domains, id, &mut scratch, knowledge)?;
     let declared_joins = joins::prepare(
         lowered,
         id,

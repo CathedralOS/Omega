@@ -731,7 +731,7 @@ impl<'a> Storage<'a> {
         &'s self,
         tables: &'s MachineTables,
         actuals: &[Actual],
-        parameters: &'s [terminal_psi::StructuralParameterDeclaration],
+        callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
         site: OperationId,
         concerns: Construct,
     ) -> Checked<AtCall<'s, 'a>> {
@@ -750,7 +750,7 @@ impl<'a> Storage<'a> {
             tables,
             scalars: crate::scalar_actuals(actuals),
             places,
-            parameters,
+            callee_formals,
             block,
             up_to: before,
             concerns,
@@ -2774,7 +2774,7 @@ pub(crate) struct AtCall<'s, 'a> {
     scalars: Vec<ValueId>,
     /// The record actuals, in the callee's structural lane order.
     places: Vec<Lineage>,
-    parameters: &'s [terminal_psi::StructuralParameterDeclaration],
+    callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
     block: BlockId,
     up_to: usize,
     concerns: Construct,
@@ -2798,7 +2798,7 @@ impl crate::Bindings for AtCall<'_, '_> {
         // The callee's root is one of its record formals; the actual is the
         // place at the same position of the structural lane.
         let actual = self
-            .parameters
+            .callee_formals
             .iter()
             .find(|parameter| parameter.place == root)
             .and_then(|parameter| usize::try_from(parameter.position).ok())

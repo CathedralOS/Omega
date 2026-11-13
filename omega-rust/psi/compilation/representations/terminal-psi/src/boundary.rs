@@ -796,6 +796,10 @@ pub(crate) mod declarations {
         pub fixed_service_reach: Vec<ServiceId>,
         pub owning_service: Option<ServiceId>,
         pub published_service_ceiling: Vec<ServiceId>,
+        /// The entries every admitted implementation may arrive at before
+        /// returning: the requirement's written `invokes`, where omission
+        /// means none. Strictly increasing, no parent closure.
+        pub published_synchronous_entries: Vec<ServiceId>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

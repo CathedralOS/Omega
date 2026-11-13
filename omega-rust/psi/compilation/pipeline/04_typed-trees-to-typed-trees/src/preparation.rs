@@ -1,15 +1,34 @@
-use arena::Handle;
+//! Typed preparation: every program's typed trees cross this stage, by one
+//! path, on their way to the checker.
+//!
+//! The stage is the ordered list of passes in [`PASSES`]. Each pass takes
+//! typed trees and returns typed trees. A pass either does its work or
+//! refuses, by name, a request it does not serve; a pass with nothing to do
+//! for a program changes nothing. No program is frozen without running the
+//! list, and nothing here judges a program: what a pass writes is input the
+//! checker reads, never a verdict.
+
 use diagnostics::Diagnostic;
 use language_core::inline_assembly::AsmAuthorityAdmission;
-use language_semantics::declaration_selection::product_operands::ProductStaticEnvironment;
-use language_semantics::declaration_selection::{ProductDeclarationOperand, ProductOperandRole};
-use symbols::SymbolHandle;
-use typed_trees::expression::ExpressionHandle;
 use typed_trees::opaque_representations::OpaqueRepresentationSelection;
-use typed_trees::product_operand::{ProductApplicationDemand, ProductOperandApplication};
 use typed_trees::{FrozenTypedTrees, TypedTrees};
 
-/// Requested input policy, not evidence that preparation or checking occurred.
+/// One step of typed preparation and the name its refusals carry.
+struct Pass {
+    name: &'static str,
+    run: fn(&mut TypedTrees) -> Result<(), Vec<Diagnostic>>,
+}
+
+/// The order is part of the stage's contract: a later pass may read what an
+/// earlier one wrote. Specialization and selection passes belong before the
+/// annotations, which describe the bodies those passes produce.
+const PASSES: &[Pass] = &[Pass {
+    name: "record patterns",
+    run: crate::passes::record_patterns::prepare,
+}];
+
+/// Work the caller asks of this stage beside the program itself. It is a
+/// request, not evidence that preparation or checking occurred.
 #[derive(Clone, Copy)]
 pub struct PreparationRequest<'request> {
     admits_pending_inputs: bool,
@@ -68,14 +87,38 @@ impl<'request> PreparationRequest<'request> {
         }
     }
 
-    fn has_work(&self) -> bool {
-        !self.deferred_layout_applications.is_empty()
-            || !self.opaque_representation_selections.is_empty()
-            || !self.wire_compatibility_demands.is_empty()
+    /// The three kinds of requested work have no pass yet. Each was served by
+    /// the deleted checker (layout evaluation, representation admission, wire
+    /// compatibility), so none may be dropped and the program presented as
+    /// prepared.
+    fn require_served(&self) -> Result<(), Vec<Diagnostic>> {
+        let unserved = [
+            (
+                !self.deferred_layout_applications.is_empty(),
+                "deferred layout applications",
+            ),
+            (
+                !self.opaque_representation_selections.is_empty(),
+                "opaque representation selections",
+            ),
+            (
+                !self.wire_compatibility_demands.is_empty(),
+                "wire compatibility demands",
+            ),
+        ]
+        .into_iter()
+        .filter(|(requested, _)| *requested)
+        .map(|(_, request)| refusal("requested work", request))
+        .collect::<Vec<_>>();
+        if unserved.is_empty() {
+            Ok(())
+        } else {
+            Err(unserved)
+        }
     }
 }
 
-/// An owned copy of requested policy only; this carries no checked receipts.
+/// An owned copy of the requested policy only; it carries no checked receipt.
 #[derive(Debug, Clone, PartialEq, compiler_storage::Record)]
 pub struct PreparationAdmission {
     admits_pending_inputs: bool,
@@ -91,127 +134,34 @@ impl PreparationAdmission {
     }
 }
 
-/// Compatibility name for input metadata, with no source-judgment output API.
+/// Compatibility name for the request metadata; it has no judgment output.
 pub type TypedPreparation = PreparationAdmission;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PreparedProductRequirement {
-    pub application: Option<Handle<ProductOperandApplication>>,
-    pub requirement: SymbolHandle,
-    pub closed_requirement: Option<SymbolHandle>,
-    pub trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
-}
-
-const NO_SOURCE_ROUTE: &str = "no product route yet: nonempty source preparation requires a structural producer after retiring the old typed preparation algorithms";
-const NO_PRODUCT_ROUTE: &str = "no product route yet: Product operand preparation requires a structural producer after retiring the old typed preparation algorithms";
-
-fn no_source_route() -> Vec<Diagnostic> {
-    vec![Diagnostic::error(NO_SOURCE_ROUTE)]
-}
-
-fn require_no_work(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    // Compare the entire semantic input, not just the root lists: retained
-    // declarations, expressions, proof requests or plans can outlive a root.
-    // TypedTrees equality excludes program identity and derived interning or
-    // index state.
-    // This is an empty-input test, never an acceptance judgment.
-    if program == &TypedTrees::default() {
-        Ok(())
-    } else {
-        Err(no_source_route())
-    }
+/// The one wording of a refusal from this stage, so a reader can tell which
+/// pass declined which request.
+fn refusal(pass: &str, request: &str) -> Diagnostic {
+    Diagnostic::error(format!(
+        "no product route yet: typed preparation: {pass}: {request}"
+    ))
 }
 
 pub fn prepare_typed_trees(
-    program: TypedTrees,
+    mut program: TypedTrees,
     request: &PreparationRequest<'_>,
 ) -> Result<(FrozenTypedTrees, TypedPreparation), Vec<Diagnostic>> {
-    require_no_work(&program)?;
-    if request.has_work() {
-        return Err(no_source_route());
+    request.require_served()?;
+    for pass in PASSES {
+        (pass.run)(&mut program).map_err(|refused| {
+            refused
+                .into_iter()
+                .map(|mut diagnostic| {
+                    diagnostic.message = refusal(pass.name, &diagnostic.message).message;
+                    diagnostic
+                })
+                .collect::<Vec<_>>()
+        })?;
     }
-    // Preserve the original owned input. No rewritten tree, checking facts or
-    // substitute receipts are manufactured for this genuine no-work case.
     Ok((program.into(), request.admission()))
-}
-
-pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    require_no_work(program)
-}
-
-pub fn prepare_constant_execution(program: TypedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
-    require_no_work(&program)?;
-    Ok(program)
-}
-
-pub fn bind_pre_specialization_authored_selections(
-    program: &mut TypedTrees,
-) -> Result<(), Diagnostic> {
-    require_no_work(program).map_err(|_| Diagnostic::error(NO_SOURCE_ROUTE))
-}
-
-pub fn prepare_requirement_expression_views(
-    program: &mut TypedTrees,
-    roots: &[(SymbolHandle, ExpressionHandle)],
-) -> Result<(), Vec<Diagnostic>> {
-    require_no_work(program)?;
-    if roots.is_empty() {
-        Ok(())
-    } else {
-        Err(no_source_route())
-    }
-}
-
-pub fn restore_copied_call_sources(
-    _program: &mut TypedTrees,
-    expressions: &[ExpressionHandle],
-) -> Result<(), &'static str> {
-    if expressions.is_empty() {
-        Ok(())
-    } else {
-        Err("no product route yet: copied call source restoration has no structural producer")
-    }
-}
-
-pub fn prepare_retained_product_application(
-    _program: &mut TypedTrees,
-    operand: &ProductDeclarationOperand,
-    _role: ProductOperandRole,
-    _declaration: SymbolHandle,
-) -> Result<Handle<ProductOperandApplication>, Vec<Diagnostic>> {
-    Err(product_error(operand))
-}
-
-pub fn prepare_product_operand_application(
-    _program: &mut TypedTrees,
-    operand: &ProductDeclarationOperand,
-    _role: ProductOperandRole,
-    _author: SymbolHandle,
-    _static_environment: Option<&ProductStaticEnvironment>,
-    _demand: ProductApplicationDemand,
-) -> Result<Option<Handle<ProductOperandApplication>>, Vec<Diagnostic>> {
-    Err(product_error(operand))
-}
-
-pub fn prepare_product_requirement_operand(
-    _program: &mut TypedTrees,
-    operand: &ProductDeclarationOperand,
-    _author: SymbolHandle,
-    _static_environment: Option<&ProductStaticEnvironment>,
-) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
-    Err(product_error(operand))
-}
-
-pub fn prepare_retained_product_requirement_operand(
-    _program: &mut TypedTrees,
-    operand: &ProductDeclarationOperand,
-    _requirement: SymbolHandle,
-) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
-    Err(product_error(operand))
-}
-
-fn product_error(operand: &ProductDeclarationOperand) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(NO_PRODUCT_ROUTE).with_source_span(operand.source_span)]
 }
 
 #[cfg(test)]
@@ -219,7 +169,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn empty_input_retains_original_identity_and_requested_policy() {
+    fn the_program_keeps_its_identity_and_the_request_its_policy() {
         let program = TypedTrees::default();
         let identity = program.identity;
         let request =
@@ -231,41 +181,31 @@ mod tests {
     }
 
     #[test]
-    fn orphaned_source_work_is_refused_without_mutating_input() {
+    fn a_program_no_pass_has_work_for_crosses_unchanged() {
+        // A retained declaration no pass reads is not a reason to refuse.
         let mut program = TypedTrees::default();
         program
             .tables
             .mathematical_definitions
             .insert(typed_trees::mathematical::MathematicalDefinition::default());
-        assert!(program.roots.mathematical_definitions.is_empty());
-        let original = program.clone();
-        assert!(prepare_execution_applications(&mut program).is_err());
-        assert_eq!(program, original);
-        assert!(prepare_typed_trees(program, &PreparationRequest::settled()).is_err());
+        let before = program.clone();
+        let (frozen, _) = prepare_typed_trees(program, &PreparationRequest::settled()).unwrap();
+        assert!(*frozen == before);
     }
 
     #[test]
-    fn requested_work_and_product_operands_do_not_become_empty_results() {
-        let mut program = TypedTrees::default();
+    fn requested_work_without_a_pass_is_refused_by_name() {
         let deferred = [typed_trees::types::TypeReferenceHandle::invalid()];
         let request = PreparationRequest {
             deferred_layout_applications: &deferred,
             ..PreparationRequest::settled()
         };
-        assert!(prepare_typed_trees(program.clone(), &request).is_err());
-        let operand = ProductDeclarationOperand::default();
-        assert!(
-            prepare_product_operand_application(
-                &mut program,
-                &operand,
-                ProductOperandRole::Requirement,
-                SymbolHandle::invalid(),
-                None,
-                ProductApplicationDemand::FormationOnly,
-            )
-            .is_err()
+        let Err(refused) = prepare_typed_trees(TypedTrees::default(), &request) else {
+            panic!("requested layout work must not be dropped");
+        };
+        assert_eq!(
+            refused[0].message,
+            "no product route yet: typed preparation: requested work: deferred layout applications"
         );
-        assert!(restore_copied_call_sources(&mut program, &[ExpressionHandle::invalid()]).is_err());
-        assert!(restore_copied_call_sources(&mut program, &[]).is_ok());
     }
 }

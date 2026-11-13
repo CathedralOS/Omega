@@ -9,7 +9,8 @@ use crate::{
     TerminalIdentityIndex, ValueDeclaration,
 };
 use semantic_vocabulary::{
-    CallableContractId, MachineDescriptorId, MachineId, ObligationId, ServiceId, StructuralDomainId,
+    BoundaryMachineId, CallableContractId, MachineDescriptorId, MachineId, ObligationId, ServiceId,
+    StructuralDomainId,
 };
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -17,6 +18,7 @@ pub struct TerminalCallableCatalog {
     pub contracts: Vec<TerminalCallableContract>,
     pub descriptors: Vec<TerminalMachineDescriptor>,
     pub machine_envelopes: Vec<Option<TerminalMachineEnvelope>>,
+    pub boundary_envelopes: Vec<Option<TerminalBoundaryEnvelope>>,
 }
 
 /// Named declarations publish their own operational contract independently of
@@ -24,6 +26,14 @@ pub struct TerminalCallableCatalog {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMachineEnvelope {
     pub machine: MachineId,
+    pub envelope: TerminalCallableEnvelope,
+}
+
+/// A bodyless requirement retains its complete operational contract, including
+/// which callable parameters it may enter before returning.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalBoundaryEnvelope {
+    pub boundary: BoundaryMachineId,
     pub envelope: TerminalCallableEnvelope,
 }
 
@@ -129,6 +139,18 @@ impl TerminalCallableCatalog {
             .get(ordinal)?
             .as_ref()
             .filter(|row| row.machine == machine)
+            .map(|row| &row.envelope)
+    }
+
+    pub fn boundary_envelope(
+        &self,
+        boundary: BoundaryMachineId,
+    ) -> Option<&TerminalCallableEnvelope> {
+        let ordinal = usize::try_from(boundary.get().checked_sub(1)?).ok()?;
+        self.boundary_envelopes
+            .get(ordinal)?
+            .as_ref()
+            .filter(|row| row.boundary == boundary)
             .map(|row| &row.envelope)
     }
 

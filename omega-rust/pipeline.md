@@ -99,7 +99,7 @@ optimization infallible.
 
 | Boundary | Checks and evidence | What remains trusted |
 | --- | --- | --- |
-| Source to typed structure | Parsing, resolution and typing in Psi 00–03 retain source identities and declarations. The 04 boundary currently refuses nonempty preparation. | Frontend preservation of source meaning and exact source custody; typed structure is no acceptance certificate. |
+| Source to typed structure | Parsing, resolution and typing in Psi 00–03 retain source identities and declarations. Psi 04 runs its pass list over every program and judges nothing. | Frontend preservation of source meaning and exact source custody; typed structure is no acceptance certificate. |
 | Unsealed Terminal Psi to accepted publication | Structural elaboration builds the module; the lowered-form checker reconstructs supported obligations on that module and retains their evidence. Unsupported, incomplete or missing verdicts refuse. | Correct obligation reconstruction, the independent proof-admission kernel and explicitly admitted premises. Publication must preserve the exact judged module and evidence. |
 | Terminal Psi to native execution | Target realization and publication checks; `omega run --both` compares native execution with the Terminal interpreter. | Backend correctness beyond the executions and observations compared, plus the interpreter and shared semantics. |
 | Received artifacts and installed providers | Bounded canonical/structural decoding; explicit host authorization of the exact artifact and producer; preparation and installation checks; concrete interpreter operation and host-access checks. | Authorized producer judgments, admitted assumptions, faithful lowering, the interpreter and installed adapters. Future untrusted interpretation requires audited containment and does not certify source claims. |
@@ -133,8 +133,9 @@ the compiler independently.
 
 Each link names an owner and its required hand-off. Private analyses and target
 setup are not additional public program stages. This map does not establish
-end-to-end availability: nonempty 04 preparation, unserved source evaluation and
-product-authority requests currently refuse with `no product route yet`. Default
+end-to-end availability: typing stops that are not rebuilt, unserved source
+evaluation and product-authority requests currently refuse with
+`no product route yet`. Default
 Build and native completion remain work on [TASKS.md](../TASKS.md).
 
 | Input → output | Owner |
@@ -143,7 +144,7 @@ Build and native completion remain work on [TASKS.md](../TASKS.md).
 | Tokens → syntax trees | [tokens-to-syntax-trees](psi/compilation/pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
-| Typed input → preparation result (nonempty work unserved) | [04 preparation boundary](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
+| Typed trees → prepared typed trees (one ordered pass list) | [typed preparation](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
 | Typed structure → unsealed Terminal Psi | [structure-elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) |
 | Unsealed Terminal Psi → accepted closure | [lowered-discharge](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
 | Accepted closure → sealed Terminal artifact | [accepted source factory](psi/compilation/psi-compiler/terminal-production/src/accepted.rs) and [codec](psi/compilation/representations/terminal-psi/codec/src/lib.rs) |
@@ -166,10 +167,10 @@ Build and native completion remain work on [TASKS.md](../TASKS.md).
 
 Independent stage crates remain directly testable; production consumers use
 compiler facades. Source loading, parsing, resolution and typing belong to Psi
-00–03. The retained 04 interface accepts only an actual empty no-work semantic
-input with no deferred layout, opaque-selection or wire work; it preserves that
-input as frozen typed data without establishing a judgment. Nonempty preparation
-needs a structural producer and currently refuses.
+00–03. Every program then crosses Psi 04, which runs one ordered list of passes
+over the typed trees and freezes the result without establishing a judgment.
+A pass does its work or refuses its own request by name; requested deferred
+layout, opaque-selection and wire work has no pass and refuses.
 
 The served checking route is `structure-elaboration` → `lowered-discharge` → the
 accepted-source factory. The factory retains the exact frozen typed owner before
@@ -409,7 +410,7 @@ recorded judgment is used.
 | --- | --- |
 | Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/psi-compiler/src/lib.rs); [package source preparation](omega/packages/package-compilation/src/source/source_assembly.rs) owns import discovery and custody between frontiers |
 | Assembled syntax → completed typing | [Psi source continuation](psi/compilation/psi-compiler/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
-| Completed typing → source-preparation result | [Psi preparation facade](psi/compilation/psi-compiler/src/source_checking.rs), with the [04 no-work boundary](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md); nonempty work refuses |
+| Completed typing → source-preparation result | [Psi preparation facade](psi/compilation/psi-compiler/src/source_checking.rs), through [typed preparation](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md), the one path to frozen typed trees |
 | Typed structure → accepted closure | [Structural elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) and [lowered-form checking](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
 | Accepted closure → Terminal artifact and evidence | [Accepted-source factory](psi/compilation/psi-compiler/terminal-production/src/accepted.rs); the [product coordinator](omega/compilation/compiler/src/terminal/terminal_artifact.rs) consumes this shared product |
 

@@ -22,6 +22,8 @@ pub(crate) struct Inputs<'a> {
     pub erased_arguments: &'a [ScalarTerm],
     pub erased_proof_arguments: &'a [ProofTerm],
     pub requirements: &'a [ObligationId],
+    pub claim_transfers: &'a [terminal_psi::ClaimTransfer],
+    pub completion_receipts: &'a [terminal_psi::CompletionReceipt],
     pub crash_continuations: Option<&'a [CrashRouteBucket]>,
 }
 
@@ -111,13 +113,17 @@ pub(crate) fn inputs_at(
         .module_invocations()
         .filter(|call| call.site == site)
         .map(|call| Inputs {
-            callee: Callee::Machine(call.inputs.callee),
+            callee: Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(
+                call.inputs.callee,
+            )),
             contract: None,
             arguments: call.inputs.arguments,
             structural_arguments: call.inputs.structural_arguments,
             erased_arguments: call.inputs.erased_arguments,
             erased_proof_arguments: call.inputs.erased_proof_arguments,
             requirements: call.inputs.requirement_obligations,
+            claim_transfers: call.inputs.claim_transfers,
+            completion_receipts: call.inputs.completion_receipts,
             crash_continuations: Some(call.inputs.crash_continuations),
         })
         .chain(
@@ -134,6 +140,8 @@ pub(crate) fn inputs_at(
                     erased_arguments: call.inputs.erased_arguments,
                     erased_proof_arguments: call.inputs.erased_proof_arguments,
                     requirements: call.inputs.requirement_obligations,
+                    claim_transfers: call.inputs.claim_transfers,
+                    completion_receipts: &[],
                     crash_continuations: Some(call.inputs.crash_continuations),
                 }),
         )
@@ -142,15 +150,22 @@ pub(crate) fn inputs_at(
                 .boundary_invocations()
                 .filter(|call| call.site == site)
                 .map(|call| Inputs {
-                    callee: Callee::Boundary {
-                        boundary: call.boundary,
-                    },
+                    callee: Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(
+                        call.boundary,
+                    )),
                     contract: None,
                     arguments: call.arguments,
                     structural_arguments: call.structural_arguments,
                     erased_arguments: &[],
                     erased_proof_arguments: &[],
                     requirements: call.requirement_obligations,
+                    claim_transfers: &[],
+                    completion_receipts: match call.completion {
+                        terminal_psi::BoundaryInvocationCompletion::Normal { receipts, .. } => {
+                            receipts
+                        }
+                        terminal_psi::BoundaryInvocationCompletion::External(_) => &[],
+                    },
                     crash_continuations: None,
                 }),
         );
@@ -184,7 +199,7 @@ pub(crate) fn invocation<'a>(
         ));
     }
     let contract = match inputs.callee {
-        Callee::Machine(id) => {
+        Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(id)) => {
             let selected = crate::terminal_machine(&module.machines, id, caller.id)?;
             PublicContract::machine(
                 &selected.contract,
@@ -219,10 +234,39 @@ pub(crate) fn invocation<'a>(
                 &contract.parameter_order,
             )
         }
-        Callee::Boundary { boundary } => {
+        Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(boundary)) => {
             let boundary = module
                 .boundary_machine(boundary)
                 .ok_or_else(|| refuse("boundary invocation names no published declaration"))?;
+            if boundary.declaration.is_none()
+                || boundary.role != terminal_psi::BoundaryDeclarationRole::Callable
+            {
+                return Err(refuse("boundary has no exact callable declaration"));
+            }
+            if boundary.declaration.as_ref().is_some_and(|declaration| {
+                declaration.source.published_may_suspend || declaration.source.published_may_block
+            }) {
+                return Err(crate::refusal(
+                    RefusalReason::Unsupported,
+                    caller.id,
+                    concerns,
+                    "boundary call needs its suspension and blocking proof",
+                ));
+            }
+            if boundary.structural_parameters.iter().any(|formal| {
+                !formal.qualifications.is_empty()
+                    || !formal.projected_qualifications.is_empty()
+                    || !formal.additional_input_qualifications.is_empty()
+            }) || matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
+                if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty())
+            {
+                return Err(crate::refusal(
+                    RefusalReason::Unsupported,
+                    caller.id,
+                    concerns,
+                    "boundary call needs its structural qualification proof",
+                ));
+            }
             if !boundary.requires.is_empty()
                 || !boundary.normal_qualifications.is_empty()
                 || !boundary.scalar_domain_requirements.is_empty()

@@ -15,8 +15,8 @@ fields and no case, a sum has cases and no field.
 */
 
 use semantic_vocabulary::{
-    CrashCause, IntegerValue, MachineId, PlaceId, Proposition, ScalarType, StructuralCaseId,
-    StructuralFieldId, StructuralTypeId, ValueId,
+    CrashCause, IdTable, IntegerValue, MachineId, PlaceId, Proposition, ScalarType,
+    StructuralCaseId, StructuralFieldId, StructuralTypeId, TargetMachineCallable, ValueId,
 };
 use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;
@@ -233,7 +233,46 @@ pub struct Signature {
     /// in authored order.
     pub ensures: Vec<Proposition>,
     pub crashes: CrashCeiling,
+    /// What the header says about service reach.
+    pub reaches: Ceiling,
+    /// What the header says about synchronous entry (`invokes`).
+    pub invokes: Ceiling,
     pub termination: Termination,
+}
+
+/// Borrow the one signature representation across the two actual declaration
+/// namespaces. A boundary signature remains a contract; looking it up neither
+/// creates a machine body nor selects a provider.
+#[derive(Clone, Copy)]
+pub(crate) struct Signatures<'a> {
+    pub machines: &'a IdTable<MachineId, Signature>,
+    pub boundaries: &'a crate::boundaries::BoundaryNamespace,
+}
+
+impl<'a> Signatures<'a> {
+    pub fn get(
+        self,
+        callable: TargetMachineCallable,
+        caller: MachineId,
+    ) -> terminal_check_tables::Checked<&'a Signature> {
+        match callable {
+            TargetMachineCallable::Machine(machine) => terminal_check_tables::row(
+                self.machines,
+                machine,
+                caller,
+                terminal_check_tables::Construct::Machine,
+            ),
+            TargetMachineCallable::Boundary(boundary) => {
+                self.boundaries.signature(boundary).ok_or_else(|| {
+                    crate::refuse(
+                        caller,
+                        terminal_check_tables::Construct::Machine,
+                        crate::Unserved::Call("boundary has no exact retained signature"),
+                    )
+                })
+            }
+        }
+    }
 }
 
 /// One formal passed by reference.
@@ -270,8 +309,36 @@ pub enum Termination {
 }
 
 impl Signature {
+    /// An interface cannot infer a ceiling from a body it does not own.
+    /// The selected declaration must supply the published routes explicitly.
+    pub fn declared_crash_routes(&self) -> Option<&[CrashRouteBucket]> {
+        match &self.crashes {
+            CrashCeiling::DeclaredNone => Some(&[]),
+            CrashCeiling::Authored(routes) => Some(routes),
+            CrashCeiling::Inferred => None,
+        }
+    }
+
     pub fn is_erased(&self, position: usize) -> bool {
         self.erased.binary_search(&position).is_ok()
+    }
+
+    pub(crate) fn runtime_parameter_position(&self, source: usize) -> Option<usize> {
+        self.parameters.get(source)?;
+        if self.is_erased(source) {
+            return None;
+        }
+        Some(
+            (0..source)
+                .filter(|position| !self.is_erased(*position))
+                .count(),
+        )
+    }
+
+    pub(crate) fn source_parameter_position(&self, runtime: usize) -> Option<usize> {
+        (0..self.parameters.len())
+            .filter(|position| !self.is_erased(*position))
+            .nth(runtime)
     }
 
     /// The reference the formal at `position` is passed by, if it is one.
@@ -345,6 +412,53 @@ pub fn formal_values(
             ValueId::new(*next)
         })
         .collect()
+}
+
+/// What a header says on one ceiling axis: service reach (`reaches`) or
+/// synchronous entry (`invokes`). Both are a set of service identities that
+/// bounds what the machine's calls contribute, published to callers, so one
+/// type, one derivation (`outcome`) and one judgment serve both.
+/// `wiki/spec/language/effects.md`: "A present clause is an upper bound, not
+/// an assertion of exact equality and not an additive contribution", and
+/// "Omission requests inference and is distinct from an explicit empty
+/// clause."
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Ceiling {
+    /// No clause on a declaration whose row is derived: a checked body
+    /// publishes what its calls contribute (`outcome`). A boundary
+    /// requirement must not omit `reaches`; a requirement that omits
+    /// `invokes` is not this case (see `Axis::Entries`).
+    Inferred,
+    /// The written row, strictly increasing. For reach, the services the
+    /// clause names "and their boundary parents"; empty is `reaches none`.
+    /// For entries, the requirement identities the clause names, with no
+    /// parent closure.
+    Authored(Vec<semantic_vocabulary::ServiceId>),
+}
+
+/// The two ceiling axes a header may bound.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Axis {
+    /// `reaches`: the boundary services a machine's calls may reach.
+    Reach,
+    /// `invokes`: the callbacks and inbound entries control may arrive at
+    /// before the machine returns. effects.md, "Direct synchronous
+    /// invocation": a bodyless requirement that omits the clause has "No
+    /// synchronous entry", so its row is `Authored` and empty, never open.
+    Entries,
+}
+
+impl Axis {
+    pub const ALL: [Axis; 2] = [Axis::Reach, Axis::Entries];
+}
+
+impl Signature {
+    pub fn ceiling(&self, axis: Axis) -> &Ceiling {
+        match axis {
+            Axis::Reach => &self.reaches,
+            Axis::Entries => &self.invokes,
+        }
+    }
 }
 
 /// What the machine's header says about crashing.
@@ -617,6 +731,7 @@ pub enum ExpressionKind {
     Call {
         callee: CallTarget,
         arguments: Vec<Expression>,
+        designated: Option<DesignatedOperands>,
     },
 }
 
@@ -632,7 +747,6 @@ pub enum CallTarget {
     },
     Boundary {
         boundary: semantic_vocabulary::BoundaryMachineId,
-        build: Option<crate::BuildCallSource>,
     },
 }
 
@@ -649,6 +763,21 @@ impl From<MachineId> for CallTarget {
     fn from(machine: MachineId) -> Self {
         Self::Machine(machine)
     }
+}
+
+/// The designated operands of one Build selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DesignatedOperands {
+    /// The request as the typed trees hold it
+    /// (`ExpressionTable::build_selection_request`).
+    pub request: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
+    /// The machine whose source wrote the selection. The declarations a
+    /// selection names are resolved for the place that wrote it
+    /// (scoped_execution.md: "using the occurrence's package authority,
+    /// exact target, and complete expected slot/requirement signature"),
+    /// and that is not always the machine whose lowered body holds the
+    /// call: a call component lowers its members into one machine.
+    pub selecting: MachineId,
 }
 
 /// Builtin strict binary operations on `Exact` integers and `bool`.

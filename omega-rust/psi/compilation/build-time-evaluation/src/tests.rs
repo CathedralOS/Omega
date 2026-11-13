@@ -64,7 +64,9 @@ fn ordinary_declarations_are_retained_without_claiming_execution() {
 }
 
 #[test]
-fn a_real_constant_request_refuses_without_erasing_its_input() {
+fn a_declared_constant_nobody_reads_requests_no_evaluation() {
+    // The constant has no recorded value, and nothing in the program names
+    // it. Carrying the declaration needs no evaluator.
     let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
         syntax_trees: syntax_trees::SyntaxTrees::new(source::SourceId(17)),
         source_context: BuildTimeSources::default(),
@@ -73,12 +75,14 @@ fn a_real_constant_request_refuses_without_erasing_its_input() {
     let (_, pending) = evaluated.into_syntax_and_pre_check();
     let mut typed = typed_trees::TypedTrees::default();
     typed.push_const_declaration(Default::default());
+    assert!(typed.const_declarations()[0].evaluated_value.is_none());
     let before = typed.clone();
-    let errors = pending
-        .evaluate(&mut typed)
-        .expect_err("no constant producer has run");
-    assert!(errors[0].message.contains("source constant evaluation"));
+    let record = pending
+        .evaluate_or_defer_recorded(&mut typed)
+        .expect("a declaration alone is not an evaluation request");
     assert!(typed == before);
+    assert!(record.pending.is_none());
+    assert!(record.accounting.receipts().is_empty());
 }
 
 #[test]
@@ -358,4 +362,210 @@ fn retired_tree_receipts_cannot_be_decoded_as_canonical_scalar_receipts() {
             .to_string()
             .contains("retired tree-evaluation receipt")
     );
+}
+
+/// Type `files` together as one retained base; the continuation is the
+/// base's pending evaluation.
+fn typed_base(
+    files: &[(&str, &str)],
+) -> (
+    std::sync::Arc<source::SourceMap>,
+    Vec<source::SourceId>,
+    symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    crate::PreCheckEvaluation,
+) {
+    let mut sources = source::SourceMap::from_files(Vec::new());
+    let mut identities = Vec::new();
+    let mut syntax: Option<syntax_trees::SyntaxTrees> = None;
+    for (path, text) in files {
+        let source_id = sources
+            .add(std::path::PathBuf::from(path), (*text).to_owned())
+            .source_id;
+        identities.push(source_id);
+        let tokens = source_files_to_tokens::Lexer::new(text)
+            .tokenize()
+            .expect("source lexes");
+        let page = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+            .expect("source parses");
+        match &mut syntax {
+            Some(syntax) => syntax.extend_from(&page),
+            None => syntax = Some(page),
+        }
+    }
+    let sources = std::sync::Arc::new(sources);
+    let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax.expect("at least one source"),
+        source_context: BuildTimeSources {
+            sources: Some(std::sync::Arc::clone(&sources)),
+            ..BuildTimeSources::default()
+        },
+    })
+    .expect("source is retained until its requests are typed");
+    let (syntax, pending) = evaluated.into_syntax_and_pre_check();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::clone(&sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        },
+    )
+    .expect("sources resolve");
+    let base =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(resolved)
+            .expect("sources reach the typed frontier");
+    (sources, identities, base, pending)
+}
+
+fn machine_names(typed: &typed_trees::TypedTrees) -> Vec<&str> {
+    let mut names = typed
+        .machines()
+        .iter()
+        .map(|machine| machine.name.as_str())
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names
+}
+
+#[test]
+fn an_activated_program_keeps_only_its_selected_sources() {
+    // A retained base holds two files and the program being compiled
+    // selects the first. The second file's machine and constant leave the
+    // program, and the constant's evaluation request stays with the base.
+    let (sources, identities, base, pending) = typed_base(&[
+        (
+            "program/main.omg",
+            "machine entry() {
+    local()
+}
+machine local() { }
+",
+        ),
+        (
+            "program/library.omg",
+            "machine unreached() { }
+const UNREACHED: u32 = 7;
+",
+        ),
+    ]);
+    assert_eq!(machine_names(base.typed()), ["entry", "local", "unreached"]);
+    assert_eq!(base.typed().const_declarations().len(), 1);
+
+    let mut selected = sources.as_ref().clone();
+    selected.retain_selected_sources(|file| file.source_id == identities[0]);
+    let selected = std::sync::Arc::new(selected);
+    let mut whole = base.typed().clone();
+    let activated = base
+        .activate_sources(
+            std::sync::Arc::clone(&selected),
+            std::sync::Arc::clone(&sources),
+            Vec::new(),
+        )
+        .expect("the selected program is narrowed out of its base");
+    assert_eq!(machine_names(activated.typed()), ["entry", "local"]);
+    assert!(activated.typed().const_declarations().is_empty());
+    assert_eq!(
+        activated
+            .resolved()
+            .roots
+            .machines
+            .iter()
+            .map(|root| activated.resolved().symbols.name(root.symbol))
+            .collect::<Vec<_>>(),
+        ["entry", "local"],
+        "a later continuation extends the same narrowed program"
+    );
+
+    let continuation = pending
+        .activate_sources(activated.typed())
+        .expect("the activated program asks for no evaluation");
+    let mut program = activated.typed().clone();
+    continuation
+        .evaluate(&mut program)
+        .expect("the activated program has no evaluation request");
+    // Nothing in the base reads its constant either, so the base owes no
+    // evaluation for it.
+    pending
+        .evaluate(&mut whole)
+        .expect("an unread constant is not an evaluation request");
+}
+
+/// Forget the value resolution recorded for the program's only constant,
+/// leaving the declaration as one whose initializer nobody has evaluated.
+fn forget_recorded_value(typed: &mut typed_trees::TypedTrees) {
+    let mut declaration = typed.const_declarations()[0].clone();
+    assert!(declaration.evaluated_value.take().is_some());
+    typed.roots.const_declarations = Default::default();
+    typed.push_const_declaration(declaration);
+    assert_eq!(typed.const_declarations().len(), 1);
+}
+
+#[test]
+fn an_activated_program_may_keep_a_constant_it_never_reads() {
+    // The selected file declares the constant itself, so activation keeps
+    // it. No machine reads it, so the program asks for no evaluation, whether
+    // or not resolution recorded the constant's value.
+    let (sources, identities, base, pending) = typed_base(&[
+        (
+            "program/main.omg",
+            "const KEPT: u32 = 7;\nmachine entry() { }\n",
+        ),
+        ("program/library.omg", "machine unreached() { }\n"),
+    ]);
+    let mut selected = sources.as_ref().clone();
+    selected.retain_selected_sources(|file| file.source_id == identities[0]);
+    let activated = base
+        .activate_sources(std::sync::Arc::new(selected), sources, Vec::new())
+        .expect("the selected program is narrowed out of its base");
+    assert_eq!(machine_names(activated.typed()), ["entry"]);
+    assert_eq!(activated.typed().const_declarations().len(), 1);
+    let continuation = pending
+        .activate_sources(activated.typed())
+        .expect("a kept constant nobody reads is not an evaluation request");
+    let mut program = activated.typed().clone();
+    forget_recorded_value(&mut program);
+    continuation
+        .evaluate(&mut program)
+        .expect("an unevaluated constant nobody reads is not a request either");
+}
+
+#[test]
+fn a_read_of_an_unevaluated_constant_is_refused_by_name() {
+    // The machine reads the constant. With the value resolution recorded,
+    // the read needs no evaluator. Without a recorded value the same read is
+    // refused, naming the constant and pointing at the read; the initializer
+    // text is not taken as the value.
+    let text = "const LIMIT: u32 = 7;
+machine entry() {
+    let read: u32 = LIMIT;
+}
+";
+    let (_, _, base, pending) = typed_base(&[("program/main.omg", text)]);
+    let mut evaluated = base.typed().clone();
+    assert_eq!(evaluated.const_declarations().len(), 1);
+    pending
+        .clone()
+        .evaluate(&mut evaluated)
+        .expect("resolution recorded this literal constant's value");
+
+    let mut unevaluated = base.typed().clone();
+    forget_recorded_value(&mut unevaluated);
+    let before = unevaluated.clone();
+    let errors = pending
+        .evaluate(&mut unevaluated)
+        .expect_err("no stage evaluated the constant this machine reads");
+    assert!(unevaluated == before);
+    assert_eq!(errors.len(), 1);
+    assert!(
+        errors[0]
+            .message
+            .contains("source constant evaluation: `LIMIT` is used"),
+        "{}",
+        errors[0].message
+    );
+    let read = text.find("LIMIT;").expect("the read");
+    let span = errors[0]
+        .source_span
+        .expect("the refusal points at the read");
+    assert_eq!(span.span.start, read);
 }

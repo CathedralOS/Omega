@@ -3,9 +3,9 @@
     Build bindings, native locators and formations, Build requests, product
     queries, filesystem protocol calls, and standalone Build providers.
 
-    Each companion is bound to its exact program and invocation. The accepted
-    source owner joins real source requests to their emitted machine, operation
-    and boundary before any host can consume these records.
+    Each companion is bound to the exact custody identity of its Terminal
+    program. These are the record shapes; `build_companions` fills them from
+    the accepted elaboration.
 */
 
 mod native_locator {

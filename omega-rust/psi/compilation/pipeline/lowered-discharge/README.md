@@ -1163,6 +1163,63 @@ No router calls `judge` in the default compile yet: the comparison harness
 below is its only caller outside tests, and prints each unproved
 obligation's message with its outcome.
 
+## Published ceilings: service reach and synchronous entries
+
+A machine's header may bound two things by naming boundary services: the
+services its calls may reach (`reaches`) and the callbacks or inbound entries
+control may arrive at before it returns (`invokes`). Both are a written
+ceiling over what the body's calls contribute, published to callers
+([effects](../../../../../wiki/spec/language/effects.md#declarations),
+[direct synchronous invocation](../../../../../wiki/spec/language/effects.md#direct-synchronous-invocation):
+"the callee's published `invokes` joins the caller's, as its reach does"), so
+one mechanism serves both, with the axis as its only parameter. Three crates
+each do one part, and the fact travels in the module:
+
+- `structure-elaboration` reads a written clause into `Signature::reaches`
+  and `Signature::invokes` (`Ceiling`), through one row reader
+  (`read/services.rs`, `named_row`): the named boundary traits as service
+  identities of the module's catalog. A reach row is closed under boundary
+  parents; an entry row is not. Omission is read per axis: an omitted
+  `reaches` is inferred on a checked body and deferred on a requirement, and
+  `reaches none` is told from it by the authored row; an omitted `invokes` is
+  inferred on a checked body and is the empty written row on a bodyless
+  requirement ("No synchronous entry"). `outcome.rs` derives what each machine
+  publishes on each axis as one fixed point over the call graph: its written
+  ceiling, or else what its calls contribute, where a boundary call
+  contributes its requirement's row. Lowering writes the rows:
+  `declared_service_reach`, `published_service_ceiling` and
+  `published_synchronous_entries` on a machine, the reach rows and
+  `published_synchronous_entries` on a boundary declaration, the module's
+  `services` and `root_service_reach`. A non-empty published row is part of
+  the declaration's contract commitment, with its axis.
+- `lowered-discharge` judges (`ceilings.rs`): at every call, on each axis,
+  what the callee publishes lies inside what the caller publishes. The
+  callee's published row is the only thing read of it. A call outside is a
+  rejection of the program at that call (`RouteVerdict::Rejected::exceeded`,
+  with its axis), with no certificate, like a loan conflict; a row that is
+  not canonical, a reach row that omits a boundary parent or disagrees with
+  the written ceiling or the root reach, is a table fault. The same
+  containment guards `prove_callable_refinement` on both axes.
+
+A call of a boundary requirement is "not itself an entry", and the route
+reads no operation that originates one (a call of a callable argument, of a
+stored callable, or an arrival at an inbound entry), so an entry row is
+non-empty only where a clause was written. `Build::application` writes
+`invokes BuildRequestOperations` over a requirement that enters nothing: a
+broader ceiling, which its callers are charged.
+
+Not served: a ceiling bound by an installation (`machine service reach bound
+by an installation`), a written ceiling over a requirement that defers its
+reach, a call through a selector value in a module that declares services,
+an `invokes` row that names a parameter path (`machine invokes naming a
+parameter path`: charging a caller needs the binding each call supplies,
+substituted at the call), and an `invokes` row that names a requirement that
+is not a boundary trait (the module's catalog has identities for boundary
+services only). The composition checks of the entry ceiling (every entry
+reachable through the selected providers fits the calling requirement, and
+the realized graph is acyclic) belong to provider selection and are not made
+here.
+
 ## Running the checker on a source program
 
 The probe shows this crate one source program and prints its verdict. It does

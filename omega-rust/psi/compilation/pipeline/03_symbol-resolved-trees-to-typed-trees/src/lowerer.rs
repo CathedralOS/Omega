@@ -571,17 +571,87 @@ pub(crate) mod seeded_continuation {
             Ok((typed, frontier))
         }
 
+        /// Narrow this retained typing to the program written in `sources`'
+        /// selected files, then give its symbols `current_sources`.
+        ///
+        /// The retained base was typed once for every source it holds. The
+        /// program being compiled keeps the declarations of its selected
+        /// files and the declarations the compiler derived for them; the
+        /// resolved roots, service rows and evidence forwardings follow the
+        /// typed declarations that remain, so a later continuation extends
+        /// exactly this program. A selection that still names a declaration
+        /// of an unselected file is the caller's to reject.
         pub fn activate_sources(
-            self,
-            _sources: Arc<SourceMap>,
-            _current_sources: Arc<SourceMap>,
-            _bindings: Vec<SourceScopedTopLevelBinding>,
+            mut self,
+            sources: Arc<SourceMap>,
+            current_sources: Arc<SourceMap>,
+            bindings: Vec<SourceScopedTopLevelBinding>,
         ) -> Result<Self, Vec<Diagnostic>> {
-            // Activation needs a source-selected declaration projection. The
-            // retired checker's projection is not retained source authority.
-            Err(vec![crate::unavailable_judgment(
-                "source activation projection",
-            )])
+            let mut resolved = Arc::unwrap_or_clone(self.resolved_base_for_extension()?);
+            if resolved
+                .symbols
+                .source_map()
+                .is_none_or(|previous| !sources.retains_source_storage(&previous))
+            {
+                return Err(vec![Diagnostic::error(
+                    "source activation does not retain its paired source coordinates",
+                )]);
+            }
+            let mut typed = typed_trees::declaration_projection::project_source_declarations(
+                &self.typed,
+                &sources,
+            );
+            let selection = typed_trees::references::DeclarationSelection::from_program(&typed);
+            macro_rules! select_roots {
+                ($($field:ident),+ $(,)?) => {
+                    $(resolved.roots.$field.retain(|root| selection.contains(root.symbol));)+
+                };
+            }
+            select_roots!(
+                const_declarations,
+                data_definitions,
+                type_aliases,
+                domain_definitions,
+                machines,
+                measures,
+                operators,
+                propositions,
+                mathematical_definitions,
+                traits,
+                conformances,
+                wire_schemas,
+            );
+            let retained_owner = |mut owner: SymbolHandle| {
+                while owner.is_valid() {
+                    if selection.contains(owner) {
+                        return true;
+                    }
+                    owner = resolved.symbols.get(owner).parent;
+                }
+                false
+            };
+            resolved
+                .authored_service_reach_rows
+                .retain(|row| retained_owner(row.owner));
+            resolved
+                .evidence_forwardings
+                .retain(|row| selection.contains(row.machine_symbol));
+            let symbols = typed
+                .symbols
+                .clone()
+                .begin_source_activation(sources, bindings.clone())
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+                .finish()
+                .begin_source_activation(current_sources, bindings)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+                .finish();
+            resolved.symbols = symbols.clone();
+            typed.symbols = symbols;
+            resolved.resolution_indexes = Default::default();
+            Ok(Self {
+                resolved: Arc::new(resolved),
+                typed: Arc::new(typed),
+            })
         }
 
         pub fn join_prepared_allocations(
@@ -1128,28 +1198,262 @@ pub(crate) mod seeded_continuation {
     }
 }
 pub(crate) mod target_machine_families {
+    use crate::lowerer::name::lower_name;
     use diagnostics::Diagnostic;
     use symbol_resolved_trees::SymbolResolvedTrees;
     use typed_trees::TypedTrees;
+    use typed_trees::machine::{Machine, TargetMachineFamily, TargetMachineFamilyMember};
 
+    /// `linux_arm64 machine write_byte(byte: i32)` and its siblings for the
+    /// other targets are the bodies of one machine. Resolution gave them one
+    /// interface declaration; typing records the family and holds every body
+    /// to that interface's signature, so a call typed against the interface is
+    /// typed against whichever body a target later selects.
     pub(crate) fn append(
         source: &SymbolResolvedTrees,
-        _typed: &mut TypedTrees,
+        typed: &mut TypedTrees,
         machine_frontier: usize,
     ) -> Result<(), Diagnostic> {
-        // A family promises one contract for all members. Its retired
-        // contract/content comparison cannot be treated as declaration data.
-        if source
+        let mut declarations = source
             .machines
             .iter()
             .skip(machine_frontier)
-            .any(|machine| machine.target_family.is_valid())
+            .filter(|machine| machine.target_family.is_valid())
+            .collect::<Vec<_>>();
+        declarations.sort_by_key(|machine| machine.target_family.arena_index());
+        let mut families = Vec::new();
+        for declarations in
+            declarations.chunk_by(|left, right| left.target_family == right.target_family)
         {
-            return Err(crate::unavailable_judgment(
-                "legacy target-machine family contracts",
-            ));
+            let canonical = declarations[0].target_family;
+            let Some(interface) = typed.machine_by_symbol(canonical) else {
+                return Err(Diagnostic::error(
+                    "target-machine family interface did not survive typing",
+                ));
+            };
+            if typed
+                .target_machine_families
+                .iter()
+                .any(|family| family.canonical == canonical)
+            {
+                return Err(Diagnostic::error(
+                    "seeded typing cannot append a body to a retained target-machine family",
+                ));
+            }
+            let mut members = Vec::new();
+            for declaration in declarations {
+                let Some(target) = declaration.authored_target.as_ref() else {
+                    continue;
+                };
+                let Some(member) = typed.machine_by_symbol(declaration.symbol) else {
+                    return Err(Diagnostic::error(
+                        "target-machine family member did not survive typing",
+                    ));
+                };
+                require_shared_signature(typed, interface, member)
+                    .map_err(|refusal| refusal.with_source_span(declaration.name.source_span()))?;
+                members.push(TargetMachineFamilyMember {
+                    target: lower_name(target),
+                    machine: declaration.symbol,
+                });
+            }
+            if members.is_empty() {
+                return Err(Diagnostic::error(
+                    "target-machine family has no retained members",
+                ));
+            }
+            members.sort_by(|left, right| left.target.as_str().cmp(right.target.as_str()));
+            families.push(TargetMachineFamily {
+                name: interface.name.clone(),
+                canonical,
+                purpose: interface.purpose,
+                members,
+            });
+        }
+        families.sort_by(|left, right| left.name.as_str().cmp(right.name.as_str()));
+        typed.target_machine_families.extend(families);
+        Ok(())
+    }
+
+    /// Whether the body's contracts hold is not asked here: resolution already
+    /// made the interface require what each body requires, and each body is
+    /// checked on its own.
+    fn require_shared_signature(
+        typed: &TypedTrees,
+        interface: &Machine,
+        member: &Machine,
+    ) -> Result<(), Diagnostic> {
+        let incompatible = |detail: &str| {
+            Diagnostic::error(format!(
+                "machine `{}` has an incompatible signature for `{}` --                  every target's body of one machine shares its signature; incompatible {detail}",
+                member.name,
+                member
+                    .target
+                    .as_ref()
+                    .map_or("<missing target>", |target| target.as_str()),
+            ))
+        };
+        // A generic body binds its own parameters, so comparing it with the
+        // interface means matching the two telescopes binder for binder,
+        // bounds and nested callable contracts included. Typing has no such
+        // comparison yet, and an unequal count is already a mismatch.
+        if typed.machine_type_parameters(interface).len()
+            != typed.machine_type_parameters(member).len()
+            || interface.lifetime_parameters.len() != member.lifetime_parameters.len()
+        {
+            return Err(incompatible("generic/lifetime parameter count"));
+        }
+        if !typed.machine_type_parameters(interface).is_empty()
+            || !interface.lifetime_parameters.is_empty()
+            || !interface.conformance_bounds.is_empty()
+            || !member.conformance_bounds.is_empty()
+        {
+            return Err(Diagnostic::error(format!(
+                "no product route yet: typing does not compare the generic parameters of                  target-machine family member `{}` with its interface",
+                member.name,
+            )));
+        }
+        let (Some(required), Some(actual)) = (
+            typed.machine_states(interface).first(),
+            typed.machine_states(member).first(),
+        ) else {
+            return Err(incompatible("entry signature"));
+        };
+        let required_parameters = typed.state_parameters(required);
+        let actual_parameters = typed.state_parameters(actual);
+        if required_parameters.len() != actual_parameters.len()
+            || required_parameters
+                .iter()
+                .zip(actual_parameters)
+                .any(|(required, actual)| required.relevance != actual.relevance)
+        {
+            return Err(incompatible("parameter count or relevance"));
+        }
+        let required_identity = typed.machine_callable_identity(interface);
+        let actual_identity = typed.machine_callable_identity(member);
+        if !required_identity.is_valid()
+            || !actual_identity.is_valid()
+            || required_identity != actual_identity
+        {
+            return Err(incompatible("parameter types or calling shape"));
+        }
+        if typed.machine_entry_result_type_identity(interface)
+            != typed.machine_entry_result_type_identity(member)
+        {
+            return Err(incompatible("result type"));
+        }
+        if interface.purpose != member.purpose {
+            return Err(incompatible("purpose"));
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::require_shared_signature;
+        use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+        use typed_trees::TypedTrees;
+        use typed_trees::data::TypeParameter;
+        use typed_trees::machine::Machine;
+        use typed_trees::name::Identifier;
+        use typed_trees::signature::StateParameter;
+        use typed_trees::state::State;
+        use typed_trees::types::TypeReferenceNode;
+
+        /// The interface `write(byte: i32)`, a body with that signature, a
+        /// body taking `u8` instead, and a body with a type parameter.
+        fn family() -> (TypedTrees, [SymbolHandle; 4]) {
+            let mut builder = SymbolTableBuilder::new();
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let children = builder.insert_children(
+                root,
+                symbols::builtin_type_symbols()
+                    .into_iter()
+                    .chain([(SymbolKind::Machine, SymbolNameRef::Static("write")); 4]),
+            );
+            let machines: [SymbolHandle; 4] = std::array::from_fn(|position| {
+                children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + position as u32)
+            });
+            let formal = builder
+                .insert_children(
+                    machines[3],
+                    [(SymbolKind::TypeParameter, SymbolNameRef::Static("T"))],
+                )
+                .start();
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
+            let builtin =
+                |program: &mut TypedTrees, atom: symbols::BuiltinTypeAtom, name: &'static str| {
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: children.handle_at(atom.ordinal() as u32),
+                            name: Identifier::generated(name),
+                        })
+                };
+            let signed = builtin(&mut program, symbols::BuiltinTypeAtom::I32, "i32");
+            let byte = builtin(&mut program, symbols::BuiltinTypeAtom::U8, "u8");
+            for (symbol, parameter_type) in machines.into_iter().zip([signed, signed, byte, signed])
+            {
+                let parameters = program.state_parameters.insert_many([StateParameter {
+                    name: Identifier::generated("byte"),
+                    type_reference: parameter_type,
+                    ..Default::default()
+                }]);
+                let states = program.machine_states.insert_many([State {
+                    name: Identifier::generated("entry"),
+                    parameters,
+                    ..Default::default()
+                }]);
+                let type_parameters = if symbol == machines[3] {
+                    program.data_type_parameters.insert_many([TypeParameter {
+                        symbol: formal,
+                        name: Identifier::generated("T"),
+                        ..Default::default()
+                    }])
+                } else {
+                    Default::default()
+                };
+                program.push_machine(Machine {
+                    symbol,
+                    name: Identifier::generated("write"),
+                    states,
+                    type_parameters,
+                    ..Default::default()
+                });
+            }
+            (program, machines)
+        }
+
+        #[test]
+        fn a_target_body_shares_its_family_interface_signature_or_is_refused() {
+            let (program, [interface, same, other, generic]) = family();
+            let machine = |symbol| program.machine_by_symbol(symbol).expect("a typed machine");
+            let compare =
+                |member| require_shared_signature(&program, machine(interface), machine(member));
+            compare(same).expect("a body with the interface's signature belongs to the family");
+            let mismatch = compare(other).expect_err("a body taking another type is refused");
+            assert!(
+                mismatch
+                    .message
+                    .contains("every target's body of one machine shares its signature"),
+                "{}",
+                mismatch.message
+            );
+            // A generic body against a plain interface is a count mismatch; a
+            // generic family is not compared at all yet.
+            assert!(
+                compare(generic)
+                    .expect_err("an extra type parameter is refused")
+                    .message
+                    .contains("generic/lifetime parameter count")
+            );
+            let unserved = require_shared_signature(&program, machine(generic), machine(generic))
+                .expect_err("a generic family has no comparison yet");
+            assert!(unserved.message.starts_with("no product route yet:"));
+        }
     }
 }
 
@@ -1779,6 +2083,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         data_implementation_applications: _,
         dynamic_slots: _,
         target_machine_families: _,
+        deferred_refusals: _,
         boundary_completion_declarations: _,
         evidence_forwardings: _,
         proof_output_calls,

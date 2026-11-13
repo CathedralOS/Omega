@@ -73,8 +73,25 @@ pub(crate) fn declare(
 ) {
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files());
+    // A service is committed to by its portable identity, never by its
+    // module-local number.
+    let services: Vec<(semantic_vocabulary::ServiceId, String)> = elaboration
+        .module
+        .services
+        .iter()
+        .map(|service| {
+            (
+                service.id,
+                elaboration
+                    .module
+                    .identities
+                    .text(service.identity)
+                    .unwrap_or_default()
+                    .to_owned(),
+            )
+        })
+        .collect();
     let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
-    let services = elaboration.module.services.clone();
     for machine in &mut elaboration.module.machines {
         // A requirement stands for a contract, not a source-produced body.
         if elaboration.requirements.contains(&machine.id) {
@@ -85,15 +102,35 @@ pub(crate) fn declare(
             machines.get(machine.id),
             signatures.get(machine.id),
         ) {
-            (Ok(sources), Some(symbol), Some(signature)) => declaration(
-                typed,
-                sources,
-                *symbol,
-                signature,
-                machine,
-                &services,
-                &mut identities,
-            ),
+            (Ok(sources), Some(symbol), Some(signature)) => {
+                let identities_of = |row: &[semantic_vocabulary::ServiceId]| {
+                    row.iter()
+                        .map(|service| {
+                            services
+                                .iter()
+                                .find(|(id, _)| id == service)
+                                .map(|(_, identity)| identity.as_str())
+                                .filter(|identity| !identity.is_empty())
+                                .ok_or("a published service has no identity")
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                };
+                identities_of(&machine.published_service_ceiling).and_then(|reach| {
+                    let entries = identities_of(&machine.published_synchronous_entries)?;
+                    declaration(
+                        typed,
+                        sources,
+                        *symbol,
+                        signature,
+                        machine,
+                        Published {
+                            reach: &reach,
+                            entries: &entries,
+                        },
+                        &mut identities,
+                    )
+                })
+            }
             (Err(_), _, _) => Err("a toolchain source has no exact identity"),
             _ => Err("the machine has no typed-tree declaration"),
         };
@@ -111,7 +148,7 @@ fn declaration(
     symbol: SymbolHandle,
     signature: &Signature,
     machine: &TerminalMachine,
-    services: &[terminal_psi::ServiceDeclaration],
+    published: Published<'_>,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
     let declared = typed
@@ -160,44 +197,21 @@ fn declaration(
     let machine_identity = nominal(typed, sources, symbol, identities)?;
     let state_identity = nominal(typed, sources, state.symbol, identities)?;
 
-    let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
-    callable.hash(&mut commitment);
-    for (formal, type_text) in formals.iter().zip(&parameter_types) {
-        (
-            formal.is_mutable,
-            formal.is_const,
-            formal.relevance,
-            type_text,
-        )
-            .hash(&mut commitment);
-    }
-    result_type.hash(&mut commitment);
-    machine.contract.requires.hash(&mut commitment);
-    for clause in &machine.contract.ensures {
-        clause.proposition.hash(&mut commitment);
-    }
-    machine.contract.crash_routes.hash(&mut commitment);
-    signature.termination.hash(&mut commitment);
-    // A machine that names no service commits as it did before reach was
-    // stated. Service ids are positions in this module, so the row is
-    // committed by each service's identity.
-    for row in [
-        &machine.declared_service_reach,
-        &machine.published_service_ceiling,
-    ] {
-        if row.is_empty() {
-            continue;
-        }
-        for service in row {
-            services
-                .iter()
-                .find(|declared| declared.id == *service)
-                .and_then(|declared| identities.text(declared.identity))
-                .ok_or("a reach row names an undeclared service")?
-                .hash(&mut commitment);
-        }
-        0xffu8.hash(&mut commitment);
-    }
+    let contract = declaration_contract_commitment(
+        &callable,
+        formals,
+        &parameter_types,
+        &result_type,
+        &machine.contract.requires,
+        machine
+            .contract
+            .ensures
+            .iter()
+            .map(|clause| &clause.proposition),
+        &machine.contract.crash_routes,
+        signature.termination,
+        published,
+    );
 
     Ok(CheckedMachineDeclaration {
         machine: NominalDeclarationIdentity::new(machine_identity),
@@ -209,7 +223,7 @@ fn declaration(
             .collect(),
         callable: identities.intern(&callable),
         result_type: identities.intern(&result_type),
-        contract: commitment.0.finish(),
+        contract,
         // The reader refuses a machine that declares `suspends` or `blocks`
         // (`read/machine.rs`, `machine_shape`), so every machine here
         // publishes neither.
@@ -217,6 +231,58 @@ fn declaration(
         published_may_block: false,
         specialization: None,
     })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn declaration_contract_commitment<'a>(
+    callable: &str,
+    formals: &[typed_trees::signature::StateParameter],
+    parameter_types: &[String],
+    result_type: &str,
+    requires: &[semantic_vocabulary::Proposition],
+    ensures: impl IntoIterator<Item = &'a semantic_vocabulary::Proposition>,
+    crash_routes: &[terminal_psi::CrashRouteBucket],
+    termination: crate::Termination,
+    published: Published<'_>,
+) -> [u8; 32] {
+    let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
+    callable.hash(&mut commitment);
+    for (formal, type_text) in formals.iter().zip(parameter_types) {
+        (
+            formal.is_mutable,
+            formal.is_const,
+            formal.relevance,
+            type_text,
+        )
+            .hash(&mut commitment);
+    }
+    result_type.hash(&mut commitment);
+    requires.hash(&mut commitment);
+    for proposition in ensures {
+        proposition.hash(&mut commitment);
+    }
+    crash_routes.hash(&mut commitment);
+    termination.hash(&mut commitment);
+    // The published service reach is part of what a caller relies on. An
+    // empty row adds nothing, so a contract with no reach commits as it
+    // did before reach was read; a nonempty one is hashed with its length.
+    if !published.reach.is_empty() {
+        published.reach.hash(&mut commitment);
+    }
+    // So are the published synchronous entries. The axis is hashed before
+    // the row, so `invokes A` never commits as `reaches A`.
+    if !published.entries.is_empty() {
+        ("synchronous entries", published.entries).hash(&mut commitment);
+    }
+    commitment.0.finish()
+}
+
+/// The identities of the rows a declaration publishes on the two ceiling
+/// axes, in row order.
+#[derive(Clone, Copy)]
+pub(crate) struct Published<'a> {
+    pub reach: &'a [&'a str],
+    pub entries: &'a [&'a str],
 }
 
 /// The exact-owner identity of `symbol`: its package's, or its toolchain
@@ -419,7 +485,7 @@ pub(crate) fn boundary_declaration(
     }
 }
 
-/// A native promise commits to its complete retained operational ceiling too.
+/// A bodyless callable commits to its complete retained operational ceiling.
 /// Service identities are portable declaration identities, never module slots.
 pub(crate) fn provider_declaration(
     source: &BoundaryDeclarationSource,
@@ -431,7 +497,7 @@ pub(crate) fn provider_declaration(
 ) -> Result<CheckedMachineDeclaration, &'static str> {
     let mut declaration = boundary_declaration(source, signature, proof, identities);
     let mut commitment = Commitment(DomainDigestEncoder::new(
-        b"omega.lowered-native-provider-contract.v1\0",
+        b"omega.lowered-boundary-contract.v1\0",
     ));
     declaration.contract.hash(&mut commitment);
     for service in &envelope.service_reach {

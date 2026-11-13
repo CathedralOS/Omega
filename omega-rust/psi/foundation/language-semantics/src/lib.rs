@@ -348,6 +348,10 @@ pub mod build_requests {
         is_build_protocol(symbols, declaration, "BuildRequestOperations")
     }
 
+    /// The toolchain protocol whose operations carry a Build selection's
+    /// designated operands (`Build::bind`, `Build::select_provider`, ...).
+    pub const SELECTION_PROTOCOL: &str = "BuildBindingOperations";
+
     pub fn is_build_protocol(
         symbols: &symbols::SymbolTable,
         declaration: symbols::SymbolHandle,

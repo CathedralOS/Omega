@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 256`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 257`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -513,6 +513,10 @@ pub(crate) mod canonical_order {
                 "boundary published service ceiling by ServiceId",
             )?;
             require_increasing(
+                declaration.published_synchronous_entries.iter().copied(),
+                "boundary published synchronous entries by ServiceId",
+            )?;
+            require_increasing(
                 declaration.fixed_service_reach.iter().copied(),
                 "boundary fixed service reach by ServiceId",
             )?;
@@ -681,6 +685,10 @@ pub(crate) mod canonical_order {
             require_increasing(
                 machine.published_service_ceiling.iter().copied(),
                 "machine published service ceiling by ServiceId",
+            )?;
+            require_increasing(
+                machine.published_synchronous_entries.iter().copied(),
+                "machine published synchronous entries by ServiceId",
             )?;
             if !crash_routes_are_canonical(&machine.contract.crash_routes) {
                 return Err(noncanonical!("crash route buckets"));
@@ -1785,6 +1793,7 @@ pub(crate) mod machine_wire {
             declared_service_reach: Ids,
             published_service_ceiling: Ids,
             closed_reach_application: ReachApplication,
+            published_synchronous_entries: Ids,
             content_entry_claims: List<super::content_wire::EntryClaim>,
             content_identity_reshuffles: List<super::content_wire::Reshuffle>,
             content_partition_compositions: List<super::content_wire::PartitionComposition>,
@@ -3029,6 +3038,7 @@ mod numeric_intrinsic_tests {
             reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
             owning_service: None,
+            published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
         });
         module
@@ -3627,6 +3637,7 @@ mod routed_scalar_tests {
             reference_outputs: Vec::new(),
             fixed_service_reach: Vec::new(),
             owning_service: None,
+            published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
         });
         module.machines[0].blocks[0].operations.push(Operation {
@@ -4150,6 +4161,7 @@ pub(crate) mod target_family_tests {
                 reference_outputs: Vec::new(),
                 fixed_service_reach: Vec::new(),
                 owning_service: None,
+                published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
             });
             members.push(TargetMachineFamilyMember {
@@ -4285,6 +4297,7 @@ pub(crate) mod target_family_tests {
             loan_completions: Vec::new(),
             declared_service_reach: Vec::new(),
             closed_reach_application: None,
+            published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
@@ -4462,13 +4475,10 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 255 encodes every recursive term (scalar and integer math terms,
-// propositions, proof terms, capacity scalars and static bindings) as a
-// postorder table of rows whose children are handles to earlier rows, so
-// nesting depth has no bound. Marker 254, which nested those terms inline under
-// a 256-level bound, and all earlier layouts are incompatible.
-// Marker 256 adds opaque callable carriers, exact descriptors and callable proof contracts.
-pub(crate) const FORMAT_MARKER: u16 = 256;
+// Marker 257 combines opaque callable contracts/descriptors with the published
+// synchronous-entry rows. Both independent marker 256 layouts and all earlier
+// layouts reject; their fields must never be read under this combined schema.
+pub(crate) const FORMAT_MARKER: u16 = 257;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4775,6 +4785,7 @@ mod normal_qualification_tests {
             content_guarantees: Vec::new(),
             fixed_service_reach: Vec::new(),
             owning_service: None,
+            published_synchronous_entries: Vec::new(),
             published_service_ceiling: Vec::new(),
         });
         module

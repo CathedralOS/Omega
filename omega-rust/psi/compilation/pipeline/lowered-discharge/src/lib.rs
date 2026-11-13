@@ -54,6 +54,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 mod arrivals;
 mod call_contracts;
 mod callable_formations;
+mod ceilings;
 mod crashes;
 mod describe;
 mod entry_inputs;
@@ -67,7 +68,6 @@ mod prove;
 mod refinement;
 mod result_summaries;
 mod reuse;
-mod service_reach;
 mod static_contracts;
 mod verdict;
 
@@ -75,15 +75,15 @@ pub use callable_formations::{
     CallableFormationCause, CallableFormationDefect, CallableFormationFailure,
     check_bound_callable_shapes,
 };
+pub use ceilings::Axis as CeilingAxis;
 pub use places::{ConflictingLoan, LoanConflict};
 pub use prove::ProofSearchActivity;
 pub use refinement::{finalize_callable_refinements, prove_callable_refinement};
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
-pub use service_reach::ExceededReach;
 pub use verdict::{
-    AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, PublicationError,
-    RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge, judge_compilation,
-    judge_compilation_for,
+    AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, ExceededReach,
+    PublicationError, RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge,
+    judge_compilation, judge_compilation_for,
 };
 
 #[cfg(test)]
@@ -110,7 +110,7 @@ use terminal_check_tables::{
     UnprovedCause,
 };
 use terminal_codec::ObligationEvidenceSeal;
-use terminal_psi::{ScalarBlockInvariant, TerminalMachine, Terminator};
+use terminal_psi::{TerminalMachine, TerminalModule, Terminator};
 
 use graph::Graph;
 
@@ -397,9 +397,7 @@ pub fn discharge_with(
         let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
         machines.push(machine(
             module,
-            &module.structural_types,
             &elaboration.domains,
-            &module.scalar_block_invariants,
             id,
             tables,
             knowledge,
@@ -439,7 +437,8 @@ impl Unreached {
     pub(crate) fn values(&self, lowered: &TerminalMachine, tables: &MachineTables) -> Vec<ValueId> {
         let mut values = self.formals.get(lowered.id).cloned().unwrap_or_default();
         for call in tables.invocations.values() {
-            if let Callee::Machine(callee) = call.callee
+            if let Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) =
+                call.callee
                 && self.results.get(callee) == Some(&true)
                 && let InvocationSite::Operation(operation) = call.site
                 && let Some(result) = operation_result(lowered, operation)
@@ -499,10 +498,8 @@ fn terminal_machine(
 }
 
 fn machine(
-    module: &terminal_psi::TerminalModule,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    module: &TerminalModule,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
-    invariants: &[ScalarBlockInvariant],
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
@@ -510,6 +507,8 @@ fn machine(
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
     let machines = &module.machines;
+    let structural_types = &module.structural_types;
+    let invariants = &module.scalar_block_invariants;
     let lowered = terminal_machine(machines, id, id)?;
     if !tables.knowledge.is_empty() {
         return Err(refusal(
@@ -523,7 +522,7 @@ fn machine(
         types,
         graph,
         context,
-    } = prepare(module, structural_types, domains, id, tables, knowledge)?;
+    } = prepare(module, domains, id, tables, knowledge)?;
     let storage = places::Storage::new(
         id,
         lowered,
@@ -781,7 +780,7 @@ fn machine(
 /// `requires`, result equations and field-read equations, branch
 /// conditions, dispatch bindings and callee guarantees.
 fn fill_knowledge(
-    module: &terminal_psi::TerminalModule,
+    module: &TerminalModule,
     id: MachineId,
     lowered: &TerminalMachine,
     tables: &mut MachineTables,
@@ -938,14 +937,15 @@ pub(crate) struct Prepared {
 /// Fills `tables.knowledge` from the lowered form and builds what deciding
 /// needs. Knowledge already present is kept: it is this machine's own.
 pub(crate) fn prepare(
-    module: &terminal_psi::TerminalModule,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    module: &TerminalModule,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
 ) -> Checked<Prepared> {
-    let lowered = terminal_machine(&module.machines, id, id)?;
+    let machines = &module.machines;
+    let structural_types = &module.structural_types;
+    let lowered = terminal_machine(machines, id, id)?;
     let fill = tables.knowledge.is_empty();
     let types = tables.values.map(|_, row| row.scalar_type);
     // Before anything is decided: the rows must be the ones the lowered form
@@ -1502,7 +1502,7 @@ fn connective(
 /// The goal of one obligation, over this machine's values.
 #[allow(clippy::too_many_arguments)]
 fn goal(
-    module: &terminal_psi::TerminalModule,
+    module: &TerminalModule,
     lowered: &TerminalMachine,
     storage: &places::Storage<'_>,
     id: MachineId,
@@ -1551,7 +1551,7 @@ fn concrete(
 
 #[allow(clippy::too_many_arguments)]
 fn stated_goal(
-    module: &terminal_psi::TerminalModule,
+    module: &TerminalModule,
     lowered: &TerminalMachine,
     storage: &places::Storage<'_>,
     id: MachineId,
@@ -1649,7 +1649,7 @@ fn stated_goal(
             joins::arrival_goal(lowered, id, obligation, edge, tables)
         }
         ObligationKind::CrashCoverage { site, cause } => {
-            crashes::coverage_goal(lowered, id, obligation, site, cause)
+            crashes::coverage_goal(module, lowered, tables, id, obligation, site, cause)
         }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }

@@ -58,14 +58,7 @@ pub fn reverify(
                 "no such machine",
             )
         })?;
-    let prepared = crate::prepare(
-        module,
-        &module.structural_types,
-        domains,
-        machine,
-        tables,
-        Knowledge::All,
-    )?;
+    let prepared = crate::prepare(module, domains, machine, tables, Knowledge::All)?;
     let row = *terminal_check_tables::row(
         &tables.obligations,
         obligation,
@@ -676,14 +669,7 @@ pub fn reverify_specialization(
                 "no such machine",
             )
         })?;
-    let prepared = crate::prepare(
-        module,
-        &module.structural_types,
-        domains,
-        specialization,
-        tables,
-        Knowledge::All,
-    )?;
+    let prepared = crate::prepare(module, domains, specialization, tables, Knowledge::All)?;
     let tables = &*tables;
     let lowered = crate::terminal_machine(&module.machines, specialization, specialization)?;
     let storage = crate::places::Storage::new(
@@ -1143,7 +1129,9 @@ impl Carry<'_> {
             self.specialization,
             concerns,
         )?;
-        let Callee::Machine(callee) = row.callee else {
+        let Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) =
+            row.callee
+        else {
             return Ok(None);
         };
         // A generic machine applied at this body's type parameters is held

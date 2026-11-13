@@ -67,6 +67,27 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### The Build host finds a call's row by an operation number that is unique only within one machine
+- Category: one idea, several implementations
+- Where: `build-settings/src/host/{bindings,requests,filesystem}.rs` (`call.operation == *operation && call.boundary == *boundary`); `terminal-interpreter` `TerminalEffect::BoundaryCall` (carries no machine); `structure-elaboration/src/lower/operations.rs` (`operation_identity`)
+- Saw: the deleted lowering numbered operations across the whole module, and the Build host, the effect it is handed and the module rows the encoding calls "strictly ordered by operation id" still assume that; the lowered-form route numbers operations within each machine, so two helpers that each bind an entry yield two host rows under one key
+- Cost: production refuses such a Build script (`terminal-production/src/build_companions.rs`, `admit`) instead of publishing a row the host could misread, so a Build script that selects from two helper machines stops there until the effect names its machine or the route numbers operations per module
+- Reported: 2026-11-13, Claude Code, while publishing Build selections from the lowered-form route
+
+### Constant operands are still read from a table keyed by spelling
+- Category: a verdict with nothing behind it
+- Where: `02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs` (`module_constants::lexical_integer_const_values`), built at five call sites in `preparation_const_evaluation.rs`, `preparation_generic_data.rs` and `preparation_machine_equations.rs` and handed to `evaluate_const_argument_expression` and the fact evaluators
+- Saw: the table maps every non-module constant's spelled name to its literal value over all root items of the forest, with no source scope; two packages that each keep a private `const LIMIT` leave one entry, so a const-generic argument, range fact or machine equation naming `LIMIT` can read the other package's value. The table also only holds constants written as integer literals, so a constant resolution now folds (`const B: u64 = A;`) is absent from it
+- Cost: the new closed-initializer fold selects operands through `ConstantSelection` and never reads this table, but the older evaluators beside it still do; a wrong value there is silent, and the fix is to give those evaluators the same source-scoped selection rather than to repair the table
+- Reported: 2026-11-13, Claude Code, while folding closed scalar constant initializers in resolution
+
+### Interface ownership still changes some imported-service checks
+- Category: one idea, several implementations
+- Where: `omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/service_reach.rs:39`; `src/execution/host_imports/filesystem.rs:513`; `omega-rust/psi/compilation/terminal-installation/src/provider_and_target_installation.rs:451`
+- Saw: native delegation removes the import's owning service from its declared reach before checking delegation (its unit permits `[owning_service]` with `Unprovided`); filesystem admission skips that same identity; assumed-binding operational compatibility ignores an extra supplied ceiling member when it equals the supplied owner. `wiki/spec/language/effects.md` distinguishes catalogue ownership from the requirement's explicit reach. These permission/compatibility checks must not be reused as proof that a declared ceiling is empty.
+- Cost: the source boundary producer can retain a real catalogue owner even for `reaches none`, so downstream code must keep ownership, declared reach and actual delegated host permissions separate. This entry records the wider retained consumers; the current boundary work requires an explicit source ceiling and fixes the actual exclusion walk's implicit owner contribution, without treating these checks as source proof or expanding into an assumed-binding/delegation campaign.
+- Reported: 2026-11-13, Codex, while carrying selected entry and ordinary Build boundary calls through the surviving lowered route
+
 ### "Does every selected external realization have a declaration" is checked two ways, and they disagree on unused ones
 - Category: one idea, several implementations
 - Where: `omega-rust/omega/compilation/realization/provider-admission/src/provider_admission/compiler_builtins/retained.rs:287` (`validate_external_provider_owners`) and `:295` (`validate_retained_external_provider_owners`); caller `omega-rust/omega/compilation/representations/abstract-operations/verified-input/src/native_proposal.rs:338`
@@ -483,3 +504,31 @@ own to defend. Say what you saw, not what you would build.
 - Saw: the lowered-form checker refuses every program that declares a trait (`declaration trait` in `structure-elaboration/src/read/subjects.rs`), so the refinement proof it owns is never run by `judge_compilation`
 - Cost: when `validation` is deleted the member-refines-requirement rule has no checker until `judge_compilation` judges each conformance row; 1,344 corpus programs declare a trait
 - Reported: 2026-11-13, Claude Code, while closing the generic self-application hole
+
+### The bundled library cannot be loaded since constant evaluation was deleted
+- Category: a stage whose producer is gone
+- Where: `build-time-evaluation/src/source_frontier.rs` (`evaluate_pre_resolution` returns its input unchanged); Psi 02 `constant.rs` (`validate_scalar_initializer`); `04_typed-trees-to-typed-trees/src/preparation.rs` (`require_no_work`)
+- Saw: Psi 02 still requires every scalar constant to be a literal and says richer initializers "arrive with build-time evaluation", but that evaluation (about 36,000 lines) left with the old checker; `source/library/std/targets/uefi_x86_64/handoff.omg:29` (`const A: u64 = B;`) therefore stops every compilation that loads `std`, and Psi 04 accepts only an empty program
+- Cost: no source program reaches the lowered-form checker, so no work on the checker can be verified from source until constants have an evaluator and Psi 04 passes a nonempty program through
+- Reported: 2026-11-13, Claude Code, while restoring source activation for the route probe
+
+### Typing refuses its own questions as if they waited for the checker
+- Category: a stage reaching across a boundary
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/lib.rs` (`unavailable_judgment`) and its 26 callers, such as `typing_queries.rs` ("constructor field type", "call entry parameter types") and `type_reference.rs` ("closed const argument declaration custody")
+- Saw: every refusal reads "no product route yet: X requires a lowered-form judgment", but most of X is arity, a declared type or a field's owner, which typing decides from declarations; two of them stopped the bundled library (`core::Strict<0>`, `ForeignBinding<N, ...>`) although no proof was involved
+- Cost: a reader cannot tell a typing rule that was not rebuilt from a proof the checker must supply, so each stop is investigated from scratch and the wording invites routing typing work to the checker
+- Reported: 2026-11-13, Claude Code, while getting the route probe through typing
+
+### An `invokes` row that names an ordinary trait is dropped without a word
+- Category: a verdict with nothing behind it
+- Where: `typed-trees/src/declarations.rs` (`declared_targets`); `lowered-discharge/src/refinement.rs` (`prove_callable_refinement`)
+- Saw: `declared_targets` keeps an `invokes` target only when it is a boundary trait or a parameter of boundary type and silently discards any other, so `invokes Handler` over an ordinary trait reads as no clause at all to every consumer of `declared_machine_invocations`; separately, `prove_callable_refinement` has no caller outside its own tests, so the reach and entry containment it guards is never asked of a real conformance
+- Cost: a written entry ceiling can vanish before any checker sees it, and a supplied implementation outside its requirement's ceilings is not refused anywhere in a compile until that operation is wired
+- Reported: 2026-11-13, Claude Code, while putting `invokes` on the lowered-form checker
+
+### A whole-program stage refuses every program for a library construct nobody calls
+- Category: a verdict with nothing behind it
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/typing_queries.rs` (`require_prebound_calls`), `call_and_product_selections.rs` ("assignment literal receiving type"), and any by-name refusal added to `04_typed-trees-to-typed-trees`
+- Saw: typing and typed preparation see the program together with all of `core` and `std` and have no notion of what an entry demands, so one unbound call or unlanded literal in an uncalled library machine stops a program that never reaches it; structural elaboration, which reads only what is demanded, already refuses the same constructs by name
+- Cost: each such gate must be served for the entire library before any program compiles; pipeline.md's own pattern ("refusals stay deferred data") would record the refusal on the declaration and let the reader of that declaration raise it
+- Reported: 2026-11-13, Claude Code, while getting the route probe through typing

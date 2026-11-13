@@ -72,6 +72,7 @@ fn verdicts(name: &str, source: &str) -> Vec<&'static str> {
         structure_elaboration::Compilation {
             entries: &frontier.entries,
             subjects: &[frontier.subject],
+            purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
