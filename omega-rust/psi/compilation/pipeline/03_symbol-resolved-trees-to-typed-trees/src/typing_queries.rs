@@ -268,6 +268,13 @@ pub(crate) fn require_prebound_calls(program: &TypedTrees) -> Result<(), Diagnos
                 crate::unavailable_judgment("static or dynamic callable target binding")
                     .with_source_span(program.expression_table.source_span(handle));
             error.message.push_str(&format!("; selected target {:?} ({target_kind:?}), receiver {:?} ({receiver_kind:?}), namespace={receiver_is_namespace}", call.target_symbol, call.receiver));
+            if call.receiver.is_valid() {
+                error.message.push_str(&format!(
+                    "; receiver node {:?}; target {}",
+                    program.expression_table.expression(call.receiver),
+                    call.target
+                ));
+            }
             return Err(error);
         }
     }

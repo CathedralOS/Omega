@@ -225,7 +225,10 @@ fn invocation_local(
     if !typed.symbols.symbols().nodes().is_valid(symbol) {
         return Err("an invocation declaration is foreign to its retained symbols");
     }
-    if typed.symbols.symbol_source_span(symbol).is_none() {
+    // An implicit source entry has no name token of its own. Its lexical
+    // owner's retained source still gives it an ordinary nominal identity;
+    // only an actual generated declaration requires a derivation chain.
+    if typed.symbols.get(symbol).generated_from.is_valid() {
         let mut origin = symbol;
         loop {
             let previous = typed.symbols.get(origin).generated_from;
@@ -255,10 +258,25 @@ fn invocation_local(
             }
             break;
         }
-    } else if typed.symbols.symbol_package_identity(symbol).is_some()
-        || typed.symbols.symbol_source_origin(symbol) != Some(source::SourceOrigin::User)
-    {
-        return Ok(None);
+    } else {
+        let span = typed
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .ok_or("an invocation declaration has no retained source provenance")?;
+        let source = typed
+            .symbols
+            .source_file(span)
+            .ok_or("an invocation declaration names a foreign source")?;
+        if span.span.start >= span.span.end
+            || source.source.get(span.span.start..span.span.end).is_none()
+        {
+            return Err("an invocation declaration has an invalid source token");
+        }
+        if typed.symbols.symbol_package_identity(symbol).is_some()
+            || typed.symbols.symbol_source_origin(symbol) != Some(source::SourceOrigin::User)
+        {
+            return Ok(None);
+        }
     }
     identities
         .intern_invocation_local(&format!(
