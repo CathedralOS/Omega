@@ -39,6 +39,7 @@ impl IssuedBuildRequest {
 }
 
 pub struct TerminalBuildRequestHost {
+    artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildRequestCall]>,
     original: TerminalStructuralValue,
     account: Option<EvaluationInvocationAccount>,
@@ -79,6 +80,7 @@ impl TerminalBuildRequestHost {
             None
         };
         Ok(Arc::new(Self {
+            artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             original,
             account: account.cloned(),
@@ -168,6 +170,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        crate::host::require_effect_owner(effect, &self.host.artifact)?;
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
             arguments,

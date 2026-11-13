@@ -1,0 +1,31 @@
+// A domain that applies its policy at static arguments. No pass resolves those
+// arguments yet, so the domain holds a deferred refusal instead of stopping
+// the program.
+
+use omega::language::core::AccessPolicy;
+use omega::language::core::AccessPlan;
+use omega::language::core::Schema;
+use omega::language::core::LayoutPlan;
+use omega::language::core::FieldEntry;
+
+data Cell {
+    value: u64;
+}
+
+CellAccess satisfies AccessPolicy {
+    machine plan(schema: Schema) -> AccessPlan {
+        let mut entries: [FieldEntry; 64];
+        AccessPlan::inaccessible(
+            LayoutPlan { entries: entries, entry_count: 0, size_fixed: 8, size_is_dynamic: false, align: 8 }
+        )
+    }
+}
+
+domain Cell::Controlled
+    requires self.value <= 100
+    access CellAccess<Cell>;
+
+domain Cell::Plain
+    requires self.value <= 100;
+
+machine main() { }

@@ -54,6 +54,7 @@ struct FilesystemFacets {
 }
 
 pub(crate) struct TerminalBuildFilesystemHost {
+    artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildFilesystemCall]>,
     facets: Option<FilesystemFacets>,
     account: EvaluationInvocationAccount,
@@ -83,6 +84,7 @@ impl TerminalBuildFilesystemHost {
             })
         };
         Ok(Arc::new(Self {
+            artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             facets: if calls.is_empty() {
                 None
@@ -181,6 +183,8 @@ impl FilesystemAdapter {
         effect: &TerminalEffect,
         buffers: &mut [TerminalBoundaryByteBuffer],
     ) -> Result<TerminalEffectResult, String> {
+        crate::host::require_effect_owner(effect, &self.host.artifact)
+            .map_err(|error| error.reason)?;
         let TerminalEffect::BoundaryCall {
             arguments,
             structural_arguments,

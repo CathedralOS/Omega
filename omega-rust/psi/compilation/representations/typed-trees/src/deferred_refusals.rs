@@ -51,6 +51,9 @@ pub enum DeferredRequest {
     ArrayExtentEvaluation,
     /// An expression that stands for the evaluated form of another one.
     MaterializedExpression,
+    /// A domain whose `access` policy is applied at static arguments
+    /// (`access IssuedBy<..>`): no pass resolves those arguments yet.
+    AccessPolicyApplication,
     /// A call that applies static arguments (`relay<u8>(..)`) which typed
     /// preparation's specialization pass does not bind or does not generate
     /// a machine for yet.
@@ -83,6 +86,9 @@ impl DeferredRequest {
             }
             Self::MaterializedExpression => {
                 "holding a materialized expression, whose evaluation no pass records yet"
+            }
+            Self::AccessPolicyApplication => {
+                "selecting an access policy applied at static arguments, which no pass resolves yet"
             }
             Self::StaticApplication => {
                 "holding a call whose static arguments no pass specializes yet"

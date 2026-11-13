@@ -98,6 +98,14 @@ impl AcceptedTerminalSource {
         // the reader refuses the native binding that would need one.
         let companions = crate::build_companions::produce(&self.source, elaboration)
             .map_err(|diagnostic| vec![diagnostic])?;
+        crate::build_bindings::validate_companions(
+            program.view(),
+            &companions.bindings,
+            &companions.queries,
+            &companions.requests,
+            &companions.filesystem,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let build_bindings = crate::TerminalBuildBindings::new(
             program.view(),
             companions.bindings,
