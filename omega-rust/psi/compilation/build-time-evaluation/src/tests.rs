@@ -64,7 +64,9 @@ fn ordinary_declarations_are_retained_without_claiming_execution() {
 }
 
 #[test]
-fn a_real_constant_request_refuses_without_erasing_its_input() {
+fn a_declared_constant_nobody_reads_requests_no_evaluation() {
+    // The constant has no recorded value, and nothing in the program names
+    // it. Carrying the declaration needs no evaluator.
     let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
         syntax_trees: syntax_trees::SyntaxTrees::new(source::SourceId(17)),
         source_context: BuildTimeSources::default(),
@@ -73,12 +75,14 @@ fn a_real_constant_request_refuses_without_erasing_its_input() {
     let (_, pending) = evaluated.into_syntax_and_pre_check();
     let mut typed = typed_trees::TypedTrees::default();
     typed.push_const_declaration(Default::default());
+    assert!(typed.const_declarations()[0].evaluated_value.is_none());
     let before = typed.clone();
-    let errors = pending
-        .evaluate(&mut typed)
-        .expect_err("no constant producer has run");
-    assert!(errors[0].message.contains("source constant evaluation"));
+    let record = pending
+        .evaluate_or_defer_recorded(&mut typed)
+        .expect("a declaration alone is not an evaluation request");
     assert!(typed == before);
+    assert!(record.pending.is_none());
+    assert!(record.accounting.receipts().is_empty());
 }
 
 #[test]
@@ -313,17 +317,28 @@ const UNREACHED: u32 = 7;
     continuation
         .evaluate(&mut program)
         .expect("the activated program has no evaluation request");
-    // The base still owes its constant: no evaluator has run it.
-    let errors = pending
+    // Nothing in the base reads its constant either, so the base owes no
+    // evaluation for it.
+    pending
         .evaluate(&mut whole)
-        .expect_err("the base's constant request is not erased");
-    assert!(errors[0].message.contains("source constant evaluation"));
+        .expect("an unread constant is not an evaluation request");
+}
+
+/// Forget the value resolution recorded for the program's only constant,
+/// leaving the declaration as one whose initializer nobody has evaluated.
+fn forget_recorded_value(typed: &mut typed_trees::TypedTrees) {
+    let mut declaration = typed.const_declarations()[0].clone();
+    assert!(declaration.evaluated_value.take().is_some());
+    typed.roots.const_declarations = Default::default();
+    typed.push_const_declaration(declaration);
+    assert_eq!(typed.const_declarations().len(), 1);
 }
 
 #[test]
-fn an_activated_program_still_owes_the_constants_it_keeps() {
-    // The selected file declares the constant itself, so activation keeps it
-    // and the continuation refuses: nothing has evaluated it.
+fn an_activated_program_may_keep_a_constant_it_never_reads() {
+    // The selected file declares the constant itself, so activation keeps
+    // it. No machine reads it, so the program asks for no evaluation, whether
+    // or not resolution recorded the constant's value.
     let (sources, identities, base, pending) = typed_base(&[
         (
             "program/main.omg",
@@ -338,9 +353,53 @@ fn an_activated_program_still_owes_the_constants_it_keeps() {
         .expect("the selected program is narrowed out of its base");
     assert_eq!(machine_names(activated.typed()), ["entry"]);
     assert_eq!(activated.typed().const_declarations().len(), 1);
-    let errors = pending
+    let continuation = pending
         .activate_sources(activated.typed())
-        .err()
-        .expect("a kept constant is an unserved evaluation request");
-    assert!(errors[0].message.contains("source constant evaluation"));
+        .expect("a kept constant nobody reads is not an evaluation request");
+    let mut program = activated.typed().clone();
+    forget_recorded_value(&mut program);
+    continuation
+        .evaluate(&mut program)
+        .expect("an unevaluated constant nobody reads is not a request either");
+}
+
+#[test]
+fn a_read_of_an_unevaluated_constant_is_refused_by_name() {
+    // The machine reads the constant. With the value resolution recorded,
+    // the read needs no evaluator. Without a recorded value the same read is
+    // refused, naming the constant and pointing at the read; the initializer
+    // text is not taken as the value.
+    let text = "const LIMIT: u32 = 7;
+machine entry() {
+    let read: u32 = LIMIT;
+}
+";
+    let (_, _, base, pending) = typed_base(&[("program/main.omg", text)]);
+    let mut evaluated = base.typed().clone();
+    assert_eq!(evaluated.const_declarations().len(), 1);
+    pending
+        .clone()
+        .evaluate(&mut evaluated)
+        .expect("resolution recorded this literal constant's value");
+
+    let mut unevaluated = base.typed().clone();
+    forget_recorded_value(&mut unevaluated);
+    let before = unevaluated.clone();
+    let errors = pending
+        .evaluate(&mut unevaluated)
+        .expect_err("no stage evaluated the constant this machine reads");
+    assert!(unevaluated == before);
+    assert_eq!(errors.len(), 1);
+    assert!(
+        errors[0]
+            .message
+            .contains("source constant evaluation: `LIMIT` is used"),
+        "{}",
+        errors[0].message
+    );
+    let read = text.find("LIMIT;").expect("the read");
+    let span = errors[0]
+        .source_span
+        .expect("the refusal points at the read");
+    assert_eq!(span.span.start, read);
 }
