@@ -80,6 +80,7 @@ own to defend. Say what you saw, not what you would build.
 - Saw: Terminal semantics has the substitution of values in any proposition; the reader keeps one of its own for route guards and for a cycle member's `requires`, which accepts a formal or a literal and refuses every other term. A route guard over a field, a mathematical comparison or a suffixed operator is refused by name where a call restates it (`route guard term outside formals and literals`), while the same clause is served as a `requires` or an `ensures`
 - Cost: each new term a clause may hold is served in two clause kinds and refused in the third until someone widens the second substitution by hand
 - Reported: 2026-11-13, Claude Code, while reading suffixed operators in contracts
+
 ### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
 - Category: a verdict with nothing behind it
 - Where: `source/library/std/console.omg:66` (the requirement, `reaches Console`) and `:96` (its provider); `omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs` (`exact_process_exit_requirement` with `console_adapter`, `nominate_source_completion`)
