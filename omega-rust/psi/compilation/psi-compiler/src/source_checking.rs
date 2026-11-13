@@ -7,8 +7,8 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     ExecutedProductSelection, ProductDeclarationRequest,
 };
-use representation_selections::OpaqueRepresentationSelection;
 use std::sync::Arc;
+use typed_trees::opaque_representations::OpaqueRepresentationSelection;
 
 mod constant_entries {
     pub(super) fn retain_evaluation_entries(
@@ -62,6 +62,24 @@ pub struct ProductRepresentationInput<'request> {
     pub retained: &'request [OpaqueRepresentationSelection],
 }
 
+impl ProductRepresentationInput<'_> {
+    pub(crate) fn require_absent(&self) -> Result<(), Vec<Diagnostic>> {
+        // The removed planner cannot supply authority for an authored activation,
+        // an unused request, an executed event, or a retained application. None
+        // may be dropped and presented to the lowered route as an empty choice.
+        if self.activation.is_some()
+            || !self.declared.is_empty()
+            || !self.executed.is_empty()
+            || !self.retained.is_empty()
+        {
+            return Err(vec![Diagnostic::error(
+                "no product route yet: opaque representation admission",
+            )]);
+        }
+        Ok(())
+    }
+}
+
 /// Accepts the pre-Psi04 typed frontier. Preparing an already specialized
 /// frontier again is not part of this boundary.
 pub struct SourcePreparationRequest<'request> {
@@ -82,16 +100,7 @@ impl SourcePreparationRequest<'_> {
                 "no product route yet: source selection authority admission",
             )]);
         }
-        let representations = &self.admission.representations;
-        if representations.activation.is_some()
-            || !representations.declared.is_empty()
-            || !representations.executed.is_empty()
-            || !representations.retained.is_empty()
-        {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: opaque representation admission",
-            )]);
-        }
+        self.admission.representations.require_absent()?;
         let mut program = self.program;
         typed_trees::boundary_completions::prepare_source_completion(
             &mut program,
@@ -145,5 +154,90 @@ mod tests {
             panic!("legacy authority must not become a prepared product");
         };
         assert!(diagnostics[0].message.contains("no product route yet"));
+    }
+
+    #[test]
+    fn unserved_representation_inputs_are_never_silently_discarded() {
+        use super::ProductRepresentationInput;
+        use language_semantics::declaration_selection::{
+            BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
+        };
+        use typed_trees::opaque_representations::{
+            OpaqueRepresentationApplicationOrigin, OpaqueRepresentationCopyDisposition,
+            OpaqueRepresentationLifecycleDisposition, OpaqueRepresentationSelection,
+        };
+
+        // These records deliberately carry no accepted semantic evidence. Their
+        // presence alone must refuse before preparation can erase their request.
+        let request = std::sync::Arc::new(ProductDeclarationRequest {
+            source_span: source::SourceSpan::default(),
+            operation: BuildOperation::RepresentationSelection,
+            operands: Box::new([]),
+        });
+        let declared = [std::sync::Arc::clone(&request)];
+        let executed = [ExecutedProductSelection {
+            static_environment: None,
+            target: None,
+            request,
+            selecting_machine: None,
+            composition: None,
+        }];
+        let retained = [OpaqueRepresentationSelection::from_validated_application(
+            symbols::SymbolHandle::invalid(),
+            symbols::SymbolHandle::invalid(),
+            Default::default(),
+            typed_trees::typed_trees::ClosedConformanceApplication::default(),
+            OpaqueRepresentationLifecycleDisposition::Inert,
+            OpaqueRepresentationCopyDisposition::PlacementOnly,
+            OpaqueRepresentationApplicationOrigin::NamedConformance,
+            symbols::SymbolHandle::invalid(),
+            source::SourceSpan::default(),
+        )];
+        for (dimension, representations) in [
+            (
+                "activation",
+                ProductRepresentationInput {
+                    activation: Some(symbols::SymbolHandle::invalid()),
+                    ..ProductRepresentationInput::default()
+                },
+            ),
+            (
+                "declared",
+                ProductRepresentationInput {
+                    declared: &declared,
+                    ..ProductRepresentationInput::default()
+                },
+            ),
+            (
+                "executed",
+                ProductRepresentationInput {
+                    executed: &executed,
+                    ..ProductRepresentationInput::default()
+                },
+            ),
+            (
+                "retained",
+                ProductRepresentationInput {
+                    retained: &retained,
+                    ..ProductRepresentationInput::default()
+                },
+            ),
+        ] {
+            let result = SourcePreparationRequest {
+                program: typed_trees::TypedTrees::default(),
+                admission: SourceAdmission {
+                    representations,
+                    ..SourceAdmission::default()
+                },
+            }
+            .prepare();
+            let Err(diagnostics) = result else {
+                panic!("{dimension} input was silently discarded");
+            };
+            assert_eq!(
+                diagnostics[0].message, "no product route yet: opaque representation admission",
+                "{dimension} must reach the missing admission obligation",
+            );
+        }
     }
 }

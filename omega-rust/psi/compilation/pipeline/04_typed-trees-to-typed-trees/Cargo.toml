@@ -18,7 +18,6 @@ language-core = { path = "../../../foundation/language-core" }
 language-semantics = { path = "../../../foundation/language-semantics" }
 numerics = { path = "../../../foundation/numerics" }
 proof = { path = "../../proof" }
-representation-selections = { path = "../../validation/representation-planning/selections" }
 source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 typed-trees = { path = "../../representations/typed-trees" }

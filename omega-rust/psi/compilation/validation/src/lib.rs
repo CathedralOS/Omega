@@ -33,7 +33,7 @@ We sit between typing and checked facts. `symbol-resolved-trees-to-typed-trees`
 borrows our queries while preparing and specializing, `typed-trees-to-checked-trees`
 (Psi 05) runs full validation and publishes checked facts, and `proof`,
 `checked-trees-to-lowered-psi`, `lowered-psi-to-terminal-psi`,
-`checked-interpreter`, `representation-planning`, build evaluation, and the
+`checked-interpreter`, build evaluation, and the
 compiler driver reuse the same read-only judgments.
 */
 

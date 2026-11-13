@@ -28,7 +28,7 @@ fn assert_in_order(source: &str, owner: &str, operations: &[&str]) {
 }
 
 #[test]
-fn final_representation_admission_belongs_to_psi_checking() {
+fn opaque_representation_admission_is_not_rebuilt_in_the_coordinator() {
     let coordinator = include_str!("checked/checking/source_checking.rs");
     assert_absent(
         &[coordinator],
@@ -37,16 +37,6 @@ fn final_representation_admission_belongs_to_psi_checking() {
             "rederive_opaque_representation_selections(",
             "OpaqueDataPropertyReceipt::copy(",
             "CheckedSemanticCopy",
-        ],
-    );
-    let checking = include_str!("../../../../psi/compilation/psi-compiler/src/source_checking.rs");
-    assert_in_order(
-        checking,
-        "Psi source checking",
-        &[
-            "self.admission.representations.admit(&program)",
-            "validation::source_completion::prepare_source_completion(",
-            "prior.judgment.judges_preparation_input(",
         ],
     );
 }
@@ -80,7 +70,6 @@ fn product_policy_admission_has_one_source_owner() {
         "Psi product policy",
         &[
             "self.admit_product_provider_requests(",
-            "collect_opaque_representation_selections(",
             "native_bindings::collect(",
             "collect_product_root_grants(",
             "product_declarations::admit(",

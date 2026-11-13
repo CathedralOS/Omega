@@ -10627,7 +10627,7 @@ pub mod storage_contents {
         let selected_carrier = (data.supply_mode
             == language_semantics::DataSupplyMode::BoundaryOpaque)
             .then(|| {
-                representation_selections::selection_for_opaque(
+                typed_trees::opaque_representations::selection_for_opaque(
                     program.opaque_representation_selections(),
                     data.symbol,
                 )

@@ -15,7 +15,6 @@ runtime-abi = { path = "../backend/runtime/runtime-abi" }
 checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 effects = { path = "../backend/plans/effects" }
 provider-planning = { path = "../realization/provider-planning" }
-representation-planning = { path = "../../../psi/compilation/validation/representation-planning" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 source = { path = "../../../psi/foundation/source" }

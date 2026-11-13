@@ -406,7 +406,6 @@ dependencies = [
  "program-entry-plan",
  "provider-planning",
  "psi-compiler",
- "representation-planning",
  "runtime-abi",
  "selected-dispatch",
  "semantic-vocabulary",
@@ -1875,8 +1874,6 @@ dependencies = [
  "optimization",
  "psi-terminal-production",
  "rayon",
- "representation-planning",
- "representation-selections",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
@@ -2013,30 +2010,6 @@ dependencies = [
  "optimization-core",
  "sha2",
  "target",
-]
-
-[[package]]
-name = "representation-planning"
-version = "0.1.0"
-dependencies = [
- "diagnostics",
- "language-semantics",
- "representation-selections",
- "source",
- "symbols",
- "typed-trees",
- "validation",
-]
-
-[[package]]
-name = "representation-selections"
-version = "0.1.0"
-dependencies = [
- "compiler-storage",
- "language-semantics",
- "source",
- "symbols",
- "typed-trees",
 ]
 
 [[package]]
@@ -2833,7 +2806,6 @@ dependencies = [
  "language-semantics",
  "numerics",
  "proof",
- "representation-selections",
  "source",
  "symbols",
  "typed-trees",
@@ -2871,7 +2843,6 @@ dependencies = [
  "optimization",
  "proof-admission",
  "rayon",
- "representation-selections",
  "semantic-vocabulary",
  "source",
  "structure-elaboration",
