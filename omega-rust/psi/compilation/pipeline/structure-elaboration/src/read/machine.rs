@@ -47,10 +47,15 @@ impl<'t> Program<'t> {
     /// unserved selection refuses the whole route. Only direct calls remain
     /// for those helpers. A reached dependency need not include every caller,
     /// so its helpers and static requirement implementations keep their envelope.
-    pub(crate) fn private_input_contracts(&self, entry: MachineId) -> Checked<Vec<MachineId>> {
+    pub(crate) fn private_input_contracts(
+        &self,
+        entry: Option<MachineId>,
+        diagnostic: MachineId,
+    ) -> Checked<Vec<MachineId>> {
         let mut private = Vec::new();
         let mut fixed = self.symbols.map(|_, _| false);
-        for id in std::iter::once(&entry)
+        for id in entry
+            .iter()
             .chain(&self.fixed_inputs)
             .chain(&self.requirements)
             .chain(
@@ -108,7 +113,7 @@ impl<'t> Program<'t> {
         let uses =
             InputSymbolUses::new(self.symbols.values().copied(), targets).ok_or_else(|| {
                 refuse(
-                    entry,
+                    diagnostic,
                     Construct::Machine,
                     Unserved::Machine("private input use with an invalid symbol"),
                 )
@@ -145,9 +150,10 @@ impl<'t> Program<'t> {
     /// unknown callable or replaceable boundary uses its interface
     /// contract"), and a machine stage 04 generated keeps exactly the
     /// contract its generic form was checked against.
-    pub(crate) fn local_result_bodies(&self, entry: MachineId) -> Checked<Vec<MachineId>> {
+    pub(crate) fn local_result_bodies(&self, entry: Option<MachineId>) -> Checked<Vec<MachineId>> {
         let mut boundary = self.symbols.map(|_, _| false);
-        for id in std::iter::once(&entry)
+        for id in entry
+            .iter()
             .chain(&self.fixed_inputs)
             .chain(&self.requirements)
             .chain(
