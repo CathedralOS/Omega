@@ -1144,8 +1144,11 @@ mod tests {
             ]),
         );
         let u32_symbol = children.handle_at(7);
-        let local_symbol = children.handle_at(symbols::BUILTIN_TYPE_COUNT);
-        let input_symbol = children.handle_at(symbols::BUILTIN_TYPE_COUNT + 1);
+        let local_symbol = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+        let input_symbol = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 1)
+            .unwrap();
         let mut typed = TypedTrees {
             symbols: builder.finish(),
             ..Default::default()
