@@ -60,7 +60,7 @@ pub struct EvaluatedViaBindingRow {
     realization_machine: SymbolHandle,
     satisfied_owner: SymbolHandle,
     requirement: SymbolHandle,
-    via_expression: checked_trees::typed_trees::expression::ExpressionHandle,
+    via_expression: typed_trees::expression::ExpressionHandle,
     producer_machine: SymbolHandle,
     producer_entry_state: SymbolHandle,
     via_source_span: SourceSpan,
@@ -77,7 +77,7 @@ impl EvaluatedViaBindingRow {
     pub const fn requirement(&self) -> SymbolHandle {
         self.requirement
     }
-    pub const fn via_expression(&self) -> checked_trees::typed_trees::expression::ExpressionHandle {
+    pub const fn via_expression(&self) -> typed_trees::expression::ExpressionHandle {
         self.via_expression
     }
     pub const fn producer_machine(&self) -> SymbolHandle {
@@ -163,11 +163,11 @@ pub struct BindingVocabulary {
 /// selected target, with the conformance row the result will satisfy.
 #[derive(Clone, Copy)]
 pub struct ViaProducer<'program> {
-    producer: &'program checked_trees::typed_trees::machine::Machine,
-    entry: &'program checked_trees::state::State,
+    producer: &'program typed_trees::machine::Machine,
+    entry: &'program typed_trees::state::State,
     satisfied_owner: SymbolHandle,
     requirement: SymbolHandle,
-    via_expression: checked_trees::typed_trees::expression::ExpressionHandle,
+    via_expression: typed_trees::expression::ExpressionHandle,
     via_source_span: SourceSpan,
 }
 
@@ -176,7 +176,7 @@ impl ViaProducer<'_> {
     pub const fn machine(&self) -> SymbolHandle {
         self.producer.symbol
     }
-    pub const fn return_type(&self) -> checked_trees::typed_trees::types::TypeReferenceHandle {
+    pub const fn return_type(&self) -> typed_trees::types::TypeReferenceHandle {
         self.entry.return_type
     }
     pub const fn via_source_span(&self) -> SourceSpan {
@@ -211,7 +211,7 @@ impl EvaluatedViaBindingRows {
 
     pub fn retain(
         &mut self,
-        typed: &checked_trees::typed_trees::TypedTrees,
+        typed: &typed_trees::TypedTrees,
         vocabulary: &BindingVocabulary,
         target: TargetProfile,
         realization_machine: SymbolHandle,

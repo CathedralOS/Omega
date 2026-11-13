@@ -10,18 +10,18 @@ use calling_conventions::{
     BoundaryCallbackLayout, CallbackDataGeometry, CallbackInlineFieldGeometry,
     CallbackSlotGeometry, NativeCallbackDemand, NativePlace,
 };
-use checked_trees::typed_trees::{
-    SourceLayoutPlanCoordinate, SourceLayoutRealizationCoordinate, SourceRecordCorrespondence,
-};
 use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
 use semantic_vocabulary::StructuralTypeId;
 use symbols::SymbolHandle;
+use typed_trees::{
+    SourceLayoutPlanCoordinate, SourceLayoutRealizationCoordinate, SourceRecordCorrespondence,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallbackRecordReviewSource {
     pub record: StructuralTypeId,
     pub declaration: SymbolHandle,
-    pub application: checked_trees::typed_trees::SourceTypeApplication,
+    pub application: typed_trees::SourceTypeApplication,
     pub storage_identity: String,
     pub schema: SymbolHandle,
     pub policy: SymbolHandle,

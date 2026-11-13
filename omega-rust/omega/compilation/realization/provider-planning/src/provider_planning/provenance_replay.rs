@@ -1,30 +1,7 @@
-/*
-We own the provenance carriers and derivation entry points for candidate
-provider plans (`derive_satisfies_plans`), requirement/binding identity helpers
-(`requirement_identities`), checked-adapter conformance replay
-(`adapter_conformance`), and named-provider plan derivation
-(`named_provider_plans`).
-
-Derivation is the single producer of a `ProviderPlan` and its
-`ProviderPlanProvenance`: compilation does not re-verify the candidates it just
-derived (`omega-rust/pipeline.md`, "Verification placement"), and adapter
-refinement of a requirement's service and invocation ceilings belongs to Psi
-conformance checking.
-*/
-
-mod adapter_conformance;
-mod named_provider_plans;
-mod plan_derivation;
-
-pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checked_adapter};
-pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
-
-use super::ProviderPlan;
-use crate::provider_planning::provenance_replay::plan_derivation::derive_provider_plans;
-use language_semantics::direct_calls::DirectCallDeclarations;
-use symbols::SymbolHandle;
-
-pub use checked_trees::typed_trees::service_declarations::ProviderSchemaDeclaration;
+// Row provenance is retained data. Satisfaction derivation and old checked
+// adapter replay no longer create provider plans.
+use effects::provider_plan::ProviderPlan;
+pub use typed_trees::service_declarations::ProviderSchemaDeclaration;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderRowRealization {
@@ -52,7 +29,7 @@ impl ProviderRowRealization {
 pub struct ProviderPlanProvenance {
     pub schema: ProviderSchemaDeclaration,
     pub provider_type: Option<symbols::SymbolHandle>,
-    pub named_application: Option<checked_trees::provider_declarations::NamedProviderApplication>, // Original named application, before selected rows lose their source scope.
+    pub named_application: Option<typed_trees::provider_declarations::NamedProviderApplication>, // Original named application, before selected rows lose their source scope.
     pub row_requirements: Vec<symbols::SymbolHandle>,
     pub row_realizations: Vec<ProviderRowRealization>,
     pub row_target_machine_origins: Vec<Option<SelectedTargetMachineOrigin>>, // Pre-resolution target-scoped declaration custody for catalog-inferred rows; None for ordinary checked, legacy external, and evaluated-payload rows.
@@ -61,99 +38,18 @@ pub struct ProviderPlanProvenance {
 
 pub use language_semantics::provider_declarations::SelectedTargetMachineOrigin;
 
-impl ProviderPlanProvenance {
-    fn push_authored_row(
-        &mut self,
-        requirement: SymbolHandle,
-        machine: SymbolHandle,
-        origin: Option<SelectedTargetMachineOrigin>,
-    ) {
-        self.row_requirements.push(requirement);
-        self.row_realizations
-            .push(ProviderRowRealization::Authored(machine));
-        self.row_target_machine_origins.push(origin);
-        self.row_accessors.push(None);
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DerivedProviderPlan {
     pub plan: ProviderPlan,
     pub provenance: ProviderPlanProvenance,
 }
 
-#[derive(Clone, Copy)]
-pub struct ProviderPlanDerivation<'a> {
-    services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'a>,
-    body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
-    calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
-    selected_target: Option<&'a str>,
-    evaluated_bindings: Option<&'a crate::evaluated_via_bindings::EvaluatedViaBindingTable>,
-    target_machine_origins: &'a [SelectedTargetMachineOrigin],
-    native_bindings: &'a [DerivedProviderPlan],
-}
-
-impl<'a> ProviderPlanDerivation<'a> {
-    pub const fn unevaluated(
-        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'a>,
-        body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
-        calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
-        selected_target: Option<&'a str>,
-    ) -> Self {
-        Self {
-            services,
-            body_declarations,
-            calling_plans,
-            selected_target,
-            evaluated_bindings: None,
-            target_machine_origins: &[],
-            native_bindings: &[],
-        }
-    }
-
-    pub fn evaluated(
-        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'a>,
-        body_declarations: &'a DirectCallDeclarations<SymbolHandle>,
-        calling_plans: &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
-        selected_target: Option<&'a str>,
-        evaluated_bindings: &'a crate::evaluated_via_bindings::EvaluatedViaBindingTable,
-        target_machine_origins: &'a [SelectedTargetMachineOrigin],
-        native_bindings: &'a [DerivedProviderPlan],
-    ) -> Self {
-        Self {
-            services,
-            body_declarations,
-            calling_plans,
-            selected_target,
-            evaluated_bindings: Some(evaluated_bindings),
-            target_machine_origins,
-            native_bindings,
-        }
-    }
-}
-
-pub fn derive_satisfies_plans(
-    derivation: ProviderPlanDerivation<'_>,
-) -> Result<Vec<DerivedProviderPlan>, Vec<diagnostics::Diagnostic>> {
-    derive_provider_plans(
-        derivation.services,
-        derivation.body_declarations,
-        derivation.calling_plans,
-        derivation.selected_target,
-        derivation.evaluated_bindings,
-        derivation.target_machine_origins,
-        derivation.native_bindings,
-    )
-}
-
 mod requirement_identities {
     use crate::intrinsic_declarations::{BoundaryIntrinsicShape, exact_byte_read_type};
     use crate::provider_planning::provenance_replay::SelectedTargetMachineOrigin;
     use crate::provider_planning::{ProviderBinding, TypedTrees, is_unit_type};
-    use checked_trees::typed_trees::{
-        signature::StateSignature, trait_definition::TraitDefinition,
-    };
     use target::HostedIntrinsicBundle;
+    use typed_trees::{signature::StateSignature, trait_definition::TraitDefinition};
 
     pub(crate) fn exact_satisfied_requirement_identity(
         typed: &TypedTrees,
@@ -182,7 +78,7 @@ mod requirement_identities {
 
     fn exact_external_binding_identity<'typed>(
         typed: &'typed TypedTrees,
-        machine: &checked_trees::typed_trees::machine::Machine,
+        machine: &typed_trees::machine::Machine,
         trait_name: &str,
         requirement_name: &str,
     ) -> Option<&'typed language_semantics::ExternalBindingIdentity> {
@@ -203,7 +99,7 @@ mod requirement_identities {
 
     pub(crate) fn exact_installed_external_binding_identity<'typed>(
         typed: &'typed TypedTrees,
-        machine: &checked_trees::typed_trees::machine::Machine,
+        machine: &typed_trees::machine::Machine,
         conformance_binding: language_semantics::ExternalBindingId,
         trait_name: &str,
         requirement_name: &str,
@@ -262,17 +158,13 @@ mod requirement_identities {
 
     fn satisfied_boundary_requirement<'typed>(
         typed: &'typed TypedTrees,
-        machine: &'typed checked_trees::typed_trees::machine::Machine,
-        conformance: &'typed checked_trees::typed_trees::machine::TraitConformance,
+        machine: &'typed typed_trees::machine::Machine,
+        conformance: &'typed typed_trees::machine::TraitConformance,
     ) -> Option<(&'typed TraitDefinition, &'typed StateSignature)> {
-        let checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait {
+        let typed_trees::machine::SatisfiedDeclaration::Trait {
             definition,
             requirement,
-        } = checked_trees::typed_trees::machine::resolve_satisfied_declaration(
-            typed,
-            machine,
-            conformance,
-        )?
+        } = typed_trees::machine::resolve_satisfied_declaration(typed, machine, conformance)?
         else {
             return None;
         };
@@ -284,8 +176,8 @@ mod requirement_identities {
 
     pub(crate) fn inferred_hosted_console_compiler_intrinsic(
         typed: &TypedTrees,
-        machine: &checked_trees::typed_trees::machine::Machine,
-        conformance: &checked_trees::typed_trees::machine::TraitConformance,
+        machine: &typed_trees::machine::Machine,
+        conformance: &typed_trees::machine::TraitConformance,
         selected_target: Option<&str>,
         target_machine_origins: &[SelectedTargetMachineOrigin],
     ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
@@ -356,8 +248,8 @@ mod requirement_identities {
 
     pub(crate) fn inferred_selected_target_compiler_leaf(
         typed: &TypedTrees,
-        machine: &checked_trees::typed_trees::machine::Machine,
-        conformance: &checked_trees::typed_trees::machine::TraitConformance,
+        machine: &typed_trees::machine::Machine,
+        conformance: &typed_trees::machine::TraitConformance,
         selected_target: Option<&str>,
         target_machine_origins: &[SelectedTargetMachineOrigin],
     ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
@@ -392,8 +284,8 @@ mod requirement_identities {
 
     pub(crate) fn inferred_compiler_leaf_binding(
         typed: &TypedTrees,
-        machine: &checked_trees::typed_trees::machine::Machine,
-        conformance: &checked_trees::typed_trees::machine::TraitConformance,
+        machine: &typed_trees::machine::Machine,
+        conformance: &typed_trees::machine::TraitConformance,
         selected_target: Option<&str>,
         target_machine_origins: &[SelectedTargetMachineOrigin],
     ) -> Option<(ProviderBinding, SelectedTargetMachineOrigin)> {
@@ -417,8 +309,8 @@ mod requirement_identities {
 
     fn exact_catalog_signature(
         typed: &TypedTrees,
-        parameters: &[checked_trees::typed_trees::signature::StateParameter],
-        return_type: checked_trees::typed_trees::types::TypeReferenceHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        return_type: typed_trees::types::TypeReferenceHandle,
         trait_symbol: symbols::SymbolHandle,
         shape: BoundaryIntrinsicShape,
     ) -> bool {
@@ -436,8 +328,8 @@ mod requirement_identities {
 
     fn exact_catalog_i32_to_unit_signature(
         typed: &TypedTrees,
-        parameters: &[checked_trees::typed_trees::signature::StateParameter],
-        return_type: checked_trees::typed_trees::types::TypeReferenceHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        return_type: typed_trees::types::TypeReferenceHandle,
     ) -> bool {
         let [parameter] = parameters else {
             return false;
@@ -445,7 +337,7 @@ mod requirement_identities {
         !parameter.is_const
             && !parameter.is_mutable
             && typed.primitive_type_reference(parameter.type_reference)
-                == Some(checked_trees::typed_trees::types::PrimitiveType::I32)
+                == Some(typed_trees::types::PrimitiveType::I32)
             && is_unit_type(typed, return_type)
     }
 
@@ -482,7 +374,7 @@ mod requirement_identities {
 
     pub(crate) fn realization_machine_identity(
         typed: &TypedTrees,
-        machine: &checked_trees::typed_trees::machine::Machine,
+        machine: &typed_trees::machine::Machine,
     ) -> String {
         typed
             .machine_callable_identity_text(machine)

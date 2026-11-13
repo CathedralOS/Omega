@@ -5,13 +5,13 @@
 // declarations retain deferred refusals until demanded.
 
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
-use checked_trees::typed_trees::service_declarations::PreparedServiceDeclaration;
-pub(crate) use checked_trees::typed_trees::service_declarations::exact_identity;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ServiceSchema;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use typed_trees::service_declarations::PreparedServiceDeclaration;
+pub(crate) use typed_trees::service_declarations::exact_identity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ServiceDeclaration {

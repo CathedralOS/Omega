@@ -5,11 +5,7 @@ and the explicit trust declarations used by provider admission.
 */
 
 pub mod provider_declarations {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct NamedProviderApplication {
-        pub declaration: symbols::SymbolHandle,
-        pub capture: arena::Handle<typed_trees::typed_trees::CapturedMachineApplication>,
-    }
+    pub use typed_trees::provider_declarations::NamedProviderApplication;
 
     pub enum ProviderApplicationView {
         None,

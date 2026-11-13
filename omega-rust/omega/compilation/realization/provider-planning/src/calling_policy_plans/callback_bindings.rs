@@ -21,7 +21,7 @@ use calling_conventions::{
     CallbackRequirementId, NativeCallbackDemand, ValidatedBoundaryEntryPlan,
     validate_boundary_entry_plan_with_callback_materializations,
 };
-use checked_trees::typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::TypeReferenceHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanRealization {

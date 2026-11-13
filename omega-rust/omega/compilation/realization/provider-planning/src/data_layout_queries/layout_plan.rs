@@ -14,9 +14,9 @@ and zero initialization remains valid.
 */
 
 use arena::{Arena, HandleSpan};
-use checked_trees::typed_trees::name::Identifier;
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use typed_trees::name::Identifier;
 
 pub(crate) const ENUM_TAG_BYTES: usize = runtime_abi::CASE_TAG_BYTE_SIZE as usize;
 

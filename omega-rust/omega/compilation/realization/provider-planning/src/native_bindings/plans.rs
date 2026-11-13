@@ -15,8 +15,6 @@ use crate::provider_planning::trait_name_text;
 use crate::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderRowRealization, ProviderSchemaDeclaration,
 };
-use checked_trees::typed_trees::service_declarations::RetainedServiceSurface;
-use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
     BuildNativeBindingOrigin, EvaluatedBindingEvaluationDigest,
@@ -26,15 +24,15 @@ use effects::provider_plan::{
 };
 use semantic_vocabulary::NativeBindingLocator;
 use std::sync::Arc;
+use typed_trees::service_declarations::RetainedServiceSurface;
+use typed_trees::service_declarations::ServiceCatalog;
 
 #[cfg(test)]
 mod tests;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBuildRowOrigin {
-    pub application: Option<
-        arena::Handle<checked_trees::typed_trees::product_operand::ProductOperandApplication>,
-    >,
+    pub application: Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
     pub requirement: symbols::SymbolHandle,
     pub origin: package_compilation::PackageNativeBindingOrigin,
 }

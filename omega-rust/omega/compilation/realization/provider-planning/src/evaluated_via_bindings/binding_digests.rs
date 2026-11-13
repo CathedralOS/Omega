@@ -5,7 +5,6 @@
 
 use crate::evaluated_via_bindings::MATERIALIZER_SCHEMA_VERSION;
 use build_time_values::BuildTimeValue;
-use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
     EvaluatedBindingEvaluationDigest, EvaluatedBindingMaterializationDigest,
@@ -16,6 +15,7 @@ use source::{SourceFile, SourceSpan};
 use std::path::Path;
 use symbols::SymbolHandle;
 use target::TargetProfile;
+use typed_trees::TypedTrees;
 
 pub(crate) fn producer_closure_digest(
     typed: &TypedTrees,

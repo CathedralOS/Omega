@@ -21,10 +21,10 @@ use crate::data_layout_queries::builder::{LayoutBuilder, OpaqueRepresentationDem
 use crate::data_layout_queries::sizing::{
     fat_descriptor_layout, pointer_layout, primitive_type_layout,
 };
-use checked_trees::typed_trees::data::DataDefinition;
-use checked_trees::typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
+use typed_trees::data::DataDefinition;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 impl<'program> LayoutBuilder<'program> {
     pub(crate) fn layout_type_reference_handle(

@@ -37,6 +37,12 @@ pub mod provider_declarations {
     }
     pub use context::ProviderPlanningContext;
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct NamedProviderApplication {
+        pub declaration: symbols::SymbolHandle,
+        pub capture: arena::Handle<crate::CapturedMachineApplication>,
+    }
+
     /// Declaration catalogs share the exact immutable source owner. Preparing
     /// them grants no checking or admission authority: the product factory must
     /// separately retain the route's acceptance of that same source.

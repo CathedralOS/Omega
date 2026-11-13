@@ -6,11 +6,11 @@ use crate::ProviderPlanningContext;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
-pub use checked_trees::typed_trees::ScalarAccessorOperation as SealedAccessorScalarOperation;
+pub use typed_trees::ScalarAccessorOperation as SealedAccessorScalarOperation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SealedAccessor {
-    declaration: checked_trees::typed_trees::ScalarAccessorDeclaration,
+    declaration: typed_trees::ScalarAccessorDeclaration,
 }
 
 impl SealedAccessor {
@@ -50,7 +50,7 @@ impl SealedAccessor {
 
     pub(crate) fn prepared_binding_identity(
         &self,
-        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+        services: typed_trees::service_declarations::ServiceCatalog<'_>,
     ) -> Result<String, Diagnostic> {
         let schema = self.prepared_schema(services)?;
         Ok(Self::format_binding_identity(self.schema_contract(&schema)))
@@ -58,7 +58,7 @@ impl SealedAccessor {
 
     pub(crate) fn prepared_schema(
         &self,
-        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+        services: typed_trees::service_declarations::ServiceCatalog<'_>,
     ) -> Result<effects::provider_plan::ServiceSchema, Diagnostic> {
         if services.sealed_accessor(self.machine())? != Some(&self.declaration) {
             return Err(Diagnostic::error(
@@ -78,7 +78,7 @@ impl SealedAccessor {
     }
 
     pub(crate) fn prepared(
-        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+        services: typed_trees::service_declarations::ServiceCatalog<'_>,
         symbol: SymbolHandle,
     ) -> Result<Option<Self>, Diagnostic> {
         Ok(services
@@ -180,10 +180,8 @@ impl SealedAccessor {
         context: ProviderPlanningContext<'_>,
         symbol: SymbolHandle,
     ) -> Result<Option<Self>, Diagnostic> {
-        let declaration = checked_trees::typed_trees::ScalarAccessorDeclaration::authenticate(
-            context.typed,
-            symbol,
-        )?;
+        let declaration =
+            typed_trees::ScalarAccessorDeclaration::authenticate(context.typed, symbol)?;
         Ok(declaration
             .filter(|declaration| context.contains(declaration.machine()))
             .map(|declaration| Self { declaration }))

@@ -32,9 +32,6 @@ mod opaque_representations;
 mod plan_computation;
 mod policy_signature;
 mod selected_application;
-mod selected_providers;
-mod signature_review;
-mod source_preparation;
 mod terminal_signature;
 
 pub use boundary_signatures::{
@@ -54,15 +51,11 @@ pub use opaque_representations::{
     BoundaryOpaqueRepresentationUse,
 };
 pub(crate) use plan_computation::evaluate_default_calling_applications;
-pub use plan_computation::{PreparedBoundaryCallingPlans, prepare_boundary_calling_plans};
 pub use policy_signature::CallingPolicySignature;
 pub use policy_signature::{encode_calling_policy_signature, validate_calling_policy_result};
 pub use scalar_completion::{CallingScalarScope, complete_calling_scalar_inputs};
 pub use selected_application::component_calling_applications;
 pub(crate) use selected_application::selected_calling_applications;
-pub use selected_providers::CallingPolicyProviderInputs;
-pub use signature_review::PreparedOpaqueReviewSelection;
-pub use source_preparation::CallingSourcePreparation;
 pub use terminal_signature::{CanonicalCallingSignature, CanonicalOpaqueUse};
 
 use calling_conventions::ValidatedBoundaryEntryPlan;

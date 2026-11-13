@@ -7,13 +7,13 @@
 // record application and `addr` field declaration.
 
 use crate::provider_planning::{entry_state, type_reference_node};
-use checked_trees::typed_trees::{
+use symbols::SymbolHandle;
+use typed_trees::{
     TypedTrees,
     data::DataDefinition,
     machine::Machine,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
-use symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DispatchTable {
@@ -76,8 +76,8 @@ pub fn field_storage(
     machine: &Machine,
     field_name: &str,
 ) -> Result<effects::provider_plan::TableFieldStorage, String> {
-    use checked_trees::typed_trees::data::DataMember;
-    use checked_trees::typed_trees::types::PrimitiveType;
+    use typed_trees::data::DataMember;
+    use typed_trees::types::PrimitiveType;
     let table = dispatch_table(typed, machine)?;
     let field = typed
         .data_members(table.definition(typed))
@@ -95,9 +95,7 @@ pub fn field_storage(
         return Err("table dispatch field must have type addr".into());
     }
     let application = typed.storage_type_identity(
-        checked_trees::typed_trees::type_identity::TypeIdentityRequest::ordinary(
-            table.table_type(),
-        ),
+        typed_trees::type_identity::TypeIdentityRequest::ordinary(table.table_type()),
     );
     Ok(effects::provider_plan::TableFieldStorage {
         table_application: typed

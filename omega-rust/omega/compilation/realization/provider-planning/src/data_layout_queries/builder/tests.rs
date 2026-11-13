@@ -5,14 +5,14 @@
 
 use super::build_layout_plan;
 use crate::data_layout_queries::{DataLayout, DataShape, FieldLayout, LayoutPlan};
-use checked_trees::typed_trees::TypedTrees;
-use checked_trees::typed_trees::typed_trees::PlanLaidLayout;
 use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees::TypedTrees;
+use typed_trees::typed_trees::PlanLaidLayout;
 
 fn typed_fixture(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
@@ -35,56 +35,53 @@ fn private_callback_layout(offset: u64, size: usize) -> PlanLaidLayout {
         policy_symbol: symbols::SymbolHandle::from_arena_index(5),
         policy_plan_machine_symbol: symbols::SymbolHandle::from_arena_index(6),
         schema_argument: None,
-        realizations: checked_trees::typed_trees::PlanLaidRealizations::Invariant(
-            checked_trees::typed_trees::PlanLaidGeometry {
-                validated_layout: layout_plans::LayoutPlanReport {
-                    schema_report_fingerprint: 0x51,
-                    entries: vec![layout_plans::LayoutFieldEntryReport {
-                        field: "payload".to_owned(),
-                        member_identity: None,
-                        placement: layout_plans::LayoutPlacementReport::At { offset: 0 },
-                    }],
-                    offsets: Some(vec![0]),
-                    size: Some(size as u64),
-                    align: 8,
-                },
-                private_callback_demands: vec![layout_plans::PrivateCallbackLayoutDemandReport {
-                    slot_application: checked_trees::typed_trees::PrivateCallbackSlotApplication {
-                        application: Default::default(),
-                        selection: PrivateCallbackSlotSelection {
-                            declaration_identity: "package::Slot".into(),
-                            trait_identity: "core::layout::PrivateCallbackSlot".into(),
-                            semantic_identity: "package::ForeignRecord".into(),
-                            layout_identity: "package::Spread".into(),
-                            requirement_identity: "package::WindowProcedure::call#exact".into(),
-                            application_report_fingerprint: 0x91,
-                            application_commitment: [0x92; 32],
-                            application_encoding: vec![0x92].into(),
-                        },
-                    },
-                    slot_identity: "package::WndClassWindowProcedureSlot#exact".to_owned(),
-                    layout_subject_identity: "package::Spread".to_owned(),
-                    callback_requirement_identity: "package::WindowProcedure::call#exact"
-                        .to_owned(),
-                    placements: vec![layout_plans::LayoutPlacementReport::At { offset }],
+        realizations: typed_trees::PlanLaidRealizations::Invariant(typed_trees::PlanLaidGeometry {
+            validated_layout: layout_plans::LayoutPlanReport {
+                schema_report_fingerprint: 0x51,
+                entries: vec![layout_plans::LayoutFieldEntryReport {
+                    field: "payload".to_owned(),
+                    member_identity: None,
+                    placement: layout_plans::LayoutPlacementReport::At { offset: 0 },
                 }],
-                offsets: vec![0],
-                bit_fields: Vec::new(),
-                integer_fields: Vec::new(),
-                repeated_fields: Vec::new(),
-                size,
+                offsets: Some(vec![0]),
+                size: Some(size as u64),
                 align: 8,
             },
-        ),
+            private_callback_demands: vec![layout_plans::PrivateCallbackLayoutDemandReport {
+                slot_application: typed_trees::PrivateCallbackSlotApplication {
+                    application: Default::default(),
+                    selection: PrivateCallbackSlotSelection {
+                        declaration_identity: "package::Slot".into(),
+                        trait_identity: "core::layout::PrivateCallbackSlot".into(),
+                        semantic_identity: "package::ForeignRecord".into(),
+                        layout_identity: "package::Spread".into(),
+                        requirement_identity: "package::WindowProcedure::call#exact".into(),
+                        application_report_fingerprint: 0x91,
+                        application_commitment: [0x92; 32],
+                        application_encoding: vec![0x92].into(),
+                    },
+                },
+                slot_identity: "package::WndClassWindowProcedureSlot#exact".to_owned(),
+                layout_subject_identity: "package::Spread".to_owned(),
+                callback_requirement_identity: "package::WindowProcedure::call#exact".to_owned(),
+                placements: vec![layout_plans::LayoutPlacementReport::At { offset }],
+            }],
+            offsets: vec![0],
+            bit_fields: Vec::new(),
+            integer_fields: Vec::new(),
+            repeated_fields: Vec::new(),
+            size,
+            align: 8,
+        }),
     }
 }
 
 fn fixture_geometry_mut(
-    plan: &mut checked_trees::typed_trees::PlanLaidLayout,
-) -> &mut checked_trees::typed_trees::PlanLaidGeometry {
+    plan: &mut typed_trees::PlanLaidLayout,
+) -> &mut typed_trees::PlanLaidGeometry {
     match &mut plan.realizations {
-        checked_trees::typed_trees::PlanLaidRealizations::Invariant(geometry) => geometry,
-        checked_trees::typed_trees::PlanLaidRealizations::TargetInputs(_) => {
+        typed_trees::PlanLaidRealizations::Invariant(geometry) => geometry,
+        typed_trees::PlanLaidRealizations::TargetInputs(_) => {
             panic!("fixture must be invariant")
         }
     }
@@ -93,7 +90,7 @@ fn fixture_geometry_mut(
 fn private_callback_fields() -> [FieldLayout; 1] {
     [FieldLayout {
         symbol: symbols::SymbolHandle::from_arena_index(2),
-        name: checked_trees::typed_trees::name::Identifier::from("payload"),
+        name: typed_trees::name::Identifier::from("payload"),
         offset: 0,
         layout: crate::data_layout_queries::type_layout(8, 8),
         ..FieldLayout::default()
@@ -406,10 +403,10 @@ fn quotient_over_proof_only_carrier_stays_proof_only() {
         .data_definition_by_name_str("Quotient")
         .expect("Quotient definition")
         .symbol;
-    let classification = checked_trees::typed_trees::proof_only::classify(&typed);
+    let classification = typed_trees::proof_only::classify(&typed);
     assert!(matches!(
         classification.reason(quotient_symbol),
-        Some(checked_trees::typed_trees::proof_only::ProofOnlyReason::Quotient { .. })
+        Some(typed_trees::proof_only::ProofOnlyReason::Quotient { .. })
     ));
 }
 
