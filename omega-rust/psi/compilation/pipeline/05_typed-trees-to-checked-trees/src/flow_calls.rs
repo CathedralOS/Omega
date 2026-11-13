@@ -316,6 +316,27 @@ pub(super) fn memoized_find_call_site<'plans>(
         })
 }
 
+fn selected_call_signature<'plans>(
+    program: &'plans dyn validation::CheckingInput,
+    caller: SymbolHandle,
+    borrow_call: &BorrowCallFact,
+    site: &validation::CallSite<'_>,
+) -> Result<Option<&'plans typed_trees::signature::StateSignature>, &'static str> {
+    if borrow_call.runtime_call != site.runtime_call() {
+        return Err("call fact lost its exact runtime callable source");
+    }
+    let source = validation::call_contract_source(program, caller, site)?;
+    Ok(source
+        .as_ref()
+        .map(validation::CallContractSource::signature)
+        .or_else(|| match site {
+            validation::CallSite::Expression { call, .. } => {
+                program.requirement_call_signature(caller, call)
+            }
+            _ => None,
+        }))
+}
+
 fn append_one_to_one_call_carry_facts<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
@@ -326,8 +347,24 @@ fn append_one_to_one_call_carry_facts<'plans>(
     entry: &CallFlowContexts,
     exit: &mut CallFlowContexts,
 ) {
-    let Some(target_return_type) =
-        memoized_call_target_return_type(program, build, borrow_call.target_symbol)
+    let Some(site @ validation::CallSite::Expression { expression, call }) =
+        memoized_find_call_site(
+            program,
+            build,
+            machine.symbol,
+            state.symbol,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+        )
+    else {
+        return;
+    };
+    let Ok(selected) = selected_call_signature(program, machine.symbol, borrow_call, &site) else {
+        return;
+    };
+    let Some(target_return_type) = selected
+        .map(|signature| signature.return_type)
+        .or_else(|| memoized_call_target_return_type(program, build, borrow_call.target_symbol))
     else {
         return;
     };
@@ -336,25 +373,18 @@ fn append_one_to_one_call_carry_facts<'plans>(
     {
         return;
     }
-    let Some(validation::CallSite::Expression { expression, call }) = memoized_find_call_site(
-        program,
-        build,
-        machine.symbol,
-        state.symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
-    ) else {
-        return;
-    };
-
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut argument_index = 0usize;
     let mut linear_inputs = Vec::new();
-    let Some(parameters) =
-        memoized_call_target_parameters(program, build, borrow_call.target_symbol)
+    let Some(parameters) = selected
+        .map(|signature| program.state_signature_parameters(signature))
+        .or_else(|| memoized_call_target_parameters(program, build, borrow_call.target_symbol))
     else {
         return;
     };
+    if parameters.len() != arguments.len() {
+        return;
+    }
     for parameter in parameters {
         let argument = {
             let argument = arguments.get(argument_index).copied();
@@ -467,17 +497,21 @@ fn append_call_result_field_domain_facts<'plans>(
     borrow_call: &BorrowCallFact,
     exit: &mut CallFlowContexts,
 ) {
-    let Some(validation::CallSite::Expression { expression, call }) = memoized_find_call_site(
-        program,
-        build,
-        machine.symbol,
-        state.symbol,
-        borrow_call.statement_index,
-        borrow_call.call_ordinal,
-    ) else {
+    let Some(site @ validation::CallSite::Expression { expression, call }) =
+        memoized_find_call_site(
+            program,
+            build,
+            machine.symbol,
+            state.symbol,
+            borrow_call.statement_index,
+            borrow_call.call_ordinal,
+        )
+    else {
         return;
     };
-    let selected = program.requirement_call_signature(machine.symbol, call);
+    let Ok(selected) = selected_call_signature(program, machine.symbol, borrow_call, &site) else {
+        return;
+    };
     let Some(return_type) = build.expression_result_type_at(program, machine, state, expression)
     else {
         return;
@@ -654,11 +688,8 @@ fn append_call_parameter_domain_facts<'plans>(
     ) else {
         return;
     };
-    let selected = match site {
-        validation::CallSite::Expression { call, .. } => {
-            program.requirement_call_signature(machine.symbol, call)
-        }
-        _ => None,
+    let Ok(selected) = selected_call_signature(program, machine.symbol, borrow_call, &site) else {
+        return;
     };
     let key = (
         borrow_call.target_symbol,

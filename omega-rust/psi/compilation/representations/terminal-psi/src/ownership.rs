@@ -1065,6 +1065,10 @@ pub(crate) mod suspension {
 
     fn hash_scalar_type(hash: &mut crate::digest_encoder::DomainDigestEncoder, scalar: ScalarType) {
         match scalar {
+            ScalarType::Callable(contract) => {
+                hash.byte(4);
+                hash.raw(&contract.get().to_le_bytes());
+            }
             ScalarType::Boolean => hash.byte(1),
             ScalarType::Integer(integer) => {
                 hash.byte(2);

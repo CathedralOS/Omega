@@ -2915,15 +2915,49 @@ pub mod expression_owners {
                         return None;
                     }
                     let retained = signatures.get(application);
-                    if retained.declaring_trait != owner_symbol
-                        || retained.signature.symbol != state_symbol
-                    {
+                    let source_owner = match retained.source {
+                        checked_trees::CallContractSignatureSource::Requirement {
+                            declaring_trait,
+                        } => declaring_trait,
+                        checked_trees::CallContractSignatureSource::Runtime {
+                            contract,
+                            lexical_owner,
+                            callee,
+                        } => {
+                            if !program.runtime_callable_contracts.is_valid(contract)
+                                || !program.expression_table.expression_is_valid(callee)
+                            {
+                                return None;
+                            }
+                            let row = program.runtime_callable_contract(contract);
+                            if row.lexical_owner != lexical_owner
+                                || row.signature != retained.signature
+                            {
+                                return None;
+                            }
+                            lexical_owner
+                        }
+                        checked_trees::CallContractSignatureSource::Invalid => return None,
+                    };
+                    if source_owner != owner_symbol || retained.signature.symbol != state_symbol {
                         return None;
                     }
                     Some(environment_from_parameters(
                         state_symbol,
                         program.state_signature_parameters(&retained.signature),
                         retained.signature.return_type,
+                        None,
+                    ))
+                }
+                ContractProofFactOwner::RuntimeCallableContract { contract } => {
+                    if !program.runtime_callable_contracts.is_valid(contract) {
+                        return None;
+                    }
+                    let row = program.runtime_callable_contract(contract);
+                    Some(environment_from_parameters(
+                        row.signature.symbol,
+                        program.state_signature_parameters(&row.signature),
+                        row.signature.return_type,
                         None,
                     ))
                 }
@@ -11000,14 +11034,14 @@ pub mod scalar_boundary_guarantees {
             })?;
             Some(Scalar::Parameter {
                 position,
-                primitive_type,
+                scalar_type: primitive_type.into(),
             })
         };
         let left = formal(*left)?;
         let right = formal(*right)?;
         let result = Scalar::Parameter {
             position: parameters.len(),
-            primitive_type,
+            scalar_type: primitive_type.into(),
         };
         let mut condition = and(
             finite(left, application.format),
@@ -11309,8 +11343,8 @@ pub mod signature_ensures {
                 .and_then(|source| source.scalar_storage_coordinate(program, state))
                 .filter(|coordinate| {
                     coordinate.preserves_scalar_value
-                        && coordinate.source_primitive == primitive
-                        && coordinate.view_primitive == primitive
+                        && coordinate.source_scalar_type.primitive() == Some(primitive)
+                        && coordinate.view_scalar_type.primitive() == Some(primitive)
                 })
             else {
                 return;

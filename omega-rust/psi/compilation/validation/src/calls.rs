@@ -3045,7 +3045,7 @@ pub(crate) mod expression_scanning {
         formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
         if call.runtime_call.is_some() {
-            let site = CallSite::Expression { expression, call };
+            let site = crate::CallSite::Expression { expression, call };
             if let Some(signature) = super::runtime_calls::validate_arguments(
                 program,
                 current_machine,
@@ -7156,7 +7156,7 @@ pub(crate) mod write_frames {
                             };
                         }
                         boundary_origins!(boundary_result_candidate_origins)
-                            .or_else(|| boundary_origins!(requirement_result_candidate_origins))
+                            .or_else(|| boundary_origins!(callable_result_candidate_origins))
                     }?
                 }
                 ExpressionNode::Indexed(indexed) => {
@@ -7889,6 +7889,12 @@ pub(crate) mod write_frames {
             target: &str,
             site: CallerWriteSite<'_>,
         ) -> Option<BoundaryWriteSignature<'program>> {
+            if site
+                .as_call_site(program)
+                .is_some_and(|source| source.runtime_call().is_some())
+            {
+                return None;
+            }
             boundary_trait_signature_and_receiver_inner(
                 program,
                 current_machine,
@@ -8378,13 +8384,18 @@ pub(crate) mod write_frames {
             None
         }
 
-        pub(crate) fn requirement_signature_for_site<'program>(
+        pub(crate) fn callable_signature_for_site<'program>(
             program: &'program dyn crate::CheckingInput,
             current_machine: &Machine,
             receiver: &[String],
             target: &str,
             site: CallerWriteSite<'_>,
         ) -> Option<&'program typed_trees::signature::StateSignature> {
+            let call = site.as_call_site(program)?;
+            match crate::call_contract_source(program, current_machine.symbol, &call).ok()? {
+                Some(source) => return Some(source.signature()),
+                None => {}
+            }
             let (_, target_symbol) = call_site_symbols(program, site)?;
             requirement_signature_for_target(
                 program,
@@ -8418,7 +8429,7 @@ pub(crate) mod write_frames {
             Some(signature)
         }
 
-        pub(crate) fn known_requirement_call_written_paths_for_parts(
+        pub(crate) fn known_signature_call_written_paths_for_parts(
             program: &dyn crate::CheckingInput,
             current_machine: &Machine,
             machine_symbols: &MachineSymbols<'_>,
@@ -8455,7 +8466,7 @@ pub(crate) mod write_frames {
                 return outcome;
             }
             let signature =
-                requirement_signature_for_site(program, current_machine, receiver, target, site)?;
+                callable_signature_for_site(program, current_machine, receiver, target, site)?;
             let mut written = Vec::new();
             let AppliedCallWriteSignature {
                 signature,
@@ -8706,7 +8717,7 @@ pub(crate) mod write_frames {
                     );
                 }
                 if requirement_signature_by_target(program, call.target_symbol).is_some() {
-                    return requirement_result_origins(
+                    return callable_result_origins(
                         program,
                         current_machine,
                         machine_symbols,
@@ -9047,7 +9058,7 @@ pub(crate) mod write_frames {
             }
         }
 
-        pub(crate) fn requirement_result_origins(
+        pub(crate) fn callable_result_origins(
             program: &dyn crate::CheckingInput,
             current_machine: &Machine,
             machine_symbols: &MachineSymbols<'_>,
@@ -9057,7 +9068,7 @@ pub(crate) mod write_frames {
             inference: &mut FrameInference,
         ) -> Option<Vec<FramePlaceOrigin>> {
             let receiver = receiver_member_chain(program, call.receiver).unwrap_or_default();
-            let signature = requirement_signature_for_site(
+            let signature = callable_signature_for_site(
                 program,
                 current_machine,
                 &receiver,
@@ -9100,7 +9111,7 @@ pub(crate) mod write_frames {
         }
 
         signature_result_candidate_adapter! {
-            requirement_result_candidate_origins => requirement_result_origins
+            callable_result_candidate_origins => callable_result_origins
         }
 
         fn canonical_result_origins(
@@ -9515,6 +9526,21 @@ pub(crate) mod write_frames {
             site: super::caller_aliases::CallerWriteSite<'_>,
             symbols: &TopLevelSymbols<'_>,
         ) -> Vec<TypeReferenceHandle> {
+            if let Some(call) = site.as_call_site(program)
+                && call.runtime_call().is_some()
+            {
+                return crate::call_contract_source(program, current_machine.symbol, &call)
+                    .ok()
+                    .flatten()
+                    .map(|source| {
+                        program
+                            .state_signature_parameters(source.signature())
+                            .iter()
+                            .map(|parameter| parameter.type_reference)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+            }
             let call_site = match site {
                 super::caller_aliases::CallerWriteSite::Expression(expression) => {
                     expression_table(program)
@@ -9591,7 +9617,7 @@ pub(crate) mod write_frames {
                 )
                 .map(|signature| signature_parameter_types(program, signature))
                 .or_else(|| {
-                    super::boundary_calls::requirement_signature_for_site(
+                    super::boundary_calls::callable_signature_for_site(
                         program,
                         current_machine,
                         receiver,
@@ -10032,6 +10058,7 @@ pub(crate) mod write_frames {
                     symbols,
                     inference,
                     None,
+                    Some(crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite::Expression(expression)),
                 )
                 .or_else(|| {
                     if call.receiver.is_valid()
@@ -10064,7 +10091,7 @@ pub(crate) mod write_frames {
                     {
                         return None;
                     }
-                    super::boundary_calls::known_requirement_call_written_paths_for_parts(
+                    super::boundary_calls::known_signature_call_written_paths_for_parts(
                         program,
                         current_machine,
                         machine_symbols,
@@ -11985,6 +12012,8 @@ pub(crate) mod write_frames {
                 return;
             }
             let definition = match program.type_reference_table.type_reference(reference) {
+                // Callable contracts describe inputs; the code value owns no hidden state.
+                TypeReferenceNode::Callable { .. } => return,
                 // A borrow owns nothing, so nothing dies with it.
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::Slice { .. }
@@ -12539,6 +12568,7 @@ pub(crate) mod write_frames {
                                 symbols,
                                 &mut inference,
                                 Some(&argument_origins),
+                                Some(crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite::Call(call)),
                             )
                             .or_else(|| {
                                 (!arguments.iter().any(|argument| {
@@ -13316,8 +13346,8 @@ pub(crate) mod write_frames {
                                 || !source.recasts.is_empty() || source.representation.is_some(),
                                 |scalar| {
                                     !scalar.preserves_scalar_value
-                                        || scalar.source_primitive != expected
-                                        || scalar.view_primitive != expected
+                                        || scalar.source_scalar_type.primitive() != Some(expected)
+                                        || scalar.view_scalar_type.primitive() != Some(expected)
                                 },
                             )
                     }))
@@ -13618,7 +13648,11 @@ pub(crate) mod write_frames {
                                 arguments: Vec::new(),
                                 references: None,
                             };
-                            let callee_has_explicit_parameters = frames::machine_state_by_symbol(program, target).is_some()
+                            let runtime_call = site
+                                .as_call_site(program)
+                                .and_then(|call| call.runtime_call());
+                            let callee_has_explicit_parameters = runtime_call.is_some()
+                                || frames::machine_state_by_symbol(program, target).is_some()
                         || program.dynamic_slot_by_symbol(target).is_some()
                         || crate::selected_requirement_signature(program, target).is_some()
                     || match site {
@@ -13653,6 +13687,13 @@ pub(crate) mod write_frames {
                     .is_some_and(|(_, has_runtime_receiver)| !has_runtime_receiver);
                             let preceding_effect = prefix.is_none_or(|prefix| {
                                 self.prefix_may_change_origins(machine, statement, site, prefix)
+                                    || runtime_call.is_some_and(|binding| {
+                                        self.operand_may_change_origins(
+                                            machine,
+                                            binding.callee,
+                                            prefix,
+                                        )
+                                    })
                                     || (receiver_expression.is_valid()
                                         && self.operand_may_change_origins(
                                             machine,
@@ -14500,7 +14541,7 @@ pub(crate) mod write_frames {
                             let scalar = source
                                 .scalar_storage_coordinate(program, state)
                                 .ok_or("the scalar view has no exact storage interpretation")?;
-                            if scalar.view_primitive != expected
+                            if scalar.view_scalar_type.primitive() != Some(expected)
                                 || !(scalar.preserves_scalar_value
                                     || scalar.preserves_primitive_bits)
                             {
@@ -16329,7 +16370,7 @@ pub(crate) mod write_frames {
                         })
                         .or_else(|| {
                             probe_paths(
-                                super::boundary_calls::known_requirement_call_written_paths_for_parts,
+                                super::boundary_calls::known_signature_call_written_paths_for_parts,
                                 inference,
                             )
                         })
@@ -16500,47 +16541,48 @@ pub(crate) mod write_frames {
                         &self.caches.state_write_shared_collections,
                         |inference, prefix| {
                             let written = known_call_written_paths_for_parts(
-                        self.program,
-                        target_symbol,
-                        target,
-                        &receiver,
-                        &receiver_origins,
-                        None,
-                        arguments,
-                        current_machine,
-                        &machine_symbols,
-                        &self.tables.symbols,
-                        inference,
-                        Some(&argument_origins),
-                    )
-                    .or_else(|| {
-                        known_boundary_call_written_paths_for_parts(
-                            self.program,
-                            current_machine,
-                            &machine_symbols,
-                            &self.tables.symbols,
-                            &receiver,
-                            target,
-                            site,
-                            arguments,
-                            inference,
-                            Some(&argument_origins),
-                        )
-                    })
-                    .or_else(|| {
-                        super::boundary_calls::known_requirement_call_written_paths_for_parts(
-                            self.program,
-                            current_machine,
-                            &machine_symbols,
-                            &self.tables.symbols,
-                            &receiver,
-                            target,
-                            site,
-                            arguments,
-                            inference,
-                            Some(&argument_origins),
-                        )
-                    })?;
+                                self.program,
+                                target_symbol,
+                                target,
+                                &receiver,
+                                &receiver_origins,
+                                None,
+                                arguments,
+                                current_machine,
+                                &machine_symbols,
+                                &self.tables.symbols,
+                                inference,
+                                Some(&argument_origins),
+                                Some(site),
+                            )
+                            .or_else(|| {
+                                known_boundary_call_written_paths_for_parts(
+                                    self.program,
+                                    current_machine,
+                                    &machine_symbols,
+                                    &self.tables.symbols,
+                                    &receiver,
+                                    target,
+                                    site,
+                                    arguments,
+                                    inference,
+                                    Some(&argument_origins),
+                                )
+                            })
+                            .or_else(|| {
+                                super::boundary_calls::known_signature_call_written_paths_for_parts(
+                                    self.program,
+                                    current_machine,
+                                    &machine_symbols,
+                                    &self.tables.symbols,
+                                    &receiver,
+                                    target,
+                                    site,
+                                    arguments,
+                                    inference,
+                                    Some(&argument_origins),
+                                )
+                            })?;
                             // No caller location can be written when the complete
                             // signature footprint is empty. Unrelated incomplete
                             // origins must not turn that proved empty set opaque.
@@ -17166,7 +17208,7 @@ pub(crate) mod write_frames {
                             call.receiver,
                         )
                         && super::machine_state_by_symbol(program, call.target_symbol).is_none()
-                        && super::boundary_calls::requirement_signature_for_site(
+                        && super::boundary_calls::callable_signature_for_site(
                             program,
                             current_machine,
                             receiver_members.as_deref().unwrap_or(&[]),
@@ -17280,6 +17322,7 @@ pub(crate) mod write_frames {
                         symbols,
                         inference,
                         Some(&argument_origins),
+                        Some(crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite::Expression(expression)),
                     )
                     .or_else(|| {
                         if !exact_receiver && !authority_receiver {
@@ -17289,7 +17332,7 @@ pub(crate) mod write_frames {
                     })
                     .or_else(|| {
                         probe_paths(
-                            super::boundary_calls::known_requirement_call_written_paths_for_parts,
+                            super::boundary_calls::known_signature_call_written_paths_for_parts,
                             inference,
                         )
                     })
@@ -19540,7 +19583,7 @@ pub(crate) mod write_frames {
                                 inference,
                             )
                             .or_else(|| {
-                                super::boundary_calls::requirement_result_origins(
+                                super::boundary_calls::callable_result_origins(
                                     program,
                                     current_machine,
                                     &machine_symbols,
@@ -20562,14 +20605,15 @@ pub(crate) mod write_frames {
             use crate::CanonicalPlace;
             use crate::LocalWriteSource;
             use facts::{PlaceRoot, PlaceSegment};
+            use typed_trees::callable_values::ScalarValueType;
             use typed_trees::state::State;
-            use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+            use typed_trees::types::TypeReferenceHandle;
 
             pub struct ScalarStorageCoordinate {
                 pub place: CanonicalPlace,
                 pub view_reference: TypeReferenceHandle,
-                pub source_primitive: PrimitiveType,
-                pub view_primitive: PrimitiveType,
+                pub source_scalar_type: ScalarValueType,
+                pub view_scalar_type: ScalarValueType,
                 pub preserves_scalar_value: bool,
                 pub preserves_primitive_bits: bool,
             }
@@ -20681,31 +20725,59 @@ pub(crate) mod write_frames {
                     let (view, path) = match &self.representation {
                         Some((carrier, path)) => (*carrier, path.as_slice()),
                         None => (
-                            source_root_type(program, state, self.root)
-                                .ok_or("source root has no exact declaration type")?,
+                            match self.invocation_result {
+                                Some(home) => home.referent,
+                                None => source_root_type(program, state, self.root)
+                                    .ok_or("source root has no exact declaration type")?,
+                            },
                             self.segments.as_slice(),
                         ),
                     };
-                    let (view_reference, view_primitive) = scalar_leaf(program, view, path)
+                    let (view_reference, view_scalar_type) = scalar_leaf(program, view, path)
                         .ok_or("logical view path has no declared scalar type")?;
                     let coordinate = self.storage_coordinate(program, state)?;
-                    let root = coordinate
-                        .place
-                        .root
-                        .as_symbol()
-                        .ok_or("translated source has no declaration root")?;
-                    let carrier = source_root_type(program, state, root)
-                        .ok_or("translated source root has no declared type")?;
-                    let (_, source_primitive) =
+                    let carrier = match coordinate.place.root {
+                        PlaceRoot::Symbol(root) => source_root_type(program, state, root)
+                            .ok_or("translated source root has no declared type")?,
+                        PlaceRoot::Expression(expression) => self
+                            .invocation_result
+                            .filter(|home| home.call == expression)
+                            .map(|home| home.referent)
+                            .ok_or("translated source has no exact invocation result")?,
+                        PlaceRoot::Unknown
+                        | PlaceRoot::InvocationReferent { .. }
+                        | PlaceRoot::InvocationOutput(_)
+                        | PlaceRoot::TypeReference(_) => {
+                            return Err(
+                                "scalar source translation lost its original declaration or completed invocation root",
+                            );
+                        }
+                    };
+                    let (_, source_scalar_type) =
                         scalar_leaf(program, carrier, &coordinate.place.segments)
                             .ok_or("translated source path has no declared scalar type")?;
+                    let primitive_geometry = source_scalar_type.primitive().is_some()
+                        && view_scalar_type.primitive().is_some();
+                    if !primitive_geometry {
+                        if !coordinate.preserves_scalar_value {
+                            return Err("a representation change requires primitive scalar types");
+                        }
+                        if !source_scalar_type
+                            .same_type(program.typed_program(), view_scalar_type)
+                            .map_err(|_| "the storage scalar type identity is unresolved")?
+                        {
+                            return Err("the scalar value interpretation differs from its source");
+                        }
+                    }
                     Ok(ScalarStorageCoordinate {
                         place: coordinate.place,
                         view_reference,
-                        source_primitive,
-                        view_primitive,
+                        source_scalar_type,
+                        view_scalar_type,
                         preserves_scalar_value: coordinate.preserves_scalar_value,
-                        preserves_primitive_bits: coordinate.preserves_primitive_bits,
+                        preserves_primitive_bits: coordinate.preserves_primitive_bits
+                            && source_scalar_type.primitive().is_some()
+                            && view_scalar_type.primitive().is_some(),
                     })
                 }
 
@@ -20893,10 +20965,13 @@ pub(crate) mod write_frames {
                 program: &dyn crate::CheckingInput,
                 carrier: TypeReferenceHandle,
                 path: &[PlaceSegment],
-            ) -> Option<(TypeReferenceHandle, PrimitiveType)> {
+            ) -> Option<(TypeReferenceHandle, ScalarValueType)> {
                 let leaf = crate::project_type_reference_from_segments(program, carrier, path)?;
                 let reference = crate::value_custody::places::assignment_value_type(program, leaf);
-                Some((reference, program.primitive_type_reference(reference)?))
+                Some((
+                    reference,
+                    ScalarValueType::from_type_reference(program.typed_program(), reference)?,
+                ))
             }
         }
         pub(crate) mod source_places {
@@ -24466,7 +24541,12 @@ pub(crate) mod write_frames {
                 inputs: &dyn ArgumentOrigins,
             ) -> Option<AggregateOrigins> {
                 let call = expression_table(program).call_node(expression)?;
-                let signature = program.requirement_call_signature(caller.symbol, call)?;
+                let site = crate::CallSite::Expression { expression, call };
+                let source = crate::call_contract_source(program, caller.symbol, &site).ok()?;
+                let signature = source
+                    .as_ref()
+                    .map(crate::CallContractSource::signature)
+                    .or_else(|| program.requirement_call_signature(caller.symbol, call))?;
                 let parameters = program.state_signature_parameters(signature);
                 let inventory = stored_origins::declared_origins_for_query(
                     program,
@@ -24482,13 +24562,23 @@ pub(crate) mod write_frames {
                 {
                     return None;
                 }
-                let fields = match resolve_applied_signature_view_return_source(
-                    program,
-                    signature,
-                    &[],
-                    &[],
-                    caller.symbol,
-                ) {
+                let relation = match source {
+                    Some(crate::CallContractSource::Runtime { binding, .. }) => {
+                        crate::borrow_contracts::resolve_runtime_callable_view_return_source(
+                            program,
+                            binding.contract,
+                            caller.symbol,
+                        )
+                    }
+                    _ => resolve_applied_signature_view_return_source(
+                        program,
+                        signature,
+                        &[],
+                        &[],
+                        caller.symbol,
+                    ),
+                };
+                let fields = match relation {
                     ViewReturnSource::Fields { fields } => fields,
                     ViewReturnSource::NotApplicable => Vec::new(),
                     _ => return None,
@@ -27372,7 +27462,7 @@ pub(crate) mod write_frames {
         use crate::machine_calls::calls::write_frames::assignment_targets::expression_is_effectful_indexed_place;
         use crate::machine_calls::calls::write_frames::boundary_calls::{
             known_boundary_call_written_paths_for_parts,
-            known_requirement_call_written_paths_for_parts,
+            known_signature_call_written_paths_for_parts,
         };
         use crate::machine_calls::calls::write_frames::caller_aliases::AssignmentWriteTarget;
         use crate::machine_calls::calls::write_frames::caller_aliases::CallOriginContext;
@@ -28363,6 +28453,7 @@ pub(crate) mod write_frames {
                                 symbols,
                                 inference,
                                 Some(&argument_origins),
+                                Some(crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite::Call(nested_call)),
                             )
                             .or_else(|| {
                                 deduped_paths(
@@ -28373,7 +28464,7 @@ pub(crate) mod write_frames {
                             })
                             .or_else(|| {
                                 deduped_paths(
-                                    known_requirement_call_written_paths_for_parts,
+                                    known_signature_call_written_paths_for_parts,
                                     inference,
                                     &argument_origins,
                                 )
@@ -38862,6 +38953,7 @@ pub(crate) mod write_frames {
                     symbols,
                     inference,
                     Some(&argument_origins),
+                    Some(site),
                 )
             } else {
                 if arguments.iter().any(|argument| {
@@ -38884,7 +38976,7 @@ pub(crate) mod write_frames {
                     Some(&argument_origins),
                 )
                 .or_else(|| {
-                    super::boundary_calls::known_requirement_call_written_paths_for_parts(
+                    super::boundary_calls::known_signature_call_written_paths_for_parts(
                         program,
                         caller,
                         machine_symbols,
@@ -40391,6 +40483,11 @@ pub(crate) mod write_frames {
             symbols,
             inference,
             argument_origins,
+            Some(
+                crate::machine_calls::calls::write_frames::caller_aliases::CallerWriteSite::Call(
+                    call,
+                ),
+            ),
         )
     }
 
@@ -40472,7 +40569,26 @@ pub(crate) mod write_frames {
         symbols: &TopLevelSymbols<'_>,
         inference: &mut FrameInference,
         argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
+        site: Option<caller_aliases::CallerWriteSite<'_>>,
     ) -> Option<Vec<String>> {
+        if let Some(site) = site
+            && site
+                .as_call_site(program)
+                .is_some_and(|source| source.runtime_call().is_some())
+        {
+            return boundary_calls::known_signature_call_written_paths_for_parts(
+                program,
+                current_machine,
+                machine_symbols,
+                symbols,
+                receiver_members,
+                target,
+                site,
+                arguments,
+                inference,
+                argument_origins,
+            );
+        }
         if !target_symbol.is_valid()
             && matches!(target, "encode" | "decode")
             && receiver_members.last().is_some_and(|leaf| {
@@ -40642,6 +40758,7 @@ pub(crate) mod write_frames {
                     symbols,
                     inference,
                     argument_origins,
+                    None,
                 )? {
                     if !joined.contains(&path) {
                         joined.push(path);
@@ -40965,6 +41082,7 @@ pub(crate) mod write_frames {
                     &symbols,
                     &mut FrameInference::default(),
                     origins,
+                    None,
                 )
             };
             assert_eq!(resolve(None), Some(vec!["syntax".to_owned()]));
@@ -41307,6 +41425,45 @@ pub enum CallContractSource<'program> {
 }
 
 impl<'program> CallContractSource<'program> {
+    pub fn runtime_expression(
+        program: &'program dyn crate::CheckingInput,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Result<Option<Self>, &'static str> {
+        let Some(binding) = call.runtime_call else {
+            return Ok(None);
+        };
+        if call.target_symbol.is_valid()
+            || call.static_machine_parameter.is_valid()
+            || call.receiver.is_valid()
+            || call.static_requirement_dispatch.is_some()
+            || call.authored_machine_application.is_valid()
+            || call.requirement_application.is_valid()
+            || !call.machine_arguments.is_empty()
+        {
+            return Err("runtime callable invocation retains a conflicting static call payload");
+        }
+        Self::runtime_binding(program, binding).map(Some)
+    }
+
+    fn runtime_binding(
+        program: &'program dyn crate::CheckingInput,
+        binding: typed_trees::callable_values::RuntimeCallBinding,
+    ) -> Result<Self, &'static str> {
+        if !program.expression_table.expression_is_valid(binding.callee) {
+            return Err("runtime callable invocation lost its evaluated callee");
+        }
+        if !program
+            .runtime_callable_contracts
+            .is_valid(binding.contract)
+        {
+            return Err("runtime callable invocation lost its exact structural contract row");
+        }
+        Ok(Self::Runtime {
+            binding,
+            contract: program.runtime_callable_contracts.get(binding.contract),
+        })
+    }
+
     pub fn signature(&self) -> &'program typed_trees::signature::StateSignature {
         match self {
             Self::Requirement { signature, .. } => signature,
@@ -41326,6 +41483,11 @@ pub fn call_contract_source<'program>(
     caller: symbols::SymbolHandle,
     site: &crate::CallSite<'_>,
 ) -> Result<Option<CallContractSource<'program>>, &'static str> {
+    if let crate::CallSite::Expression { call, .. } = site
+        && call.runtime_call.is_some()
+    {
+        return CallContractSource::runtime_expression(program, call);
+    }
     if let Some(binding) = site.runtime_call() {
         let consistent = match site {
             crate::CallSite::Expression { call, .. } => {
@@ -41351,19 +41513,7 @@ pub fn call_contract_source<'program>(
         if !consistent {
             return Err("runtime callable invocation retains a conflicting static call payload");
         }
-        if !program.expression_table.expression_is_valid(binding.callee) {
-            return Err("runtime callable invocation lost its evaluated callee");
-        }
-        if !program
-            .runtime_callable_contracts
-            .is_valid(binding.contract)
-        {
-            return Err("runtime callable invocation lost its exact structural contract row");
-        }
-        return Ok(Some(CallContractSource::Runtime {
-            binding,
-            contract: program.runtime_callable_contracts.get(binding.contract),
-        }));
+        return CallContractSource::runtime_binding(program, binding).map(Some);
     }
     let requirement = site.static_requirement_dispatch().is_some()
         || selected_requirement_signature(program, site.target_symbol(program)).is_some();
@@ -45169,7 +45319,9 @@ pub(crate) mod occurrences {
                         }
                         None
                     }
-                    ExpressionNode::TypeExpression(_)
+                    // Selecting closed code constructs a descriptor; it is not an invocation.
+                    ExpressionNode::MachineValue(_)
+                    | ExpressionNode::TypeExpression(_)
                     | ExpressionNode::SavedSubject(_)
                     | typed_trees::literal_expression_pattern!() => None,
                 }

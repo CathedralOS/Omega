@@ -425,6 +425,11 @@ pub enum AbstractOperation {
         result: AbstractResult,
         table: u32,
     },
+    SelectMachine {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        descriptor: semantic_vocabulary::MachineDescriptorId,
+    },
     BoundaryCall {
         psi_operation: OperationId,
         result: AbstractBoundaryResult,
@@ -1132,6 +1137,7 @@ impl AbstractOperation {
             | Self::AtomicEvent { psi_operation, .. }
             | Self::CallStructural { psi_operation, .. }
             | Self::SelectImplementation { psi_operation, .. }
+            | Self::SelectMachine { psi_operation, .. }
             | Self::BoundaryCall { psi_operation, .. }
             | Self::PortWrite { psi_operation, .. }
             | Self::RegisterAccess { psi_operation, .. }

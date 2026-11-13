@@ -2909,6 +2909,10 @@ pub(crate) mod scalar_wire {
                 writer.u8(3);
                 encode_ieee_float_format(writer, format);
             }
+            ScalarType::Callable(contract) => {
+                writer.u8(4);
+                writer.u64(contract.get());
+            }
         }
     }
 
@@ -2955,6 +2959,10 @@ pub(crate) mod scalar_wire {
             1 => ScalarType::Boolean,
             2 => ScalarType::Integer(decode_integer_type(reader)?),
             3 => ScalarType::IeeeFloat(decode_ieee_float_format(reader)?),
+            4 => ScalarType::Callable(
+                semantic_vocabulary::CallableContractId::new(reader.u64()?)
+                    .ok_or(CodecError::ZeroIdentity("CallableContractId"))?,
+            ),
             tag => return Err(CodecError::InvalidTag("ScalarType", tag)),
         })
     }

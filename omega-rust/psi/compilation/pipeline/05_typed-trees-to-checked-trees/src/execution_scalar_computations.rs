@@ -150,7 +150,7 @@ mod atomic_loads {
                     )
                 },
             )?;
-            if field.primitive_type != expected
+            if field.scalar_type.primitive()? != expected
                 || field.path.iter().any(|segment| {
                     !matches!(
                         segment,
@@ -995,14 +995,37 @@ mod call_arguments {
                 }
                 return;
             }
-            let Some(parameters) = validation::call_target_parameters(self.program, target) else {
-                return;
+            let runtime = self
+                .flow
+                .control
+                .call_at(self.state, statement as usize, call_ordinal as usize)
+                .and_then(|call| call.runtime_call);
+            let program = self.program;
+            let parameters = if let Some(binding) = runtime {
+                let Ok(signature) = binding.signature(self.program.typed_program()) else {
+                    return;
+                };
+                let parameters = program.state_signature_parameters(signature);
+                self.record_root(
+                    self.pure,
+                    statement,
+                    CheckedScalarExpressionRole::RuntimeCallCallee { call_ordinal },
+                    binding.callee,
+                    checked_trees::CheckedScalarType::Callable(binding.contract),
+                );
+                parameters
+            } else {
+                let Some(parameters) = validation::call_target_parameters(self.program, target)
+                else {
+                    return;
+                };
+                parameters
             };
             let explicit_parameters = parameters.iter();
             if parameters.len() != arguments.len() {
                 return;
             }
-            let boundary = call_is_boundary(self.program, target);
+            let boundary = runtime.is_none() && call_is_boundary(self.program, target);
             let mut scalar_ordinal = 0u32;
             let mut structural_ordinal = 0u32;
             for (argument, parameter) in arguments.iter().zip(explicit_parameters) {
@@ -1011,10 +1034,10 @@ mod call_arguments {
                     Some(false) => {}
                     None => return,
                 }
-                let Some(primitive_type) = self
-                    .program
-                    .primitive_type_reference(parameter.type_reference)
-                else {
+                let Some(primitive_type) = checked_trees::CheckedScalarType::from_type_reference(
+                    self.program.typed_program(),
+                    parameter.type_reference,
+                ) else {
                     if !parameter.is_const {
                         self.retain_structural_argument(*argument, parameter.type_reference);
                         let Some(selectors) =
@@ -1137,10 +1160,10 @@ mod call_arguments {
                 if strips_erased_parameter(parameter)? {
                     continue;
                 }
-                if let Some(primitive_type) = self
-                    .program
-                    .primitive_type_reference(parameter.type_reference)
-                {
+                if let Some(primitive_type) = checked_trees::CheckedScalarType::from_type_reference(
+                    self.program.typed_program(),
+                    parameter.type_reference,
+                ) {
                     let root = self.expression(*argument, primitive_type)?;
                     self.plans.nodes.get_mut(root).authored_root = *argument;
                     computed_arguments.push(root);
@@ -1800,7 +1823,8 @@ mod cases {
             let (
                 checked_trees::CheckedScalarExpression::Local {
                     position,
-                    primitive_type,
+                    scalar_type:
+                        typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
                 },
                 _,
             ) = crate::values::scalar::scalar_lowering::lower_scalar_expression(
@@ -1943,7 +1967,13 @@ mod completions {
                                 checked_trees::CheckedDispatchSubject::Scalar(subject),
                                 checked_trees::CheckedScalarDispatchPattern::Value(_),
                             ) => {
-                                let primitive = self.plans.nodes.get(*subject).primitive_type;
+                                let primitive = self
+                                    .plans
+                                    .nodes
+                                    .get(*subject)
+                                    .scalar_type
+                                    .primitive()
+                                    .ok_or_else(|| declined(Refusal::Comparison))?;
                                 if primitive == super::PrimitiveType::Bool {
                                     checked_trees::CheckedCompletionComparison::Boolean
                                 } else if primitive.is_fixed_integer()
@@ -2035,14 +2065,14 @@ mod coordinate_reads {
                     .parameters
                     .iter()
                     .position(|parameter| parameter.symbol == symbol)?;
-                if self.parameter_types.get(position) != Some(&expected_type) {
+                if self.parameter_types.get(position) != Some(&expected_type.into()) {
                     return None;
                 }
                 return Some(self.insert(
                     expected_type,
                     CheckedScalarComputationKind::Value(CheckedScalarExpression::Parameter {
                         position,
-                        primitive_type: expected_type,
+                        scalar_type: (expected_type).into(),
                     }),
                 ));
             }
@@ -2052,7 +2082,7 @@ mod coordinate_reads {
                 symbol,
                 &coordinate.segments,
             )?;
-            if geometry.primitive_type != expected_type {
+            if geometry.scalar_type.primitive()? != expected_type {
                 return None;
             }
             let parameter_position = self
@@ -2213,8 +2243,13 @@ mod declaration_inputs {
                     &place.segments,
                 )
                 .ok_or("a captured declaration read has no exact formal geometry")?;
-                if Some(geometry.primitive_type)
-                    != Some(self.plans.nodes.get(*value).primitive_type)
+                if !geometry
+                    .scalar_type
+                    .same_type(
+                        self.program.typed_program(),
+                        self.plans.nodes.get(*value).scalar_type,
+                    )
+                    .map_err(|reason| reason.reason())?
                 {
                     return Err("a completed declaration capture has the wrong formal carrier");
                 }
@@ -2516,7 +2551,7 @@ mod dispatch {
             &mut self,
             source_expression: ExpressionHandle,
             dispatch: &TableMatchExpression,
-            result_type: PrimitiveType,
+            result_type: checked_trees::CheckedScalarType,
         ) -> Option<CheckedScalarComputationHandle> {
             if let Some(selected) = validation::select_anonymous_numeric_match_arm(
                 self.program,
@@ -2562,7 +2597,12 @@ mod dispatch {
             let checked_trees::CheckedDispatchSubject::Scalar(subject_handle) = subject else {
                 return None;
             };
-            let subject_type = self.plans.nodes.get(subject_handle).primitive_type;
+            let subject_type = self
+                .plans
+                .nodes
+                .get(subject_handle)
+                .scalar_type
+                .primitive()?;
             let reachable = dispatch
                 .arms
                 .handles()
@@ -2660,7 +2700,7 @@ mod dispatch {
             source_expression: ExpressionHandle,
             dispatch: &TableMatchExpression,
             subject: checked_trees::CheckedDispatchSubject,
-            result_type: PrimitiveType,
+            result_type: checked_trees::CheckedScalarType,
             admitted: &[arena::Handle<typed_trees::expression::TableMatchArm>],
         ) -> Option<CheckedScalarComputationHandle> {
             let checked_trees::CheckedDispatchSubject::Scalar(subject) = subject else {
@@ -2672,7 +2712,7 @@ mod dispatch {
                 return None;
             }
             let last = handles.iter().rposition(|arm| admitted.contains(arm))?;
-            let subject_type = self.plans.nodes.get(subject).primitive_type;
+            let subject_type = self.plans.nodes.get(subject).scalar_type.primitive()?;
             let mut pending = Vec::new();
             let mut arms = Vec::new();
             for (ordinal, (source_arm, arm)) in
@@ -2731,21 +2771,22 @@ mod dispatch {
         fn dispatch_prefix(
             &mut self,
             source_expression: ExpressionHandle,
-            primitive_type: PrimitiveType,
+            scalar_type: impl Into<checked_trees::CheckedScalarType>,
             operands: Vec<CheckedScalarComputationHandle>,
         ) -> Option<CheckedScalarComputationHandle> {
+            let scalar_type = scalar_type.into();
             let position = operands.len().checked_sub(1)?;
             if position == 0 {
                 return operands.first().copied();
             }
             let operands = self.plans.operands.insert_many(operands);
             Some(self.insert(
-                primitive_type,
+                scalar_type,
                 CheckedScalarComputationKind::Apply {
                     source_expression,
                     expression: checked_trees::CheckedScalarExpression::Parameter {
                         position,
-                        primitive_type,
+                        scalar_type: scalar_type.into(),
                     },
                     operands,
                 },
@@ -2928,7 +2969,7 @@ mod dispatch {
             source_expression: ExpressionHandle,
             dispatch: &TableMatchExpression,
             subject: checked_trees::CheckedDispatchSubject,
-            result_type: PrimitiveType,
+            result_type: checked_trees::CheckedScalarType,
         ) -> Option<CheckedScalarComputationHandle> {
             let authored = self
                 .program
@@ -3123,7 +3164,7 @@ mod dispatch {
                         CheckedScalarExpressionRole::StructuralValueSubject { expression },
                         value,
                     )?;
-                    Some(self.plans.nodes.get(value).primitive_type)
+                    Some(self.plans.nodes.get(value).scalar_type.primitive()?)
                 }
                 checked_trees::CheckedDispatchSubject::Structural { .. } => None,
             };
@@ -3643,6 +3684,90 @@ mod dispatch_copies {
         pure.seal_expressions();
     }
 }
+mod runtime_calls {
+    use super::call_arguments::{CallOperandCustody, ComputedCallOperands};
+    use super::{
+        Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
+    };
+
+    impl Builder<'_, '_> {
+        pub(super) fn runtime_call(
+            &mut self,
+            expression: ExpressionHandle,
+            call: &typed_trees::expression::TableCallExpression,
+            expected_type: checked_trees::CheckedScalarType,
+        ) -> Option<CheckedScalarComputationHandle> {
+            let program = self.program;
+            let site = validation::CallSite::Expression { expression, call };
+            let validation::CallContractSource::Runtime { binding, contract } =
+                validation::call_contract_source(program, self.machine, &site).ok()??
+            else {
+                return None;
+            };
+            let signature = &contract.signature;
+            if !checked_trees::CheckedScalarType::from_type_reference(
+                program.typed_program(),
+                signature.return_type,
+            )?
+            .same_type(program.typed_program(), expected_type)
+            .ok()?
+            {
+                return None;
+            }
+            let (source_call, call_ordinal) = self.call_ordinal(expression, call.target_symbol)?;
+            let source = self.flow.control.calls.get(source_call);
+            if source.runtime_call != Some(binding) || source.operands.is_empty() {
+                return None;
+            }
+            let captures = source.argument_operands();
+            if self
+                .flow
+                .control
+                .operands
+                .get(source.operands.start())
+                .expression
+                != binding.callee
+            {
+                return None;
+            }
+            let callee = self.expression(
+                binding.callee,
+                checked_trees::CheckedScalarType::Callable(binding.contract),
+            )?;
+            self.plans.nodes.get_mut(callee).authored_root = binding.callee;
+            let arguments = program.expression_table.expression_handles(call.arguments);
+            let ComputedCallOperands {
+                arguments,
+                structural_arguments,
+                temporary_cleanups,
+                claim_transfers,
+            } = self.call_operands(
+                CallOperandCustody::Statement {
+                    call: source_call,
+                    captures,
+                },
+                arguments,
+                program.state_signature_parameters(signature),
+            )?;
+            Some(self.insert(
+                expected_type,
+                CheckedScalarComputationKind::Call {
+                    source_expression: expression,
+                    source_call: source_call.into(),
+                    callee: checked_trees::CheckedScalarCallee::Runtime {
+                        callee,
+                        contract: binding.contract,
+                    },
+                    call_ordinal,
+                    arguments,
+                    structural_arguments,
+                    temporary_cleanups,
+                    claim_transfers,
+                },
+            ))
+        }
+    }
+}
 mod dynamic_calls {
     /*
         Selector calls (`Trait::member(selector, data...)`) as ordered operands.
@@ -4120,7 +4245,7 @@ mod indexed_reads {
                 collections.push(collection);
                 Some(CheckedScalarExpression::Parameter {
                     position,
-                    primitive_type,
+                    scalar_type: primitive_type.into(),
                 })
             };
             let (template, domain) = if expressions(program)
@@ -4369,11 +4494,11 @@ mod integers {
                 });
             }
             if let Some(field) = self.structural_scalar_field(expression) {
-                if !is_integer(field.primitive_type) {
+                if !is_integer(field.scalar_type.primitive()?) {
                     return None;
                 }
                 return Some(IntegerOperand {
-                    value: parameter(0, field.primitive_type),
+                    value: parameter(0, field.scalar_type.primitive()?),
                     value_source: ExpressionHandle::invalid(),
                     domain: field.domain,
                     computation: self.structural_field(expression, field)?,
@@ -4488,7 +4613,8 @@ mod integers {
                     {
                         return None;
                     }
-                    let computation = self.dispatch(expression, &dispatch, primitive_type)?;
+                    let computation =
+                        self.dispatch(expression, &dispatch, primitive_type.into())?;
                     Some(IntegerOperand {
                         value: parameter(0, primitive_type),
                         value_source: ExpressionHandle::invalid(),
@@ -4743,7 +4869,7 @@ mod integers {
             if !self.anonymous_result_lands(expression, destination) {
                 return None;
             }
-            let computation = self.dispatch(expression, &dispatch, destination)?;
+            let computation = self.dispatch(expression, &dispatch, destination.into())?;
             Some(IntegerOperand {
                 value: parameter(0, destination),
                 value_source: ExpressionHandle::invalid(),
@@ -4824,7 +4950,7 @@ mod integers {
     fn parameter(position: usize, primitive_type: PrimitiveType) -> CheckedScalarExpression {
         CheckedScalarExpression::Parameter {
             position,
-            primitive_type,
+            scalar_type: primitive_type.into(),
         }
     }
 }
@@ -4865,7 +4991,9 @@ mod normal_return {
             ComputationKind::Value(ScalarExpression::Boolean(value)) => {
                 boolean_expression_result(value)
             }
-            ComputationKind::RetainedConstant { .. } | ComputationKind::Value(_) => None,
+            ComputationKind::MachineValue { .. }
+            | ComputationKind::RetainedConstant { .. }
+            | ComputationKind::Value(_) => None,
             ComputationKind::Call { .. } => None,
             ComputationKind::Dispatch { .. } => None,
             ComputationKind::Select {
@@ -5197,7 +5325,7 @@ mod rank_observations {
             let primitive_type = PrimitiveType::U64;
             let parameter = |position| CheckedScalarExpression::Parameter {
                 position,
-                primitive_type,
+                scalar_type: primitive_type.into(),
             };
             let (expression, _) = crate::values::scalar::scalar_lowering::construct_integer_binary(
                 BinaryOperator::Subtract,
@@ -5314,7 +5442,7 @@ mod rank_observations {
             }
             let operand = CheckedScalarExpression::Parameter {
                 position: 0,
-                primitive_type,
+                scalar_type: primitive_type.into(),
             };
             let expression = if matches!(
                 primitive_type,
@@ -5521,7 +5649,12 @@ mod rank_observations {
                     .collect::<Vec<_>>();
                 let Some(parameter_types) = parameters
                     .iter()
-                    .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+                    .map(|parameter| {
+                        checked_trees::CheckedScalarType::from_type_reference(
+                            program.typed_program(),
+                            parameter.type_reference,
+                        )
+                    })
                     .collect::<Option<Vec<_>>>()
                 else {
                     continue;
@@ -5681,7 +5814,7 @@ mod rank_observations {
                     let operand = builder.scalar_coordinate(
                         subject.unwrap_or_default(),
                         &coordinate,
-                        geometry.primitive_type,
+                        geometry.scalar_type.primitive()?,
                         admitted.entry_indexes.span(input.entry_indexes)?,
                     )?;
                     builder.declaration_values.push((formal_place, operand));
@@ -5800,7 +5933,7 @@ mod rank_observations {
         );
         let template = |position| CheckedScalarExpression::Parameter {
             position,
-            primitive_type,
+            scalar_type: primitive_type.into(),
         };
         let (expression, _) = crate::values::scalar::scalar_lowering::construct_integer_binary(
             BinaryOperator::Subtract,
@@ -6659,7 +6792,7 @@ mod structural_fields {
                 symbol,
                 &segments,
             )?;
-            if field.primitive_type != primitive_type
+            if field.scalar_type.primitive()? != primitive_type
                 || self
                     .program
                     .normalized_type_identity(field.result_type_reference)
@@ -6977,7 +7110,7 @@ mod structural_fields {
         ) -> Option<ComputationHandle> {
             if let Some(literal) = closed_descriptor_value(self.program, &field) {
                 return Some(self.insert(
-                    field.primitive_type,
+                    field.scalar_type.primitive()?,
                     ComputationKind::Value(
                         checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
                     ),
@@ -6988,13 +7121,13 @@ mod structural_fields {
                     .parameters
                     .iter()
                     .position(|parameter| parameter.symbol == symbol)
-                && self.parameter_types.get(position) == Some(&field.primitive_type)
+                && self.parameter_types.get(position) == Some(&field.scalar_type)
             {
                 return Some(self.insert(
-                    field.primitive_type,
+                    field.scalar_type,
                     ComputationKind::Value(checked_trees::CheckedScalarExpression::Parameter {
                         position,
-                        primitive_type: field.primitive_type,
+                        scalar_type: (field.scalar_type).into(),
                     }),
                 ));
             }
@@ -7044,7 +7177,7 @@ mod structural_fields {
                 _ => return None,
             };
             Some(self.insert(
-                field.primitive_type,
+                field.scalar_type,
                 ComputationKind::StructuralField {
                     atomic_ordering: None,
                     result_type: field.result_type_reference,
@@ -7106,7 +7239,7 @@ mod structural_fields {
         let literal = program
             .typed_program()
             .static_const_literal_from_type_reference(index)?;
-        let landed_type = field.primitive_type.landed_landing()?;
+        let landed_type = field.scalar_type.primitive()?.landed_landing()?;
         Some(literal.with_landing(numerics::literals::IntegerLanding {
             landed_type,
             domain: field.domain,
@@ -7509,7 +7642,7 @@ mod structural_values {
                             .append(checked_trees::CheckedScalarComputation {
                                 authored_root: ExpressionHandle::invalid(),
                                 value_source: ExpressionHandle::invalid(),
-                                primitive_type,
+                                scalar_type: primitive_type.into(),
                                 normal_cleanup_actions: arena::HandleSpan::empty(),
                                 kind: checked_trees::CheckedScalarComputationKind::Value(zero),
                             });
@@ -9537,7 +9670,7 @@ mod builder {
         /* Completed declaration inputs, captured once before evaluating its body. */
         pub(super) declaration_values: Vec<(validation::CanonicalPlace, ComputationHandle)>,
         pub(super) authored_parameters: &'program [StateParameter],
-        pub(super) parameter_types: &'program [PrimitiveType],
+        pub(super) parameter_types: &'program [checked_trees::CheckedScalarType],
         pub(super) locals: &'program [ScalarLocal],
         pub(super) plans: &'plans mut CheckedScalarComputationPlans,
         pub(super) structural_values: &'plans mut checked_trees::CheckedStructuralValuePlans,
@@ -9552,7 +9685,11 @@ mod builder {
             every scalar carrier within this statement; distinct authored handles
             and distinct contextual carriers remain separate computations.
         */
-        pub(super) scalar_occurrences: Vec<(ExpressionHandle, PrimitiveType, ComputationHandle)>,
+        pub(super) scalar_occurrences: Vec<(
+            ExpressionHandle,
+            checked_trees::CheckedScalarType,
+            ComputationHandle,
+        )>,
         /*
             One statement's normalized source DAG may reference an operand more
             than once. Retain its computation identity, including the contextual
@@ -9601,8 +9738,9 @@ mod builder {
             statement_ordinal: u32,
             role: CheckedScalarExpressionRole,
             expression: ExpressionHandle,
-            expected_type: PrimitiveType,
+            expected_type: impl Into<checked_trees::CheckedScalarType>,
         ) {
+            let expected_type = expected_type.into();
             if self.program.static_type_context_is_unreachable(expression) {
                 return;
             }
@@ -9618,7 +9756,7 @@ mod builder {
                 && existing.machine == self.machine
                 && self.plans.nodes.is_valid(existing.root)
                 && self.plans.nodes.get(existing.root).authored_root == expression
-                && self.plans.nodes.get(existing.root).primitive_type == expected_type
+                && self.plans.nodes.get(existing.root).scalar_type == expected_type
             {
                 return;
             }
@@ -9670,7 +9808,7 @@ mod builder {
                 operand
             };
             let result_type = semantic_casts::result_type(self.program, self.state, expression)?;
-            let source_primitive = self.plans.nodes.get(operand).primitive_type;
+            let source_primitive = self.plans.nodes.get(operand).scalar_type.primitive()?;
             let target_primitive = self.program.primitive_type_reference(result_type)?;
             let formation_decided = self.exact_integer_casts.iter().any(|fact| {
                 fact.expression == expression
@@ -9760,9 +9898,10 @@ mod builder {
 
         pub(super) fn insert(
             &mut self,
-            primitive_type: PrimitiveType,
+            primitive_type: impl Into<checked_trees::CheckedScalarType>,
             kind: ComputationKind,
         ) -> ComputationHandle {
+            let primitive_type = primitive_type.into();
             if let ComputationKind::Call {
                 source_call,
                 callee,
@@ -9776,7 +9915,7 @@ mod builder {
                     .get(self.statement_nodes_start..)
                     .and_then(|slice| {
                         slice.iter().find_map(|node| {
-                            (node.primitive_type == primitive_type
+                            (node.scalar_type == primitive_type
                                 && matches!(
                                     &node.kind,
                                     ComputationKind::Call {
@@ -9784,8 +9923,7 @@ mod builder {
                                         callee: previous_callee,
                                         ..
                                     } if previous == source_call
-                                        && previous_callee.called_signature()
-                                            == callee.called_signature()
+                                        && previous_callee == callee
                                 ))
                             .then(|| self.plans.nodes.handle_of(node))
                             .flatten()
@@ -9798,7 +9936,7 @@ mod builder {
             self.plans.nodes.append(CheckedScalarComputation {
                 value_source: ExpressionHandle::invalid(),
                 authored_root: ExpressionHandle::invalid(),
-                primitive_type,
+                scalar_type: primitive_type,
                 normal_cleanup_actions,
                 kind,
             })
@@ -9933,8 +10071,9 @@ mod builder {
         pub(super) fn expression(
             &mut self,
             expression: ExpressionHandle,
-            expected_type: PrimitiveType,
+            expected_type: impl Into<checked_trees::CheckedScalarType>,
         ) -> Option<ComputationHandle> {
+            let expected_type = expected_type.into();
             if let Some((_, _, value)) = self
                 .scalar_occurrences
                 .iter()
@@ -9952,7 +10091,7 @@ mod builder {
                         source_expression: expression,
                         expression: CheckedScalarExpression::Parameter {
                             position: 0,
-                            primitive_type: expected_type,
+                            scalar_type: (expected_type).into(),
                         },
                         operands,
                     },
@@ -9966,13 +10105,248 @@ mod builder {
             Some(value)
         }
 
+        fn scalar_call(
+            &mut self,
+            expression: ExpressionHandle,
+            call: &typed_trees::expression::TableCallExpression,
+            expected_type: checked_trees::CheckedScalarType,
+        ) -> Option<ComputationHandle> {
+            if call.runtime_call.is_some() {
+                return self.runtime_call(expression, call, expected_type);
+            }
+            if call.quotient_operation.is_some() {
+                return self.quotient_scalar_call(expression, expected_type.primitive()?);
+            }
+            if self
+                .program
+                .dynamic_slot_by_symbol(call.target_symbol)
+                .is_some()
+            {
+                return self.dynamic_call(expression, call, expected_type.primitive()?);
+            }
+            let static_requirement_dispatch =
+                if let Some(dispatch) = &call.static_requirement_dispatch {
+                    if !validation::closed_requirement_dispatch_is_valid(
+                        self.program,
+                        self.machine,
+                        call.target_symbol,
+                        dispatch,
+                    ) {
+                        return None;
+                    }
+                    let requirement = self
+                        .program
+                        .trait_machine_signatures(
+                            self.program
+                                .trait_definition_by_symbol(dispatch.declaring_trait)?,
+                        )
+                        .iter()
+                        .find(|requirement| requirement.symbol == dispatch.requirement)?;
+                    if self
+                        .program
+                        .state_signature_contracts(requirement)
+                        .iter()
+                        .any(|contract| contract.binding.is_some())
+                    {
+                        return None;
+                    }
+                    Some(checked_trees::StaticRequirementDispatchFact::from(dispatch))
+                } else {
+                    None
+                };
+            if call.quotient_operation.is_some()
+                || call.private_layout_operation.is_some()
+                || call.layout_query.is_some()
+            {
+                return None;
+            }
+            if static_requirement_dispatch.is_none()
+                && let Some(target) = boundary_calls::bodyless_boundary_target(
+                    self.program,
+                    validation::call_target_symbol(self.program, &call),
+                )
+            {
+                if !call.evidence_arguments.is_empty() {
+                    return None;
+                }
+                return self.boundary_call(expression, call, target, expected_type.primitive()?);
+            }
+            let entered_target = validation::call_target_entry_symbol(
+                self.program,
+                validation::call_target_symbol(self.program, &call),
+            );
+            let (target_machine, target_state) =
+                validation::find_machine_by_entry_state(self.program, entered_target)?;
+            if static_requirement_dispatch.is_some()
+                && target_machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+            {
+                return None;
+            }
+            let has_runtime_receiver =
+                !self
+                    .program
+                    .call_has_no_runtime_receiver(&call, target_machine, target_state);
+            if !checked_trees::CheckedScalarType::from_type_reference(
+                self.program.typed_program(),
+                target_state.return_type,
+            )?
+            .same_type(self.program.typed_program(), expected_type)
+            .ok()?
+            {
+                return None;
+            }
+            let target_parameters = self.program.state_parameters(target_state);
+            if target_parameters.iter().any(|parameter| {
+                parameter.is_const
+                    || (parameter.is_mutable
+                        && self
+                            .program
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_some()
+                        && mutable_scalar_parameter_type(self.program, parameter).is_none())
+            }) {
+                return None;
+            }
+            let (source_call, call_ordinal) = self.call_origin(expression, call.target_symbol)?;
+            if !call.evidence_arguments.is_empty()
+                && !self.has_declared_evidence_inputs(
+                    target_machine.symbol,
+                    target_state.symbol,
+                    call_ordinal,
+                    call.evidence_arguments.len(),
+                )
+            {
+                return None;
+            }
+            let arguments = self
+                .program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            if has_runtime_receiver {
+                return None;
+            }
+            if arguments.len() != target_parameters.len() {
+                return None;
+            }
+            let ComputedCallOperands {
+                arguments,
+                structural_arguments,
+                temporary_cleanups,
+                claim_transfers,
+            } = self.call_operands(
+                match source_call {
+                    checked_trees::CheckedCallOrigin::Statement(call) => {
+                        CallOperandCustody::Statement {
+                            call,
+                            captures: self.flow.control.calls.get(call).argument_operands(),
+                        }
+                    }
+                    checked_trees::CheckedCallOrigin::Declaration { application, call } => {
+                        CallOperandCustody::Declaration { application, call }
+                    }
+                },
+                &arguments,
+                target_parameters,
+            )?;
+            Some(self.insert(
+                expected_type,
+                ComputationKind::Call {
+                    callee: checked_trees::CheckedScalarCallee::Body {
+                        machine: target_machine.symbol,
+                        state: target_state.symbol,
+                    },
+                    source_expression: expression,
+                    source_call,
+                    call_ordinal,
+                    arguments,
+                    structural_arguments,
+                    temporary_cleanups,
+                    claim_transfers,
+                },
+            ))
+        }
+
         fn build_expression(
+            &mut self,
+            expression: ExpressionHandle,
+            expected_type: checked_trees::CheckedScalarType,
+        ) -> Option<ComputationHandle> {
+            match self.program.expression_table.expression(expression).clone() {
+                ExpressionNode::MachineValue(value) => {
+                    let actual = checked_trees::CheckedScalarType::from_type_reference(
+                        self.program.typed_program(),
+                        value.type_reference,
+                    )?;
+                    if !actual
+                        .same_type(self.program.typed_program(), expected_type)
+                        .ok()?
+                    {
+                        return None;
+                    }
+                    let selected =
+                        validation::call_target_state(self.program, value.selected.symbol)?;
+                    let (machine, state) = validation::find_state(self.program, selected.symbol)?;
+                    let selected_machine = machine.symbol;
+                    let selected_state = state.symbol;
+                    return Some(self.insert(
+                        expected_type,
+                        ComputationKind::MachineValue {
+                            source_expression: expression,
+                            value,
+                            machine: selected_machine,
+                            state: selected_state,
+                        },
+                    ));
+                }
+                ExpressionNode::Call(call) => {
+                    return self.scalar_call(expression, &call, expected_type);
+                }
+                ExpressionNode::Match(dispatch) => {
+                    return self.dispatch(expression, &dispatch, expected_type);
+                }
+                _ => {}
+            }
+            if let Some(field) = self.structural_scalar_field(expression) {
+                if !field
+                    .scalar_type
+                    .same_type(self.program.typed_program(), expected_type)
+                    .ok()?
+                {
+                    return None;
+                }
+                return self.structural_field(expression, field);
+            }
+            if let Some(primitive) = expected_type.primitive() {
+                return self.build_primitive_expression(expression, primitive);
+            }
+            let (value, _) = crate::values::scalar::scalar_lowering::lower_scalar_expression(
+                self.program,
+                self.operators,
+                expression,
+                self.parameters,
+                self.authored_parameters,
+                self.parameter_types,
+                self.locals,
+                self.exact_integer_casts,
+            )?;
+            if !value
+                .scalar_type()?
+                .same_type(self.program.typed_program(), expected_type)
+                .ok()?
+            {
+                return None;
+            }
+            Some(self.insert(expected_type, ComputationKind::Value(value)))
+        }
+
+        fn build_primitive_expression(
             &mut self,
             expression: ExpressionHandle,
             expected_type: PrimitiveType,
         ) -> Option<ComputationHandle> {
             if let Some((value, _)) = self.declaration_input(expression).ok()? {
-                return (self.plans.nodes.get(value).primitive_type == expected_type)
+                return (self.plans.nodes.get(value).scalar_type.primitive()? == expected_type)
                     .then_some(value);
             }
             if let Some((constant, primitive)) = self.retained_constant(expression) {
@@ -10000,7 +10374,7 @@ mod builder {
             if let ExpressionNode::Match(dispatch) =
                 self.program.expression_table.expression(expression).clone()
             {
-                return self.dispatch(expression, &dispatch, expected_type);
+                return self.dispatch(expression, &dispatch, expected_type.into());
             }
             if let Some(observation) =
                 self.primitive_reference_observation(expression, expected_type)
@@ -10012,7 +10386,7 @@ mod builder {
                 return self.atomic_load(expression, expected_type);
             }
             if let Some(field) = self.structural_scalar_field(expression) {
-                return (field.primitive_type == expected_type)
+                return (field.scalar_type.primitive()? == expected_type)
                     .then(|| self.structural_field(expression, field))
                     .flatten();
             }
@@ -10181,158 +10555,7 @@ mod builder {
             }
             match self.program.expression_table.expression(expression).clone() {
                 ExpressionNode::Call(call) => {
-                    if call.quotient_operation.is_some() {
-                        return self.quotient_scalar_call(expression, expected_type);
-                    }
-                    if self
-                        .program
-                        .dynamic_slot_by_symbol(call.target_symbol)
-                        .is_some()
-                    {
-                        return self.dynamic_call(expression, &call, expected_type);
-                    }
-                    let static_requirement_dispatch =
-                        if let Some(dispatch) = &call.static_requirement_dispatch {
-                            if !validation::closed_requirement_dispatch_is_valid(
-                                self.program,
-                                self.machine,
-                                call.target_symbol,
-                                dispatch,
-                            ) {
-                                return None;
-                            }
-                            let requirement = self
-                                .program
-                                .trait_machine_signatures(
-                                    self.program
-                                        .trait_definition_by_symbol(dispatch.declaring_trait)?,
-                                )
-                                .iter()
-                                .find(|requirement| requirement.symbol == dispatch.requirement)?;
-                            if self
-                                .program
-                                .state_signature_contracts(requirement)
-                                .iter()
-                                .any(|contract| contract.binding.is_some())
-                            {
-                                return None;
-                            }
-                            Some(checked_trees::StaticRequirementDispatchFact::from(dispatch))
-                        } else {
-                            None
-                        };
-                    if call.quotient_operation.is_some()
-                        || call.private_layout_operation.is_some()
-                        || call.layout_query.is_some()
-                    {
-                        return None;
-                    }
-                    if static_requirement_dispatch.is_none()
-                        && let Some(target) = boundary_calls::bodyless_boundary_target(
-                            self.program,
-                            validation::call_target_symbol(self.program, &call),
-                        )
-                    {
-                        if !call.evidence_arguments.is_empty() {
-                            return None;
-                        }
-                        return self.boundary_call(expression, &call, target, expected_type);
-                    }
-                    let entered_target = validation::call_target_entry_symbol(
-                        self.program,
-                        validation::call_target_symbol(self.program, &call),
-                    );
-                    let (target_machine, target_state) =
-                        validation::find_machine_by_entry_state(self.program, entered_target)?;
-                    if static_requirement_dispatch.is_some()
-                        && target_machine.supply_mode
-                            != language_semantics::MachineSupplyMode::CheckedBody
-                    {
-                        return None;
-                    }
-                    let has_runtime_receiver = !self.program.call_has_no_runtime_receiver(
-                        &call,
-                        target_machine,
-                        target_state,
-                    );
-                    if self
-                        .program
-                        .primitive_type_reference(target_state.return_type)?
-                        != expected_type
-                    {
-                        return None;
-                    }
-                    let target_parameters = self.program.state_parameters(target_state);
-                    if target_parameters.iter().any(|parameter| {
-                        parameter.is_const
-                            || (parameter.is_mutable
-                                && self
-                                    .program
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_some()
-                                && mutable_scalar_parameter_type(self.program, parameter).is_none())
-                    }) {
-                        return None;
-                    }
-                    let (source_call, call_ordinal) =
-                        self.call_origin(expression, call.target_symbol)?;
-                    if !call.evidence_arguments.is_empty()
-                        && !self.has_declared_evidence_inputs(
-                            target_machine.symbol,
-                            target_state.symbol,
-                            call_ordinal,
-                            call.evidence_arguments.len(),
-                        )
-                    {
-                        return None;
-                    }
-                    let arguments = self
-                        .program
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .to_vec();
-                    if has_runtime_receiver {
-                        return None;
-                    }
-                    if arguments.len() != target_parameters.len() {
-                        return None;
-                    }
-                    let ComputedCallOperands {
-                        arguments,
-                        structural_arguments,
-                        temporary_cleanups,
-                        claim_transfers,
-                    } = self.call_operands(
-                        match source_call {
-                            checked_trees::CheckedCallOrigin::Statement(call) => {
-                                CallOperandCustody::Statement {
-                                    call,
-                                    captures: self.flow.control.calls.get(call).argument_operands(),
-                                }
-                            }
-                            checked_trees::CheckedCallOrigin::Declaration { application, call } => {
-                                CallOperandCustody::Declaration { application, call }
-                            }
-                        },
-                        &arguments,
-                        target_parameters,
-                    )?;
-                    Some(self.insert(
-                        expected_type,
-                        ComputationKind::Call {
-                            callee: checked_trees::CheckedScalarCallee::Body {
-                                machine: target_machine.symbol,
-                                state: target_state.symbol,
-                            },
-                            source_expression: expression,
-                            source_call,
-                            call_ordinal,
-                            arguments,
-                            structural_arguments,
-                            temporary_cleanups,
-                            claim_transfers,
-                        },
-                    ))
+                    self.scalar_call(expression, &call, expected_type.into())
                 }
                 ExpressionNode::Binary(binary)
                     if expected_type == PrimitiveType::Bool
@@ -10526,6 +10749,30 @@ mod builder {
             expression: ExpressionHandle,
             target: SymbolHandle,
         ) -> Option<(arena::Handle<checked_trees::FlowCallFact>, u32)> {
+            if let Some(binding) = self
+                .program
+                .expression_table
+                .call_node(expression)
+                .and_then(|call| call.runtime_call)
+            {
+                let state = self.flow.control.state(self.machine, self.state)?;
+                let mut matching =
+                    call_flows(&self.flow.control, state.calls)
+                        .iter()
+                        .filter(|call| {
+                            call.statement_index == self.statement_index
+                                && call.authored_expression == expression
+                                && call.runtime_call == Some(binding)
+                        });
+                let call = matching.next()?;
+                if matching.next().is_some() {
+                    return None;
+                }
+                return Some((
+                    self.flow.control.calls.handle_of(call)?,
+                    u32::try_from(call.call_ordinal).ok()?,
+                ));
+            }
             let target = validation::call_target_entry_symbol(self.program, target);
             let state = self.flow.control.state(self.machine, self.state)?;
             let mut matching = call_flows(&self.flow.control, state.calls)
@@ -10577,7 +10824,12 @@ pub(crate) fn build_checked_value_computation_plans(
             let parameters = scalar_parameters.as_slice();
             let Some(parameter_types) = parameters
                 .iter()
-                .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+                .map(|parameter| {
+                    checked_trees::CheckedScalarType::from_type_reference(
+                        program.typed_program(),
+                        parameter.type_reference,
+                    )
+                })
                 .collect::<Option<Vec<_>>>()
             else {
                 continue;
@@ -10860,7 +11112,10 @@ pub(crate) fn build_checked_value_computation_plans(
                         );
                     }
                     if let Some(primitive_type) =
-                        program.primitive_type_reference(local.type_reference)
+                        checked_trees::CheckedScalarType::from_type_reference(
+                            program.typed_program(),
+                            local.type_reference,
+                        )
                     {
                         let binding_ordinal = u32::try_from(
                             locals

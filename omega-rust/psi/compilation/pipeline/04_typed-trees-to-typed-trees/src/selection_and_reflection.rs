@@ -2495,6 +2495,7 @@ pub(crate) mod reflection {
                     let source_span = call.source_span;
                     let expression = table.insert(ExpressionNode::Call(
                         typed_trees::expression::TableCallExpression {
+                            runtime_call: call.runtime_call,
                             authored_call_selection: occurrence,
                             authored_call_binding: None,
                             authored_machine_application: call.authored_machine_application,

@@ -8,7 +8,7 @@ use crate::record::{
     PackageReviewArithmeticDomain, PackageReviewAtomicLoadOrdering,
     PackageReviewByteSequencePredicate, PackageReviewCastForm, PackageReviewConstructorField,
     PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
-    PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceTerm,
+    PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceOwner, PackageReviewContractEvidenceTerm,
     PackageReviewContractExpression, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
     PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewMatchArm,
@@ -22,6 +22,7 @@ pub(in crate::encoding::recovery) fn expression(
     reader.nested(|reader| {
         use PackageReviewContractExpression as Expression;
         Ok(super::tag!(reader => {
+            28 => Expression::MachineSelection { contract: type_identity(reader)?, selection: reader.string()? },
             0 => Expression::Boolean(reader.boolean()?),
             1 => Expression::Integer(reader.string()?),
             2 => Expression::Parameter(reader.u32()?),
@@ -204,6 +205,10 @@ pub(in crate::encoding::recovery) fn call_target(
         4 => PackageReviewContractCallTarget::ProofView {
             name: reader.string()?,
         },
+        5 => PackageReviewContractCallTarget::Runtime {
+            contract: type_identity(reader)?,
+            callee: reader.boxed(expression)?,
+        },
     }))
 }
 
@@ -221,7 +226,10 @@ pub(in crate::encoding::recovery) fn evidence_term(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewContractEvidenceTerm, Error> {
     Ok(PackageReviewContractEvidenceTerm {
-        owner: nominal(reader)?,
+        owner: super::tag!(reader => {
+            0 => PackageReviewContractEvidenceOwner::Nominal(nominal(reader)?),
+            1 => PackageReviewContractEvidenceOwner::Runtime { contract: type_identity(reader)? },
+        }),
         kind: super::tag!(reader => {
             0 => PackageReviewContractKind::Requires,
             1 => PackageReviewContractKind::Ensures,

@@ -2580,7 +2580,7 @@ pub(crate) mod structural_scalar_field {
         pub path: Vec<CheckedUnitStructuralPathSegment>,
         pub field: SymbolHandle,
         pub field_identity: CheckedMemberIdentity,
-        pub primitive_type: PrimitiveType,
+        pub scalar_type: typed_trees::callable_values::ScalarValueType,
         pub domain: ArithmeticDomain,
     }
 
@@ -2648,7 +2648,7 @@ pub(crate) mod structural_scalar_field {
             pub root: facts::PlaceRoot,
             pub type_reference: TypeReferenceHandle,
             pub result_type_reference: TypeReferenceHandle,
-            pub primitive_type: PrimitiveType,
+            pub scalar_type: typed_trees::callable_values::ScalarValueType,
             pub domain: ArithmeticDomain,
             pub projections: Vec<ScalarCoordinateProjection>,
             pub source_requirements: Vec<Vec<facts::PlaceSegment>>,
@@ -2731,7 +2731,7 @@ pub(crate) mod structural_scalar_field {
             let readable_leaf =
                 readable_projection_carrier(program, result_type_reference, &mut crossings)?;
             ordinary_carrier(program, readable_leaf)?;
-            let primitive_type = realized_scalar_carrier(program, result_type_reference)?;
+            let scalar_type = realized_scalar_value_type(program, result_type_reference)?;
             if !stored_crossing && !crossings.is_empty() {
                 source_requirements[0].clear();
                 source_requirements[0].extend_from_slice(coordinate);
@@ -2745,7 +2745,7 @@ pub(crate) mod structural_scalar_field {
                 root,
                 type_reference: source_type,
                 result_type_reference,
-                primitive_type,
+                scalar_type,
                 domain: program.arithmetic_domain_for_type_reference(readable_leaf),
                 projections,
                 source_requirements,
@@ -3024,7 +3024,7 @@ pub(crate) mod structural_scalar_field {
                 path,
                 field: symbol,
                 field_identity: identity,
-                primitive_type: selected.primitive_type,
+                scalar_type: selected.scalar_type,
                 domain: selected.domain,
             })
         }
@@ -3080,7 +3080,7 @@ pub(crate) mod structural_scalar_field {
                 path,
                 field: SymbolHandle::invalid(),
                 field_identity: Default::default(),
-                primitive_type: selected.primitive_type,
+                scalar_type: selected.scalar_type,
                 domain: selected.domain,
             })
         }
@@ -3230,7 +3230,7 @@ pub(crate) mod structural_scalar_field {
                 path,
                 field: SymbolHandle::invalid(),
                 field_identity: CheckedMemberIdentity::default(),
-                primitive_type,
+                scalar_type: primitive_type.into(),
                 domain: program.arithmetic_domain_for_type_reference(carrier),
             });
         }
@@ -3316,12 +3316,12 @@ pub(crate) mod structural_scalar_field {
                 if usize::try_from(index).ok()? >= *length {
                     return None;
                 }
-                let primitive_type = match access {
+                let scalar_type = match access {
                     ScalarObservationAccess::Ordinary => {
-                        observable_scalar(realized_scalar_carrier(program, *element_type)?)?
+                        realized_scalar_value_type(program, *element_type)?
                     }
                     ScalarObservationAccess::Atomic => {
-                        atomic_scalar_carrier(program, *element_type)?
+                        atomic_scalar_carrier(program, *element_type)?.into()
                     }
                 };
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
@@ -3335,7 +3335,7 @@ pub(crate) mod structural_scalar_field {
                     path,
                     field: SymbolHandle::invalid(),
                     field_identity: CheckedMemberIdentity::default(),
-                    primitive_type,
+                    scalar_type,
                     domain: program.arithmetic_domain_for_type_reference(
                         program
                             .type_reference_table
@@ -3347,12 +3347,12 @@ pub(crate) mod structural_scalar_field {
         let declaration_carrier = crate::peel_declared_constraints(program, carrier);
         let record = program.closed_data_definition(declaration_carrier)?;
         let field = selected_member_field(program, declaration_carrier, record, leaf, &mut path)?;
-        let primitive_type = match access {
+        let scalar_type = match access {
             ScalarObservationAccess::Ordinary => {
-                observable_scalar(realized_scalar_carrier(program, field.type_reference)?)?
+                realized_scalar_value_type(program, field.type_reference)?
             }
             ScalarObservationAccess::Atomic => {
-                atomic_scalar_carrier(program, field.type_reference)?
+                atomic_scalar_carrier(program, field.type_reference)?.into()
             }
         };
         Some(StructuralScalarField {
@@ -3365,7 +3365,7 @@ pub(crate) mod structural_scalar_field {
             path,
             field: field.symbol,
             field_identity: CheckedMemberIdentity::of_member(field.identity, field.name.clone()),
-            primitive_type,
+            scalar_type,
             domain: program.arithmetic_domain_for_type_reference(
                 program
                     .type_reference_table
@@ -3906,6 +3906,24 @@ pub(crate) mod structural_scalar_field {
         })
     }
 
+    fn realized_scalar_value_type(
+        program: &dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+    ) -> Option<typed_trees::callable_values::ScalarValueType> {
+        let readable = crate::field_domains::readable_type_reference(program, reference)?;
+        match typed_trees::callable_values::ScalarValueType::from_type_reference(
+            program.typed_program(),
+            readable,
+        )? {
+            scalar @ typed_trees::callable_values::ScalarValueType::Callable(_) => Some(scalar),
+            typed_trees::callable_values::ScalarValueType::Primitive(_) => {
+                realized_scalar_carrier(program, reference)
+                    .and_then(observable_scalar)
+                    .map(Into::into)
+            }
+        }
+    }
+
     fn realized_scalar_carrier(
         program: &dyn crate::CheckingInput,
         mut reference: TypeReferenceHandle,
@@ -3953,7 +3971,7 @@ pub(crate) mod structural_scalar_field {
                                 domain,
                                 checked_trees::CheckedScalarExpression::Parameter {
                                     position: 0,
-                                    primitive_type: primitive,
+                                    scalar_type: primitive.into(),
                                 },
                             )?;
                         }
@@ -8549,7 +8567,7 @@ pub(crate) mod projection_types {
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
         let type_reference = substituted_type_reference(program, type_reference, substitutions);
         match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Callable { .. } => None,
+            typed_trees::types::TypeReferenceNode::Callable { .. } => None,
             typed_trees::types::TypeReferenceNode::Reference { referee, .. }
             | typed_trees::types::TypeReferenceNode::Constrained {
                 base_type: referee, ..
@@ -8626,7 +8644,7 @@ pub(crate) mod projection_types {
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
         let type_reference = substituted_type_reference(program, type_reference, substitutions);
         let element = match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Callable { .. } => None,
+            typed_trees::types::TypeReferenceNode::Callable { .. } => None,
             typed_trees::types::TypeReferenceNode::Reference { referee, .. }
             | typed_trees::types::TypeReferenceNode::Constrained {
                 base_type: referee, ..

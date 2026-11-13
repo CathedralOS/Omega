@@ -12,49 +12,9 @@ use crate::SelectedProviderAdapter;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_psi::{OperationKind, TerminalModule, Terminator};
 mod installed_interrupts {
-    use semantic_vocabulary::{MachineId, OperationId};
-    use terminal_psi::TerminalModule;
-
-    pub(super) fn helper_roots(
-        module: &TerminalModule,
-        operation: OperationId,
-    ) -> Result<Vec<MachineId>, String> {
-        if !module
-            .installed_interrupt_registrations
-            .iter()
-            .any(|registration| registration.operation == operation)
-        {
-            return Ok(Vec::new());
-        }
-        let mut roots = Vec::with_capacity(3);
-        for ordinal in [1, 2, 3] {
-            let mut selections = module.callback_applications.iter().filter(|selection| {
-                selection.registrar == operation && selection.static_machine_ordinal == ordinal
-            });
-            let (Some(selection), None) = (selections.next(), selections.next()) else {
-                return Err(format!(
-                    "interrupt installation {operation:?} has no unique checked helper at ordinal {ordinal}"
-                ));
-            };
-            let mut bodies = module.machines.iter().filter(|machine| {
-                machine.declaration.as_ref().is_some_and(|declaration| {
-                    declaration.same_identity_as(
-                        &module.identities,
-                        &selection.body,
-                        &module.identities,
-                    )
-                })
-            });
-            let (Some(body), None) = (bodies.next(), bodies.next()) else {
-                return Err(format!(
-                    "interrupt installation {operation:?} helper {ordinal} has no unique retained body"
-                ));
-            };
-            roots.push(body.id);
-        }
-        Ok(roots)
-    }
+    pub(super) use terminal_semantics::callable_values::installed_interrupt_helper_roots as helper_roots;
 }
+
 mod storage {
     use super::NativeExecutionScope;
     use semantic_vocabulary::ScalarApplicationId;
@@ -161,6 +121,7 @@ pub(crate) enum NativeExecutionScopeError {
     TargetFamily(String),
     InstalledInterrupt(String),
     MissingMachine(MachineId),
+    InvalidMachineDescriptor { descriptor: semantic_vocabulary::MachineDescriptorId, reason: &'static str },
     MissingBoundary(BoundaryMachineId),
     MissingSelectedCheckedProvider(BoundaryMachineId),
     CompetingSelectedCheckedProviders(BoundaryMachineId),
@@ -172,6 +133,7 @@ impl std::fmt::Display for NativeExecutionScopeError {
             Self::TargetFamily(error) | Self::InstalledInterrupt(error) => {
                 formatter.write_str(error)
             }
+            Self::InvalidMachineDescriptor { descriptor, reason } => write!(formatter, "native machine selection {descriptor:?}: {reason}"),
             Self::MissingMachine(machine) => write!(
                 formatter,
                 "native execution scope reaches absent machine {machine:?}"
@@ -311,6 +273,16 @@ impl NativeExecutionScope {
                         pending.push(invocation.callee);
                     }
                     match &operation.kind {
+                        OperationKind::SelectMachine { descriptor } => {
+                            let invalid = |reason| NativeExecutionScopeError::InvalidMachineDescriptor { descriptor: *descriptor, reason };
+                            let selected = module.callables.descriptor(*descriptor)
+                                .ok_or_else(|| invalid("selected descriptor is absent"))?;
+                            if operation.result.scalar().map(|value| value.scalar_type) != Some(semantic_vocabulary::ScalarType::Callable(selected.contract))
+                                || module.callables.contract(selected.contract).is_none() {
+                                return Err(invalid("selected descriptor changes its callable contract"));
+                            }
+                            pending.push(selected.machine);
+                        }
                         OperationKind::EstablishNativeCodeLayout { machine } => {
                             pending.push(*machine)
                         }

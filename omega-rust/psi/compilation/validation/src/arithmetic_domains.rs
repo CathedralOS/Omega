@@ -2046,7 +2046,7 @@ pub(crate) mod call_result_bounds {
                 if subject {
                     return Some(Scalar::Parameter {
                         position: 0,
-                        primitive_type: primitive,
+                        scalar_type: primitive.into(),
                     });
                 }
                 let (interval, reference) = operand_interval(
@@ -2063,7 +2063,7 @@ pub(crate) mod call_result_bounds {
                 intervals.push(interval);
                 Some(Scalar::Parameter {
                     position,
-                    primitive_type: primitive,
+                    scalar_type: primitive.into(),
                 })
             },
         );
@@ -2097,8 +2097,13 @@ pub(crate) mod call_result_bounds {
                 }
             }
             Boolean::IntegerComparison { kind, left, right } => {
-                let subject =
-                    |value: &Scalar| matches!(value, Scalar::Parameter { position: 0, .. });
+                let subject = |value: &Scalar| {
+                    matches!(
+                        value,
+                        Scalar::Parameter { position: 0, scalar_type }
+                            if scalar_type.primitive().is_some_and(|primitive| primitive.is_fixed_integer())
+                    )
+                };
                 let (operand, subject_on_left) = if subject(left) {
                     (right, true)
                 } else if subject(right) {
@@ -2107,7 +2112,14 @@ pub(crate) mod call_result_bounds {
                     return Some(Interval::UNBOUNDED);
                 };
                 let operand = match operand.as_ref() {
-                    Scalar::Parameter { position, .. } if *position != 0 => {
+                    Scalar::Parameter {
+                        position,
+                        scalar_type,
+                    } if *position != 0
+                        && scalar_type
+                            .primitive()
+                            .is_some_and(|primitive| primitive.is_fixed_integer()) =>
+                    {
                         intervals.get(*position).copied()
                     }
                     Scalar::IntegerLiteral { literal } => {
@@ -5366,8 +5378,8 @@ pub(crate) mod domain_exclusions {
         match expression {
             Scalar::Parameter {
                 position: 0,
-                primitive_type,
-            } if *primitive_type == primitive => Some(BigInt::from_i64(value)),
+                scalar_type,
+            } if scalar_type.primitive() == Some(primitive) => Some(BigInt::from_i64(value)),
             Scalar::IntegerLiteral { literal } => literal.value_bignum(),
             _ => None,
         }
@@ -17027,7 +17039,7 @@ pub(crate) mod invariant_bounds {
                 Some(state),
                 expression,
             )?;
-            (program.primitive_type_reference(reference) == Some(field.primitive_type))
+            (program.primitive_type_reference(reference) == Some(field.scalar_type.primitive()?))
                 .then_some(reference)
         }
     }
@@ -22853,12 +22865,15 @@ pub(crate) mod selected_scalar_intervals {
             ),
             Expression::Parameter {
                 position,
-                primitive_type,
+                scalar_type,
             }
             | Expression::Local {
                 position,
-                primitive_type,
-            } => (*primitive_type, source.binding(*position, *primitive_type)?),
+                scalar_type,
+            } => {
+                let primitive = scalar_type.primitive()?;
+                (primitive, source.binding(*position, primitive)?)
+            }
             Expression::ConstantApplication { .. }
             | Expression::ErasedParameter { .. }
             | Expression::StructuralParameterField {
@@ -22871,18 +22886,21 @@ pub(crate) mod selected_scalar_intervals {
             }
             Expression::StorageRead {
                 symbol,
-                primitive_type,
-            } => (*primitive_type, source.storage(*symbol, *primitive_type)?),
+                scalar_type,
+            } => {
+                let primitive = scalar_type.primitive()?;
+                (primitive, source.storage(*symbol, primitive)?)
+            }
             Expression::StructuralParameterField {
                 root:
                     checked_trees::CheckedStorageRoot::Parameter {
                         index: parameter_position,
                     },
                 path,
-                primitive_type,
+                scalar_type,
                 ..
             } => (
-                *primitive_type,
+                scalar_type.primitive()?,
                 source.structural_field(*parameter_position, path)?,
             ),
             Expression::StructuralParameterIndexedRead {
@@ -22890,12 +22908,15 @@ pub(crate) mod selected_scalar_intervals {
                 path,
                 index,
                 element_path,
-                primitive_type,
+                scalar_type,
                 ..
-            } => (
-                *primitive_type,
-                source.indexed_read(*root, path, index, element_path, *primitive_type)?,
-            ),
+            } => {
+                let primitive = scalar_type.primitive()?;
+                (
+                    primitive,
+                    source.indexed_read(*root, path, index, element_path, primitive)?,
+                )
+            }
             Expression::IntegerLiteral { literal } => {
                 let primitive =
                     PrimitiveType::non_address_landed_integer(literal.landing()?.landed_type)?;

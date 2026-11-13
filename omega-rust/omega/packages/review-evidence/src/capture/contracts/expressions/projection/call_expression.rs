@@ -4,7 +4,7 @@
 // fact-position calls have already been checked as total and pure.
 
 use super::super::calls::{
-    contract_call_value_receiver, exact_checked_contract_call_target,
+    contract_call_value_receiver, exact_checked_contract_call_target, exact_checked_runtime_contract_call,
     require_checked_contract_call_arguments, resolved_contract_call_symbol,
 };
 use super::super::evidence::project_contract_call_evidence_arguments;
@@ -38,10 +38,28 @@ pub(super) fn project_call_expression(
             call,
         );
     }
-    let target = exact_checked_contract_call_target(compilation, context, expression, call)?;
-    let resolved_symbol = resolved_contract_call_symbol(compilation, call)
-        .or_else(|| compilation.derive_checked_nominal_call_target(expression));
+    let runtime = exact_checked_runtime_contract_call(compilation, context, expression, call)?;
+    let target = if let Some((binding, _)) = runtime {
+        let fact = checked_fact.ok_or_else(|| context.rejected("runtime proof call has no exact checked fact owner"))?;
+        if !compilation.facts.proof.contract_facts.iter().any(|(_, checked)| checked.owner == context.owner && checked.fact == fact)
+            || !validation::expression_owners::proof_fact_contains_expression(compilation.checking_input, fact, expression) {
+            return Err(context.rejected("runtime proof call is outside its retained checked fact"));
+        }
+        let canonical = compilation.runtime_callable_contract_identity(binding.contract, binders)
+            .map_err(|reason| context.rejected(format!("runtime proof call has no complete contract identity: {reason}")))?;
+        PackageReviewContractCallTarget::Runtime {
+            contract: crate::record::PackageReviewTypeIdentity { canonical },
+            callee: Box::new(child(binding.callee)?),
+        }
+    } else {
+        exact_checked_contract_call_target(compilation, context, expression, call)?
+    };
+    let resolved_symbol = if runtime.is_some() { None } else {
+        resolved_contract_call_symbol(compilation, call)
+            .or_else(|| compilation.derive_checked_nominal_call_target(expression))
+    };
     let static_parameter_kinds = match &target {
+        PackageReviewContractCallTarget::Runtime { .. } => Vec::new(),
         PackageReviewContractCallTarget::Nominal(_) => {
             let target_symbol = resolved_symbol.ok_or_else(|| {
                 context.rejected("contract call has no exact resolved target symbol")
@@ -95,11 +113,9 @@ pub(super) fn project_call_expression(
         project_contract_call_evidence_arguments(
             compilation,
             context,
+            binders,
             checked_fact,
             expression,
-            resolved_symbol.ok_or_else(|| {
-                context.rejected("evidence-bearing call has no exact resolved target")
-            })?,
             call.evidence_arguments.len(),
         )?
     };

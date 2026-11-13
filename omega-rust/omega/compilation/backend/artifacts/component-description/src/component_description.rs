@@ -512,6 +512,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::ElementViewSubslice { .. } => {}
                     OperationKind::IntegerConstant { .. }
                     | OperationKind::SelectImplementation { .. }
+                    | OperationKind::SelectMachine { .. }
                     | OperationKind::BooleanConstant { .. }
                     | OperationKind::IeeeFloatConstant { .. }
                     | OperationKind::IeeeFloatCompare { .. }

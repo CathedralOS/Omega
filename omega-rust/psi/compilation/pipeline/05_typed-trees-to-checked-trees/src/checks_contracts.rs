@@ -848,7 +848,9 @@ mod evidence {
                 }),
                 target_machine_symbol: call.target_machine_symbol,
                 target_state_symbol: call.target_state_symbol,
-                static_requirement_dispatch: site.static_requirement_dispatch().cloned(),
+                static_requirement_dispatch: site
+                    .static_requirement_dispatch()
+                    .map(checked_trees::StaticRequirementDispatchFact::from),
                 evidence_arguments: arguments,
                 outputs: dispositions,
             });
@@ -7568,7 +7570,7 @@ pub(crate) mod call_values {
         }
         let operand = CheckedScalarExpression::Parameter {
             position: bindings.len(),
-            primitive_type: primitive,
+            scalar_type: (primitive).into(),
         };
         bindings.push(boolean_predicates::BoundObservation {
             operand: operand.clone().into(),
@@ -11417,6 +11419,9 @@ pub(crate) mod labels {
             struct_label: &dyn Fn(&typed_trees::expression::TableStructLiteral) -> String,
         ) -> String {
             match node {
+                typed_trees::expression::ExpressionNode::MachineValue(value) => program.typed_program()
+                    .runtime_machine_value_identity(value, &[])
+                    .expect("check_program validates machine value identity before labels read frozen source"),
                 typed_trees::expression::ExpressionNode::SavedSubject(saved) => format!(
                     "$saved-subject#{}:{}",
                     saved.capture.arena_index(),

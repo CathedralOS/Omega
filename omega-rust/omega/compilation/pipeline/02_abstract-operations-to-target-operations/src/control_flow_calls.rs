@@ -1076,7 +1076,7 @@ pub(crate) mod calls {
     struct Invocation<'a> {
         psi_operation: OperationId,
         target: AbstractCallTarget,
-        callee: MachineId,
+        diagnostic_owner: MachineId,
         scalar_arguments: &'a [ValueId],
         structural_arguments: &'a [StructuralArgument],
         claim_transfers: &'a [ClaimTransfer],
@@ -1092,6 +1092,7 @@ pub(crate) mod calls {
         target: NativeTarget,
         functions: &BTreeMap<MachineId, &AbstractFunction>,
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
         scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
         prepared: &PreparedFunctionSignature,
         parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
@@ -1112,7 +1113,7 @@ pub(crate) mod calls {
                 let call = Invocation {
                     psi_operation: *psi_operation,
                     target: *callee,
-                    callee: callee.machine().unwrap_or(function.machine),
+                    diagnostic_owner: callee.machine().unwrap_or(function.machine),
                     scalar_arguments: arguments,
                     structural_arguments,
                     claim_transfers,
@@ -1138,7 +1139,7 @@ pub(crate) mod calls {
                 let call = Invocation {
                     psi_operation: *psi_operation,
                     target: AbstractCallTarget::Machine(*callee),
-                    callee: *callee,
+                    diagnostic_owner: *callee,
                     scalar_arguments: arguments,
                     structural_arguments: &[],
                     claim_transfers: &[],
@@ -1157,6 +1158,15 @@ pub(crate) mod calls {
                     .copied()
                     .ok_or(LoweringError::UnknownCallTarget(machine))?;
                 (AbstractCallSignature::Machine(callee), Some(callee))
+            }
+            AbstractCallTarget::Callable { callee, contract } => {
+                let contract = callables.contract(contract)
+                    .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
+                let operand = super::scalar_sources::source(callee, function, live)?;
+                if operand.scalar_type() != semantic_vocabulary::ScalarType::Callable(contract.id) {
+                    return Err(LoweringError::ValueTypeMismatch(callee));
+                }
+                (AbstractCallSignature::Callable(contract), None)
             }
             AbstractCallTarget::Dynamic {
                 interface,
@@ -1238,7 +1248,7 @@ pub(crate) mod calls {
             .zip(&signature.scalar_parameters)
             .enumerate()
             .map(|(position, (value, parameter))| {
-                scalar_argument(call.callee, position, *value, parameter, function, live)
+                scalar_argument(call.diagnostic_owner, position, *value, parameter, function, live)
             })
             .collect::<Result<Vec<_>, _>>()?;
         let arguments = call
@@ -1256,7 +1266,7 @@ pub(crate) mod calls {
                     argument,
                     &declaration,
                     destination,
-                    call.callee,
+                    call.diagnostic_owner,
                     function,
                     types,
                     prepared,
@@ -1284,6 +1294,9 @@ pub(crate) mod calls {
             target: match call.target {
                 AbstractCallTarget::Machine(machine) => {
                     target_operations::NativeCallTarget::Machine(machine)
+                }
+                AbstractCallTarget::Callable { callee, contract } => {
+                    target_operations::NativeCallTarget::Callable { callee, contract }
                 }
                 AbstractCallTarget::Dynamic {
                     selector,
@@ -1352,6 +1365,12 @@ pub(crate) mod calls {
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                         TargetStructuralResultContract::Machine(result_declaration.clone())
                     }
+                    AbstractCallSignature::Callable(contract) => {
+                        let terminal_psi::BoundaryMachineResult::Structural(result_declaration) = &contract.result else {
+                            return Err(LoweringError::unsupported_control_flow(function.machine));
+                        };
+                        TargetStructuralResultContract::Callable(result_declaration.clone())
+                    }
                     AbstractCallSignature::Requirement(requirement) => {
                         let terminal_psi::BoundaryMachineResult::Structural(result_declaration) =
                             &requirement.result
@@ -1393,7 +1412,7 @@ pub(crate) mod calls {
         target: NativeTarget,
         scalar_abis: &BTreeMap<MachineId, ScalarFunctionAbi>,
     ) -> Result<PreparedFunctionSignature, LoweringError> {
-        let callee = call.callee;
+        let callee = call.diagnostic_owner;
         let unsupported = || LoweringError::UnitScalarCallTargetShapeUnsupported(callee);
         let AbstractStructuralCallResult::Scalar(result) = call.result else {
             return Err(unsupported());
@@ -1503,14 +1522,14 @@ pub(crate) mod calls {
     > {
         if call.scalar_arguments.len() != declaration.scalar_parameter_count() {
             return Err(LoweringError::CallArgumentCountMismatch {
-                callee: call.callee,
+                callee: call.diagnostic_owner,
                 expected: declaration.scalar_parameter_count(),
                 actual: call.scalar_arguments.len(),
             });
         }
         if call.structural_arguments.len() != declaration.structural_parameter_count() {
             return Err(LoweringError::StructuralCallArgumentCountMismatch {
-                callee: call.callee,
+                callee: call.diagnostic_owner,
                 expected: declaration.structural_parameter_count(),
                 actual: call.structural_arguments.len(),
             });
@@ -1518,14 +1537,14 @@ pub(crate) mod calls {
         let home = match call.result {
             AbstractStructuralCallResult::Unit => {
                 if !declaration.is_unit_result() {
-                    return Err(LoweringError::UnitCallTargetKindMismatch(call.callee));
+                    return Err(LoweringError::UnitCallTargetKindMismatch(call.diagnostic_owner));
                 }
                 None
             }
             AbstractStructuralCallResult::Scalar(result) => {
                 if declaration.scalar_result() != Some(result.scalar_type) {
                     return Err(LoweringError::UnitScalarCallResultTypeMismatch {
-                        callee: call.callee,
+                        callee: call.diagnostic_owner,
                         result: result.value,
                     });
                 }

@@ -16,7 +16,7 @@ pub(crate) use expressions::{
     PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCallableSupply,
     PackageReviewCastForm, PackageReviewConstructorField, PackageReviewContractBinaryOperator,
     PackageReviewContractCallTarget, PackageReviewContractEvidenceArgument,
-    PackageReviewContractEvidenceTerm, PackageReviewContractExpression, PackageReviewContractKind,
+    PackageReviewContractEvidenceOwner, PackageReviewContractEvidenceTerm, PackageReviewContractExpression, PackageReviewContractKind,
     PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
     PackageReviewContractUnaryOperator, PackageReviewFloatLiteral, PackageReviewLayoutQueryKind,
     PackageReviewMatchArm, PackageReviewOperatorCoordinate, PackageReviewOperatorRealization,

@@ -464,7 +464,9 @@ mod moves {
             source: FlowOwnershipEventSource,
         ) {
             match program.expression_table.expression(expression) {
-                ExpressionNode::Name(_) | ExpressionNode::SavedSubject(_) => {}
+                ExpressionNode::Name(_)
+                | ExpressionNode::SavedSubject(_)
+                | ExpressionNode::MachineValue(_) => {}
                 ExpressionNode::Member(member) => {
                     append(program, sink, state, statement, member.receiver, source)
                 }
@@ -925,7 +927,7 @@ mod moves {
         }
 
         match program.expression_table.expression(expression) {
-            ExpressionNode::SavedSubject(_) => {}
+            ExpressionNode::SavedSubject(_) | ExpressionNode::MachineValue(_) => {}
             ExpressionNode::Match(dispatch) => {
                 let tag_observed = validation::structural_match_subject_type(
                     program,
@@ -1012,11 +1014,15 @@ mod moves {
                 }
             }
             ExpressionNode::Call(call) => {
+                if let Some(runtime) = call.runtime_call {
+                    append_child!(runtime.callee, Default::default());
+                }
                 append_move_events_for_call_arguments(
                     program,
                     sink,
                     state_symbol,
                     statement_index,
+                    expression,
                     call,
                     source,
                 );
@@ -1081,11 +1087,12 @@ mod moves {
         sink: &mut DirectMoveEventSink<'_>,
         state_symbol: SymbolHandle,
         statement_index: usize,
+        expression: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
         source: FlowOwnershipEventSource,
     ) {
         if validation::call_target_parameters(program, call.target_symbol).is_some()
-            || expression_call_is_owned_by_call_flow(program, state_symbol, call)
+            || expression_call_is_owned_by_call_flow(program, state_symbol, expression, call)
         {
             return;
         }
@@ -1150,6 +1157,7 @@ mod moves {
     fn expression_call_is_owned_by_call_flow(
         program: &dyn ::validation::CheckingInput,
         state_symbol: SymbolHandle,
+        expression: ExpressionHandle,
         call: &typed_trees::expression::TableCallExpression,
     ) -> bool {
         let Some(state) = program.state_by_symbol(state_symbol) else {
@@ -1158,6 +1166,15 @@ mod moves {
         let Some(machine) = program.machine_containing_state(state.symbol) else {
             return false;
         };
+        if let Some(runtime) = call.runtime_call {
+            // Runtime argument moves come from the exact retained signature in
+            // call flow, with no implicit data receiver or selected-body guess.
+            return matches!(validation::call_contract_source(
+                program,
+                machine.symbol,
+                &validation::CallSite::Expression { expression, call },
+            ), Ok(Some(validation::CallContractSource::Runtime { binding, .. })) if binding == runtime);
+        }
         let (receiver_symbol, receiver_path) =
             validation::call_receiver_parts(program, call.receiver);
         let boundary_operator = typed_trees::operator::resolve_named_expression_call(program, call)
@@ -1663,7 +1680,8 @@ mod type_references {
             typed_trees::types::TypeReferenceNode::Reference { .. } => {
                 OperatorResultOwnership::BorrowedView
             }
-            typed_trees::types::TypeReferenceNode::ConstExpression(_)
+            typed_trees::types::TypeReferenceNode::Callable { .. }
+            | typed_trees::types::TypeReferenceNode::ConstExpression(_)
             | typed_trees::types::TypeReferenceNode::Unit => OperatorResultOwnership::NoTransfer,
             typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                 classify_operator_result_ownership(program, *base_type)
@@ -1713,7 +1731,7 @@ mod type_references {
         }
 
         match program.expression_table.expression(expression) {
-            ExpressionNode::Atomic(_) => false,
+            ExpressionNode::MachineValue(_) | ExpressionNode::Atomic(_) => false,
             ExpressionNode::Borrow(_) => false,
             ExpressionNode::SavedSubject(_)
             | ExpressionNode::Name(_)

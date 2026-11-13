@@ -2208,18 +2208,13 @@ pub(crate) mod values {
 
     pub(crate) fn scalar_view_value(
         value: &TerminalScalarValue,
-    ) -> terminal_semantics::ScalarViewValue {
-        match value {
-            TerminalScalarValue::Boolean(value) => {
-                terminal_semantics::ScalarViewValue::Boolean(*value)
-            }
-            TerminalScalarValue::Integer { value, .. } => {
-                terminal_semantics::ScalarViewValue::Integer(*value)
-            }
-            TerminalScalarValue::IeeeFloat(value) => {
-                terminal_semantics::ScalarViewValue::IeeeFloat(*value)
-            }
-        }
+    ) -> Option<terminal_semantics::ScalarViewValue> {
+        Some(match value {
+            TerminalScalarValue::Callable { .. } => return None,
+            TerminalScalarValue::Boolean(value) => terminal_semantics::ScalarViewValue::Boolean(*value),
+            TerminalScalarValue::Integer { value, .. } => terminal_semantics::ScalarViewValue::Integer(*value),
+            TerminalScalarValue::IeeeFloat(value) => terminal_semantics::ScalarViewValue::IeeeFloat(*value),
+        })
     }
 
     #[cfg(test)]

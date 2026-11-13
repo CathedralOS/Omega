@@ -11810,6 +11810,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 *retention = Some(image);
                 *formed_type = destination;
             }
+            ExpressionNode::MachineValue(value) => {
+                *formed_type = value.type_reference;
+                *referents = Some(HandleSpan::empty());
+            }
             ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)

@@ -7771,18 +7771,50 @@ impl TypedTrees {
         lifetimes: &[(crate::name::Identifier, crate::name::Identifier)],
         declaration: SymbolHandle,
     ) -> Result<types::TypeReferenceHandle, &'static str> {
+        self.apply_callable_type_in_scope(
+            original,
+            substitutions,
+            lifetimes,
+            declaration,
+            declaration,
+            &[],
+        )
+    }
+
+    /// The declaration owns the formal regions; the supplier owns actual
+    /// regions. Supplied type operands retain their independent existing owner.
+    pub fn apply_callable_type_in_scope(
+        &mut self,
+        original: types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+        lifetimes: &[(crate::name::Identifier, crate::name::Identifier)],
+        declaration: SymbolHandle,
+        supplier: SymbolHandle,
+        supplied_regions: &[crate::type_identity::LifetimeParameterIdentity],
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        if !supplied_regions.is_empty() && supplied_regions.len() != lifetimes.len() {
+            return Err("applied callable type has an incomplete supplied region roster");
+        }
+        let lifetimes = lifetimes.iter().enumerate().map(|(ordinal, (parameter, argument))| {
+            let region = if supplied_regions.is_empty() {
+                lifetime_parameter_identity(self, supplier, argument.as_str())
+                    .ok_or("applied callable type region lost its exact supplying declaration")?
+            } else {
+                let region = supplied_regions[ordinal];
+                if crate::type_identity::lifetime_parameter_name(self, region) != Some(argument) {
+                    return Err("applied callable type region differs from its retained declaration ordinal");
+                }
+                region
+            };
+            Ok(CallableLifetimeBinding {
+                parameter: parameter.clone(), argument: argument.clone(), region,
+                origin: CallableLifetimeOrigin::Lexical,
+            })
+        }).collect::<Result<Vec<_>, &'static str>>()?;
         CallableApplication {
             region_scope: declaration,
             types: substitutions.to_vec(),
-            lifetimes: lifetimes
-                .iter()
-                .map(|(parameter, argument)| CallableLifetimeBinding {
-                    parameter: parameter.clone(),
-                    argument: argument.clone(),
-                    region: Default::default(),
-                    origin: CallableLifetimeOrigin::Lexical,
-                })
-                .collect(),
+            lifetimes,
             ..CallableApplication::default()
         }
         .type_reference(self, original)

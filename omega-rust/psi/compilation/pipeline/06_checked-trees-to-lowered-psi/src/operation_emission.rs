@@ -1,3 +1,6 @@
+#[path = "runtime_calls.rs"]
+pub(crate) mod runtime_calls;
+
 /*
 Core operation buffer (`OperationBuffer`) and instruction emitters for direct/boundary calls,
 scalar and boolean expressions, integer arithmetic, view subslices, and place declarations.
@@ -1325,6 +1328,9 @@ pub(crate) mod buffer {
                 OperationKind::CallDynamic {
                     claim_transfers, ..
                 }
+                | OperationKind::CallMachine {
+                    claim_transfers, ..
+                }
                 | OperationKind::CallUnit {
                     claim_transfers, ..
                 }
@@ -1627,14 +1633,14 @@ pub(crate) mod buffer {
             coordinate: impl Into<SourceInvocation>,
             source_site: Option<checked_trees::NominalMachineUseSite>,
             operation: OperationId,
-            target: symbols::SymbolHandle,
+            target: impl Into<lowered_psi::LoweredSourceCallTarget>,
             frontier_before_call: &LoweredSourceFrontierBindings,
         ) -> Result<(), LoweringError> {
             self.record_source_call_site(
                 coordinate.into(),
                 source_site,
                 LoweredSourceCallSite::Operation(operation),
-                target,
+                target.into(),
                 frontier_before_call,
             )
         }
@@ -1644,7 +1650,7 @@ pub(crate) mod buffer {
             coordinate: SourceInvocation,
             source_site: Option<checked_trees::NominalMachineUseSite>,
             terminal_site: LoweredSourceCallSite,
-            target: symbols::SymbolHandle,
+            target: lowered_psi::LoweredSourceCallTarget,
             frontier_before_call: &LoweredSourceFrontierBindings,
         ) -> Result<(), LoweringError> {
             if let Some(existing) = self
@@ -1657,12 +1663,19 @@ pub(crate) mod buffer {
                         "declaration call emitted twice in the same observation scope",
                     );
                 };
+                let (Some(previous_target), Some(requested_target)) =
+                    (existing.source_target.declaration(), target.declaration())
+                else {
+                    return unsupported(
+                        "runtime call emitted twice at one checked source coordinate",
+                    );
+                };
                 return Err(LoweringError::DuplicateContentPartitionProducerCoordinate {
                     state: coordinate.state,
                     statement_index: coordinate.statement_index,
                     call_ordinal: coordinate.call_ordinal,
-                    previous_target: existing.source_target,
-                    requested_target: target,
+                    previous_target,
+                    requested_target,
                     previous_source_site: existing.source_site,
                     requested_source_site: source_site,
                     previous_terminal_site: existing.terminal_site,
@@ -1740,7 +1753,7 @@ pub(crate) mod buffer {
                 completion.coordinate,
                 completion.source_site,
                 site,
-                completion.target,
+                completion.target.into(),
                 &completion.frontier,
             )?;
             Ok(Some(terminator))
@@ -1939,6 +1952,7 @@ pub(crate) mod calls {
         pub(crate) cleanup_receivers: &'a [(symbols::SymbolHandle, semantic_vocabulary::PlaceId)],
         pub(crate) machine_ids: &'a [(symbols::SymbolHandle, MachineId)],
         pub(crate) signatures: &'a [crate::unit::attached_unit::signatures::MachineSignature],
+        pub(crate) callables: &'a terminal_psi::TerminalCallableCatalog,
         pub(crate) structural_types: &'a [terminal_psi::StructuralTypeDeclaration],
         pub(crate) requirement_counts: &'a [(symbols::SymbolHandle, usize)],
         pub(crate) boundaries: &'a [crate::unit::attached_unit::BoundaryParameters],
@@ -4081,6 +4095,10 @@ use terminal_psi::{Operation, OperationKind, ValueDeclaration};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredScalarBinding {
+    MachineValue {
+        descriptor: semantic_vocabulary::MachineDescriptorId,
+        contract: semantic_vocabulary::CallableContractId,
+    },
     StorageAddress(calls::PreparedStructuralArgument, ScalarType),
     SelectedComparison {
         occurrence: crate::emission::selected_comparison::SelectedComparison,
@@ -4092,6 +4110,7 @@ pub(crate) enum LoweredScalarBinding {
     DescriptorTable(descriptor_tables::LoweredDescriptorTableBinding),
     BoundaryCall(boundary_calls::LoweredBoundaryCallBinding),
     DynamicCall(dynamic_calls::LoweredDynamicCallBinding),
+    RuntimeCall(runtime_calls::LoweredRuntimeCallBinding),
 }
 
 impl LoweredScalarBinding {
@@ -4100,6 +4119,7 @@ impl LoweredScalarBinding {
         parameters: &[QualifiedScalarType],
     ) -> Result<QualifiedScalarType, LoweringError> {
         match self {
+            Self::MachineValue { contract, .. } => Ok(ScalarType::Callable(*contract).into()),
             Self::StorageAddress(_, scalar_type) => Ok((*scalar_type).into()),
             Self::SelectedComparison { .. } => Ok(ScalarType::Boolean.into()),
             Self::Expression(expression) => expression.value_type(parameters),
@@ -4107,10 +4127,12 @@ impl LoweredScalarBinding {
             Self::DescriptorTable(call) => Ok(call.result_type),
             Self::BoundaryCall(call) => Ok(call.result_type),
             Self::DynamicCall(call) => Ok(call.result_type),
+            Self::RuntimeCall(call) => Ok(call.result_type),
         }
     }
     pub(crate) const fn scalar_type(&self) -> ScalarType {
         match self {
+            Self::MachineValue { contract, .. } => ScalarType::Callable(*contract),
             Self::StorageAddress(_, scalar_type) => *scalar_type,
             Self::SelectedComparison { .. } => ScalarType::Boolean,
             Self::Expression(expression) => expression.scalar_type(),
@@ -4118,6 +4140,7 @@ impl LoweredScalarBinding {
             Self::DescriptorTable(call) => call.result_type.scalar_type,
             Self::BoundaryCall(call) => call.result_type.scalar_type,
             Self::DynamicCall(call) => call.result_type.scalar_type,
+            Self::RuntimeCall(call) => call.result_type.scalar_type,
         }
     }
 }
@@ -4135,6 +4158,33 @@ pub(crate) fn emit_scalar_binding(
     current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
     let result = match binding {
+        LoweredScalarBinding::MachineValue {
+            descriptor,
+            contract,
+        } => {
+            let selected = call_emission.callables.descriptor(*descriptor).ok_or(
+                LoweringError::Unsupported("machine value has no retained descriptor"),
+            )?;
+            if selected.contract != *contract
+                || call_emission.callables.contract(*contract).is_none()
+            {
+                return Err(LoweringError::Unsupported(
+                    "machine value changes its retained contract",
+                ));
+            }
+            let id = mint_with(
+                next_value_identity,
+                value_id,
+                "machine value identity overflow",
+            )?;
+            operations.push_leaf(
+                buffer::scalar_result_declaration(id, ScalarType::Callable(*contract)),
+                OperationKind::SelectMachine {
+                    descriptor: *descriptor,
+                },
+            );
+            Ok(id)
+        }
         LoweredScalarBinding::StorageAddress(argument, scalar_type) => {
             let source =
                 argument.emit(parameters, call_emission, next_value_identity, operations)?;
@@ -4264,6 +4314,18 @@ pub(crate) fn emit_scalar_binding(
             call_emission,
             current_claims,
         ),
+        LoweredScalarBinding::RuntimeCall(call) => runtime_calls::emit_scalar_call(
+            identities,
+            checked,
+            call,
+            parameters,
+            frontier,
+            caller_erased_formals,
+            next_value_identity,
+            operations,
+            call_emission,
+            current_claims,
+        ),
         LoweredScalarBinding::DynamicCall(call) => dynamic_calls::emit_dynamic_call_binding(
             call,
             parameters,
@@ -4285,6 +4347,9 @@ pub(crate) fn emit_scalar_binding(
             Some((call.source_coordinate.into(), &call.loan_completions))
         }
         LoweredScalarBinding::DynamicCall(call) => {
+            Some((call.source_coordinate.into(), &call.loan_completions))
+        }
+        LoweredScalarBinding::RuntimeCall(call) => {
             Some((call.source_coordinate.into(), &call.loan_completions))
         }
         _ => None,

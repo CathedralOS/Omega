@@ -25,6 +25,52 @@ pub(crate) fn resolved_contract_call_symbol(
         })
 }
 
+pub(crate) fn exact_checked_runtime_contract_call<'program>(
+    compilation: &'program SourceDeclarationInput<'_>,
+    context: &ContractProjectionContext<'_>,
+    expression: typed_trees::expression::ExpressionHandle,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Result<Option<(typed_trees::callable_values::RuntimeCallBinding, &'program typed_trees::callable_values::RuntimeCallableContract)>, Vec<Diagnostic>> {
+    let source = validation::CallContractSource::runtime_expression(compilation.checking_input, call)
+        .map_err(|reason| context.rejected(reason))?;
+    let Some(validation::CallContractSource::Runtime { binding, contract }) = source else { return Ok(None); };
+    if !compilation.original_checking_input.expression_table.expression_is_valid(expression) {
+        return Err(context.rejected("runtime contract call has no original checked expression"));
+    }
+    let original = compilation.original_checking_input.expression_table.call_node(expression)
+        .ok_or_else(|| context.rejected("runtime contract call has no original checked occurrence"))?;
+    let original_source = validation::CallContractSource::runtime_expression(compilation.original_checking_input, original)
+        .map_err(|reason| context.rejected(reason))?;
+    let Some(validation::CallContractSource::Runtime { binding: retained, contract: original_contract }) = original_source
+        else { return Err(context.rejected("runtime contract call changed its original source kind")); };
+    if original != call || retained != binding || original_contract.signature != contract.signature
+        || original_contract.lexical_owner != contract.lexical_owner {
+        return Err(context.rejected("runtime contract call changed its checked callee, signature or lexical owner"));
+    }
+    require_signature_contract_call_arguments(compilation, context,
+        compilation.state_signature_parameters(&contract.signature), call)?;
+    Ok(Some((binding, contract)))
+}
+
+fn require_signature_contract_call_arguments(
+    compilation: &SourceDeclarationInput<'_>,
+    context: &ContractProjectionContext<'_>,
+    parameters: &[typed_trees::signature::StateParameter],
+    call: &typed_trees::expression::TableCallExpression,
+) -> Result<(), Vec<Diagnostic>> {
+    let arguments = compilation.expression_table.expression_handles(call.arguments);
+    if arguments.len() != parameters.len() {
+        return Err(context.rejected("contract call has inconsistent checked value arity"));
+    }
+    for (argument, parameter) in arguments.iter().zip(parameters) {
+        if matches!(compilation.expression_table.expression(*argument), typed_trees::expression::ExpressionNode::Borrow(_))
+            && !validation::checked_argument_matches_type_reference(compilation.checking_input, *argument, parameter.type_reference) {
+            return Err(context.rejected("reference argument does not match its contract-call parameter type"));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn contract_call_value_receiver(
     compilation: &SourceDeclarationInput<'_>,
     call: &typed_trees::expression::TableCallExpression,
@@ -88,27 +134,7 @@ pub(crate) fn require_checked_contract_call_arguments(
                 .require_application(expression);
         }
     };
-    let arguments = compilation
-        .expression_table
-        .expression_handles(call.arguments);
-    let parameters = parameters.iter().collect::<Vec<_>>();
-    if arguments.len() != parameters.len() {
-        return Err(context.rejected("contract call has inconsistent checked value arity"));
-    }
-    for (argument, parameter) in arguments.iter().zip(parameters) {
-        if matches!(
-            compilation.expression_table.expression(*argument),
-            typed_trees::expression::ExpressionNode::Borrow(_)
-        ) && !validation::checked_argument_matches_type_reference(
-            compilation.checking_input,
-            *argument,
-            parameter.type_reference,
-        ) {
-            return Err(context
-                .rejected("reference argument does not match its contract-call parameter type"));
-        }
-    }
-    Ok(())
+    require_signature_contract_call_arguments(compilation, context, parameters, call)
 }
 
 pub(crate) fn exact_fact_call_projection<'compilation>(

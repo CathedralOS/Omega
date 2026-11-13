@@ -64,6 +64,7 @@ abstract and target realization boundaries:
 */
 
 pub mod access_references;
+pub mod callable_values;
 mod candidates;
 mod current_ownership;
 mod current_value_ranges;

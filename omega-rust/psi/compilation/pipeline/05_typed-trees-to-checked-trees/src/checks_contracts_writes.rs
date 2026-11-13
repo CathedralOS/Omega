@@ -1970,6 +1970,8 @@ impl ConstructionWalk<'_, '_> {
             return;
         }
         match program.expression_table.expression(expression) {
+            // Selecting closed code has no runtime storage operand or call effect.
+            ExpressionNode::MachineValue(_) => {}
             ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Atomic(atomic) => self.scan(atomic.value, contexts),
             ExpressionNode::Match(dispatch) => {
@@ -2040,7 +2042,7 @@ impl ConstructionWalk<'_, '_> {
                 self.judge_value_qualification_cast(expression, cast, contexts);
             }
             ExpressionNode::Call(call) => {
-                self.scan(call.receiver, contexts);
+                self.scan(call.evaluated_callee(), contexts);
                 for argument in program.expression_table.expression_handles(call.arguments) {
                     self.scan(*argument, contexts);
                 }

@@ -2596,7 +2596,10 @@ pub(crate) mod attached_unit {
                         crate::unit::attached_unit::parameters::unit_scalar_result_type(
                             checked,
                             state,
-                            terminal_scalar_type(control.primitive_type)?,
+                            crate::emission::scalar_types::terminal_checked_scalar_type(
+                                checked,
+                                control.scalar_type,
+                            )?,
                             qualifications,
                         )?;
                     let mut expansion = self.scalar_computation_expansion(
@@ -3236,19 +3239,19 @@ pub(crate) mod attached_unit {
                     if source_value_count > values.len() {
                         return unsupported("scalar source prefix exceeds its retained values");
                     }
-                    let primitive_type = match value {
-                        CheckedCallScalarArgument::Pure(expression) => expression.primitive_type(),
+                    let scalar = match value {
+                        CheckedCallScalarArgument::Pure(expression) => expression.scalar_type(),
                         CheckedCallScalarArgument::Computation(handle) => {
                             let nodes = &checked.facts.values.scalar_computations.nodes;
                             nodes
                                 .is_valid(*handle)
-                                .then(|| nodes.get(*handle).primitive_type)
+                                .then(|| nodes.get(*handle).scalar_type)
                         }
                     }
                     .ok_or(LoweringError::Unsupported(
-                        "scalar value plan has no primitive carrier",
+                        "scalar value plan has no retained carrier",
                     ))?;
-                    let scalar_type = terminal_scalar_type(primitive_type)?;
+                    let scalar_type = self.scalar_bindings.scalar_type(scalar)?;
                     match value {
                         CheckedCallScalarArgument::Pure(expression) => {
                             if value_facts(checked)
@@ -5604,6 +5607,7 @@ pub(crate) mod attached_unit {
 
             pub(crate) fn new(
                 next_block: &mut u64,
+                callables: std::sync::Arc<crate::callable_catalog::PreparedCallables>,
                 scalar_applications: std::sync::Arc<
                     super::scalar_applications::SourceScalarApplications,
                 >,
@@ -5635,7 +5639,8 @@ pub(crate) mod attached_unit {
                     computation_address_roots: Vec::new(),
                     primitive_storage: Vec::new(),
                     parameter_storage: Vec::new(),
-                    scalar_bindings: ScalarBindings::new(std::iter::empty()),
+                    scalar_bindings: ScalarBindings::new(std::iter::empty())
+                        .with_callables(callables),
                     structural_fields: Default::default(),
                     structural_cases: Vec::new(),
                     structural_parameters: Vec::new(),
@@ -5917,9 +5922,10 @@ pub(crate) mod attached_unit {
                 let formals = self.callee_scalar_formals(
                     checked,
                     call,
+                    calls.callables,
                     argument_ordinal_start,
                     arguments.len(),
-                );
+                )?;
                 let arrival_types = argument_types
                     .iter()
                     .enumerate()
@@ -6018,24 +6024,64 @@ pub(crate) mod attached_unit {
                 &self,
                 checked: &CheckedTrees,
                 call: &checked_trees::CheckedUnitCallPlan,
+                callables: &terminal_psi::TerminalCallableCatalog,
                 first: usize,
                 count: usize,
-            ) -> Option<Vec<QualifiedScalarType>> {
-                let formals = match call.route() {
-                    checked_trees::CheckedUnitCallRoute::Module { .. } => {
-                        self.shared_qualifications
-                            .scalar_state_types(checked, call.target.state)
-                            .ok()?
-                            .0
+            ) -> Result<Option<Vec<QualifiedScalarType>>, LoweringError> {
+                let formals = if let Some(source) = call.target.runtime_contract() {
+                    let row = checked
+                        .facts
+                        .callable_contracts
+                        .contract_for_source(source)
+                        .map_err(LoweringError::Unsupported)?;
+                    let contract = callables
+                        .contract(row.id)
+                        .ok_or(LoweringError::Unsupported(
+                            "runtime argument arrival has no prepared callable contract",
+                        ))?;
+                    std::iter::once(ScalarType::Callable(contract.id).into())
+                        .chain(
+                            contract
+                                .scalar_parameters
+                                .iter()
+                                .map(|formal| formal.value_type()),
+                        )
+                        .collect::<Vec<_>>()
+                } else {
+                    match call.route() {
+                        checked_trees::CheckedUnitCallRoute::Module { .. } => {
+                            let (_, state) = call.target.declaration().ok_or(
+                                LoweringError::Unsupported("module call lost its declared target"),
+                            )?;
+                            self.shared_qualifications
+                                .scalar_state_types(checked, state)?
+                                .0
+                        }
+                        checked_trees::CheckedUnitCallRoute::Boundary => {
+                            let (machine, _) =
+                                call.target.declaration().ok_or(LoweringError::Unsupported(
+                                    "boundary call lost its declared target",
+                                ))?;
+                            self.shared_qualifications
+                                .boundary_scalar_formals(checked, machine)
+                                .ok_or(LoweringError::Unsupported(
+                                    "boundary call has no prepared scalar formal qualifications",
+                                ))?
+                        }
+                        _ => return Ok(None),
                     }
-                    checked_trees::CheckedUnitCallRoute::Boundary => self
-                        .shared_qualifications
-                        .boundary_scalar_formals(checked, call.target.machine)?,
-                    _ => return None,
                 };
-                formals
-                    .get(first..first.checked_add(count)?)
-                    .map(<[QualifiedScalarType]>::to_vec)
+                let end = first
+                    .checked_add(count)
+                    .ok_or(LoweringError::Unsupported("call argument slice overflows"))?;
+                Ok(Some(
+                    formals
+                        .get(first..end)
+                        .ok_or(LoweringError::Unsupported(
+                            "call argument slice exceeds retained formals",
+                        ))?
+                        .to_vec(),
+                ))
             }
 
             #[allow(clippy::too_many_arguments)]
@@ -6906,7 +6952,7 @@ pub(crate) mod attached_unit {
             let (evaluation_order, scalar_positions, structural_positions) = match invocation {
                 checked_trees::CheckedStructuralInvocation::Call(call) => {
                     let authored = crate::shared::call_sites::locate(checked, state, coordinate)?;
-                    let target = crate::shared::declarations::target_signature(
+                    let target = crate::shared::declarations::invocation_signature(
                         checked,
                         machine,
                         authored.source_target,
@@ -6917,7 +6963,9 @@ pub(crate) mod attached_unit {
                         super::call_parameters::scalar_positions(checked, call, &target)?;
                     if target.parameters.len()
                         != authored.scalar_arguments.len() + authored.structural_arguments.len()
-                        || call.scalar_operands().len() != scalar_positions.len()
+                        || call.scalar_operands().len()
+                            != scalar_positions.len()
+                                + usize::from(call.target.runtime_contract().is_some())
                         || structural_arguments.len() != structural_positions.len()
                     {
                         return unsupported(
@@ -6935,6 +6983,17 @@ pub(crate) mod attached_unit {
                 }
             };
             active.push(index);
+            let callee_prefix = usize::from(
+                operations[index]
+                    .call()
+                    .is_some_and(|call| call.target.runtime_contract().is_some()),
+            );
+            if callee_prefix != 0 {
+                steps.push(Step::Argument {
+                    operation: index,
+                    ordinal: 0,
+                });
+            }
             for position in evaluation_order.iter().copied() {
                 if let Some(scalar_ordinal) = scalar_positions
                     .iter()
@@ -6942,7 +7001,7 @@ pub(crate) mod attached_unit {
                 {
                     steps.push(Step::Argument {
                         operation: index,
-                        ordinal: scalar_ordinal,
+                        ordinal: scalar_ordinal + callee_prefix,
                     });
                     continue;
                 }

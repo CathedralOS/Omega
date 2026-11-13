@@ -6655,7 +6655,7 @@ pub mod descriptor_results {
                         ScalarType::Boolean => {
                             ScalarTerm::boolean_field_path(predicate.subject, path)
                         }
-                        ScalarType::IeeeFloat(_) => continue,
+                        ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => continue,
                     };
                     equations.push(Proposition::Equal(observed, value.clone()));
                 }
@@ -12176,6 +12176,48 @@ pub mod descriptor_results {
                                     }
                                 }
                             }
+                        }
+                        OperationKind::CallMachine {
+                            contract,
+                            structural_arguments,
+                            ..
+                        } => {
+                            let contract = module.callables.contract(*contract)?;
+                            // A public callable supplies result origins and access ceilings.
+                            // Its unknown body supplies no stored-content summary. Invalidate
+                            // only writable argument paths, retaining unrelated storage.
+                            let call = public_invocation(
+                                operation.id,
+                                &module.structural_types,
+                                slot_kind,
+                                contract,
+                                Vec::new(),
+                                structural_arguments,
+                                result,
+                                &graph.place_types,
+                            )?;
+                            for actual in structural_arguments
+                                .iter()
+                                .filter(|actual| actual.access != StructuralAccess::SharedBorrow)
+                            {
+                                step.definitions.extend(writable_descriptor_slots(
+                                    &module.structural_types,
+                                    &graph.place_types,
+                                    actual,
+                                    slot_kind,
+                                )?);
+                            }
+                            if matches!(
+                                call.target,
+                                DescriptorInvocationTarget::Public {
+                                    invalidates_contents: true,
+                                    ..
+                                }
+                            ) {
+                                graph.unresolved_contents_writes.insert(position);
+                                step.may_escape = true;
+                            }
+                            graph.calls.insert(position, call);
                         }
                         OperationKind::CallDynamic {
                             selector,

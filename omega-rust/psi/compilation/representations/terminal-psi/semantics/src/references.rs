@@ -364,6 +364,7 @@ pub(crate) mod reference_origins {
                 sources: &'declaration [StructuralReferenceResultSource],
             },
             Requirement(&'declaration TerminalDynamicSlot),
+            Callable(&'declaration terminal_psi::TerminalCallableContract),
         }
 
         pub enum ReferenceCallOrigin {
@@ -521,6 +522,9 @@ pub(crate) mod reference_origins {
                 }
                 ReferenceCallContract::Requirement(slot) => {
                     return bind_public_reference_call_results(types, slot, arguments);
+                }
+                ReferenceCallContract::Callable(contract) => {
+                    return bind_public_reference_call_results(types, contract, arguments);
                 }
             }
             Ok(results)
@@ -4196,6 +4200,7 @@ pub(crate) mod reference_views {
             ScalarType::Integer(integer) if !integer.is_address() && integer.bits() % 8 == 0 => {
                 u8::try_from(integer.bits() / 8).ok()
             }
+            ScalarType::Callable(_) => Some(8),
             ScalarType::Boolean => Some(1),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(4),
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(8),

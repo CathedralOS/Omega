@@ -6571,7 +6571,7 @@ pub mod partial_affine_residuals {
         let declaration = *types.get(&current_type)?;
         active.push(current_type);
         match &declaration.shape {
-            CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
+            CheckedUnitStructuralTypeShape::Scalar(primitive)
                 if declaration.scalar_restriction.as_ref().map_or_else(
                     || {
                         is_partial_affine_field_type(&CheckedUnitStructuralFieldType::Scalar(

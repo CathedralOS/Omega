@@ -372,6 +372,43 @@ pub(crate) mod invocations {
     }
 
     #[derive(Clone, Copy)]
+    pub struct CallableInvocationInputs<'a> {
+        pub callee: ValueId,
+        pub contract: semantic_vocabulary::CallableContractId,
+        pub arguments: &'a [ValueId],
+        pub erased_arguments: &'a [ScalarTerm],
+        pub erased_proof_arguments: &'a [ProofTerm],
+        pub structural_arguments: &'a [StructuralArgument],
+        pub claim_transfers: &'a [ClaimTransfer],
+        pub requirement_obligations: &'a [ObligationId],
+        pub crash_continuations: &'a [CrashRouteBucket],
+    }
+
+    #[derive(Clone, Copy)]
+    pub struct CallableInvocation<'a> {
+        pub site: semantic_vocabulary::InvocationSite,
+        pub inputs: CallableInvocationInputs<'a>,
+    }
+
+    impl OperationKind {
+        pub fn callable_invocation(&self) -> Option<CallableInvocationInputs<'_>> {
+            let Self::CallMachine { callee, contract, arguments, erased_arguments,
+                erased_proof_arguments, structural_arguments, claim_transfers,
+                requirement_obligations, crash_continuations } = self else { return None };
+            Some(CallableInvocationInputs { callee: *callee, contract: *contract, arguments,
+                erased_arguments, erased_proof_arguments, structural_arguments, claim_transfers,
+                requirement_obligations, crash_continuations })
+        }
+    }
+
+    impl super::TerminalMachine {
+        pub fn callable_invocations(&self) -> impl Iterator<Item = CallableInvocation<'_>> {
+            self.operations().filter_map(|operation| operation.kind.callable_invocation().map(|inputs|
+                CallableInvocation { site: semantic_vocabulary::InvocationSite::Operation(operation.id), inputs }))
+        }
+    }
+
+    #[derive(Clone, Copy)]
     pub struct ModuleInvocationInputs<'a> {
         pub callee: MachineId,
         pub arguments: &'a [ValueId],
@@ -837,7 +874,8 @@ pub(crate) mod machines {
     }
 }
 pub use invocations::{
-    BoundaryInvocation, BoundaryInvocationCompletion, ModuleInvocation, ModuleInvocationInputs,
+    BoundaryInvocation, BoundaryInvocationCompletion, CallableInvocation, CallableInvocationInputs,
+    ModuleInvocation, ModuleInvocationInputs,
 };
 pub(crate) mod operations {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -1316,6 +1354,22 @@ pub(crate) mod operations {
         SelectImplementation {
             table: u32,
         },
+        SelectMachine {
+            descriptor: semantic_vocabulary::MachineDescriptorId,
+        },
+        /// Calls the evaluated machine value under its retained callable contract.
+        /// The descriptor supplies code; it never supplies an implicit argument.
+        CallMachine {
+            callee: ValueId,
+            contract: semantic_vocabulary::CallableContractId,
+            arguments: Vec<ValueId>,
+            erased_arguments: Vec<ScalarTerm>,
+            erased_proof_arguments: Vec<ProofTerm>,
+            structural_arguments: Vec<StructuralArgument>,
+            claim_transfers: Vec<ClaimTransfer>,
+            requirement_obligations: Vec<ObligationId>,
+            crash_continuations: Vec<CrashRouteBucket>,
+        },
         CallDynamic {
             selector: ValueId,
             interface: u32,
@@ -1785,6 +1839,12 @@ pub(crate) mod operations {
                         *argument = map(*argument);
                     }
                 }
+                Self::CallMachine { callee, arguments, .. } => {
+                    *callee = map(*callee);
+                    for argument in arguments {
+                        *argument = map(*argument);
+                    }
+                }
                 Self::CallDynamic {
                     selector,
                     arguments,
@@ -1800,6 +1860,7 @@ pub(crate) mod operations {
                     }
                 }
                 Self::SelectImplementation { .. }
+                | Self::SelectMachine { .. }
                 | Self::ReleaseReference { .. }
                 | Self::PrimitiveScalarRead { .. }
                 | Self::MoveStructuralField { .. }
@@ -1832,7 +1893,7 @@ pub(crate) mod operations {
 
         pub fn structural_arguments(&self) -> &[StructuralArgument] {
             match self {
-                crate::static_call_structural_argument_variants!(structural_arguments) => {
+                crate::call_structural_argument_variants!(structural_arguments) => {
                     structural_arguments
                 }
                 _ => &[],
@@ -1855,6 +1916,9 @@ pub(crate) mod operations {
                 }
                 | Self::CallDynamic {
                     claim_transfers, ..
+                }
+                | Self::CallMachine {
+                    claim_transfers, ..
                 } => claim_transfers,
                 _ => &[],
             }
@@ -1862,7 +1926,7 @@ pub(crate) mod operations {
 
         pub fn structural_arguments_mut(&mut self) -> Option<&mut Vec<StructuralArgument>> {
             match self {
-                crate::static_call_structural_argument_variants!(structural_arguments) => {
+                crate::call_structural_argument_variants!(structural_arguments) => {
                     Some(structural_arguments)
                 }
                 _ => None,
@@ -1897,6 +1961,10 @@ pub(crate) mod operations {
         ($arguments:ident) => {
             $crate::static_call_structural_argument_variants!($arguments)
                 | $crate::OperationKind::CallDynamic {
+                    structural_arguments: $arguments,
+                    ..
+                }
+                | $crate::OperationKind::CallMachine {
                     structural_arguments: $arguments,
                     ..
                 }

@@ -508,7 +508,9 @@ pub(crate) mod operation_tags {
     pub(crate) const PROJECTED_RELEASE_REFERENCE: u8 = 108;
 
     pub(crate) const SELECT_IMPLEMENTATION: u8 = 109;
+    pub(crate) const SELECT_MACHINE: u8 = 138;
     pub(crate) const CALL_DYNAMIC: u8 = 110;
+    pub(crate) const CALL_MACHINE: u8 = 139;
 
     pub(crate) const ESTABLISH_STORAGE_VIEW_REFERENCE: u8 = 111;
 
@@ -1558,6 +1560,17 @@ operation_wire! {
             crash_continuations: CrashRoutes,
             selected_evidence: SelectedEvidence,
         },
+        CALL_MACHINE => CallMachine {
+            callee: Id,
+            contract: Id,
+            arguments: Ids,
+            erased_arguments: ScalarTerms,
+            erased_proof_arguments: ProofTerms,
+            structural_arguments: Arguments,
+            claim_transfers: ClaimTransfers,
+            requirement_obligations: Ids,
+            crash_continuations: CrashRoutes,
+        },
         CALL_DYNAMIC => CallDynamic {
             selector: Id,
             interface: U32,
@@ -1579,6 +1592,7 @@ operation_wire! {
             requirement_obligations: Ids,
         },
         SELECT_IMPLEMENTATION => SelectImplementation { table: U32 },
+        SELECT_MACHINE => SelectMachine { descriptor: Id },
         PORT_WRITE => PortWrite { service: Id, port: U16, value: U8 },
         INTEGER_CONSTANT => IntegerConstant { value: Integer },
         BOOLEAN_CONSTANT => BooleanConstant { value: Flag },

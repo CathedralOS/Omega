@@ -113,3 +113,79 @@ impl RuntimeCallableLowering {
             .filter(|handle| handle.is_valid())
     }
 }
+
+/// Scalar storage preserves callable contracts independently of numeric carriers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum ScalarValueType {
+    Primitive(crate::types::PrimitiveType),
+    Callable(RuntimeCallableContractHandle),
+}
+
+impl ScalarValueType {
+    pub fn from_type_reference(
+        program: &crate::TypedTrees,
+        reference: crate::types::TypeReferenceHandle,
+    ) -> Option<Self> {
+        let reference = program
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        if let crate::types::TypeReferenceNode::Callable { contract } =
+            program.type_reference_table.type_reference(reference)
+        {
+            return program
+                .runtime_callable_contracts
+                .is_valid(*contract)
+                .then_some(Self::Callable(*contract));
+        }
+        program
+            .primitive_type_reference(reference)
+            .map(Self::Primitive)
+    }
+
+    pub fn same_type(
+        self,
+        program: &crate::TypedTrees,
+        other: Self,
+    ) -> Result<bool, crate::runtime_callable_identity::RuntimeCallableIdentityError> {
+        match (self, other) {
+            (Self::Primitive(left), Self::Primitive(right)) => Ok(left == right),
+            (Self::Callable(left), Self::Callable(right)) => {
+                if !program.runtime_callable_contracts.is_valid(left)
+                    || !program.runtime_callable_contracts.is_valid(right)
+                {
+                    return Err(crate::runtime_callable_identity::RuntimeCallableIdentityError::MissingContract);
+                }
+                if left == right {
+                    return Ok(true);
+                }
+                Ok(program.runtime_callable_contract_identity(left, &[])?
+                    == program.runtime_callable_contract_identity(right, &[])?)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    pub const fn primitive(self) -> Option<crate::types::PrimitiveType> {
+        match self {
+            Self::Primitive(primitive) => Some(primitive),
+            Self::Callable(_) => None,
+        }
+    }
+}
+
+impl From<crate::types::PrimitiveType> for ScalarValueType {
+    fn from(primitive: crate::types::PrimitiveType) -> Self {
+        Self::Primitive(primitive)
+    }
+}
+
+impl PartialEq<crate::types::PrimitiveType> for ScalarValueType {
+    fn eq(&self, other: &crate::types::PrimitiveType) -> bool {
+        self.primitive() == Some(*other)
+    }
+}
+impl PartialEq<ScalarValueType> for crate::types::PrimitiveType {
+    fn eq(&self, other: &ScalarValueType) -> bool {
+        other == self
+    }
+}

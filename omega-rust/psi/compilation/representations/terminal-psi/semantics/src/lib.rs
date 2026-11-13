@@ -27,6 +27,8 @@ modules to native code.
 
 pub mod access;
 pub mod bytes;
+pub mod callable_envelopes;
+pub mod callable_values;
 pub mod calls;
 pub mod content_transformations;
 pub use content_transformations::{domain_preservation, quotients};
@@ -347,7 +349,9 @@ pub(crate) mod semantic_rows {
         CallStructuralWithScalarArguments => ("algebra:call:call-structural-with-scalar-arguments", CallComposition, None),
         BoundaryCall => ("algebra:call:boundary-call", CallComposition, None),
         SelectImplementation => ("schema:operation:select-implementation", LeafDenotation, None),
+        SelectMachine => ("schema:operation:select-machine", LeafDenotation, None),
         CallDynamic => ("algebra:call:call-dynamic", CallComposition, None),
+        CallMachine => ("algebra:call:call-machine", CallComposition, None),
         PortWrite => ("schema:operation:port-write", LeafDenotation, None),
         RegisterAccess => ("schema:operation:register-access", LeafDenotation, None),
         IntegerConstant => ("schema:operation:integer-constant", LeafDenotation,

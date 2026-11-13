@@ -1808,6 +1808,7 @@ pub(crate) mod authored_selections {
                     ..
                 } => (*base_symbol, base_name),
                 TypeReferenceNode::Named { symbol, name } => (*symbol, name),
+                TypeReferenceNode::Callable { .. } => return None,
                 TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::FixedArray { .. }

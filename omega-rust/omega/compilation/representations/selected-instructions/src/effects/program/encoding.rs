@@ -624,6 +624,10 @@ mod v6 {
                 },
                 232 => SelectedInstructionKind::ImageAddress {
                     reference: match cursor.byte()? {
+                        5 => crate::SelectedImageAddressReference::MachineDescriptor {
+                            descriptor: semantic_vocabulary::MachineDescriptorId::new(cursor.u64()?)
+                                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                        },
                         4 => crate::SelectedImageAddressReference::PrivateFunction {
                             identity: function_identity::MachineFunctionIdentity::from_bytes(
                                 cursor.array()?,
@@ -1465,6 +1469,10 @@ mod v6 {
                 1 => crate::SelectedCallTarget::Dynamic {
                     interface: cursor.u32()?,
                     slot: cursor.u32()?,
+                },
+                2 => crate::SelectedCallTarget::Callable {
+                    contract: semantic_vocabulary::CallableContractId::new(cursor.u64()?)
+                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                 },
                 _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
             })

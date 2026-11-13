@@ -508,16 +508,17 @@ pub(crate) mod final_image_validation {
     use crate::ObjectArtifact;
     use crate::entries::hosted_unit_entry::validate_unit_shim;
     use crate::entries::hosted_unit_entry::{EntryShim, EntrySurface};
-    use crate::object::function_fragments::implementation_tables::validate_image_data_relocations;
+    use crate::object::function_fragments::code_descriptors::validate_image_data_relocations;
     use crate::object::private_object_composition::ObjectNamespace;
     use crate::object::private_object_composition::namespaces;
     use crate::object::private_object_composition::remap;
 
-    mod implementation_tables {
+    mod code_descriptors {
         use diagnostics::Diagnostic;
         use image::EmittedImageOutput;
         use machine_code::ImageAddressFields;
 
+        use crate::object::function_fragments::code_descriptors::{address_source, target_entries};
         use crate::object::private_object_composition::ObjectNamespace;
 
         pub(super) fn validate_targets(
@@ -525,20 +526,20 @@ pub(crate) mod final_image_validation {
             output: &EmittedImageOutput,
         ) -> Result<(), Diagnostic> {
             let artifact = namespace.artifact;
-            let Some(pool) = &artifact.implementation_table_pool else {
+            let Some(pool) = &artifact.code_descriptor_pool else {
                 return Ok(());
             };
             for address in &pool.addresses {
-                let table = pool
-                    .tables
+                let descriptor = pool
+                    .descriptors
                     .iter()
-                    .find(|table| Some(table.table) == address.implementation_table())
+                    .find(|descriptor| Some(descriptor.source) == address_source(address))
                     .ok_or_else(|| {
-                        Diagnostic::error("final implementation address has no table")
+                        Diagnostic::error("final selected machine address has no retained storage")
                     })?;
                 let expected_target = section_address(
                     output.final_image_layout.data_address,
-                    namespace.data_offset(table.data_offset)?,
+                    namespace.data_offset(descriptor.data_offset)?,
                 )?;
                 let field_offset = |offset| {
                     usize::try_from(offset)
@@ -563,18 +564,21 @@ pub(crate) mod final_image_validation {
                 };
                 if actual_target != expected_target {
                     return Err(Diagnostic::error(
-                        "final implementation address does not resolve to its exact table",
+                        "final selected machine address does not resolve to its exact storage",
                     ));
                 }
             }
-            for table in &pool.tables {
-                let declaration = pool.catalog.table(table.table).ok_or_else(|| {
-                    Diagnostic::error("final implementation table has no source declaration")
-                })?;
-                for (slot, machine) in declaration.rows.iter().enumerate() {
+            for descriptor in &pool.descriptors {
+                let entries = target_entries(&pool.catalog, &pool.callables, descriptor.source)
+                    .map_err(|reason| {
+                        Diagnostic::error(format!(
+                            "final selected machine storage is invalid: {reason:?}"
+                        ))
+                    })?;
+                for (slot, machine) in entries.enumerate() {
                     let expected_target = if let Some(machine) = machine {
-                        let function = artifact.function_on_machine(*machine).ok_or_else(|| {
-                            Diagnostic::error("final implementation row has no function")
+                        let function = artifact.function_on_machine(machine).ok_or_else(|| {
+                            Diagnostic::error("final selected machine cell has no function")
                         })?;
                         section_address(
                             output.final_image_layout.text_address,
@@ -585,13 +589,13 @@ pub(crate) mod final_image_validation {
                     };
                     let row_offset = slot
                         .checked_mul(8)
-                        .and_then(|offset| table.data_offset.checked_add(offset))
+                        .and_then(|offset| descriptor.data_offset.checked_add(offset))
                         .and_then(|offset| offset.checked_add(namespace.data_offset))
                         .ok_or_else(|| {
-                            Diagnostic::error("final implementation row offset overflows")
+                            Diagnostic::error("final selected machine cell offset overflows")
                         })?;
                     let row_end = row_offset.checked_add(8).ok_or_else(|| {
-                        Diagnostic::error("final implementation row end overflows")
+                        Diagnostic::error("final selected machine cell end overflows")
                     })?;
                     let actual_target = output
                         .final_data_bytes
@@ -599,11 +603,11 @@ pub(crate) mod final_image_validation {
                         .and_then(|bytes| <[u8; 8]>::try_from(bytes).ok())
                         .map(u64::from_le_bytes)
                         .ok_or_else(|| {
-                            Diagnostic::error("final implementation row is truncated")
+                            Diagnostic::error("final selected machine cell is truncated")
                         })?;
                     if actual_target != expected_target {
                         return Err(Diagnostic::error(
-                            "final implementation row does not resolve to its exact function or trap",
+                            "final selected machine cell does not resolve to its exact function or trap",
                         ));
                     }
                 }
@@ -615,7 +619,7 @@ pub(crate) mod final_image_validation {
             u64::try_from(offset)
                 .ok()
                 .and_then(|offset| section_address.checked_add(offset))
-                .ok_or_else(|| Diagnostic::error("final implementation target address overflows"))
+                .ok_or_else(|| Diagnostic::error("final selected machine target address overflows"))
         }
     }
 
@@ -1070,7 +1074,7 @@ pub(crate) mod final_image_validation {
         validate_image_data_relocations(artifact, object, relocations)
             .map_err(|error| Diagnostic::error(error.to_string()))?;
         for namespace in namespaces(artifact) {
-            implementation_tables::validate_targets(&namespace, output)?;
+            code_descriptors::validate_targets(&namespace, output)?;
             native_code_layouts::validate_targets(&namespace, output)?;
             validate_byte_literal_address_targets(&namespace, output)?;
         }

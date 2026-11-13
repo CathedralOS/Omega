@@ -265,6 +265,9 @@ mod collection {
                     walk_bounded_type(program, *argument, context.clone(), on_constrained);
                 }
             }
+            // This walk states numeric constraints on the stored value.
+            // Callable formals belong to its independent contract namespace.
+            TypeReferenceNode::Callable { .. } => {}
             TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Named { .. }
             | TypeReferenceNode::ConstExpression(_)
@@ -1367,6 +1370,9 @@ mod constraints {
         expression: ExpressionHandle,
     ) -> ConstraintBuffer {
         match program.expression_table.expression(expression) {
+            ExpressionNode::MachineValue(value) => {
+                collect_constraints(program, value.type_reference)
+            }
             ExpressionNode::SavedSubject(_) | ExpressionNode::Match(_) => ConstraintBuffer::new(),
             ExpressionNode::Atomic(atomic) => {
                 expression_constraints(program, machine, state, atomic.value)
@@ -1586,6 +1592,8 @@ mod constraints {
             TypeReferenceNode::Slice { element_type } => {
                 collect_constraints(program, *element_type)
             }
+            // An opaque callable carries a checked contract, not a numeric range.
+            TypeReferenceNode::Callable { .. } => ConstraintBuffer::new(),
             TypeReferenceNode::DynamicTrait { .. } => ConstraintBuffer::new(),
             TypeReferenceNode::Named { name, .. } => primitive_constraints(name),
             TypeReferenceNode::ConstExpression(_) => ConstraintBuffer::new(),
@@ -2350,6 +2358,18 @@ mod identity {
             return "expr:invalid".to_owned();
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::MachineValue(value) => {
+                match program
+                    .typed_program()
+                    .runtime_machine_value_identity(value, &[])
+                {
+                    Ok(identity) => identity,
+                    Err(_) => {
+                        program.unavailable.set(true);
+                        String::new()
+                    }
+                }
+            }
             ExpressionNode::SavedSubject(saved) => {
                 if program.saved_value_source(saved).is_none() {
                     program.unavailable.set(true);
@@ -2570,6 +2590,25 @@ mod identity {
                 ],
             )
         });
+        let runtime = call.runtime_call.map(|binding| {
+            let identity = match program
+                .typed_program()
+                .runtime_callable_contract_identity(binding.contract, &[])
+            {
+                Ok(identity) => identity,
+                Err(_) => {
+                    program.unavailable.set(true);
+                    String::new()
+                }
+            };
+            compound(
+                "runtime-call",
+                [
+                    atom("contract", identity),
+                    expression_identity(program, binding.callee),
+                ],
+            )
+        });
         compound(
         "call",
         [
@@ -2609,7 +2648,7 @@ mod identity {
             format!("{:?}", call.operational_acknowledgement),
         ]
         .into_iter()
-        .chain(installed),
+        .chain(installed).chain(runtime),
     )
     }
 
@@ -3858,6 +3897,7 @@ mod ranges {
                 base_type,
                 constraints,
             } => Some((*base_type, *constraints)),
+            TypeReferenceNode::Callable { .. } => None,
             TypeReferenceNode::FixedArray { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }

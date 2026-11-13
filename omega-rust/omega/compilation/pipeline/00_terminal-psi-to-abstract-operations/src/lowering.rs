@@ -143,6 +143,16 @@ mod machine {
                 machine: &TerminalMachine,
             ) -> Result<AbstractOperation, LoweringError> {
                 Ok(match operation.kind.clone() {
+                    OperationKind::SelectMachine { descriptor } => {
+                        let result = operation.result.scalar()
+                            .filter(|result| matches!(result.scalar_type, semantic_vocabulary::ScalarType::Callable(_)))
+                            .ok_or(LoweringError::UnsupportedDynamicDispatch(operation.id))?;
+                        AbstractOperation::SelectMachine {
+                            psi_operation: operation.id,
+                            result: result.into(),
+                            descriptor,
+                        }
+                    }
                     OperationKind::SelectImplementation { table } => {
                         let result = operation.result.scalar()
                 .filter(|result| matches!(result.scalar_type, semantic_vocabulary::ScalarType::Integer(integer)
@@ -154,6 +164,25 @@ mod machine {
                             table,
                         }
                     }
+                    OperationKind::CallMachine {
+                        callee, contract, arguments, structural_arguments, claim_transfers,
+                        requirement_obligations, crash_continuations, ..
+                    } => AbstractOperation::CallStructural {
+                        psi_operation: operation.id,
+                        callee: AbstractCallTarget::Callable { callee, contract },
+                        arguments,
+                        structural_arguments,
+                        claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                        result: match &operation.result {
+                            terminal_psi::OperationResult::Unit => AbstractStructuralCallResult::Unit,
+                            terminal_psi::OperationResult::Scalar(result) => AbstractStructuralCallResult::Scalar((*result).into()),
+                            terminal_psi::OperationResult::Structural(result) => AbstractStructuralCallResult::Structural {
+                                result: result.clone(), selected_evidence: Vec::new(),
+                            },
+                        },
+                    },
                     OperationKind::CallDynamic {
                         selector,
                         interface,
@@ -709,7 +738,9 @@ mod machine {
                         })
                     }
                     OperationKind::SelectImplementation { .. }
-                    | OperationKind::CallDynamic { .. } => calls::lower(operation, machine),
+                    | OperationKind::SelectMachine { .. }
+                    | OperationKind::CallDynamic { .. }
+                    | OperationKind::CallMachine { .. } => calls::lower(operation, machine),
                     OperationKind::StorageAddress { source } => {
                         let result = operation.result.scalar()
                 .filter(|result| matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address()))
@@ -1874,6 +1905,7 @@ pub(crate) fn lower_selected_module(
             })
             .map(|(_, candidate)| candidate.clone())
             .collect(),
+        callables: module.callables.clone(),
         dynamic_dispatch: module.dynamic_dispatch.clone(),
         identities: module.identities.clone(),
         functions,

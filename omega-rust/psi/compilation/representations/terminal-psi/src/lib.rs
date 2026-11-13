@@ -28,6 +28,7 @@ target-neutral abstract operations by `00_terminal-psi-to-abstract-operations`.
 
 pub mod artifacts;
 pub mod boundary;
+pub mod callable_values;
 #[macro_use]
 pub mod control_flow;
 pub mod identity;
@@ -958,6 +959,11 @@ pub use semantic_vocabulary::{
     BoundaryCompletion, BoundaryRequirementKind, ExternalCompletionKind,
 };
 pub use terminal_module::*;
+pub use callable_values::{
+    TerminalCallableCatalog, TerminalCallableContract, TerminalCallableEnvelope, TerminalCallableEvidenceLane,
+    TerminalCallableInvocation, TerminalCallableTermination, TerminalCallableTerminationPremise,
+    TerminalMachineDescriptor, TerminalMachineDescriptorOrigin,
+};
 
 pub mod target_layouts {
     use crate::TerminalIdentityIndex;

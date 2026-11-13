@@ -40,6 +40,7 @@ pub struct AbstractOperationPlan {
     pub structural_types: StructuralTypeCatalog, // Target-neutral carrier shapes retained for Omega layout and ABI selection.
     pub boundary_machines: Vec<BoundaryMachineDeclaration>, // Exact bodyless boundary declarations available to Unit operations.
     pub provider_candidates: Vec<ProviderCandidateConformance>, // Verifier-approved checked provider catalog.
+    pub callables: terminal_psi::TerminalCallableCatalog,
     pub dynamic_dispatch: terminal_psi::TerminalDynamicDispatchCatalog, // Requirement-owned interfaces and selectable implementation maps.
     pub identities: terminal_psi::TerminalIdentityTable, // Sealed identity table every `TerminalIdentityIndex` on this plan resolves against.
     pub functions: Vec<AbstractFunction>,

@@ -1399,7 +1399,7 @@ pub mod closed_conformances {
             if invocation
                 .runtime_call
                 .as_ref()
-                .is_none_or(|call| call.callee != dispatch.realization)
+                .is_none_or(|call| call.target != terminal_psi::EvidenceCallableTarget::Machine(dispatch.realization))
             {
                 return Err("static requirement dispatch differs from its ordinary runtime call");
             }
@@ -1908,11 +1908,12 @@ pub mod evidence_calls {
             BlockId, InvocationSite, MachineId, OperationId, PlaceId, ScalarTerm, ValueId,
         };
         use terminal_psi::{
-            CheckedMachineDeclaration, DirectCallParts, DirectCallRole, EvidenceContractLane,
-            EvidenceTermDeclaration, OutcomeSpecificCallEvidence, OutcomeSpecificEnsure,
-            ProofOutputCall, PropositionApplicationIdentity, StructuralArgument,
-            StructuralDomainDeclaration, StructuralOperationResult, StructuralParameterDeclaration,
-            StructuralTypeDeclaration, TerminalIdentityTable,
+            CheckedMachineDeclaration, DirectCallRole, EvidenceCallableOwner,
+            EvidenceCallableTarget, EvidenceContractLane, EvidenceTermDeclaration,
+            OutcomeSpecificCallEvidence, OutcomeSpecificEnsure, ProofOutputCall,
+            PropositionApplicationIdentity, StructuralArgument, StructuralDomainDeclaration,
+            StructuralOperationResult, StructuralParameterDeclaration, StructuralTypeDeclaration,
+            TerminalIdentityTable,
         };
 
         pub enum RuntimeEvidenceResult {
@@ -1942,17 +1943,25 @@ pub mod evidence_calls {
         pub struct RuntimeEvidenceOperation {
             pub site: InvocationSite,
             pub position: DescriptorPosition,
-            pub callee: MachineId,
+            pub target: EvidenceCallableTarget,
             pub role: DirectCallRole,
             pub arguments: Vec<ValueId>,
             pub structural_arguments: Vec<StructuralArgument>,
             pub result: RuntimeEvidenceResult,
             pub selected_evidence: Vec<OutcomeSpecificCallEvidence>,
         }
+        #[derive(Clone, Copy)]
+        pub struct RuntimeEvidenceCallParts<'operation> {
+            pub target: EvidenceCallableTarget,
+            pub role: DirectCallRole,
+            pub arguments: &'operation [ValueId],
+            pub structural_arguments: &'operation [StructuralArgument],
+            pub selected_evidence: &'operation [OutcomeSpecificCallEvidence],
+        }
         impl RuntimeEvidenceOperation {
-            pub fn parts(&self) -> DirectCallParts<'_> {
-                DirectCallParts {
-                    callee: self.callee,
+            pub fn parts(&self) -> RuntimeEvidenceCallParts<'_> {
+                RuntimeEvidenceCallParts {
+                    target: self.target,
                     role: self.role,
                     arguments: &self.arguments,
                     structural_arguments: &self.structural_arguments,
@@ -2002,10 +2011,68 @@ pub mod evidence_calls {
             }
         }
 
+        #[derive(Clone, Copy)]
+        pub enum RuntimeEvidenceCallable<'input> {
+            Machine(&'input RuntimeEvidenceBody),
+            Runtime(&'input terminal_psi::TerminalCallableContract),
+        }
+        impl<'input> RuntimeEvidenceCallable<'input> {
+            pub fn scalar_parameter(self, position: usize) -> Option<ValueId> {
+                match self {
+                    Self::Machine(body) => body.parameters.get(position).copied(),
+                    Self::Runtime(contract) => contract
+                        .scalar_parameters
+                        .get(position)
+                        .map(|value| value.id),
+                }
+            }
+            pub fn structural_parameters(self) -> &'input [StructuralParameterDeclaration] {
+                match self {
+                    Self::Machine(body) => &body.structural_parameters,
+                    Self::Runtime(contract) => &contract.structural_parameters,
+                }
+            }
+            pub fn outcome_specific_ensures(self) -> &'input [OutcomeSpecificEnsure] {
+                match self {
+                    Self::Machine(body) => &body.outcome_specific_ensures,
+                    Self::Runtime(contract) => &contract.proof.outcome_specific_ensures,
+                }
+            }
+            pub fn checked_identity(
+                self,
+                identities: &TerminalIdentityTable,
+            ) -> Result<String, &'static str> {
+                match self {
+                    Self::Machine(body) => {
+                        let declaration = body
+                            .declaration
+                            .as_ref()
+                            .ok_or("evidence target has no checked callable declaration")?;
+                        let callable = identities
+                            .text(declaration.callable)
+                            .ok_or("evidence target callable identity is absent")?;
+                        Ok(CheckedMachineDeclaration::callable_evidence_identity(
+                            callable,
+                            declaration
+                                .specialization
+                                .as_ref()
+                                .map(|application| &application.commitment),
+                        ))
+                    }
+                    Self::Runtime(contract) => identities
+                        .text(contract.identity)
+                        .map(str::to_owned)
+                        .ok_or("runtime evidence target contract identity is absent"),
+                }
+            }
+        }
+
         pub struct RuntimeEvidenceInputs<'input> {
             pub identities: &'input TerminalIdentityTable,
+            pub callables: &'input terminal_psi::TerminalCallableCatalog,
             pub structural_types: &'input [StructuralTypeDeclaration],
             pub structural_domains: &'input [StructuralDomainDeclaration],
+            pub proposition_declarations: &'input [terminal_psi::PropositionDeclaration],
             pub proposition_applications: &'input [PropositionApplicationIdentity],
             pub evidence_terms: &'input [EvidenceTermDeclaration],
             pub evidence_contract_lanes: &'input [EvidenceContractLane],
@@ -2014,6 +2081,20 @@ pub mod evidence_calls {
             pub graph: &'input [DescriptorMachine],
         }
         impl RuntimeEvidenceInputs<'_> {
+            pub fn callable(
+                &self,
+                owner: EvidenceCallableOwner,
+            ) -> Option<RuntimeEvidenceCallable<'_>> {
+                match owner {
+                    EvidenceCallableOwner::Machine(machine) => {
+                        self.machine(machine).map(RuntimeEvidenceCallable::Machine)
+                    }
+                    EvidenceCallableOwner::Runtime(contract) => self
+                        .callables
+                        .contract(contract)
+                        .map(RuntimeEvidenceCallable::Runtime),
+                }
+            }
             pub fn machine(&self, id: MachineId) -> Option<&RuntimeEvidenceBody> {
                 let mut rows = self.machines.iter().filter(|row| row.id == id);
                 let row = rows.next()?;
@@ -2022,13 +2103,15 @@ pub mod evidence_calls {
         }
     }
     pub use inputs::{
-        RuntimeEvidenceBody, RuntimeEvidenceInputs, RuntimeEvidenceOperation, RuntimeEvidenceResult,
+        RuntimeEvidenceBody, RuntimeEvidenceCallParts, RuntimeEvidenceCallable,
+        RuntimeEvidenceInputs, RuntimeEvidenceOperation, RuntimeEvidenceResult,
     };
 
     use semantic_vocabulary::{EvidenceTermId, MachineId, PropositionId, ValueId};
     use terminal_psi::{
-        DirectCallParts, EvidenceArgumentSubject, EvidenceContractLane, EvidenceContractLaneKind,
-        ProofOutputCall, StructuralAccess, StructuralMultiplicity, TerminalModule,
+        EvidenceArgumentSubject, EvidenceCallableOwner, EvidenceCallableTarget,
+        EvidenceContractLane, EvidenceContractLaneKind, ProofOutputCall, StructuralAccess,
+        StructuralMultiplicity, TerminalModule,
     };
 
     #[derive(Clone)]
@@ -2073,10 +2156,9 @@ pub mod evidence_calls {
                     let mut calls = caller
                         .module_invocations()
                         .filter(|call| call.site == retained.site);
-                    if calls
-                        .next()
-                        .is_none_or(|call| call.inputs.callee != retained.callee)
-                        || calls.next().is_some()
+                    if calls.next().is_none_or(|call| {
+                        retained.target != EvidenceCallableTarget::Machine(call.inputs.callee)
+                    }) || calls.next().is_some()
                     {
                         return Err(
                             "nonreturning evidence invocation has no exact executable edge",
@@ -2087,7 +2169,7 @@ pub mod evidence_calls {
             let consumes_snapshots = module
                 .proof_output_calls
                 .iter()
-                .any(|call| call.runtime_call.is_some() && !call.evidence_arguments.is_empty());
+                .any(|call| call.runtime_call.is_some());
             if module.evidence_contract_lanes.is_empty() && !consumes_snapshots {
                 return Ok(());
             }
@@ -2103,17 +2185,45 @@ pub mod evidence_calls {
             };
             let mut bodies = Vec::with_capacity(module.machines.len());
             for machine in &module.machines {
-                let observes = module.proof_output_calls.iter().any(|call| {
-                    call.caller == machine.id
-                        && call.runtime_call.is_some()
-                        && !call.evidence_arguments.is_empty()
-                });
+                let observes = module
+                    .proof_output_calls
+                    .iter()
+                    .any(|call| call.caller == machine.id && call.runtime_call.is_some());
                 let mut calls = Vec::new();
                 for block in machine.blocks.iter().filter(|_| checks_calls) {
                     for (index, operation) in block.operations.iter().enumerate() {
-                        let Some(parts) = terminal_psi::direct_call_parts(&operation.kind) else {
-                            continue;
-                        };
+                        let (target, role, arguments, structural_arguments, selected_evidence) =
+                            if let Some(parts) = terminal_psi::direct_call_parts(&operation.kind) {
+                                (
+                                    EvidenceCallableTarget::Machine(parts.callee),
+                                    parts.role,
+                                    parts.arguments,
+                                    parts.structural_arguments,
+                                    parts.selected_evidence,
+                                )
+                            } else if let Some(parts) = operation.kind.callable_invocation() {
+                                let role = match operation.result {
+                                    OperationResult::Unit => terminal_psi::DirectCallRole::Unit,
+                                    OperationResult::Scalar(_) => {
+                                        terminal_psi::DirectCallRole::Scalar
+                                    }
+                                    OperationResult::Structural(_) => {
+                                        terminal_psi::DirectCallRole::Structural
+                                    }
+                                };
+                                (
+                                    EvidenceCallableTarget::Runtime {
+                                        contract: parts.contract,
+                                        callee: parts.callee,
+                                    },
+                                    role,
+                                    parts.arguments,
+                                    parts.structural_arguments,
+                                    &[][..],
+                                )
+                            } else {
+                                continue;
+                            };
                         calls.push(RuntimeEvidenceOperation {
                             site: InvocationSite::Operation(operation.id),
                             position: (
@@ -2121,10 +2231,10 @@ pub mod evidence_calls {
                                 u32::try_from(index)
                                     .map_err(|_| "evidence operation position exceeds u32")?,
                             ),
-                            callee: parts.callee,
-                            role: parts.role,
-                            arguments: parts.arguments.to_vec(),
-                            structural_arguments: parts.structural_arguments.to_vec(),
+                            target,
+                            role,
+                            arguments: arguments.to_vec(),
+                            structural_arguments: structural_arguments.to_vec(),
                             result: match &operation.result {
                                 OperationResult::Unit => RuntimeEvidenceResult::Unit,
                                 OperationResult::Scalar(value) => RuntimeEvidenceResult::Scalar {
@@ -2135,7 +2245,7 @@ pub mod evidence_calls {
                                     RuntimeEvidenceResult::Structural(result.clone())
                                 }
                             },
-                            selected_evidence: parts.selected_evidence.to_vec(),
+                            selected_evidence: selected_evidence.to_vec(),
                         });
                     }
                     if let Some(invocation) = block.terminator.module_invocation() {
@@ -2146,7 +2256,7 @@ pub mod evidence_calls {
                                 u32::try_from(block.operations.len())
                                     .map_err(|_| "evidence invocation position exceeds u32")?,
                             ),
-                            callee: invocation.callee,
+                            target: EvidenceCallableTarget::Machine(invocation.callee),
                             role: terminal_psi::DirectCallRole::NoNormal,
                             arguments: invocation.arguments.to_vec(),
                             structural_arguments: invocation.structural_arguments.to_vec(),
@@ -2203,8 +2313,10 @@ pub mod evidence_calls {
             }
             validate_runtime_evidence_inputs_in(&RuntimeEvidenceInputs {
                 identities: &module.identities,
+                callables: &module.callables,
                 structural_types: &module.structural_types,
                 structural_domains: &module.structural_domains,
+                proposition_declarations: &module.proposition_declarations,
                 proposition_applications: &module.proposition_applications,
                 evidence_terms: &module.evidence_terms,
                 evidence_contract_lanes: &module.evidence_contract_lanes,
@@ -2218,6 +2330,13 @@ pub mod evidence_calls {
     pub fn validate_runtime_evidence_inputs_in(
         module: &RuntimeEvidenceInputs<'_>,
     ) -> Result<(), &'static str> {
+        super::callable_refinement::validate_callable_evidence_contracts_in(
+            module.callables,
+            module.proposition_declarations,
+            module.proposition_applications,
+            module.evidence_terms,
+            module.evidence_contract_lanes,
+        )?;
         validate_subject_rosters(module)?;
         if !module
             .evidence_contract_lanes
@@ -2226,7 +2345,7 @@ pub mod evidence_calls {
             && !module
                 .proof_output_calls
                 .iter()
-                .any(|call| call.runtime_call.is_some() && !call.evidence_arguments.is_empty())
+                .any(|call| call.runtime_call.is_some())
         {
             return Ok(());
         }
@@ -2239,11 +2358,11 @@ pub mod evidence_calls {
             let mut history = None;
             for operation in caller.operations() {
                 let parts = operation.parts();
-                let expected = input_lanes(module, parts.callee);
+                let expected = input_lanes(module, parts.target.owner());
                 let mut invocations = module.proof_output_calls.iter().filter(|invocation| {
                     invocation.caller == caller.id
                         && invocation.runtime_call.is_some_and(|runtime| {
-                            runtime.site == operation.site && runtime.callee == parts.callee
+                            runtime.site == operation.site && runtime.target == parts.target
                         })
                 });
                 let Some(invocation) = invocations.next() else {
@@ -2265,25 +2384,10 @@ pub mod evidence_calls {
                 retained.push((caller.id, operation.site));
                 let use_position = position(caller, operation)?;
                 let callee = module
-                    .machine(parts.callee)
-                    .ok_or("evidence input callee is absent")?;
-                let declaration = callee
-                    .declaration
-                    .as_ref()
-                    .ok_or("evidence target has no checked callable declaration")?;
-                let callable = module
-                    .identities
-                    .text(declaration.callable)
-                    .ok_or("evidence target callable identity is absent")?;
-                let expected_identity =
-                    terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
-                        callable,
-                        declaration
-                            .specialization
-                            .as_ref()
-                            .map(|application| &application.commitment),
-                    );
-                if module.identities.text(invocation.target_machine_identity)
+                    .callable(parts.target.owner())
+                    .ok_or("evidence input callable owner is absent")?;
+                let expected_identity = callee.checked_identity(module.identities)?;
+                if module.identities.text(invocation.target_identity)
                     != Some(expected_identity.as_str())
                 {
                     return Err("ordinary evidence invocation changed its exact checked callable");
@@ -2302,12 +2406,20 @@ pub mod evidence_calls {
                         terminal_psi::DirectCallRole::Unit,
                         Some(terminal_psi::ProofOutputRuntimeResult::Unit),
                         None,
-                    ) => {}
+                    ) if matches!(operation.result, RuntimeEvidenceResult::Unit) => {}
                     (
                         terminal_psi::DirectCallRole::Scalar,
                         Some(terminal_psi::ProofOutputRuntimeResult::Scalar(expected)),
                         Some((_, actual)),
                     ) if actual == expected => {}
+                    (
+                        terminal_psi::DirectCallRole::Structural,
+                        Some(terminal_psi::ProofOutputRuntimeResult::Structural(expected)),
+                        None,
+                    ) if operation
+                        .result
+                        .structural()
+                        .is_some_and(|result| result.structural_type == expected) => {}
                     _ => return Err("runtime evidence invocation changed its exact result role"),
                 }
                 if parts.role == terminal_psi::DirectCallRole::NoNormal {
@@ -2315,7 +2427,7 @@ pub mod evidence_calls {
                         return Err("nonreturning evidence invocation publishes normal outputs");
                     }
                 } else {
-                    validate_output_roster(module, invocation, parts.callee)?;
+                    validate_output_roster(module, invocation, parts.target.owner())?;
                 }
                 for (input_position, (argument, lane)) in invocation
                     .evidence_arguments
@@ -2446,7 +2558,7 @@ pub mod evidence_calls {
     fn validate_subject_rosters(module: &RuntimeEvidenceInputs<'_>) -> Result<(), &'static str> {
         for lane in module.evidence_contract_lanes {
             let owner = module
-                .machine(lane.machine)
+                .callable(lane.owner)
                 .ok_or("evidence subject owner is absent")?;
             let term = term(module, lane.term)?;
             let application = application(module, term.proposition)?;
@@ -2465,13 +2577,12 @@ pub mod evidence_calls {
                     EvidenceArgumentSubject::Parameter(parameter) => {
                         let exists = if parameter.structural_path.is_some() {
                             owner
-                                .structural_parameters
+                                .structural_parameters()
                                 .get(parameter.parameter_position as usize)
                                 .is_some()
                         } else {
                             owner
-                                .parameters
-                                .get(parameter.parameter_position as usize)
+                                .scalar_parameter(parameter.parameter_position as usize)
                                 .is_some()
                         };
                         if !exists {
@@ -2493,12 +2604,12 @@ pub mod evidence_calls {
     fn validate_output_roster(
         module: &RuntimeEvidenceInputs<'_>,
         invocation: &ProofOutputCall,
-        callee: MachineId,
+        callee: EvidenceCallableOwner,
     ) -> Result<(), &'static str> {
         let mut outputs = module
             .evidence_contract_lanes
             .iter()
-            .filter(|lane| lane.machine == callee && lane.kind == EvidenceContractLaneKind::Ensures)
+            .filter(|lane| lane.owner == callee && lane.kind == EvidenceContractLaneKind::Ensures)
             .collect::<Vec<_>>();
         outputs.sort_by_key(|lane| lane.position);
         if invocation.outputs.len() != outputs.len() {
@@ -2549,14 +2660,12 @@ pub mod evidence_calls {
 
     fn input_lanes<'a>(
         module: &'a RuntimeEvidenceInputs<'_>,
-        machine: MachineId,
+        owner: EvidenceCallableOwner,
     ) -> Vec<&'a EvidenceContractLane> {
         let mut lanes = module
             .evidence_contract_lanes
             .iter()
-            .filter(|lane| {
-                lane.machine == machine && lane.kind == EvidenceContractLaneKind::Requires
-            })
+            .filter(|lane| lane.owner == owner && lane.kind == EvidenceContractLaneKind::Requires)
             .collect::<Vec<_>>();
         lanes.sort_by_key(|lane| lane.position);
         lanes
@@ -2623,8 +2732,8 @@ pub mod evidence_calls {
     fn observe_arguments(
         module: &RuntimeEvidenceInputs<'_>,
         caller: &RuntimeEvidenceBody,
-        callee: &RuntimeEvidenceBody,
-        actual: Option<(&RuntimeEvidenceOperation, DirectCallParts<'_>)>,
+        callee: RuntimeEvidenceCallable<'_>,
+        actual: Option<(&RuntimeEvidenceOperation, RuntimeEvidenceCallParts<'_>)>,
         cut: DescriptorPosition,
         subjects: &[EvidenceArgumentSubject],
         public_arguments: &[String],
@@ -2646,7 +2755,7 @@ pub mod evidence_calls {
                 }
                 EvidenceArgumentSubject::Parameter(parameter) => {
                     if let Some(subject_path) = &parameter.structural_path {
-                        let formal = callee.structural_parameters.get(parameter.parameter_position as usize)
+                        let formal = callee.structural_parameters().get(parameter.parameter_position as usize)
                             .ok_or("evidence subject has no structural formal")?;
                         if formal.access != StructuralAccess::Owned || formal.multiplicity != StructuralMultiplicity::Unrestricted {
                             return Err("evidence snapshot requires its independent borrowed or affine scope owner");
@@ -2665,9 +2774,9 @@ pub mod evidence_calls {
                         ).ok_or("evidence snapshot has no exact typed storage path")?;
                         Ok(ArgumentValue::Scalar(history.scalar_snapshot(cut, root, &selected.path)?))
                     } else {
-                        let formal = callee.parameters.get(parameter.parameter_position as usize)
+                        let formal = callee.scalar_parameter(parameter.parameter_position as usize)
                             .ok_or("evidence subject has no scalar formal")?;
-                        let value = actual.map_or(Some(*formal), |(_, parts)| parts.arguments.get(parameter.parameter_position as usize).copied())
+                        let value = actual.map_or(Some(formal), |(_, parts)| parts.arguments.get(parameter.parameter_position as usize).copied())
                             .ok_or("evidence subject has no evaluated scalar actual")?;
                         scalar_argument(module, caller, value, cut, graph, history)
                     }
@@ -2734,7 +2843,7 @@ pub mod evidence_calls {
     > {
         let source_term = term(module, source)?;
         let source_application = application(module, source_term.proposition)?;
-        let mut entries = input_lanes(module, caller.id)
+        let mut entries = input_lanes(module, EvidenceCallableOwner::Machine(caller.id))
             .into_iter()
             .filter(|lane| lane.term == source);
         if let Some(entry) = entries.next() {
@@ -2744,7 +2853,7 @@ pub mod evidence_calls {
             let arguments = observe_arguments(
                 module,
                 caller,
-                caller,
+                RuntimeEvidenceCallable::Machine(caller),
                 None,
                 (caller.entry, 0),
                 &entry.argument_subjects,
@@ -2772,9 +2881,9 @@ pub mod evidence_calls {
                 return Err("runtime evidence source has ambiguous guarded provenance");
             }
             let callee = module
-                .machine(parts.callee)
+                .callable(parts.target.owner())
                 .ok_or("guarded evidence callee is absent")?;
-            let mut declarations = callee.outcome_specific_ensures.iter().filter(|ensure| {
+            let mut declarations = callee.outcome_specific_ensures().iter().filter(|ensure| {
                 ensure.guard == row.guard
                     && ensure.position == row.position
                     && ensure.obligation == row.callee_obligation
@@ -2927,14 +3036,14 @@ pub mod evidence_calls {
             .invocation(runtime.site)
             .ok_or("evidence output producer operation is absent")?;
         let parts = operation.parts();
-        if parts.callee != runtime.callee {
+        if parts.target != runtime.target {
             return Err("evidence output runtime target changed");
         }
         let callee = module
-            .machine(parts.callee)
+            .callable(parts.target.owner())
             .ok_or("evidence output callee is absent")?;
         let mut lanes = module.evidence_contract_lanes.iter().filter(|lane| {
-            lane.machine == parts.callee
+            lane.owner == parts.target.owner()
                 && lane.kind == EvidenceContractLaneKind::Ensures
                 && lane.position == output.output_position
                 && lane.output_field.as_deref() == Some(output.output_field.as_str())
@@ -2948,7 +3057,7 @@ pub mod evidence_calls {
             return Err("evidence output declaration is ambiguous or substituted");
         }
         if let Some(input_position) = output.forwarded_input_position {
-            let inputs = input_lanes(module, parts.callee);
+            let inputs = input_lanes(module, parts.target.owner());
             let input = inputs
                 .get(input_position as usize)
                 .ok_or("forwarded evidence output has no declared input")?;
@@ -3016,11 +3125,10 @@ pub(crate) mod invocation_inputs {
         if targets.next().is_some() {
             return Err("empty erased invocation target is ambiguous");
         }
-        if module
-            .evidence_contract_lanes
-            .iter()
-            .any(|lane| lane.machine == target && lane.kind == EvidenceContractLaneKind::Requires)
-        {
+        if module.evidence_contract_lanes.iter().any(|lane| {
+            lane.owner == terminal_psi::EvidenceCallableOwner::Machine(target)
+                && lane.kind == EvidenceContractLaneKind::Requires
+        }) {
             return Err("empty erased actual lane cannot supply declared requires evidence");
         }
         if !machine.contract.erased_scalar_formals.is_empty()
@@ -3044,3 +3152,5 @@ pub(crate) mod invocation_inputs {
         Ok(())
     }
 }
+#[path = "callable_refinement.rs"]
+pub mod callable_refinement;

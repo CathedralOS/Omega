@@ -177,6 +177,7 @@ pub struct PsiOptimizationUnit {
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub dynamic_dispatch: terminal_psi::TerminalDynamicDispatchCatalog,
+    pub callables: terminal_psi::TerminalCallableCatalog,
     pub accepted_obligation_facts: Vec<AcceptedObligationFact>,
     pub proof_questions: Vec<ProofQuestion>, // Complete immutable verifier roster in reconstruction order.
     pub ownership_frontier_facts: Vec<OwnershipFrontierFact>, // Absent only on low-level bare seeds.
@@ -184,6 +185,15 @@ pub struct PsiOptimizationUnit {
     pub identities: terminal_psi::TerminalIdentityTable, // Sealed module table that every `TerminalIdentityIndex` resolves against.
     pub runtime_evidence: Option<Arc<RuntimeEvidenceCatalog>>, // Present on all verified units; `None` only on bare seeds.
     pub functions: Vec<PsiOptimizationFunction>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallMachineReference {
+    Declaration(MachineId),
+    Callable {
+        callee: semantic_vocabulary::ValueId,
+        contract: semantic_vocabulary::CallableContractId,
+    },
 }
 
 impl PsiOptimizationUnit {
@@ -225,28 +235,42 @@ impl PsiOptimizationUnit {
     pub fn call_machine_references<'a>(
         &'a self,
         operation: &'a AbstractOperation,
-    ) -> impl Iterator<Item = MachineId> + 'a {
-        let (machine, dynamic) = match operation {
+    ) -> impl Iterator<Item = CallMachineReference> + 'a {
+        let (machine, dynamic, callable) = match operation {
             AbstractOperation::Call { callee, .. }
-            | AbstractOperation::InvokeNoNormal { callee, .. } => (Some(*callee), None),
+            | AbstractOperation::InvokeNoNormal { callee, .. } => (Some(*callee), None, None),
             AbstractOperation::CallStructural { callee, .. } => match callee {
-                abstract_operations::AbstractCallTarget::Machine(machine) => (Some(*machine), None),
+                abstract_operations::AbstractCallTarget::Machine(machine) => {
+                    (Some(*machine), None, None)
+                }
                 abstract_operations::AbstractCallTarget::Dynamic {
                     interface, slot, ..
-                } => (None, Some((*interface, *slot))),
+                } => (None, Some((*interface, *slot)), None),
+                abstract_operations::AbstractCallTarget::Callable { callee, contract } => (
+                    None,
+                    None,
+                    Some(CallMachineReference::Callable {
+                        callee: *callee,
+                        contract: *contract,
+                    }),
+                ),
             },
-            _ => (None, None),
+            _ => (None, None, None),
         };
-        machine.into_iter().chain(
-            self.dynamic_dispatch
-                .tables
-                .iter()
-                .filter_map(move |table| {
-                    let (interface, slot) = dynamic?;
-                    (table.interface == interface).then_some(())?;
-                    *table.rows.get(usize::try_from(slot).ok()?)?
-                }),
-        )
+        machine
+            .into_iter()
+            .chain(
+                self.dynamic_dispatch
+                    .tables
+                    .iter()
+                    .filter_map(move |table| {
+                        let (interface, slot) = dynamic?;
+                        (table.interface == interface).then_some(())?;
+                        *table.rows.get(usize::try_from(slot).ok()?)?
+                    }),
+            )
+            .map(CallMachineReference::Declaration)
+            .chain(callable)
     }
 
     pub fn operation_machine_references<'a>(
@@ -265,7 +289,13 @@ impl PsiOptimizationUnit {
                 abstract_operations::AbstractCallTarget::Dynamic { interface, .. } => {
                     (None, None, Some(*interface))
                 }
+                // Runtime code has no nominal reference. Its construction
+                // retains the selected body through SelectMachine below.
+                abstract_operations::AbstractCallTarget::Callable { .. } => (None, None, None),
             },
+            AbstractOperation::SelectMachine { descriptor, .. } => (
+                self.callables.descriptor(*descriptor).map(|row| row.machine), None, None,
+            ),
             AbstractOperation::SelectImplementation { table, .. } => (None, Some(*table), None),
             _ => (None, None, None),
         };
@@ -357,6 +387,12 @@ pub(crate) fn encode_scalar_type<B>(
                     semantic_vocabulary::IeeeFloatFormat::Binary64 => 2,
                 },
             );
+        }
+        ScalarType::Callable(contract) => {
+            push_u8(bytes, 4);
+            for byte in contract.get().to_le_bytes() {
+                push_u8(bytes, byte);
+            }
         }
     }
 }

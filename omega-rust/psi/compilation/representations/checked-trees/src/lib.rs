@@ -29,6 +29,10 @@ pub(crate) use optimization::digest_encoder;
 pub use typed_trees;
 pub use typed_trees::type_identity::TypeIdentityRequest;
 
+mod callable_values;
+pub use callable_values::{CheckedCallableContract, CheckedCallableContracts, CheckedCallableSignature};
+pub use typed_trees::callable_values::ScalarValueType as CheckedScalarType;
+
 pub(crate) mod callback_declarations {
     use crate::{CheckedNominalMachineUse, CheckedTrees};
     use language_semantics::callback_declarations::{

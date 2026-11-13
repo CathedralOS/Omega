@@ -50,7 +50,11 @@ pub fn validate_runtime_callable_effects(
                 let mut reference = value.type_reference;
                 let mut seen = Vec::new();
                 let contract = loop {
-                    if !program.contains_type_reference(reference) || seen.contains(&reference) {
+                    if !program
+                        .type_reference_table
+                        .contains_type_reference(reference)
+                        || seen.contains(&reference)
+                    {
                         break Err("machine value has an unresolved or cyclic callable type");
                     }
                     seen.push(reference);

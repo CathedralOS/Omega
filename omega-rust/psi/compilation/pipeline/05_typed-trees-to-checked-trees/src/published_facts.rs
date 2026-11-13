@@ -2335,6 +2335,7 @@ pub(crate) mod contract_occurrences {
             return;
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::MachineValue(_) => {}
             ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Match(dispatch) => {
                 append_occurrences(program, dispatch.subject, state, occurrences);
@@ -2401,7 +2402,7 @@ pub(crate) mod contract_occurrences {
                 append_occurrences(program, cast.value, state, occurrences);
             }
             ExpressionNode::Call(call) => {
-                append_occurrences(program, call.receiver, state, occurrences);
+                append_occurrences(program, call.evaluated_callee(), state, occurrences);
                 for argument in program.expression_table.expression_handles(call.arguments) {
                     append_occurrences(program, *argument, state, occurrences);
                 }
@@ -2951,8 +2952,26 @@ mod contract_plan_facts {
                 })
                 .collect::<Vec<_>>()
         });
-        let plans =
+        let mut plans =
             checked_trees::MachineContractPlans::new(machines, crash_capsules, realized_envelopes);
+        plans.runtime_callable_scalar_contracts = program
+            .runtime_callable_contracts
+            .iter()
+            .map(|(handle, row)| {
+                (
+                    handle,
+                    build_callable_scalar_value_contract_plan_with_source(
+                        program,
+                        row.signature.symbol,
+                        Some(program.state_signature_parameters(&row.signature)),
+                        row.signature.return_type,
+                        program.state_signature_contracts(&row.signature),
+                        operators,
+                        Some(handle),
+                    ),
+                )
+            })
+            .collect();
         plans.validate_resource_envelopes().map_err(|error| {
             vec![diagnostics::Diagnostic::error(format!(
                 "checked resource-envelope replay failed: {error}"
@@ -3091,6 +3110,26 @@ mod contract_plan_facts {
         contracts: &[typed_trees::signature::SignatureContract],
         operators: &checked_trees::CheckedOperatorFacts,
     ) -> checked_trees::ClosedScalarValueContractPlan {
+        build_callable_scalar_value_contract_plan_with_source(
+            program,
+            owner,
+            parameters,
+            result_type,
+            contracts,
+            operators,
+            None,
+        )
+    }
+
+    fn build_callable_scalar_value_contract_plan_with_source(
+        program: &dyn ::validation::CheckingInput,
+        owner: symbols::SymbolHandle,
+        parameters: Option<&[typed_trees::signature::StateParameter]>,
+        result_type: typed_trees::types::TypeReferenceHandle,
+        contracts: &[typed_trees::signature::SignatureContract],
+        operators: &checked_trees::CheckedOperatorFacts,
+        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
+    ) -> checked_trees::ClosedScalarValueContractPlan {
         use typed_trees::{
             domain::ProofFact,
             expression::{BinaryOperator, ExpressionNode},
@@ -3203,9 +3242,23 @@ mod contract_plan_facts {
                             else {
                                 continue;
                             };
-                            let Some((result_owner, carrier)) =
+                            if !program
+                                .expression_table
+                                .names_reserved_result(membership.value)
+                            {
+                                continue;
+                            }
+                            let result = if let Some(contract) = runtime_contract {
+                                validation::runtime_reserved_result_place(
+                                    program,
+                                    contract,
+                                    membership.value,
+                                )
+                                .map(|place| (owner, place.type_reference))
+                            } else {
                                 ::validation::reserved_result_owner(program, membership.value)
-                            else {
+                            };
+                            let Some((result_owner, carrier)) = result else {
                                 continue;
                             };
                             if result_owner != owner
@@ -3635,6 +3688,7 @@ mod contract_plan_facts {
                 continue;
             }
             match &plans.nodes.get(handle).kind {
+                Kind::MachineValue { .. } => {}
                 Kind::RetainedConstant { .. } => {}
                 Kind::Value(expression) => {
                     if query.scalar(expression) {
@@ -3705,7 +3759,7 @@ mod contract_plan_facts {
                     structural_arguments,
                     ..
                 } => {
-                    pending.extend(callee.selector());
+                    pending.extend(callee.evaluated_callee());
                     pending.extend(plans.operands.span_or_empty(*arguments).iter().copied());
                     if matches!(callee, checked_trees::CheckedScalarCallee::Boundary { .. }) {
                         continue;
@@ -5337,9 +5391,18 @@ pub(crate) mod index_compatibility {
                     return instances;
                 }
                 ExpressionNode::Call(call) => {
-                    let return_type = program
-                        .requirement_call_signature(machine.symbol, call)
-                        .map(|signature| signature.return_type)
+                    let runtime = validation::CallContractSource::runtime_expression(program, call);
+                    let Ok(runtime) = runtime else {
+                        return instances;
+                    };
+                    let return_type = runtime
+                        .as_ref()
+                        .map(|source| source.signature().return_type)
+                        .or_else(|| {
+                            program
+                                .requirement_call_signature(machine.symbol, call)
+                                .map(|signature| signature.return_type)
+                        })
                         .or_else(|| {
                             (!call.requirement_application.is_valid()
                                 && call.static_requirement_dispatch.is_none())
@@ -5563,7 +5626,8 @@ pub(crate) mod index_compatibility {
                         }
                     }
                 }
-                TypeReferenceNode::ConstExpression(_)
+                TypeReferenceNode::Callable { .. }
+                | TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Generic { .. }
@@ -6096,6 +6160,15 @@ pub(crate) mod index_compatibility {
             ) else {
                 return Vec::new();
             };
+            if call_site.runtime_call().is_some() {
+                let Some(call) = call_flow_at_point(flow, point) else {
+                    return Vec::new();
+                };
+                if call.runtime_call != call_site.runtime_call() {
+                    return Vec::new();
+                }
+                return call_index_substitutions(program, machine_symbol, &call_site);
+            }
             let target_symbol = match &call_site {
                 validation::CallSite::Statement(call) => call.target_symbol,
                 validation::CallSite::Expression { call, .. } => {
@@ -6215,6 +6288,25 @@ pub(crate) mod index_compatibility {
             lexical_owner: SymbolHandle,
             site: &validation::CallSite<'_>,
         ) -> BoundIndexSubstitutions<'program> {
+            if site.runtime_call().is_some() {
+                let Ok(Some(validation::CallContractSource::Runtime { contract, .. })) =
+                    validation::call_contract_source(program, lexical_owner, site)
+                else {
+                    return Vec::new();
+                };
+                let parameters = program.state_signature_parameters(&contract.signature);
+                let arguments = validation::call_site_argument_expressions(program, site);
+                if parameters.len() != arguments.len() {
+                    return Vec::new();
+                }
+                return parameters
+                    .iter()
+                    .zip(arguments)
+                    .map(|(parameter, actual)| {
+                        (parameter.symbol, BoundIndexArgument::Expression(*actual))
+                    })
+                    .collect();
+            }
             let (application, target) = match site {
                 validation::CallSite::Statement(call) => {
                     (call.authored_machine_application, call.target_symbol)

@@ -647,6 +647,7 @@ pub(crate) mod control_flow {
                     },
                 )),
                 TargetUnitOperation::SelectImplementation { result_home, .. }
+                | TargetUnitOperation::SelectMachine { result_home, .. }
                 | TargetUnitOperation::AtomicAccess {
                     result_home: Some(result_home),
                     ..
@@ -4591,6 +4592,23 @@ pub(crate) mod unit {
                                 })?
                             }
                             (
+                                target_operations::TargetStructuralResultContract::Callable(declaration),
+                                None,
+                                abstract_operations::AbstractCallTarget::Callable { contract, .. },
+                            ) => {
+                                let contract = plan.callables.contract(*contract).ok_or(LegalizationError::custody())?;
+                                if contract.result != terminal_psi::BoundaryMachineResult::Structural(declaration.clone())
+                                    || !contract.result.matches_operation_result(
+                                        &terminal_psi::OperationResult::Structural(expected_result.clone()))
+                                {
+                                    return Err(LegalizationError::custody());
+                                }
+                                reference_custody::reference_results(
+                                    caller, None, terminal_semantics::ReferenceCallContract::Callable(contract),
+                                    structural_arguments, expected_result, *psi_operation, custody, &plan.structural_types,
+                                ).map_err(|error| error.attributed(caller.machine, Some(*psi_operation)))?
+                            }
+                            (
                                 target_operations::TargetStructuralResultContract::Requirement(
                                     declaration,
                                 ),
@@ -5582,6 +5600,26 @@ pub(crate) mod unit {
                             .any(|(identity, source)| identity == value && source == operand) => {}
                     _ => return Err(LegalizationError::custody()),
                 }
+            }
+            (
+                TargetUnitOperation::SelectMachine { result_home, descriptor },
+                AbstractOperation::SelectMachine { psi_operation, result, descriptor: expected_descriptor },
+            ) => {
+                let selected = plan.callables.descriptor(*descriptor)
+                    .ok_or(LegalizationError::custody())?;
+                let expected = target_operations::TargetUnitScalarHomeRequirement {
+                    defining_operation: *psi_operation,
+                    source_value: result.value,
+                    scalar_type: result.scalar_type,
+                    shape: crate::legalization::scalar_graph_input::scalar_shape(result.scalar_type)
+                        .ok_or(LegalizationError::custody())?,
+                };
+                if result.scalar_type != semantic_vocabulary::ScalarType::Callable(selected.contract)
+                    || result_home != &expected || descriptor != expected_descriptor
+                {
+                    return Err(LegalizationError::custody());
+                }
+                sources.push((result.value, Source::Home(*result_home)));
             }
             (
                 TargetUnitOperation::SelectImplementation { result_home, table },

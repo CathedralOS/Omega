@@ -19398,8 +19398,7 @@ mod scalar_call {
         if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
             return Err(X86_64ScalarCallTemplateError::NonCanonicalPhysicalModel);
         }
-        let Some(selected_instructions::SelectedCallTarget::Dynamic { slot, .. }) =
-            kind.call_target()
+        let Some(offset) = kind.call_target().and_then(|target| target.indirect_code_offset())
         else {
             return Err(X86_64ScalarCallTemplateError::InstructionKindMismatch);
         };
@@ -19437,7 +19436,7 @@ mod scalar_call {
         if *effects != expected {
             return Err(X86_64ScalarCallTemplateError::EffectMismatch);
         }
-        let offset = u64::from(slot) * 8;
+
         let mut bytes = Vec::with_capacity(24);
         bytes.extend_from_slice(&[0x49, 0xba]);
         crate::codec_bytes::push_encoded(&mut bytes, offset.to_le_bytes());

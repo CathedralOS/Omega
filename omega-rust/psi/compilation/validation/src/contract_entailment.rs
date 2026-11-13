@@ -31753,7 +31753,8 @@ pub(crate) mod ranking_range {
                             &coordinate.path,
                         )
                     {
-                        geometry.primitive_type.is_fixed_integer().then_some(())?;
+                        let primitive_type = geometry.scalar_type.primitive()?;
+                        primitive_type.is_fixed_integer().then_some(())?;
                         let calls = active
                             .iter()
                             .skip(1)
@@ -31768,7 +31769,7 @@ pub(crate) mod ranking_range {
                                 calls,
                                 coordinate,
                                 type_reference: geometry.result_type_reference,
-                                primitive_type: geometry.primitive_type,
+                                primitive_type,
                                 selector_owner: owner,
                                 selector_parameters: parameters.to_vec(),
                                 selector_inputs: inputs.to_vec(),
@@ -36819,7 +36820,8 @@ pub(crate) mod scoped_arithmetic {
                             reference,
                             &place.segments,
                         )
-                        && geometry.primitive_type.is_fixed_integer()
+                        && let Some(primitive_type) = geometry.scalar_type.primitive()
+                        && primitive_type.is_fixed_integer()
                         && geometry.projections.iter().all(|step| {
                             matches!(
                     step,
@@ -36860,7 +36862,7 @@ pub(crate) mod scoped_arithmetic {
                                     state.symbol, place.segments
                                 ),
                                 unsigned: matches!(
-                                    geometry.primitive_type,
+                                    primitive_type,
                                     typed_trees::unsigned_integer_primitive_pattern!()
                                 ),
                             });
@@ -36868,7 +36870,7 @@ pub(crate) mod scoped_arithmetic {
                             observation: ScopedCallResultObservation {
                                 expression: selected,
                                 path: place.segments,
-                                primitive_type: geometry.primitive_type,
+                                primitive_type,
                                 value,
                                 read_dependencies: Vec::new(),
                                 backing: None,
@@ -60011,8 +60013,8 @@ pub(crate) mod structural_judgment {
                             super::super::storage_effects::complete_stored_integer_cell(
                                 program,
                                 &scalar.place,
-                                scalar.view_primitive,
-                                scalar.source_primitive,
+                                scalar.view_scalar_type.primitive()?,
+                                scalar.source_scalar_type.primitive()?,
                             )
                         });
                         let stored_domain = stored_cell
@@ -60081,9 +60083,14 @@ pub(crate) mod structural_judgment {
                             result_source: None,
                             representation: (!restores_stored_domain)
                                 .then(|| {
-                                    scalar.filter(|scalar| !scalar.preserves_scalar_value).map(
-                                        |scalar| (scalar.view_primitive, scalar.source_primitive),
-                                    )
+                                    scalar
+                                        .filter(|scalar| !scalar.preserves_scalar_value)
+                                        .and_then(|scalar| {
+                                            Some((
+                                                scalar.view_scalar_type.primitive()?,
+                                                scalar.source_scalar_type.primitive()?,
+                                            ))
+                                        })
                                 })
                                 .flatten(),
                         });
@@ -66799,8 +66806,8 @@ pub(crate) mod structural_judgment {
                     let value = match &scalar {
                         Some(scalar) if !scalar.preserves_scalar_value => {
                             super::super::structural_terms::normalize_scalar_representation(
-                                scalar.source_primitive,
-                                scalar.view_primitive,
+                                scalar.source_scalar_type.primitive()?,
+                                scalar.view_scalar_type.primitive()?,
                                 value,
                             )
                         }
@@ -66865,8 +66872,8 @@ pub(crate) mod structural_judgment {
                 let value = match &scalar {
                     Some(scalar) if !scalar.preserves_scalar_value => {
                         super::super::structural_terms::normalize_scalar_representation(
-                            scalar.source_primitive,
-                            scalar.view_primitive,
+                            scalar.source_scalar_type.primitive()?,
+                            scalar.view_scalar_type.primitive()?,
                             value,
                         )
                     }
@@ -73152,8 +73159,12 @@ pub(crate) mod structural_judgment {
                         let value = match scalar {
                 Some(scalar) if !scalar.preserves_scalar_value => {
                     super::super::super::structural_terms::normalize_scalar_representation(
-                        scalar.source_primitive,
-                        scalar.view_primitive,
+                        scalar.source_scalar_type.primitive().ok_or(
+                            "the arriving reference representation has no primitive source",
+                        )?,
+                        scalar.view_scalar_type.primitive().ok_or(
+                            "the arriving reference representation has no primitive view",
+                        )?,
                         value,
                     )
                 }
@@ -73526,10 +73537,20 @@ pub(crate) mod structural_judgment {
                 geometry.result_type_reference,
             )
             .ok_or("entry scalar has no readable carrier")?;
-                    self.program
-                        .primitive_type_reference(result_type)
-                        .filter(|primitive| *primitive == geometry.primitive_type)
-                        .ok_or("entry scalar carrier disagrees with its stored interpretation")?;
+                    let scalar_type =
+                        typed_trees::callable_values::ScalarValueType::from_type_reference(
+                            self.program.typed_program(),
+                            result_type,
+                        )
+                        .ok_or("entry scalar has no value carrier")?;
+                    if !scalar_type
+                        .same_type(self.program.typed_program(), geometry.scalar_type)
+                        .map_err(|_| "entry scalar type identity is unresolved")?
+                    {
+                        return Err(
+                            "entry scalar carrier disagrees with its stored interpretation",
+                        );
+                    }
                     let retained =
                         self.capture_entry_storage_place(place.clone())
                             .and_then(|coordinate| {
@@ -73585,10 +73606,19 @@ pub(crate) mod structural_judgment {
                 program,
                 geometry.result_type_reference,
             )
-            .filter(|reference| {
-                program.primitive_type_reference(*reference) == Some(geometry.primitive_type)
-            })
             .ok_or("entry snapshot has no matching scalar carrier")?;
+                    let observed_scalar =
+                        typed_trees::callable_values::ScalarValueType::from_type_reference(
+                            program.typed_program(),
+                            observed_type,
+                        )
+                        .ok_or("entry snapshot has no scalar value carrier")?;
+                    if !observed_scalar
+                        .same_type(program.typed_program(), geometry.scalar_type)
+                        .map_err(|_| "entry snapshot scalar type identity is unresolved")?
+                    {
+                        return Err("entry snapshot has no matching scalar carrier");
+                    }
                     let (cases, indices) =
                         super::super::super::scoped_arithmetic::scalar_projection_requirements(
                             program,
@@ -74753,6 +74783,7 @@ pub(crate) mod structural_judgment {
         pub(crate) mod read_backing {
             use super::{CapturedStorageCoordinate, StructuralJudge};
             use crate::machine_calls::calls::CapturedStorageReadBacking;
+            use typed_trees::callable_values::ScalarValueType;
             use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
             use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 
@@ -74765,7 +74796,7 @@ pub(crate) mod structural_judgment {
             #[derive(Clone, PartialEq)]
             pub(crate) struct CapturedScalarReadBacking {
                 dependencies: CapturedStorageReadBacking,
-                identity: Option<(CapturedStorageCoordinate, PrimitiveType)>,
+                identity: Option<(CapturedStorageCoordinate, ScalarValueType)>,
                 representation: Option<(CapturedStorageCoordinate, PrimitiveType, PrimitiveType)>,
                 result_source: Option<CapturedResultReadSource>,
             }
@@ -74786,10 +74817,11 @@ pub(crate) mod structural_judgment {
                         expression,
                     )?;
                     crate::reference_shell(self.program, reference)?;
-                    crate::value_custody::expression_types::scalar_observation_meaning(
+                    let observed = crate::value_custody::expression_types::readable_observation_type_reference(
                         self.program,
                         reference,
                     )?;
+                    ScalarValueType::from_type_reference(self.program.typed_program(), observed)?;
                     Some(reference)
                 }
 
@@ -74855,9 +74887,18 @@ pub(crate) mod structural_judgment {
                         ) else {
                             continue;
                         };
+                        let Some(observed_scalar) =
+                            typed_trees::callable_values::ScalarValueType::from_type_reference(
+                                self.program.typed_program(),
+                                scalar_type,
+                            )
+                        else {
+                            continue;
+                        };
                         if crate::reference_shell(self.program, scalar_type).is_some()
-                            || self.program.primitive_type_reference(scalar_type)
-                                != Some(geometry.primitive_type)
+                            || !observed_scalar
+                                .same_type(self.program.typed_program(), geometry.scalar_type)
+                                .is_ok_and(|same| same)
                         {
                             continue;
                         }
@@ -75017,12 +75058,17 @@ pub(crate) mod structural_judgment {
                     if let Some(version) = self.storage_version
                         && version.state == state.symbol
                         && version.snapshot.is_valid()
-                        && let Some((coordinate, primitive)) = backing
+                        && let Some((coordinate, scalar_type)) = backing
                             .as_ref()
                             .and_then(|backing| backing.identity.as_ref())
                         && crate::reference_shell(self.program, storage.value_type).is_none()
-                        && self.program.primitive_type_reference(storage.value_type)
-                            == Some(*primitive)
+                        && let Some(value_type) = ScalarValueType::from_type_reference(
+                            self.program.typed_program(),
+                            storage.value_type,
+                        )
+                        && value_type
+                            .same_type(self.program.typed_program(), *scalar_type)
+                            .is_ok_and(|same| same)
                         && let Some(current) =
                             self.current_storage_value_at(coordinate, Some(version))
                         && super::super::super::structural_terms::scalar_operand_is_observed(
@@ -75144,7 +75190,7 @@ pub(crate) mod structural_judgment {
                         return self.captured_operand_scalar_read(
                             &captured,
                             &prefix,
-                            geometry.primitive_type,
+                            geometry.scalar_type,
                             geometry.result_type_reference,
                         );
                     };
@@ -75176,7 +75222,7 @@ pub(crate) mod structural_judgment {
                     &self,
                     captured: &super::super::StructuralTerm,
                     path: &[facts::PlaceSegment],
-                    primitive: PrimitiveType,
+                    scalar_type: ScalarValueType,
                     observed_type: TypeReferenceHandle,
                 ) -> Option<super::super::StructuralTerm> {
                     if !self.requires_value_preservation() {
@@ -75275,7 +75321,7 @@ pub(crate) mod structural_judgment {
                             .backing_values_at(
                                 state,
                                 *expression,
-                                primitive,
+                                scalar_type,
                                 backing,
                                 self.storage_version,
                             )
@@ -75392,14 +75438,20 @@ pub(crate) mod structural_judgment {
                     })();
                     let identity = scalar.as_ref().and_then(|(coordinate, scalar)| {
                         (scalar.preserves_scalar_value
-                            && scalar.source_primitive == scalar.view_primitive)
-                            .then(|| (coordinate.clone(), scalar.view_primitive))
+                            && scalar
+                                .source_scalar_type
+                                .same_type(self.program.typed_program(), scalar.view_scalar_type)
+                                .ok()?)
+                        .then(|| (coordinate.clone(), scalar.view_scalar_type))
                     });
                     let representation = scalar.and_then(|(coordinate, scalar)| {
-                        (identity.is_none() && scalar.preserves_primitive_bits).then_some((
+                        if identity.is_some() || !scalar.preserves_primitive_bits {
+                            return None;
+                        }
+                        Some((
                             coordinate,
-                            scalar.source_primitive,
-                            scalar.view_primitive,
+                            scalar.source_scalar_type.primitive()?,
+                            scalar.view_scalar_type.primitive()?,
                         ))
                     });
                     CapturedScalarReadBacking {
@@ -75460,7 +75512,7 @@ pub(crate) mod structural_judgment {
                         .backing_values_at(
                             state,
                             source.expression,
-                            geometry.primitive_type,
+                            geometry.scalar_type,
                             dependencies,
                             source.storage_version,
                         )?
@@ -75514,11 +75566,14 @@ pub(crate) mod structural_judgment {
                         state,
                         expression,
                     )?;
-                    let (primitive, _) =
-                        crate::value_custody::expression_types::scalar_observation_meaning(
-                            self.program,
-                            declared,
-                        )?;
+                    let observed_type = crate::value_custody::expression_types::readable_observation_type_reference(
+                        self.program,
+                        declared,
+                    )?;
+                    let scalar_type = ScalarValueType::from_type_reference(
+                        self.program.typed_program(),
+                        observed_type,
+                    )?;
                     let frames = self.frame_resolver()?;
                     let dependencies = if crate::reference_shell(self.program, declared).is_some() {
                         let supplied = frames.completed_value_read_backing(
@@ -75545,14 +75600,14 @@ pub(crate) mod structural_judgment {
                             &place.segments,
                         )?
                     };
-                    self.backing_values_at(state, expression, primitive, dependencies, at)
+                    self.backing_values_at(state, expression, scalar_type, dependencies, at)
                 }
 
                 fn backing_values_at(
                     &self,
                     state: &State,
                     expression: ExpressionHandle,
-                    primitive: PrimitiveType,
+                    scalar_type: ScalarValueType,
                     dependencies: CapturedStorageReadBacking,
                     at: Option<super::StorageVersion>,
                 ) -> Option<Vec<super::super::super::StructuralTerm>> {
@@ -75572,19 +75627,23 @@ pub(crate) mod structural_judgment {
                         return None;
                     }
                 };
-                if scalar.view_primitive != primitive
+                if !scalar.view_scalar_type
+                    .same_type(self.program.typed_program(), scalar_type)
+                    .ok()?
                     || (!scalar.preserves_scalar_value && !scalar.preserves_primitive_bits)
                 {
                     if super::super::super::struct_trace() {
-                        eprintln!("STRUCT scalar-read-refused expression={expression:?} source={source:?} phase=primitive-interpretation source_primitive={:?} view_primitive={:?}", scalar.source_primitive, scalar.view_primitive);
+                        eprintln!("STRUCT scalar-read-refused expression={expression:?} source={source:?} phase=scalar-interpretation source_type={:?} view_type={:?}", scalar.source_scalar_type, scalar.view_scalar_type);
                     }
                     return None;
                 }
                 let coordinate = self.capture_storage_place(scalar.place)?;
-                let identity = (coordinate.clone(), scalar.source_primitive);
+                let identity = (coordinate.clone(), scalar.source_scalar_type);
                 let value = self.current_storage_value_at(&coordinate, at).or_else(|| {
                     self.stored_values.iter().find_map(|stored| {
-                        if stored.backing.as_ref()?.identity.as_ref()? != &identity
+                        let retained = stored.backing.as_ref()?.identity.as_ref()?;
+                        if retained.0 != identity.0
+                            || !retained.1.same_type(self.program.typed_program(), identity.1).ok()?
                             || (self.graph_storage_mode()
                                 && !at.is_some_and(|at| {
                                     self.current_value_valid(stored, &coordinate, at)
@@ -75619,8 +75678,8 @@ pub(crate) mod structural_judgment {
                     value
                 } else {
                     super::super::super::structural_terms::normalize_scalar_representation(
-                        scalar.source_primitive,
-                        scalar.view_primitive,
+                        scalar.source_scalar_type.primitive()?,
+                        scalar.view_scalar_type.primitive()?,
                         value,
                     )
                 })
@@ -76588,9 +76647,15 @@ pub(crate) mod structural_judgment {
                                 if !suffix.is_empty() {
                                     continue;
                                 }
+                                let (Some(source_type), Some(view_type)) = (
+                                    scalar.source_scalar_type.primitive(),
+                                    scalar.view_scalar_type.primitive(),
+                                ) else {
+                                    continue;
+                                };
                                 super::super::structural_terms::normalize_scalar_representation(
-                                    scalar.source_primitive,
-                                    scalar.view_primitive,
+                                    source_type,
+                                    view_type,
                                     current,
                                 )
                             }
@@ -76666,9 +76731,15 @@ pub(crate) mod structural_judgment {
                                     if !stored.coordinate.segments.is_empty() {
                                         continue;
                                     }
+                                    let (Some(view_type), Some(source_type)) = (
+                                        scalar.view_scalar_type.primitive(),
+                                        scalar.source_scalar_type.primitive(),
+                                    ) else {
+                                        continue;
+                                    };
                                     super::super::structural_terms::normalize_scalar_representation(
-                                        scalar.view_primitive,
-                                        scalar.source_primitive,
+                                        view_type,
+                                        source_type,
                                         current,
                                     )
                                 }
@@ -77592,8 +77663,8 @@ pub(crate) mod structural_judgment {
                         current
                     } else {
                         super::super::structural_terms::normalize_scalar_representation(
-                            scalar.source_primitive,
-                            scalar.view_primitive,
+                            scalar.source_scalar_type.primitive()?,
+                            scalar.view_scalar_type.primitive()?,
                             current,
                         )
                     };
@@ -78094,12 +78165,18 @@ pub(crate) mod structural_judgment {
                             stored_integer = Some(complete_stored_integer_cell(
                                 program,
                                 &scalar.place,
-                                scalar.view_primitive,
-                                scalar.source_primitive,
+                                scalar.view_scalar_type.primitive()?,
+                                scalar.source_scalar_type.primitive()?,
                             )?);
                         } else {
-                            representation = (!scalar.preserves_scalar_value)
-                                .then_some((scalar.view_primitive, scalar.source_primitive));
+                            representation = if scalar.preserves_scalar_value {
+                                None
+                            } else {
+                                Some((
+                                    scalar.view_scalar_type.primitive()?,
+                                    scalar.source_scalar_type.primitive()?,
+                                ))
+                            };
                         }
                         scalar.place
                     }

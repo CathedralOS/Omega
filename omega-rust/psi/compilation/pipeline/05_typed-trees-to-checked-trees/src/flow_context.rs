@@ -1297,7 +1297,7 @@ mod tests {
                     role: expression_role,
                     expression: CheckedScalarExpression::Parameter {
                         position: 0,
-                        primitive_type: typed_trees::types::PrimitiveType::U64,
+                        scalar_type: (typed_trees::types::PrimitiveType::U64).into(),
                     },
                 });
             }

@@ -2553,7 +2553,7 @@ mod selectors {
             return None;
         }
         let node = computations.nodes.get(root.root);
-        (node.authored_root == index && integer(Some(node.primitive_type))).then_some(())
+        (node.authored_root == index && integer(node.scalar_type.primitive())).then_some(())
     }
 }
 mod value {
@@ -3204,7 +3204,7 @@ fn runtime_index_expression(
                 })?;
             Some(checked_trees::CheckedScalarExpression::StorageRead {
                 symbol: *symbol,
-                primitive_type: program.primitive_type_reference(reference)?,
+                scalar_type: (program.primitive_type_reference(reference)?).into(),
             })
         }
         checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth } => Some(
@@ -3228,7 +3228,7 @@ fn runtime_index_expression(
                 .nth(position)?;
             Some(checked_trees::CheckedScalarExpression::Parameter {
                 position,
-                primitive_type: program.primitive_type_reference(parameter.type_reference)?,
+                scalar_type: (program.primitive_type_reference(parameter.type_reference)?).into(),
             })
         }
         checked_trees::CheckedRuntimeIndex::Local { position } => {
@@ -3245,7 +3245,7 @@ fn runtime_index_expression(
                 if dense == position {
                     return Some(checked_trees::CheckedScalarExpression::Local {
                         position,
-                        primitive_type,
+                        scalar_type: primitive_type.into(),
                     });
                 }
                 dense += 1;
@@ -3266,7 +3266,7 @@ fn runtime_index_expression(
                         index: selector.parameter_position,
                     },
                     path: selector.path.clone(),
-                    primitive_type: program.primitive_type_reference(leaf)?,
+                    scalar_type: (program.primitive_type_reference(leaf)?).into(),
                 },
             )
         }

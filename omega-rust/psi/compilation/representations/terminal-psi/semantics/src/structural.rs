@@ -3926,6 +3926,9 @@ pub(crate) mod structural_effect {
                         ))
                         .collect();
                     let field_term = match result.scalar_type {
+                        // The ordinary storage read retains the code value.
+                        // Opaque code has no mathematical field equation.
+                        ScalarType::Callable(_) => return Ok(None),
                         ScalarType::Integer(integer) => {
                             ScalarTerm::integer_field_path(*source, field_path, integer)
                         }

@@ -492,7 +492,7 @@ pub(crate) mod control_flow_cleanup {
                 roots.insert(input.machine);
             }
             for lane in &module.evidence_contract_lanes {
-                roots.insert(lane.machine);
+                if let terminal_psi::EvidenceCallableOwner::Machine(machine) = lane.owner { roots.insert(machine); }
             }
             for candidate in &module.provider_candidates {
                 roots.insert(candidate.candidate);

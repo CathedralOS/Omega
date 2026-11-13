@@ -769,6 +769,7 @@ pub mod scalar_conditions {
     }
 }
 pub use control_flow::{
+    CallableInvocation, CallableInvocationInputs,
     AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
     FloatResultPolicy, MemoryOrdering, ModuleInvocation, ModuleInvocationInputs, Operation,
     OperationKind, OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView,
@@ -1083,6 +1084,7 @@ pub struct TerminalModule {
     pub callback_applications: Vec<crate::TerminalCallbackApplication>,
     pub installed_interrupt_registrations: Vec<crate::TerminalInstalledInterruptRegistration>,
     pub dynamic_dispatch: TerminalDynamicDispatchCatalog,
+    pub callables: crate::TerminalCallableCatalog,
     pub float_meaning_projections: Vec<crate::FloatMeaningProjection>,
     pub float_meaning_equalities: Vec<crate::FloatMeaningEqualityProposition>,
     pub proposition_declarations: Vec<PropositionDeclaration>,
@@ -1262,6 +1264,7 @@ impl TerminalModule {
             callback_applications: Vec::new(),
             installed_interrupt_registrations: Vec::new(),
             dynamic_dispatch: TerminalDynamicDispatchCatalog::default(),
+            callables: crate::TerminalCallableCatalog::default(),
             quotients: Default::default(),
             float_meaning_projections: Vec::new(),
             float_meaning_equalities: Vec::new(),

@@ -21,23 +21,15 @@ pub(crate) mod boundary_predicates {
     use terminal_semantics::substitution::substitute_proposition_values;
 
     pub(crate) fn scalar_literals(
-        arguments: &[crate::boundary::values::TerminalScalarValue],
-    ) -> Vec<ScalarTerm> {
+        arguments: &[TerminalScalarValue],
+    ) -> Result<Vec<ScalarTerm>, TerminalInterpretError> {
         arguments.iter().copied().map(scalar_literal).collect()
     }
 
-    fn scalar_literal(argument: TerminalScalarValue) -> ScalarTerm {
-        match argument {
-            crate::boundary::values::TerminalScalarValue::Boolean(value) => {
-                ScalarTerm::Boolean(value)
-            }
-            crate::boundary::values::TerminalScalarValue::Integer { scalar_type, value } => {
-                ScalarTerm::Integer { scalar_type, value }
-            }
-            crate::boundary::values::TerminalScalarValue::IeeeFloat(value) => {
-                ScalarTerm::IeeeFloatLiteral(value)
-            }
-        }
+    fn scalar_literal(argument: TerminalScalarValue) -> Result<ScalarTerm, TerminalInterpretError> {
+        argument.literal().ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+            "machine values have no mathematical literal",
+        ))
     }
 
     pub(crate) fn validate_input_requirements(
@@ -51,7 +43,7 @@ pub(crate) mod boundary_predicates {
         if boundary.scalar_requires.is_empty() {
             return Ok(());
         }
-        let arguments = scalar_literals(arguments);
+        let arguments = scalar_literals(arguments)?;
         let parameters = boundary
             .scalar_contract_parameters()
             .ok_or_else(malformed)?;
@@ -263,7 +255,7 @@ pub(crate) mod boundary_predicates {
                 _ => None,
             };
             if let Some(value) = observed {
-                *term = scalar_literal(value);
+                *term = scalar_literal(value)?;
             }
             Ok(())
         }
@@ -2420,7 +2412,7 @@ pub(crate) mod results {
             if *boundary != declaration.id {
                 return Err(malformed());
             }
-            let arguments = super::boundary_predicates::scalar_literals(arguments);
+            let arguments = super::boundary_predicates::scalar_literals(arguments)?;
             super::crash_outcome::validate_boundary_crash_outcome(declaration, &arguments, cause)
                 .map_err(|reason| TerminalInterpretError::BoundaryCrashNotPermitted {
                 operation: *operation,

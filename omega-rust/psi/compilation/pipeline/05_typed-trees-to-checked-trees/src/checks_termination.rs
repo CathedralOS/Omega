@@ -3266,7 +3266,7 @@ mod rank_inputs {
                             ) else {
                                 continue;
                             };
-                            if field.primitive_type != primitive {
+                            if field.scalar_type.primitive() != Some(primitive) {
                                 continue;
                             }
                             coordinates.push(Coordinate {

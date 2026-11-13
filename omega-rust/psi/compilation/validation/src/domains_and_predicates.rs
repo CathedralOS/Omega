@@ -12542,8 +12542,8 @@ pub mod default_domains {
                     low: Some(low),
                     high: Some(high),
                 },
-                scalar.view_primitive,
-                scalar.source_primitive,
+                scalar.view_scalar_type.primitive()?,
+                scalar.source_scalar_type.primitive()?,
             )
             .map(|source_interval| ResidentRequirement {
                 source_interval,
@@ -14586,7 +14586,7 @@ pub mod domains {
             let primitive = program.primitive_type_reference(domain.target_type)?;
             let subject = Scalar::Parameter {
                 position: 0,
-                primitive_type: primitive,
+                scalar_type: primitive.into(),
             };
             let spelling = Predicate {
                 program,
@@ -14628,7 +14628,7 @@ pub mod domains {
             let primitive_type = program.primitive_type_reference(definition.target_type)?;
             let subject = Scalar::Parameter {
                 position: 0,
-                primitive_type,
+                scalar_type: primitive_type.into(),
             };
             let predicates = project(
                 program,
@@ -14892,9 +14892,16 @@ pub mod domains {
             fn subject_boolean(&self) -> Option<Boolean> {
                 match self.subject {
                     Scalar::Boolean(value) => Some((**value).clone()),
-                    Scalar::Parameter { position, .. } => Some(Boolean::Parameter {
-                        position: *position,
-                    }),
+                    Scalar::Parameter {
+                        position,
+                        scalar_type,
+                    } if scalar_type.primitive()
+                        == Some(typed_trees::types::PrimitiveType::Bool) =>
+                    {
+                        Some(Boolean::Parameter {
+                            position: *position,
+                        })
+                    }
                     Scalar::ErasedParameter { position, .. } => Some(Boolean::ErasedParameter {
                         position: *position,
                     }),
@@ -15253,7 +15260,7 @@ pub mod domains {
                 constraint,
                 Scalar::Parameter {
                     position: 0,
-                    primitive_type: primitive,
+                    scalar_type: primitive.into(),
                 },
             )
         }
@@ -15338,12 +15345,12 @@ pub mod domains {
         ) -> Option<checked_trees::CheckedUnitStructuralFieldType> {
             use checked_trees::CheckedUnitStructuralFieldType as Field;
             let Some(mut predicate) = predicate else {
-                return Some(bounds.map_or(Field::Scalar(primitive), Field::BoundedInteger));
+                return Some(bounds.map_or(Field::Scalar(primitive.into()), Field::BoundedInteger));
             };
             if let Some(bounds) = bounds {
                 let subject = Scalar::Parameter {
                     position: 0,
-                    primitive_type: primitive,
+                    scalar_type: primitive.into(),
                 };
                 let endpoint = |value| {
                     use numerics::bignum::BigInt;
@@ -15451,7 +15458,7 @@ pub mod domains {
                         domain,
                         checked_trees::CheckedScalarExpression::Parameter {
                             position: 0,
-                            primitive_type: primitive,
+                            scalar_type: primitive.into(),
                         },
                     )
                     .is_some()

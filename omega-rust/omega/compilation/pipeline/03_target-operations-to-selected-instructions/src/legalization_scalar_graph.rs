@@ -2867,6 +2867,9 @@ pub(crate) mod call_signature {
                 .function(machine)
                 .map(AbstractCallSignature::Machine)
                 .ok_or(LegalizationError::custody()),
+            AbstractCallTarget::Callable { contract, .. } => plan.callables.contract(contract)
+                .map(AbstractCallSignature::Callable)
+                .ok_or(LegalizationError::custody()),
             AbstractCallTarget::Dynamic {
                 interface, slot, ..
             } => {
@@ -7550,6 +7553,10 @@ pub(crate) mod nodes {
         node: &OptimizationNode,
     ) -> Result<(OperationId, ValueId), NodeRejection> {
         match &node.operation {
+            AbstractOperation::SelectMachine { psi_operation, result, .. }
+                if matches!(result.scalar_type, semantic_vocabulary::ScalarType::Callable(_)) => {
+                Ok((*psi_operation, result.value))
+            }
             AbstractOperation::SelectImplementation {
                 psi_operation,
                 result,
@@ -8282,7 +8289,8 @@ pub(crate) mod nodes {
                     result: Some(result),
                     ..
                 } => result.scalar_type,
-                AbstractOperation::SelectImplementation { result, .. } => result.scalar_type,
+                AbstractOperation::SelectImplementation { result, .. }
+                | AbstractOperation::SelectMachine { result, .. } => result.scalar_type,
                 AbstractOperation::StorageAddress { result, .. } => {
                     if !matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
                     {

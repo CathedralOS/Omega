@@ -14,7 +14,6 @@ pub(crate) mod data_applications {
     use typed_trees::data::TypeParameterKind;
     use typed_trees::name::Identifier;
     use typed_trees::type_identity::applied_type_identity;
-    use typed_trees::types::FixedArrayLength;
     use typed_trees::types::TypeConstraintNode;
     use typed_trees::types::TypeReferenceHandle;
     use typed_trees::types::TypeReferenceNode;
@@ -117,9 +116,11 @@ pub(crate) mod data_applications {
             .map(|(reference, _)| reference)
             .collect::<Vec<_>>();
         for reference in applications {
-            elaborate_value_fields(program, reference, &mut Vec::new());
+            elaborate_value_fields(program, reference, &mut Vec::new())
+                .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
         }
-        elaborate_projected_fields(program);
+        elaborate_projected_fields(program)
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
         finalize_produced_types(program, type_start)
     }
 
@@ -134,7 +135,8 @@ pub(crate) mod data_applications {
             .map(|(reference, _)| reference)
             .collect::<Vec<_>>();
         for reference in applications {
-            elaborate_value_fields(program, reference, &mut Vec::new());
+            elaborate_value_fields(program, reference, &mut Vec::new())
+                .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
         }
         finalize_produced_types(program, type_start)
     }
@@ -143,7 +145,8 @@ pub(crate) mod data_applications {
         program: &mut TypedTrees,
     ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         let type_start = program.type_reference_table.type_reference_count();
-        elaborate_projected_fields(program);
+        elaborate_projected_fields(program)
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
         finalize_produced_types(program, type_start)
     }
 
@@ -160,7 +163,7 @@ pub(crate) mod data_applications {
             .map_err(|diagnostic| vec![diagnostic])
     }
 
-    fn elaborate_projected_fields(program: &mut TypedTrees) {
+    fn elaborate_projected_fields(program: &mut TypedTrees) -> Result<(), &'static str> {
         let mut projections = Vec::new();
         for machine in program.machines() {
             for state in program.machine_states(machine) {
@@ -188,33 +191,34 @@ pub(crate) mod data_applications {
             let reference = program
                 .type_reference_table
                 .peeled_type_reference(reference);
-            elaborate_value_fields(program, reference, &mut Vec::new());
+            elaborate_value_fields(program, reference, &mut Vec::new())?;
         }
+        Ok(())
     }
 
     fn elaborate_value_fields(
         program: &mut TypedTrees,
         reference: TypeReferenceHandle,
         active: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
-    ) {
+    ) -> Result<(), &'static str> {
         match program.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return,
+            TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => return Ok(()),
             TypeReferenceNode::Constrained { base_type, .. } => {
                 let base_type = *base_type;
-                elaborate_value_fields(program, base_type, active);
-                return;
+                elaborate_value_fields(program, base_type, active)?;
+                return Ok(());
             }
             TypeReferenceNode::FixedArray { element_type, .. } => {
                 let element_type = *element_type;
-                elaborate_value_fields(program, element_type, active);
-                return;
+                elaborate_value_fields(program, element_type, active)?;
+                return Ok(());
             }
             _ => {}
         }
         let owner = match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
             TypeReferenceNode::Named { symbol, .. } => *symbol,
-            _ => return,
+            _ => return Ok(()),
         };
         let ancestors = std::mem::take(active);
         active.extend(ancestors.iter().copied().filter(|(_, parent)| {
@@ -233,19 +237,19 @@ pub(crate) mod data_applications {
         }));
         if active.iter().any(|(ancestor, _)| *ancestor == owner) {
             *active = ancestors;
-            return;
+            return Ok(());
         }
         if program.data_application_definition(reference).is_some() {
             *active = ancestors;
-            return;
+            return Ok(());
         }
-        elaborate_application(program, reference);
+        elaborate_application(program, reference)?;
         let Some(data) = program
             .data_application_definition(reference)
             .or_else(|| program.closed_data_definition(reference))
         else {
             *active = ancestors;
-            return;
+            return Ok(());
         };
         let mut children = Vec::new();
         for member in program.data_members(data) {
@@ -261,9 +265,10 @@ pub(crate) mod data_applications {
         }
         active.push((owner, reference));
         for child in children {
-            elaborate_value_fields(program, child, active);
+            elaborate_value_fields(program, child, active)?;
         }
         *active = ancestors;
+        Ok(())
     }
 
     fn contains_actual_type(
@@ -297,9 +302,12 @@ pub(crate) mod data_applications {
         false
     }
 
-    fn elaborate_application(program: &mut TypedTrees, reference: TypeReferenceHandle) {
+    fn elaborate_application(
+        program: &mut TypedTrees,
+        reference: TypeReferenceHandle,
+    ) -> Result<(), &'static str> {
         if program.data_application_definition(reference).is_some() {
-            return;
+            return Ok(());
         }
         let TypeReferenceNode::Generic {
             base_symbol,
@@ -311,10 +319,10 @@ pub(crate) mod data_applications {
             .type_reference(reference)
             .clone()
         else {
-            return;
+            return Ok(());
         };
         if let Some(storage) = program.layout_storage_arguments(reference) {
-            elaborate_value_fields(program, storage.semantic_type, &mut Vec::new());
+            elaborate_value_fields(program, storage.semantic_type, &mut Vec::new())?;
             let is_closed = program
                 .closed_data_field_definition(storage.semantic_type)
                 .is_some();
@@ -325,13 +333,13 @@ pub(crate) mod data_applications {
                 semantic.generic_instance = Some(reference);
                 program.retain_data_application_definition(reference, semantic, is_closed);
             }
-            return;
+            return Ok(());
         }
         let Some(template) = program
             .unique_data_definition_by_symbol(base_symbol)
             .cloned()
         else {
-            return;
+            return Ok(());
         };
         let parameters = program.data_type_parameters(&template).to_vec();
         let arguments = program
@@ -341,7 +349,7 @@ pub(crate) mod data_applications {
         if parameters.len() != arguments.len()
             || template.lifetime_parameters.len() != lifetime_arguments.len()
         {
-            return;
+            return Ok(());
         }
         let mut is_closed = parameters
             .iter()
@@ -359,7 +367,7 @@ pub(crate) mod data_applications {
         {
             retain_collection_results(program, &instance);
             program.retain_data_application_definition(reference, instance, true);
-            return;
+            return Ok(());
         }
         let substitutions = parameters
             .iter()
@@ -374,6 +382,7 @@ pub(crate) mod data_applications {
             .collect::<Vec<_>>();
         let members = program.data_members(&template).to_vec();
         let scope = FieldApplicationScope {
+            application: reference,
             declaration: template.symbol,
             supplier: program
                 .type_reference_table
@@ -389,7 +398,7 @@ pub(crate) mod data_applications {
                         &substitutions,
                         &lifetimes,
                         scope,
-                    );
+                    )?;
                     is_closed &= closed_type(program, field.type_reference);
                     DataMember::Field(field)
                 }
@@ -402,7 +411,7 @@ pub(crate) mod data_applications {
                             &substitutions,
                             &lifetimes,
                             scope,
-                        );
+                        )?;
                         is_closed &= closed_type(program, field.type_reference);
                     }
                     variant.payload = program.data_payload_fields.insert_many(fields);
@@ -426,7 +435,7 @@ pub(crate) mod data_applications {
                 &substitutions,
                 &lifetimes,
                 scope,
-            );
+            )?;
         }
         application.members = program.data_members.insert_many(instantiated);
         application.type_parameters = HandleSpan::empty();
@@ -434,6 +443,7 @@ pub(crate) mod data_applications {
         application.generic_instance = Some(reference);
         retain_collection_results(program, &application);
         program.retain_data_application_definition(reference, application, is_closed);
+        Ok(())
     }
 
     fn retain_collection_results(program: &mut TypedTrees, definition: &DataDefinition) {
@@ -467,6 +477,35 @@ pub(crate) mod data_applications {
                 continue;
             }
             match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Callable { contract } => {
+                    if !program.runtime_callable_contracts.is_valid(*contract)
+                        || program
+                            .runtime_callable_contract_identity(*contract, &[])
+                            .is_err()
+                    {
+                        return false;
+                    }
+                    let inputs = typed_trees::references::type_reference_inputs(program, reference);
+                    let free_parameters = inputs
+                        .symbols
+                        .into_iter()
+                        .filter(|symbol| {
+                            matches!(
+                                program.symbols.get(*symbol).kind,
+                                SymbolKind::TypeParameter
+                                    | SymbolKind::Parameter
+                                    | SymbolKind::Local
+                                    | SymbolKind::MachineParameter
+                                    | SymbolKind::ConformanceParameter
+                                    | SymbolKind::PropositionParameter
+                                    | SymbolKind::PropositionMachineParameter
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    if program.type_reference_mentions_any(reference, &free_parameters) {
+                        return false;
+                    }
+                }
                 TypeReferenceNode::Named { symbol, .. } => {
                     if symbol.is_valid()
                         && matches!(
@@ -589,6 +628,7 @@ pub(crate) mod data_applications {
 
     #[derive(Clone, Copy)]
     struct FieldApplicationScope {
+        application: TypeReferenceHandle,
         declaration: SymbolHandle,
         supplier: SymbolHandle,
     }
@@ -599,287 +639,25 @@ pub(crate) mod data_applications {
         substitutions: &[(SymbolHandle, TypeReferenceHandle)],
         lifetimes: &[(Identifier, Identifier)],
         scope: FieldApplicationScope,
-    ) -> TypeReferenceHandle {
-        let original_owner = program
+    ) -> Result<TypeReferenceHandle, &'static str> {
+        if !program
             .type_reference_table
-            .operand_lifetime_owner(reference);
-        let origin = program.type_reference_table.operand_origin(reference);
-        let foreign = original_owner.is_valid()
-            && program.lifetime_declaration_owner(original_owner)
-                != program.lifetime_declaration_owner(scope.declaration);
-        let owner = if foreign {
-            original_owner
-        } else {
-            scope.supplier
-        };
-        let lifetimes = if foreign { &[][..] } else { lifetimes };
-        let children_scope = if foreign {
-            FieldApplicationScope {
-                declaration: original_owner,
-                supplier: original_owner,
-            }
-        } else {
-            scope
-        };
-        let original = program
-            .type_reference_table
-            .type_reference(reference)
-            .clone();
-        let instantiated = match original.clone() {
-            TypeReferenceNode::Named { symbol, .. } => {
-                return substitutions
-                    .iter()
-                    .find_map(|(parameter, actual)| (*parameter == symbol).then_some(*actual))
-                    .unwrap_or(reference);
-            }
-            TypeReferenceNode::Reference {
-                referee,
-                access,
-                lifetime,
-            } => TypeReferenceNode::Reference {
-                referee: instantiate_type(
-                    program,
-                    referee,
-                    substitutions,
-                    lifetimes,
-                    children_scope,
-                ),
-                access,
-                lifetime: lifetime.map(|lifetime| instantiate_lifetime(lifetime, lifetimes)),
-            },
-            TypeReferenceNode::Generic {
-                base_symbol,
-                base_name,
-                lifetime_arguments,
-                arguments,
-            } => {
-                let arguments = program
-                    .type_reference_table
-                    .type_reference_handles(arguments)
-                    .to_vec();
-                let arguments = arguments
-                    .into_iter()
-                    .map(|argument| {
-                        instantiate_type(
-                            program,
-                            argument,
-                            substitutions,
-                            lifetimes,
-                            children_scope,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let lifetime_arguments = lifetime_arguments
-                    .into_iter()
-                    .map(|lifetime| instantiate_lifetime(lifetime, lifetimes))
-                    .collect::<Vec<_>>();
-                if let Some((existing, _)) = program
-                    .type_reference_table
-                    .type_reference_rows()
-                    .find(|(handle, node)| {
-                        program.type_reference_table.operand_lifetime_owner(*handle) == owner
-                            && program.type_reference_table.operand_origin(*handle) == origin
-                            && matches!(node, TypeReferenceNode::Generic {
-                    base_symbol: candidate, lifetime_arguments: regions, arguments: children, ..
-                } if *candidate == base_symbol && *regions == lifetime_arguments
-                    && program.type_reference_table.type_reference_handles(*children) == arguments)
-                    })
-                {
-                    return existing;
-                }
-                TypeReferenceNode::Generic {
-                    base_symbol,
-                    base_name,
-                    lifetime_arguments,
-                    arguments: program
-                        .type_reference_table
-                        .insert_type_reference_handles(arguments),
-                }
-            }
-            TypeReferenceNode::DynamicTrait {
-                symbol,
-                name,
-                arguments,
-            } => {
-                let arguments = program
-                    .type_reference_table
-                    .type_reference_handles(arguments)
-                    .to_vec();
-                let arguments = arguments
-                    .into_iter()
-                    .map(|argument| {
-                        instantiate_type(
-                            program,
-                            argument,
-                            substitutions,
-                            lifetimes,
-                            children_scope,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                if let Some((existing, _)) = program
-                .type_reference_table
-                .type_reference_rows()
-                .find(|(handle, node)| {
-                    program.type_reference_table.operand_lifetime_owner(*handle) == owner
-                        && program.type_reference_table.operand_origin(*handle) == origin
-                        && matches!(node, TypeReferenceNode::DynamicTrait {
-                        symbol: candidate, arguments: children, ..
-                    } if *candidate == symbol
-                        && program.type_reference_table.type_reference_handles(*children) == arguments)
-                })
-            {
-                return existing;
-            }
-                TypeReferenceNode::DynamicTrait {
-                    symbol,
-                    name,
-                    arguments: program
-                        .type_reference_table
-                        .insert_type_reference_handles(arguments),
-                }
-            }
-            TypeReferenceNode::Slice { element_type } => TypeReferenceNode::Slice {
-                element_type: instantiate_type(
-                    program,
-                    element_type,
-                    substitutions,
-                    lifetimes,
-                    children_scope,
-                ),
-            },
-            TypeReferenceNode::FixedArray {
-                element_type,
-                mut length,
-            } => {
-                if let FixedArrayLength::ConstParameter { symbol, .. } = &length
-                    && let Some((_, actual)) = substitutions
-                        .iter()
-                        .find(|(parameter, _)| parameter == symbol)
-                {
-                    match program.type_reference_table.type_reference(*actual) {
-                        TypeReferenceNode::Named { symbol, name } if symbol.is_valid() => {
-                            length = FixedArrayLength::ConstParameter {
-                                symbol: *symbol,
-                                name: name.clone(),
-                            };
-                        }
-                        TypeReferenceNode::Named { name, .. } => {
-                            if let Ok(value) = name.as_str().parse::<usize>() {
-                                length = FixedArrayLength::Literal(value);
-                            }
-                        }
-                        TypeReferenceNode::ConstExpression(_) => {
-                            length = FixedArrayLength::Expression(*actual);
-                        }
-                        _ => {}
-                    }
-                }
-                TypeReferenceNode::FixedArray {
-                    element_type: instantiate_type(
-                        program,
-                        element_type,
-                        substitutions,
-                        lifetimes,
-                        children_scope,
-                    ),
-                    length,
-                }
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                let base_type =
-                    instantiate_type(program, base_type, substitutions, lifetimes, children_scope);
-                let mut constraints = program
-                    .type_reference_table
-                    .constraints(constraints)
-                    .to_vec();
-                for constraint in &mut constraints {
-                    if let TypeConstraintNode::Domain(domain) = constraint {
-                        domain.arguments = domain
-                            .arguments
-                            .iter()
-                            .map(|argument| {
-                                instantiate_type(
-                                    program,
-                                    *argument,
-                                    substitutions,
-                                    lifetimes,
-                                    children_scope,
-                                )
-                            })
-                            .collect();
-                    }
-                }
-                TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints: program.type_reference_table.insert_constraints(constraints),
-                }
-            }
-            TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => return reference,
-        };
-        if instantiated == original && original_owner == owner {
-            return reference;
-        }
-        let Ok(origins) = program
-            .type_reference_table
-            .constant_origins(reference)
-            .map(<[_]>::to_vec)
-        else {
-            return TypeReferenceHandle::invalid();
-        };
-        let extent_argument = match &instantiated {
-            TypeReferenceNode::FixedArray {
-                length: FixedArrayLength::Expression(argument),
-                ..
-            } => Some(*argument),
-            TypeReferenceNode::FixedArray { .. } => {
-                let argument = program
-                    .type_reference_table
-                    .array_extent_argument(reference);
-                argument.is_valid().then_some(argument)
-            }
-            _ => None,
-        };
-        let result = program.type_reference_table.insert(instantiated);
-        if let Some(argument) = extent_argument
-            && program
-                .type_reference_table
-                .retain_array_extent_argument(result, argument)
-                .is_err()
+            .contains_type_reference(reference)
         {
-            return TypeReferenceHandle::invalid();
+            return Err("applied data member has no current type occurrence");
         }
-        program
+        let regions = program
             .type_reference_table
-            .set_operand_origin(result, origin);
-        if program
-            .type_reference_table
-            .retain_operand_lifetime_owner(result, owner)
-            .is_err()
-        {
-            return TypeReferenceHandle::invalid();
-        }
-        if program
-            .type_reference_table
-            .attach_constant_origins(result, origins)
-            .is_err()
-        {
-            return TypeReferenceHandle::invalid();
-        }
-        result
-    }
-
-    fn instantiate_lifetime(
-        lifetime: Identifier,
-        lifetimes: &[(Identifier, Identifier)],
-    ) -> Identifier {
-        lifetimes
-            .iter()
-            .find_map(|(parameter, actual)| (*parameter == lifetime).then(|| actual.clone()))
-            .unwrap_or(lifetime)
+            .operand_lifetimes(scope.application)
+            .to_vec();
+        program.apply_callable_type_in_scope(
+            reference,
+            substitutions,
+            lifetimes,
+            scope.declaration,
+            scope.supplier,
+            &regions,
+        )
     }
 }
 
@@ -1856,6 +1634,7 @@ pub(crate) mod product_operands {
                 source_application.binding_declaration = target_symbol;
                 source_application.input_selections = input_selections;
                 Node::Call(expr::TableCallExpression {
+                    runtime_call: None,
                     authored_call_selection: None,
                     authored_call_binding: Some(ResolvedAuthoredCallBinding {
                         selected: target_symbol,

@@ -4189,7 +4189,7 @@ pub mod type_references {
                 reference,
                 CheckedScalarExpression::Parameter {
                     position: 0,
-                    primitive_type,
+                    scalar_type: primitive_type.into(),
                 },
             )
             .is_some_and(|refinements| {

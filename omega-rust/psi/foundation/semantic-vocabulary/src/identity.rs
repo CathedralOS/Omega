@@ -348,6 +348,14 @@ semantic_id!(
     "Stable identity of one author contract in a terminal-Psi semantic module."
 );
 semantic_id!(
+    CallableContractId,
+    "Identity of one complete structural callable contract in a semantic module."
+);
+semantic_id!(
+    MachineDescriptorId,
+    "Identity of one checked closed machine application retained as a callable value."
+);
+semantic_id!(
     ObligationId,
     "Stable identity of one verifier-reconstructed obligation."
 );

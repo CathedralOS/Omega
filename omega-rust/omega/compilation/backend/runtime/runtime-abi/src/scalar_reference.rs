@@ -33,15 +33,22 @@ impl ScalarReferenceLayout {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScalarStorageCodec {
-    Integer { byte_size: u8, sign: IntegerSign },
+    Integer {
+        byte_size: u8,
+        sign: IntegerSign,
+    },
     Boolean,
     Address, // Canonical 64-bit address storage; grants no integer arithmetic authority.
     IeeeFloat(IeeeFloatFormat),
+    Callable {
+        contract: semantic_vocabulary::CallableContractId,
+    },
 }
 
 impl ScalarStorageCodec {
     pub fn from_scalar(scalar: ScalarType) -> Option<Self> {
         match scalar {
+            ScalarType::Callable(contract) => Some(Self::Callable { contract }),
             ScalarType::Boolean => Some(Self::Boolean),
             ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
                 Some(Self::Address)
@@ -66,7 +73,7 @@ impl ScalarStorageCodec {
         match self {
             Self::Integer { byte_size, .. } => byte_size,
             Self::Boolean => 1,
-            Self::Address | Self::IeeeFloat(IeeeFloatFormat::Binary64) => 8,
+            Self::Address | Self::IeeeFloat(IeeeFloatFormat::Binary64) | Self::Callable { .. } => 8,
             Self::IeeeFloat(IeeeFloatFormat::Binary32) => 4,
         }
     }
@@ -85,11 +92,15 @@ impl ScalarStorageCodec {
             Self::Address => Some(2056),
             Self::IeeeFloat(IeeeFloatFormat::Binary32) => Some(516),
             Self::IeeeFloat(IeeeFloatFormat::Binary64) => Some(520),
+            Self::Callable { contract } => match contract.get().checked_mul(4096) {
+                Some(identity) => Some(identity | 3080),
+                None => None,
+            },
             _ => None,
         }
     }
 
-    pub const fn decode(word: u64) -> Option<Self> {
+    pub fn decode(word: u64) -> Option<Self> {
         match word {
             1..=8 => Some(Self::Integer {
                 byte_size: word as u8,
@@ -103,6 +114,8 @@ impl ScalarStorageCodec {
             2056 => Some(Self::Address),
             516 => Some(Self::IeeeFloat(IeeeFloatFormat::Binary32)),
             520 => Some(Self::IeeeFloat(IeeeFloatFormat::Binary64)),
+            word if word & 4095 == 3080 => semantic_vocabulary::CallableContractId::new(word >> 12)
+                .map(|contract| Self::Callable { contract }),
             _ => None,
         }
     }
@@ -112,6 +125,32 @@ impl ScalarStorageCodec {
 mod tests {
     use super::ScalarStorageCodec;
     use semantic_vocabulary::IntegerSign;
+
+    #[test]
+    fn callable_storage_codec_retains_the_contract_and_rejects_overflow() {
+        let first = ScalarStorageCodec::Callable {
+            contract: semantic_vocabulary::CallableContractId::new(1).unwrap(),
+        };
+        let second = ScalarStorageCodec::Callable {
+            contract: semantic_vocabulary::CallableContractId::new(73).unwrap(),
+        };
+        assert_ne!(first.encode(), second.encode());
+        for codec in [first, second] {
+            assert_eq!(
+                ScalarStorageCodec::decode(codec.encode().unwrap()),
+                Some(codec)
+            );
+            assert_eq!(codec.byte_size(), 8);
+        }
+        assert_eq!(ScalarStorageCodec::decode(3080), None);
+        assert_eq!(
+            ScalarStorageCodec::Callable {
+                contract: semantic_vocabulary::CallableContractId::new(u64::MAX).unwrap(),
+            }
+            .encode(),
+            None
+        );
+    }
 
     #[test]
     fn codec_preserves_every_byte_aligned_integer_width_and_sign() {

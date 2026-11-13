@@ -44,21 +44,32 @@ pub(crate) mod entry_values {
             value: IntegerValue,
         },
         IeeeFloat(IeeeFloatValue),
+        Callable {
+            contract: semantic_vocabulary::CallableContractId,
+            descriptor: semantic_vocabulary::MachineDescriptorId,
+        },
     }
 
     impl TerminalScalarValue {
         pub fn satisfies_field(self, field: &terminal_psi::StructuralFieldType) -> bool {
-            terminal_semantics::scalar_field_accepts_literal(field, &self.literal())
+            if let Self::Callable { contract, .. } = self {
+                return matches!(field, terminal_psi::StructuralFieldType::Scalar(ScalarType::Callable(expected)) if *expected == contract);
+            }
+            self.literal().is_some_and(|literal| {
+                terminal_semantics::scalar_field_accepts_literal(field, &literal)
+            })
         }
 
-        pub fn literal(self) -> semantic_vocabulary::ScalarTerm {
-            match self {
+        /// Opaque code selections have no mathematical literal.
+        pub fn literal(self) -> Option<semantic_vocabulary::ScalarTerm> {
+            Some(match self {
                 Self::Boolean(value) => semantic_vocabulary::ScalarTerm::Boolean(value),
                 Self::Integer { scalar_type, value } => {
                     semantic_vocabulary::ScalarTerm::Integer { scalar_type, value }
                 }
                 Self::IeeeFloat(value) => semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value),
-            }
+                Self::Callable { .. } => return None,
+            })
         }
 
         pub const fn scalar_type(self) -> ScalarType {
@@ -66,6 +77,7 @@ pub(crate) mod entry_values {
                 Self::Boolean(_) => ScalarType::Boolean,
                 Self::Integer { scalar_type, .. } => ScalarType::Integer(scalar_type),
                 Self::IeeeFloat(value) => ScalarType::IeeeFloat(value.format()),
+                Self::Callable { contract, .. } => ScalarType::Callable(contract),
             }
         }
     }

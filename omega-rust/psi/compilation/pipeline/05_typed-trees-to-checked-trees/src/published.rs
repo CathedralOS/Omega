@@ -297,6 +297,9 @@ pub(crate) mod labels {
             };
 
             match program.expression_table.expression(expression) {
+                ExpressionNode::MachineValue(value) => program.typed_program()
+                    .runtime_machine_value_identity(value, &[])
+                    .expect("check_program validates machine value identity before labels read frozen source"),
                 ExpressionNode::SavedSubject(saved) => format!(
                     "$saved-subject#{}:{}",
                     saved.capture.arena_index(),
@@ -5171,6 +5174,8 @@ pub(crate) mod proof {
             }
             use typed_trees::types::TypeReferenceNode;
             match program.type_reference_table.type_reference(type_reference) {
+                // A closed code descriptor holds no loans of its future call formals.
+                TypeReferenceNode::Callable { .. } => {}
                 TypeReferenceNode::Reference { referee, .. } => {
                     regions.push(type_reference);
                     append_evidence_interface_reference_regions(program, *referee, regions);

@@ -70,15 +70,7 @@ pub(crate) mod structural_reference_input {
     }
 
     pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
-        match scalar {
-            ScalarType::IeeeFloat(format) => Some(ValueShape::float(format.byte_size())),
-            ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
-            ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
-                let bytes = integer.bits() / 8;
-                Some(ValueShape::integer(u32::from(bytes), bytes))
-            }
-            _ => None,
-        }
+        ValueShape::for_scalar(scalar)
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]

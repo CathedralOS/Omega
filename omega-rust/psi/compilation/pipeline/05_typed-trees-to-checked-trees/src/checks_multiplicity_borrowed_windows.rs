@@ -736,7 +736,7 @@ mod arm_windows {
                 self.edge_conditional.insert(expression_key(expression));
             }
             match program.expression_table.expression(expression) {
-                ExpressionNode::SavedSubject(_) => {}
+                ExpressionNode::SavedSubject(_) | ExpressionNode::MachineValue(_) => {}
                 ExpressionNode::Match(dispatch) => {
                     self.frames.push(MatchWindowFrame {
                         expression,
@@ -815,7 +815,7 @@ mod arm_windows {
                     frame!(borrow.target);
                 }
                 ExpressionNode::Call(call) => {
-                    frame!(call.receiver);
+                    frame!(call.evaluated_callee());
                     for argument in program.expression_table.expression_handles(call.arguments) {
                         frame!(*argument);
                     }

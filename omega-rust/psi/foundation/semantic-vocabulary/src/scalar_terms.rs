@@ -38,6 +38,9 @@ mod validation {
 
         /// Checks this node alone, given operands that already passed this check.
         pub fn validate_after_operands(&self) -> Result<(), PropositionError> {
+            if matches!(self.scalar_type(), ScalarType::Callable(_)) {
+                return Err(PropositionError::OpaqueCallableInProof);
+            }
             match self {
                 Self::StructuralRead { path, .. } => {
                     if path.is_empty() {
@@ -709,6 +712,7 @@ pub enum ScalarType {
     Boolean,
     Integer(IntegerType),
     IeeeFloat(IeeeFloatFormat),
+    Callable(crate::CallableContractId),
 }
 
 impl ScalarType {

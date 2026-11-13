@@ -3437,7 +3437,8 @@ mod loans {
                         owner_path,
                     )
                 }
-                TypeReferenceNode::ConstExpression(_)
+                TypeReferenceNode::Callable { .. }
+                | TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::Slice { .. }
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::Unit => Vec::new(),
@@ -5434,7 +5435,8 @@ mod loans {
                 typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                     is_reference_type(program, *base_type)
                 }
-                typed_trees::types::TypeReferenceNode::ConstExpression(_)
+                typed_trees::types::TypeReferenceNode::Callable { .. }
+                | typed_trees::types::TypeReferenceNode::ConstExpression(_)
                 | typed_trees::types::TypeReferenceNode::FixedArray { .. }
                 | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
                 | typed_trees::types::TypeReferenceNode::Generic { .. }
@@ -5455,7 +5457,8 @@ mod loans {
                 typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
                     reference_borrow_access_kind(program, *base_type)
                 }
-                typed_trees::types::TypeReferenceNode::ConstExpression(_)
+                typed_trees::types::TypeReferenceNode::Callable { .. }
+                | typed_trees::types::TypeReferenceNode::ConstExpression(_)
                 | typed_trees::types::TypeReferenceNode::FixedArray { .. }
                 | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
                 | typed_trees::types::TypeReferenceNode::Generic { .. }
@@ -6838,6 +6841,7 @@ mod loans {
             pub(super) substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
             substitution_scope_starts: Vec<usize>,
             requirement_signature: Option<&'program typed_trees::signature::StateSignature>,
+            runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
             argument_owner: SymbolHandle,
             target: SymbolHandle,
         }
@@ -6878,6 +6882,11 @@ mod loans {
                 &self,
                 program: &dyn ::validation::CheckingInput,
             ) -> ViewReturnSource {
+                if let Some(contract) = self.runtime_contract {
+                    return validation::borrow_contracts::resolve_runtime_callable_view_return_source(
+                        program, contract, self.argument_owner,
+                    );
+                }
                 if let Some(relation) =
                     validation::borrow_contracts::installed_context_lifetime_source(
                         program,
@@ -6972,6 +6981,21 @@ mod loans {
             call: &checked_trees::expression::TableCallExpression,
         ) -> Option<CallViewReturnContract<'program>> {
             let (caller, state) = validation::find_state(program, state_symbol)?;
+            if let Some(validation::CallContractSource::Runtime { binding, contract }) =
+                validation::CallContractSource::runtime_expression(program, call).ok()?
+            {
+                return Some(CallViewReturnContract {
+                    parameters: program.state_signature_parameters(&contract.signature),
+                    return_type: contract.signature.return_type,
+                    substitutions: Vec::new(),
+                    substitution_scope_starts: Vec::new(),
+                    requirement_signature: None,
+                    runtime_contract: Some(binding.contract),
+                    argument_owner: caller.symbol,
+                    target: SymbolHandle::invalid(),
+                });
+            }
+
             let (
                 parameters,
                 return_type,
@@ -7025,6 +7049,7 @@ mod loans {
                 substitutions,
                 substitution_scope_starts,
                 requirement_signature,
+                runtime_contract: None,
                 argument_owner: caller.symbol,
                 target: call.target_symbol,
             })
@@ -7039,12 +7064,23 @@ mod loans {
         */
         pub(crate) fn call_declares_direct_view_source(
             program: &dyn ::validation::CheckingInput,
-            target_symbol: SymbolHandle,
+            call: &checked_trees::expression::TableCallExpression,
         ) -> bool {
-            matches!(
-                call_view_return_source(program, target_symbol),
-                ViewReturnSource::Parameter { .. }
-            )
+            let source = if call.runtime_call.is_some() {
+                let Ok(Some(validation::CallContractSource::Runtime { binding, contract })) =
+                    validation::CallContractSource::runtime_expression(program, call)
+                else {
+                    return false;
+                };
+                validation::borrow_contracts::resolve_runtime_callable_view_return_source(
+                    program,
+                    binding.contract,
+                    contract.lexical_owner,
+                )
+            } else {
+                call_view_return_source(program, call.target_symbol)
+            };
+            matches!(source, ViewReturnSource::Parameter { .. })
         }
 
         fn call_view_signature(
@@ -7476,7 +7512,7 @@ mod loans {
                 validation::reference_formation_source(program, formation).is_some();
             let declared_source = match program.expression_table.expression(formation) {
                 checked_trees::expression::ExpressionNode::Call(call) => {
-                    call_declares_direct_view_source(program, call.target_symbol)
+                    call_declares_direct_view_source(program, call)
                 }
                 _ => false,
             };

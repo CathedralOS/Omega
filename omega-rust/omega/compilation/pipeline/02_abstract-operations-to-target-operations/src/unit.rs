@@ -1412,7 +1412,7 @@ pub(crate) mod known_integers {
             ScalarType::Integer(_) => {
                 insert_known_unit_integer(integers, home.source_value, KnownUnitInteger::Home(home))
             }
-            ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+            ScalarType::Callable(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
                 if std::sync::Arc::make_mut(scalar_homes)
                     .insert(home.source_value, home)
                     .is_some()

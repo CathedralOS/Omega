@@ -6677,6 +6677,7 @@ mod domain {
                 }
 
                 match program.expression_table.expression(expression) {
+                    ExpressionNode::MachineValue(_) => {}
                     ExpressionNode::SavedSubject(saved) => {
                         if let Some(source) = program.saved_value_source(saved) {
                             collect_child!(source);
@@ -6712,8 +6713,8 @@ mod domain {
                         }
                     }
                     ExpressionNode::Call(call) => {
-                        if call.receiver.is_valid() {
-                            collect_child!(call.receiver);
+                        if call.evaluated_callee().is_valid() {
+                            collect_child!(call.evaluated_callee());
                         }
                         for argument in program.expression_table.expression_handles(call.arguments)
                         {
@@ -8890,7 +8891,9 @@ mod receiver_reads {
                         .expressions
                         .iter()
                         .find_map(|(call, argument)| (*call == expression).then_some(*argument));
-                    if call.receiver.is_valid()
+                    if let Some(runtime) = call.runtime_call {
+                        self.value(runtime.callee);
+                    } else if call.receiver.is_valid()
                         && !program.call_has_no_runtime_receiver_for_target(call)
                     {
                         self.place(call.receiver, forwarded.is_none());
@@ -8933,7 +8936,8 @@ mod receiver_reads {
                         self.value(field.value);
                     }
                 }
-                ExpressionNode::TypeExpression(_)
+                ExpressionNode::MachineValue(_)
+                | ExpressionNode::TypeExpression(_)
                 | typed_trees::spelled_literal_expression_pattern!() => {}
             }
         }
@@ -10578,6 +10582,17 @@ mod carried_semantic_dependencies {
                     collect_nominal_symbols(program, *argument, symbols);
                 }
             }
+            TypeReferenceNode::Callable { contract } => {
+                let signature = &program.runtime_callable_contracts.get(*contract).signature;
+                for input in typed_trees::references::signature_type_inputs(
+                    program.typed_program(),
+                    signature,
+                )
+                .types
+                {
+                    collect_nominal_symbols(program, input, symbols);
+                }
+            }
             TypeReferenceNode::Named { symbol, .. } => {
                 push_nominal_symbol(program, *symbol, symbols)
             }
@@ -11845,7 +11860,8 @@ mod cleanup_effect_dependencies {
                     inactive_case,
                 )
             }
-            TypeReferenceNode::Reference { .. }
+            TypeReferenceNode::Callable { .. }
+            | TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Unit
             | TypeReferenceNode::ConstExpression(_)

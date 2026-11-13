@@ -71,6 +71,10 @@ impl AbstractStructuralCallResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AbstractCallTarget {
     Machine(MachineId),
+    Callable {
+        callee: ValueId,
+        contract: semantic_vocabulary::CallableContractId,
+    },
     Dynamic {
         selector: ValueId,
         interface: u32,
@@ -82,7 +86,7 @@ impl AbstractCallTarget {
     pub const fn machine(self) -> Option<MachineId> {
         match self {
             Self::Machine(machine) => Some(machine),
-            Self::Dynamic { .. } => None,
+            Self::Dynamic { .. } | Self::Callable { .. } => None,
         }
     }
 
@@ -90,6 +94,18 @@ impl AbstractCallTarget {
         match self {
             Self::Machine(_) => None,
             Self::Dynamic { selector, .. } => Some(selector),
+            Self::Callable { callee, .. } => Some(callee),
+        }
+    }
+
+    pub fn operand_type(self) -> Option<ScalarType> {
+        match self {
+            Self::Machine(_) => None,
+            Self::Callable { contract, .. } => Some(ScalarType::Callable(contract)),
+            Self::Dynamic { .. } => Some(ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                    .expect("dispatch selector uses the declared u64 carrier"),
+            )),
         }
     }
 
@@ -99,6 +115,11 @@ impl AbstractCallTarget {
             Self::Machine(machine) => {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(&mut bytes, machine.get().to_le_bytes());
+            }
+            Self::Callable { callee, contract } => {
+                bytes.push(2);
+                crate::codec_bytes::push_encoded(&mut bytes, callee.get().to_le_bytes());
+                crate::codec_bytes::push_encoded(&mut bytes, contract.get().to_le_bytes());
             }
             Self::Dynamic {
                 selector,
@@ -204,6 +225,7 @@ impl<'declaration> From<&'declaration ResultDeclaration> for StructuralCallResul
 pub enum AbstractCallSignature<'declaration> {
     Machine(&'declaration AbstractFunction),
     Requirement(&'declaration TerminalDynamicSlot),
+    Callable(&'declaration terminal_psi::TerminalCallableContract),
 }
 
 impl<'declaration> AbstractCallSignature<'declaration> {
@@ -211,6 +233,7 @@ impl<'declaration> AbstractCallSignature<'declaration> {
         match self {
             Self::Machine(machine) => machine.parameters.len(),
             Self::Requirement(requirement) => requirement.scalar_parameters.len(),
+            Self::Callable(contract) => contract.scalar_parameters.len(),
         }
     }
 
@@ -221,6 +244,7 @@ impl<'declaration> AbstractCallSignature<'declaration> {
                 .get(position)
                 .map(|parameter| parameter.scalar_type),
             Self::Requirement(requirement) => requirement.scalar_parameters.get(position).copied(),
+            Self::Callable(contract) => contract.scalar_parameters.get(position).map(|formal| formal.scalar_type),
         }
     }
 
@@ -228,6 +252,7 @@ impl<'declaration> AbstractCallSignature<'declaration> {
         match self {
             Self::Machine(machine) => machine.structural_parameters.len(),
             Self::Requirement(requirement) => requirement.structural_parameters.len(),
+            Self::Callable(contract) => contract.structural_parameters.len(),
         }
     }
 
@@ -241,6 +266,7 @@ impl<'declaration> AbstractCallSignature<'declaration> {
                 .structural_parameters
                 .get(position)
                 .map(Into::into),
+            Self::Callable(contract) => contract.structural_parameters.get(position).map(Into::into),
         }
     }
 
@@ -248,12 +274,17 @@ impl<'declaration> AbstractCallSignature<'declaration> {
         match self {
             Self::Machine(machine) => matches!(machine.result, crate::AbstractFunctionResult::Unit),
             Self::Requirement(requirement) => requirement.result.is_unit(),
+            Self::Callable(contract) => contract.result.is_unit(),
         }
     }
 
     pub fn structural_result(self) -> Option<StructuralCallResult<'declaration>> {
         match self {
             Self::Machine(machine) => machine.result.structural().map(Into::into),
+            Self::Callable(contract) => match &contract.result {
+                BoundaryMachineResult::Structural(result) => Some(result.into()),
+                BoundaryMachineResult::Unit | BoundaryMachineResult::Scalar(_) => None,
+            },
             Self::Requirement(requirement) => match &requirement.result {
                 BoundaryMachineResult::Structural(result) => Some(result.into()),
                 BoundaryMachineResult::Unit | BoundaryMachineResult::Scalar(_) => None,
@@ -265,6 +296,7 @@ impl<'declaration> AbstractCallSignature<'declaration> {
         match self {
             Self::Machine(machine) => machine.result.scalar().map(|result| result.scalar_type),
             Self::Requirement(requirement) => requirement.result.scalar(),
+            Self::Callable(contract) => contract.result.scalar(),
         }
     }
 }

@@ -300,7 +300,7 @@ mod atomic_operations {
         trace.phase("atomic access: result binding");
         let result = match (event.observes_resident(), reserved) {
             (true, Some(result))
-                if result.primitive_type == primitive_type
+                if result.scalar_type == primitive_type
                     && result.statement_index.checked_add(1) == Some(statement_index) =>
             {
                 Some(result)
@@ -2326,15 +2326,28 @@ mod candidate_closure {
         scalar_verdict: impl FnOnce() -> Option<scalar_targets::AvailableScalarTarget>,
         site: GapSite,
     ) {
+        if matches!(call.route(), CheckedUnitCallRoute::Runtime { .. }) {
+            return;
+        }
+        let Some((target_machine, target_state)) = call.target.declaration() else {
+            closure.drop_candidate(
+                caller_index,
+                GapReason::Unsupported(std::borrow::Cow::Borrowed(
+                    "named call route lost its declaration",
+                )),
+                site,
+            );
+            return;
+        };
         match (call.route(), call.result()) {
             (CheckedUnitCallRoute::Boundary, _) => {
                 if boundaries
-                    .binary_search(&symbol_key(call.target.machine))
+                    .binary_search(&symbol_key(target_machine))
                     .is_err()
                 {
                     closure.drop_candidate(
                         caller_index,
-                        GapReason::BoundaryTarget(call.target.machine),
+                        GapReason::BoundaryTarget(target_machine),
                         site,
                     );
                 }
@@ -2344,20 +2357,21 @@ mod candidate_closure {
                 CheckedUnitCallResult::Unit
                 | CheckedUnitCallResult::Structural { .. }
                 | CheckedUnitCallResult::NoNormal,
-            ) => closure.require_entry(caller_index, call.target.machine, call.target.state, site),
+            ) => closure.require_entry(caller_index, target_machine, target_state, site),
             (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
                 apply_scalar_target_verdict(
                     closure,
                     candidate_count,
                     partial_base,
                     caller_index,
-                    call.target.machine,
+                    target_machine,
                     scalar_verdict(),
                     site,
                 )
             }
             (
-                CheckedUnitCallRoute::Dynamic { .. }
+                CheckedUnitCallRoute::Runtime { .. }
+                | CheckedUnitCallRoute::Dynamic { .. }
                 | CheckedUnitCallRoute::ActivationStorage { .. }
                 | CheckedUnitCallRoute::DescriptorTable { .. },
                 _,
@@ -3482,7 +3496,7 @@ mod scalar_locals {
             CheckedUnitScalarResultBindingPlan {
                 statement_index,
                 binding_ordinal,
-                primitive_type,
+                scalar_type: primitive_type.into(),
             },
             value.clone(),
         ))
@@ -3661,8 +3675,9 @@ mod scalar_targets {
     ) -> Option<AvailableScalarTarget> {
         let planned = operation.call().filter(|call| call.is_module())?;
         let result = planned.scalar_result()?;
-        let target_machine = &planned.target.machine;
-        let target_state = &planned.target.state;
+        let (target_machine, target_state) = planned.target.declaration()?;
+        let target_machine = &target_machine;
+        let target_state = &target_state;
         let target_contract_report_fingerprint = &planned.target.contract_report_fingerprint;
         let target_contract_commitment = planned.contract_commitment();
         let scalar_arguments = &planned.scalar_arguments;
@@ -3691,7 +3706,9 @@ mod scalar_targets {
         let (structural, scalar, claims, result_type) = if let Some((composed_index, plan)) =
             composed
         {
-            let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } = plan.result
+            let checked_trees::CheckedControlResultPlan::Scalar {
+                scalar_type: primitive_type,
+            } = plan.result
             else {
                 return None;
             };
@@ -3737,8 +3754,8 @@ mod scalar_targets {
             let (candidate, plan) = targets.next()?;
             availability = candidate;
             let primitive_type = match (&plan.scalar_result, &plan.scalar_control) {
-                (Some(completion), None) => completion.primitive_type,
-                (None, Some(completion)) => completion.primitive_type,
+                (Some(completion), None) => completion.scalar_type,
+                (None, Some(completion)) => completion.scalar_type,
                 _ => return None,
             };
             if plan.scalar_control.as_ref().is_some_and(|completion| {
@@ -3871,20 +3888,23 @@ mod scalar_targets {
                 .all(|(argument, parameter)| {
                     let primitive_type = match argument {
                         checked_trees::CheckedCallScalarArgument::Pure(expression) => {
-                            crate::values::scalar_expression_type(expression)
+                            expression.scalar_type()
                         }
                         checked_trees::CheckedCallScalarArgument::Computation(root) => {
                             let computations = &facts.values.scalar_computations;
                             computations
                                 .nodes
                                 .is_valid(*root)
-                                .then(|| computations.nodes.get(*root).primitive_type)
+                                .then(|| computations.nodes.get(*root).scalar_type)
                         }
                     };
-                    primitive_type == Some(parameter.primitive_type)
+                    primitive_type == Some(parameter.scalar_type)
                 })
-            && result_type == result.primitive_type
-            && program.primitive_type_reference(state.return_type) == Some(result_type)
+            && result_type == result.scalar_type
+            && checked_trees::CheckedScalarType::from_type_reference(
+                program.typed_program(),
+                state.return_type,
+            ) == Some(result_type)
             && contract.report_fingerprint == *target_contract_report_fingerprint
             && Some(contract.commitment) == target_contract_commitment)
             .then_some(availability)
@@ -5235,7 +5255,7 @@ mod storage_transfers {
                         structural_arguments,
                         ..
                     } => {
-                        if let Some(selector) = callee.selector() {
+                        if let Some(selector) = callee.evaluated_callee() {
                             output.append(self.computation(selector)?);
                         }
                         for argument in plans.operands.span(*arguments)? {
@@ -5336,7 +5356,9 @@ mod storage_transfers {
                     | ComputationKind::ByteSequencePredicate { subject, .. } => {
                         output.append(self.argument_computations(subject)?)
                     }
-                    ComputationKind::RetainedConstant { .. } | ComputationKind::Value(_) => {}
+                    ComputationKind::MachineValue { .. }
+                    | ComputationKind::RetainedConstant { .. }
+                    | ComputationKind::Value(_) => {}
                 }
                 Some(output)
             }
@@ -6045,7 +6067,7 @@ mod storage_transfers {
                 .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
                 .filter(|operation| {
                     operation.call().is_some_and(|call| {
-                        call.coordinate == coordinate && call.target.state == source.target_symbol
+                        call.coordinate == coordinate && call.target.matches_flow_call(source)
                     })
                 });
             let ordinary = operations.next();
@@ -6077,7 +6099,7 @@ mod storage_transfers {
             };
             let operation = ordinary.or_else(|| deferred.and_then(|call| call.operation()))?;
             if operation.call()?.coordinate != coordinate
-                || operation.call()?.target.state != source.target_symbol
+                || !operation.call()?.target.matches_flow_call(source)
                 || operation.call()?.structural_result()?.statement_index != value.statement_index
             {
                 return None;
@@ -6766,7 +6788,7 @@ mod structural_value_calls {
                         .iter()
                         .find(|(coordinate, _, _)| *coordinate == call.coordinate)
                     {
-                        if *target != call.target.state || *previous != arguments {
+                        if *target != call.target.source || *previous != arguments {
                             return None;
                         }
                         continue;
@@ -6810,7 +6832,7 @@ mod structural_value_calls {
                         }
                         *target = producer;
                     }
-                    consumed.push((call.coordinate, call.target.state, arguments));
+                    consumed.push((call.coordinate, call.target.source, arguments));
                 }
             }
         }
@@ -7077,17 +7099,30 @@ const FORKED_BODIES_PER_THREAD: usize = 4;
 
 pub(crate) fn build_checked_unit_effect_plans(
     program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
+    facts: &mut CheckFacts,
     calling_declarations: &typed_trees::service_declarations::signatures::PreparedBoundarySignatures,
     boundary_signature_reaches: &[(symbols::SymbolHandle, language_semantics::ServiceReachRowId)],
     scalar_callees: ScalarCalleeClosure,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> (
-    EffectPlans,
-    CheckedPartialAffineUnitCleanupPlans,
-    structural_value_calls::PreparedCalls,
-) {
+) -> Result<
+    (
+        EffectPlans,
+        CheckedPartialAffineUnitCleanupPlans,
+        structural_value_calls::PreparedCalls,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
     let mut shapes = ShapeCollector::new(program);
+    let signatures = control::build_callable_contract_signatures(
+        program,
+        &mut shapes,
+        &facts.callable_contracts,
+    )
+    .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+    facts
+        .callable_contracts
+        .retain_signatures(signatures)
+        .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     let calling_signatures =
         calling_signatures::collect(program, calling_declarations, &mut shapes);
     let mut prepared_calls = structural_value_calls::PreparedCalls::default();
@@ -7687,6 +7722,12 @@ pub(crate) fn build_checked_unit_effect_plans(
                 }))
         }))
         .collect::<BTreeSet<_>>();
+    for row in facts.callable_contracts.contracts() {
+        let signature = row
+            .signature()
+            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+        retained_type_identities.extend(signature.structural_type_roots());
+    }
     retained_type_identities.extend(value_type_identities);
     for operation in candidates
         .iter()
@@ -8000,7 +8041,7 @@ pub(crate) fn build_checked_unit_effect_plans(
     let partial_affine_plans = CheckedPartialAffineUnitCleanupPlans {
         machines: partial_affine_machines,
     };
-    (
+    Ok((
         EffectPlans {
             cleanup_control: shapes.cleanup_control.into_inner(),
             layout_observations,
@@ -8019,7 +8060,7 @@ pub(crate) fn build_checked_unit_effect_plans(
         },
         partial_affine_plans,
         prepared_calls,
-    )
+    ))
 }
 
 pub(super) fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {

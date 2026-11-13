@@ -1230,8 +1230,8 @@ mod captured_boolean {
                     .scalar_storage_coordinate(program, captured_state)
                     .is_some_and(|scalar| {
                         scalar.preserves_scalar_value
-                            && scalar.source_primitive == expected
-                            && scalar.view_primitive == expected
+                            && scalar.source_scalar_type.primitive() == Some(expected)
+                            && scalar.view_scalar_type.primitive() == Some(expected)
                     })
             } else {
                 !source.recasts.is_empty() || source.representation.is_some()

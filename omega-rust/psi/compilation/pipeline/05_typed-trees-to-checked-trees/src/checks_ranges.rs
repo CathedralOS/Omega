@@ -3433,6 +3433,7 @@ pub(in crate::checks) mod requirements {
         }
 
         match program.expression_table.expression(expression) {
+            ExpressionNode::MachineValue(_) => {}
             ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Match(dispatch) => {
                 seed_index_proofs_from_expression(program, facts, dispatch.subject);
@@ -3450,7 +3451,7 @@ pub(in crate::checks) mod requirements {
                 seed_index_proofs_from_expression(program, facts, binary.right);
             }
             ExpressionNode::Call(call) => {
-                seed_index_proofs_from_expression(program, facts, call.receiver);
+                seed_index_proofs_from_expression(program, facts, call.evaluated_callee());
                 for argument in program.expression_table.expression_handles(call.arguments) {
                     seed_index_proofs_from_expression(program, facts, *argument);
                 }
@@ -5146,6 +5147,7 @@ mod expression_transfer {
                 return;
             }
             match self.program.expression_table.expression(expression) {
+                ExpressionNode::MachineValue(_) => {}
                 ExpressionNode::SavedSubject(_) => {}
                 ExpressionNode::Match(dispatch) => {
                     self.transfer(facts, dispatch.subject, sink);
@@ -5253,7 +5255,7 @@ mod expression_transfer {
                     facts.begin_result_measurement(expression);
                     let measured_collection =
                         validation::normal_return_length_collection(self.program, call);
-                    self.transfer(facts, call.receiver, sink);
+                    self.transfer(facts, call.evaluated_callee(), sink);
                     if call.receiver.is_valid()
                         && let Some(collection) = measured_collection
                     {
@@ -6885,6 +6887,15 @@ mod indexes {
             reference: TypeReferenceHandle,
         ) -> bool {
             match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Callable { .. } => {
+                    typed_trees::references::type_reference_inputs(
+                        program.typed_program(),
+                        reference,
+                    )
+                    .expressions
+                    .iter()
+                    .any(|expression| program.pending_const_range_endpoints.contains(expression))
+                }
                 TypeReferenceNode::ConstExpression(expression) => {
                     program.pending_const_range_endpoints.contains(expression)
                 }
@@ -8387,6 +8398,7 @@ mod arrays {
             | TypeReferenceNode::Constrained {
                 base_type: referee, ..
             } => fixed_array_type_recipe(program, *referee),
+            TypeReferenceNode::Callable { .. } => Default::default(),
             TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::Named { .. }
@@ -10924,6 +10936,7 @@ pub(crate) mod types {
                 base_type: referee, ..
             } => type_reference_is_slice(program, *referee),
             TypeReferenceNode::Slice { .. } => true,
+            TypeReferenceNode::Callable { .. } => false,
             TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::FixedArray { .. }
             | TypeReferenceNode::Generic { .. }

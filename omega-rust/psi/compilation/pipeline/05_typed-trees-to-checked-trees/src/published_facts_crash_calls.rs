@@ -2654,11 +2654,26 @@ mod route_substitution {
     ) -> Option<checked_trees::CheckedScalarExpression> {
         use checked_trees::CheckedScalarExpression;
 
+        if matches!(
+            expression.scalar_type(),
+            Some(typed_trees::callable_values::ScalarValueType::Callable(_))
+        ) {
+            return None;
+        }
         Some(match expression {
+            CheckedScalarExpression::Parameter {
+                scalar_type: typed_trees::callable_values::ScalarValueType::Callable(_),
+                ..
+            }
+            | CheckedScalarExpression::StructuralParameterField {
+                scalar_type: typed_trees::callable_values::ScalarValueType::Callable(_),
+                ..
+            } => return None,
             CheckedScalarExpression::ConstantApplication { .. } => expression.clone(),
             CheckedScalarExpression::Parameter {
                 position,
-                primitive_type,
+                scalar_type:
+                    typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
             } => {
                 let substituted = arguments.get(*position)?.as_ref()?.clone();
                 (crate::values::scalar_expression_type(&substituted) == Some(*primitive_type))
@@ -2690,7 +2705,8 @@ mod route_substitution {
                         index: parameter_position,
                     },
                 path,
-                primitive_type,
+                scalar_type:
+                    typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
                 ..
             } => {
                 let leaf = substitute_structural_parameter_field(
@@ -2706,7 +2722,7 @@ mod route_substitution {
                         index: leaf.parameter_position,
                     },
                     path: leaf.path,
-                    primitive_type: *primitive_type,
+                    scalar_type: (*primitive_type).into(),
                 }
             }
             CheckedScalarExpression::IntegerLiteral { literal } => {
@@ -4024,11 +4040,13 @@ mod entry_equations {
                 let (
                     Scalar::Parameter {
                         position: output,
-                        primitive_type: output_type,
+                        scalar_type:
+                            typed_trees::callable_values::ScalarValueType::Primitive(output_type),
                     },
                     Scalar::Parameter {
                         position: input,
-                        primitive_type: input_type,
+                        scalar_type:
+                            typed_trees::callable_values::ScalarValueType::Primitive(input_type),
                     },
                 ) = (result_term, input)
                 else {
@@ -5506,9 +5524,7 @@ pub(super) fn attach_checked_crash_calls(
                             .into_iter()
                             .filter_map(SummaryCrashBucket::into_checked)
                             .collect::<Vec<_>>();
-                        state_calls.push((
-                            state_flow.machine_symbol,
-                            checked_trees::CheckedCrashCallSite::new_with_commitment(
+                        let mut checked_site = checked_trees::CheckedCrashCallSite::new_with_commitment(
                                 checked_trees::CrashCallSiteLocation::new(
                                     state_flow.state_symbol,
                                     u32::try_from(call_flow.statement_index).expect(
@@ -5523,8 +5539,12 @@ pub(super) fn attach_checked_crash_calls(
                                 target_contract_fingerprint,
                                 target_contract_commitment,
                                 surviving_buckets,
-                            ),
-                        ));
+                            );
+                        if let Some(binding) = call_site.runtime_call() {
+                            let row = program.runtime_callable_contract(binding.contract);
+                            checked_site = checked_site.with_runtime_callable_source(binding.contract, row.lexical_owner);
+                        }
+                        state_calls.push((state_flow.machine_symbol, checked_site));
                     }
                     state_calls
                 })

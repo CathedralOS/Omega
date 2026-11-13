@@ -344,12 +344,12 @@ pub mod values {
                 root: &CheckedScalarComputationRoot,
                 machine: SymbolHandle,
                 authored: ExpressionHandle,
-                primitive_type: PrimitiveType,
+                scalar_type: impl Into<crate::CheckedScalarType>,
             ) -> bool {
                 root.machine == machine
                     && self.nodes.is_valid(root.root)
                     && self.nodes.get(root.root).authored_root == authored
-                    && self.nodes.get(root.root).primitive_type == primitive_type
+                    && self.nodes.get(root.root).scalar_type == scalar_type.into()
             }
 
             pub fn roots_in_machines(
@@ -418,7 +418,7 @@ pub mod values {
         pub struct CheckedScalarComputation {
             pub authored_root: ExpressionHandle,
             pub value_source: ExpressionHandle,
-            pub primitive_type: PrimitiveType,
+            pub scalar_type: crate::CheckedScalarType,
             pub normal_cleanup_actions: HandleSpan<crate::CheckedNormalCleanupAction>,
             pub kind: CheckedScalarComputationKind,
         }
@@ -428,7 +428,7 @@ pub mod values {
                 Self {
                     authored_root: Handle::invalid(),
                     value_source: Handle::invalid(),
-                    primitive_type: PrimitiveType::Bool,
+                    scalar_type: PrimitiveType::Bool.into(),
                     normal_cleanup_actions: HandleSpan::empty(),
                     kind: CheckedScalarComputationKind::Value(CheckedScalarExpression::Boolean(
                         Box::new(CheckedBooleanExpression::Constant(false)),
@@ -440,7 +440,10 @@ pub mod values {
         impl CheckedScalarComputation {
             pub fn evaluated_expression(&self) -> ExpressionHandle {
                 match &self.kind {
-                    CheckedScalarComputationKind::StorageAddress {
+                    CheckedScalarComputationKind::MachineValue {
+                        source_expression, ..
+                    }
+                    | CheckedScalarComputationKind::StorageAddress {
                         source_expression, ..
                     }
                     | CheckedScalarComputationKind::ByteSequenceLiteralComparison {
@@ -496,6 +499,12 @@ pub mod values {
 
         #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub enum CheckedScalarComputationKind {
+            MachineValue {
+                source_expression: ExpressionHandle,
+                value: typed_trees::callable_values::MachineValue,
+                machine: SymbolHandle,
+                state: SymbolHandle,
+            },
             StorageAddress {
                 operand_type: typed_trees::types::TypeReferenceHandle,
                 source_expression: ExpressionHandle,
@@ -611,6 +620,10 @@ pub mod values {
 
         #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub enum CheckedScalarCallee {
+            Runtime {
+                callee: CheckedScalarComputationHandle,
+                contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+            },
             Body {
                 machine: SymbolHandle,
                 state: SymbolHandle,
@@ -642,9 +655,10 @@ pub mod values {
                     Self::Boundary {
                         authority_value, ..
                     } => *authority_value,
-                    Self::Body { .. } | Self::DescriptorTable { .. } | Self::Dynamic { .. } => {
-                        Default::default()
-                    }
+                    Self::Body { .. }
+                    | Self::DescriptorTable { .. }
+                    | Self::Dynamic { .. }
+                    | Self::Runtime { .. } => Default::default(),
                 }
             }
 
@@ -653,22 +667,53 @@ pub mod values {
                     Self::Body { machine, state }
                     | Self::Boundary { machine, state, .. }
                     | Self::DescriptorTable { machine, state, .. } => Some((*machine, *state)),
-                    Self::Dynamic { .. } => None,
+                    Self::Dynamic { .. } | Self::Runtime { .. } => None,
                 }
             }
 
-            pub fn called_signature(&self) -> SymbolHandle {
+            pub fn called_signature(&self) -> Option<SymbolHandle> {
                 match self {
                     Self::Body { state, .. }
                     | Self::Boundary { state, .. }
-                    | Self::DescriptorTable { state, .. } => *state,
-                    Self::Dynamic { slot, .. } => *slot,
+                    | Self::DescriptorTable { state, .. } => Some(*state),
+                    Self::Dynamic { slot, .. } => Some(*slot),
+                    Self::Runtime { .. } => None,
                 }
             }
 
-            pub fn selector(&self) -> Option<CheckedScalarComputationHandle> {
+            pub fn runtime_contract(
+                &self,
+            ) -> Option<typed_trees::callable_values::RuntimeCallableContractHandle> {
+                match self {
+                    Self::Runtime { contract, .. } => Some(*contract),
+                    _ => None,
+                }
+            }
+
+            pub fn matches_flow_call(
+                &self,
+                call: &crate::FlowCallFact,
+                plans: &CheckedScalarComputationPlans,
+            ) -> bool {
+                match self {
+                    Self::Runtime { callee, contract } => {
+                        plans.nodes.is_valid(*callee)
+                            && call.runtime_call.is_some_and(|binding| {
+                                binding.contract == *contract
+                                    && binding.callee == plans.nodes.get(*callee).authored_root
+                            })
+                    }
+                    _ => {
+                        call.runtime_call.is_none()
+                            && self.called_signature() == Some(call.target_symbol)
+                    }
+                }
+            }
+
+            pub fn evaluated_callee(&self) -> Option<CheckedScalarComputationHandle> {
                 match self {
                     Self::Dynamic { selector, .. } => Some(*selector),
+                    Self::Runtime { callee, .. } => Some(*callee),
                     Self::Body { .. } | Self::Boundary { .. } | Self::DescriptorTable { .. } => {
                         None
                     }
@@ -2312,6 +2357,9 @@ pub mod values {
     pub enum CheckedScalarExpressionRole {
         RankObservation {
             component: u32,
+        },
+        RuntimeCallCallee {
+            call_ordinal: u32,
         },
         CallSelector {
             call_ordinal: u32,

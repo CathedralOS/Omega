@@ -201,7 +201,6 @@ pub(crate) mod atomic_operands {
     };
     use typed_trees::expression::ExpressionHandle;
     use typed_trees::signature::StateParameter;
-    use typed_trees::types::PrimitiveType;
 
     /* Both writing statements and structural-result locals share operand rows. */
     #[allow(clippy::too_many_arguments)]
@@ -213,7 +212,7 @@ pub(crate) mod atomic_operands {
         carrier: validation::AtomicCarrierAccess,
         scalar_parameters: &[StateParameter],
         parameters: &[StateParameter],
-        parameter_types: &[PrimitiveType],
+        parameter_types: &[typed_trees::callable_values::ScalarValueType],
         locals: &[ScalarLocal],
         exact_integer_casts: &[validation::ExactIntegerCastFact],
     ) -> Option<
@@ -324,7 +323,7 @@ pub(crate) mod boolean_lowering {
                 expression: ExpressionHandle,
                 parameters: &[StateParameter],
                 authored_parameters: &[StateParameter],
-                parameter_types: &[PrimitiveType],
+                parameter_types: &[typed_trees::callable_values::ScalarValueType],
                 locals: &[ScalarLocal],
                 exact_integer_casts: &[validation::ExactIntegerCastFact],
             ) -> Option<BooleanExpression> {
@@ -354,7 +353,7 @@ pub(crate) mod boolean_lowering {
         operators: &'a CheckedOperatorFacts,
         parameters: &'a [StateParameter],
         authored_parameters: &'a [StateParameter],
-        parameter_types: &'a [PrimitiveType],
+        parameter_types: &'a [typed_trees::callable_values::ScalarValueType],
         locals: &'a [ScalarLocal],
         exact_integer_casts: &'a [validation::ExactIntegerCastFact],
     }
@@ -365,7 +364,7 @@ pub(crate) mod boolean_lowering {
             operators: &'a CheckedOperatorFacts,
             parameters: &'a [StateParameter],
             authored_parameters: &'a [StateParameter],
-            parameter_types: &'a [PrimitiveType],
+            parameter_types: &'a [typed_trees::callable_values::ScalarValueType],
             locals: &'a [ScalarLocal],
             exact_integer_casts: &'a [validation::ExactIntegerCastFact],
         ) -> Self {
@@ -468,7 +467,7 @@ pub(crate) mod boolean_lowering {
                         local_position(self.program, expression, path, self.locals)?;
                     let local = &self.locals[local_position];
                     if local.is_mutable || local.is_reference {
-                        return (local.primitive_type == PrimitiveType::Bool).then_some(
+                        return (local.scalar_type == PrimitiveType::Bool).then_some(
                             BooleanExpression::StorageRead {
                                 symbol: local.symbol,
                             },
@@ -480,7 +479,7 @@ pub(crate) mod boolean_lowering {
                             .filter(|local| local.is_value_binding())
                             .count(),
                     )?;
-                    (self.locals[local_position].primitive_type == PrimitiveType::Bool)
+                    (self.locals[local_position].scalar_type == PrimitiveType::Bool)
                         .then_some(BooleanExpression::Local { position })
                 }
                 ExpressionNode::Unary(unary)
@@ -692,7 +691,7 @@ pub(crate) mod boolean_lowering {
                     entry_bound: None,
                 }),
                 element_path: Vec::new(),
-                primitive_type: PrimitiveType::U8,
+                scalar_type: (PrimitiveType::U8).into(),
             }))
         };
         let mut remaining = None;
@@ -1251,7 +1250,7 @@ pub(crate) mod call_lowering {
         call_site: &validation::CallSite<'_>,
         parameters: &[StateParameter],
         authored_parameters: &[StateParameter],
-        parameter_types: &[PrimitiveType],
+        parameter_types: &[typed_trees::callable_values::ScalarValueType],
         locals: &[ScalarLocal],
         exact_integer_casts: &[validation::ExactIntegerCastFact],
     ) -> Option<LoweredCallArguments> {
@@ -1532,7 +1531,7 @@ pub(crate) mod call_lowering {
         {
             return Some(CheckedScalarExpression::Parameter {
                 position,
-                primitive_type: expected_type,
+                scalar_type: (expected_type).into(),
             });
         }
         let local = locals
@@ -1541,13 +1540,13 @@ pub(crate) mod call_lowering {
         if !local.is_value_binding() {
             return Some(CheckedScalarExpression::StorageRead {
                 symbol: local.symbol,
-                primitive_type: expected_type,
+                scalar_type: (expected_type).into(),
             });
         }
         Some(CheckedScalarExpression::Local {
             position: located_binding_symbols(scalar_parameters, locals)
                 .position(|symbol| symbol == argument.symbol)?,
-            primitive_type: expected_type,
+            scalar_type: (expected_type).into(),
         })
     }
 
@@ -1572,7 +1571,7 @@ pub(crate) mod call_lowering {
         expression: ExpressionHandle,
         parameters: &[StateParameter],
         authored_parameters: &[StateParameter],
-        parameter_types: &[PrimitiveType],
+        parameter_types: &[typed_trees::callable_values::ScalarValueType],
         locals: &[ScalarLocal],
         formal_type: typed_trees::types::TypeReferenceHandle,
         lane: &typed_trees::proof_only::ErasedScalarLane,
@@ -1601,7 +1600,7 @@ pub(crate) mod call_lowering {
                     observation: expression,
                     root: checked_trees::CheckedStorageRoot::Parameter { index: position },
                     path: super::structural_fields::structural_projection_path(program, &segments)?,
-                    primitive_type: lane.primitive_type,
+                    scalar_type: (lane.primitive_type).into(),
                 })
             }
             validation::erased_actuals::ErasedLeaf::LocalField { symbol, segments } => {
@@ -1643,7 +1642,7 @@ pub(crate) mod call_lowering {
         expected_type: typed_trees::types::TypeReferenceHandle,
         parameters: &[StateParameter],
         authored_parameters: &[StateParameter],
-        parameter_types: &[PrimitiveType],
+        parameter_types: &[typed_trees::callable_values::ScalarValueType],
         locals: &[ScalarLocal],
         exact_integer_casts: &[validation::ExactIntegerCastFact],
         proof_only: &typed_trees::proof_only::ProofOnlyClassification,
@@ -1714,7 +1713,7 @@ pub(crate) mod call_lowering {
                                 .normalized_type_identity(parameter.type_reference),
                             expression: CheckedScalarExpression::Parameter {
                                 position,
-                                primitive_type,
+                                scalar_type: primitive_type.into(),
                             },
                         })
                     })
@@ -2382,7 +2381,7 @@ pub(crate) mod call_lowering {
         expression: ExpressionHandle,
         parameters: &[StateParameter],
         authored_parameters: &[StateParameter],
-        parameter_types: &[PrimitiveType],
+        parameter_types: &[typed_trees::callable_values::ScalarValueType],
         locals: &[ScalarLocal],
         exact_integer_casts: &[validation::ExactIntegerCastFact],
     ) -> Option<LoweredCallArguments> {
@@ -3264,7 +3263,7 @@ pub(crate) mod contract_entry {
                                     program,
                                     &reader.parameters[..parameter_position],
                                 ),
-                                primitive_type: primitive,
+                                scalar_type: (primitive).into(),
                             }
                         } else {
                             CheckedScalarExpression::StructuralParameterField {
@@ -3273,7 +3272,7 @@ pub(crate) mod contract_entry {
                                     index: position,
                                 },
                                 path,
-                                primitive_type: primitive,
+                                scalar_type: (primitive).into(),
                             }
                         },
                     )
@@ -3812,7 +3811,8 @@ pub(crate) mod contract_entry {
                 let CheckedScalarExpression::StructuralParameterIndexedRead {
                     root,
                     path,
-                    primitive_type,
+                    scalar_type:
+                        typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
                     ..
                 } = &mut value
                 else {
@@ -3871,7 +3871,7 @@ pub(crate) mod contract_entry {
                         CheckedScalarExpression::Parameter {
                             position: self
                                 .scalar_position(subject.parameter_position, depth + 1)?,
-                            primitive_type,
+                            scalar_type: primitive_type.into(),
                         }
                     } else {
                         CheckedScalarExpression::StructuralParameterField {
@@ -3880,7 +3880,7 @@ pub(crate) mod contract_entry {
                                 index: u32::try_from(subject.parameter_position).ok()?,
                             },
                             path: subject.path.clone(),
-                            primitive_type,
+                            scalar_type: primitive_type.into(),
                         }
                     },
                 )
@@ -4268,15 +4268,26 @@ pub(crate) mod contract_entry {
         }
 
         fn scalar(&self, expression: &mut CheckedScalarExpression) -> Option<()> {
+            if matches!(
+                expression.scalar_type(),
+                Some(typed_trees::callable_values::ScalarValueType::Callable(_))
+            ) {
+                return None;
+            }
             match expression {
                 CheckedScalarExpression::StorageRead {
+                    scalar_type: typed_trees::callable_values::ScalarValueType::Callable(_),
+                    ..
+                } => return None,
+                CheckedScalarExpression::StorageRead {
                     symbol,
-                    primitive_type,
+                    scalar_type:
+                        typed_trees::callable_values::ScalarValueType::Primitive(primitive_type),
                 } => {
                     *expression = if let Some(position) = self.position(*symbol, *primitive_type) {
                         CheckedScalarExpression::Parameter {
                             position,
-                            primitive_type: *primitive_type,
+                            scalar_type: (*primitive_type).into(),
                         }
                     } else {
                         CheckedScalarExpression::ErasedParameter {
@@ -4414,9 +4425,11 @@ pub(crate) mod expression_facts {
         parameter: &StateParameter,
     ) -> bool {
         !parameter.relevance.is_erased()
-            && program
-                .primitive_type_reference(parameter.type_reference)
-                .is_some()
+            && typed_trees::callable_values::ScalarValueType::from_type_reference(
+                program.typed_program(),
+                parameter.type_reference,
+            )
+            .is_some()
     }
 
     /*
@@ -4428,7 +4441,10 @@ pub(crate) mod expression_facts {
     pub(crate) fn scalar_parameter_roster(
         program: &dyn ::validation::CheckingInput,
         parameters: &[StateParameter],
-    ) -> Option<(Vec<StateParameter>, Vec<PrimitiveType>)> {
+    ) -> Option<(
+        Vec<StateParameter>,
+        Vec<typed_trees::callable_values::ScalarValueType>,
+    )> {
         let scalar_parameters = parameters
             .iter()
             .filter(|parameter| occupies_scalar_position(program, parameter))
@@ -4436,7 +4452,12 @@ pub(crate) mod expression_facts {
             .collect::<Vec<_>>();
         let parameter_types = scalar_parameters
             .iter()
-            .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+            .map(|parameter| {
+                typed_trees::callable_values::ScalarValueType::from_type_reference(
+                    program.typed_program(),
+                    parameter.type_reference,
+                )
+            })
             .collect::<Option<Vec<_>>>()?;
         Some((scalar_parameters, parameter_types))
     }
@@ -4558,11 +4579,15 @@ pub(crate) mod expression_facts {
         })
     }
 
-    pub(crate) fn is_integer(primitive: PrimitiveType) -> bool {
-        !matches!(
-            primitive,
-            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-        )
+    pub(crate) fn is_integer(
+        primitive: impl Into<typed_trees::callable_values::ScalarValueType>,
+    ) -> bool {
+        primitive.into().primitive().is_some_and(|primitive| {
+            !matches!(
+                primitive,
+                PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+            )
+        })
     }
 
     pub(crate) fn operator_is_builtin(
@@ -5327,7 +5352,7 @@ pub(crate) mod expression_plans {
         pub(crate) is_mutable: bool,
         pub(crate) symbol: symbols::SymbolHandle,
         pub(crate) name: String,
-        pub(crate) primitive_type: PrimitiveType,
+        pub(crate) scalar_type: typed_trees::callable_values::ScalarValueType,
         pub(crate) arithmetic_domain: ArithmeticDomain,
         /*
             A reference binding is observed through its established carrier. It owns
@@ -5344,13 +5369,13 @@ pub(crate) mod expression_plans {
         pub(crate) fn from_local_data(
             program: &dyn ::validation::CheckingInput,
             local: &typed_trees::statement::TableLocalData,
-            primitive_type: PrimitiveType,
+            scalar_type: impl Into<typed_trees::callable_values::ScalarValueType>,
         ) -> Self {
             Self {
                 is_mutable: local.is_mutable,
                 symbol: local.symbol,
                 name: local.name.as_str().to_owned(),
-                primitive_type,
+                scalar_type: scalar_type.into(),
                 arithmetic_domain: program
                     .arithmetic_domain_for_type_reference(local.type_reference),
                 is_reference: false,
@@ -5403,7 +5428,7 @@ pub(crate) mod expression_plans {
         states: &'p [typed_trees::state::State],
         parameters: &'p [typed_trees::signature::StateParameter],
         scalar_parameters: &'s [typed_trees::signature::StateParameter],
-        parameter_types: &'s [PrimitiveType],
+        parameter_types: &'s [typed_trees::callable_values::ScalarValueType],
         result_type: Option<PrimitiveType>,
         statement_index: usize,
         statement_ordinal: u32,
@@ -6111,7 +6136,12 @@ pub(crate) mod machine_parameter_booleans {
         }
         parameters
             .iter()
-            .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+            .map(|parameter| {
+                typed_trees::callable_values::ScalarValueType::from_type_reference(
+                    program.typed_program(),
+                    parameter.type_reference,
+                )
+            })
             .collect::<Option<Vec<_>>>()?;
         let (scalar_parameters, parameter_types) = scalar_parameter_roster(program, parameters)?;
         lower_boolean_expression(
@@ -6266,7 +6296,7 @@ pub(crate) mod primitive_reference_read {
         } else {
             ScalarExpression::StorageRead {
                 symbol: parameter.symbol,
-                primitive_type,
+                scalar_type: primitive_type.into(),
             }
         };
         Some((value, arithmetic_domain))
@@ -6366,7 +6396,7 @@ pub(crate) mod primitive_reference_read {
             is_mutable: local.is_mutable,
             symbol: local.symbol,
             name: local.name.as_str().to_owned(),
-            primitive_type,
+            scalar_type: primitive_type.into(),
             arithmetic_domain,
             is_reference: true,
         })
@@ -6595,7 +6625,7 @@ pub(crate) mod result_contract {
                             index: observed.position,
                         },
                         path: observed.path,
-                        primitive_type,
+                        scalar_type: primitive_type.into(),
                     }
                 };
                 Some((term, observed.reference))
@@ -7131,7 +7161,7 @@ pub(crate) mod result_contract {
                             index: parameter_position,
                         },
                         path,
-                        primitive_type,
+                        scalar_type: primitive_type.into(),
                     }
                 };
                 return Some((term, reference));
@@ -7184,7 +7214,9 @@ pub(crate) mod result_contract {
             let term = if matches!(
                 &term,
                 CheckedScalarExpression::StructuralParameterIndexedRead {
-                    primitive_type: PrimitiveType::Bool,
+                    scalar_type: typed_trees::callable_values::ScalarValueType::Primitive(
+                        PrimitiveType::Bool
+                    ),
                     ..
                 }
             ) {
@@ -7282,7 +7314,7 @@ pub(crate) mod result_contract {
                         CheckedScalarExpression::ConstantApplication {
                             recipe,
                             owner: self.owner,
-                            primitive_type: primitive,
+                            scalar_type: (primitive).into(),
                         },
                         reference,
                     ));
@@ -7339,7 +7371,7 @@ pub(crate) mod result_contract {
                         } else {
                             CheckedScalarExpression::Parameter {
                                 position,
-                                primitive_type,
+                                scalar_type: primitive_type.into(),
                             }
                         },
                         reference,
@@ -7663,7 +7695,7 @@ pub(crate) mod result_contract {
                     observation: Default::default(),
                     root: checked_trees::CheckedStorageRoot::Parameter { index: position },
                     path,
-                    primitive_type,
+                    scalar_type: primitive_type.into(),
                 }
             };
             Some((value, reference))
@@ -8255,7 +8287,7 @@ pub(crate) mod result_contract {
                                         domain,
                                         CheckedScalarExpression::Parameter {
                                             position,
-                                            primitive_type,
+                                            scalar_type: primitive_type.into(),
                                         },
                                     )
                                 });
@@ -8354,7 +8386,7 @@ pub(crate) mod result_contract {
             constraint,
             CheckedScalarExpression::Parameter {
                 position,
-                primitive_type: program.primitive_type_reference(authored.type_reference)?,
+                scalar_type: (program.primitive_type_reference(authored.type_reference)?).into(),
             },
         )
     }
@@ -8394,7 +8426,7 @@ pub(crate) mod result_contract {
         };
         let subject = CheckedScalarExpression::Parameter {
             position,
-            primitive_type,
+            scalar_type: primitive_type.into(),
         };
         let predicate = CheckedBooleanExpression::And {
             left: Box::new(construct_integer_comparison(
@@ -8497,7 +8529,7 @@ pub(crate) mod scalar_lowering {
             expression: ExpressionHandle,
             parameters: &[StateParameter],
             authored_parameters: &[StateParameter],
-            parameter_types: &[PrimitiveType],
+            parameter_types: &[typed_trees::callable_values::ScalarValueType],
             locals: &[ScalarLocal],
             exact_integer_casts: &[validation::ExactIntegerCastFact],
         ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
@@ -8591,7 +8623,11 @@ pub(crate) mod scalar_lowering {
                     reference =
                         validation::field_domains::readable_type_reference(program, reference)?;
                 }
-                let primitive_type = program.primitive_type_reference(reference)?;
+                let scalar_type =
+                    typed_trees::callable_values::ScalarValueType::from_type_reference(
+                        program.typed_program(),
+                        reference,
+                    )?;
                 if path.is_empty() {
                     let parameter =
                         authored_parameters.get(usize::try_from(parameter_position).ok()?)?;
@@ -8600,7 +8636,7 @@ pub(crate) mod scalar_lowering {
                             program,
                             authored_parameters,
                             parameter.symbol,
-                            primitive_type,
+                            scalar_type.primitive()?,
                         );
                     }
                 } else if authored_parameters
@@ -8612,11 +8648,11 @@ pub(crate) mod scalar_lowering {
                         authored_parameters,
                         usize::try_from(parameter_position).ok()?,
                         &path,
-                        primitive_type,
+                        scalar_type.primitive()?,
                         reference,
                     );
                 }
-                let expression = if primitive_type == PrimitiveType::Bool {
+                let expression = if scalar_type.primitive() == Some(PrimitiveType::Bool) {
                     CheckedScalarExpression::Boolean(Box::new(
                         checked_trees::CheckedBooleanExpression::StructuralParameterField {
                             observation: expression,
@@ -8625,18 +8661,13 @@ pub(crate) mod scalar_lowering {
                         },
                     ))
                 } else {
-                    if !is_integer(primitive_type)
-                        && !matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64)
-                    {
-                        return None;
-                    }
                     CheckedScalarExpression::StructuralParameterField {
                         observation: expression,
                         root: checked_trees::CheckedStorageRoot::Parameter {
                             index: parameter_position,
                         },
                         path,
-                        primitive_type,
+                        scalar_type,
                     }
                 };
                 return Some((
@@ -8662,15 +8693,10 @@ pub(crate) mod scalar_lowering {
                 program,
                 projection.selected_type,
             )?;
-            let primitive_type = program.primitive_type_reference(readable_type)?;
-            if !is_integer(primitive_type)
-                && !matches!(
-                    primitive_type,
-                    PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
-                )
-            {
-                return None;
-            }
+            let scalar_type = typed_trees::callable_values::ScalarValueType::from_type_reference(
+                program.typed_program(),
+                readable_type,
+            )?;
             Some((
                 CheckedScalarExpression::StructuralParameterIndexedRead {
                     observation: expression,
@@ -8678,7 +8704,7 @@ pub(crate) mod scalar_lowering {
                     path,
                     index: Box::new(index),
                     element_path: segments.collect(),
-                    primitive_type,
+                    scalar_type,
                 },
                 program.arithmetic_domain_for_type_reference(projection.selected_type),
             ))
@@ -8804,7 +8830,7 @@ pub(crate) mod scalar_lowering {
             operand: ExpressionHandle,
             parameters: &[StateParameter],
             authored_parameters: &[StateParameter],
-            parameter_types: &[PrimitiveType],
+            parameter_types: &[typed_trees::callable_values::ScalarValueType],
             locals: &[ScalarLocal],
             exact_integer_casts: &[validation::ExactIntegerCastFact],
         ) -> Option<CheckedScalarExpression> {
@@ -8911,7 +8937,12 @@ pub(crate) mod scalar_lowering {
             let parameters = program.state_parameters(state);
             let parameter_types = parameters
                 .iter()
-                .map(|parameter| program.primitive_type_reference(parameter.type_reference))
+                .map(|parameter| {
+                    typed_trees::callable_values::ScalarValueType::from_type_reference(
+                        program.typed_program(),
+                        parameter.type_reference,
+                    )
+                })
                 .collect::<Option<Vec<_>>>()?;
             let statements = program.statement_table.statements(state.statement_nodes);
             let prefix = statements.get(..before_statement)?;
@@ -9025,7 +9056,7 @@ pub(crate) mod scalar_lowering {
                     _ => return None,
                 };
                 let bound = bind(&place, primitive)?;
-                if bound.primitive_type()? != primitive {
+                if bound.scalar_type()? != primitive {
                     return None;
                 }
                 *operand = bound.into();
@@ -9038,7 +9069,11 @@ pub(crate) mod scalar_lowering {
             program: &dyn ::validation::CheckingInput,
             state: &State,
             before_statement: usize,
-        ) -> Option<(Vec<StateParameter>, Vec<PrimitiveType>, Vec<ScalarLocal>)> {
+        ) -> Option<(
+            Vec<StateParameter>,
+            Vec<typed_trees::callable_values::ScalarValueType>,
+            Vec<ScalarLocal>,
+        )> {
             let (parameters, parameter_types) = crate::values::scalar::scalar_parameter_roster(
                 program,
                 program.state_parameters(state),
@@ -9050,7 +9085,11 @@ pub(crate) mod scalar_lowering {
                 let Some(local) = statement.as_local_data() else {
                     continue;
                 };
-                let Some(primitive_type) = program.primitive_type_reference(local.type_reference)
+                let Some(primitive_type) =
+                    typed_trees::callable_values::ScalarValueType::from_type_reference(
+                        program.typed_program(),
+                        local.type_reference,
+                    )
                 else {
                     if let Some(binding) = primitive_reference_read::local(program, local) {
                         locals.push(binding);
@@ -9103,7 +9142,7 @@ pub(crate) mod scalar_lowering {
             expression: ExpressionHandle,
             parameters: &[StateParameter],
             authored_parameters: &[StateParameter],
-            parameter_types: &[PrimitiveType],
+            parameter_types: &[typed_trees::callable_values::ScalarValueType],
             locals: &[ScalarLocal],
             exact_integer_casts: &[ExactIntegerCastFact],
         ) -> Option<CheckedScalarExpression> {
@@ -9133,7 +9172,7 @@ pub(crate) mod scalar_lowering {
             expression: ExpressionHandle,
             parameters: &[StateParameter],
             authored_parameters: &[StateParameter],
-            parameter_types: &[PrimitiveType],
+            parameter_types: &[typed_trees::callable_values::ScalarValueType],
             locals: &[ScalarLocal],
             result_type: PrimitiveType,
             exact_integer_casts: &[ExactIntegerCastFact],
@@ -9209,7 +9248,7 @@ pub(crate) mod scalar_lowering {
             binary: &TableBinaryExpression,
             parameters: &[StateParameter],
             authored_parameters: &[StateParameter],
-            parameter_types: &[PrimitiveType],
+            parameter_types: &[typed_trees::callable_values::ScalarValueType],
             locals: &[ScalarLocal],
             exact_integer_casts: &[ExactIntegerCastFact],
         ) -> Option<(
@@ -9263,7 +9302,7 @@ pub(crate) mod scalar_lowering {
             expression: ExpressionHandle,
             parameters: &[StateParameter],
             authored_parameters: &[StateParameter],
-            parameter_types: &[PrimitiveType],
+            parameter_types: &[typed_trees::callable_values::ScalarValueType],
             locals: &[ScalarLocal],
             exact_integer_casts: &[ExactIntegerCastFact],
         ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
@@ -9398,7 +9437,7 @@ pub(crate) mod scalar_lowering {
                             return Some((
                                 CheckedScalarExpression::StorageRead {
                                     symbol: parameter.symbol,
-                                    primitive_type,
+                                    scalar_type: primitive_type.into(),
                                 },
                                 program
                                     .arithmetic_domain_for_type_reference(parameter.type_reference),
@@ -9407,7 +9446,7 @@ pub(crate) mod scalar_lowering {
                         return Some((
                             CheckedScalarExpression::Parameter {
                                 position,
-                                primitive_type: parameter_types[position],
+                                scalar_type: (parameter_types[position]).into(),
                             },
                             program.arithmetic_domain_for_type_reference(
                                 parameters[position].type_reference,
@@ -9434,7 +9473,7 @@ pub(crate) mod scalar_lowering {
                         return Some((
                             CheckedScalarExpression::StorageRead {
                                 symbol: local.symbol,
-                                primitive_type: local.primitive_type,
+                                scalar_type: (local.scalar_type).into(),
                             },
                             local.arithmetic_domain,
                         ));
@@ -9448,7 +9487,7 @@ pub(crate) mod scalar_lowering {
                     Some((
                         CheckedScalarExpression::Local {
                             position,
-                            primitive_type: locals[local_position].primitive_type,
+                            scalar_type: (locals[local_position].scalar_type).into(),
                         },
                         locals[local_position].arithmetic_domain,
                     ))
@@ -9907,7 +9946,7 @@ pub(crate) mod scalar_lowering {
                 &read,
                 ScalarExpression::StructuralParameterIndexedRead {
                     element_path,
-                    primitive_type: PrimitiveType::U8,
+                    scalar_type: typed_trees::callable_values::ScalarValueType::Primitive(PrimitiveType::U8),
                     ..
                 } if element_path.is_empty()
             );
@@ -9990,7 +10029,7 @@ pub(crate) mod scalar_lowering {
             expression: ExpressionHandle,
             parameters: &[StateParameter],
             authored_parameters: &[StateParameter],
-            parameter_types: &[PrimitiveType],
+            parameter_types: &[typed_trees::callable_values::ScalarValueType],
             locals: &[ScalarLocal],
             exact_integer_casts: &[validation::ExactIntegerCastFact],
         ) -> Option<BooleanExpression> {
@@ -10039,7 +10078,6 @@ pub(crate) mod selected_operator_operands {
     };
     use typed_trees::expression::ExpressionHandle;
     use typed_trees::signature::StateParameter;
-    use typed_trees::types::PrimitiveType;
 
     /*
         One lowered scalar expression per scalar operand, beside the authored
@@ -10056,7 +10094,7 @@ pub(crate) mod selected_operator_operands {
         local: &typed_trees::statement::TableLocalData,
         parameters: &[StateParameter],
         authored_parameters: &[StateParameter],
-        parameter_types: &[PrimitiveType],
+        parameter_types: &[typed_trees::callable_values::ScalarValueType],
         locals: &[ScalarLocal],
         exact_integer_casts: &[validation::ExactIntegerCastFact],
     ) -> Vec<(ExpressionHandle, CheckedLocatedScalarExpression)> {

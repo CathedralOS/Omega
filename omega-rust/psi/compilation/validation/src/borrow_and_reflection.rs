@@ -3379,6 +3379,30 @@ pub mod borrow_contracts {
                 }],
             };
         }
+        resolve_structural_signature_view_return_source(program, signature, substitutions, scope_starts, argument_owner)
+    }
+
+    pub fn resolve_runtime_callable_view_return_source(
+        program: &dyn CheckingInput,
+        contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+        argument_owner: SymbolHandle,
+    ) -> ViewReturnSource {
+        if !program.runtime_callable_contracts.is_valid(contract) {
+            return ViewReturnSource::Ambiguous(ViewReturnAmbiguity::IncompleteStructure {
+                subject: "runtime callable contract".to_owned(),
+            });
+        }
+        let row = program.runtime_callable_contracts.get(contract);
+        resolve_structural_signature_view_return_source(program, &row.signature, &[], &[], argument_owner)
+    }
+
+    fn resolve_structural_signature_view_return_source(
+        program: &dyn CheckingInput,
+        signature: &typed_trees::signature::StateSignature,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+        scope_starts: &[usize],
+        argument_owner: SymbolHandle,
+    ) -> ViewReturnSource {
         if signature.lifetime_parameters.is_empty() {
             return resolve_substituted_view_return_source(
                 program,

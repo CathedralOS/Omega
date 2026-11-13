@@ -116,6 +116,7 @@ pub(crate) mod attached_unit {
             }
 
             pub(crate) struct SharedCatalog<'a> {
+                pub callables: &'a std::sync::Arc<crate::callable_catalog::PreparedCallables>,
                 pub scalar_applications:
                     &'a std::sync::Arc<super::super::scalar_applications::SourceScalarApplications>,
                 pub structural_types: &'a [StructuralTypeDeclaration],
@@ -169,6 +170,7 @@ pub(crate) mod attached_unit {
                 } = admitted;
                 let plan = &plan;
                 let mut catalogs = catalogs::ComposedCatalogs {
+                    callables: shared.callables,
                     scalar_applications: shared.scalar_applications,
                     cleanup_control: &checked.facts.flow.terminal_unit_effects.cleanup_control,
                     temporary_places: Vec::new(),
@@ -184,6 +186,7 @@ pub(crate) mod attached_unit {
                     dynamic_dispatch: Some(std::sync::Arc::clone(shared.dynamic_dispatch)),
                     service_ids: Cow::Borrowed(shared.service_ids),
                     scalar_calls: scalar_calls::ComposedScalarCalls::from_shared(
+                        &shared.callables.catalog,
                         identity,
                         shared.machine_ids.to_vec(),
                         shared.scalar_requirement_counts.to_vec(),
@@ -283,6 +286,7 @@ pub(crate) mod attached_unit {
             use std::borrow::Cow;
 
             pub(crate) struct ComposedCatalogs<'a> {
+                pub callables: &'a std::sync::Arc<crate::callable_catalog::PreparedCallables>,
                 pub(crate) scalar_applications:
                     &'a std::sync::Arc<super::super::scalar_applications::SourceScalarApplications>,
                 pub(crate) cleanup_control: &'a checked_trees::CheckedCleanupControlPlans,
@@ -963,7 +967,7 @@ pub(crate) mod attached_unit {
                     .map(|parameter| parameter.qualifications.clone())
                     .collect::<Vec<_>>();
                 let authored = crate::shared::call_sites::locate(checked, state, coordinate)?;
-                let signature = crate::shared::declarations::target_signature(
+                let signature = crate::shared::declarations::invocation_signature(
                     checked,
                     machine,
                     authored.source_target,
@@ -3392,7 +3396,10 @@ pub(crate) mod attached_unit {
                                     "Unit graph call arm result binding is absent",
                                 ))?;
                         if position + 1 != values.len()
-                            || value.scalar_type != terminal_scalar_type(binding.primitive_type)?
+                            || value.scalar_type
+                                != evaluation
+                                    .scalar_bindings
+                                    .scalar_type(binding.scalar_type)?
                         {
                             return unsupported(
                                 "Unit graph call arm result is not its call's binding",
@@ -3709,7 +3716,8 @@ pub(crate) mod attached_unit {
                                     &evaluation.structural_parameters,
                                     &self.catalogs.structural_types,
                                     &evaluation.place_observations,
-                                );
+                                )
+                                .with_callables(std::sync::Arc::clone(self.catalogs.callables));
                             evaluation.structural_fields =
                                 crate::expression_preparation::bindings::StructuralScalarFieldBinding::collect(
                                     &evaluation.structural_parameters,
@@ -6892,7 +6900,7 @@ pub(crate) mod attached_unit {
                 )?,
                 primitive_storage: Vec::new(),
                 parameter_storage: Vec::new(),
-                scalar_bindings: ScalarBindings::new(std::iter::empty()),
+                scalar_bindings: ScalarBindings::new(std::iter::empty()).with_callables(std::sync::Arc::clone(self.catalogs.callables)),
                 structural_fields: Default::default(),
                 structural_cases: Vec::new(),
                 previous_parameter_homes: Vec::new(),
@@ -6975,7 +6983,8 @@ pub(crate) mod attached_unit {
                                 &evaluation.structural_parameters,
                                 &self.catalogs.structural_types,
                                 &evaluation.place_observations,
-                            );
+                            )
+                            .with_callables(std::sync::Arc::clone(self.catalogs.callables));
                             super::super::super::super::primitive_locals::register_mut_formal_storage_homes(
                 &mut evaluation,
                 &parameter_storage,
@@ -9578,7 +9587,7 @@ pub(crate) mod attached_unit {
                         &checked.facts.proven_scalar_indexes,
                         &CheckedScalarExpression::Parameter {
                             position: index as usize,
-                            primitive_type: transfer.primitive_type,
+                            scalar_type: transfer.scalar_type,
                         },
                     )?,
                     checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression => {
@@ -9609,7 +9618,7 @@ pub(crate) mod attached_unit {
                                         )
                                     },
                                 )?;
-                        if value.scalar_type != terminal_scalar_type(transfer.primitive_type)? {
+                        if value.scalar_type != crate::emission::scalar_types::terminal_checked_scalar_type(checked, transfer.scalar_type)? {
                             return unsupported("Unit graph successor value has the wrong carrier");
                         }
                         arguments.push(value.id);
@@ -9617,7 +9626,10 @@ pub(crate) mod attached_unit {
                     }
                 };
                                 if expression.scalar_type()
-                                    != terminal_scalar_type(transfer.primitive_type)?
+                                    != crate::emission::scalar_types::terminal_checked_scalar_type(
+                                        checked,
+                                        transfer.scalar_type,
+                                    )?
                                     || direct_expression_contains_short_circuit(&expression)
                                 {
                                     return unsupported(
@@ -9734,11 +9746,11 @@ pub(crate) mod attached_unit {
                                 {
                                     scalar_slots.push((
                                         edge_values.len(),
-                                        terminal_scalar_type(formal.primitive_type)?,
+                                        crate::emission::scalar_types::terminal_checked_scalar_type(checked, formal.scalar_type)?,
                                     ));
                                     edge_values.push(ValueDeclaration {
                                         id: *argument,
-                                        scalar_type: terminal_scalar_type(formal.primitive_type)?,
+                                        scalar_type: crate::emission::scalar_types::terminal_checked_scalar_type(checked, formal.scalar_type)?,
                                         qualifications: Default::default(),
                                     });
                                 }
@@ -12088,8 +12100,12 @@ pub(crate) mod attached_unit {
                         });
                         if has_pure
                             || !computations.nodes.is_valid(root.root)
-                            || computations.nodes.get(root.root).primitive_type
-                                != argument.primitive_type
+                            || !computations
+                                .nodes
+                                .get(root.root)
+                                .scalar_type
+                                .same_type(checked, argument.scalar_type)
+                                .map_err(|reason| LoweringError::Unsupported(reason.reason()))?
                         {
                             return unsupported(
                                 "Unit graph successor computation disagrees with its argument",
@@ -12285,7 +12301,7 @@ pub(crate) mod attached_unit {
                                 .ok_or(LoweringError::Unsupported(
                                     "Unit graph payload field is missing",
                                 ))?;
-                                let scalar_type = terminal_scalar_type(payload.primitive_type)?;
+                                let scalar_type = crate::emission::scalar_types::terminal_checked_scalar_type(checked, payload.scalar_type)?;
                                 fields.push(field.id);
                                 values.push((
                                     payload.target_scalar_parameter_index,
@@ -13534,11 +13550,11 @@ pub(crate) mod attached_unit {
                 ) -> Result<TerminalMachineResult, LoweringError> {
                     let result = match plan {
                         CheckedControlResultPlan::Unit => return Ok(TerminalMachineResult::Unit),
-                        CheckedControlResultPlan::Scalar { primitive_type } => {
+                        CheckedControlResultPlan::Scalar { scalar_type } => {
                             let declared = crate::unit::attached_unit::parameters::unit_scalar_result_type(
                                 checked,
                                 entry_state,
-                                terminal_scalar_type(*primitive_type)?,
+                                crate::emission::scalar_types::terminal_checked_scalar_type(checked, *scalar_type)?,
                                 catalogs
                                     .prepared_scalar_qualifications
                                     .ok_or(LoweringError::Unsupported(

@@ -49,6 +49,7 @@ impl SelectedInstruction {
 pub enum SelectedCallTarget {
     Machine(MachineId),
     Dynamic { interface: u32, slot: u32 },
+    Callable { contract: semantic_vocabulary::CallableContractId },
 }
 
 impl SelectedCallTarget {
@@ -58,13 +59,24 @@ impl SelectedCallTarget {
             target_operations::NativeCallTarget::Dynamic {
                 interface, slot, ..
             } => Self::Dynamic { interface, slot },
+            target_operations::NativeCallTarget::Callable { contract, .. } => Self::Callable { contract },
         }
     }
 
     pub const fn machine(self) -> Option<MachineId> {
         match self {
             Self::Machine(machine) => Some(machine),
-            Self::Dynamic { .. } => None,
+            Self::Dynamic { .. } | Self::Callable { .. } => None,
+        }
+    }
+
+    /// Both indirect carriers point at code-address cells. A machine descriptor
+    /// has one target-owned cell; a legacy interface selects a cell by slot.
+    pub const fn indirect_code_offset(self) -> Option<u64> {
+        match self {
+            Self::Machine(_) => None,
+            Self::Dynamic { slot, .. } => Some(slot as u64 * 8),
+            Self::Callable { .. } => Some(0),
         }
     }
 
@@ -73,6 +85,10 @@ impl SelectedCallTarget {
             Self::Machine(machine) => {
                 bytes.push(0);
                 crate::codec_bytes::push_encoded(bytes, machine.get().to_le_bytes());
+            }
+            Self::Callable { contract } => {
+                bytes.push(2);
+                crate::codec_bytes::push_encoded(bytes, contract.get().to_le_bytes());
             }
             Self::Dynamic { interface, slot } => {
                 bytes.push(1);
@@ -99,11 +115,18 @@ pub enum SelectedImageAddressReference {
     ImplementationTable {
         table: u32,
     },
+    MachineDescriptor {
+        descriptor: semantic_vocabulary::MachineDescriptorId,
+    },
 }
 
 impl SelectedImageAddressReference {
     pub fn encode_identity(self, bytes: &mut Vec<u8>) {
         match self {
+            Self::MachineDescriptor { descriptor } => {
+                bytes.push(5);
+                crate::codec_bytes::push_encoded(bytes, descriptor.get().to_le_bytes());
+            }
             Self::PrivateFunction { identity } => {
                 bytes.push(4);
                 crate::codec_bytes::push_encoded(bytes, identity.to_bytes());

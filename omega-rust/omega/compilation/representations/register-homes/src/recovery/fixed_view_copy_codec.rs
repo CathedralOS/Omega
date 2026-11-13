@@ -1,6 +1,6 @@
 /*
 We encode and decode the self-authenticating `FixedViewCopyPlan` artifact
-(`OMGFCV\0\0`, version 98), binding the source selected-instruction, live-range,
+(`OMGFCV\0\0`, version 99), binding the source selected-instruction, live-range,
 and legality roots, the segment-home or legacy source evidence, the inserted
 fixed-view copies, and the authenticated transformed `SelectedInstructionPlan`
 payload.
@@ -52,9 +52,10 @@ use super::selected_blocks::{decode_block, encode_block};
 use super::structural_contracts::{decode_contracts, encode_contracts};
 
 const MAGIC: &[u8; 8] = b"OMGFCV\0\0";
-pub(super) const VERSION: u32 = 98;
+// Version 99 retains opaque callable carriers and exact descriptor references.
+pub(super) const VERSION: u32 = 99;
 pub(super) const ENVELOPE: Envelope = Envelope::new(MAGIC, VERSION);
-const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v58\0";
+const ENVELOPE_DOMAIN: &[u8] = b"omega-fixed-view-copy-envelope-v59\0";
 
 impl FixedViewCopyPlan {
     pub fn encode(&self) -> Result<Vec<u8>, CodecError> {
@@ -438,6 +439,10 @@ pub(super) fn decode_target(
 
 pub(super) fn encode_scalar(bytes: &mut Vec<u8>, scalar: ScalarType) {
     match scalar {
+        ScalarType::Callable(contract) => {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, contract.get().to_le_bytes());
+        }
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) => {
             bytes.push(1);
@@ -465,6 +470,10 @@ pub(super) fn decode_scalar(
     cursor: &mut Cursor<'_>,
 ) -> Result<ScalarType, FixedViewCopyDecodeError> {
     match cursor.byte()? {
+        3 => Ok(ScalarType::Callable(decode_id(
+            cursor,
+            semantic_vocabulary::CallableContractId::new,
+        )?)),
         0 => Ok(ScalarType::Boolean),
         1 => {
             let carrier = cursor.byte()?;

@@ -638,7 +638,7 @@ pub(crate) mod boundary_machine_plans {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub enum CheckedBoundaryMachineResultPlan {
         Unit,
-        Scalar(PrimitiveType),
+        Scalar(crate::CheckedScalarType),
         Structural {
             type_identity: TypeIdentityId,
             multiplicity: Multiplicity,
@@ -648,7 +648,7 @@ pub(crate) mod boundary_machine_plans {
     }
 
     impl CheckedBoundaryMachineResultPlan {
-        pub const fn scalar(&self) -> Option<PrimitiveType> {
+        pub const fn scalar(&self) -> Option<crate::CheckedScalarType> {
             match self {
                 Self::Scalar(scalar) => Some(*scalar),
                 Self::Unit | Self::Structural { .. } => None,
@@ -889,13 +889,13 @@ pub(crate) mod result_binding_plans {
     use language_semantics::Multiplicity;
     use symbols::SymbolHandle;
     use typed_trees::type_identity::TypeIdentityId;
-    use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
+    use typed_trees::types::TypeReferenceHandle;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedUnitScalarResultBindingPlan {
         pub statement_index: u32,
         pub binding_ordinal: u32,
-        pub primitive_type: PrimitiveType,
+        pub scalar_type: crate::CheckedScalarType,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -1189,7 +1189,6 @@ pub(crate) mod structural_argument_plans {
     use symbols::SymbolHandle;
     use typed_trees::expression::ExpressionHandle;
     use typed_trees::type_identity::TypeIdentityId;
-    use typed_trees::types::PrimitiveType;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, compiler_storage::Record)]
     pub enum CheckedReferenceStorage {
@@ -1258,7 +1257,7 @@ pub(crate) mod structural_argument_plans {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub struct CheckedStructuralScalarParameterPlan {
         pub source_position: u32,
-        pub primitive_type: PrimitiveType,
+        pub scalar_type: crate::CheckedScalarType,
     }
 
     impl CheckedCallScalarArgument {
@@ -1824,7 +1823,7 @@ pub(crate) mod structural_control_plans {
         pub argument_ordinal: u32,
         pub source: CheckedStructuralScalarArgumentSourcePlan,
         pub target_scalar_parameter_index: u32,
-        pub primitive_type: PrimitiveType,
+        pub scalar_type: crate::CheckedScalarType,
     }
 
     impl Default for CheckedStructuralScalarArgumentPlan {
@@ -1833,7 +1832,7 @@ pub(crate) mod structural_control_plans {
                 argument_ordinal: 0,
                 source: CheckedStructuralScalarArgumentSourcePlan::Expression,
                 target_scalar_parameter_index: 0,
-                primitive_type: PrimitiveType::Bool,
+                scalar_type: PrimitiveType::Bool.into(),
             }
         }
     }
@@ -2083,7 +2082,7 @@ pub(crate) mod structural_type_plans {
             foreign_descriptor: bool,
             abstract_referent: bool,
         },
-        PrimitiveScalar(typed_trees::types::PrimitiveType),
+        Scalar(crate::CheckedScalarType),
         ByteSequence(CheckedByteSequenceCarrier),
         Record {
             fields: Vec<CheckedUnitStructuralFieldPlan>,
@@ -2179,7 +2178,7 @@ pub(crate) mod structural_type_plans {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub enum CheckedUnitStructuralFieldType {
-        Scalar(PrimitiveType),
+        Scalar(crate::CheckedScalarType),
         Atomic(PrimitiveType),
         AtomicBoundedInteger(semantic_vocabulary::BoundedIntegerType),
         BoundedInteger(semantic_vocabulary::BoundedIntegerType),
@@ -2416,21 +2415,23 @@ pub(crate) mod structural_type_plans {
                     && matches!(
                         &field.field_type,
                         CheckedUnitStructuralFieldType::Scalar(
-                            PrimitiveType::Bool
-                                | PrimitiveType::I8
-                                | PrimitiveType::I16
-                                | PrimitiveType::I32
-                                | PrimitiveType::I64
-                                | PrimitiveType::U8
-                                | PrimitiveType::U16
-                                | PrimitiveType::U32
-                                | PrimitiveType::U64
-                                | PrimitiveType::Addr
+                            crate::CheckedScalarType::Primitive(
+                                PrimitiveType::Bool
+                                    | PrimitiveType::I8
+                                    | PrimitiveType::I16
+                                    | PrimitiveType::I32
+                                    | PrimitiveType::I64
+                                    | PrimitiveType::U8
+                                    | PrimitiveType::U16
+                                    | PrimitiveType::U32
+                                    | PrimitiveType::U64
+                                    | PrimitiveType::Addr
+                            )
                         )
                     )
             }),
             CheckedUnitStructuralTypeShape::Reference { .. }
-            | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+            | CheckedUnitStructuralTypeShape::Scalar(_)
             | CheckedUnitStructuralTypeShape::AtomicCell(_)
             | CheckedUnitStructuralTypeShape::ByteSequence(_)
             | CheckedUnitStructuralTypeShape::FixedArray { .. }
@@ -2455,7 +2456,7 @@ pub(crate) mod structural_type_plans {
                     carrier: CheckedByteSequenceCarrier::BoundedOwned { .. },
                     ..
                 }
-                | CheckedUnitStructuralFieldType::Scalar(
+                | CheckedUnitStructuralFieldType::Scalar(crate::CheckedScalarType::Primitive(
                     PrimitiveType::Bool
                         | PrimitiveType::I8
                         | PrimitiveType::I16
@@ -2468,7 +2469,7 @@ pub(crate) mod structural_type_plans {
                         | PrimitiveType::Addr
                         | PrimitiveType::F32
                         | PrimitiveType::F64
-                )
+                ))
         )
     }
 
@@ -2496,7 +2497,7 @@ pub(crate) mod structural_type_plans {
                 receiving_type_identity: counter_reader,
                 identity: CheckedMemberIdentity::of_spelling("operations"),
                 relevance: BindingRelevance::Relevant,
-                field_type: CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Selector),
+                field_type: CheckedUnitStructuralFieldType::Scalar(PrimitiveType::Selector.into()),
                 byte_sequence_type_identity: TypeIdentityId::default(),
                 storage: None,
                 qualification_carriers: Vec::new(),
@@ -2651,7 +2652,7 @@ pub use terminal_selections::{
 };
 pub use unit_call_plans::{
     CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
-    CheckedUnitCallTarget, CheckedUnitCallTransfers,
+    CheckedUnitCallTarget, CheckedUnitCallTargetSource, CheckedUnitCallTransfers,
 };
 pub use unit_effect_plans::{
     CheckedLayoutObservation, CheckedOperandSequence, CheckedScalarReturnCopies,

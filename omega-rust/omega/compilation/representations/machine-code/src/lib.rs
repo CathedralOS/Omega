@@ -298,6 +298,13 @@ pub mod image_addresses {
             }
         }
 
+        pub fn machine_descriptor(&self) -> Option<semantic_vocabulary::MachineDescriptorId> {
+            match self.reference {
+                selected_instructions::SelectedImageAddressReference::MachineDescriptor { descriptor } => Some(descriptor),
+                _ => None,
+            }
+        }
+
         pub fn encode_identity(&self, bytes: &mut Vec<u8>) {
             crate::codec_bytes::push_encoded(bytes, self.machine.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, self.block.0.to_le_bytes());

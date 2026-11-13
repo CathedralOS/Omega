@@ -253,6 +253,10 @@ pub(super) fn encode(
                     bytes.push(172);
                     crate::codec_bytes::push_encoded(bytes, table.to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::SelectMachine { descriptor } => {
+                    bytes.push(239);
+                    crate::codec_bytes::push_encoded(bytes, descriptor.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::FloatResultPolicy { format, policy } => {
                     bytes.push(170);
                     encode_scalar_type(bytes, semantic_vocabulary::ScalarType::IeeeFloat(*format));

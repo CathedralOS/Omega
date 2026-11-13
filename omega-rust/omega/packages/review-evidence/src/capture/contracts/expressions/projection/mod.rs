@@ -74,6 +74,24 @@ pub(crate) fn project_contract_expression_with_substitutions(
     };
     let node = compilation.expression_table.expression(expression);
     match node {
+        ExpressionNode::MachineValue(value) => {
+            if !compilation.original_checking_input.expression_table.expression_is_valid(expression)
+                || !matches!(compilation.original_checking_input.expression_table.expression(expression),
+                    ExpressionNode::MachineValue(original) if original == value) {
+                return Err(context.rejected("machine selection changed its original checked construction"));
+            }
+            let reference = typed_trees::operator::unconstrained_type_reference(&compilation.typed, value.type_reference)
+                .ok_or_else(|| context.rejected("machine selection lost its callable value type"))?;
+            let typed_trees::types::TypeReferenceNode::Callable { contract } = compilation.type_reference_table.type_reference(reference)
+                else { return Err(context.rejected("machine selection has no retained structural contract")); };
+            let canonical = compilation.runtime_callable_contract_identity(*contract, binders)
+                .map_err(|reason| context.rejected(format!("machine selection has no complete contract identity: {reason}")))?;
+            let selection = compilation.runtime_machine_value_identity(value, binders)
+                .map_err(|reason| context.rejected(format!("machine selection has no exact closed declaration identity: {reason}")))?;
+            Ok(PackageReviewContractExpression::MachineSelection {
+                contract: crate::record::PackageReviewTypeIdentity { canonical }, selection,
+            })
+        }
         ExpressionNode::TypeExpression(_) => Err(vec![Diagnostic::error(
             "a type operand is not a standalone contract value",
         )]),

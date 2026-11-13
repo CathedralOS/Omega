@@ -82,7 +82,12 @@ pub(crate) mod call_graph {
     use super::CallGraphAnalysis;
     use crate::cycles::strongly_connected_components;
 
-    pub(crate) fn call_graph(unit: &PsiOptimizationUnit) -> CallGraphAnalysis {
+    pub(crate) fn call_graph(
+        unit: &PsiOptimizationUnit,
+    ) -> Result<CallGraphAnalysis, &'static str> {
+        let callable_invocations =
+            optimization_unit_semantics::callable_values::optimized_callable_invocations(unit)?;
+        let mut unresolved_calls = Vec::new();
         let mut graph = unit
             .functions
             .iter()
@@ -97,7 +102,34 @@ pub(crate) mod call_graph {
                         .flat_map(|(_, actions)| actions)
                         .filter_map(|action| action.invoked_machine()),
                 );
-                callees.extend(unit.call_machine_references(operation));
+                for reference in unit.call_machine_references(operation) {
+                    match reference {
+                        optimization_unit::CallMachineReference::Declaration(machine) => {
+                            callees.push(machine)
+                        }
+                        optimization_unit::CallMachineReference::Callable { callee, contract } => {
+                            let operation = operation.psi_operation().ok_or(
+                                "call graph runtime invocation lost its operation identity",
+                            )?;
+                            let row = callable_invocations
+                                .as_ref()
+                                .map(|summary| summary.operation(function.machine, operation))
+                                .transpose()?
+                                .flatten();
+                            if let Some(row) = row {
+                                callees.extend(row.selected_machines.iter().copied());
+                            }
+                            if row.is_none_or(|row| !row.targets_are_resolved()) {
+                                unresolved_calls.push((
+                                    function.machine,
+                                    operation,
+                                    callee,
+                                    contract,
+                                ));
+                            }
+                        }
+                    }
+                }
             }
             callees.sort_unstable();
             callees.dedup();
@@ -113,11 +145,12 @@ pub(crate) mod call_graph {
             })
             .cloned()
             .collect();
-        CallGraphAnalysis {
+        Ok(CallGraphAnalysis {
             callees: graph.into_iter().collect(),
             components,
             recursive_components,
-        }
+            unresolved_calls,
+        })
     }
 }
 pub(crate) mod components {
@@ -541,4 +574,10 @@ pub(crate) struct CallGraphAnalysis {
     pub callees: Vec<(MachineId, Vec<MachineId>)>,
     pub components: Vec<Vec<MachineId>>,
     pub recursive_components: Vec<Vec<MachineId>>,
+    pub unresolved_calls: Vec<(
+        MachineId,
+        semantic_vocabulary::OperationId,
+        semantic_vocabulary::ValueId,
+        semantic_vocabulary::CallableContractId,
+    )>,
 }

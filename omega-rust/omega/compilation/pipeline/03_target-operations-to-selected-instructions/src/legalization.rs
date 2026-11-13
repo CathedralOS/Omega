@@ -19,6 +19,8 @@ pub(crate) mod model {
     pub(crate) struct ValidatedLegalizedOperations {
         pub(crate) plan: LegalizedOperationPlan,
         pub(crate) receipt: LegalizationValidationReceipt,
+        pub(crate) callable_invocations:
+            std::sync::Arc<terminal_semantics::callable_values::ReachableCallableInvocations>,
         pub(crate) installed_stack_requirements:
             Vec<installation_evidence::InstalledInterruptStackRequirement>,
         pub(crate) installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
@@ -44,6 +46,12 @@ pub(crate) mod model {
         ) -> &provider_admission::AdmittedInstalledInterruptCohort {
             &self.installed_interrupts
         }
+        pub(crate) fn callable_invocations(
+            &self,
+        ) -> &terminal_semantics::callable_values::ReachableCallableInvocations {
+            &self.callable_invocations
+        }
+
         pub const fn plan(&self) -> &LegalizedOperationPlan {
             &self.plan
         }
@@ -99,6 +107,9 @@ pub(crate) mod model {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum LegalizationError {
+        CallableValueProvenance {
+            reason: &'static str,
+        },
         InstalledInterruptAssociation {
             operation: Option<semantic_vocabulary::OperationId>,
             reason: &'static str,
@@ -407,6 +418,7 @@ pub(crate) fn legalize_target_operations(
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: target_operations::BoundaryOriginFacts<'_>,
+    callable_roots: &terminal_semantics::callable_values::CallableInvocationRoots,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
     installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
@@ -427,10 +439,20 @@ pub(crate) fn legalize_target_operations(
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
     };
+    let program = optimization_unit_semantics::callable_values::optimized_callable_values(unit)
+        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
+    let callable_invocations =
+        terminal_semantics::callable_values::reachable_callable_invocations_with_roots(
+            &program,
+            [target.entry],
+            callable_roots,
+        )
+        .map_err(|reason| LegalizationError::CallableValueProvenance { reason })?;
     Ok(seal(
         target,
         unit,
         plan,
+        std::sync::Arc::new(callable_invocations),
         installed_interrupts,
         installed_entry_execution,
         installed_stack_requirements,
@@ -441,6 +463,9 @@ pub(crate) fn seal(
     target: &TargetOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     plan: LegalizedOperationPlan,
+    callable_invocations: std::sync::Arc<
+        terminal_semantics::callable_values::ReachableCallableInvocations,
+    >,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
     installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
@@ -456,6 +481,7 @@ pub(crate) fn seal(
     ValidatedLegalizedOperations {
         plan,
         receipt,
+        callable_invocations,
         installed_interrupts: installed_interrupts.clone(),
         installed_entry_execution: installed_entry_execution.cloned(),
         installed_stack_requirements: installed_stack_requirements.to_vec(),

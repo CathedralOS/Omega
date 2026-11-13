@@ -157,6 +157,7 @@ impl TargetUnitScalarCallArgument {
 pub enum TargetStructuralResultContract {
     Machine(StructuralResultDeclaration),
     Requirement(BoundaryStructuralResultDeclaration),
+    Callable(BoundaryStructuralResultDeclaration),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -562,6 +562,9 @@ pub mod expression {
                 .map(|argument| render(*argument))
                 .collect::<Vec<_>>()
                 .join(", ");
+            if let Some(binding) = call.runtime_call {
+                return format!("{}({arguments})", render(binding.callee));
+            }
             if call.receiver.is_valid() {
                 format!("{}.{}({arguments})", render(call.receiver), call.target)
             } else {

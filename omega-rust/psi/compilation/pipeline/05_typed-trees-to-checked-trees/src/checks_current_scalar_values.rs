@@ -2714,11 +2714,14 @@ mod entry_fields {
                     }) {
                         continue;
                     }
+                    let Some(primitive) = field.scalar_type.primitive() else {
+                        continue;
+                    };
                     self.fields.push(ScalarField::for_owner(
                         parameter.symbol,
                         CapturedScalarField {
                             path,
-                            carrier: field.primitive_type,
+                            carrier: primitive,
                             value: entry_value(
                                 self.program,
                                 field.result_type_reference,
@@ -2731,7 +2734,7 @@ mod entry_fields {
                                         "state:{:?}:parameter:{:?}:field:{coordinate:?}",
                                         self.state.symbol, parameter.symbol
                                     ),
-                                    unsigned: super::unsigned(field.primitive_type),
+                                    unsigned: super::unsigned(primitive),
                                 },
                             ),
                         },
@@ -4380,8 +4383,8 @@ mod scalar_storage {
                             .scalar_storage_coordinate(self.program, self.state)
                             .is_some_and(|scalar| {
                                 scalar.preserves_scalar_value
-                                    && scalar.source_primitive == primitive
-                                    && scalar.view_primitive == primitive
+                                    && scalar.source_scalar_type.primitive() == Some(primitive)
+                                    && scalar.view_scalar_type.primitive() == Some(primitive)
                             })
                     {
                         return None;

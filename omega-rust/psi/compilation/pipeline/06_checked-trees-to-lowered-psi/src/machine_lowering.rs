@@ -233,7 +233,10 @@ pub(crate) mod boundary_applications {
                     expression,
                     origin: usage.origin,
                 },
-                source.source_target,
+                source
+                    .source_target
+                    .declaration()
+                    .ok_or("boundary operator call retained an indirect callable source")?,
                 operation_id,
             )?);
         }
@@ -529,10 +532,14 @@ pub(crate) mod callback_applications {
             if boundary_operations.binary_search(&operation).is_err() {
                 continue;
             }
+            let source_target = occurrence
+                .source_target
+                .declaration()
+                .ok_or("boundary registration retained an indirect callable source")?;
             let registration = authored_registration(checked, site).unwrap_or_else(|| {
                 checked
-                    .closed_requirement_application(occurrence.source_target)
-                    .map_or(occurrence.source_target, |application| application.template)
+                    .closed_requirement_application(source_target)
+                    .map_or(source_target, |application| application.template)
             });
             let key = source_key(site, registration);
             let first = requested.partition_point(|(candidate, _, _)| *candidate < key);
@@ -1987,6 +1994,7 @@ fn lower_terminal_selection(
     program_roots: crate::TerminalProgramRoots<'_>,
 ) -> Result<(LoweredPsi, LoweringCompletion), LoweringError> {
     let LoweredSelectedMachine {
+        mut next_call_obligation,
         terminal: mut lowered,
         completion,
         source_machine_ids,
@@ -2123,6 +2131,10 @@ fn lower_terminal_selection(
         Ok(())
     })()?;
     lower_and_install_evidence_artifacts(identities, checked, &source_machine_ids, &mut lowered)?;
+    crate::callable_catalog::finalize_descriptor_evidence(
+        &mut lowered.semantic_module,
+        &mut next_call_obligation,
+    )?;
     lowered.source_boundary_declarations = source_boundary_ids;
     lowered.source_machine_declarations = source_machine_ids;
     Ok((lowered, completion))

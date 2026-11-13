@@ -518,9 +518,9 @@ pub(crate) mod vocabulary {
         }
 
         pub const fn get(self) -> u16 {
-            // Explicit Id formation retains its checked mathematical signature
-            // and subject telescope independently of executable comparisons.
-            134
+            // Callable values carry their complete structural contract and exact
+            // named code selection independently of executable scalar terms.
+            135
         }
     }
 }

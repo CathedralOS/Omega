@@ -14724,8 +14724,7 @@ mod scalar_call {
         if physical.identity() != crate::canonical_aarch64_physical_register_model_identity() {
             return Err(Aarch64ScalarCallTemplateError::NonCanonicalPhysicalModel);
         }
-        let Some(selected_instructions::SelectedCallTarget::Dynamic { slot, .. }) =
-            kind.call_target()
+        let Some(offset) = kind.call_target().and_then(|target| target.indirect_code_offset())
         else {
             return Err(Aarch64ScalarCallTemplateError::InstructionKindMismatch);
         };
@@ -14763,7 +14762,7 @@ mod scalar_call {
         if *effects != expected {
             return Err(Aarch64ScalarCallTemplateError::EffectMismatch);
         }
-        let offset = u64::from(slot) * 8;
+
         let mut bytes = Vec::with_capacity(36);
         for half in 0..4 {
             let immediate = ((offset >> (half * 16)) & 0xffff) as u32;

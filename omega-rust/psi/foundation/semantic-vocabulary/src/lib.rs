@@ -1367,7 +1367,8 @@ pub use id_table::{IdSet, IdTable, IdTableBuildError, NonDenseIdentities};
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryMachineId, BoundaryRequirementKind,
     CallingAbiIdentity, CallingDeclarationOwner, CallingGenericFormal, CallingOperandKind,
-    CallingSignatureId, CallingStaticOperand, ClaimId, ContentDomainId, ContractId,
+    CallableContractId, CallingSignatureId, CallingStaticOperand, ClaimId, ContentDomainId, ContractId,
+    MachineDescriptorId,
     CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId,
     ExternalCompletionKind, InvocationSite, MachineId, ObligationId, OperationId,
     PackageKeyIdentity, PlaceId, ProfileDecisionId, PropositionId, PsiSemanticId,

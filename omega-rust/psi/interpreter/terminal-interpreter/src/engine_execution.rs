@@ -286,6 +286,11 @@ pub(crate) mod capabilities {
             .map(|declaration| (declaration.id, declaration))
             .collect::<std::collections::BTreeMap<_, _>>();
         let mut storage_roots = BTreeSet::new();
+        let callable_values = terminal_semantics::callable_values::terminal_callable_values(
+            program.catalogs.as_ref().as_ref(),
+        ).map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?;
+        let mut callable_roots = BTreeSet::from([entry]);
+        let mut callable_invocations = None;
         let mut pending = vec![entry];
         let mut visited = BTreeSet::new();
         while let Some(machine_id) = pending.pop() {
@@ -432,6 +437,34 @@ pub(crate) mod capabilities {
                                 },
                             ));
                         }
+                        OperationKind::CallMachine { .. } => {
+                            if callable_invocations.is_none() {
+                                callable_invocations = Some(
+                                    terminal_semantics::callable_values::reachable_callable_invocations(
+                                        &callable_values, callable_roots.iter().copied(),
+                                    ).map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?,
+                                );
+                            }
+                            let invocation = callable_invocations.as_ref()
+                                .ok_or_else(malformed)?
+                                .operation(machine_id, operation.id)
+                                .map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?
+                                .ok_or_else(malformed)?;
+                            let terminal_semantics::callable_values::ReachedCallableTarget::Callable(values) = &invocation.target else {
+                                return Err(malformed());
+                            };
+                            if !values.is_resolved() {
+                                return Err(TerminalInterpretError::ScalarApplicationEvaluation(
+                                    "execution capabilities require the actual callable inputs for this entry".into(),
+                                ));
+                            }
+                            for descriptor in &values.descriptors {
+                                let selected = program.catalogs.callables.descriptor(*descriptor)
+                                    .ok_or_else(malformed)?;
+                                pending.push(selected.machine);
+                            }
+                            None
+                        }
                         OperationKind::CallDynamic {
                             interface, slot, ..
                         } => {
@@ -447,7 +480,12 @@ pub(crate) mod capabilities {
                             for table in &catalog.tables {
                                 if table.interface == *interface {
                                     let row = table.rows.get(slot_index).ok_or_else(malformed)?;
-                                    pending.extend(*row);
+                                    if let Some(target) = row {
+                                        if callable_roots.insert(*target) {
+                                            callable_invocations = None;
+                                        }
+                                        pending.push(*target);
+                                    }
                                 }
                             }
                             None
@@ -471,6 +509,9 @@ pub(crate) mod capabilities {
                                     operation,
                                     program.verified_machine(member)?,
                                 )?;
+                                    if callable_roots.insert(member) {
+                                        callable_invocations = None;
+                                    }
                                     pending.push(member);
                                     continue;
                                 }
@@ -2443,10 +2484,15 @@ pub(crate) mod execution {
             &self,
             value: ValueId,
         ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-            self.values
-                .get(&value)
-                .copied()
-                .ok_or(TerminalInterpretError::VerifiedValueMissing(value))
+            let scalar = self.values.get(&value).copied()
+                .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
+            if let TerminalScalarValue::Callable { contract, descriptor } = scalar {
+                if self.program.catalogs.callables.contract(contract).is_none()
+                    || self.program.catalogs.callables.descriptor(descriptor).is_none_or(|selected| selected.contract != contract) {
+                    return Err(malformed());
+                }
+            }
+            Ok(scalar)
         }
 
         pub(crate) fn unsigned_integer_value(
@@ -2794,8 +2840,20 @@ pub(crate) mod execution {
                                         OperationKind::Call { .. } => {
                                             self.execute_call(operation, &program)?
                                         }
+                                        OperationKind::SelectMachine { descriptor } => {
+                                            let selected = program.catalogs.callables.descriptor(descriptor).ok_or_else(malformed)?;
+                                            let result = operation.result.scalar().ok_or_else(malformed)?;
+                                            if result.scalar_type != semantic_vocabulary::ScalarType::Callable(selected.contract)
+                                                || program.catalogs.callables.contract(selected.contract).is_none() {
+                                                return Err(malformed());
+                                            }
+                                            self.store_scalar(operation, TerminalScalarValue::Callable { contract: selected.contract, descriptor })?
+                                        }
                                         OperationKind::SelectImplementation { table } => {
                                             self.execute_select_implementation(operation, table, &program)?
+                                        }
+                                        OperationKind::CallMachine { .. } => {
+                                            self.execute_call_machine(operation, &program)?
                                         }
                                         OperationKind::CallDynamic { .. } => {
                                             self.execute_call_dynamic(operation, &program)?
@@ -3164,6 +3222,7 @@ pub(crate) mod scalar_operations {
                 let result = operation.result.expect_scalar();
                 let source = self.scalar_value(operand)?;
                 let (source_type, source_value) = match source {
+                    TerminalScalarValue::Callable { .. } => return Err(malformed()),
                     TerminalScalarValue::Boolean(value) => {
                         (ScalarType::Boolean, ScalarViewValue::Boolean(value))
                     }
@@ -3827,7 +3886,7 @@ pub(crate) mod scalar_operations {
 
     pub(crate) fn terminal_scalar_belongs_to_type(value: TerminalScalarValue) -> bool {
         match value {
-            TerminalScalarValue::Boolean(_) => true,
+            TerminalScalarValue::Callable { .. } | TerminalScalarValue::Boolean(_) => true,
             TerminalScalarValue::Integer { scalar_type, value } => scalar_type.admits(value),
             TerminalScalarValue::IeeeFloat(_) => true,
         }

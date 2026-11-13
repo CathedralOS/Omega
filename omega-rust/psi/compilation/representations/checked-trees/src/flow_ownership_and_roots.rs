@@ -1267,7 +1267,7 @@ pub(crate) mod ownership {
                         ..
                     } => {
                         callee
-                            .selector()
+                            .evaluated_callee()
                             .map_or(0, |selector| self.computation(selector))
                             + plans
                                 .operands
@@ -1389,7 +1389,8 @@ pub(crate) mod ownership {
                     | CheckedScalarComputationKind::ByteSequencePredicate { subject, .. } => {
                         self.argument_evaluation(subject)
                     }
-                    CheckedScalarComputationKind::RetainedConstant { .. }
+                    CheckedScalarComputationKind::MachineValue { .. }
+                    | CheckedScalarComputationKind::RetainedConstant { .. }
                     | CheckedScalarComputationKind::Value(_) => 0,
                 }
             }

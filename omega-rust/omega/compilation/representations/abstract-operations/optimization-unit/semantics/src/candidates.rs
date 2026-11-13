@@ -2544,6 +2544,7 @@ pub(crate) mod dead_scalar_elimination {
                 }
                 O::StorageAddress { .. }
                 | O::SelectImplementation { .. }
+                | O::SelectMachine { .. }
                 | O::EstablishPrimitiveLocal { .. }
                 | O::PrimitiveLocalStore { .. }
                 | abstract_operations::primitive_storage_observation_pattern!(..)
@@ -10316,6 +10317,7 @@ mod value_operand_rewrites {
             | O::GlobalDescriptorTable { .. }
             | O::PortWrite { .. }
             | O::SelectImplementation { .. }
+            | O::SelectMachine { .. }
             | abstract_operations::constant_value_triple_pattern!(..)
             | O::StorageAddress { .. }
             | abstract_operations::primitive_storage_observation_pattern!(..)

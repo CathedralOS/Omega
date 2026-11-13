@@ -22,6 +22,64 @@ use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+pub fn checked_runtime_call_contract<'program>(
+    program: &'program dyn CheckingInput,
+    facts: &CheckFacts,
+    call: &checked_trees::FlowCallFact,
+) -> Result<Option<&'program typed_trees::callable_values::RuntimeCallableContract>, &'static str> {
+    let Some(binding) = call.runtime_call else { return Ok(None); };
+    if call.target_symbol.is_valid() { return Err("runtime call retains a nominal flow target"); }
+    let control = &facts.flow.control;
+    let handle = control.calls.handle_of(call).ok_or("runtime call is not owned by the checked flow table")?;
+    let owners = control.call_owners(handle);
+    if owners.is_empty() { return Err("runtime call has no retained caller state"); }
+    let mut selected = None;
+    for owner in owners {
+        let site = crate::find_call_site(program, owner.machine_symbol, owner.state_symbol,
+            call.statement_index, call.call_ordinal).ok_or("runtime flow call lost its exact typed occurrence")?;
+        let Some(crate::CallContractSource::Runtime { binding: current, contract }) =
+            crate::call_contract_source(program, owner.machine_symbol, &site)?
+            else { return Err("runtime flow call changed its typed contract source"); };
+        let expression = match site { crate::CallSite::Expression { expression, .. } => expression, _ => Default::default() };
+        if current != binding || expression != call.authored_expression {
+            return Err("runtime flow call changed its callee, contract row, or source expression");
+        }
+        let arguments = crate::call_site_argument_expressions(program, &site);
+        let operands = control.operands.span(call.argument_operands())
+            .ok_or("runtime flow call lost its captured ordinary arguments")?;
+        let evaluated = control.operands.span(call.operands)
+            .ok_or("runtime flow call lost its evaluated callee")?;
+        if arguments.len() != program.state_signature_parameters(&contract.signature).len()
+            || !operands.iter().map(|operand| operand.expression).eq(arguments.iter().copied())
+            || evaluated.first().is_none_or(|callee| callee.expression != binding.callee)
+        { return Err("runtime flow call changed its exact callee-first argument correspondence"); }
+        selected = Some(contract);
+    }
+    Ok(selected)
+}
+
+fn occurrence_return_type(
+    program: &dyn CheckingInput,
+    facts: &CheckFacts,
+    call: &checked_trees::FlowCallFact,
+) -> Option<TypeReferenceHandle> {
+    match checked_runtime_call_contract(program, facts, call).ok()? {
+        Some(contract) => Some(contract.signature.return_type),
+        None => crate::call_target_return_type(program, call.target_symbol),
+    }
+}
+
+fn occurrence_parameters<'program>(
+    program: &'program dyn CheckingInput,
+    facts: &CheckFacts,
+    call: &checked_trees::FlowCallFact,
+) -> Option<&'program [typed_trees::signature::StateParameter]> {
+    match checked_runtime_call_contract(program, facts, call).ok()? {
+        Some(contract) => Some(program.state_signature_parameters(&contract.signature)),
+        None => crate::call_target_parameters(program, call.target_symbol),
+    }
+}
+
 pub(crate) mod stored_carrier_sources {
 
     use checked_trees::CheckedMemberIdentity;
@@ -397,7 +455,7 @@ pub(crate) mod call_reception {
         let statement_index = u32::try_from(occurrence.statement_index)
             .map_err(|_| "reference record call index exceeds u32")?;
         let expression = occurrence.authored_expression;
-        let return_type = crate::call_target_return_type(program, occurrence.target_symbol)
+        let return_type = super::occurrence_return_type(program, facts, occurrence)
             .ok_or("reference reception has no destination result contract")?;
         let flow = super::state_flow(facts, machine, state.symbol)
             .ok_or("reference reception has no unique caller flow")?;
@@ -1496,7 +1554,7 @@ pub(crate) mod captured_returns {
                 };
                 if incoming.state_symbol != state.symbol
                     || incoming.machine_symbol != self.flow(state.symbol)?.machine_symbol
-                    || !matches!(self.program.expression_table.expression(expression), typed_trees::expression::ExpressionNode::Call(call) if crate::call_target_entry_symbol(self.program, crate::call_target_symbol(self.program, call)) == crate::call_target_entry_symbol(self.program, target))
+                    || !self.invocation_origin_is_current(state, expression, target)
                 {
                     return None;
                 }
@@ -2112,7 +2170,8 @@ pub(crate) mod captured_returns {
                 let call =
                     self.calls
                         .invocation(&self.facts.flow.control, state.symbol, invocation)?;
-                if !crate::call_target_has_checked_body_contract(self.program, call.target_symbol) {
+                let runtime = super::super::checked_runtime_call_contract(self.program, self.facts, call).ok()?;
+                if runtime.is_none() && !crate::call_target_has_checked_body_contract(self.program, call.target_symbol) {
                     return None;
                 }
                 let shell = crate::reference_shell(self.program, descriptor.type_reference)?;
@@ -2243,7 +2302,7 @@ pub(crate) mod captured_returns {
                     {
                         return Err("returned descriptor differs from its invocation occurrence");
                     }
-                    let declared = crate::call_target_return_type(self.program, call.target_symbol)
+                    let declared = super::super::occurrence_return_type(self.program, self.facts, call)
                         .ok_or("returned invocation has no result contract")?;
                     if self.program.normalized_type_identity(declared)
                         != self.program.normalized_type_identity(result_type)
@@ -2305,7 +2364,7 @@ pub(crate) mod captured_returns {
                         );
                     }
                     let parameters =
-                        crate::call_target_parameters(self.program, call.target_symbol)
+                        super::super::occurrence_parameters(self.program, self.facts, call)
                             .ok_or("returned invocation has no parameter roster")?;
                     let operands = control
                         .operands
@@ -2315,7 +2374,7 @@ pub(crate) mod captured_returns {
                         return Err("returned invocation changes its actual parameter roster");
                     }
                     let sources = self
-                        .target_sources(call.target_symbol, active)
+                        .call_sources(call, active)
                         .ok_or("returned invocation has no checked origin relation")?;
                     let mut output = Vec::new();
                     let mut captured_inputs = Vec::new();
@@ -2430,7 +2489,7 @@ pub(crate) mod captured_returns {
                 loans: &[checked_trees::BorrowReturnedLoanFact],
                 active: &mut Vec<SymbolHandle>,
             ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-                let relative = self.target_sources(call.target_symbol, active)?;
+                let relative = self.call_sources(call, active)?;
                 let leaves = self.reference_leaves(state)?;
                 if self.trace_return_state(state) {
                     eprintln!(
@@ -2444,7 +2503,7 @@ pub(crate) mod captured_returns {
                             .collect::<Vec<_>>()
                     );
                 }
-                let return_type = crate::call_target_return_type(self.program, call.target_symbol)?;
+                let return_type = super::super::occurrence_return_type(self.program, self.facts, call)?;
                 let target_leaves = super::super::record_carrier_sources(
                     self.program,
                     return_type,
@@ -2452,7 +2511,7 @@ pub(crate) mod captured_returns {
                         parameter_index: 0,
                     },
                 )?;
-                let parameters = crate::call_target_parameters(self.program, call.target_symbol)?;
+                let parameters = super::super::occurrence_parameters(self.program, self.facts, call)?;
                 let operands = self
                     .facts
                     .flow
@@ -2588,7 +2647,7 @@ pub(crate) mod captured_returns {
                             if incoming.state_symbol != state.symbol
                                 || !matches!(incoming.origin, checked_trees::IncomingReferenceOrigin::Invocation { expression, target }
                             if expression == call.authored_expression
-                                && crate::call_target_entry_symbol(self.program, target) == call.target_symbol)
+                                && self.invocation_origin_is_current(state, expression, target))
                                 || leaf.source.access.borrow_access_kind()? != loan.kind
                             {
                                 continue;
@@ -2664,7 +2723,7 @@ pub(crate) mod captured_returns {
                                     != facts::PlaceRoot::Expression(call.authored_expression)
                                 || !matches!(incoming.origin, checked_trees::IncomingReferenceOrigin::Invocation { expression, target }
                             if expression == call.authored_expression
-                                && crate::call_target_entry_symbol(self.program, target) == call.target_symbol)
+                                && self.invocation_origin_is_current(state, expression, target))
                                 || leaf.source.access.borrow_access_kind()? != loan.kind
                             {
                                 continue;
@@ -3218,8 +3277,8 @@ pub(crate) mod captured_returns {
                 call: &checked_trees::FlowCallFact,
                 active: &mut Vec<SymbolHandle>,
             ) -> Option<Vec<Vec<CheckedUnitStructuralPathSegment>>> {
-                let parameters = crate::call_target_parameters(self.program, call.target_symbol)?;
-                let sources = self.target_sources(call.target_symbol, active)?;
+                let parameters = super::super::occurrence_parameters(self.program, self.facts, call)?;
+                let sources = self.call_sources(call, active)?;
                 let operands = self
                     .facts
                     .flow
@@ -4292,6 +4351,26 @@ pub(crate) mod captured_returns {
     }
 
     impl<'capture> Captures<'capture> {
+        fn invocation_origin_is_current(
+            &self,
+            state: &State,
+            expression: ExpressionHandle,
+            nominal_target: SymbolHandle,
+        ) -> bool {
+            let Some(source) = self.program.expression_table.call_node(expression) else { return false; };
+            if let Some(binding) = source.runtime_call {
+                if nominal_target.is_valid() { return false; }
+                let Some(flow) = self.flow(state.symbol) else { return false; };
+                let Some(calls) = self.facts.flow.control.calls.span(flow.calls) else { return false; };
+                let mut matching = calls.iter().filter(|call| call.authored_expression == expression && call.runtime_call == Some(binding));
+                let Some(call) = matching.next() else { return false; };
+                return matching.next().is_none()
+                    && super::checked_runtime_call_contract(self.program, self.facts, call).is_ok_and(|contract| contract.is_some());
+            }
+            nominal_target.is_valid() && crate::call_target_entry_symbol(self.program, crate::call_target_symbol(self.program, source))
+                == crate::call_target_entry_symbol(self.program, nominal_target)
+        }
+
         fn trace_return_state(&self, state: &State) -> bool {
             if !crate::trace_flags::trace_completion() {
                 return false;
@@ -4306,6 +4385,19 @@ pub(crate) mod captured_returns {
             selected
                 .split(',')
                 .any(|selected| selected == "*" || selected == name)
+        }
+
+        fn call_sources(
+            &mut self,
+            call: &checked_trees::FlowCallFact,
+            active: &mut Vec<SymbolHandle>,
+        ) -> Option<Vec<CheckedReturnedReferencePlan>> {
+            match super::checked_runtime_call_contract(self.program, self.facts, call).ok()? {
+                Some(contract) => super::declared_returns::runtime_returned_sources(
+                    self.program, call.runtime_call?.contract, contract.lexical_owner,
+                ).ok(),
+                None => self.target_sources(call.target_symbol, active),
+            }
         }
 
         fn target_sources(
@@ -4581,6 +4673,10 @@ pub(crate) mod captured_returns {
             &mut self,
             call: &checked_trees::FlowCallFact,
         ) -> Option<Option<SymbolHandle>> {
+            if call.runtime_call.is_some() {
+                super::checked_runtime_call_contract(self.program, self.facts, call).ok()??;
+                return Some(None);
+            }
             if let Some(known) = self.calls.known_target(call.target_symbol) {
                 return known;
             }
@@ -4684,11 +4780,13 @@ pub(crate) mod captured_returns {
                         ) == Some(target))
                     && (!expression.is_valid() || {
                         expression_table(self.program).call_node(expression).is_some_and(|source| {
-                                crate::call_target_entry_symbol(
-                                    self.program,
-                                    crate::call_target_symbol(self.program, source),
-                                ) == call.target_symbol
-                                    && matches!(
+                                (if source.runtime_call.is_some() {
+                                    source.runtime_call == call.runtime_call
+                                        && super::checked_runtime_call_contract(self.program, self.facts, call).is_ok_and(|contract| contract.is_some())
+                                } else {
+                                    call.runtime_call.is_none() && crate::call_target_entry_symbol(self.program,
+                                        crate::call_target_symbol(self.program, source)) == call.target_symbol
+                                }) && matches!(
                                         crate::find_call_site_in_state(
                                             self.program, machine, state,
                                             statement_index, call.call_ordinal,
@@ -4905,7 +5003,7 @@ pub(crate) mod captured_returns {
                 {
                     if incoming.state_symbol != state.symbol
                         || loan.root != facts::PlaceRoot::Expression(expression)
-                        || !matches!(expression_table(self.program).expression(expression), typed_trees::expression::ExpressionNode::Call(call) if crate::call_target_symbol(self.program, call) == target)
+                        || !self.invocation_origin_is_current(state, expression, target)
                     {
                         return None;
                     }
@@ -6568,6 +6666,31 @@ pub(crate) mod declared_returns {
             return Ok(Vec::new());
         }
         let relation = resolve_signature_view_return_source(program, parameters, return_type);
+        returned_sources_with_relation(program, parameters, return_type, relation)
+    }
+
+    pub fn runtime_returned_sources(
+        program: &dyn crate::CheckingInput,
+        contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+        argument_owner: symbols::SymbolHandle,
+    ) -> Result<Vec<CheckedReturnedReferencePlan>, &'static str> {
+        if !program.runtime_callable_contracts.is_valid(contract) {
+            return Err("runtime reference result lost its exact contract row");
+        }
+        let row = program.runtime_callable_contract(contract);
+        if !crate::borrow_contracts::returns_borrow(program, row.signature.return_type) {
+            return Ok(Vec::new());
+        }
+        let relation = crate::borrow_contracts::resolve_runtime_callable_view_return_source(program, contract, argument_owner);
+        returned_sources_with_relation(program, program.state_signature_parameters(&row.signature), row.signature.return_type, relation)
+    }
+
+    fn returned_sources_with_relation(
+        program: &dyn crate::CheckingInput,
+        parameters: &[StateParameter],
+        return_type: TypeReferenceHandle,
+        relation: ViewReturnSource,
+    ) -> Result<Vec<CheckedReturnedReferencePlan>, &'static str> {
         let result_leaves = record_carrier_sources(
             program,
             return_type,
@@ -6957,7 +7080,7 @@ pub use captured_returns::call_sources as call_return_sources;
 pub use captured_returns::returned_sources as captured_return_sources;
 pub use captured_returns::{CapturedInvocationBorrowSource, invocation_borrow_sources};
 pub use declared_returns::{
-    installed_context_sources, returned_sources as declared_return_sources,
+    installed_context_sources, returned_sources as declared_return_sources, runtime_returned_sources as runtime_declared_return_sources,
 };
 pub use source_paths::{parameter_reference_origin_path, reference_origin_path};
 
@@ -9014,17 +9137,15 @@ fn active_record_loans(
 fn reference_record_call_sources<'program>(
     program: &'program dyn CheckingInput,
     facts: &CheckFacts,
-    target: SymbolHandle,
-) -> Option<(
-    &'program [typed_trees::signature::StateParameter],
-    Vec<checked_trees::CheckedReturnedReferencePlan>,
-)> {
-    let return_type = crate::call_target_return_type(program, target)?;
-    let parameters = crate::call_target_parameters(program, target)?;
-    if !is_reference_record(program, return_type) {
-        return None;
-    }
-    let sources = captured_returns::call_sources(program, facts, target)?;
+    call: &checked_trees::FlowCallFact,
+) -> Option<(&'program [typed_trees::signature::StateParameter], Vec<checked_trees::CheckedReturnedReferencePlan>)> {
+    let return_type = occurrence_return_type(program, facts, call)?;
+    let parameters = occurrence_parameters(program, facts, call)?;
+    if !is_reference_record(program, return_type) { return None; }
+    let sources = match checked_runtime_call_contract(program, facts, call).ok()? {
+        Some(contract) => runtime_declared_return_sources(program, call.runtime_call?.contract, contract.lexical_owner).ok()?,
+        None => captured_returns::call_sources(program, facts, call.target_symbol)?,
+    };
     Some((parameters, sources))
 }
 
@@ -9041,7 +9162,7 @@ pub fn transient_call_record_loans(
         return false;
     };
     let Some((parameters, sources)) =
-        reference_record_call_sources(program, facts, occurrence.target_symbol)
+        reference_record_call_sources(program, facts, occurrence)
     else {
         return false;
     };
@@ -9471,7 +9592,7 @@ pub fn result_loans(
             .statement_at(state, call.statement_index)
             .and_then(typed_trees::statement::StatementNode::as_local_data)
             .is_some_and(|local| local.initial_value == call.authored_expression)
-        && crate::call_target_return_type(program, call.target_symbol)
+        && occurrence_return_type(program, facts, call)
             .is_some_and(|return_type| crate::reference_shell(program, return_type).is_some())
     {
         return Some(arena::HandleSpan::empty());
@@ -9486,8 +9607,12 @@ pub fn result_loans(
                 && !call.authored_expression.is_valid()
                 && call.statement_index == result.statement_index as usize
                 && call.call_ordinal == 0
-                && crate::call_target_entry_symbol(program, authored.target_symbol)
-                    == call.target_symbol =>
+                && (if authored.runtime_call.is_some() {
+                    authored.runtime_call == call.runtime_call
+                        && checked_runtime_call_contract(program, facts, call).is_ok_and(|contract| contract.is_some())
+                } else {
+                    call.runtime_call.is_none() && crate::call_target_entry_symbol(program, authored.target_symbol) == call.target_symbol
+                }) =>
         {
             return Some(arena::HandleSpan::empty());
         }
@@ -9495,17 +9620,16 @@ pub fn result_loans(
     }
     if !call.authored_expression.is_valid()
         || call.statement_index != result.statement_index as usize
-        || crate::call_target_entry_symbol(
-            program,
-            crate::call_target_symbol(
-                program,
-                expression_table(program).call_node(call.authored_expression)?,
-            ),
-        ) != call.target_symbol
+        || if call.runtime_call.is_some() {
+            !checked_runtime_call_contract(program, facts, call).is_ok_and(|contract| contract.is_some())
+        } else {
+            crate::call_target_entry_symbol(program, crate::call_target_symbol(program,
+                expression_table(program).call_node(call.authored_expression)?)) != call.target_symbol
+        }
     {
         return None;
     }
-    let return_type = crate::call_target_return_type(program, call.target_symbol)?;
+    let return_type = occurrence_return_type(program, facts, call)?;
     let shell = crate::reference_shell(program, return_type)?;
     let expected_kind = checked_trees::BorrowAccessKind::from(shell.access);
     let borrowing = facts.borrow.unique_state_borrow(machine, state.symbol)?;

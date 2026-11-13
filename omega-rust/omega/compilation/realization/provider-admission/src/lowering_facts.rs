@@ -106,6 +106,100 @@ pub struct AdmittedLoweringFacts {
 }
 
 impl AdmittedLoweringFacts {
+    /// Retain private entry bindings at their real registrar operations. The call
+    /// graph activates these rows only when execution reaches the registrar.
+    pub fn callable_invocation_roots(
+        &self,
+        target: &target_operations::TargetOperationPlan,
+    ) -> Result<terminal_semantics::callable_values::CallableInvocationRoots, String> {
+        let module = self.module();
+        let mut roots = terminal_semantics::callable_values::CallableInvocationRoots::new();
+        for machine in &module.machines {
+            for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
+                if !matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::BoundaryCall { .. }
+                ) {
+                    continue;
+                }
+                let mut entries =
+                    terminal_semantics::callable_values::installed_interrupt_helper_roots(
+                        module,
+                        operation.id,
+                    )?
+                    .into_iter()
+                    .collect::<std::collections::BTreeSet<_>>();
+                entries.extend(
+                    self.native_callbacks()
+                        .callbacks()
+                        .iter()
+                        .filter(|callback| callback.terminal_operation == operation.id)
+                        .map(|callback| callback.entry().machine()),
+                );
+                entries.extend(
+                    self.installed_interrupts()
+                        .entries()
+                        .iter()
+                        .filter(|entry| entry.operation == operation.id)
+                        .map(|entry| entry.entry().machine()),
+                );
+                if !entries.is_empty() {
+                    roots.insert((machine.id, operation.id), entries);
+                }
+            }
+        }
+        // Target lowering retains the admitted selected body for each boundary
+        // invocation. Activate that body at this exact source operation, while its
+        // boundary inputs remain external inputs rather than invented actual facts.
+        for function in &target.functions {
+            for operation in function.graph.operations() {
+                let target_operations::TargetUnitOperation::Call {
+                    origin,
+                    psi_operation,
+                    target: target_operations::NativeCallTarget::Machine(callee),
+                    ..
+                } = operation
+                else {
+                    continue;
+                };
+                let boundary = match origin {
+                    target_operations::NativeCallOrigin::Authored => continue,
+                    target_operations::NativeCallOrigin::ProgramEntry { boundary, .. }
+                    | target_operations::NativeCallOrigin::TargetFamily { boundary, .. }
+                    | target_operations::NativeCallOrigin::InstalledProvider { boundary, .. } => {
+                        *boundary
+                    }
+                };
+                let owner = module
+                    .machine(function.machine)
+                    .ok_or("selected native boundary caller is absent from the retained module")?;
+                let mut sources = owner
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.operations)
+                    .filter(|source| source.id == *psi_operation);
+                let (Some(source), None) = (sources.next(), sources.next()) else {
+                    return Err(
+                        "selected native boundary call has no exact source occurrence".into(),
+                    );
+                };
+                if !matches!(source.kind, terminal_psi::OperationKind::BoundaryCall { boundary: found, .. } if found == boundary)
+                    || module.machine(*callee).is_none()
+                {
+                    return Err(
+                        "selected native boundary body does not rejoin its admitted source call"
+                            .into(),
+                    );
+                }
+                roots
+                    .entry((function.machine, *psi_operation))
+                    .or_default()
+                    .insert(*callee);
+            }
+        }
+        Ok(roots)
+    }
+
     pub const fn module(&self) -> &TerminalModule {
         &self.module
     }

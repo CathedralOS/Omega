@@ -4502,9 +4502,8 @@ pub mod types {
                 // This opaque lane transports code selection. The callable's
                 // contract still supplies type and authority; integer operations
                 // cannot manufacture a callable from this physical category.
-                TypeReferenceNode::Callable { .. } | TypeReferenceNode::DynamicTrait { .. } => {
-                    Some(PrimitiveType::Selector)
-                }
+                TypeReferenceNode::Callable { .. } => None,
+                TypeReferenceNode::DynamicTrait { .. } => Some(PrimitiveType::Selector),
                 TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Slice { .. }
                 | TypeReferenceNode::Generic { .. }

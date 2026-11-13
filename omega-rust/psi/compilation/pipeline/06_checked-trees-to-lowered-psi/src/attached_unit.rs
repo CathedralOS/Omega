@@ -109,7 +109,12 @@ pub(crate) mod inner {
                     .filter_map(CheckedUnitEffectOperationPlan::call)
                     .filter(|call| call.is_boundary())
                 {
-                    retain_unit_boundary(checked, plans, boundaries, call.target.machine)?;
+                    retain_unit_boundary(
+                        checked,
+                        plans,
+                        boundaries,
+                        crate::shared::call_sites::declared_machine(&call.target)?,
+                    )?;
                 }
             }
             Ok(())
@@ -261,7 +266,12 @@ pub(crate) mod inner {
                 let scalar_parameters = plan
                     .scalar_parameters
                     .iter()
-                    .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+                    .map(|parameter| {
+                        crate::emission::scalar_types::terminal_checked_scalar_type(
+                            checked,
+                            parameter.scalar_type,
+                        )
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 let requires = lower_requirements(
                     identities,
@@ -679,16 +689,42 @@ pub(crate) mod inner {
             structural_types: &[terminal_psi::StructuralTypeDeclaration],
             domain_ids: &[StructuralDomainBinding],
         ) -> Result<BoundaryMachineResult, LoweringError> {
+            let scalar_result = if matches!(result, CheckedBoundaryMachineResultPlan::Scalar(_)) {
+                let signature =
+                    crate::shared::declarations::target_signature(checked, source, source)?;
+                Some(signature_value_type(
+                    checked,
+                    scalar_qualifications,
+                    signature.return_type,
+                )?)
+            } else {
+                None
+            };
+            lower_public_result(
+                identities,
+                scalar_result,
+                result,
+                type_ids,
+                structural_types,
+                domain_ids,
+            )
+        }
+
+        pub(crate) fn lower_public_result(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            scalar_result: Option<semantic_vocabulary::QualifiedScalarType>,
+            result: &CheckedBoundaryMachineResultPlan,
+            type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
+            structural_types: &[StructuralTypeDeclaration],
+            domain_ids: &[StructuralDomainBinding],
+        ) -> Result<BoundaryMachineResult, LoweringError> {
             Ok(match result {
                 CheckedBoundaryMachineResultPlan::Unit => BoundaryMachineResult::Unit,
                 CheckedBoundaryMachineResultPlan::Scalar(_) => {
-                    let signature =
-                        crate::shared::declarations::target_signature(checked, source, source)?;
-                    BoundaryMachineResult::Scalar(signature_value_type(
-                        checked,
-                        scalar_qualifications,
-                        signature.return_type,
-                    )?)
+                    let qualified = scalar_result.ok_or(LoweringError::Unsupported(
+                        "scalar result lost its prepared qualification namespace",
+                    ))?;
+                    BoundaryMachineResult::Scalar(qualified)
                 }
                 CheckedBoundaryMachineResultPlan::Structural {
                     type_identity,
@@ -800,7 +836,7 @@ pub(crate) mod inner {
             checked_unit_call_closure_including, checked_unit_provider_candidates, unsupported,
         };
         use crate::expression_preparation::computation_graph::boundary_targets;
-        use crate::expression_preparation::computation_graph::call_targets;
+        use crate::expression_preparation::computation_graph::code_targets;
         use crate::expression_preparation::computation_graph::static_realization_targets;
         use crate::expression_preparation::computation_graph::structural_call_targets;
         use crate::expression_preparation::computation_graph::value_call_operations;
@@ -1000,7 +1036,7 @@ pub(crate) mod inner {
                 for machine_symbol in &source_machines {
                     let computed_structural_roots =
                         structural_call_targets(checked, *machine_symbol)?;
-                    for target in call_targets(checked, *machine_symbol)? {
+                    for target in code_targets(checked, *machine_symbol)? {
                         if computed_structural_roots.contains(&target) {
                             CheckedScalarCallee::find_for_unit_call(checked, target)?;
                             if !structural_scalar_roots.contains(&target) {
@@ -1040,7 +1076,8 @@ pub(crate) mod inner {
                             .call()
                             .filter(|call| call.is_module() && call.scalar_result().is_some())
                         {
-                            let target_machine = call.target.machine;
+                            let target_machine =
+                                crate::shared::call_sites::declared_machine(&call.target)?;
                             if !ordinary_scalar_roots.contains(&target_machine) {
                                 ordinary_scalar_roots.push(target_machine);
                             }
@@ -1074,7 +1111,7 @@ pub(crate) mod inner {
                             .call()
                             .filter(|call| call.is_module() && call.scalar_result().is_none())
                         {
-                            let target = call.target.machine;
+                            let target = crate::shared::call_sites::declared_machine(&call.target)?;
                             if !closure.contains(&target) && !new_roots.contains(&target) {
                                 new_roots.push(target);
                             }
@@ -1434,11 +1471,11 @@ pub(crate) mod inner {
                 (
                     CheckedUnitCallRoute::Module { .. },
                     CheckedUnitCallResult::Unit | CheckedUnitCallResult::NoNormal,
-                ) => Some(call.target.machine),
+                ) => Some(call.target.declaration()?.0),
                 (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Structural { .. })
-                    if UnitBody::contains(plans, call.target.machine) =>
+                    if UnitBody::contains(plans, call.target.declaration()?.0) =>
                 {
-                    Some(call.target.machine)
+                    Some(call.target.declaration()?.0)
                 }
                 _ => None,
             }
@@ -1464,13 +1501,29 @@ pub(crate) mod inner {
             checked: &'checked CheckedTrees,
             call: &CheckedUnitCallPlan,
         ) -> Result<ParameterRoster<'checked>, LoweringError> {
+            if let Some(contract) = call.target.runtime_contract() {
+                let row = checked
+                    .facts
+                    .callable_contracts
+                    .contract_for_source(contract)
+                    .map_err(LoweringError::Unsupported)?;
+                let signature = row.signature().map_err(LoweringError::Unsupported)?;
+                return Ok(ParameterRoster {
+                    scalar: &signature.scalar_parameters,
+                    structural: &signature.structural_parameters,
+                });
+            }
+            let (target_machine, target_state) =
+                call.target.declaration().ok_or(LoweringError::Unsupported(
+                    "call parameter roster has no declaration or runtime contract source",
+                ))?;
             let plans = UnitPlans::published(&checked.facts.flow);
             let (state, scalar, structural) = if call.dynamic_selector().is_some() {
                 let target = flow_facts(checked)
                     .terminal_unit_effects
                     .dynamic_slots
                     .iter()
-                    .find(|target| target.slot == call.target.machine)
+                    .find(|target| target.slot == target_machine)
                     .ok_or(LoweringError::Unsupported(
                         "call parameter roster names no checked dynamic slot",
                     ))?;
@@ -1485,14 +1538,14 @@ pub(crate) mod inner {
                     checked_trees::CheckedUnitCallRoute::ActivationStorage { .. }
                 )
             {
-                let target = unique_unit_boundary(plans, call.target.machine)?;
+                let target = unique_unit_boundary(plans, target_machine)?;
                 (
                     target.state,
                     target.scalar_parameters.as_slice(),
                     target.structural_parameters.as_slice(),
                 )
             } else if matches!(call.result(), CheckedUnitCallResult::Scalar(_)) {
-                let target = CheckedScalarCallee::find_for_unit_call(checked, call.target.machine)?
+                let target = CheckedScalarCallee::find_for_unit_call(checked, target_machine)?
                     .body()
                     .entry()?;
                 (
@@ -1501,12 +1554,12 @@ pub(crate) mod inner {
                     target.structural_parameters,
                 )
             } else {
-                let name = checked.symbols.display_path(call.target.machine, "::");
-                let target = UnitBody::find(plans, call.target.machine)
+                let name = checked.symbols.display_path(target_machine, "::");
+                let target = UnitBody::find(plans, target_machine)
                     .map_err(crate::shared::lowering_error::unit_machine_plan_error(
                         checked,
                         &name,
-                        call.target.machine,
+                        target_machine,
                     ))?
                     .entry()?;
                 (
@@ -1515,7 +1568,7 @@ pub(crate) mod inner {
                     target.structural_parameters,
                 )
             };
-            if state != call.target.state {
+            if state != target_state {
                 return unsupported("call parameter roster belongs to another entry state");
             }
             Ok(ParameterRoster { scalar, structural })
@@ -1534,7 +1587,8 @@ pub(crate) mod inner {
             signature: &crate::shared::declarations::TargetSignature<'_>,
         ) -> Result<Vec<usize>, LoweringError> {
             let parameters = parameter_roster(checked, call)?.scalar;
-            if parameters.len() != call.scalar_operands().len() {
+            let callee_prefix = usize::from(call.target.runtime_contract().is_some());
+            if parameters.len() + callee_prefix != call.scalar_operands().len() {
                 return unsupported("call scalar arguments disagree with the retained formals");
             }
             let mut positions = Vec::with_capacity(parameters.len());
@@ -1545,9 +1599,17 @@ pub(crate) mod inner {
                         "retained scalar formal has no authored position",
                     ))? as usize;
                 let authored = &signature.parameters[position];
+                let scalar_matches = match checked_trees::CheckedScalarType::from_type_reference(
+                    &checked.typed,
+                    authored.type_reference,
+                ) {
+                    Some(scalar) => scalar
+                        .same_type(&checked.typed, retained.scalar_type)
+                        .map_err(LoweringError::InvalidDeclarationIdentity)?,
+                    None => false,
+                };
                 if authored.relevance.is_erased()
-                    || checked.primitive_type_reference(authored.type_reference)
-                        != Some(retained.primitive_type)
+                    || !scalar_matches
                     || positions
                         .last()
                         .is_some_and(|previous| *previous >= position)
@@ -1579,9 +1641,11 @@ pub(crate) mod inner {
                     ))?;
                 let authored = &signature.parameters[position as usize];
                 if authored.relevance.is_erased()
-                    || checked
-                        .primitive_type_reference(authored.type_reference)
-                        .is_some()
+                    || checked_trees::CheckedScalarType::from_type_reference(
+                        &checked.typed,
+                        authored.type_reference,
+                    )
+                    .is_some()
                     || positions
                         .last()
                         .is_some_and(|previous| *previous >= position)
@@ -1611,7 +1675,7 @@ pub(crate) mod inner {
             claims: Vec<PreparedResultClaim>,
             domains: Vec<language_semantics::SemanticDomainId>,
             projected: Vec<checked_trees::CheckedStructuralPathQualification>,
-            issuer: symbols::SymbolHandle,
+            issuer: Option<symbols::SymbolHandle>,
         }
 
         pub(crate) fn module_result_qualification_domains(
@@ -1622,10 +1686,11 @@ pub(crate) mod inner {
                 .structural_custody()
                 .map(|custody| custody.result_qualifications.clone())
                 .unwrap_or_default();
-            if let checked_trees::CheckedUnitCallRoute::Module { .. } = call.route() {
+            if let checked_trees::CheckedUnitCallRoute::Module { .. } = call.route()
+                && let Some((machine, _)) = call.target.declaration()
+            {
                 domains.append(&mut super::parameters::authored_result_whole_domains(
-                    checked,
-                    call.target.machine,
+                    checked, machine,
                 ));
             }
             domains.sort_by_key(|domain| domain.0);
@@ -1647,14 +1712,29 @@ pub(crate) mod inner {
                 return unsupported("structural call result has no checked receiving custody");
             };
             let plans = &checked.facts.flow.terminal_unit_effects;
+            let declaration = call.target.declaration();
             let public_result = match call.route() {
+                checked_trees::CheckedUnitCallRoute::Runtime { contract, .. } => Some(
+                    &checked
+                        .facts
+                        .callable_contracts
+                        .contract_for_source(*contract)
+                        .map_err(LoweringError::Unsupported)?
+                        .signature()
+                        .map_err(LoweringError::Unsupported)?
+                        .result,
+                ),
                 checked_trees::CheckedUnitCallRoute::Module { .. }
                 | checked_trees::CheckedUnitCallRoute::ActivationStorage { .. }
                 | checked_trees::CheckedUnitCallRoute::DescriptorTable { .. } => None,
                 checked_trees::CheckedUnitCallRoute::Boundary => Some(
                     &super::call_closure::unique_unit_boundary(
                         super::bodies::UnitPlans::published(&checked.facts.flow),
-                        call.target.machine,
+                        declaration
+                            .ok_or(LoweringError::Unsupported(
+                                "boundary result lost its declaration",
+                            ))?
+                            .0,
                     )?
                     .result,
                 ),
@@ -1662,7 +1742,7 @@ pub(crate) mod inner {
                     &plans
                         .dynamic_slots
                         .iter()
-                        .find(|slot| slot.slot == call.target.machine)
+                        .find(|slot| Some(slot.slot) == declaration.map(|(machine, _)| machine))
                         .ok_or(LoweringError::Unsupported(
                             "structural result names an unpublished dynamic slot",
                         ))?
@@ -1686,19 +1766,25 @@ pub(crate) mod inner {
                 (
                     qualifications.clone(),
                     projected_qualifications.clone(),
-                    call.target.machine,
+                    declaration.map(|(machine, _)| machine),
                 )
             } else {
-                let (_, state) =
-                    crate::shared::declarations::state_declaration(checked, call.target.state)?;
+                let (machine, state) = declaration.ok_or(LoweringError::Unsupported(
+                    "module result lost its declaration",
+                ))?;
+                let (_, state) = crate::shared::declarations::state_declaration(checked, state)?;
                 (
                     module_result_qualification_domains(checked, call),
                     super::parameters::result_projected_qualifications(
                         checked,
-                        call.target.machine,
+                        declaration
+                            .ok_or(LoweringError::Unsupported(
+                                "boundary result lost its declaration",
+                            ))?
+                            .0,
                         state.return_type,
                     )?,
-                    symbols::SymbolHandle::default(),
+                    None,
                 )
             };
             Ok(Prepared {
@@ -1760,14 +1846,14 @@ pub(crate) mod inner {
                     claims,
                 )?;
                 value.claims.sort();
-                if self.issuer.is_valid() {
+                if let Some(issuer) = self.issuer {
                     value.qualification_establishments =
                         super::catalog::call_result_qualification_establishments(
                             identities,
                             checked,
                             state,
                             coordinate,
-                            self.issuer,
+                            issuer,
                             &self.domains,
                             domain_ids,
                         )?;
@@ -3216,6 +3302,13 @@ pub(crate) mod inner {
             LoweringError,
         > {
             let mut roots = additional_roots.to_vec();
+            for row in checked.facts.callable_contracts.contracts() {
+                roots.extend(
+                    row.signature()
+                        .map_err(LoweringError::Unsupported)?
+                        .structural_type_roots(),
+                );
+            }
             for signature in plans.calling_signatures() {
                 if let Ok(storage) = &signature.storage {
                     roots.extend(storage.type_roots());
@@ -3294,9 +3387,15 @@ pub(crate) mod inner {
                                 checked_trees::CheckedUnitCallRoute::Module { .. },
                                 checked_trees::CheckedUnitCallResult::Structural { .. },
                             ) = (call.route(), call.result())
-                                && UnitBody::contains(plans, call.target.machine) =>
+                                && UnitBody::contains(
+                                    plans,
+                                    crate::shared::call_sites::declared_machine(&call.target)?,
+                                ) =>
                         {
-                            let target = UnitBody::find(plans, call.target.machine)?;
+                            let target = UnitBody::find(
+                                plans,
+                                crate::shared::call_sites::declared_machine(&call.target)?,
+                            )?;
                             let checked_trees::CheckedControlResultPlan::Structural(signature) =
                                 target.result()?
                             else {
@@ -3569,7 +3668,7 @@ pub(crate) mod inner {
                         active,
                         selected,
                     )?,
-                    CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+                    CheckedUnitStructuralTypeShape::Scalar(_)
                     | CheckedUnitStructuralTypeShape::AtomicCell(_) => {}
                     CheckedUnitStructuralTypeShape::BorrowedSliceView {
                         element_type_identity,
@@ -3721,8 +3820,12 @@ pub(crate) mod inner {
                             access,
                         }
                     }
-                    CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive) => {
-                        StructuralTypeShape::PrimitiveScalar(terminal_scalar_type(*primitive)?)
+                    CheckedUnitStructuralTypeShape::Scalar(scalar) => {
+                        StructuralTypeShape::PrimitiveScalar(
+                            crate::emission::scalar_types::terminal_checked_scalar_type(
+                                checked, *scalar,
+                            )?,
+                        )
                     }
                     CheckedUnitStructuralTypeShape::AtomicCell(cell) => {
                         StructuralTypeShape::AtomicCell(*cell)
@@ -3919,6 +4022,29 @@ pub(crate) mod inner {
             LoweringError,
         > {
             let mut selected = Vec::new();
+            for row in checked.facts.callable_contracts.contracts() {
+                let signature = row.signature().map_err(LoweringError::Unsupported)?;
+                for parameter in &signature.structural_parameters {
+                    selected.extend(parameter.qualifications.iter().copied());
+                    selected.extend(
+                        parameter
+                            .projected_qualifications
+                            .iter()
+                            .map(|row| row.domain),
+                    );
+                }
+                if let checked_trees::CheckedBoundaryMachineResultPlan::Structural {
+                    qualifications,
+                    projected_qualifications,
+                    ..
+                } = &signature.result
+                {
+                    selected.extend(qualifications.iter().copied());
+                    selected.extend(projected_qualifications.iter().map(|row| row.domain));
+                }
+            }
+            selected.sort();
+            selected.dedup();
             let sources = plans.source_machines(checked, closure)?;
             for (_, region) in checked.facts.flow.ownership.loan_completions.iter() {
                 if !sources.contains(&region.machine) {
@@ -4575,6 +4701,17 @@ pub(crate) mod inner {
         {
             let facts = &checked.facts.service_reaches;
             let mut selected = additional_roots.to_vec();
+            for row in checked.facts.callable_contracts.contracts() {
+                let signature = &checked.runtime_callable_contract(row.source).signature;
+                require_valid_service_row(signature.service_reach_row)?;
+                selected.extend(
+                    checked
+                        .service_reach_rows
+                        .services(signature.service_reach_row),
+                );
+            }
+            selected.sort();
+            selected.dedup();
             for symbol in closure {
                 let body = UnitBody::find(plans, *symbol)?;
                 if let Some(provider) = provider_candidates
@@ -6978,7 +7115,7 @@ pub(crate) mod inner {
                     operation
                         .call()
                         .filter(|call| call.is_boundary())
-                        .map(|call| call.target.machine)
+                        .and_then(|call| call.target.declaration().map(|(machine, _)| machine))
                 })
                 .chain(retained_requirements.iter().copied())
                 .collect::<Vec<_>>();
@@ -9206,24 +9343,29 @@ pub(crate) mod inner {
                     qualifications,
                     next_value,
                 )?;
-                let erased_scalar_parameters =
-                    lower_unit_scalar_parameter_types(plan.erased_scalar_parameters, true)?
-                        .into_iter()
-                        .map(|scalar_type| {
-                            Ok(ValueDeclaration {
-                                qualifications: Default::default(),
-                                id: value_id(allocate_dense(next_value)?),
-                                scalar_type,
-                            })
-                        })
-                        .collect::<Result<Vec<_>, LoweringError>>()?;
+                let erased_scalar_parameters = lower_unit_scalar_parameter_types(
+                    checked,
+                    plan.erased_scalar_parameters,
+                    true,
+                )?
+                .into_iter()
+                .map(|scalar_type| {
+                    Ok(ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: value_id(allocate_dense(next_value)?),
+                        scalar_type,
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
                 let scalar_result = body
                     .scalar_result_type()
                     .map(|primitive| {
                         super::parameters::unit_scalar_result_type(
                             checked,
                             plan.state,
-                            crate::emission::scalar_types::terminal_scalar_type(primitive)?,
+                            crate::emission::scalar_types::terminal_checked_scalar_type(
+                                checked, primitive,
+                            )?,
                             qualifications,
                         )
                     })
@@ -9887,14 +10029,14 @@ pub(crate) mod inner {
                 plans.for_machine(symbol).is_some() || plans.composed_for_machine(symbol).is_some()
             }
 
-            pub(crate) fn scalar_result_type(self) -> Option<checked_trees::types::PrimitiveType> {
+            pub(crate) fn scalar_result_type(self) -> Option<checked_trees::CheckedScalarType> {
                 let result = match self {
                     Self::Ordinary(plan) => &plan.result,
                     Self::Composed(plan) => &plan.result,
                 };
                 match result {
-                    checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => {
-                        Some(*primitive_type)
+                    checked_trees::CheckedControlResultPlan::Scalar { scalar_type } => {
+                        Some(*scalar_type)
                     }
                     _ => None,
                 }
@@ -10327,6 +10469,7 @@ pub(crate) mod inner {
 
         #[derive(Clone, Copy)]
         pub(crate) struct ClosureCatalog<'a> {
+            pub(crate) callables: &'a std::sync::Arc<crate::callable_catalog::PreparedCallables>,
             pub(crate) scalar_applications:
                 &'a std::sync::Arc<super::scalar_applications::SourceScalarApplications>,
             pub(crate) type_ids:
@@ -10527,6 +10670,7 @@ pub(crate) mod inner {
             counters: EmissionCounters<'_>,
         ) -> Result<EmittedMachine, LoweringError> {
             let ClosureCatalog {
+                callables,
                 scalar_applications,
                 type_ids,
                 domain_ids,
@@ -10639,6 +10783,7 @@ pub(crate) mod inner {
             let structural_result_places = Vec::<(Option<StructuralPlaceDeclaration>, bool)>::new();
             let mut evaluation = argument_evaluation::Evaluation::new(
                 &mut next_block,
+                std::sync::Arc::clone(callables),
                 std::sync::Arc::clone(scalar_applications),
             )?;
             evaluation.shared_qualifications = prepared_scalar_qualifications.clone();
@@ -10716,7 +10861,8 @@ pub(crate) mod inner {
                     &evaluation.structural_parameters,
                     structural_types,
                     &evaluation.place_observations,
-                );
+                )
+                .with_callables(std::sync::Arc::clone(callables));
             primitive_locals::register_mut_formal_storage_homes(
                 &mut evaluation,
                 &parameter_storage,
@@ -10772,6 +10918,7 @@ pub(crate) mod inner {
                 staged_structural_arguments: vec![Vec::new(); plan.operations.len()],
                 retained_scalar_prefix,
                 scalar_calls: CallEmissionContext {
+                    callables: &callables.catalog,
                     terminal_machine,
                     service_ids,
                     domain_ids,
@@ -10845,11 +10992,14 @@ pub(crate) mod inner {
             };
             let declared_result = match &plan.result {
                 checked_trees::CheckedControlResultPlan::Unit => TerminalMachineResult::Unit,
-                checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => {
+                checked_trees::CheckedControlResultPlan::Scalar { scalar_type } => {
                     let declared = super::parameters::unit_scalar_result_type(
                         checked,
                         plan.state,
-                        terminal_scalar_type(*primitive_type)?,
+                        crate::emission::scalar_types::terminal_checked_scalar_type(
+                            checked,
+                            *scalar_type,
+                        )?,
                         prepared_scalar_qualifications,
                     )?;
                     TerminalMachineResult::Scalar(ValueDeclaration {
@@ -11139,7 +11289,11 @@ pub(crate) mod inner {
                         let source = scalar_result_values.get(position).ok_or(
                             LoweringError::Unsupported("scalar completion binding is absent"),
                         )?;
-                        let scalar_type = terminal_scalar_type(result.primitive_type)?;
+                        let scalar_type =
+                            crate::emission::scalar_types::terminal_checked_scalar_type(
+                                checked,
+                                result.scalar_type,
+                            )?;
                         if source.scalar_type != scalar_type {
                             return unsupported(
                                 "scalar completion binding has a different carrier",
@@ -11660,7 +11814,7 @@ pub(crate) mod inner {
                 let Some(call) = operation.call() else {
                     continue;
                 };
-                let target_machine = call.target.machine;
+                let target_machine = crate::shared::call_sites::declared_machine(&call.target)?;
                 literal_arguments.extend(
                     call.structural_arguments
                         .iter()
@@ -12937,6 +13091,20 @@ pub(crate) mod inner {
             pub source_checked_requires: &'a [Proposition],
         }
 
+        pub(crate) enum InvocationCodeTarget {
+            Body(MachineId),
+            Runtime {
+                callee: semantic_vocabulary::ValueId,
+                contract: semantic_vocabulary::CallableContractId,
+            },
+        }
+
+        impl From<MachineId> for InvocationCodeTarget {
+            fn from(machine: MachineId) -> Self {
+                Self::Body(machine)
+            }
+        }
+
         impl ModuleInvocationArguments {
             #[allow(clippy::too_many_arguments)]
             pub(crate) fn emit(
@@ -12946,10 +13114,53 @@ pub(crate) mod inner {
                 coordinate: impl Into<SourceInvocation>,
                 record: crate::shared::direct_calls::CallRecord<'_>,
                 result: OperationResult,
-                callee: MachineId,
+                callee: impl Into<InvocationCodeTarget>,
                 result_kind: DirectCallResult,
             ) -> Result<semantic_vocabulary::OperationId, LoweringError> {
                 let coordinate = coordinate.into();
+                let callee = match callee.into() {
+                    InvocationCodeTarget::Body(machine) => machine,
+                    InvocationCodeTarget::Runtime { callee, contract } => {
+                        let source = coordinate.statement().ok_or(LoweringError::Unsupported(
+                            "runtime invocation has no retained statement coordinate",
+                        ))?;
+                        let (binding, source_site) =
+                            crate::shared::call_sites::checked_runtime_invocation(checked, source)?;
+                        let retained = checked
+                            .facts
+                            .callable_contracts
+                            .contract_for_source(binding.contract)
+                            .map_err(LoweringError::Unsupported)?;
+                        if retained.id != contract {
+                            return unsupported(
+                                "runtime invocation changed its retained contract identity",
+                            );
+                        }
+                        let operation = operations.allocate();
+                        match record {
+                            crate::shared::direct_calls::CallRecord::Frontier(frontier) =>
+                                operations.record_source_call(coordinate, source_site, operation, binding, frontier)?,
+                            crate::shared::direct_calls::CallRecord::Quotient(value) =>
+                                operations.quotient_calls.push(crate::emission::operation_emission::buffer::SourceQuotientCall { value, call: operation }),
+                        }
+                        operations.push(terminal_psi::Operation::unsuspended(
+                            operation,
+                            result,
+                            terminal_psi::OperationKind::CallMachine {
+                                callee,
+                                contract,
+                                arguments: self.arguments,
+                                erased_arguments: self.erased_arguments,
+                                erased_proof_arguments: self.erased_proof_arguments,
+                                structural_arguments: self.structural_arguments,
+                                claim_transfers: self.claim_transfers,
+                                requirement_obligations: self.requirement_obligations,
+                                crash_continuations: self.crash_continuations,
+                            },
+                        ));
+                        return Ok(operation);
+                    }
+                };
                 let (target, _, source_site) =
                     crate::shared::call_sites::checked_invocation(checked, coordinate)?;
                 crate::shared::direct_calls::emit_direct_call(
@@ -13006,7 +13217,7 @@ pub(crate) mod inner {
         ) -> Result<ModuleInvocationArguments, LoweringError> {
             let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
                 .call()
-                .filter(|call| call.is_module())
+                .filter(|call| call.is_module() || call.target.runtime_contract().is_some())
                 .and_then(|call| {
                     Some((
                         call,
@@ -13017,7 +13228,6 @@ pub(crate) mod inner {
             else {
                 return unsupported("ordinary call preparation has no call operation");
             };
-            let target_machine = &call.target.machine;
             let scalar_arguments = &call.scalar_arguments;
             let structural_arguments = &call.structural_arguments;
             let claim_transfers = call.claim_transfers();
@@ -13130,7 +13340,7 @@ pub(crate) mod inner {
                 &operations.loan_captures,
                 &operations.operations,
                 Target { ..target },
-                &crate::unit::effective_crash_routes(checked, *target_machine)?,
+                &checked_call_crash_routes(checked, state, call)?,
                 &terminal_scalar_values,
                 &erased_arguments,
                 &terminal_arguments,
@@ -13148,6 +13358,60 @@ pub(crate) mod inner {
                 requirement_obligations,
                 crash_continuations,
             })
+        }
+
+        pub(crate) fn checked_call_crash_routes(
+            checked: &CheckedTrees,
+            state: symbols::SymbolHandle,
+            call: &checked_trees::CheckedUnitCallPlan,
+        ) -> Result<Vec<checked_trees::CrashRouteBucket>, LoweringError> {
+            if let Some(contract) = call.target.runtime_contract() {
+                let coordinate = SourceCallCoordinate {
+                    state,
+                    statement_index: call.coordinate.statement_index as usize,
+                    call_ordinal: call.coordinate.call_ordinal as usize,
+                };
+                let (binding, _) =
+                    crate::shared::call_sites::checked_runtime_invocation(checked, coordinate)?;
+                if binding.contract != contract {
+                    return unsupported("runtime call plan changed its checked contract source");
+                }
+                let (owner, _) = crate::shared::declarations::state_declaration(checked, state)?;
+                let site = checked
+                    .facts
+                    .contract_plans
+                    .for_machine(owner.symbol)
+                    .and_then(|plan| {
+                        plan.crash.checked_call_at(
+                            state,
+                            call.coordinate.statement_index,
+                            call.coordinate.call_ordinal,
+                        )
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "runtime call plan lost its checked crash refinement",
+                    ))?;
+                site.runtime_callable_contract_identity(
+                    &checked.typed,
+                    &checked.facts.contract_plans,
+                    &checked.facts.proof,
+                    owner.symbol,
+                    binding,
+                )
+                .map_err(LoweringError::Unsupported)?;
+                return checked
+                    .facts
+                    .contract_plans
+                    .runtime_callable_crash_capsule(contract)
+                    .map(|capsule| capsule.published_buckets().to_vec())
+                    .ok_or(LoweringError::Unsupported(
+                        "runtime call plan lost its public crash capsule",
+                    ));
+            }
+            let (machine, _) = call.target.declaration().ok_or(LoweringError::Unsupported(
+                "ordinary call plan has no declaration or runtime contract",
+            ))?;
+            crate::unit::effective_crash_routes(checked, machine)
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -13188,6 +13452,49 @@ pub(crate) mod inner {
                     .map(|_| calls.allocate_requirement())
                     .collect::<Result<Vec<_>, _>>()?
             };
+            prepare_computed_invocation(
+                identities,
+                checked,
+                coordinate,
+                caller_types,
+                signature.map(|signature| signature.call_target()),
+                requirement_obligations,
+                arguments,
+                erased_arguments,
+                erased_proof_arguments,
+                structural_arguments,
+                claim_transfers,
+                crash_routes,
+                source_values,
+                caller_erased_formals,
+                calls,
+                next_value,
+                operations,
+                current_claims,
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)]
+        pub(crate) fn prepare_computed_invocation(
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            checked: &CheckedTrees,
+            coordinate: SourceInvocation,
+            caller_types: &crate::expression_preparation::bindings::PublishedStructuralTypes,
+            target: Option<Target<'_>>,
+            requirement_obligations: Vec<ObligationId>,
+            arguments: &[ValueDeclaration],
+            erased_arguments: Vec<semantic_vocabulary::ScalarTerm>,
+            erased_proof_arguments: &[crate::scalar_lowering::contracts::LoweredProofTerm],
+            structural_arguments: &[crate::emission::operation_emission::calls::PreparedStructuralArgument],
+            claim_transfers: &[crate::emission::claim_bindings::PreparedClaimTransfer],
+            crash_routes: &[checked_trees::CrashRouteBucket],
+            source_values: &[ValueDeclaration],
+            caller_erased_formals: &[ValueDeclaration],
+            calls: &mut CallEmissionContext<'_>,
+            next_value: &mut u64,
+            operations: &mut OperationBuffer,
+            current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
+        ) -> Result<ModuleInvocationArguments, LoweringError> {
             let erased_proof_arguments = erased_proof_arguments
                 .iter()
                 .map(|term| lowered_proof_term(checked, term, source_values, caller_erased_formals))
@@ -13197,14 +13504,14 @@ pub(crate) mod inner {
                 .map(|argument| argument.emit(source_values, calls, next_value, operations))
                 .collect::<Result<Vec<_>, _>>()?;
             let caller_types = caller_types.clone().with_completed(operations)?;
-            let crash_continuations = match signature {
-                Some(signature) => prepare_crash_continuations(
+            let crash_continuations = match target {
+                Some(target) => prepare_crash_continuations(
                     identities,
                     checked,
                     coordinate,
                     &operations.loan_captures,
                     &operations.operations,
-                    signature.call_target(),
+                    target,
                     crash_routes,
                     arguments,
                     &erased_arguments,
@@ -13283,13 +13590,25 @@ pub(crate) mod inner {
                 .scalar_parameters
                 .iter()
                 .zip(terminal_scalar_values)
-                .map(|(formal, actual)| {
+                .filter_map(|(formal, actual)| {
                     if formal.scalar_type != actual.scalar_type {
-                        return unsupported(
+                        return Some(unsupported(
                             "Unit call scalar requirement parameter type is inconsistent",
-                        );
+                        ));
                     }
-                    Ok((formal.id, ScalarTerm::value(actual.id, actual.scalar_type)))
+                    // Code values have storage identity but no mathematical scalar
+                    // meaning. Contract formation already refuses proof operands of
+                    // callable type; do not manufacture a proof literal for them.
+                    if matches!(
+                        formal.scalar_type,
+                        semantic_vocabulary::ScalarType::Callable(_)
+                    ) {
+                        return None;
+                    }
+                    Some(Ok((
+                        formal.id,
+                        ScalarTerm::value(actual.id, actual.scalar_type),
+                    )))
                 })
                 .collect::<Result<BTreeMap<_, _>, LoweringError>>()?;
             for (formal, actual) in target.erased_scalar_parameters.iter().zip(erased_arguments) {
@@ -13389,7 +13708,7 @@ pub(crate) mod inner {
             state: symbols::SymbolHandle,
             operation: &CheckedUnitEffectOperationPlan,
             prepared: ModuleInvocationArguments,
-            callee: MachineId,
+            callee: impl Into<InvocationCodeTarget>,
             type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
             structural_types: &[terminal_psi::StructuralTypeDeclaration],
             domain_ids: &[StructuralDomainBinding],
@@ -13401,7 +13720,7 @@ pub(crate) mod inner {
         ) -> Result<StructuralPlaceDeclaration, LoweringError> {
             let Some((call, result)) = operation
                 .call()
-                .filter(|call| call.is_module())
+                .filter(|call| call.is_module() || call.target.runtime_contract().is_some())
                 .and_then(|call| Some((call, call.structural_result()?)))
             else {
                 return unsupported("structural call emission requires an owned result call");
@@ -13873,7 +14192,7 @@ pub(crate) mod inner {
             qualifications: &crate::expression_preparation::qualifications::PreparedScalarQualifications,
             next_value: &mut u64,
         ) -> Result<Vec<ValueDeclaration>, LoweringError> {
-            let carriers = lower_unit_scalar_parameter_types(parameters, false)?;
+            let carriers = lower_unit_scalar_parameter_types(checked, parameters, false)?;
             let (_, declaration) = crate::shared::declarations::state_declaration(checked, state)?;
             let authored = checked.state_parameters(declaration);
             parameters
@@ -13892,8 +14211,10 @@ pub(crate) mod inner {
                         parameter.source_position,
                     )?;
                     if declared.scalar_type != carrier
-                        || checked.primitive_type_reference(authored.type_reference)
-                            != Some(parameter.primitive_type)
+                        || crate::emission::scalar_types::terminal_type_reference(
+                            checked,
+                            authored.type_reference,
+                        )? != carrier
                     {
                         return unsupported("Unit scalar formal has a different authored carrier");
                     }
@@ -13929,6 +14250,7 @@ pub(crate) mod inner {
             consecutive lanes share a position (`leaves_share_position`).
         */
         pub(crate) fn lower_unit_scalar_parameter_types(
+            checked: &CheckedTrees,
             parameters: &[checked_trees::CheckedStructuralScalarParameterPlan],
             leaves_share_position: bool,
         ) -> Result<Vec<ScalarType>, LoweringError> {
@@ -13941,7 +14263,12 @@ pub(crate) mod inner {
             }
             parameters
                 .iter()
-                .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+                .map(|parameter| {
+                    crate::emission::scalar_types::terminal_checked_scalar_type(
+                        checked,
+                        parameter.scalar_type,
+                    )
+                })
                 .collect()
         }
         pub(crate) fn lower_unit_parameters(
@@ -15172,20 +15499,19 @@ pub(crate) mod inner {
                         .filter(|parameter| {
                             !parameter.is_const
                                 && !parameter.relevance.is_erased()
-                                && checked
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_some()
+                                && checked_trees::CheckedScalarType::from_type_reference(
+                                    &checked.typed,
+                                    parameter.type_reference,
+                                )
+                                .is_some()
                         })
                         .nth(parameter_index as usize)
                         .ok_or(LoweringError::Unsupported(
                             "primitive reference ingress is absent",
                         ))?;
-                    let scalar_type = terminal_scalar_type(
-                        checked
-                            .primitive_type_reference(parameter.type_reference)
-                            .ok_or(LoweringError::Unsupported(
-                                "primitive reference ingress lost its carrier",
-                            ))?,
+                    let scalar_type = crate::emission::scalar_types::terminal_type_reference(
+                        checked,
+                        parameter.type_reference,
                     )?;
                     let position = self
                         .scalar_bindings
@@ -15274,13 +15600,17 @@ pub(crate) mod inner {
                 let Some(local) = locals.named(state_symbol, symbol) else {
                     return Ok(false);
                 };
-                let Some(primitive) = checked.primitive_type_reference(local.declared_type) else {
+                let Some(scalar) = checked_trees::CheckedScalarType::from_type_reference(
+                    &checked.typed,
+                    local.declared_type,
+                ) else {
                     return Ok(false);
                 };
                 if local.is_mutable {
                     return Ok(false);
                 }
-                let scalar_type = crate::emission::scalar_types::terminal_scalar_type(primitive)?;
+                let scalar_type =
+                    crate::emission::scalar_types::terminal_checked_scalar_type(checked, scalar)?;
                 let ordinal = locals.scalar_locals_before(state_symbol, local.statement_index);
                 let bindings = &self.scalar_bindings;
                 let position = bindings.immutable_local_value(ordinal as usize, scalar_type)?;
@@ -16758,7 +17088,7 @@ pub(crate) mod inner {
     }
 
     pub(crate) use bodies::{UnitBody, UnitPlans};
-    pub(crate) use boundaries::{lower_boundary_result, retain_unit_boundary};
+    pub(crate) use boundaries::{lower_boundary_result, lower_public_result, retain_unit_boundary};
     pub(crate) use parameters::{lower_declared_service_reach, lower_fixed_boundary_service_reach};
 
     pub(crate) use call_closure::{
@@ -17086,7 +17416,27 @@ pub(crate) mod inner {
         let mut machines = Vec::with_capacity(closure.len());
         let mut occurrences = ClosureOccurrences::default();
         let dynamic_dispatch = std::sync::Arc::new(DynamicDispatchIndex::new(checked));
+        let callables = std::sync::Arc::new(crate::callable_catalog::PreparedCallables::prepare(
+            identities,
+            &crate::callable_catalog::CallableCatalogContext {
+                checked,
+                scalar_applications: &scalar_applications,
+                qualifications: &qualifications,
+                type_ids: &type_ids,
+                structural_types: &structural_types,
+                domain_ids: &domain_ids,
+                service_ids: &service_ids,
+                machine_ids: &machine_ids,
+                sources: &call_catalog.source_machines,
+            },
+            &mut crate::callable_catalog::CallableNamespaceCounters {
+                value: &mut next_value,
+                place: &mut next_place,
+                obligation: &mut next_call_obligation,
+            },
+        )?);
         let catalog = ordinary_machine::ClosureCatalog {
+            callables: &callables,
             scalar_applications: &scalar_applications,
             type_ids: &type_ids,
             domain_ids: &domain_ids,
@@ -17137,6 +17487,7 @@ pub(crate) mod inner {
                         parameters.clone(),
                         scalar_parameters,
                         composed_control::callable::SharedCatalog {
+                            callables: &callables,
                             scalar_applications: &scalar_applications,
                             structural_types: &structural_types,
                             type_ids: &type_ids,
@@ -17361,6 +17712,7 @@ pub(crate) mod inner {
                 provider_candidates,
                 provider_instance_requirements,
                 dynamic_dispatch: Default::default(),
+                callables: callables.catalog.clone(),
                 quotients: quotient_catalog,
                 float_meaning_projections: Vec::new(),
                 float_meaning_equalities: Vec::new(),
@@ -17388,6 +17740,7 @@ pub(crate) mod inner {
         };
         crate::shared::producer_result::SourceMappedLowered::new(
             lowered,
+            next_call_obligation,
             machine_ids,
             lowered_boundary_parameters
                 .iter()

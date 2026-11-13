@@ -29,7 +29,7 @@ pub(crate) fn integer_parameters(
         .iter()
         .enumerate()
         .filter_map(|(parameter_index, parameter)| match parameter.scalar_type {
-            ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
+            ScalarType::Callable(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
             ScalarType::Integer(scalar_type) => Some(
                 u32::try_from(parameter_index)
                     .map(|parameter_index| {
@@ -78,16 +78,8 @@ pub(crate) fn prepare_function_signature(
     let scalar_parameter_shapes = function
         .parameters
         .iter()
-        .map(|parameter| match parameter.scalar_type {
-            ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
-            ScalarType::Integer(scalar_type) => fixed_native_integer_shape(scalar_type).ok_or(
-                LoweringError::UnitFunctionHasScalarParameters(function.machine),
-            ),
-            ScalarType::IeeeFloat(format) => Ok(ValueShape::float(match format {
-                IeeeFloatFormat::Binary32 => 4,
-                IeeeFloatFormat::Binary64 => 8,
-            })),
-        })
+        .map(|parameter| ValueShape::for_scalar(parameter.scalar_type)
+            .ok_or(LoweringError::UnitFunctionHasScalarParameters(function.machine)))
         .collect::<Result<Vec<_>, _>>()?;
     let signature = StructuralCallSignature::derive(
         &scalar_parameter_shapes,

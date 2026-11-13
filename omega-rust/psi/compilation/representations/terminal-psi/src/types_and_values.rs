@@ -1580,6 +1580,7 @@ pub mod values {
             () => {
                 Self::Call { .. }
                     | Self::SelectImplementation { .. }
+                    | Self::SelectMachine { .. }
                     | Self::PortWrite { .. }
                     | Self::RegisterAccess { .. }
                     | Self::IntegerConstant { .. }

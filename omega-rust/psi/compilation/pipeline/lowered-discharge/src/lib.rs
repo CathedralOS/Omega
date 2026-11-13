@@ -1805,3 +1805,37 @@ fn returned_for_result(clause: &Proposition, result: ValueId, value: ValueId) ->
         other => other.clone(),
     }
 }
+
+
+/// Build and replay a certificate for a closed contract implication. Callers
+/// provide declarations, never hypotheses from source checking. This is the
+/// same prover and kernel used for obligations at executable program points.
+pub fn derive_contract_obligation(
+    context: &PropositionContext,
+    obligation: ObligationId,
+    goal: &Proposition,
+    declarations: &[(ValueId, ScalarType)],
+) -> Result<CertificateEnvelope, &'static str> {
+    context.validate(goal).map_err(|_| "contract obligation escapes its formal namespace")?;
+    let values = IdTable::from_rows(declarations.iter().enumerate().map(|(position, (id, scalar_type))| {
+        let position = u32::try_from(position).map_err(|_| "contract formal count exceeds u32")?;
+        Ok((*id, terminal_check_tables::values::ValueRow {
+            scalar_type: *scalar_type,
+            origin: terminal_check_tables::values::ValueOrigin::MachineParameter { position },
+            selects: None,
+            rigid: None,
+        }))
+    }).collect::<Result<Vec<_>, &'static str>>()?)
+        .map_err(|_| "contract formal identities are not a complete dense namespace")?;
+    let proof = prove::Prover::new(context, &[], &[], &values, true).prove(goal)?;
+    let certificate = CertificateEnvelope {
+        identity: EvidenceIdentity::new(obligation.get()).ok_or("contract obligation identity is absent")?,
+        proof_system_marker: ProofSystemMarker::CURRENT,
+        proof,
+    };
+    verify_obligation(context,
+        &Obligation { id: obligation, proposition: goal.clone(), class: ObligationClass::Derivable },
+        &[], &[], EvidenceRoute::CertificateDerived(certificate.clone()))
+        .map_err(|_| "contract implication certificate was refused by the proof kernel")?;
+    Ok(certificate)
+}

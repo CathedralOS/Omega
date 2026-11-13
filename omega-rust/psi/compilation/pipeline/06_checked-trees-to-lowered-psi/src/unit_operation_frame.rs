@@ -101,7 +101,7 @@ pub(crate) mod attached_unit {
                                 call.coordinate,
                                 call.source_site(),
                                 id,
-                                call.target.machine,
+                                crate::shared::call_sites::declared_machine(&call.target)?,
                             )?;
                             self.operations.push(Operation::unsuspended(
                                 id,
@@ -617,7 +617,7 @@ pub(crate) mod attached_unit {
                                     call_ordinal: call.coordinate.call_ordinal as usize,
                                 }.into(),
                                 source_site: call.source_site(),
-                                target: call.target.machine,
+                                target: crate::shared::call_sites::declared_machine(&call.target)?,
                                 frontier: Default::default(),
                                 outcome: crate::emission::operation_emission::buffer::PendingInvocationOutcome::External {
                                     boundary: operands.boundary, kind,
@@ -634,7 +634,7 @@ pub(crate) mod attached_unit {
                         call.coordinate,
                         call.source_site(),
                         id,
-                        call.target.machine,
+                        crate::shared::call_sites::declared_machine(&call.target)?,
                     )?;
                     self.operations.push(Operation::unsuspended(
                         id,
@@ -650,12 +650,18 @@ pub(crate) mod attached_unit {
                     call: &checked_trees::CheckedUnitCallPlan,
                     inputs: &CallInputs<'_>,
                 ) -> Result<ValueDeclaration, LoweringError> {
-                    let target_machine = &call.target.machine;
+                    let target_machine =
+                        &crate::shared::call_sites::declared_machine(&call.target)?;
                     let target = unique_unit_boundary(self.callees.plans, *target_machine)?;
                     let argument_types = target
                         .scalar_parameters
                         .iter()
-                        .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+                        .map(|parameter| {
+                            crate::emission::scalar_types::terminal_checked_scalar_type(
+                                self.checked,
+                                parameter.scalar_type,
+                            )
+                        })
                         .collect::<Result<Vec<_>, _>>()?;
                     let operands = self.boundary_operands(identities, call, inputs)?;
                     let declared_result = self
@@ -717,7 +723,10 @@ pub(crate) mod attached_unit {
                     discard_result_on_return: bool,
                     inputs: &CallInputs<'_>,
                 ) -> Result<(), LoweringError> {
-                    let target = unique_unit_boundary(self.callees.plans, call.target.machine)?;
+                    let target = unique_unit_boundary(
+                        self.callees.plans,
+                        crate::shared::call_sites::declared_machine(&call.target)?,
+                    )?;
                     let shape = target.result.clone();
                     let operands = self.boundary_operands(identities, call, inputs)?;
                     self.emit_structural_call_result(
@@ -741,7 +750,8 @@ pub(crate) mod attached_unit {
                 {
                     let checked = self.checked;
                     let coordinate = &call.coordinate;
-                    let target_machine = &call.target.machine;
+                    let target_machine =
+                        &crate::shared::call_sites::declared_machine(&call.target)?;
                     let CheckedBoundaryMachineResultPlan::Structural { type_identity, .. } = shape
                     else {
                         return unsupported("call result signature is not structural");
@@ -777,7 +787,7 @@ pub(crate) mod attached_unit {
                     call: &checked_trees::CheckedUnitCallPlan,
                     inputs: &CallInputs<'_>,
                 ) -> Result<BoundaryOperands, LoweringError> {
-                    let target_machine = call.target.machine;
+                    let target_machine = crate::shared::call_sites::declared_machine(&call.target)?;
                     let scalar_arguments = &call.scalar_arguments;
                     let structural_arguments = &call.structural_arguments;
                     let completion_receipts = call.claim_transfers();
@@ -1034,6 +1044,7 @@ pub(crate) mod attached_unit {
                 CheckedUnitCallRoute, CheckedUnitStructuralArgumentPlan,
             };
 
+            #[derive(Clone, Copy)]
             pub(crate) struct CallInputs<'i> {
                 pub(crate) evaluated_scalar_arguments: Option<&'i [ValueDeclaration]>,
                 pub(crate) byte_places: &'i [PlaceId],
@@ -1080,6 +1091,9 @@ pub(crate) mod attached_unit {
                         )?;
                     }
                     match (call.route(), call.result()) {
+                        (CheckedUnitCallRoute::Runtime { .. }, _) => {
+                            self.runtime_call(identities, operation, call, &inputs)
+                        }
                         (
                             CheckedUnitCallRoute::DescriptorTable {
                                 operation,
@@ -1453,7 +1467,7 @@ pub(crate) mod attached_unit {
                     &mut self,
                     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
                     operation: &CheckedUnitEffectOperationPlan,
-                    machine: symbols::SymbolHandle,
+                    target: ordinary_calls::Target<'_>,
                     structural_arguments: &[CheckedUnitStructuralArgumentPlan],
                     inputs: &CallInputs<'_>,
                 ) -> Result<ModuleInvocationArguments, LoweringError> {
@@ -1478,7 +1492,7 @@ pub(crate) mod attached_unit {
                         &self.evaluation.scalar_applications,
                         self.state,
                         operation,
-                        signatures::find(self.callees.signatures, machine)?.call_target(),
+                        target,
                         inputs.evaluated_scalar_arguments,
                         inputs.evaluated_selectors,
                         inputs.completed_structural_arguments,
@@ -1501,6 +1515,142 @@ pub(crate) mod attached_unit {
                     )
                 }
 
+                fn runtime_call(
+                    &mut self,
+                    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+                    operation: &CheckedUnitEffectOperationPlan,
+                    call: &CheckedUnitCallPlan,
+                    inputs: &CallInputs<'_>,
+                ) -> Result<(), LoweringError> {
+                    let source =
+                        call.target
+                            .runtime_contract()
+                            .ok_or(LoweringError::Unsupported(
+                                "runtime call plan lost its contract source",
+                            ))?;
+                    let row = self
+                        .checked
+                        .facts
+                        .callable_contracts
+                        .contract_for_source(source)
+                        .map_err(LoweringError::Unsupported)?;
+                    let catalog = self.calls.callables;
+                    let contract = catalog.contract(row.id).ok_or(LoweringError::Unsupported(
+                        "runtime call plan has no prepared callable contract",
+                    ))?;
+                    let (callee, arguments) = inputs
+                        .evaluated_scalar_arguments
+                        .and_then(|operands| operands.split_first())
+                        .ok_or(LoweringError::Unsupported(
+                            "runtime call has no completed callee operand",
+                        ))?;
+                    if callee.scalar_type != semantic_vocabulary::ScalarType::Callable(contract.id)
+                    {
+                        return unsupported("runtime call operand changed its contract carrier");
+                    }
+                    let inputs = CallInputs {
+                        evaluated_scalar_arguments: Some(arguments),
+                        ..*inputs
+                    };
+                    let prepared = self.prepare_module_call(
+                        identities,
+                        operation,
+                        crate::emission::operation_emission::runtime_calls::target(contract),
+                        &call.structural_arguments,
+                        &inputs,
+                    )?;
+                    let code = ordinary_calls::InvocationCodeTarget::Runtime {
+                        callee: callee.id,
+                        contract: contract.id,
+                    };
+                    let (coordinate, frontier) = self.source_call_record(call.coordinate)?;
+                    match call.result() {
+                        CheckedUnitCallResult::Unit => {
+                            if !contract.result.is_unit() {
+                                return unsupported(
+                                    "runtime Unit call changed its declared result",
+                                );
+                            }
+                            prepared.emit(
+                                self.checked,
+                                self.operations,
+                                coordinate,
+                                crate::shared::direct_calls::CallRecord::Frontier(&frontier),
+                                OperationResult::Unit,
+                                code,
+                                DirectCallResult::Unit,
+                            )?;
+                        }
+                        CheckedUnitCallResult::Scalar(result) => {
+                            let terminal_psi::BoundaryMachineResult::Scalar(value_type) =
+                                contract.result
+                            else {
+                                return unsupported(
+                                    "runtime scalar call has no declared scalar result",
+                                );
+                            };
+                            if crate::emission::scalar_types::terminal_checked_scalar_type(
+                                self.checked,
+                                result.scalar_type,
+                            )? != value_type.scalar_type
+                            {
+                                return unsupported(
+                                    "runtime scalar call changed its checked result carrier",
+                                );
+                            }
+                            let value = ValueDeclaration {
+                                id: value_id(allocate_dense(self.next_value)?),
+                                scalar_type: value_type.scalar_type,
+                                qualifications: value_type.qualifications,
+                            };
+                            prepared.emit(
+                                self.checked,
+                                self.operations,
+                                coordinate,
+                                crate::shared::direct_calls::CallRecord::Frontier(&frontier),
+                                OperationResult::Scalar(value),
+                                code,
+                                DirectCallResult::Scalar,
+                            )?;
+                            self.bind_scalar_result(identities, call.coordinate, value)?;
+                        }
+                        CheckedUnitCallResult::Structural {
+                            binding,
+                            discard_result_on_return,
+                        } => {
+                            let register = matches!(self.results, StructuralResults::Dense(_));
+                            let declaration = ordinary_calls::emit_structural(
+                                identities,
+                                self.checked,
+                                self.state,
+                                operation,
+                                prepared,
+                                code,
+                                self.type_ids,
+                                self.structural_types.declarations(),
+                                self.callees.domain_ids,
+                                &mut self.calls.claims,
+                                register,
+                                &frontier,
+                                self.next_place,
+                                self.operations,
+                            )?;
+                            self.publish_result(
+                                operation,
+                                binding,
+                                declaration,
+                                *discard_result_on_return,
+                            )?;
+                        }
+                        CheckedUnitCallResult::NoNormal => {
+                            return unsupported(
+                                "runtime no-normal invocation requires a retained indirect terminal transfer",
+                            );
+                        }
+                    }
+                    Ok(())
+                }
+
                 fn unit_call(
                     &mut self,
                     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -1510,11 +1660,12 @@ pub(crate) mod attached_unit {
                 ) -> Result<(), LoweringError> {
                     let checked = self.checked;
                     let coordinate = &call.coordinate;
-                    let target_machine = &call.target.machine;
+                    let target_machine =
+                        &crate::shared::call_sites::declared_machine(&call.target)?;
                     let prepared = self.prepare_module_call(
                         identities,
                         operation,
-                        *target_machine,
+                        signatures::find(self.callees.signatures, *target_machine)?.call_target(),
                         &call.structural_arguments,
                         inputs,
                     )?;
@@ -1529,7 +1680,7 @@ pub(crate) mod attached_unit {
                         self.operations.invocation_completion = Some(
                             crate::emission::operation_emission::buffer::PendingInvocationCompletion {
                                 coordinate: coordinate.into(), frontier, source_site: call.source_site(),
-                                target: call.target.machine,
+                                target: crate::shared::call_sites::declared_machine(&call.target)?,
                                 outcome: crate::emission::operation_emission::buffer::PendingInvocationOutcome::ModuleNoNormal { callee, inputs: prepared },
                             });
                         return Ok(());
@@ -1587,8 +1738,10 @@ pub(crate) mod attached_unit {
                 ) -> Result<ValueDeclaration, LoweringError> {
                     let checked = self.checked;
                     let coordinate = &call.coordinate;
-                    let realization_machine = &call.target.machine;
-                    let realization_state = &call.target.state;
+                    let realization_machine =
+                        &crate::shared::call_sites::declared_machine(&call.target)?;
+                    let realization_state =
+                        &crate::shared::call_sites::declared_state(&call.target)?;
                     let target =
                         CheckedScalarCallee::find_for_unit_call(checked, *realization_machine)?;
                     if !self.callees.closure.contains(realization_machine) {
@@ -1607,7 +1760,11 @@ pub(crate) mod attached_unit {
                     let (target_result, result_qualifications) =
                         (declared_result.scalar_type, declared_result.qualifications);
                     if target.entry_state()? != *realization_state
-                        || target_result != terminal_scalar_type(result.primitive_type)?
+                        || target_result
+                            != crate::emission::scalar_types::terminal_checked_scalar_type(
+                                checked,
+                                result.scalar_type,
+                            )?
                     {
                         return unsupported(
                             "Unit scalar call disagrees with its prepared target signature",
@@ -1616,7 +1773,11 @@ pub(crate) mod attached_unit {
                     let target_parameter_types = target
                         .parameter_types()?
                         .iter()
-                        .map(|primitive| terminal_scalar_type(*primitive))
+                        .map(|scalar| {
+                            crate::emission::scalar_types::terminal_checked_scalar_type(
+                                checked, *scalar,
+                            )
+                        })
                         .collect::<Result<Vec<_>, _>>()?;
                     let expected_parameter_types = signature
                         .scalar_parameters
@@ -1639,7 +1800,7 @@ pub(crate) mod attached_unit {
                             "scalar module call has no erased lane",
                         ))?
                         .len()
-                        != target.erased_parameters().len()
+                        != target.erased_parameters()?.len()
                     {
                         return unsupported(
                             "scalar call erased lane disagrees with its target roster",
@@ -1648,7 +1809,8 @@ pub(crate) mod attached_unit {
                     let prepared = self.prepare_module_call(
                         identities,
                         operation,
-                        *realization_machine,
+                        signatures::find(self.callees.signatures, *realization_machine)?
+                            .call_target(),
                         &call.structural_arguments,
                         inputs,
                     )?;
@@ -2116,7 +2278,9 @@ pub(crate) mod attached_unit {
                         .terminal_unit_effects
                         .dynamic_slots
                         .iter()
-                        .find(|plan| plan.slot == call.target.machine)
+                        .find(|plan| {
+                            Some(plan.slot) == call.target.declaration().map(|(machine, _)| machine)
+                        })
                     else {
                         return unsupported(
                             "selector call names a slot with no checked call shape",
@@ -2127,7 +2291,12 @@ pub(crate) mod attached_unit {
                         .get(1..)
                         .unwrap_or_default()
                         .iter()
-                        .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+                        .map(|parameter| {
+                            crate::emission::scalar_types::terminal_checked_scalar_type(
+                                self.checked,
+                                parameter.scalar_type,
+                            )
+                        })
                         .collect::<Result<Vec<_>, _>>()?;
                     if data.len() != data_types.len()
                         || data
@@ -2178,7 +2347,11 @@ pub(crate) mod attached_unit {
                             OperationResult::Scalar(ValueDeclaration {
                                 qualifications: Default::default(),
                                 id: value_id(allocate_dense(self.next_value)?),
-                                scalar_type: terminal_scalar_type(result.primitive_type)?,
+                                scalar_type:
+                                    crate::emission::scalar_types::terminal_checked_scalar_type(
+                                        self.checked,
+                                        result.scalar_type,
+                                    )?,
                             }),
                             None,
                         ),
@@ -2227,7 +2400,7 @@ pub(crate) mod attached_unit {
                             call.coordinate,
                             call.source_site(),
                             id,
-                            call.target.machine,
+                            crate::shared::call_sites::declared_machine(&call.target)?,
                         )?;
                     }
                     let mut span = super::super::argument_evaluation::BlockEmissionSpan {
@@ -2930,13 +3103,11 @@ pub(crate) mod attached_unit {
                                     "suspension scalar home has no establishing operation",
                                 ),
                             )?;
-                        let primitive = source
-                            .checked
-                            .primitive_type_reference(live.type_reference)
-                            .ok_or(LoweringError::Unsupported(
-                                "suspension scalar home has no checked carrier",
-                            ))?;
-                        if terminal_scalar_type(primitive)? != *scalar_type {
+                        let carrier = crate::emission::scalar_types::terminal_type_reference(
+                            source.checked,
+                            live.type_reference,
+                        )?;
+                        if carrier != *scalar_type {
                             return unsupported(
                                 "suspension scalar home changes its checked carrier",
                             );
@@ -2970,10 +3141,11 @@ pub(crate) mod attached_unit {
                             let parameter = &parameters[position];
                             if parameter.is_mutable
                                 || parameter.relevance.is_erased()
-                                || source
-                                    .checked
-                                    .primitive_type_reference(parameter.type_reference)
-                                    .is_none()
+                                || checked_trees::CheckedScalarType::from_type_reference(
+                                    source.checked,
+                                    parameter.type_reference,
+                                )
+                                .is_none()
                             {
                                 continue;
                             }
@@ -2981,10 +3153,11 @@ pub(crate) mod attached_unit {
                                 .iter()
                                 .filter(|parameter| {
                                     !parameter.relevance.is_erased()
-                                        && source
-                                            .checked
-                                            .primitive_type_reference(parameter.type_reference)
-                                            .is_some()
+                                        && checked_trees::CheckedScalarType::from_type_reference(
+                                            source.checked,
+                                            parameter.type_reference,
+                                        )
+                                        .is_some()
                                 })
                                 .count()
                         }
@@ -3084,7 +3257,7 @@ pub(crate) mod attached_unit {
                         call.coordinate,
                         call.source_site(),
                         id,
-                        call.target.machine,
+                        crate::shared::call_sites::declared_machine(&call.target)?,
                     )?;
                     self.operations.push(Operation::unsuspended(
                         id,
@@ -3402,7 +3575,12 @@ pub(crate) mod attached_unit {
                     };
                     let lowered =
                         self.source_value(identities, result.statement_index, role, value)?;
-                    if lowered.scalar_type != terminal_scalar_type(result.primitive_type)? {
+                    if lowered.scalar_type
+                        != crate::emission::scalar_types::terminal_checked_scalar_type(
+                            self.checked,
+                            result.scalar_type,
+                        )?
+                    {
                         return unsupported(
                             "Unit scalar expression local type disagrees with its binding",
                         );
@@ -3464,16 +3642,19 @@ pub(crate) mod attached_unit {
                     if local.type_is_inferred {
                         return Ok(value);
                     }
-                    let primitive_type = self
-                        .checked
-                        .primitive_type_reference(local.declared_type)
-                        .ok_or(LoweringError::Unsupported(
-                            "scalar local lost its primitive type",
-                        ))?;
-                    if terminal_scalar_type(primitive_type)? != value.scalar_type {
+                    let declared = self
+                        .evaluation
+                        .shared_qualifications
+                        .signature_value_type(self.checked, local.declared_type)?;
+                    if declared.scalar_type != value.scalar_type {
                         return unsupported(
                             "completed scalar local disagrees with its declared type",
                         );
+                    }
+                    if let ScalarType::Callable(_) = declared.scalar_type {
+                        // The exact normalized contract is its value type. Code
+                        // carries no mathematical scalar refinement predicates.
+                        return Ok(value);
                     }
                     type_atoms(self.checked, local.declared_type)?;
                     let predicates = value_facts(self.checked)
@@ -4900,7 +5081,7 @@ pub(crate) mod attached_unit {
                         || result.is_some_and(|result| {
                             operation.result_carrier().is_none_or(|carrier| {
                                 PrimitiveType::from_name(carrier.name())
-                                    != Some(result.primitive_type)
+                                    != result.scalar_type.primitive()
                             })
                         })
                     {
@@ -5594,6 +5775,7 @@ pub(crate) mod attached_unit {
 
                 pub(crate) fn dense_assignment_namespace(&self) -> ScalarBindings {
                     ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
+                        .with_callables_from(&self.evaluation.scalar_bindings)
                         .with_primitive_storage(&self.evaluation.primitive_storage)
                         .with_view_locals(&self.evaluation.view_locals)
                         .with_place_observations(&self.evaluation.place_observations)
@@ -6125,7 +6307,7 @@ pub(crate) mod attached_unit {
                             let lowered =
                                 crate::emission::structural_scalar_store::lower_structural_scalar_store_place(
                                     identities,
-                                    primitive_type,
+                                    terminal_scalar_type(primitive_type)?,
                                     carrier_path,
                                     field_identity,
                                     destination,
@@ -6147,7 +6329,7 @@ pub(crate) mod attached_unit {
                             let mut lowered =
                                 crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
                                     identities,
-                                    primitive_type,
+                                    terminal_scalar_type(primitive_type)?,
                                     carrier_path,
                                     field_identity,
                                     root.selected_type,
@@ -6165,7 +6347,11 @@ pub(crate) mod attached_unit {
                             (root.argument.place, root.structural_type, lowered)
                         }
                     };
-                    lowered.bind_range_decision(self.checked, primitive_type, range_decision)?;
+                    lowered.bind_range_decision(
+                        self.checked,
+                        terminal_scalar_type(primitive_type)?,
+                        range_decision,
+                    )?;
                     let source = self.assignment_capture_source(store.destination.root)?;
                     if let Some(captured) = self.windows.captured_store_place(
                         identities,

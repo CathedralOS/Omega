@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 255`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 256`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -631,7 +631,7 @@ pub(crate) mod canonical_order {
             module
                 .evidence_contract_lanes
                 .iter()
-                .map(|lane| (lane.machine, lane.kind, lane.position)),
+                .map(|lane| (lane.owner, lane.kind, lane.position)),
             "evidence contract lanes by machine, kind, and position",
         )?;
         r!(module.machines.iter().map(|machine| machine.id) => "machines by MachineId")?;
@@ -4467,7 +4467,8 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // postorder table of rows whose children are handles to earlier rows, so
 // nesting depth has no bound. Marker 254, which nested those terms inline under
 // a 256-level bound, and all earlier layouts are incompatible.
-pub(crate) const FORMAT_MARKER: u16 = 255;
+// Marker 256 adds opaque callable carriers, exact descriptors and callable proof contracts.
+pub(crate) const FORMAT_MARKER: u16 = 256;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

@@ -133,7 +133,7 @@ pub(crate) mod byte_comparison {
                         entry_bound: None,
                     }),
                     element_path: Vec::new(),
-                    primitive_type: PrimitiveType::U8,
+                    scalar_type: PrimitiveType::U8.into(),
                 };
                 let comparison = CheckedBooleanExpression::IntegerComparison {
                     kind: CheckedIntegerComparisonKind::Equal,
@@ -316,7 +316,7 @@ pub enum CheckedScalarExpression {
     ConstantApplication {
         recipe: typed_trees::constant_recipes::ConstantRecipeHandle,
         owner: symbols::SymbolHandle,
-        primitive_type: typed_trees::types::PrimitiveType,
+        scalar_type: typed_trees::callable_values::ScalarValueType,
     },
     StructuralSequenceLength {
         root: CheckedStorageRoot,
@@ -324,11 +324,11 @@ pub enum CheckedScalarExpression {
     },
     StorageRead {
         symbol: SymbolHandle,
-        primitive_type: typed_trees::types::PrimitiveType,
+        scalar_type: typed_trees::callable_values::ScalarValueType,
     },
     Parameter {
         position: usize,
-        primitive_type: typed_trees::types::PrimitiveType,
+        scalar_type: typed_trees::callable_values::ScalarValueType,
     },
     ErasedParameter {
         position: usize,
@@ -336,7 +336,7 @@ pub enum CheckedScalarExpression {
     },
     Local {
         position: usize,
-        primitive_type: typed_trees::types::PrimitiveType,
+        scalar_type: typed_trees::callable_values::ScalarValueType,
     },
     /// One scalar field observed below a storage root, like the indexed read
     /// and sequence length beside it. A formal root is the ordinary contract
@@ -347,7 +347,7 @@ pub enum CheckedScalarExpression {
         observation: typed_trees::expression::ExpressionHandle,
         root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
-        primitive_type: typed_trees::types::PrimitiveType,
+        scalar_type: typed_trees::callable_values::ScalarValueType,
     },
     StructuralParameterIndexedRead {
         observation: typed_trees::expression::ExpressionHandle,
@@ -355,7 +355,7 @@ pub enum CheckedScalarExpression {
         path: Vec<CheckedStructuralPredicatePathSegment>,
         index: Box<CheckedScalarSelector>,
         element_path: Vec<CheckedScalarReadProjection>,
-        primitive_type: typed_trees::types::PrimitiveType,
+        scalar_type: typed_trees::callable_values::ScalarValueType,
     },
     IntegerLiteral {
         literal: numerics::literals::IntegerLiteral,
@@ -440,7 +440,7 @@ impl CheckedScalarExpression {
             observation,
             root: CheckedStorageRoot::OwnedLocal { symbol },
             path,
-            primitive_type,
+            scalar_type: primitive_type.into(),
         }
     }
 
@@ -542,17 +542,29 @@ impl CheckedScalarExpression {
         }
     }
 
+    pub fn scalar_type(&self) -> Option<typed_trees::callable_values::ScalarValueType> {
+        match self {
+            Self::ConstantApplication { scalar_type, .. }
+            | Self::StorageRead { scalar_type, .. }
+            | Self::Parameter { scalar_type, .. }
+            | Self::Local { scalar_type, .. }
+            | Self::StructuralParameterField { scalar_type, .. }
+            | Self::StructuralParameterIndexedRead { scalar_type, .. } => Some(*scalar_type),
+            _ => self.primitive_type().map(Into::into),
+        }
+    }
+
     pub fn primitive_type(&self) -> Option<typed_trees::types::PrimitiveType> {
         use typed_trees::types::PrimitiveType;
         match self {
             Self::StructuralSequenceLength { .. } => Some(PrimitiveType::U64),
-            Self::ConstantApplication { primitive_type, .. }
-            | Self::Parameter { primitive_type, .. }
-            | Self::ErasedParameter { primitive_type, .. }
-            | Self::StorageRead { primitive_type, .. }
-            | Self::Local { primitive_type, .. }
-            | Self::StructuralParameterField { primitive_type, .. }
-            | Self::StructuralParameterIndexedRead { primitive_type, .. }
+            Self::ConstantApplication { scalar_type, .. }
+            | Self::Parameter { scalar_type, .. }
+            | Self::StorageRead { scalar_type, .. }
+            | Self::Local { scalar_type, .. }
+            | Self::StructuralParameterField { scalar_type, .. }
+            | Self::StructuralParameterIndexedRead { scalar_type, .. } => scalar_type.primitive(),
+            Self::ErasedParameter { primitive_type, .. }
             | Self::IntegerBinary { primitive_type, .. }
             | Self::IntegerBitwiseNot { primitive_type, .. }
             | Self::IntegerWiden { primitive_type, .. }

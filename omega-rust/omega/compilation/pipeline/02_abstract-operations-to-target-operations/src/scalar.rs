@@ -2166,6 +2166,7 @@ mod expressions {
         require_native_parameter: bool,
     ) -> Result<ValueShape, LoweringError> {
         let bytes = match scalar_type {
+            ScalarType::Callable(_) => 8,
             ScalarType::Boolean => 1,
             ScalarType::Integer(integer_type) => {
                 let bits = integer_type.bits();

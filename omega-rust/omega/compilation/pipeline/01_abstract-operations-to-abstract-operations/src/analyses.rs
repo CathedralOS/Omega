@@ -50,8 +50,8 @@ pub(crate) mod catalog {
     pub(crate) fn compute_analysis(
         unit: &PsiOptimizationUnit,
         kind: AnalysisKind,
-    ) -> Option<AnalysisProduct> {
-        match kind {
+    ) -> Result<Option<AnalysisProduct>, &'static str> {
+        Ok(match kind {
             AnalysisKind::ControlFlowGraph => {
                 Some(AnalysisProduct::ControlFlowGraph(control_flow(unit)))
             }
@@ -63,7 +63,7 @@ pub(crate) mod catalog {
                 AnalysisProduct::StronglyConnectedComponents(block_components(unit)),
             ),
             AnalysisKind::LoopForest => Some(AnalysisProduct::LoopForest(loops(unit))),
-            AnalysisKind::CallGraph => Some(AnalysisProduct::CallGraph(call_graph(unit))),
+            AnalysisKind::CallGraph => Some(AnalysisProduct::CallGraph(call_graph(unit)?)),
             AnalysisKind::PlaceAliases => Some(AnalysisProduct::PlaceAliases(place_aliases(unit))),
             AnalysisKind::UseDefinition => {
                 Some(AnalysisProduct::UseDefinition(use_definitions(unit)))
@@ -76,7 +76,7 @@ pub(crate) mod catalog {
             }
             AnalysisKind::ValueRanges => Some(AnalysisProduct::ValueRanges(value_ranges(unit))),
             AnalysisKind::EffectSummaries => {
-                Some(AnalysisProduct::EffectSummaries(effect_summaries(unit)))
+                Some(AnalysisProduct::EffectSummaries(effect_summaries(unit)?))
             }
             AnalysisKind::OwnershipFrontiers => Some(AnalysisProduct::OwnershipFrontiers(
                 ownership_frontiers(unit),
@@ -88,7 +88,7 @@ pub(crate) mod catalog {
                 place_access_summaries(unit),
             )),
             _ => None,
-        }
+        })
     }
 }
 pub(crate) use crate::control_flow_analyses as control_flow;
@@ -104,6 +104,10 @@ pub(crate) mod revision {
     pub enum AnalysisError {
         Root(AnalysisRootError),
         UnsupportedAnalysis(AnalysisKind),
+        CallableProvenance {
+            analysis: AnalysisKind,
+            reason: &'static str,
+        },
     }
 
     failed_display!(AnalysisError, "Psi optimizer analysis failure");
@@ -132,6 +136,10 @@ pub(crate) mod revision {
                 if slot.is_none() {
                     *slot = Some(
                         compute_analysis(self.unit, kind)
+                            .map_err(|reason| AnalysisError::CallableProvenance {
+                                analysis: kind,
+                                reason,
+                            })?
                             .ok_or(AnalysisError::UnsupportedAnalysis(kind))?,
                     );
                 }

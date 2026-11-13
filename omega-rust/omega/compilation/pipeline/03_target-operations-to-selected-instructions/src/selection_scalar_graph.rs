@@ -6129,7 +6129,7 @@ pub(crate) mod scalar_call {
             super::call_arguments::marshal(source, operation, call, builder, invalid)?;
         if let Some(selector) = call.target.selector() {
             let (_, input, site, scalar_type) = builder.resolve(selector).ok_or_else(invalid)?;
-            if scalar_type != target_operations::selector_carrier_type() {
+            if call.target.operand_type() != Some(scalar_type) {
                 return Err(invalid());
             }
             operands.push(builder.copy(input, selector, site, scalar_type)?);
@@ -6903,7 +6903,7 @@ pub(crate) mod unit_call {
             let (_, input, site, scalar_type) = builder
                 .resolve(selector)
                 .ok_or(SelectedInstructionError::custody())?;
-            if scalar_type != target_operations::selector_carrier_type() {
+            if call.target.operand_type() != Some(scalar_type) {
                 return Err(SelectedInstructionError::custody());
             }
             let dispatch = builder.copy(input, selector, site, scalar_type)?;
@@ -7155,6 +7155,7 @@ pub(crate) fn select_function(
         };
         if *byte_size
             != match parameter.scalar_type {
+                ScalarType::Callable(_) => 8,
                 ScalarType::Boolean => 1,
                 ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => 4,
                 ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => 8,
@@ -7357,6 +7358,7 @@ pub(crate) fn select_function(
             } else {
                 match &operation.kind {
                     LegalizedScalarInstructionKind::ProgramImageAddress { .. }
+                    | LegalizedScalarInstructionKind::SelectMachine { .. }
                     | LegalizedScalarInstructionKind::SelectImplementation { .. } => {
                         let (reference, expected_type) = match &operation.kind {
                             LegalizedScalarInstructionKind::ProgramImageAddress { .. } => (
@@ -7364,6 +7366,12 @@ pub(crate) fn select_function(
                                 semantic_vocabulary::ScalarType::Integer(
                                     semantic_vocabulary::IntegerType::address(64).map_err(|_| invalid())?),
                             ),
+                            LegalizedScalarInstructionKind::SelectMachine { descriptor } => {
+                                if !matches!(scalar_type, semantic_vocabulary::ScalarType::Callable(_)) {
+                                    return Err(invalid());
+                                }
+                                (selected_instructions::SelectedImageAddressReference::MachineDescriptor { descriptor: *descriptor }, scalar_type)
+                            }
                             LegalizedScalarInstructionKind::SelectImplementation { table } => (
                                 selected_instructions::SelectedImageAddressReference::ImplementationTable { table: *table },
                                 target_operations::selector_carrier_type(),
@@ -7926,7 +7934,8 @@ impl Builder<'_> {
                 )
             } else if matches!(
                 kind.call_target(),
-                Some(selected_instructions::SelectedCallTarget::Dynamic { .. })
+                Some(selected_instructions::SelectedCallTarget::Dynamic { .. }
+                    | selected_instructions::SelectedCallTarget::Callable { .. })
             ) {
                 std::borrow::Cow::Owned(
                     selected_instructions::calls::dynamic::instantiate_constraint(

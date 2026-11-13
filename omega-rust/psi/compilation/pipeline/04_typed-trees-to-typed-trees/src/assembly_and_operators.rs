@@ -1945,6 +1945,7 @@ pub(crate) mod operators {
             arguments: arena::HandleSpan<ExpressionHandle>,
         ) -> TableCallExpression {
             TableCallExpression {
+        runtime_call: None,
         authored_call_selection: None,
         authored_call_binding: None,
         authored_machine_application: Default::default(),

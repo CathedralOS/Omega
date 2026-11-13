@@ -87,7 +87,9 @@ pub(crate) mod effect_summaries {
         pub revision: OptimizationUnitIdentity,
     }
 
-    pub(crate) fn effect_summaries(unit: &PsiOptimizationUnit) -> EffectSummaryAnalysis {
+    pub(crate) fn effect_summaries(
+        unit: &PsiOptimizationUnit,
+    ) -> Result<EffectSummaryAnalysis, &'static str> {
         let mut nodes = Vec::new();
         for function in &unit.functions {
             for block in &function.blocks {
@@ -116,10 +118,10 @@ pub(crate) mod effect_summaries {
                 }
             }
         }
-        EffectSummaryAnalysis {
+        Ok(EffectSummaryAnalysis {
             nodes,
-            functions: transitive_function_effects(unit),
-        }
+            functions: transitive_function_effects(unit)?,
+        })
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,7 +136,11 @@ pub(crate) mod effect_summaries {
         callees: BTreeSet<MachineId>,
     }
 
-    fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffectSummary> {
+    fn transitive_function_effects(
+        unit: &PsiOptimizationUnit,
+    ) -> Result<Vec<FunctionEffectSummary>, &'static str> {
+        let callable_invocations =
+            optimization_unit_semantics::callable_values::optimized_callable_invocations(unit)?;
         fn join(left: EffectKnowledge, right: EffectKnowledge) -> EffectKnowledge {
             use optimization_unit::ObservationKnowledge::{May, No, Yes};
             match (left, right) {
@@ -177,10 +183,40 @@ pub(crate) mod effect_summaries {
                 match &node.operation {
                     abstract_operations::call_or_call_structural_pattern!(..)
                     | O::InvokeNoNormal { .. } => {
-                        let callees = unit
-                            .call_machine_references(&node.operation)
-                            .collect::<Vec<_>>();
+                        let mut callees = Vec::new();
+                        let mut unresolved = false;
+                        for reference in unit.call_machine_references(&node.operation) {
+                            match reference {
+                                optimization_unit::CallMachineReference::Declaration(machine) => {
+                                    callees.push(machine)
+                                }
+                                optimization_unit::CallMachineReference::Callable {
+                                    contract,
+                                    ..
+                                } => {
+                                    let operation = node.operation.psi_operation()
+                                        .ok_or("effect summary runtime invocation lost its operation identity")?;
+                                    let row = callable_invocations
+                                        .as_ref()
+                                        .map(|summary| {
+                                            summary.operation(function.machine, operation)
+                                        })
+                                        .transpose()?
+                                        .flatten();
+                                    if let Some(row) = row {
+                                        callees.extend(row.selected_machines.iter().copied());
+                                    }
+                                    unresolved |= row.is_none_or(|row| !row.targets_are_resolved());
+                                    let contract = unit.callables.contract(contract)
+                                        .ok_or("effect summary runtime invocation lost its exact callable contract")?;
+                                    summary
+                                        .services
+                                        .extend(contract.envelope.service_reach.iter().copied());
+                                }
+                            }
+                        }
                         if callees.is_empty()
+                            || unresolved
                             || callees.iter().any(|callee| !machines.contains(callee))
                         {
                             summary.observable = EffectKnowledge::May;
@@ -250,7 +286,7 @@ pub(crate) mod effect_summaries {
             }
         }
 
-        summaries
+        Ok(summaries
             .into_iter()
             .map(|(machine, summary)| FunctionEffectSummary {
                 machine,
@@ -263,7 +299,7 @@ pub(crate) mod effect_summaries {
                 support: summary.support.into_iter().collect(),
                 revision: unit.identity,
             })
-            .collect()
+            .collect())
     }
 
     fn join_operation_effect(
@@ -290,6 +326,7 @@ pub(crate) mod effect_summaries {
         use optimization_unit::ObservationKnowledge::{May, No, Yes};
         match operation {
             O::SelectImplementation { .. }
+            | O::SelectMachine { .. }
             | O::IntegerConstant { .. }
             | O::IeeeFloatConstant { .. }
             | O::NearestIeeeFloatFusedMultiplyAdd { .. }
@@ -1209,6 +1246,7 @@ pub(crate) mod place_access_summaries {
             | O::PortWrite { .. }
             | O::Crash { .. }
             | O::SelectImplementation { .. }
+            | O::SelectMachine { .. }
             | O::IntegerConstant { .. }
             | O::IeeeFloatConstant { .. }
             | O::NearestIeeeFloatFusedMultiplyAdd { .. }

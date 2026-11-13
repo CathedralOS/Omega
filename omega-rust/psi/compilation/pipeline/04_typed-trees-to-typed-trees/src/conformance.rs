@@ -221,6 +221,7 @@ pub(crate) mod conformance_application_lifetimes {
         caller_machine: SymbolHandle,
         caller_state: SymbolHandle,
         target: SymbolHandle,
+        runtime: Option<typed_trees::callable_values::RuntimeCallBinding>,
         arguments: Vec<ExpressionHandle>,
         machine_arguments: Box<[StaticMachineArgument]>,
     }
@@ -231,12 +232,28 @@ pub(crate) mod conformance_application_lifetimes {
         let calls = collect_elision_calls(program);
         let mut diagnostics = Vec::new();
         for mut call in calls {
-            let callee_machine = validation::find_state(program, call.target);
+            let runtime_signature = call
+                .runtime
+                .map(|binding| binding.signature(program))
+                .transpose()
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let callee_machine = call
+                .runtime
+                .is_none()
+                .then(|| validation::find_state(program, call.target))
+                .flatten();
             let requirement = program
                 .closed_requirement_application(call.target)
                 .map_or(call.target, |application| application.template);
             let (callee_owner, callee_lifetimes, parameters, callee_name) =
-                if let Some((machine, state)) = callee_machine {
+                if let Some(signature) = runtime_signature {
+                    (
+                        signature.symbol,
+                        &signature.lifetime_parameters[..],
+                        program.state_signature_parameters(signature),
+                        &signature.name,
+                    )
+                } else if let Some((machine, state)) = callee_machine {
                     (
                         machine.symbol,
                         &machine.lifetime_parameters[..],
@@ -270,6 +287,7 @@ pub(crate) mod conformance_application_lifetimes {
                     .as_call()
                     .map(|call| call.authored_machine_application),
             };
+            let application = application.filter(|_| call.runtime.is_none());
             let mut call_lifetimes = if let Some(application) =
                 application.filter(|application| application.is_valid())
             {
@@ -347,9 +365,36 @@ pub(crate) mod conformance_application_lifetimes {
                 continue;
             }
 
-            let evidence_bounds = callee_machine
-                .map_or_else(Vec::new, |(machine, _)| machine.conformance_bounds.clone());
-            let callee_machine = callee_machine.map(|(machine, _)| machine.symbol);
+            let evidence_bounds = if let Some(signature) = runtime_signature {
+                signature.conformance_bounds.clone()
+            } else {
+                callee_machine
+                    .map_or_else(Vec::new, |(machine, _)| machine.conformance_bounds.clone())
+            };
+            let machine_parameters = if let Some(signature) = runtime_signature {
+                let mut parameters = program.state_signature_type_parameters(signature).to_vec();
+                for bound in &signature.conformance_bounds {
+                    if !parameters
+                        .iter()
+                        .any(|parameter| parameter.symbol == bound.binder)
+                    {
+                        parameters.push(typed_trees::data::TypeParameter {
+                            symbol: bound.binder,
+                            name: bound.binder_name.clone(),
+                            kind: typed_trees::data::TypeParameterKind::Implementation,
+                            ..Default::default()
+                        });
+                    }
+                }
+                parameters
+            } else {
+                callee_machine.map_or_else(Vec::new, |(machine, _)| {
+                    program.machine_callable_parameters(machine)
+                })
+            };
+            let callee_machine = callee_machine
+                .map(|(machine, _)| machine.symbol)
+                .or_else(|| runtime_signature.map(|signature| signature.symbol));
             let mut evidence_index = 0usize;
             for argument_ordinal in 0..call.machine_arguments.len() {
                 let mut selected = call.machine_arguments[argument_ordinal].clone();
@@ -381,15 +426,8 @@ pub(crate) mod conformance_application_lifetimes {
                 if conformance.lifetime_parameters.is_empty() {
                     continue;
                 }
-                let Some(callee_declaration) = program.machine_by_symbol(callee_machine) else {
-                    diagnostics.push(Diagnostic::error(
-                        "call lifetime constraints lost their exact callee declaration",
-                    ));
-                    continue;
-                };
-                // Nested trait arguments can name selected implementations, such as a model.
-                // Include those parameters so substitution uses the caller's selection.
-                let machine_parameters = program.machine_callable_parameters(callee_declaration);
+                // Include selected implementation binders in the same telescope as
+                // ordinary type parameters, for both named and runtime signatures.
                 let (declared_arguments, expected_arguments) =
                     match inherited_arguments::materialize(
                         program,
@@ -608,12 +646,16 @@ pub(crate) mod conformance_application_lifetimes {
                                 caller_machine: machine.symbol,
                                 caller_state: state.symbol,
                                 target: call.target_symbol,
+                                runtime: call.runtime_call,
                                 arguments: program
                                     .statement_table
                                     .expression_handles(call.arguments)
                                     .to_vec(),
                                 machine_arguments: call.machine_arguments.clone(),
                             });
+                            if let Some(runtime) = call.runtime_call {
+                                walk.visit(runtime.callee, &mut calls);
+                            }
                             for argument in
                                 program.statement_table.expression_handles(call.arguments)
                             {
@@ -665,19 +707,21 @@ pub(crate) mod conformance_application_lifetimes {
             return;
         }
             match expressions_of(self.program).expression(expression) {
-                ExpressionNode::SavedSubject(_) => {}
+                // Selecting code has no evaluated receiver or invocation children.
+                ExpressionNode::SavedSubject(_) | ExpressionNode::MachineValue(_) => {}
                 ExpressionNode::Call(call) => {
                     calls.push(ElisionCall {
                         site: ElisionCallSite::Expression(expression),
                         caller_machine: self.caller_machine,
                         caller_state: self.caller_state,
                         target: call.target_symbol,
+                        runtime: call.runtime_call,
                         arguments: expressions_of(self.program)
                             .expression_handles(call.arguments)
                             .to_vec(),
                         machine_arguments: call.machine_arguments.clone(),
                     });
-                    self.visit(call.receiver, calls);
+                    self.visit(call.evaluated_callee(), calls);
                     for argument in expressions_of(self.program).expression_handles(call.arguments)
                     {
                         self.visit(*argument, calls);

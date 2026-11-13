@@ -370,6 +370,11 @@ pub(crate) mod conformances {
                 bytes
             }
             ClosedConformanceCallableResult::Scalar(ScalarType::Boolean) => vec![2, 1],
+            ClosedConformanceCallableResult::Scalar(ScalarType::Callable(contract)) => {
+                let mut bytes = vec![2, 4];
+                bytes.extend(contract.get().to_le_bytes());
+                bytes
+            }
             ClosedConformanceCallableResult::Scalar(ScalarType::Integer(integer)) => {
                 let mut bytes = vec![
                     2,

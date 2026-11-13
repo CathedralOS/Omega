@@ -614,6 +614,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(), TerminalInterpretError> {
         let zero = |scalar_type: ScalarType| -> Option<TerminalScalarValue> {
             match scalar_type {
+                ScalarType::Callable(_) => None,
                 ScalarType::Boolean => Some(TerminalScalarValue::Boolean(false)),
                 ScalarType::Integer(integer_type) => Some(TerminalScalarValue::Integer {
                     scalar_type: integer_type,

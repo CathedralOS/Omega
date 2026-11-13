@@ -2788,6 +2788,7 @@ pub(crate) mod attached_unit {
                             crate::expression_preparation::bindings::ScalarBindings::new(
                                 self.values.iter().map(|value| value.scalar_type),
                             )
+                            .with_callables_from(&self.evaluation.scalar_bindings)
                             .with_structural_parameters(&self.evaluation.structural_parameters)
                             .with_structural_locals(&self.evaluation.structural_locals)
                             .with_structural_observations(self.environment.structural_types)
@@ -4046,9 +4047,9 @@ pub(crate) mod attached_unit {
                                     .enumerate()
                                     .filter(|(_, parameter)| {
                                         !parameter.is_const
-                                            && self
-                                                .checked
-                                                .primitive_type_reference(parameter.type_reference)
+                                            && checked_trees::CheckedScalarType::from_type_reference(
+                                                self.checked, parameter.type_reference,
+                                            )
                                                 .is_none()
                                     })
                                     .nth(*parameter_index as usize)
@@ -6827,7 +6828,12 @@ pub(crate) mod attached_unit {
                                     "zeroed scalar array element is not a literal zero",
                                 );
                             };
-                            let scalar_type = terminal_scalar_type(computation.primitive_type)?;
+                            let scalar_type =
+                                terminal_scalar_type(computation.scalar_type.primitive().ok_or(
+                                    LoweringError::Unsupported(
+                                        "zeroed scalar array has an opaque element carrier",
+                                    ),
+                                )?)?;
                             let value =
                                 crate::emission::scalar_types::integer_value(literal, scalar_type)?;
                             let zero = emit_scalar_leaf(
@@ -7371,6 +7377,7 @@ pub(crate) mod attached_unit {
 
                 fn structural_bindings(&self) -> ScalarBindings {
                     ScalarBindings::new(self.values.iter().map(|value| value.scalar_type))
+                        .with_callables_from(&self.evaluation.scalar_bindings)
                         .with_structural_parameters(&self.evaluation.structural_parameters)
                         .with_structural_locals(&self.evaluation.structural_locals)
                         .with_structural_observations(self.structural_types)

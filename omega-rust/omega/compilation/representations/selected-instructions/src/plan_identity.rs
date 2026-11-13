@@ -715,6 +715,10 @@ fn encode_work(bytes: &mut Vec<u8>, work: &[WorkSettlement]) {
 
 pub(crate) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
     match scalar_type {
+        ScalarType::Callable(contract) => {
+            bytes.push(3);
+            push_encoded(bytes, contract.get().to_le_bytes());
+        }
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) => {
             bytes.push(1);

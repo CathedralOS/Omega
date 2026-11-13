@@ -156,6 +156,10 @@ pub(super) fn encode_bindings(bytes: &mut Vec<u8>, bindings: &[ValueBinding]) {
 
 pub fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: semantic_vocabulary::ScalarType) {
     match scalar_type {
+        semantic_vocabulary::ScalarType::Callable(contract) => {
+            bytes.push(3);
+            crate::codec_bytes::push_encoded(bytes, contract.get().to_le_bytes());
+        }
         semantic_vocabulary::ScalarType::Boolean => bytes.push(0),
         semantic_vocabulary::ScalarType::Integer(integer) => {
             bytes.push(1);

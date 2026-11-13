@@ -4102,6 +4102,7 @@ pub(crate) mod bindings {
 
     #[derive(Clone)]
     pub(crate) struct ScalarBindings {
+        callables: std::sync::Arc<crate::callable_catalog::PreparedCallables>,
         immutable: Vec<Option<usize>>,
         authored: Vec<Option<AuthoredScalarBinding>>,
         parameter_count: usize,
@@ -4125,6 +4126,30 @@ pub(crate) mod bindings {
     }
 
     impl ScalarBindings {
+        pub(crate) fn with_callables(
+            mut self,
+            callables: std::sync::Arc<crate::callable_catalog::PreparedCallables>,
+        ) -> Self {
+            self.callables = callables;
+            self
+        }
+
+        pub(crate) fn with_callables_from(mut self, source: &Self) -> Self {
+            self.callables = std::sync::Arc::clone(&source.callables);
+            self
+        }
+
+        pub(crate) fn callables(&self) -> &crate::callable_catalog::PreparedCallables {
+            &self.callables
+        }
+
+        pub(crate) fn scalar_type(
+            &self,
+            scalar: checked_trees::CheckedScalarType,
+        ) -> Result<ScalarType, LoweringError> {
+            self.callables.types.scalar_type(scalar)
+        }
+
         pub(crate) fn with_completed_storage_observation(
             mut self,
             root: checked_trees::CheckedStorageRoot,
@@ -4811,6 +4836,9 @@ pub(crate) mod bindings {
                 element_views: std::collections::BTreeMap::new(),
                 view_locals: Vec::new(),
                 place_observations: std::sync::Arc::from([]),
+                callables: std::sync::Arc::new(
+                    crate::callable_catalog::PreparedCallables::default(),
+                ),
             }
         }
 
@@ -5292,21 +5320,26 @@ pub(crate) mod bindings {
                         }
                     }
                 }
-                CheckedScalarExpression::Parameter { position, .. }
-                | CheckedScalarExpression::Local { position, .. } => {
+                CheckedScalarExpression::Parameter {
+                    position,
+                    scalar_type,
+                }
+                | CheckedScalarExpression::Local {
+                    position,
+                    scalar_type,
+                } => {
                     let binding = self.authored.get(*position).copied().flatten().ok_or(
                         LoweringError::Unsupported("scalar read has no authored binding"),
                     )?;
+                    if binding.scalar_type != self.scalar_type(*scalar_type)? {
+                        return unsupported(
+                            "scalar read changes its established type or callable contract",
+                        );
+                    }
                     if binding.storage_symbol.is_valid() {
-                        let primitive_type =
-                            expression
-                                .primitive_type()
-                                .ok_or(LoweringError::Unsupported(
-                                    "addressed scalar read lost its primitive type",
-                                ))?;
                         *expression = CheckedScalarExpression::StorageRead {
                             symbol: binding.storage_symbol,
-                            primitive_type,
+                            scalar_type: *scalar_type,
                         };
                     } else {
                         *position = binding.value_position;

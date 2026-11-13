@@ -1540,7 +1540,7 @@ pub(crate) mod proof_bearing_scalar {
     ) -> Result<IntegerType, OperationSemanticError> {
         match scalar_type {
             ScalarType::Integer(integer_type) => Ok(integer_type),
-            ScalarType::Boolean | ScalarType::IeeeFloat(_) => {
+            ScalarType::Boolean | ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => {
                 Err(OperationSemanticError::OperandShapeMismatch(tag))
             }
         }
@@ -1860,6 +1860,7 @@ pub mod scalar_demand {
                 O::ElementViewRead { index, length, .. } => values.extend([*index, *length]),
                 O::IntegerConstant { .. }
                 | O::SelectImplementation { .. }
+                | O::SelectMachine { .. }
                 | O::BooleanConstant { .. }
                 | O::IeeeFloatConstant { .. }
                 | O::ScalarStructuralField { .. }
@@ -1977,6 +1978,18 @@ pub mod scalar_demand {
                     if !crash_continuations.is_empty() {
                         return false;
                     }
+                    values.extend(arguments);
+                }
+                O::CallMachine {
+                    callee,
+                    arguments,
+                    crash_continuations,
+                    ..
+                } => {
+                    if !crash_continuations.is_empty() {
+                        return false;
+                    }
+                    values.push(*callee);
                     values.extend(arguments);
                 }
                 O::CallDynamic {
@@ -3145,6 +3158,7 @@ pub(crate) mod scalar_field_requirements {
             return false;
         };
         let zero = match carrier {
+            ScalarType::Callable(_) => return false,
             ScalarType::Boolean => ScalarTerm::Boolean(false),
             ScalarType::Integer(integer) => ScalarTerm::Integer {
                 scalar_type: integer,
@@ -3610,7 +3624,7 @@ pub(crate) mod scalar_leaf_semantics {
     pub(crate) fn integer_type(term: &ScalarTerm) -> Option<semantic_vocabulary::IntegerType> {
         match term.scalar_type() {
             ScalarType::Integer(integer_type) => Some(integer_type),
-            ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
+            ScalarType::Boolean | ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => None,
         }
     }
 

@@ -2681,6 +2681,90 @@ pub(crate) mod dynamic_dispatch_wire {
         <List<Region> as super::super::wire_fields::Field<_>>::read(reader)
     }
 }
+pub(crate) mod callable_values_wire {
+    use super::super::contract_wire::Contract as ProofContract;
+    use super::super::machine_wire::{Declaration, MachineResult};
+    use super::super::proof_declaration_wire::{
+        Application as EvidenceApplication, Declaration as EvidenceDeclaration,
+    };
+    use super::super::structural_signature_wire::{ParameterKind, StructuralParameter};
+    use super::super::wire_fields::{
+        CallResult, Flag, Id, Ids, Index, List, Optional, Path, U32, wire_enum, wire_record,
+    };
+    use super::dynamic_dispatch_wire::{ClaimPath, Region};
+    use super::evidence_wire::{LaneKind, Subject, Term};
+    use terminal_psi::{
+        TerminalCallableCatalog, TerminalCallableContract, TerminalCallableEnvelope,
+        TerminalCallableEvidenceLane, TerminalCallableInvocation, TerminalCallableTermination,
+        TerminalCallableTerminationPremise, TerminalMachineDescriptor,
+        TerminalMachineDescriptorOrigin, TerminalMachineEnvelope,
+    };
+
+    wire_record! {
+        Catalog: TerminalCallableCatalog {
+            contracts: List<Contract>,
+            descriptors: List<Descriptor>,
+            machine_envelopes: List<Optional<NamedEnvelope>>,
+        }
+        Contract: TerminalCallableContract {
+            id: Id,
+            identity: Index,
+            scalar_parameters: List<Declaration>,
+            parameter_order: List<ParameterKind>,
+            structural_parameters: List<StructuralParameter>,
+            result: CallResult,
+            proof_result: MachineResult,
+            entry_claim_paths: List<ClaimPath>,
+            result_claim_paths: List<Path>,
+            result_reference_regions: List<Region>,
+            proof: ProofContract,
+            evidence_contract: List<EvidenceLane>,
+            envelope: Envelope,
+        }
+        EvidenceLane: TerminalCallableEvidenceLane {
+            kind: LaneKind,
+            position: U32,
+            declaration: EvidenceDeclaration,
+            application: EvidenceApplication,
+            term: Term,
+            argument_subjects: List<Subject>,
+        }
+        Descriptor: TerminalMachineDescriptor {
+            id: Id,
+            contract: Id,
+            machine: Id,
+            origin: Origin,
+            refinement_obligations: Ids,
+            refinement_evidence: List<crate::obligation_evidence::Certificate>,
+        }
+        Origin: TerminalMachineDescriptorOrigin {
+            application: Index,
+            conformance: Optional<Index>,
+            requirement: Optional<Index>,
+        }
+        NamedEnvelope: TerminalMachineEnvelope { machine: Id, envelope: Envelope }
+        Envelope: TerminalCallableEnvelope {
+            service_reach: Ids,
+            invocations: List<Invocation>,
+            suspends: Flag,
+            blocks: Flag,
+            termination: Termination,
+        }
+        Premise: TerminalCallableTerminationPremise { parameter: U32, path: Path, domain: Id }
+    }
+
+    wire_enum! {
+        Invocation: TerminalCallableInvocation, "TerminalCallableInvocation" {
+            1 => Parameter(parameter: U32),
+            2 => Service(service: Id),
+        }
+        Termination: TerminalCallableTermination, "TerminalCallableTermination" {
+            0 => NotGuaranteed,
+            1 => Terminates { premises: List<Premise> },
+        }
+    }
+}
+
 pub(crate) mod evidence_wire {
 
     use super::super::wire_fields::{
@@ -2688,14 +2772,14 @@ pub(crate) mod evidence_wire {
         wire_record,
     };
     use terminal_psi::{
-        EvidenceArgumentSubject, EvidenceContractLane, EvidenceContractLaneKind,
-        EvidenceTermDeclaration,
+        EvidenceArgumentSubject, EvidenceCallableOwner, EvidenceContractLane,
+        EvidenceContractLaneKind, EvidenceTermDeclaration,
     };
 
     wire_record! {
         Term: EvidenceTermDeclaration { id: Id, proposition: Id, interface: EvidenceInterface }
         Lane: EvidenceContractLane {
-            machine: Id,
+            owner: CallableOwner,
             kind: LaneKind,
             position: U32,
             term: Id,
@@ -2705,6 +2789,10 @@ pub(crate) mod evidence_wire {
     }
 
     wire_enum! {
+        CallableOwner: EvidenceCallableOwner, "EvidenceCallableOwner" {
+            1 => Machine(machine: Id),
+            2 => Runtime(contract: Id),
+        }
         LaneKind: EvidenceContractLaneKind, "EvidenceContractLaneKind" {
             1 => Requires,
             2 => Ensures,
@@ -3007,15 +3095,15 @@ pub(crate) mod proof_output_wire {
         wire_record,
     };
     use terminal_psi::{
-        ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
-        ProofOutputRuntimeResult, StaticRequirementDispatch,
+        EvidenceCallableTarget, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument,
+        ProofOutputRuntimeCall, ProofOutputRuntimeResult, StaticRequirementDispatch,
     };
 
     wire_record! {
         Call: ProofOutputCall {
             caller: Id,
             ordinal: U32,
-            target_machine_identity: Index,
+            target_identity: Index,
             static_requirement_dispatch: Optional<Dispatch>,
             runtime_result: Optional<RuntimeResult>,
             runtime_call: Optional<RuntimeCall>,
@@ -3032,7 +3120,7 @@ pub(crate) mod proof_output_wire {
             realization_callable_identity: Index,
             realization: Id,
         }
-        RuntimeCall: ProofOutputRuntimeCall { site: InvocationSite, callee: Id }
+        RuntimeCall: ProofOutputRuntimeCall { site: InvocationSite, target: CallableTarget }
         EvidenceArgument: ProofOutputEvidenceArgument {
             input_position: U32,
             callee_proposition: Id,
@@ -3051,10 +3139,15 @@ pub(crate) mod proof_output_wire {
     }
 
     wire_enum! {
+        CallableTarget: EvidenceCallableTarget, "EvidenceCallableTarget" {
+            1 => Machine(machine: Id),
+            2 => Runtime { contract: Id, callee: Id },
+        }
         RuntimeResult: ProofOutputRuntimeResult, "ProofOutputRuntimeResult" {
             0 => Unit,
             1 => Scalar(scalar: Scalar),
             2 => NoNormal,
+            3 => Structural(structural_type: Id),
         }
     }
 }
@@ -4960,6 +5053,7 @@ wire_record! {
         provider_candidates: List<ProviderCandidate>,
         provider_instance_requirements: List<super::provider_candidate_wire::InstanceRequirements>,
         dynamic_dispatch: dynamic_dispatch_wire::Catalog,
+        callables: callable_values_wire::Catalog,
         float_meaning_projections: List<float_meaning_wire::Projection>,
         float_meaning_equalities: List<float_meaning_wire::Equality>,
         proposition_declarations: List<super::proof_declaration_wire::Declaration>,

@@ -1768,6 +1768,9 @@ pub(crate) mod scalar_graph {
                         }
                     }
 
+                    AbstractOperation::SelectMachine { descriptor, .. } => {
+                        LegalizedScalarInstructionKind::SelectMachine { descriptor: *descriptor }
+                    }
                     AbstractOperation::SelectImplementation { table, .. } => {
                         LegalizedScalarInstructionKind::SelectImplementation { table: *table }
                     }

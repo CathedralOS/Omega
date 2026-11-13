@@ -350,6 +350,9 @@ impl<'module> TerminalBoundaryRecipes<'module> {
 
     pub fn scalar(&mut self, scalar: ScalarType) -> Result<Handle<BoundaryValueRecipe>, String> {
         let recipe = match scalar {
+            ScalarType::Callable(_) => {
+                return Err("local machine value requires an admitted boundary proxy".into());
+            }
             ScalarType::Boolean => BoundaryValueRecipe::Integer { byte_size: 1 },
             ScalarType::Integer(integer) if integer.bits() % 8 == 0 => {
                 BoundaryValueRecipe::Integer {

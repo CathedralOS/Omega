@@ -95,6 +95,8 @@ pub(crate) mod callable_entry_transport {
                 "interrupt body lacks retained emission custody",
             ))?;
             let source = replay.0.source().source().source().source();
+            let callable_invocations = crate::callable_calls::prepare_from(source, entry)
+                .map_err(|reason| Error::PhysicalEntry(diagnostics::Diagnostic::error(reason)))?;
             let model = source.register_environment().physical().model();
             let encoding = source.encoding();
             let encoded_rows = index_encoded_rows(
@@ -120,6 +122,7 @@ pub(crate) mod callable_entry_transport {
             );
             let mut visited = BTreeSet::new();
             let mut pending = vec![entry];
+            pending.extend(callable_invocations.roots.iter().copied());
             let mut frame_floating_control = false;
             let mut opaque_control = false;
             while let Some(machine) = pending.pop() {
@@ -210,6 +213,31 @@ pub(crate) mod callable_entry_transport {
                             "interrupt instruction lacks retained encoded effects",
                         ))?;
                     if is_call(encoded.encoded.control) {
+                        let instruction = selected
+                            .instructions()
+                            .find(|instruction| instruction.id == row.instruction)
+                            .ok_or(Error::Mismatch(
+                                "native call has no exact selected instruction",
+                            ))?;
+                        if matches!(
+                            instruction.kind.call_target(),
+                            Some(selected_instructions::SelectedCallTarget::Callable { .. })
+                        ) {
+                            let call = selected_instructions::calls::dynamic::call_record(
+                                selected,
+                                instruction,
+                            )
+                            .ok_or(Error::Mismatch(
+                                "callable CPU footprint lost its selected call contract",
+                            ))?;
+                            if let Some(callees) =
+                                callable_cpu_targets(source, &callable_invocations, machine, call)?
+                            {
+                                pending.extend(callees.iter().copied());
+                            }
+                            footprint.decoded(model, encoded)?;
+                            continue;
+                        }
                         let call = selected
                             .normalized_foreign_calls
                             .iter()
@@ -335,6 +363,81 @@ pub(crate) mod callable_entry_transport {
             collected.floating_control |= frame_floating_control;
             collected.opaque_control = opaque_control;
             Ok(collected)
+        }
+
+        fn callable_cpu_targets<'a>(
+            source: &machine_emission::StagedOptimizedFunctionFragmentEmissionSource,
+            invocations: &'a terminal_semantics::callable_values::ReachableCallableInvocations,
+            machine: MachineId,
+            call: &selected_instructions::SelectedCallContract,
+        ) -> Result<Option<&'a BTreeSet<MachineId>>, Error> {
+            let target_operations::NativeCallTarget::Callable { callee, contract } =
+                call.call.target
+            else {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint has another native call target",
+                ));
+            };
+            let target_operations::CallSiteOwner::Operation(operation) = call.owner else {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint has another source invocation route",
+                ));
+            };
+            let body = source
+                .optimized_target()
+                .optimized()
+                .unit()
+                .function(machine)
+                .ok_or(Error::Mismatch(
+                    "callable CPU footprint has no exact optimized caller",
+                ))?;
+            let mut source_calls = body
+                .block_nodes()
+                .filter(|node| node.operation.psi_operation() == Some(operation));
+            let source_call = source_calls.next().ok_or(Error::Mismatch(
+                "callable CPU footprint lost its source operation",
+            ))?;
+            if source_calls.next().is_some()
+                || !matches!(source_call.operation,
+                abstract_operations::AbstractOperation::CallStructural {
+                    callee: abstract_operations::AbstractCallTarget::Callable {
+                        callee: source_callee, contract: source_contract,
+                    }, ..
+                } if source_callee == callee && source_contract == contract)
+            {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint changed its evaluated source callee",
+                ));
+            }
+            let Some(invocation) = invocations
+                .operation(machine, operation)
+                .map_err(Error::Mismatch)?
+            else {
+                if !invocations.reached_machines.contains(&machine) {
+                    return Err(Error::Unsupported(
+                        "callable CPU footprint lacks an admitted invocation context for its native caller",
+                    ));
+                }
+                // This authenticated source occurrence is outside every
+                // feasible execution path from the observed entry.
+                return Ok(None);
+            };
+            if invocation.invocation.target
+                != terminal_semantics::callable_values::CallableInvocationTarget::Value(
+                    callee, contract,
+                )
+                || invocation.invocation.boundary.is_some()
+            {
+                return Err(Error::Mismatch(
+                    "callable CPU footprint changed its retained invocation",
+                ));
+            }
+            if !invocation.targets_are_resolved() {
+                return Err(Error::Unsupported(
+                    "callable CPU footprint has unresolved code and no admitted physical state ceiling",
+                ));
+            }
+            Ok(Some(&invocation.selected_machines))
         }
 
         fn index_encoded_rows(

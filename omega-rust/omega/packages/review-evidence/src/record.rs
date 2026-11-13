@@ -90,7 +90,7 @@ pub(crate) use contracts::{
     PackageReviewCastForm, PackageReviewConstMeaning, PackageReviewConstShape,
     PackageReviewConstructorField, PackageReviewContractBinaryOperator,
     PackageReviewContractCallTarget, PackageReviewContractEvidenceArgument,
-    PackageReviewContractEvidenceTerm, PackageReviewContractExpression, PackageReviewContractFact,
+    PackageReviewContractEvidenceOwner, PackageReviewContractEvidenceTerm, PackageReviewContractExpression, PackageReviewContractFact,
     PackageReviewContractKind, PackageReviewContractOperatorMeaning,
     PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
     PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement, PackageReviewFloatLiteral,

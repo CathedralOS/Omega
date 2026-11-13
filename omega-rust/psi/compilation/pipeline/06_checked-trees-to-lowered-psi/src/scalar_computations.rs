@@ -207,22 +207,21 @@ pub(crate) mod computations {
                         crate::shared::declarations::state_declaration(self.checked, site.state)?;
                     let root = match subject.source {
                         Source::Parameter { parameter_index } => {
-                            let (position, _) = self
-                                .checked
-                                .state_parameters(state)
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, parameter)| {
-                                    !parameter.relevance.is_erased()
-                                        && self
-                                            .checked
-                                            .primitive_type_reference(parameter.type_reference)
-                                            .is_none()
-                                })
-                                .nth(parameter_index as usize)
-                                .ok_or(LoweringError::Unsupported(
-                                    "byte sequence operand lost its source parameter",
-                                ))?;
+                            let (position, _) =
+                                self.checked
+                                    .state_parameters(state)
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(_, parameter)| {
+                                        !parameter.relevance.is_erased()
+                                        && checked_trees::CheckedScalarType::from_type_reference(
+                                            &self.checked.typed, parameter.type_reference,
+                                        ).is_none()
+                                    })
+                                    .nth(parameter_index as usize)
+                                    .ok_or(LoweringError::Unsupported(
+                                        "byte sequence operand lost its source parameter",
+                                    ))?;
                             CheckedStorageRoot::Parameter {
                                 index: u32::try_from(position).map_err(|_| {
                                     LoweringError::Unsupported("byte sequence parameter overflow")
@@ -484,6 +483,28 @@ pub(crate) mod computations {
         use checked_trees::CheckedUnitStructuralParameterPlan;
         use symbols::SymbolHandle;
 
+        pub(crate) fn for_callee<'checked>(
+            checked: &'checked CheckedTrees,
+            callee: &checked_trees::CheckedScalarCallee,
+        ) -> Result<&'checked [CheckedUnitStructuralParameterPlan], LoweringError> {
+            if let Some(contract) = callee.runtime_contract() {
+                let row = checked
+                    .facts
+                    .callable_contracts
+                    .contract_for_source(contract)
+                    .map_err(LoweringError::Unsupported)?;
+                return Ok(&row
+                    .signature()
+                    .map_err(LoweringError::Unsupported)?
+                    .structural_parameters);
+            }
+            let signature = callee.called_signature().ok_or(LoweringError::Unsupported(
+                "call has no declared or runtime contract source",
+            ))?;
+            let (machine, state) = callee.static_target().unwrap_or((signature, signature));
+            structural_parameters(checked, machine, state)
+        }
+
         pub(crate) fn structural_parameters(
             checked: &CheckedTrees,
             machine: SymbolHandle,
@@ -581,7 +602,15 @@ pub(crate) mod computations {
                                 || control.is_retired(site.state, call)
                                 || call.statement_index != site.statement as usize
                                 || call.call_ordinal != ordinal as usize
-                                || call.target_symbol != callee.called_signature()
+                                || match callee.runtime_contract() {
+                                    Some(contract) => !call
+                                        .runtime_call
+                                        .is_some_and(|binding| binding.contract == contract),
+                                    None => {
+                                        call.runtime_call.is_some()
+                                            || Some(call.target_symbol) != callee.called_signature()
+                                    }
+                                }
                                 || call.authored_expression != expression
                             {
                                 return unsupported(
@@ -654,6 +683,7 @@ pub(crate) mod computations {
             },
             Snapshot(Argument),
             DispatchSelector(Argument),
+            RuntimeCallee(Argument),
             Produced(produced_values::Slot),
         }
 
@@ -799,11 +829,40 @@ pub(crate) mod computations {
                 let source =
                     self.call_source(origin, source_expression, callee, call_ordinal, site)?;
                 let source_call = origin.statement();
-                let (target_machine, target_state) = callee
-                    .static_target()
-                    .unwrap_or((callee.called_signature(), callee.called_signature()));
-                let signature =
-                    target_signature(self.checked, self.machine, callee.called_signature())?;
+                let runtime_binding = if callee.runtime_contract().is_some() {
+                    let coordinate = source.coordinate.statement().ok_or(
+                        LoweringError::Unsupported(
+                            "runtime declaration invocation has no retained source call binding",
+                        ),
+                    )?;
+                    let (binding, _) = crate::shared::call_sites::checked_runtime_invocation(
+                        self.checked,
+                        coordinate,
+                    )?;
+                    if Some(binding.contract) != callee.runtime_contract() {
+                        return unsupported("computed runtime call changed its retained contract");
+                    }
+                    Some(binding)
+                } else {
+                    None
+                };
+                let declared_target = callee
+                    .called_signature()
+                    .map(|signature| callee.static_target().unwrap_or((signature, signature)));
+                let source_target = match runtime_binding {
+                    Some(binding) => lowered_psi::LoweredSourceCallTarget::Runtime(binding),
+                    None => lowered_psi::LoweredSourceCallTarget::Declaration(
+                        callee.called_signature().ok_or(LoweringError::Unsupported(
+                            "computed call lost its declaration",
+                        ))?,
+                    ),
+                };
+                let signature = crate::shared::declarations::invocation_signature(
+                    self.checked,
+                    self.machine,
+                    source_target,
+                )?;
+                let parameters = super::call_signature::for_callee(self.checked, callee)?;
                 let plans = &self.checked.facts.values.scalar_computations;
                 let structural = plans.structural_arguments.span(structural).ok_or(
                     LoweringError::Unsupported("computed structural arguments have a stale span"),
@@ -826,8 +885,7 @@ pub(crate) mod computations {
                     identities,
                     self.checked,
                     source_call,
-                    target_machine,
-                    target_state,
+                    parameters,
                     site.state,
                     structural,
                     site.bindings,
@@ -842,11 +900,7 @@ pub(crate) mod computations {
                     .ok_or(LoweringError::Unsupported(
                         "scalar computation call has an invalid argument span",
                     ))?;
-                let parameters = super::call_signature::structural_parameters(
-                    self.checked,
-                    target_machine,
-                    target_state,
-                )?;
+
                 let claim_transfers = plans
                     .claim_transfers
                     .span(claim_transfers)
@@ -857,6 +911,9 @@ pub(crate) mod computations {
                 let mut scalar_ordinal = 0usize;
                 let mut structural_ordinal = 0usize;
                 let mut operands = Vec::new();
+                if let checked_trees::CheckedScalarCallee::Runtime { callee, .. } = callee {
+                    operands.push(Operand::RuntimeCallee(Argument::Computation(*callee)));
+                }
                 let mut argument_homes = Vec::new();
                 if callee.authority_value().is_valid() {
                     let slot = self
@@ -1037,6 +1094,7 @@ pub(crate) mod computations {
                                                             operand,
                                                             Operand::Scalar { .. }
                                                                 | Operand::DispatchSelector(_)
+                                                                | Operand::RuntimeCallee(_)
                                                                 | Operand::Snapshot(_)
                                                         )
                                                     })
@@ -1131,21 +1189,43 @@ pub(crate) mod computations {
                         });
                     }
                 }
-                let arrival_types = match callee.static_target() {
-                    Some(_) if signature.boundary => self
-                        .qualifications
-                        .boundary_scalar_formals(self.checked, target_machine),
-                    Some(_) => Some(
-                        self.qualifications
-                            .scalar_state_types(self.checked, target_state)?
-                            .0,
-                    ),
-                    None => None,
+                let arrival_types = if let Some(binding) = runtime_binding {
+                    let row = self
+                        .checked
+                        .facts
+                        .callable_contracts
+                        .contract_for_source(binding.contract)
+                        .map_err(LoweringError::Unsupported)?;
+                    let contract = site.bindings.callables().catalog.contract(row.id).ok_or(
+                        LoweringError::Unsupported(
+                            "runtime call has no prepared scalar formal qualifications",
+                        ),
+                    )?;
+                    Some(
+                        contract
+                            .scalar_parameters
+                            .iter()
+                            .map(|formal| formal.value_type())
+                            .collect(),
+                    )
+                } else {
+                    match declared_target {
+                        Some((target_machine, _)) if signature.boundary => self
+                            .qualifications
+                            .boundary_scalar_formals(self.checked, target_machine),
+                        Some((_, target_state)) => Some(
+                            self.qualifications
+                                .scalar_state_types(self.checked, target_state)?
+                                .0,
+                        ),
+                        None => None,
+                    }
                 };
                 let mut prefixes = vec![input_types.to_vec()];
                 let mut scalar_actuals = vec![None; scalars.len()];
                 let mut arrivals = Vec::with_capacity(operands.len());
                 let mut selector_actual = None;
+                let mut runtime_actual = None;
                 for operand in &operands {
                     let mut arrival = None;
                     let mut prefix = prefixes
@@ -1185,6 +1265,26 @@ pub(crate) mod computations {
                             selector_actual = Some(parameter(prefix.len(), value_type));
                             prefix.push(value_type);
                         }
+                        Operand::RuntimeCallee(argument) => {
+                            let value_type =
+                                self.argument_type(identities, argument, site, input_types)?;
+                            let binding = runtime_binding.ok_or(LoweringError::Unsupported(
+                                "runtime call lost its source binding",
+                            ))?;
+                            let contract = self
+                                .checked
+                                .facts
+                                .callable_contracts
+                                .contract_for_source(binding.contract)
+                                .map_err(LoweringError::Unsupported)?;
+                            if value_type.scalar_type != ScalarType::Callable(contract.id) {
+                                return unsupported(
+                                    "runtime call operand changed its checked callable carrier",
+                                );
+                            }
+                            runtime_actual = Some(parameter(prefix.len(), value_type));
+                            prefix.push(value_type);
+                        }
                         _ => {}
                     }
                     arrivals.push(arrival);
@@ -1214,7 +1314,31 @@ pub(crate) mod computations {
                 } else {
                     Vec::new()
                 };
-                let call = if let checked_trees::CheckedScalarCallee::Dynamic {
+                let call = if runtime_binding.is_some() {
+                    let coordinate = coordinate.statement().ok_or(LoweringError::Unsupported(
+                        "runtime call has no statement custody",
+                    ))?;
+                    LoweredScalarBinding::RuntimeCall(
+                        crate::emission::operation_emission::runtime_calls::lower_scalar_call(
+                            identities,
+                            self.checked,
+                            &site.bindings.callables().catalog,
+                            coordinate,
+                            runtime_actual.ok_or(LoweringError::Unsupported(
+                                "runtime call lost its completed callee",
+                            ))?,
+                            call_types,
+                            site.bindings,
+                            scalar_actuals,
+                            structural_arguments,
+                            &claim_transfers,
+                            result_type,
+                            self.structural_types,
+                            self.erased_proof_parameters,
+                            loan_completions,
+                        )?,
+                    )
+                } else if let checked_trees::CheckedScalarCallee::Dynamic {
                     slot,
                     interface_identity,
                     ..
@@ -1309,6 +1433,9 @@ pub(crate) mod computations {
                     ..
                 } = callee
                 {
+                    let (target_machine, _) = declared_target.ok_or(LoweringError::Unsupported(
+                        "descriptor instruction lost its declaration",
+                    ))?;
                     LoweredScalarBinding::DescriptorTable(
                         crate::emission::operation_emission::descriptor_tables::LoweredDescriptorTableBinding {
                             source_coordinate: coordinate.statement().ok_or_else(|| {
@@ -1330,6 +1457,9 @@ pub(crate) mod computations {
                         },
                     )
                 } else if signature.boundary {
+                    let (target_machine, _) = declared_target.ok_or(LoweringError::Unsupported(
+                        "boundary call lost its declaration",
+                    ))?;
                     let coordinate = coordinate.statement().ok_or(LoweringError::Unsupported(
                         "boundary invocation lacks statement custody",
                     ))?;
@@ -1348,6 +1478,9 @@ pub(crate) mod computations {
                         completion_receipts: crate::emission::claim_bindings::prepare_checked_claim_transfers(identities, self.checked, &claim_transfers, parameters, self.structural_types)?,
                     })
                 } else {
+                    let (target_machine, target_state) = declared_target.ok_or(
+                        LoweringError::Unsupported("direct call lost its declaration"),
+                    )?;
                     LoweredScalarBinding::DirectCall(lower_scalar_call(
                         identities,
                         self.checked,
@@ -1421,7 +1554,8 @@ pub(crate) mod computations {
                                     argument: Argument::Computation(computation),
                                     ..
                                 }
-                                | Operand::DispatchSelector(Argument::Computation(computation)) => {
+                                | Operand::DispatchSelector(Argument::Computation(computation))
+                                | Operand::RuntimeCallee(Argument::Computation(computation)) => {
                                     Some((*computation, prefixes[earlier].len()))
                                 }
                                 _ => None,
@@ -1449,7 +1583,9 @@ pub(crate) mod computations {
                             };
                             self.argument(identities, argument, prefix, arrival, site, active)?
                         }
-                        Operand::Snapshot(argument) | Operand::DispatchSelector(argument) => {
+                        Operand::Snapshot(argument)
+                        | Operand::DispatchSelector(argument)
+                        | Operand::RuntimeCallee(argument) => {
                             self.argument(identities, argument, prefix, continuation, site, active)?
                         }
                         Operand::ByteLiteral(slot) => self.push(LoweredScalarBranchState {
@@ -1859,12 +1995,10 @@ pub(crate) mod computations {
                 .ok_or(LoweringError::Unsupported(
                     "computed case field declaration is absent",
                 ))?;
-                let primitive = checked
-                    .primitive_type_reference(authored.type_reference)
-                    .ok_or(LoweringError::Unsupported(
-                        "computed case field is not scalar",
-                    ))?;
-                let scalar_type = terminal_scalar_type(primitive)?;
+                let scalar_type = crate::emission::scalar_types::terminal_type_reference(
+                    checked,
+                    authored.type_reference,
+                )?;
                 if declaration.field_type.scalar_type() != Some(scalar_type)
                     || declaration.relevance != language_core::BindingRelevance::Relevant
                 {
@@ -2896,7 +3030,7 @@ pub(crate) mod computations {
                 subject: &CheckedUnitStructuralArgumentPlan,
                 field: symbols::SymbolHandle,
                 atomic_ordering: Option<terminal_psi::MemoryOrdering>,
-                primitive: PrimitiveType,
+                scalar_type: ScalarType,
                 normal_cleanup_actions: arena::HandleSpan<
                     checked_trees::CheckedNormalCleanupAction,
                 >,
@@ -2994,7 +3128,7 @@ pub(crate) mod computations {
                         self.structural_types,
                         subject,
                         field,
-                        primitive,
+                        scalar_type,
                         terminal_psi::StructuralArgument::whole(
                             place,
                             terminal_psi::StructuralAccess::SharedBorrow,
@@ -3007,7 +3141,7 @@ pub(crate) mod computations {
                         return unsupported("produced observation lost its value dependency");
                     }
                     None => {
-                        let binding = field_binding(self.fields, subject, field, primitive)?;
+                        let binding = field_binding(self.fields, subject, field, scalar_type)?;
                         let home = observation_source(
                             identities,
                             self.checked,
@@ -3176,7 +3310,8 @@ pub(crate) mod computations {
             types: &[StructuralTypeDeclaration],
         ) -> Result<Option<CapturedPlaceSubject>, LoweringError> {
             let referee = loan.referee;
-            if checked.primitive_type_reference(referee).is_none()
+            if checked_trees::CheckedScalarType::from_type_reference(&checked.typed, referee)
+                .is_none()
                 && !matches!(
                     checked.type_reference_table.type_reference(referee),
                     TypeReferenceNode::Named { .. }
@@ -3201,9 +3336,11 @@ pub(crate) mod computations {
                             "place loan lost its scalar formal",
                         ))?;
                     if parameter.relevance.is_erased()
-                        || checked
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
+                        || checked_trees::CheckedScalarType::from_type_reference(
+                            &checked.typed,
+                            parameter.type_reference,
+                        )
+                        .is_none()
                         || checked.normalized_type_identity(parameter.type_reference)
                             != checked.normalized_type_identity(loan.root_type)
                     {
@@ -3254,7 +3391,12 @@ pub(crate) mod computations {
                                     | StructuralFieldType::AtomicBoundedInteger(_)
                             )
                         {
-                            if checked.primitive_type_reference(referee).is_none() {
+                            if checked_trees::CheckedScalarType::from_type_reference(
+                                &checked.typed,
+                                referee,
+                            )
+                            .is_none()
+                            {
                                 return unsupported(
                                     "record observation cannot replace a scalar storage endpoint",
                                 );
@@ -3386,36 +3528,39 @@ pub(crate) mod computations {
                 Some(split) => (path.split_off(split), carrier_path.split_off(split)),
                 None => (Vec::new(), Vec::new()),
             };
-            let primitive = checked
-                .primitive_type_reference(referee)
-                .map(|viewed| {
-                    let (field, scalar_type) = match primitive_field {
-                        Some((field, scalar_type)) => (Some(field), scalar_type),
-                        None => match declaration.shape {
-                            StructuralTypeShape::PrimitiveScalar(scalar_type) => {
-                                (None, scalar_type)
-                            }
-                            _ => {
-                                return unsupported(
-                                    "primitive observation has no declared scalar storage",
-                                );
-                            }
-                        },
-                    };
-                    Ok(PrimitiveObservation {
-                        scalar_type,
-                        viewed_type: terminal_scalar_type(viewed)?,
-                        field,
-                        path: if runtime_split.is_some() {
-                            carrier.clone()
-                        } else {
-                            path.clone()
-                        },
-                        element_path: element_suffix.clone(),
-                        view_container,
+            let primitive =
+                checked_trees::CheckedScalarType::from_type_reference(&checked.typed, referee)
+                    .map(|viewed| {
+                        let (field, scalar_type) = match primitive_field {
+                            Some((field, scalar_type)) => (Some(field), scalar_type),
+                            None => match declaration.shape {
+                                StructuralTypeShape::PrimitiveScalar(scalar_type) => {
+                                    (None, scalar_type)
+                                }
+                                _ => {
+                                    return unsupported(
+                                        "primitive observation has no declared scalar storage",
+                                    );
+                                }
+                            },
+                        };
+                        Ok(PrimitiveObservation {
+                            scalar_type,
+                            viewed_type:
+                                crate::emission::scalar_types::terminal_checked_scalar_type(
+                                    checked, viewed,
+                                )?,
+                            field,
+                            path: if runtime_split.is_some() {
+                                carrier.clone()
+                            } else {
+                                path.clone()
+                            },
+                            element_path: element_suffix.clone(),
+                            view_container,
+                        })
                     })
-                })
-                .transpose()?;
+                    .transpose()?;
             Ok(Some(CapturedPlaceSubject {
                 primitive,
                 access: loan.access,
@@ -3464,7 +3609,7 @@ pub(crate) mod computations {
             let field =
                 crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
                     identities,
-                    primitive_type,
+                    terminal_scalar_type(primitive_type)?,
                     carrier_path,
                     field_identity,
                     loan.terminal,
@@ -3690,14 +3835,19 @@ pub(crate) mod computations {
                             )
                         }
                     };
-                    let (walk, identity, leaf_primitive) = match &typed_overlay {
+                    let (walk, identity, leaf_scalar_type) = match &typed_overlay {
                         Some(overlay) => {
-                            record_view_source_walk(checked, overlay, subject, *field)?
+                            let (walk, identity, primitive) =
+                                record_view_source_walk(checked, overlay, subject, *field)?;
+                            (walk, identity, terminal_scalar_type(primitive)?)
                         }
                         None => (
                             subject.path.clone(),
                             identity.spelling(),
-                            node.primitive_type,
+                            crate::emission::scalar_types::terminal_checked_scalar_type(
+                                checked,
+                                node.scalar_type,
+                            )?,
                         ),
                     };
                     let observation_root_type = declaration.id;
@@ -3814,8 +3964,10 @@ pub(crate) mod computations {
                             LoweringError::Unsupported("record read carrier type is absent"),
                         )?;
                     }
-                    let scalar_type = terminal_scalar_type(node.primitive_type)?;
-                    let leaf_scalar_type = terminal_scalar_type(leaf_primitive)?;
+                    let scalar_type = crate::emission::scalar_types::terminal_checked_scalar_type(
+                        checked,
+                        node.scalar_type,
+                    )?;
                     if !field.is_valid() {
                         let leaf_matches = match (&declaration.shape, atomic_ordering) {
                             (StructuralTypeShape::PrimitiveScalar(actual), None) => {
@@ -4137,7 +4289,7 @@ pub(crate) mod computations {
             receiver: checked_trees::CheckedStructuralValueHandle,
             subject: &CheckedUnitStructuralArgumentPlan,
             field: symbols::SymbolHandle,
-            primitive: PrimitiveType,
+            scalar_type: ScalarType,
             atomic_ordering: Option<terminal_psi::MemoryOrdering>,
             completed: &crate::emission::operation_emission::buffer::ComputedValueBinding,
         ) -> Result<LoweredDirectExpression, LoweringError> {
@@ -4147,7 +4299,7 @@ pub(crate) mod computations {
             }
             argument.access = terminal_psi::StructuralAccess::SharedBorrow;
             if receiver.is_valid() {
-                let binding = field_binding(fields, subject, field, primitive)?;
+                let binding = field_binding(fields, subject, field, scalar_type)?;
                 return observe(binding, bindings, argument, None, atomic_ordering);
             }
             let coordinate = completed.observation.as_ref().map_err(Clone::clone)?;
@@ -4157,7 +4309,7 @@ pub(crate) mod computations {
                 types,
                 subject,
                 field,
-                primitive,
+                scalar_type,
                 argument,
                 completed.structural_type,
                 coordinate,
@@ -4172,7 +4324,7 @@ pub(crate) mod computations {
             types: &[terminal_psi::StructuralTypeDeclaration],
             subject: &CheckedUnitStructuralArgumentPlan,
             field: symbols::SymbolHandle,
-            primitive: PrimitiveType,
+            scalar_type: ScalarType,
             source_binding: terminal_psi::StructuralArgument,
             structural_type: semantic_vocabulary::StructuralTypeId,
             source: &crate::emission::operation_emission::calls::PreparedStructuralArgument,
@@ -4192,7 +4344,7 @@ pub(crate) mod computations {
                 types,
                 subject,
                 field,
-                primitive,
+                scalar_type,
                 source_binding,
                 structural_type,
                 &coordinate,
@@ -4207,7 +4359,7 @@ pub(crate) mod computations {
             types: &[terminal_psi::StructuralTypeDeclaration],
             subject: &CheckedUnitStructuralArgumentPlan,
             field: symbols::SymbolHandle,
-            primitive: PrimitiveType,
+            scalar_type: ScalarType,
             source_binding: terminal_psi::StructuralArgument,
             structural_type: semantic_vocabulary::StructuralTypeId,
             source: &crate::emission::operation_emission::buffer::ComputedValueObservation,
@@ -4217,7 +4369,7 @@ pub(crate) mod computations {
             if !terminal_psi::StructuralAccess::SharedBorrow.admits(source.access) {
                 return unsupported("captured field observation requires readable source custody");
             }
-            let mut binding = field_binding(fields, subject, field, primitive)?.clone();
+            let mut binding = field_binding(fields, subject, field, scalar_type)?.clone();
             let prefix = source
                 .path
                 .iter()
@@ -4265,12 +4417,11 @@ pub(crate) mod computations {
             fields: &'a [Binding],
             subject: &CheckedUnitStructuralArgumentPlan,
             field: symbols::SymbolHandle,
-            primitive: PrimitiveType,
+            scalar_type: ScalarType,
         ) -> Result<&'a Binding, LoweringError> {
             if subject.access == checked_trees::CheckedStructuralAccess::WriteOnlyBorrow {
                 return unsupported("field observation requires readable source custody");
             }
-            let scalar_type = terminal_scalar_type(primitive)?;
             let mut matching = fields.iter().filter(|binding| {
                 binding.symbol == field
                     && binding.subject == *subject
@@ -6196,8 +6347,7 @@ pub(crate) mod computations {
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             checked: &CheckedTrees,
             source_call: Option<arena::Handle<checked_trees::FlowCallFact>>,
-            target_machine: symbols::SymbolHandle,
-            target_state: symbols::SymbolHandle,
+            parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
             caller_state: symbols::SymbolHandle,
             arguments: &[checked_trees::CheckedScalarComputationStructuralArgument],
             bindings: &storage::ScalarBindings,
@@ -6209,11 +6359,7 @@ pub(crate) mod computations {
             if arguments.is_empty() {
                 return Ok(Vec::new());
             }
-            let parameters = super::call_signature::structural_parameters(
-                checked,
-                target_machine,
-                target_state,
-            )?;
+
             let (_, caller_authored) =
                 crate::shared::declarations::state_declaration(checked, caller_state)?;
             let caller_parameters = checked.state_parameters(caller_authored);
@@ -6612,11 +6758,11 @@ pub(crate) mod computations {
     }
     pub(crate) mod value_types {
 
-        use super::super::terminal_scalar_type;
         use super::{
             CheckedScalarComputationKind, CheckedTrees, Computation, LoweringError,
             PreparedScalarQualifications, QualifiedScalarType, ScalarType, storage, unsupported,
         };
+        use crate::emission::scalar_types::terminal_checked_scalar_type;
         pub(crate) fn computation_value_type(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
             checked: &CheckedTrees,
@@ -6676,16 +6822,34 @@ pub(crate) mod computations {
                     qualifications.value_type(checked, *result_type)?
                 }
                 CheckedScalarComputationKind::Call { callee, .. } => {
-                    let target = callee
-                        .static_target()
-                        .map_or(callee.called_signature(), |(_, state)| state);
-                    let signature =
-                        crate::shared::declarations::target_signature(checked, target, target)?;
-                    qualifications.signature_value_type(checked, signature.return_type)?
+                    let result_type = if let Some(source) = callee.runtime_contract() {
+                        checked
+                            .facts
+                            .callable_contracts
+                            .contract_for_source(source)
+                            .map_err(LoweringError::Unsupported)?;
+                        checked
+                            .typed
+                            .runtime_callable_contract(source)
+                            .signature
+                            .return_type
+                    } else {
+                        let target = callee
+                            .static_target()
+                            .map(|(_, state)| state)
+                            .or_else(|| callee.called_signature())
+                            .ok_or(LoweringError::Unsupported(
+                                "computed call has no retained callable source",
+                            ))?;
+                        crate::shared::declarations::target_signature(checked, target, target)?
+                            .return_type
+                    };
+                    qualifications.signature_value_type(checked, result_type)?
                 }
-                CheckedScalarComputationKind::StorageAddress { .. }
+                CheckedScalarComputationKind::MachineValue { .. }
+                | CheckedScalarComputationKind::StorageAddress { .. }
                 | CheckedScalarComputationKind::RetainedConstant { .. } => {
-                    terminal_scalar_type(node.primitive_type)?.into()
+                    terminal_checked_scalar_type(checked, node.scalar_type)?.into()
                 }
                 CheckedScalarComputationKind::Value(expression) => bindings
                     .expression(identities, &checked.facts.proven_scalar_indexes, expression)?
@@ -6694,7 +6858,7 @@ pub(crate) mod computations {
                     if child_type!(*operand)? != ScalarType::Boolean.into() {
                         return unsupported("Boolean-to-integer operand is not a scalar Boolean");
                     }
-                    terminal_scalar_type(node.primitive_type)?.into()
+                    terminal_checked_scalar_type(checked, node.scalar_type)?.into()
                 }
                 CheckedScalarComputationKind::WithOperands { operand, .. } => {
                     child_type!(*operand)?
@@ -6702,7 +6866,7 @@ pub(crate) mod computations {
                 CheckedScalarComputationKind::Apply { .. }
                 | CheckedScalarComputationKind::StorageObservation { .. }
                 | CheckedScalarComputationKind::SelectedComparison { .. } => {
-                    terminal_scalar_type(node.primitive_type)?.into()
+                    terminal_checked_scalar_type(checked, node.scalar_type)?.into()
                 }
                 CheckedScalarComputationKind::Select {
                     when_true,
@@ -6740,7 +6904,7 @@ pub(crate) mod computations {
                 }
             };
             active.pop();
-            if result.scalar_type != terminal_scalar_type(node.primitive_type)? {
+            if result.scalar_type != terminal_checked_scalar_type(checked, node.scalar_type)? {
                 return unsupported("scalar computation qualified type disagrees with its carrier");
             }
             Ok(result)
@@ -7386,6 +7550,23 @@ pub(crate) mod computations {
             };
             let target = completion_state.unwrap_or(target);
             let entry = match node.kind {
+                CheckedScalarComputationKind::MachineValue { .. } => {
+                    let selected = site.bindings.callables().descriptor(*handle)?;
+                    if result_type.scalar_type != ScalarType::Callable(selected.contract) {
+                        return unsupported(
+                            "machine selection changes its prepared callable carrier",
+                        );
+                    }
+                    self.binding(
+                        input_types,
+                        input_types.len(),
+                        target,
+                        LoweredScalarBinding::MachineValue {
+                            descriptor: selected.id,
+                            contract: selected.contract,
+                        },
+                    )
+                }
                 CheckedScalarComputationKind::StorageAddress { subject, .. } => {
                     let (_, state) =
                         crate::shared::declarations::state_declaration(self.checked, site.state)?;
@@ -7447,7 +7628,7 @@ pub(crate) mod computations {
                     &subject,
                     field,
                     atomic_ordering,
-                    node.primitive_type,
+                    result_type.scalar_type,
                     node.normal_cleanup_actions,
                     input_types,
                     target,

@@ -913,31 +913,38 @@ pub mod evidence {
                         program,
                         trait_symbol,
                         &root_arguments,
-                    ),
+                    )
+                    .ok()?,
                 }),
             ))
         }
 
-        fn normalized_evidence_requirements(
+        pub(crate) fn normalized_evidence_requirements(
             program: &crate::TypedTrees,
             root: SymbolHandle,
             root_arguments: &[String],
-        ) -> Vec<NormalizedEvidenceRequirementIdentity> {
+        ) -> Result<
+            Vec<NormalizedEvidenceRequirementIdentity>,
+            crate::runtime_callable_identity::RuntimeCallableIdentityError,
+        > {
             fn collect(
                 program: &crate::TypedTrees,
                 trait_symbol: SymbolHandle,
                 trait_arguments: &[String],
                 visited: &mut Vec<(SymbolHandle, Vec<String>)>,
                 requirements: &mut Vec<NormalizedEvidenceRequirementIdentity>,
-            ) {
+            ) -> Result<(), crate::runtime_callable_identity::RuntimeCallableIdentityError>
+            {
                 let visit = (trait_symbol, trait_arguments.to_vec());
                 if visited.contains(&visit) {
-                    return;
+                    return Ok(());
                 }
                 visited.push(visit);
-                let Some(definition) = program.trait_definition_by_symbol(trait_symbol) else {
-                    return;
-                };
+                let definition = program.trait_definition_by_symbol(trait_symbol)
+                    .ok_or(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact)?;
+                if program.trait_type_parameters(definition).len() != trait_arguments.len() {
+                    return Err(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact);
+                }
                 for requirement in program.trait_machine_signatures(definition) {
                     if !requirements.iter().any(|candidate| {
                         candidate.declaring_trait == definition.symbol
@@ -962,20 +969,21 @@ pub mod evidence {
                         .type_reference_handles(parent.arguments)
                         .iter()
                         .map(|argument| {
-                            program.type_identity_request_text(TypeIdentityRequest {
+                            program.runtime_callable_type_identity(TypeIdentityRequest {
                                 binders: &substitutions,
                                 ..TypeIdentityRequest::ordinary(*argument)
                             })
                         })
-                        .collect::<Vec<_>>();
+                        .collect::<Result<Vec<_>, _>>()?;
                     collect(
                         program,
                         parent.symbol,
                         &parent_arguments,
                         visited,
                         requirements,
-                    );
+                    )?;
                 }
+                Ok(())
             }
 
             let mut requirements = Vec::new();
@@ -985,7 +993,7 @@ pub mod evidence {
                 root_arguments,
                 &mut Vec::new(),
                 &mut requirements,
-            );
+            )?;
             requirements.sort_by_key(|requirement| {
                 (
                     requirement.declaring_trait.arena_index(),
@@ -993,7 +1001,7 @@ pub mod evidence {
                     requirement.declaring_trait_arguments.clone(),
                 )
             });
-            requirements
+            Ok(requirements)
         }
 
         impl crate::TypedTrees {

@@ -8737,14 +8737,15 @@ pub(crate) mod structural_scalar_store {
         pub(crate) fn bind_range_decision(
             &mut self,
             checked: &checked_trees::CheckedTrees,
-            primitive_type: checked_trees::types::PrimitiveType,
+            scalar_type: ScalarType,
             range_decision: arena::Handle<checked_trees::CheckedIntegerAssignmentDecision>,
         ) -> Result<(), LoweringError> {
-            self.range_decided = source_range_decided(
+            self.range_decided = receiving_range_decided(
                 checked,
-                primitive_type,
+                scalar_type,
                 range_decision,
                 self.bounded_integer,
+                false,
             )?;
             Ok(())
         }
@@ -8787,7 +8788,7 @@ pub(crate) mod structural_scalar_store {
     ) -> Result<bool, LoweringError> {
         receiving_range_decided(
             checked,
-            primitive_type,
+            terminal_scalar_type(primitive_type)?,
             range_decision,
             bounded_integer,
             false,
@@ -8802,7 +8803,7 @@ pub(crate) mod structural_scalar_store {
     ) -> Result<bool, LoweringError> {
         receiving_range_decided(
             checked,
-            primitive_type,
+            terminal_scalar_type(primitive_type)?,
             range_decision,
             bounded_integer,
             true,
@@ -8811,7 +8812,7 @@ pub(crate) mod structural_scalar_store {
 
     fn receiving_range_decided(
         checked: &checked_trees::CheckedTrees,
-        primitive_type: checked_trees::types::PrimitiveType,
+        scalar_type: ScalarType,
         range_decision: arena::Handle<checked_trees::CheckedIntegerAssignmentDecision>,
         bounded_integer: Option<semantic_vocabulary::BoundedIntegerType>,
         atomic_resident: bool,
@@ -8834,8 +8835,7 @@ pub(crate) mod structural_scalar_store {
                 numerics::bignum::BigInt::from_u128(value)
             }
         };
-        let decided = terminal_scalar_type(primitive_type)?
-            == ScalarType::Integer(integer.integer_type())
+        let decided = scalar_type == ScalarType::Integer(integer.integer_type())
             && decision.minimum == mathematical(integer.minimum())
             && decision.maximum == mathematical(integer.maximum());
         Ok(decided)
@@ -8843,13 +8843,12 @@ pub(crate) mod structural_scalar_store {
 
     pub(crate) fn lower_structural_scalar_store_place(
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        primitive_type: checked_trees::types::PrimitiveType,
+        scalar_type: ScalarType,
         carrier_path: &[CheckedUnitStructuralPathSegment],
         field_identity: &checked_trees::CheckedMemberIdentity,
         parameter: &StructuralParameterDeclaration,
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<LoweredStructuralScalarStore, LoweringError> {
-        let scalar_type = terminal_scalar_type(primitive_type)?;
         validate_storage_access(parameter)?;
         let (steps, field) = lower_structural_field_steps(
             identities,
@@ -8863,13 +8862,12 @@ pub(crate) mod structural_scalar_store {
 
     pub(crate) fn lower_structural_scalar_store_local(
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        primitive_type: checked_trees::types::PrimitiveType,
+        scalar_type: ScalarType,
         carrier_path: &[CheckedUnitStructuralPathSegment],
         field_identity: &checked_trees::CheckedMemberIdentity,
         root_type: StructuralTypeId,
         structural_types: &[StructuralTypeDeclaration],
     ) -> Result<LoweredStructuralScalarStore, LoweringError> {
-        let scalar_type = terminal_scalar_type(primitive_type)?;
         let (steps, field) = lower_structural_field_steps(
             identities,
             root_type,
@@ -9750,6 +9748,52 @@ pub(crate) mod scalar_types {
             PrimitiveType::F32 => Ok(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)),
             PrimitiveType::F64 => Ok(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)),
             primitive => integer_scalar_type(primitive),
+        }
+    }
+
+    /// Lower an ordinary scalar without discarding an opaque callable's contract.
+    pub(crate) fn terminal_type_reference(
+        checked: &checked_trees::CheckedTrees,
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Result<ScalarType, LoweringError> {
+        let reference = checked
+            .type_reference_table
+            .unconstrained_type_reference(reference);
+        if let typed_trees::types::TypeReferenceNode::Callable { contract } =
+            checked.type_reference_table.type_reference(reference)
+        {
+            let retained = checked
+                .facts
+                .callable_contracts
+                .contract_for_source(*contract)
+                .map_err(LoweringError::Unsupported)?;
+            return Ok(ScalarType::Callable(retained.id));
+        }
+        let primitive =
+            checked
+                .primitive_type_reference(reference)
+                .ok_or(LoweringError::Unsupported(
+                    "value has no admitted scalar representation",
+                ))?;
+        terminal_scalar_type(primitive)
+    }
+
+    pub(crate) fn terminal_checked_scalar_type(
+        checked: &checked_trees::CheckedTrees,
+        scalar: checked_trees::CheckedScalarType,
+    ) -> Result<ScalarType, LoweringError> {
+        match scalar {
+            checked_trees::CheckedScalarType::Primitive(primitive) => {
+                terminal_scalar_type(primitive)
+            }
+            checked_trees::CheckedScalarType::Callable(source) => {
+                let contract = checked
+                    .facts
+                    .callable_contracts
+                    .contract_for_source(source)
+                    .map_err(LoweringError::Unsupported)?;
+                Ok(ScalarType::Callable(contract.id))
+            }
         }
     }
 

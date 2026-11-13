@@ -106,12 +106,19 @@ pub(crate) fn emit_target(
     let selected = {
         observation.enter(NativePipelineStage::InstructionSelection);
         let optimized = target_input.optimized();
+        let callable_roots = target_input
+            .lowering_facts()
+            .callable_invocation_roots(target_input.target_operations())
+            .map_err(|reason| {
+                BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(reason)])
+            })?;
         stage_optimized_instruction_selection(
             TargetSelectionInput {
                 target: target_input.target_operations(),
                 source: optimized.plan(),
                 unit: optimized.unit(),
                 origins: target_input.boundary_origins(),
+                callable_roots: &callable_roots,
                 installed_interrupts: target_input.lowering_facts().installed_interrupts(),
                 installed_entry_execution: target_input.installed_entry_execution(),
                 installed_stack_requirements: target_input.installed_stack_requirements(),

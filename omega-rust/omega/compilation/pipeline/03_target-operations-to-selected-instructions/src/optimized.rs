@@ -100,6 +100,7 @@ pub(crate) mod construction {
             input.source,
             input.unit,
             input.origins,
+            input.callable_roots,
             input.installed_interrupts,
             input.installed_entry_execution,
             input.installed_stack_requirements,
@@ -162,6 +163,7 @@ pub(crate) mod input {
         pub source: &'input AbstractOperationPlan,
         pub unit: &'input PsiOptimizationUnit,
         pub origins: BoundaryOriginFacts<'input>,
+        pub callable_roots: &'input terminal_semantics::callable_values::CallableInvocationRoots,
         pub installed_entry_execution:
             Option<&'input provider_admission::AdmittedInstalledEntryExecution>,
         pub installed_interrupts: &'input provider_admission::AdmittedInstalledInterruptCohort,

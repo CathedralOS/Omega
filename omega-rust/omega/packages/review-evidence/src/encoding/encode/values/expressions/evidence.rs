@@ -4,7 +4,8 @@ use crate::encoding::PackageReviewEncodingError;
 use crate::encoding::encode::values::expressions::Encoder;
 use crate::encoding::encode::values::identity::encode_nominal;
 use crate::record::PackageReviewContractEvidenceArgument;
-use crate::record::PackageReviewContractKind;
+use crate::record::{PackageReviewContractKind, PackageReviewContractEvidenceOwner};
+use crate::encoding::encode::values::expressions::encode_type_identity;
 
 pub(super) fn encode_contract_evidence_argument(
     encoder: &mut Encoder,
@@ -16,7 +17,18 @@ pub(super) fn encode_contract_evidence_argument(
         ("parameter", argument.parameter()),
     ] {
         encoder.field(field, |encoder| {
-            encoder.field("owner", |encoder| encode_nominal(encoder, term.owner()))?;
+            encoder.field("owner", |encoder| {
+                match term.owner() {
+                    PackageReviewContractEvidenceOwner::Nominal(owner) => {
+                        encoder.tag("nominal", 0);
+                        encode_nominal(encoder, owner)
+                    }
+                    PackageReviewContractEvidenceOwner::Runtime { contract } => {
+                        encoder.tag("runtime_callable", 1);
+                        encode_type_identity(encoder, contract)
+                    }
+                }
+            })?;
             encoder.field("kind", |encoder| {
                 match term.kind() {
                     PackageReviewContractKind::Requires => encoder.tag("requires", 0),

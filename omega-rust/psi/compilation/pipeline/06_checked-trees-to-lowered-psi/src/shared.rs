@@ -102,9 +102,31 @@ pub(crate) mod call_sites {
     use checked_trees::{CheckedTrees, CheckedUnitCallCoordinate, FlowCallResult};
     use symbols::SymbolHandle;
 
+    pub(crate) fn declared_machine(
+        target: &checked_trees::CheckedUnitCallTarget,
+    ) -> Result<SymbolHandle, LoweringError> {
+        target
+            .declaration()
+            .map(|(machine, _)| machine)
+            .ok_or(LoweringError::Unsupported(
+                "nominal call operation received a runtime callable source",
+            ))
+    }
+
+    pub(crate) fn declared_state(
+        target: &checked_trees::CheckedUnitCallTarget,
+    ) -> Result<SymbolHandle, LoweringError> {
+        target
+            .declaration()
+            .map(|(_, state)| state)
+            .ok_or(LoweringError::Unsupported(
+                "nominal call operation received a runtime callable source",
+            ))
+    }
+
     pub(crate) struct AuthoredCall {
-        pub source_target: SymbolHandle,
-        pub scalar_arguments: Vec<(ExpressionHandle, PrimitiveType)>,
+        pub source_target: lowered_psi::LoweredSourceCallTarget,
+        pub scalar_arguments: Vec<(ExpressionHandle, checked_trees::CheckedScalarType)>,
         pub structural_arguments: Vec<(u32, ExpressionHandle)>,
         pub evaluation_order: Vec<usize>,
     }
@@ -123,12 +145,18 @@ pub(crate) mod call_sites {
             coordinate.statement_index as usize,
             coordinate.call_ordinal as usize,
         )?;
-        let source_target = call.authored_target;
+        let source_target = match call.runtime_call {
+            Some(binding) => lowered_psi::LoweredSourceCallTarget::Runtime(binding),
+            None => lowered_psi::LoweredSourceCallTarget::Declaration(call.authored_target),
+        };
         let arguments = control
             .call_arguments
             .span_or_empty(call.authored_arguments);
-        let target =
-            crate::shared::declarations::target_signature(checked, machine.symbol, source_target)?;
+        let target = crate::shared::declarations::invocation_signature(
+            checked,
+            machine.symbol,
+            source_target,
+        )?;
         let parameters = target.parameters;
         if arguments.len() != parameters.len() {
             return unsupported("call row disagrees with its callee's argument count");
@@ -137,7 +165,10 @@ pub(crate) mod call_sites {
         let mut structural_arguments = Vec::new();
         for (position, parameter) in parameters.iter().enumerate() {
             let argument = arguments[position];
-            let Some(primitive) = program.primitive_type_reference(parameter.type_reference) else {
+            let Some(scalar_type) = checked_trees::CheckedScalarType::from_type_reference(
+                program,
+                parameter.type_reference,
+            ) else {
                 structural_arguments.push((
                     u32::try_from(position).map_err(|_| {
                         LoweringError::Unsupported("call structural position exceeds u32")
@@ -148,11 +179,13 @@ pub(crate) mod call_sites {
             };
             if parameter.is_const
                 || (parameter.is_mutable
-                    && !(matches!(primitive, PrimitiveType::Bool) || primitive.is_fixed_integer()))
+                    && !scalar_type.primitive().is_some_and(|primitive| {
+                        matches!(primitive, PrimitiveType::Bool) || primitive.is_fixed_integer()
+                    }))
             {
                 return unsupported("call passes a primitive the callee cannot receive by value");
             }
-            scalar_arguments.push((argument, primitive));
+            scalar_arguments.push((argument, scalar_type));
         }
         Ok(AuthoredCall {
             source_target,
@@ -190,6 +223,11 @@ pub(crate) mod call_sites {
         let selected = match origin {
             lowered_psi::LoweredSourceCallOrigin::Statement(coordinate) => {
                 let call = checked_source_call(checked, coordinate)?;
+                if call.runtime_call.is_some() {
+                    return unsupported(
+                        "direct invocation lookup received a runtime callable source",
+                    );
+                }
                 (
                     call.target_symbol,
                     call.static_requirement_dispatch,
@@ -226,6 +264,51 @@ pub(crate) mod call_sites {
             }
         };
         Ok(selected)
+    }
+
+    pub(crate) fn checked_runtime_invocation(
+        checked: &CheckedTrees,
+        coordinate: crate::emission::operation_emission::buffer::SourceCallCoordinate,
+    ) -> Result<
+        (
+            typed_trees::RuntimeCallBinding,
+            Option<checked_trees::NominalMachineUseSite>,
+        ),
+        LoweringError,
+    > {
+        let call = checked_source_call(checked, coordinate)?;
+        let binding = call.runtime_call.ok_or(LoweringError::Unsupported(
+            "runtime invocation lost its retained evaluated callee",
+        ))?;
+        let (owner, _) = crate::shared::declarations::state_declaration(checked, coordinate.state)?;
+        let site = validation::find_call_site(
+            &checked.typed,
+            owner.symbol,
+            coordinate.state,
+            coordinate.statement_index,
+            coordinate.call_ordinal,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "runtime invocation lost its typed source occurrence",
+        ))?;
+        match validation::call_contract_source(&checked.typed, owner.symbol, &site)
+            .map_err(LoweringError::Unsupported)?
+        {
+            Some(validation::CallContractSource::Runtime {
+                binding: actual, ..
+            }) if actual == binding => {}
+            _ => {
+                return unsupported(
+                    "runtime invocation changed its checked callee or callable contract",
+                );
+            }
+        }
+        checked
+            .facts
+            .callable_contracts
+            .contract_for_source(binding.contract)
+            .map_err(LoweringError::Unsupported)?;
+        Ok((binding, source_site(checked, coordinate, call)?))
     }
 
     pub(crate) fn checked_source_call(
@@ -444,6 +527,34 @@ pub(crate) mod declarations {
                 }
             };
             u32::try_from(position).ok()
+        }
+    }
+
+    pub(crate) fn invocation_signature(
+        checked: &CheckedTrees,
+        caller_machine: SymbolHandle,
+        source: lowered_psi::LoweredSourceCallTarget,
+    ) -> Result<TargetSignature<'_>, LoweringError> {
+        match source {
+            lowered_psi::LoweredSourceCallTarget::Declaration(symbol) => {
+                target_signature(checked, caller_machine, symbol)
+            }
+            lowered_psi::LoweredSourceCallTarget::Runtime(binding) => {
+                let signature = binding
+                    .signature(&checked.typed)
+                    .map_err(LoweringError::Unsupported)?;
+                checked
+                    .facts
+                    .callable_contracts
+                    .contract_for_source(binding.contract)
+                    .map_err(LoweringError::Unsupported)?;
+                Ok(TargetSignature {
+                    parameters: &signature.parameters,
+                    return_type: signature.return_type,
+                    boundary: false,
+                    parameter_coordinates: ParameterCoordinates::Authored,
+                })
+            }
         }
     }
 
@@ -1366,6 +1477,7 @@ pub(crate) mod producer_result {
     }
 
     pub(crate) struct LoweredSelectedMachine {
+        pub(crate) next_call_obligation: u64,
         pub(crate) terminal: LoweredPsi,
         pub(crate) source_machine_ids: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
         pub(crate) source_boundary_ids: Vec<(
@@ -1381,6 +1493,7 @@ pub(crate) mod producer_result {
             completion: LoweringCompletion,
         ) -> Self {
             Self {
+                next_call_obligation: lowered.next_call_obligation,
                 terminal: lowered.terminal,
                 source_machine_ids: lowered.source_machine_ids,
                 source_boundary_ids: lowered.source_boundary_ids,
@@ -1390,6 +1503,7 @@ pub(crate) mod producer_result {
     }
 
     pub(crate) struct SourceMappedLowered {
+        pub(crate) next_call_obligation: u64,
         pub(crate) terminal: LoweredPsi,
         pub(crate) source_machine_ids: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
         pub(crate) source_boundary_ids: Vec<(
@@ -1401,6 +1515,7 @@ pub(crate) mod producer_result {
     impl SourceMappedLowered {
         pub(crate) fn new(
             terminal: LoweredPsi,
+            next_call_obligation: u64,
             sources: Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>,
             boundary_sources: Vec<(
                 symbols::SymbolHandle,
@@ -1453,6 +1568,7 @@ pub(crate) mod producer_result {
                 return unsupported("source owners do not match the exact boundary catalog");
             }
             Ok(Self {
+                next_call_obligation,
                 terminal,
                 source_machine_ids,
                 source_boundary_ids: boundary_sources,
@@ -1693,9 +1809,14 @@ pub(crate) mod structural_types {
             CheckedUnitStructuralFieldType::Atomic(primitive) => {
                 StructuralFieldType::Atomic(terminal_scalar_type(*primitive)?)
             }
-            CheckedUnitStructuralFieldType::Scalar(primitive) => {
-                terminal_structural_field_type(*primitive)?
-            }
+            CheckedUnitStructuralFieldType::Scalar(scalar) => match scalar {
+                checked_trees::CheckedScalarType::Primitive(primitive) => {
+                    terminal_structural_field_type(*primitive)?
+                }
+                checked_trees::CheckedScalarType::Callable(_) => StructuralFieldType::Scalar(
+                    crate::emission::scalar_types::terminal_checked_scalar_type(checked, *scalar)?,
+                ),
+            },
             CheckedUnitStructuralFieldType::PredicateByteSequence {
                 carrier,
                 predicates,

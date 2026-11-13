@@ -465,48 +465,31 @@ mod closed_sum {
                 {
                     trace.phase("state graph: terminator: case successors: return arm value");
                     trace.statement(Some(ordinal));
-                    let arm =
-                        if let checked_trees::CheckedControlResultPlan::Scalar { primitive_type } =
-                            result
-                        {
-                            let role = CheckedScalarExpressionRole::Return;
-                            let retained = facts
+                    let arm = if let checked_trees::CheckedControlResultPlan::Scalar {
+                        scalar_type: primitive_type,
+                    } = result
+                    {
+                        let role = CheckedScalarExpressionRole::Return;
+                        let retained = facts
+                            .values
+                            .scalar_expressions
+                            .expression_at(state.symbol, ordinal, role)
+                            .is_some()
+                            || facts
                                 .values
-                                .scalar_expressions
-                                .expression_at(state.symbol, ordinal, role)
-                                .is_some()
-                                || facts
-                                    .values
-                                    .scalar_computations
-                                    .root_at(state.symbol, ordinal, role)
-                                    .is_some_and(|root| root.machine == machine.symbol);
-                            if !retained {
-                                return None;
-                            }
-                            checked_trees::CheckedConditionalReturnArm::Scalar {
-                                statement_ordinal: ordinal,
-                                primitive_type: *primitive_type,
-                            }
-                        } else if *result == checked_trees::CheckedControlResultPlan::Unit {
-                            checked_trees::CheckedConditionalReturnArm::Completion(
-                                super::unit_completions::build(
-                                    program,
-                                    facts,
-                                    scalar_callees,
-                                    shapes,
-                                    machine,
-                                    state,
-                                    structural,
-                                    entry_claims,
-                                    edge_calls.local_results,
-                                    operations,
-                                    ordinal,
-                                    *expression,
-                                    trace,
-                                )?,
-                            )
-                        } else {
-                            let (operation, operand_calls) = returns::return_value_operation(
+                                .scalar_computations
+                                .root_at(state.symbol, ordinal, role)
+                                .is_some_and(|root| root.machine == machine.symbol);
+                        if !retained {
+                            return None;
+                        }
+                        checked_trees::CheckedConditionalReturnArm::Scalar {
+                            statement_ordinal: ordinal,
+                            scalar_type: *primitive_type,
+                        }
+                    } else if *result == checked_trees::CheckedControlResultPlan::Unit {
+                        checked_trees::CheckedConditionalReturnArm::Completion(
+                            super::unit_completions::build(
                                 program,
                                 facts,
                                 scalar_callees,
@@ -515,15 +498,32 @@ mod closed_sum {
                                 state,
                                 structural,
                                 entry_claims,
+                                edge_calls.local_results,
                                 operations,
-                                &mut count,
                                 ordinal,
                                 *expression,
                                 trace,
-                            )?;
-                            operations.extend(operand_calls);
-                            checked_trees::CheckedConditionalReturnArm::Structural(operation)
-                        };
+                            )?,
+                        )
+                    } else {
+                        let (operation, operand_calls) = returns::return_value_operation(
+                            program,
+                            facts,
+                            scalar_callees,
+                            shapes,
+                            machine,
+                            state,
+                            structural,
+                            entry_claims,
+                            operations,
+                            &mut count,
+                            ordinal,
+                            *expression,
+                            trace,
+                        )?;
+                        operations.extend(operand_calls);
+                        checked_trees::CheckedConditionalReturnArm::Structural(operation)
+                    };
                     Some(arm)
                 }
                 TransitionTargetNode::Named { .. } => None,
@@ -570,8 +570,12 @@ mod closed_sum {
                         else {
                             continue;
                         };
-                        if program.primitive_type_reference(field.type_reference)?
-                            != parameter.primitive_type
+                        if !checked_trees::CheckedScalarType::from_type_reference(
+                            program.typed_program(),
+                            field.type_reference,
+                        )?
+                        .same_type(program.typed_program(), parameter.scalar_type)
+                        .ok()?
                         {
                             return None;
                         }
@@ -580,7 +584,7 @@ mod closed_sum {
                                 field.identity,
                                 field.name.clone(),
                             ),
-                            primitive_type: parameter.primitive_type,
+                            scalar_type: parameter.scalar_type,
                             target_scalar_parameter_index: u32::try_from(parameter_index).ok()?,
                         });
                     }
@@ -1267,7 +1271,7 @@ mod guards {
                     .scalar_computations
                     .nodes
                     .get(*root)
-                    .primitive_type
+                    .scalar_type
                     == PrimitiveType::Bool
             }
         }
@@ -3736,7 +3740,7 @@ mod operation_custody {
                                 "state graph: operation custody: scalar call"
                             }
                             (
-                                CheckedUnitCallRoute::Module { .. } | CheckedUnitCallRoute::Dynamic { .. } | CheckedUnitCallRoute::ActivationStorage { .. } | CheckedUnitCallRoute::DescriptorTable { .. },
+                                CheckedUnitCallRoute::Module { .. } | CheckedUnitCallRoute::Dynamic { .. } | CheckedUnitCallRoute::Runtime { .. } | CheckedUnitCallRoute::ActivationStorage { .. } | CheckedUnitCallRoute::DescriptorTable { .. },
                                 _,
                             ) => call_custody_refusal(
                                 &call.structural_arguments,
@@ -5773,8 +5777,6 @@ pub(super) mod returns {
         ShapeCollector, is_unit, parameter_qualifications,
     };
 
-    use crate::execution::terminal_unit::PrimitiveType;
-
     /*
         How a returning state of a scalar-result graph completes its value: the
         same two completions an ordinary single-state body retains. A final
@@ -5793,7 +5795,7 @@ pub(super) mod returns {
         machine: &typed_trees::machine::Machine,
         state: &typed_trees::state::State,
         terminator_index: usize,
-        primitive_type: PrimitiveType,
+        scalar_type: checked_trees::CheckedScalarType,
         returned_binding: Option<&checked_trees::CheckedUnitScalarResultBindingPlan>,
         trace: &control::LocalConstructionTrace,
     ) -> Option<checked_trees::CheckedScalarReturnPlan> {
@@ -5817,13 +5819,13 @@ pub(super) mod returns {
                 && control::completion_expression(program, machine, state, terminator_index)
                     .is_some()
                 && usize::try_from(binding.statement_index).ok()? == terminator_index
-                && binding.primitive_type == primitive_type)
+                && binding.scalar_type == scalar_type)
                 .then_some(checked_trees::CheckedScalarReturnPlan::Binding(*binding));
         }
         let (exits, prefix) =
             control::statement_sequence::scalar_control(program, facts, machine, state)?;
         if prefix != terminator_index
-            || exits.primitive_type != primitive_type
+            || exits.scalar_type != scalar_type
             || matches!(
                 exits.terminator,
                 checked_trees::CheckedScalarStateTerminator::Crash { .. }
@@ -6154,7 +6156,6 @@ mod successors {
     use crate::execution::terminal_unit::control;
     use crate::execution::terminal_unit::types::ShapeCollector;
     use crate::published::places::place_at;
-    use crate::values::scalar_expression_type;
     use checked_trees::expression::ExpressionHandle;
 
     /*
@@ -7000,7 +7001,7 @@ mod successors {
                             root,
                             machine.symbol,
                             argument,
-                            target.primitive_type,
+                            target.scalar_type,
                         )
                     {
                         return None;
@@ -7013,7 +7014,7 @@ mod successors {
                             != target_parameters
                                 .get(target.source_position as usize)?
                                 .symbol
-                        || scalar_expression_type(expression) != Some(target.primitive_type)
+                        || expression.scalar_type() != Some(target.scalar_type)
                     {
                         return None;
                     }
@@ -7023,7 +7024,7 @@ mod successors {
                 let forwarded_scalar = immutable_source_position.and_then(|source_position| {
                     source_scalar.iter().position(|parameter| {
                         parameter.source_position as usize == source_position
-                            && parameter.primitive_type == target.primitive_type
+                            && parameter.scalar_type == target.scalar_type
                     })
                 });
                 let source = if let Some(source_index) = forwarded_scalar {
@@ -7037,7 +7038,7 @@ mod successors {
                     argument_ordinal: target.source_position,
                     source,
                     target_scalar_parameter_index: u32::try_from(target_index).ok()?,
-                    primitive_type: target.primitive_type,
+                    scalar_type: target.scalar_type,
                 })
             })
             .collect::<Option<Vec<_>>>()?;
@@ -7073,7 +7074,7 @@ mod successors {
                         != target_parameters
                             .get(target.source_position as usize)?
                             .symbol
-                    || scalar_expression_type(expression) != Some(target.primitive_type)
+                    || expression.scalar_type() != Some(target.scalar_type)
                 {
                     return None;
                 }
@@ -7081,7 +7082,7 @@ mod successors {
                     argument_ordinal: target.source_position,
                     source: checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression,
                     target_scalar_parameter_index: u32::try_from(erased_index).ok()?,
-                    primitive_type: target.primitive_type,
+                    scalar_type: target.scalar_type,
                 })
             })
             .collect::<Option<Vec<_>>>()?;
@@ -7256,7 +7257,7 @@ mod successors {
         if !computations.nodes.is_valid(root.root) {
             return None;
         }
-        let primitive = computations.nodes.get(root.root).primitive_type;
+        let primitive = computations.nodes.get(root.root).scalar_type.primitive()?;
         (primitive.is_fixed_integer()
             && computations.is_authored_root(root, machine, expression, primitive))
         .then_some(CheckedUnitStructuralPathSegment::ComputedIndex(root.root))
@@ -7722,9 +7723,11 @@ mod terminal_calls {
                 checked_trees::CheckedUnitCallResult::Unit,
             ) => Some(CheckedComposedUnitControlTerminatorPlan::ReturnUnit),
             (
-                checked_trees::CheckedControlResultPlan::Scalar { primitive_type },
+                checked_trees::CheckedControlResultPlan::Scalar {
+                    scalar_type: primitive_type,
+                },
                 checked_trees::CheckedUnitCallResult::Scalar(bound),
-            ) if bound.primitive_type == *primitive_type
+            ) if bound.scalar_type == *primitive_type
                 && bound.statement_index == statement_ordinal
                 && scalar_result == Some(bound) =>
             {
@@ -7880,11 +7883,13 @@ mod terminal_calls {
         } else {
             match result {
                 checked_trees::CheckedControlResultPlan::Unit => (None, None),
-                checked_trees::CheckedControlResultPlan::Scalar { primitive_type } => (
+                checked_trees::CheckedControlResultPlan::Scalar {
+                    scalar_type: primitive_type,
+                } => (
                     Some(checked_trees::CheckedUnitScalarResultBindingPlan {
                         statement_index: statement_ordinal,
                         binding_ordinal: u32::try_from(next_scalar_binding).ok()?,
-                        primitive_type: *primitive_type,
+                        scalar_type: (*primitive_type).into(),
                     }),
                     None,
                 ),
@@ -7971,8 +7976,7 @@ mod terminal_calls {
                 .as_ref()
                 .map(ExpectedCallValueResult::Structural)
                 .or_else(|| {
-                    scalar_result
-                        .map(|result| ExpectedCallValueResult::Scalar(result.primitive_type))
+                    scalar_result.map(|result| ExpectedCallValueResult::Scalar(result.scalar_type))
                 }),
             &structural_results,
             &preparation,
@@ -8349,7 +8353,9 @@ mod terminator {
             (closed_sum.is_none() && trace.mark() != before_closed_sum).then(|| trace.mark());
         let terminator = if let Some(terminator) = closed_sum {
             terminator
-        } else if let CheckedControlResultPlan::Scalar { primitive_type } = result
+        } else if let CheckedControlResultPlan::Scalar {
+            scalar_type: primitive_type,
+        } = result
             && let Some(completion) = returns::scalar_completion(
                 program,
                 fused,
@@ -8594,7 +8600,10 @@ mod terminator {
                                 "state graph: terminator: conditional successors: return arm value",
                             );
                             trace.statement(Some(edge_ordinal));
-                            if let CheckedControlResultPlan::Scalar { primitive_type } = result {
+                            if let CheckedControlResultPlan::Scalar {
+                                scalar_type: primitive_type,
+                            } = result
+                            {
                                 let role = CheckedScalarExpressionRole::Return;
                                 let retained = facts
                                     .values
@@ -8609,7 +8618,7 @@ mod terminator {
                                 return retained.then_some(Err((
                                     checked_trees::CheckedConditionalReturnArm::Scalar {
                                         statement_ordinal: edge_ordinal,
-                                        primitive_type,
+                                        scalar_type: primitive_type.into(),
                                     },
                                     Vec::new(),
                                 )));
@@ -9064,7 +9073,10 @@ mod terminator {
             )
             .map(checked_trees::CheckedConditionalReturnArm::Completion);
         }
-        if let CheckedControlResultPlan::Scalar { primitive_type } = result {
+        if let CheckedControlResultPlan::Scalar {
+            scalar_type: primitive_type,
+        } = result
+        {
             let role = CheckedScalarExpressionRole::Return;
             let retained = facts
                 .values
@@ -9081,7 +9093,7 @@ mod terminator {
             }
             Some(checked_trees::CheckedConditionalReturnArm::Scalar {
                 statement_ordinal,
-                primitive_type: *primitive_type,
+                scalar_type: *primitive_type,
             })
         } else {
             let mut return_count = returns::next_result_ordinal(operations)?;
@@ -9187,10 +9199,10 @@ mod terminator {
             Arm::Unit { .. } => TerminatorPlan::ReturnUnit,
             Arm::Scalar {
                 statement_ordinal,
-                primitive_type,
+                scalar_type,
             } => TerminatorPlan::ReturnScalar {
                 completion: CheckedScalarReturnPlan::Exits(CheckedUnitScalarControlPlan {
-                    primitive_type,
+                    scalar_type,
                     terminator: CheckedScalarStateTerminator::Return { statement_ordinal },
                     selected_copies: vec![
                         control::selected_copies::SelectedCopies::new(

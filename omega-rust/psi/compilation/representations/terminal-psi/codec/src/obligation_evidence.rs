@@ -21,8 +21,10 @@ use terminal_psi::{
 };
 
 use crate::CodecError;
-use crate::semantic_module::{Writer, encode_proposition, encode_scalar_term};
-use crate::term_table::{TableChildren, TableTerm, encode_term_table};
+use crate::semantic_module::{
+    Reader, Writer, decode_proposition, decode_scalar_term, encode_proposition, encode_scalar_term,
+};
+use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
 use crate::term_wire::integer_math_term_wire::encode_integer_math_term;
 
 const DOMAIN: &[u8] = b"psi-obligation-evidence-fingerprint\0";
@@ -302,10 +304,10 @@ impl TableTerm for ProofNode {
     }
 
     fn read_row(
-        _reader: &mut crate::semantic_module::Reader<'_>,
-        _children: &mut TableChildren<'_, Self>,
+        reader: &mut Reader<'_>,
+        children: &mut TableChildren<'_, Self>,
     ) -> Result<Self, CodecError> {
-        Err(CodecError::NonCanonicalEncoding)
+        read_proof_row(reader, children)
     }
 }
 
@@ -438,6 +440,316 @@ fn write_proof_row(writer: &mut Writer, node: &ProofNode) -> Result<(), CodecErr
     encode_proposition(writer, &node.conclusion)
 }
 
+/// A complete ordinary certificate, including its current proof-system marker.
+pub(crate) struct Certificate;
+impl crate::wire_fields::Field<CertificateEnvelope> for Certificate {
+    fn write(writer: &mut Writer, certificate: &CertificateEnvelope) -> Result<(), CodecError> {
+        writer.id(certificate.identity);
+        writer.u16(certificate.proof_system_marker.get());
+        encode_proof_node(writer, &certificate.proof)
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<CertificateEnvelope, CodecError> {
+        let identity = reader.id("certificate identity")?;
+        let proof_system_marker = terminal_psi::ProofSystemMarker::new(reader.u16()?).ok_or(
+            CodecError::MalformedStructuralFoundation("unsupported proof-system marker"),
+        )?;
+        Ok(CertificateEnvelope {
+            identity,
+            proof_system_marker,
+            proof: decode_term_table(reader)?,
+        })
+    }
+}
+
+fn read_index(reader: &mut Reader<'_>) -> Result<usize, CodecError> {
+    usize::try_from(reader.u64()?).map_err(|_| CodecError::NonCanonicalEncoding)
+}
+fn read_optional_index(reader: &mut Reader<'_>) -> Result<Option<usize>, CodecError> {
+    match reader.u8()? {
+        0 => Ok(None),
+        1 => read_index(reader).map(Some),
+        _ => Err(CodecError::NonCanonicalEncoding),
+    }
+}
+fn read_indices(reader: &mut Reader<'_>) -> Result<Vec<usize>, CodecError> {
+    let count = crate::semantic_module::wire::bounded_count(reader, 8)?;
+    (0..count).map(|_| read_index(reader)).collect()
+}
+fn read_branch(reader: &mut Reader<'_>) -> Result<CorrelatedAffineBranchWitness, CodecError> {
+    let root = decode_scalar_term(reader)?;
+    let target = decode_scalar_term(reader)?;
+    let count = crate::semantic_module::wire::bounded_count(reader, 9)?;
+    let steps = (0..count)
+        .map(|_| {
+            Ok(terminal_psi::CorrelatedAffineStepWitness {
+                definition_axiom: read_index(reader)?,
+                literal_axiom: read_optional_index(reader)?,
+            })
+        })
+        .collect::<Result<Vec<_>, CodecError>>()?;
+    Ok(CorrelatedAffineBranchWitness {
+        root,
+        target,
+        steps,
+    })
+}
+fn read_node(
+    reader: &mut Reader<'_>,
+    children: &mut TableChildren<'_, ProofNode>,
+    count: usize,
+    rule: impl FnOnce(Vec<ProofNode>) -> ProofRule,
+) -> Result<ProofNode, CodecError> {
+    let conclusion = decode_proposition(reader)?;
+    let children = children.take(reader, count)?;
+    Ok(ProofNode {
+        conclusion,
+        rule: rule(children),
+    })
+}
+fn one(mut children: Vec<ProofNode>) -> Box<ProofNode> {
+    Box::new(children.pop().expect("the table reader checked one child"))
+}
+fn two(children: Vec<ProofNode>) -> (Box<ProofNode>, Box<ProofNode>) {
+    let mut children = children.into_iter();
+    (
+        Box::new(
+            children
+                .next()
+                .expect("the table reader checked two children"),
+        ),
+        Box::new(
+            children
+                .next()
+                .expect("the table reader checked two children"),
+        ),
+    )
+}
+fn read_proof_row(
+    reader: &mut Reader<'_>,
+    children: &mut TableChildren<'_, ProofNode>,
+) -> Result<ProofNode, CodecError> {
+    use ProofRule as R;
+    match reader.u8()? {
+        0 => {
+            let count = crate::semantic_module::wire::bounded_count(reader, 4)?;
+            let total = count
+                .checked_add(1)
+                .ok_or(CodecError::NonCanonicalEncoding)?;
+            read_node(reader, children, total, |children| {
+                let mut children = children.into_iter();
+                R::ValueEqualityTransport {
+                    premise: Box::new(children.next().expect("checked child count")),
+                    equalities: children.collect(),
+                }
+            })
+        }
+        1 => read_node(reader, children, 1, |children| R::PredicateDenotation {
+            premise: one(children),
+        }),
+        2 => {
+            let judgment = match reader.u8()? {
+                0 => PrimitiveJudgment::Truth,
+                1 => PrimitiveJudgment::ReflexiveEquality,
+                2 => PrimitiveJudgment::ClosedIntegerRelation,
+                3 => PrimitiveJudgment::IntegerCarrierBound,
+                _ => return Err(CodecError::NonCanonicalEncoding),
+            };
+            read_node(reader, children, 0, |_| R::Primitive(judgment))
+        }
+        3 => {
+            let index = read_index(reader)?;
+            read_node(reader, children, 0, |_| R::SemanticAxiom { index })
+        }
+        4 => {
+            let index = read_index(reader)?;
+            read_node(reader, children, 0, |_| R::Assumption { index })
+        }
+        5 => {
+            let count = crate::semantic_module::wire::bounded_count(reader, 4)?;
+            read_node(reader, children, count, R::ConjunctionIntroduction)
+        }
+        6 => {
+            let conjunct = read_index(reader)?;
+            read_node(reader, children, 1, |children| R::ConjunctionElimination {
+                conjunction: one(children),
+                conjunct,
+            })
+        }
+        7 => {
+            let index = read_index(reader)?;
+            read_node(reader, children, 1, |children| R::DisjunctionIntroduction {
+                disjunct: one(children),
+                index,
+            })
+        }
+        8 => {
+            let count = crate::semantic_module::wire::bounded_count(reader, 4)?;
+            let total = count
+                .checked_add(1)
+                .ok_or(CodecError::NonCanonicalEncoding)?;
+            read_node(reader, children, total, |children| {
+                let mut children = children.into_iter();
+                R::DisjunctionElimination {
+                    disjunction: Box::new(children.next().expect("checked child count")),
+                    branches: children.collect(),
+                }
+            })
+        }
+        9 => read_node(reader, children, 1, |children| R::ImplicationIntroduction {
+            body: one(children),
+        }),
+        10 => read_node(reader, children, 2, |children| {
+            let (implication, premise) = two(children);
+            R::ImplicationElimination {
+                implication,
+                premise,
+            }
+        }),
+        11 => read_node(reader, children, 2, |children| {
+            let (left_equals_middle, middle_equals_right) = two(children);
+            R::EqualityTransitivity {
+                left_equals_middle,
+                middle_equals_right,
+            }
+        }),
+        12 => read_node(reader, children, 1, |children| R::EqualitySymmetry {
+            equality: one(children),
+        }),
+        13 => read_node(reader, children, 1, |children| R::IntegerOrderWeakening {
+            relation: one(children),
+        }),
+        14 => read_node(reader, children, 1, |children| {
+            R::IntegerOrderDiscreteness {
+                relation: one(children),
+            }
+        }),
+        15 => {
+            let addend =
+                crate::term_wire::integer_math_term_wire::decode_integer_math_term(reader)?;
+            read_node(reader, children, 1, |children| {
+                R::IntegerMathOrderTranslation {
+                    relation: one(children),
+                    addend,
+                }
+            })
+        }
+        16 => read_node(reader, children, 2, |children| {
+            let (forward, backward) = two(children);
+            R::IntegerOrderAntisymmetry { forward, backward }
+        }),
+        17 => read_node(reader, children, 2, |children| {
+            let (difference, positive) = two(children);
+            R::IntegerSubtractOrder {
+                difference,
+                positive,
+            }
+        }),
+        18 => read_node(reader, children, 2, |children| {
+            let (sum, positive) = two(children);
+            R::IntegerAddOrder { sum, positive }
+        }),
+        19 => read_node(reader, children, 3, |children| {
+            let mut children = children.into_iter();
+            R::IntegerSubtractAntitone {
+                smaller: Box::new(children.next().expect("checked child count")),
+                larger: Box::new(children.next().expect("checked child count")),
+                order: Box::new(children.next().expect("checked child count")),
+            }
+        }),
+        20 => read_node(reader, children, 2, |children| {
+            let (left_less_or_equal_middle, middle_less_or_equal_right) = two(children);
+            R::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle,
+                middle_less_or_equal_right,
+            }
+        }),
+        21 => read_node(reader, children, 2, |children| {
+            let (left_to_middle, middle_to_right) = two(children);
+            R::IntegerStrictOrderTransitivity {
+                left_to_middle,
+                middle_to_right,
+            }
+        }),
+        22 => {
+            let endpoint = read_index(reader)?;
+            read_node(reader, children, 2, |children| {
+                let (relation, equality) = two(children);
+                R::IntegerOrderSubstitution {
+                    relation,
+                    equality,
+                    endpoint,
+                }
+            })
+        }
+        23 => {
+            let root = decode_scalar_term(reader)?;
+            let target = decode_scalar_term(reader)?;
+            let definition_axioms = read_indices(reader)?;
+            let count = crate::semantic_module::wire::bounded_count(reader, 1)?;
+            let literal_axioms = (0..count)
+                .map(|_| read_optional_index(reader))
+                .collect::<Result<Vec<_>, _>>()?;
+            let witness = terminal_psi::IntegerAffineWitness {
+                root,
+                target,
+                definition_axioms,
+                literal_axioms,
+            };
+            read_node(reader, children, 1, |children| R::IntegerAffineBound {
+                root_bound: one(children),
+                witness,
+            })
+        }
+        24 => {
+            let definition_axiom = read_index(reader)?;
+            read_node(reader, children, 2, |children| {
+                let (left_bound, right_bound) = two(children);
+                R::IntegerExactAddDefinitionBound {
+                    left_bound,
+                    right_bound,
+                    definition_axiom,
+                }
+            })
+        }
+        25 => {
+            let definition_axiom = read_index(reader)?;
+            read_node(reader, children, 2, |children| {
+                let (left_bound, right_bound) = two(children);
+                R::IntegerExactSubtractDefinitionBound {
+                    left_bound,
+                    right_bound,
+                    definition_axiom,
+                }
+            })
+        }
+        26 => {
+            let witness = terminal_psi::IntegerCastChainWitness {
+                root: decode_scalar_term(reader)?,
+                target: decode_scalar_term(reader)?,
+                definition_axioms: read_indices(reader)?,
+            };
+            read_node(reader, children, 1, |children| R::IntegerCastBound {
+                root_bound: one(children),
+                witness,
+            })
+        }
+        27 => {
+            let witness = terminal_psi::IntegerCorrelatedForbiddenRootWitness {
+                dividend: read_branch(reader)?,
+                divisor: read_branch(reader)?,
+                definition_axiom_count: read_index(reader)?,
+                lower_bound_axiom: read_index(reader)?,
+                upper_bound_axiom: read_index(reader)?,
+                conclusion: decode_proposition(reader)?,
+            };
+            read_node(reader, children, 0, |_| {
+                R::IntegerCorrelatedForbiddenRoots { witness }
+            })
+        }
+        _ => Err(CodecError::NonCanonicalEncoding),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use semantic_vocabulary::EvidenceIdentity;
@@ -532,5 +844,211 @@ mod tests {
         })
         .join()
         .expect("certificate encoding uses an explicit stack");
+    }
+
+    fn envelope(proof: ProofNode) -> CertificateEnvelope {
+        CertificateEnvelope {
+            identity: EvidenceIdentity::new(7).unwrap(),
+            proof_system_marker: ProofSystemMarker::CURRENT,
+            proof,
+        }
+    }
+
+    fn encoded_envelope(certificate: &CertificateEnvelope) -> Vec<u8> {
+        use crate::wire_fields::Field;
+        let mut writer = Writer::default();
+        Certificate::write(&mut writer, certificate).unwrap();
+        writer.finish()
+    }
+
+    #[test]
+    fn complete_certificate_rules_and_witness_fields_round_trip() {
+        use crate::wire_fields::Field;
+        use terminal_psi::{
+            CorrelatedAffineStepWitness, IntegerAffineWitness, IntegerCastChainWitness,
+            IntegerCorrelatedForbiddenRootWitness,
+        };
+        let scalar = semantic_vocabulary::ScalarTerm::value(
+            semantic_vocabulary::ValueId::new(3).unwrap(),
+            semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .unwrap(),
+            ),
+        );
+        let branch = || CorrelatedAffineBranchWitness {
+            root: scalar.clone(),
+            target: scalar.clone(),
+            steps: vec![
+                CorrelatedAffineStepWitness {
+                    definition_axiom: 2,
+                    literal_axiom: Some(4),
+                },
+                CorrelatedAffineStepWitness {
+                    definition_axiom: 5,
+                    literal_axiom: None,
+                },
+            ],
+        };
+        let child = || Box::new(truth());
+        let rules = vec![
+            ProofRule::ValueEqualityTransport {
+                premise: child(),
+                equalities: vec![truth(), truth()],
+            },
+            ProofRule::PredicateDenotation { premise: child() },
+            ProofRule::Primitive(PrimitiveJudgment::Truth),
+            ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+            ProofRule::Primitive(PrimitiveJudgment::IntegerCarrierBound),
+            ProofRule::SemanticAxiom { index: 9 },
+            ProofRule::Assumption { index: 11 },
+            ProofRule::ConjunctionIntroduction(vec![truth(), truth()]),
+            ProofRule::ConjunctionElimination {
+                conjunction: child(),
+                conjunct: 1,
+            },
+            ProofRule::DisjunctionIntroduction {
+                disjunct: child(),
+                index: 2,
+            },
+            ProofRule::DisjunctionElimination {
+                disjunction: child(),
+                branches: vec![truth(), truth()],
+            },
+            ProofRule::ImplicationIntroduction { body: child() },
+            ProofRule::ImplicationElimination {
+                implication: child(),
+                premise: child(),
+            },
+            ProofRule::EqualityTransitivity {
+                left_equals_middle: child(),
+                middle_equals_right: child(),
+            },
+            ProofRule::EqualitySymmetry { equality: child() },
+            ProofRule::IntegerOrderWeakening { relation: child() },
+            ProofRule::IntegerOrderDiscreteness { relation: child() },
+            ProofRule::IntegerMathOrderTranslation {
+                relation: child(),
+                addend: semantic_vocabulary::IntegerMathTerm::embed(scalar.clone()).unwrap(),
+            },
+            ProofRule::IntegerOrderAntisymmetry {
+                forward: child(),
+                backward: child(),
+            },
+            ProofRule::IntegerSubtractOrder {
+                difference: child(),
+                positive: child(),
+            },
+            ProofRule::IntegerAddOrder {
+                sum: child(),
+                positive: child(),
+            },
+            ProofRule::IntegerSubtractAntitone {
+                smaller: child(),
+                larger: child(),
+                order: child(),
+            },
+            ProofRule::IntegerLessOrEqualTransitivity {
+                left_less_or_equal_middle: child(),
+                middle_less_or_equal_right: child(),
+            },
+            ProofRule::IntegerStrictOrderTransitivity {
+                left_to_middle: child(),
+                middle_to_right: child(),
+            },
+            ProofRule::IntegerOrderSubstitution {
+                relation: child(),
+                equality: child(),
+                endpoint: 1,
+            },
+            ProofRule::IntegerAffineBound {
+                root_bound: child(),
+                witness: IntegerAffineWitness {
+                    root: scalar.clone(),
+                    target: scalar.clone(),
+                    definition_axioms: vec![1, 3],
+                    literal_axioms: vec![None, Some(2)],
+                },
+            },
+            ProofRule::IntegerExactAddDefinitionBound {
+                left_bound: child(),
+                right_bound: child(),
+                definition_axiom: 7,
+            },
+            ProofRule::IntegerExactSubtractDefinitionBound {
+                left_bound: child(),
+                right_bound: child(),
+                definition_axiom: 8,
+            },
+            ProofRule::IntegerCastBound {
+                root_bound: child(),
+                witness: IntegerCastChainWitness {
+                    root: scalar.clone(),
+                    target: scalar.clone(),
+                    definition_axioms: vec![2, 6],
+                },
+            },
+            ProofRule::IntegerCorrelatedForbiddenRoots {
+                witness: IntegerCorrelatedForbiddenRootWitness {
+                    dividend: branch(),
+                    divisor: branch(),
+                    definition_axiom_count: 12,
+                    lower_bound_axiom: 8,
+                    upper_bound_axiom: 9,
+                    conclusion: Proposition::Falsehood,
+                },
+            },
+        ];
+        for rule in rules {
+            // This checks wire preservation, independently of kernel validity.
+            let original = envelope(ProofNode {
+                conclusion: Proposition::Truth,
+                rule,
+            });
+            let bytes = encoded_envelope(&original);
+            let mut reader = Reader::new(&bytes);
+            let recovered = Certificate::read(&mut reader).unwrap();
+            assert_eq!(reader.remaining(), 0);
+            assert_eq!(recovered, original);
+            assert_eq!(encoded_envelope(&recovered), bytes);
+        }
+    }
+
+    #[test]
+    fn certificate_decoder_rejects_marker_and_noncanonical_child_references() {
+        use crate::wire_fields::Field;
+        let mut bytes = encoded_envelope(&envelope(ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::ImplicationIntroduction {
+                body: Box::new(truth()),
+            },
+        }));
+        bytes[8..10].copy_from_slice(&0_u16.to_le_bytes());
+        assert!(Certificate::read(&mut Reader::new(&bytes)).is_err());
+        let mut bytes = encoded_envelope(&envelope(ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::ImplicationIntroduction {
+                body: Box::new(truth()),
+            },
+        }));
+        let last = bytes.len() - 4;
+        bytes[last..].copy_from_slice(&1_u32.to_le_bytes());
+        assert!(matches!(
+            Certificate::read(&mut Reader::new(&bytes)),
+            Err(CodecError::TermTableForwardReference(_))
+        ));
+        let mut bytes = encoded_envelope(&envelope(ProofNode {
+            conclusion: Proposition::Truth,
+            rule: ProofRule::ConjunctionIntroduction(vec![truth(), truth()]),
+        }));
+        let last = bytes.len() - 4;
+        bytes[last..].copy_from_slice(&0_u32.to_le_bytes());
+        assert!(matches!(
+            Certificate::read(&mut Reader::new(&bytes)),
+            Err(CodecError::NonCanonicalTermTable(_))
+        ));
     }
 }

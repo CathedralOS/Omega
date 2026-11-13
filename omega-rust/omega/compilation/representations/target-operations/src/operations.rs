@@ -177,6 +177,10 @@ pub enum TargetUnitOperation {
         result_home: TargetUnitScalarHomeRequirement,
         table: u32,
     },
+    SelectMachine {
+        result_home: TargetUnitScalarHomeRequirement,
+        descriptor: semantic_vocabulary::MachineDescriptorId,
+    },
     FloatResultPolicy {
         psi_operation: OperationId,
         result_home: TargetUnitScalarHomeRequirement,

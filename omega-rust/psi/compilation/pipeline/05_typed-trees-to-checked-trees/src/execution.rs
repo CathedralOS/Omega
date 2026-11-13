@@ -270,6 +270,9 @@ pub(crate) mod finalize_execution {
         mut facts: CheckFacts,
         calling_declarations: &typed_trees::service_declarations::signatures::PreparedBoundarySignatures,
     ) -> Result<CheckFacts, Vec<Diagnostic>> {
+        facts.callable_contracts =
+            checked_trees::CheckedCallableContracts::from_typed(program.typed_program())
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let call_frames = validation::CallFrameResolver::new(program);
         let erased_citations = {
             crate::execution::scalar_computations::record_rank_observations(program, &mut facts);
@@ -303,12 +306,12 @@ pub(crate) mod finalize_execution {
         let (mut terminal_unit_effects, partial_cleanups, prepared_calls) =
             crate::execution::terminal_unit::build_checked_unit_effect_plans(
                 program,
-                &facts,
+                &mut facts,
                 calling_declarations,
                 &boundary_signature_reaches,
                 crate::execution::terminal_unit::ScalarCalleeClosure,
                 call_frames.as_ref(),
-            );
+            )?;
         facts.flow.terminal_partial_affine_unit_cleanups = partial_cleanups;
         let (nominal_cleanups, nominal_types) =
             crate::execution::terminal_unit::build_checked_nominal_affine_unit_cleanup_plans(
@@ -1584,6 +1587,12 @@ pub(crate) mod terminal_scalar {
                     }
                     visited.push(handle);
                     match &plans.nodes.get(handle).kind {
+                        ComputationKind::MachineValue { value, .. } => {
+                            retain_operand!(
+                                value.type_reference,
+                                format_args!("machine selection {handle:?} callable carrier")
+                            )?;
+                        }
                         ComputationKind::CaseMembership {
                             subject:
                                 checked_trees::CheckedScalarComputationStructuralArgument::Place(_),
@@ -1688,7 +1697,7 @@ pub(crate) mod terminal_scalar {
                             structural_arguments,
                             ..
                         } => {
-                            pending.extend(callee.selector());
+                            pending.extend(callee.evaluated_callee());
                             pending.extend(plans.operands.span(*arguments).ok_or_else(|| {
                                 format!("call {handle:?} has no retained scalar argument span")
                             })?);
@@ -2525,7 +2534,7 @@ pub(crate) mod terminal_scalar {
                                 .filter(|root| root.machine == machine.symbol)?;
                             row = Some(computation_row(program, computations, root.root));
                             let node = computations.nodes.get(root.root);
-                            if node.primitive_type != checked_trees::types::PrimitiveType::Bool {
+                            if node.scalar_type != checked_trees::types::PrimitiveType::Bool {
                                 return None;
                             }
                             match &node.kind {

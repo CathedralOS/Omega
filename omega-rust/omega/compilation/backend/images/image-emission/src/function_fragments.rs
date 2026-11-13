@@ -1993,7 +1993,7 @@ pub(crate) mod image_residence {
     }
 }
 
-pub(crate) mod implementation_tables {
+pub(crate) mod code_descriptors {
     use super::{Error, refuse_symbol_collision};
     use crate::ObjectFunction;
     use machine_code::PlacedImageAddress;
@@ -2004,53 +2004,112 @@ pub(crate) mod implementation_tables {
     use terminal_psi::TerminalDynamicDispatchCatalog;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct ObjectImplementationTablePool {
+    pub(crate) struct ObjectCodeDescriptorPool {
         pub catalog: TerminalDynamicDispatchCatalog,
+        pub callables: terminal_psi::TerminalCallableCatalog,
         pub addresses: Vec<PlacedImageAddress>,
-        pub tables: Vec<ObjectImplementationTable>,
+        pub descriptors: Vec<ObjectCodeDescriptor>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) struct ObjectImplementationTable {
-        pub table: u32,
+    pub(crate) struct ObjectCodeDescriptor {
+        pub source: CodeDescriptorSource,
         pub symbol: ObjectSymbolHandle,
         pub data_offset: usize,
         pub byte_count: usize,
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum CodeDescriptorSource {
+        ImplementationTable(u32),
+        Machine(semantic_vocabulary::MachineDescriptorId),
+    }
+
+    pub(crate) fn address_source(address: &PlacedImageAddress) -> Option<CodeDescriptorSource> {
+        address
+            .implementation_table()
+            .map(CodeDescriptorSource::ImplementationTable)
+            .or_else(|| {
+                address
+                    .machine_descriptor()
+                    .map(CodeDescriptorSource::Machine)
+            })
+    }
+
+    pub(crate) fn target_entries<'catalog>(
+        catalog: &'catalog TerminalDynamicDispatchCatalog,
+        callables: &'catalog terminal_psi::TerminalCallableCatalog,
+        source: CodeDescriptorSource,
+    ) -> Result<impl Iterator<Item = Option<semantic_vocabulary::MachineId>> + 'catalog, Error>
+    {
+        let (rows, single) = match source {
+            CodeDescriptorSource::ImplementationTable(table) => {
+                let table = catalog
+                    .table(table)
+                    .filter(|row| row.id == table)
+                    .ok_or(Error::Mismatch("code descriptor table is absent"))?;
+                let interface = catalog
+                    .interface(table.interface)
+                    .ok_or(Error::Mismatch("code descriptor table interface is absent"))?;
+                if table.rows.len() != interface.slots.len() {
+                    return Err(Error::Mismatch("code descriptor table call shape changed"));
+                }
+                (
+                    Some(table.rows.as_slice()),
+                    table.rows.is_empty().then_some(None),
+                )
+            }
+            CodeDescriptorSource::Machine(descriptor) => {
+                let selected = callables
+                    .descriptor(descriptor)
+                    .ok_or(Error::Mismatch("machine descriptor is absent"))?;
+                if callables.contract(selected.contract).is_none() {
+                    return Err(Error::Mismatch(
+                        "machine descriptor has no retained contract",
+                    ));
+                }
+                (None, Some(Some(selected.machine)))
+            }
+        };
+        Ok(rows.into_iter().flatten().copied().chain(single))
+    }
+
     pub(super) fn place(
         catalog: &TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
         addresses: &[PlacedImageAddress],
         object: &mut ObjectPlan,
-    ) -> Result<(Option<ObjectImplementationTablePool>, Vec<u8>), Error> {
+    ) -> Result<(Option<ObjectCodeDescriptorPool>, Vec<u8>), Error> {
         let addresses = addresses
             .iter()
-            .filter(|address| address.implementation_table().is_some())
+            .filter(|address| address_source(address).is_some())
             .copied()
             .collect::<Vec<_>>();
-        if catalog.tables.is_empty() {
+        let mut selected = addresses
+            .iter()
+            .filter_map(|address| address.machine_descriptor())
+            .collect::<Vec<_>>();
+        selected.sort();
+        selected.dedup();
+        let sources = catalog
+            .tables
+            .iter()
+            .map(|table| CodeDescriptorSource::ImplementationTable(table.id))
+            .chain(selected.into_iter().map(CodeDescriptorSource::Machine))
+            .collect::<Vec<_>>();
+        if sources.is_empty() {
             if !addresses.is_empty() {
                 return Err(Error::Mismatch(
-                    "implementation addresses have no table catalog",
+                    "code descriptor addresses have no retained catalog",
                 ));
             }
             return Ok((None, Vec::new()));
         }
         let mut data = Vec::new();
-        let mut tables = Vec::new();
-        for (ordinal, table) in catalog.tables.iter().enumerate() {
-            let interface = catalog
-                .interface(table.interface)
-                .ok_or(Error::Mismatch("implementation table interface is absent"))?;
-            if usize::try_from(table.id).ok() != Some(ordinal)
-                || table.rows.len() != interface.slots.len()
-            {
-                return Err(Error::Mismatch("implementation table roster changed"));
-            }
-            let byte_count = table
-                .rows
-                .len()
-                .max(1)
+        let mut descriptors = Vec::new();
+        for source in sources {
+            let byte_count = target_entries(catalog, callables, source)?
+                .count()
                 .checked_mul(8)
                 .ok_or(Error::Overflow)?;
             let data_offset = data.len();
@@ -2058,8 +2117,15 @@ pub(crate) mod implementation_tables {
                 data_offset.checked_add(byte_count).ok_or(Error::Overflow)?,
                 0,
             );
-            let name = format!("omega_implementation_table_{}", table.id);
-            refuse_symbol_collision(object, &name, "implementation table symbol collision")?;
+            let name = match source {
+                CodeDescriptorSource::ImplementationTable(table) => {
+                    format!("omega_implementation_table_{table}")
+                }
+                CodeDescriptorSource::Machine(descriptor) => {
+                    format!("omega_machine_descriptor_{}", descriptor.get())
+                }
+            };
+            refuse_symbol_collision(object, &name, "code descriptor symbol collision")?;
             let symbol = object.layout.symbols.insert(SymbolPlan {
                 name,
                 section: SymbolSection::Section(SectionKind::Data),
@@ -2068,8 +2134,8 @@ pub(crate) mod implementation_tables {
                 kind: SymbolKind::Object,
                 import_library: String::new(),
             });
-            tables.push(ObjectImplementationTable {
-                table: table.id,
+            descriptors.push(ObjectCodeDescriptor {
+                source,
                 symbol,
                 data_offset,
                 byte_count,
@@ -2081,17 +2147,18 @@ pub(crate) mod implementation_tables {
             alignment: 8,
         });
         Ok((
-            Some(ObjectImplementationTablePool {
+            Some(ObjectCodeDescriptorPool {
                 catalog: catalog.clone(),
-                addresses: addresses.to_vec(),
-                tables,
+                callables: callables.clone(),
+                addresses,
+                descriptors,
             }),
             data,
         ))
     }
 
     pub(super) fn publish_relocations(
-        pool: Option<&ObjectImplementationTablePool>,
+        pool: Option<&ObjectCodeDescriptorPool>,
         functions: &[ObjectFunction],
         relocations: &mut RelocationPlan,
     ) -> Result<(), Error> {
@@ -2104,7 +2171,7 @@ pub(crate) mod implementation_tables {
     }
 
     pub(super) fn records(
-        pool: &ObjectImplementationTablePool,
+        pool: &ObjectCodeDescriptorPool,
         functions: &[ObjectFunction],
     ) -> Result<Vec<RelocationRecord>, Error> {
         records_for_symbols(pool, |machine| {
@@ -2114,28 +2181,25 @@ pub(crate) mod implementation_tables {
     }
 
     fn records_for_symbols(
-        pool: &ObjectImplementationTablePool,
+        pool: &ObjectCodeDescriptorPool,
         symbol_for_machine: impl Fn(semantic_vocabulary::MachineId) -> Option<ObjectSymbolHandle>,
     ) -> Result<Vec<RelocationRecord>, Error> {
         let mut records = Vec::new();
-        for table in &pool.tables {
-            let rows = &pool
-                .catalog
-                .table(table.table)
-                .ok_or(Error::Mismatch("implementation table is absent"))?
-                .rows;
-            for (slot, machine) in rows.iter().enumerate() {
+        for descriptor in &pool.descriptors {
+            for (slot, machine) in
+                target_entries(&pool.catalog, &pool.callables, descriptor.source)?.enumerate()
+            {
                 let Some(machine) = machine else {
                     continue;
                 };
-                let symbol = symbol_for_machine(*machine)
-                    .ok_or(Error::Mismatch("implementation row function is absent"))?;
+                let symbol = symbol_for_machine(machine)
+                    .ok_or(Error::Mismatch("code descriptor target function is absent"))?;
                 records.push(RelocationRecord {
                     origin: RelocationOrigin::Materialization {
-                        object_symbol_handle: table.symbol,
+                        object_symbol_handle: descriptor.symbol,
                     },
                     section: SectionKind::Data,
-                    offset: table
+                    offset: descriptor
                         .data_offset
                         .checked_add(slot.checked_mul(8).ok_or(Error::Overflow)?)
                         .ok_or(Error::Overflow)?,
@@ -2148,14 +2212,14 @@ pub(crate) mod implementation_tables {
         }
         for address in &pool.addresses {
             let table = pool
-                .tables
+                .descriptors
                 .iter()
-                .find(|table| Some(table.table) == address.implementation_table())
+                .find(|descriptor| Some(descriptor.source) == address_source(address))
                 .ok_or(Error::Mismatch(
-                    "implementation address names an absent table",
+                    "code descriptor address names an absent cell",
                 ))?;
             let symbol = symbol_for_machine(address.machine)
-                .ok_or(Error::Mismatch("implementation address owner is absent"))?;
+                .ok_or(Error::Mismatch("code descriptor address owner is absent"))?;
             let origin = RelocationOrigin::SemanticOperation {
                 function_symbol_handle: symbol,
                 operation_identity: address.operation.get(),
@@ -2182,9 +2246,15 @@ pub(crate) mod implementation_tables {
             .optimized_target()
             .optimized()
             .plan();
-        let Some(pool) = &artifact.implementation_table_pool else {
+        let Some(pool) = &artifact.code_descriptor_pool else {
             if (!artifact.data_bytes.is_empty() && artifact.native_code_layout_pool.is_none())
                 || !plan.dynamic_dispatch.tables.is_empty()
+                || source
+                    .source()
+                    .text_section()
+                    .unresolved_image_addresses
+                    .iter()
+                    .any(|address| address_source(address).is_some())
             {
                 return Err(Error::Mismatch(
                     "initialized data has no implementation table owner",
@@ -2193,18 +2263,19 @@ pub(crate) mod implementation_tables {
             return Ok(());
         };
         if pool.catalog != plan.dynamic_dispatch
+            || pool.callables != plan.callables
             || pool.addresses
                 != source
                     .source()
                     .text_section()
                     .unresolved_image_addresses
                     .iter()
-                    .filter(|address| address.implementation_table().is_some())
+                    .filter(|address| address_source(address).is_some())
                     .copied()
                     .collect::<Vec<_>>()
         {
             return Err(Error::Mismatch(
-                "implementation table inputs differ from admitted source",
+                "code descriptor inputs differ from admitted source",
             ));
         }
         for address in &pool.addresses {
@@ -2212,26 +2283,56 @@ pub(crate) mod implementation_tables {
             if function
                 .operations
                 .iter()
-                .filter(|operation| {
-                    matches!(operation,
-                abstract_operations::AbstractOperation::SelectImplementation {psi_operation,table,..}
-                if *psi_operation==address.operation && Some(*table)==address.implementation_table())
+                .filter(|operation| match operation {
+                    abstract_operations::AbstractOperation::SelectImplementation {
+                        psi_operation,
+                        table,
+                        ..
+                    } => {
+                        *psi_operation == address.operation
+                            && address_source(address)
+                                == Some(CodeDescriptorSource::ImplementationTable(*table))
+                    }
+                    abstract_operations::AbstractOperation::SelectMachine {
+                        psi_operation,
+                        result,
+                        descriptor,
+                    } => {
+                        *psi_operation == address.operation
+                            && address_source(address)
+                                == Some(CodeDescriptorSource::Machine(*descriptor))
+                            && pool
+                                .callables
+                                .descriptor(*descriptor)
+                                .is_some_and(|selected| {
+                                    result.scalar_type
+                                        == semantic_vocabulary::ScalarType::Callable(
+                                            selected.contract,
+                                        )
+                                })
+                    }
+                    _ => false,
                 })
                 .count()
                 != 1
             {
                 return Err(Error::Mismatch(
-                    "implementation table address differs from its selection",
+                    "code descriptor address differs from its checked selection",
                 ));
             }
         }
-        let mut expected = ObjectPlan::with_capacity(artifact.target, 1, pool.tables.len());
-        let (rebuilt, data) = place(&pool.catalog, &pool.addresses, &mut expected)?;
+        let mut expected = ObjectPlan::with_capacity(artifact.target, 1, pool.descriptors.len());
+        let (rebuilt, data) = place(
+            &pool.catalog,
+            &pool.callables,
+            &pool.addresses,
+            &mut expected,
+        )?;
         let rebuilt = rebuilt.ok_or(Error::Mismatch("implementation table pool disappeared"))?;
         if artifact.data_bytes.get(..data.len()) != Some(data.as_slice())
-            || rebuilt.tables.len() != pool.tables.len()
+            || rebuilt.descriptors.len() != pool.descriptors.len()
         {
-            return Err(Error::Mismatch("implementation table bytes changed"));
+            return Err(Error::Mismatch("code descriptor bytes changed"));
         }
         let data_section = artifact
             .object
@@ -2248,23 +2349,23 @@ pub(crate) mod implementation_tables {
                 "implementation table data geometry changed",
             ));
         }
-        for (actual, expected_table) in pool.tables.iter().zip(&rebuilt.tables) {
-            if actual.table != expected_table.table
+        for (actual, expected_table) in pool.descriptors.iter().zip(&rebuilt.descriptors) {
+            if actual.source != expected_table.source
                 || actual.data_offset != expected_table.data_offset
                 || actual.byte_count != expected_table.byte_count
                 || !artifact.object.layout.symbols.is_valid(actual.symbol)
                 || artifact.object.layout.symbols.get(actual.symbol)
                     != expected.layout.symbols.get(expected_table.symbol)
             {
-                return Err(Error::Mismatch("implementation table symbol changed"));
+                return Err(Error::Mismatch("code descriptor symbol changed"));
             }
         }
         let actual = super::image_addresses::rows_for_symbols(
             &artifact.relocations,
-            pool.tables.iter().map(|table| table.symbol),
+            pool.descriptors.iter().map(|table| table.symbol),
         );
         if actual != records(pool, &artifact.functions)? {
-            return Err(Error::Mismatch("implementation table relocations changed"));
+            return Err(Error::Mismatch("code descriptor relocations changed"));
         }
         Ok(())
     }
@@ -2277,7 +2378,7 @@ pub(crate) mod implementation_tables {
         let mut expected = Vec::new();
         for namespace in crate::object::private_object_composition::namespaces(artifact) {
             let local = namespace.artifact;
-            let Some(pool) = &local.implementation_table_pool else {
+            let Some(pool) = &local.code_descriptor_pool else {
                 if !local.data_bytes.is_empty() && local.native_code_layout_pool.is_none() {
                     return Err(Error::Mismatch(
                         "initialized image data has no implementation table owner",
@@ -2289,11 +2390,11 @@ pub(crate) mod implementation_tables {
                 continue;
             };
             let replay = local.fragment_replay.as_ref().ok_or(Error::Mismatch(
-                "implementation table data requires admitted fragment source",
+                "code descriptor data requires admitted fragment source",
             ))?;
             validate(&replay.0, local)?;
             for symbol in pool
-                .tables
+                .descriptors
                 .iter()
                 .map(|table| table.symbol)
                 .chain(local.functions.iter().map(|function| function.symbol))
@@ -2304,7 +2405,7 @@ pub(crate) mod implementation_tables {
                         != artifact.object.layout.symbols.get(symbol)
                 {
                     return Err(Error::Mismatch(
-                        "image changed implementation table symbol custody",
+                        "image changed code descriptor symbol custody",
                     ));
                 }
             }
@@ -2339,7 +2440,7 @@ pub(crate) mod implementation_tables {
                 .map(|(_, record)| record))
         {
             return Err(Error::Mismatch(
-                "initialized image data relocations differ from exact implementation table rows",
+                "initialized image data relocations differ from exact code descriptor cells",
             ));
         }
         Ok(())
@@ -2386,7 +2487,13 @@ pub(crate) mod implementation_tables {
             let machine = semantic_vocabulary::MachineId::new(1).unwrap();
             let catalog = catalog(vec![None, Some(machine), None, Some(machine)]);
             let mut object = ObjectPlan::with_capacity(target::NativeTarget::macos_arm64(), 2, 2);
-            let (pool, data) = place(&catalog, &[], &mut object).unwrap();
+            let (pool, data) = place(
+                &catalog,
+                &terminal_psi::TerminalCallableCatalog::default(),
+                &[],
+                &mut object,
+            )
+            .unwrap();
             let pool = pool.unwrap();
             assert_eq!(data, vec![0; 32]);
             let symbol = object.layout.symbols.insert(SymbolPlan {
@@ -2440,7 +2547,7 @@ pub(crate) mod implementation_tables {
                 validate_data_relocation_roster(&relocations, &relocation_plan(&extra)).is_err()
             );
             let mut substituted = relocations.clone();
-            substituted[0].symbol_handle = pool.tables[0].symbol;
+            substituted[0].symbol_handle = pool.descriptors[0].symbol;
             assert!(
                 validate_data_relocation_roster(&relocations, &relocation_plan(&substituted),)
                     .is_err()
@@ -2462,17 +2569,23 @@ pub(crate) mod implementation_tables {
                 rows: Vec::new(),
             });
             let mut object = ObjectPlan::with_capacity(target::NativeTarget::macos_arm64(), 1, 2);
-            let (pool, data) = place(&catalog, &[], &mut object).unwrap();
+            let (pool, data) = place(
+                &catalog,
+                &terminal_psi::TerminalCallableCatalog::default(),
+                &[],
+                &mut object,
+            )
+            .unwrap();
             let pool = pool.unwrap();
             assert_eq!(data, vec![0; 16]);
             assert_eq!(
-                pool.tables
+                pool.descriptors
                     .iter()
                     .map(|table| table.data_offset)
                     .collect::<Vec<_>>(),
                 [0, 8]
             );
-            assert_ne!(pool.tables[0].symbol, pool.tables[1].symbol);
+            assert_ne!(pool.descriptors[0].symbol, pool.descriptors[1].symbol);
             assert!(records_for_symbols(&pool, |_| None).unwrap().is_empty());
         }
     }
@@ -2640,9 +2753,9 @@ mod imports {
         if let Some(pool) = &artifact.byte_literal_pool {
             observation_records += super::byte_literals::records(pool, &artifact.functions)?.len();
         }
-        if let Some(pool) = &artifact.implementation_table_pool {
+        if let Some(pool) = &artifact.code_descriptor_pool {
             observation_records +=
-                super::implementation_tables::records(pool, &artifact.functions)?.len();
+                super::code_descriptors::records(pool, &artifact.functions)?.len();
         }
         if let Some(pool) = &artifact.native_code_layout_pool {
             observation_records +=
@@ -2662,9 +2775,9 @@ mod imports {
                 + usize::from(artifact.byte_literal_pool.is_some())
                 + usize::from(artifact.retained_entry_storage.is_valid())
                 + artifact
-                    .implementation_table_pool
+                    .code_descriptor_pool
                     .as_ref()
-                    .map_or(0, |pool| pool.tables.len())
+                    .map_or(0, |pool| pool.descriptors.len())
                 + artifact
                     .native_code_layout_pool
                     .as_ref()
@@ -3148,14 +3261,11 @@ pub(crate) mod native_code_layouts {
             })
             .copied()
             .collect::<Vec<_>>();
-        let prefix = artifact
-            .implementation_table_pool
-            .as_ref()
-            .map_or(0, |pool| {
-                pool.tables
-                    .last()
-                    .map_or(0, |row| row.data_offset + row.byte_count)
-            });
+        let prefix = artifact.code_descriptor_pool.as_ref().map_or(0, |pool| {
+            pool.descriptors
+                .last()
+                .map_or(0, |row| row.data_offset + row.byte_count)
+        });
         let Some(pool) = &artifact.native_code_layout_pool else {
             if !addresses.is_empty() || artifact.data_bytes.len() != prefix {
                 return Err(Error::Mismatch(
@@ -3587,6 +3697,7 @@ mod production {
     pub struct FunctionFragmentObjectArtifactRequest<'inputs> {
         pub replay: Arc<StagedOptimizedRelocationFreeObjectContainer>,
         pub dynamic_dispatch: &'inputs terminal_psi::TerminalDynamicDispatchCatalog,
+        pub callables: &'inputs terminal_psi::TerminalCallableCatalog,
     }
 
     pub fn build_function_fragment_object_artifact(
@@ -3595,8 +3706,12 @@ mod production {
         let FunctionFragmentObjectArtifactRequest {
             replay,
             dynamic_dispatch,
+            callables,
         } = request;
         let source = replay.as_ref();
+        let callable_invocations =
+            crate::callable_calls::prepare(source.source().source().source().source())
+                .map_err(|detail| Error::CallableInvocation { detail })?;
         super::source::placed_reference::establish_geometry(source)?;
         let text = source.source().text_section();
         let fragments = source::fragments(source);
@@ -3660,7 +3775,7 @@ mod production {
             let mut local_peak = frame_bytes
                 .checked_add(function_temporary_stack)
                 .ok_or(Error::Overflow)?;
-            for call in source::stack_calls(source, placed.machine)? {
+            for call in source::stack_calls(source, placed.machine, &callable_invocations)? {
                 let caller_live_bytes = frame_bytes.checked_add(linkage).ok_or(Error::Overflow)?;
                 local_peak = local_peak.max(caller_live_bytes);
                 let owner = call.owner;
@@ -3767,8 +3882,9 @@ mod production {
         )?;
         super::private_addresses::declare(&private_identities, &mut object)?;
         let byte_literal_pool = super::byte_literals::place(source, &mut object, &mut text_bytes)?;
-        let (implementation_table_pool, mut data_bytes) = super::implementation_tables::place(
+        let (code_descriptor_pool, mut data_bytes) = super::code_descriptors::place(
             dynamic_dispatch,
+            callables,
             &source.source().text_section().unresolved_image_addresses,
             &mut object,
         )?;
@@ -3794,8 +3910,8 @@ mod production {
             &functions,
             &mut relocations,
         )?;
-        super::implementation_tables::publish_relocations(
-            implementation_table_pool.as_ref(),
+        super::code_descriptors::publish_relocations(
+            code_descriptor_pool.as_ref(),
             &functions,
             &mut relocations,
         )?;
@@ -3841,7 +3957,7 @@ mod production {
             boundary_settlements: super::structural::settlements(source)?,
             foreign_calls,
             byte_literal_pool,
-            implementation_table_pool,
+            code_descriptor_pool,
             native_code_layout_pool,
         };
         Ok(artifact)
@@ -13943,6 +14059,7 @@ mod source {
         pub(in crate::function_fragments) fn stack_calls(
             source: &StagedOptimizedRelocationFreeObjectContainer,
             machine: MachineId,
+            callable_invocations: &terminal_semantics::callable_values::ReachableCallableInvocations,
         ) -> Result<Vec<CallStackEdge>, Error> {
             let text = source.source().text_section();
             let mut edges = text
@@ -13965,6 +14082,57 @@ mod source {
                 .plan()
                 .dynamic_dispatch;
             for call in &selected.calls {
+                if let NativeCallTarget::Callable { callee, contract } = call.call.target {
+                    use terminal_semantics::callable_values::CallableInvocationTarget;
+                    let site = crate::callable_calls::call_site(call.owner)
+                        .map_err(|detail| Error::CallableInvocation { detail })?;
+                    let Some(invocation) = callable_invocations.site(machine, site) else {
+                        if callable_invocations.reached_machines.contains(&machine) {
+                            return Err(Error::Mismatch(
+                                "callable stack demand lost its reached occurrence",
+                            ));
+                        }
+                        // Retaining an uninvoked body adds no activation demand.
+                        continue;
+                    };
+                    if invocation.invocation.target
+                        != CallableInvocationTarget::Value(callee, contract)
+                    {
+                        return Err(Error::Mismatch(
+                            "callable stack demand changed its evaluated code or contract",
+                        ));
+                    }
+                    if !invocation.targets_are_resolved() {
+                        return Err(Error::Unsupported(
+                            "callable stack demand has unresolved code and no physical ceiling",
+                        ));
+                    }
+                    let instruction = selected
+                        .instructions()
+                        .find(|instruction| instruction.id == call.instruction)
+                        .ok_or(Error::Mismatch("callable stack call has no instruction"))?;
+                    if instruction.kind.call_target()
+                        != Some(SelectedCallTarget::Callable { contract })
+                    {
+                        return Err(Error::Mismatch("callable stack call target changed"));
+                    }
+                    let span = placed
+                        .instruction_span(call.instruction)
+                        .ok_or(Error::Mismatch("callable stack call has no emitted span"))?;
+                    for callee in &invocation.selected_machines {
+                        if text.function(*callee).is_none() {
+                            return Err(Error::Mismatch(
+                                "callable stack call target has no emitted function",
+                            ));
+                        }
+                        edges.push(CallStackEdge {
+                            owner: call.owner,
+                            callee: *callee,
+                            section_offset: span.section_offset,
+                        });
+                    }
+                    continue;
+                }
                 let NativeCallTarget::Dynamic {
                     interface, slot, ..
                 } = call.call.target
@@ -24456,7 +24624,7 @@ pub(crate) mod validation {
                         .ok_or(Error::Overflow)
                 })?;
         super::byte_literals::validate(source, artifact, code_text_len)?;
-        super::implementation_tables::validate(source, artifact)?;
+        super::code_descriptors::validate(source, artifact)?;
         super::native_code_layouts::validate(source, artifact)?;
         super::image_residence::validate(source, artifact)?;
         let private_identities = super::private_addresses::identities(
@@ -24470,9 +24638,9 @@ pub(crate) mod validation {
             artifact,
         )?;
         let table_count = artifact
-            .implementation_table_pool
+            .code_descriptor_pool
             .as_ref()
-            .map_or(0, |pool| pool.tables.len());
+            .map_or(0, |pool| pool.descriptors.len());
         let native_count = artifact
             .native_code_layout_pool
             .as_ref()
@@ -24533,6 +24701,9 @@ pub(crate) mod validation {
         } else {
             source::temporary_stack_bytes_by_function(source)?
         };
+        let callable_invocations =
+            crate::callable_calls::prepare(source.source().source().source().source())
+                .map_err(|detail| Error::CallableInvocation { detail })?;
         let mut attribution_cursor = 0usize;
         for ((placed, function), (symbol_handle, symbol)) in text
             .functions
@@ -24613,7 +24784,7 @@ pub(crate) mod validation {
                     abstract_operations::AbstractFunctionResult::Unit
                 );
                 let frame = source::frame(source, placed.machine)?;
-                let calls = source::stack_calls(source, placed.machine)?;
+                let calls = source::stack_calls(source, placed.machine, &callable_invocations)?;
                 stack::validate(
                     unit,
                     (
@@ -24715,6 +24886,9 @@ pub(crate) use validation::validate_function_fragment_object_artifact;
 
 #[derive(Debug)]
 pub enum FunctionFragmentObjectArtifactError {
+    CallableInvocation {
+        detail: String,
+    },
     Source(object_file::RelocationFreeObjectContainerError),
     Unsupported(&'static str),
     UnaccountedOperation {
@@ -24794,6 +24968,9 @@ pub enum FunctionFragmentObjectArtifactError {
 impl std::fmt::Display for FunctionFragmentObjectArtifactError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::CallableInvocation { detail } => {
+                write!(formatter, "callable invocation custody: {detail}")
+            }
             Self::Source(error) => write!(formatter, "shared object replay: {error}"),
             Self::NativeEntryBridge(error) => write!(formatter, "native entry transport: {error}"),
             Self::PhysicalEntry(error) => error.fmt(formatter),

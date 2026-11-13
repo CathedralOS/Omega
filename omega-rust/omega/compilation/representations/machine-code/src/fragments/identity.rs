@@ -317,6 +317,10 @@ fn encode_successor(
         hasher.raw(&binding.parameter.get().to_le_bytes());
         hasher.raw(&binding.argument.get().to_le_bytes());
         match binding.scalar_type {
+            ScalarType::Callable(contract) => {
+                hasher.byte(3);
+                hasher.raw(&contract.get().to_le_bytes());
+            }
             ScalarType::Boolean => hasher.byte(0),
             ScalarType::Integer(integer) => {
                 hasher.byte(1);

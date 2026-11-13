@@ -1093,7 +1093,7 @@ pub(crate) mod fixed_occurrences {
         register: &VirtualRegister,
     ) -> Result<(), FixedOccurrencesError> {
         let payload = match register.scalar_type {
-            ScalarType::Boolean => true,
+            ScalarType::Callable(_) | ScalarType::Boolean => true,
             ScalarType::Integer(integer) => {
                 matches!(integer.bits(), 8 | 16 | 32 | 64)
             }

@@ -163,6 +163,7 @@ impl ValueShape {
 
     pub fn for_scalar(scalar_type: ScalarType) -> Option<Self> {
         match scalar_type {
+            ScalarType::Callable(_) => Some(Self::integer(8, 8)),
             ScalarType::Boolean => Some(Self::integer(1, 1)),
             ScalarType::IeeeFloat(format) => Some(Self::float(format.byte_size())),
             ScalarType::Integer(integer) => Self::for_integer(integer),

@@ -2462,6 +2462,9 @@ mod mathematical_signature {
                 // peels policy-only layers. Other predicates remain unsupported here.
                 let reference = validation::peel_arithmetic_policy(self.program, reference);
                 match self.program.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::Callable { .. } => Err(self.refuse(
+                        "an executable callable has no mathematical carrier or code-address literal".to_owned(),
+                    )),
                     TypeReferenceNode::Named { symbol, name } => self.named_type(*symbol, name),
                     TypeReferenceNode::Generic {
                         base_symbol,
@@ -10543,6 +10546,23 @@ mod mathematical_signature {
             references.push(reference);
             let table = &program.type_reference_table;
             let symbol = match table.type_reference(reference) {
+                TypeReferenceNode::Callable { .. } => {
+                    let inputs = typed_trees::references::type_reference_inputs(
+                        program.typed_program(),
+                        reference,
+                    );
+                    return inputs.symbols.contains(&owner)
+                        || inputs.types.into_iter().any(|input| {
+                            input != reference
+                                && declaration_contains_family(
+                                    program,
+                                    owner,
+                                    input,
+                                    references,
+                                    declarations,
+                                )
+                        });
+                }
                 TypeReferenceNode::Named { symbol, .. } => Some(*symbol),
                 TypeReferenceNode::Generic {
                     base_symbol,
