@@ -186,6 +186,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         structure_elaboration::Compilation {
             entries: &[entry],
             subjects: &[None],
+            purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
         },
@@ -229,6 +230,7 @@ fn source_application_cannot_change_its_payload_type() {
         structure_elaboration::Compilation {
             entries: &[entry],
             subjects: &[None],
+            purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
         },
@@ -264,6 +266,7 @@ fn a_local_generic_data_template_remains_unserved() {
         structure_elaboration::Compilation {
             entries: &[entry],
             subjects: &[None],
+            purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
         },

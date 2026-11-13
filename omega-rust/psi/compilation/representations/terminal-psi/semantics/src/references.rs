@@ -2152,9 +2152,9 @@ pub(crate) mod reference_storage_geometry {
         TargetCarrierLayout,
     };
     use terminal_psi::{
-        LayoutApplicationId, StructuralFieldDeclaration, StructuralPathSegment,
-        StructuralRecordStorage, StructuralTypeDeclaration, StructuralTypeShape,
-        TargetLayoutRealization,
+        LayoutApplicationId, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralPathSegment, StructuralRecordStorage, StructuralTypeDeclaration,
+        StructuralTypeShape, TargetLayoutRealization,
     };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2270,6 +2270,240 @@ pub(crate) mod reference_storage_geometry {
             _application: LayoutApplicationId,
         ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
             Err(StorageGeometryError::UnresolvedLayout(record))
+        }
+    }
+
+    /// The checked representation width used by both source plan validation
+    /// and foreign storage recipes. Bounded nonnegative integers retain every
+    /// representable bit, independently of their byte-sized home carrier.
+    pub fn reference_field_representation_width<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        field: &StructuralFieldType,
+    ) -> Option<u64> {
+        if let StructuralFieldType::BoundedInteger(integer) = field {
+            use semantic_vocabulary::IntegerValue;
+            let maximum = match (integer.minimum(), integer.maximum()) {
+                (IntegerValue::Signed(minimum), IntegerValue::Signed(maximum)) if minimum >= 0 => {
+                    u128::try_from(maximum).ok()?
+                }
+                (IntegerValue::Unsigned(_), IntegerValue::Unsigned(maximum)) => maximum,
+                _ => return Some(u64::from(integer.integer_type().bits())),
+            };
+            return Some(u64::from((u128::BITS - maximum.leading_zeros()).max(1)));
+        }
+        let scalar = field.scalar_type().or_else(|| {
+            let identity = field.as_structural()?;
+            let StructuralTypeShape::PrimitiveScalar(scalar) =
+                crate::structural_declaration(types, identity)?.shape
+            else {
+                return None;
+            };
+            Some(scalar)
+        })?;
+        match scalar {
+            ScalarType::Boolean => Some(1),
+            ScalarType::Integer(integer) => Some(u64::from(integer.bits())),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => Some(32),
+            ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => Some(64),
+        }
+    }
+
+    /// Compute and check a retained storage recipe against its actual field.
+    /// The caller supplies child geometry from its own immutable target and
+    /// selected-layout context; foreign validation keeps its boundary policy.
+    pub fn authored_field_storage_extent<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        field: &terminal_psi::StructuralFieldDeclaration,
+        storage: &AuthoredFieldStorage,
+        record_size: u64,
+        mut child_layout: impl FnMut(StructuralTypeId) -> Option<(u64, u64)>,
+    ) -> Result<Option<(u64, u64)>, &'static str> {
+        use semantic_vocabulary::AuthoredFieldStorage;
+
+        let scalar = field
+            .field_type
+            .scalar_type()
+            .or_else(|| field.field_type.atomic_scalar_type());
+        let mut declared_layout = || {
+            if let Some(scalar) = scalar {
+                let width = u64::from(crate::reference_storage_byte_width(scalar)?);
+                return Some((width, width));
+            }
+            let child = field.field_type.as_structural()?;
+            child_layout(child)
+        };
+        let (offset, extent) = match storage {
+            AuthoredFieldStorage::Fragmented(recipe) => {
+                validate_storage_fragments(types.clone(), field, recipe, record_size)?;
+                return Ok(None);
+            }
+            AuthoredFieldStorage::Scalar {
+                byte_offset,
+                stored_scalar: Some(stored),
+            } => {
+                let width = crate::reference_storage_byte_width(*stored)
+                    .ok_or("encoded field has no contiguous scalar footprint")?;
+                (byte_offset, Some(u64::from(width)))
+            }
+            AuthoredFieldStorage::Scalar {
+                byte_offset,
+                stored_scalar: None,
+            }
+            | AuthoredFieldStorage::Direct { byte_offset } => {
+                (byte_offset, declared_layout().map(|(size, _)| size))
+            }
+            AuthoredFieldStorage::Repeated {
+                byte_offset,
+                element_stride,
+            } => {
+                let Some(array) = field.field_type.as_structural() else {
+                    return Err("repeated field requires a fixed array");
+                };
+                let Some(StructuralTypeShape::FixedArray { element, length }) =
+                    crate::structural_declaration(types.clone(), array)
+                        .map(|declaration| &declaration.shape)
+                else {
+                    return Err("repeated field requires a fixed array");
+                };
+                if let Some((size, alignment)) = child_layout(*element)
+                    && (alignment == 0
+                        || *element_stride < size
+                        || *element_stride % alignment != 0
+                        || *byte_offset % alignment != 0)
+                {
+                    return Err("repeated field stride overlaps or misaligns its elements");
+                }
+                let length = length
+                    .literal()
+                    .ok_or("authored repeated storage requires a closed array extent")?;
+                let extent = length
+                    .checked_mul(*element_stride)
+                    .ok_or("repeated field extent overflows")?;
+                (byte_offset, Some(extent))
+            }
+        };
+        if extent.is_some_and(|extent| {
+            offset
+                .checked_add(extent)
+                .is_none_or(|end| end > record_size)
+        }) {
+            return Err("authored field extent exceeds its record storage");
+        }
+        Ok(extent.map(|extent| (*offset, extent)))
+    }
+
+    fn validate_storage_fragments<'types>(
+        types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+        field: &terminal_psi::StructuralFieldDeclaration,
+        recipe: &semantic_vocabulary::AuthoredBitFragments,
+        record_size: u64,
+    ) -> Result<(), &'static str> {
+        let source_width = reference_field_representation_width(types, &field.field_type)
+            .ok_or("fragmented field requires a known scalar representation width")?;
+        if recipe.fragments().is_empty() {
+            return Err("fragmented field requires a complete recipe");
+        }
+        let mut source_intervals = Vec::with_capacity(recipe.fragments().len());
+        for fragment in recipe.fragments() {
+            if fragment.container_width_bits == 0
+                || !fragment.container_width_bits.is_multiple_of(8)
+                || fragment.width == 0
+                || fragment
+                    .container_byte_offset
+                    .checked_add(fragment.container_width_bits / 8)
+                    .is_none_or(|end| end > record_size)
+                || fragment
+                    .destination_lsb
+                    .checked_add(fragment.width)
+                    .is_none_or(|end| end > fragment.container_width_bits)
+            {
+                return Err("fragmented field has an invalid transfer container or destination");
+            }
+            let end = fragment
+                .source_lsb
+                .checked_add(fragment.width)
+                .ok_or("fragment source range overflows")?;
+            if end > source_width {
+                return Err("fragment source range exceeds its declaration representation");
+            }
+            source_intervals.push((fragment.source_lsb, end));
+        }
+        source_intervals.sort_unstable();
+        let mut cursor = 0;
+        for (start, end) in source_intervals {
+            if start != cursor {
+                return Err("fragment source ranges have a gap or overlap");
+            }
+            cursor = end;
+        }
+        if cursor != source_width {
+            return Err("fragment source ranges do not tile the declaration representation");
+        }
+        Ok(())
+    }
+
+    /// Check occupied destination bits after all recipes are computed. Scratch
+    /// is proportional to those recipes, never to the declared byte extent.
+    pub fn validate_storage_destination_intervals(
+        mut destinations: Vec<(u128, u128)>,
+    ) -> Result<(), &'static str> {
+        destinations.sort_unstable();
+        if destinations.windows(2).any(|pair| pair[1].0 < pair[0].1) {
+            return Err("authored field destination bits overlap");
+        }
+        Ok(())
+    }
+
+    /// Classify the representation source of one field. This describes
+    /// geometry only; an explicit child still needs the caller's exact
+    /// selected realization and supplies no storage or access permission.
+    pub fn schema_field_layout_source(
+        module: &terminal_psi::TerminalModule,
+        field: &terminal_psi::StructuralFieldType,
+        records: &impl RecordStorageResolver,
+    ) -> Result<terminal_psi::TargetLayoutFieldLayoutSource, StorageGeometryError> {
+        use terminal_psi::{ByteSequenceCarrier, TargetLayoutFieldLayoutSource};
+        if field.scalar_type().is_some()
+            || matches!(
+                field.byte_sequence_carrier(),
+                Some(ByteSequenceCarrier::BoundedOwned { .. })
+            )
+        {
+            return Ok(TargetLayoutFieldLayoutSource::Scalar);
+        }
+        let Some(mut identity) = field.as_structural() else {
+            return Ok(TargetLayoutFieldLayoutSource::Default);
+        };
+        // Each step follows one array child. A chain longer than the
+        // declaration roster repeats a type, without whole-module scratch.
+        let mut remaining = module.structural_types.len();
+        loop {
+            let declaration = module
+                .structural_type(identity)
+                .ok_or(StorageGeometryError::MissingType(identity))?;
+            if remaining == 0 {
+                return Err(StorageGeometryError::RecursiveType(identity));
+            }
+            remaining -= 1;
+            match &declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(_)
+                | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
+                    return Ok(TargetLayoutFieldLayoutSource::Scalar);
+                }
+                StructuralTypeShape::FixedArray { element, length }
+                    if length.literal().is_some() =>
+                {
+                    identity = *element;
+                }
+                StructuralTypeShape::Record {
+                    storage: StructuralRecordStorage::TargetLayout(application),
+                    ..
+                } => {
+                    records.realization(identity, *application)?;
+                    return Ok(TargetLayoutFieldLayoutSource::Explicit);
+                }
+                _ => return Ok(TargetLayoutFieldLayoutSource::Default),
+            }
         }
     }
 
@@ -3269,6 +3503,217 @@ pub(crate) mod reference_storage_geometry {
                 field_type,
                 storage,
             }
+        }
+
+        #[test]
+        fn schema_geometry_source_keeps_arrays_and_selected_realizations_exact() {
+            use terminal_psi::{LayoutApplicationId, TargetLayoutFieldLayoutSource as Source};
+            let application = LayoutApplicationId(1);
+            let declaration = |value, shape| StructuralTypeDeclaration {
+                requires: Vec::new(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                copyable: true,
+                descriptor_cleanup: false,
+                scalar_restriction: None,
+                id: identity(value),
+                identity: TerminalIdentityIndex(value as u32),
+                shape,
+            };
+            let mut module = terminal_psi::TerminalModule::declarations();
+            module.structural_types = vec![
+                declaration(1, StructuralTypeShape::PrimitiveScalar(scalar(32))),
+                declaration(
+                    2,
+                    StructuralTypeShape::FixedArray {
+                        element: identity(1),
+                        length: terminal_psi::ArrayExtent::Literal(32),
+                    },
+                ),
+                declaration(
+                    3,
+                    StructuralTypeShape::Record {
+                        fields: Vec::new(),
+                        storage: StructuralRecordStorage::Packed,
+                    },
+                ),
+                declaration(
+                    4,
+                    StructuralTypeShape::Record {
+                        fields: Vec::new(),
+                        storage: StructuralRecordStorage::TargetLayout(application),
+                    },
+                ),
+                declaration(
+                    5,
+                    StructuralTypeShape::FixedArray {
+                        element: identity(4),
+                        length: terminal_psi::ArrayExtent::Literal(64),
+                    },
+                ),
+                declaration(
+                    6,
+                    StructuralTypeShape::FixedArray {
+                        element: identity(6),
+                        length: terminal_psi::ArrayExtent::Literal(1),
+                    },
+                ),
+            ];
+            let source = |value| {
+                schema_field_layout_source(
+                    &module,
+                    &StructuralFieldType::Structural(identity(value)),
+                    &UnselectedRecordStorage,
+                )
+            };
+            assert_eq!(
+                reference_field_representation_width(
+                    module.structural_types.iter(),
+                    &StructuralFieldType::Scalar(ScalarType::Boolean)
+                ),
+                Some(1),
+            );
+            assert_eq!(
+                reference_field_representation_width(
+                    module.structural_types.iter(),
+                    &StructuralFieldType::Structural(identity(1))
+                ),
+                Some(32),
+            );
+            assert_eq!(
+                reference_field_representation_width(
+                    module.structural_types.iter(),
+                    &StructuralFieldType::Structural(identity(2))
+                ),
+                None,
+            );
+            let bounded = semantic_vocabulary::BoundedIntegerType::new(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    32,
+                )
+                .expect("u32"),
+                semantic_vocabulary::IntegerValue::Unsigned(0),
+                semantic_vocabulary::IntegerValue::Unsigned(7),
+            )
+            .expect("checked bounded integer");
+            assert_eq!(
+                reference_field_representation_width(
+                    module.structural_types.iter(),
+                    &StructuralFieldType::BoundedInteger(bounded)
+                ),
+                Some(3),
+            );
+            assert_eq!(source(2), Ok(Source::Scalar));
+            assert_eq!(source(3), Ok(Source::Default));
+            assert_eq!(
+                source(4),
+                Err(StorageGeometryError::UnresolvedLayout(identity(4)))
+            );
+            assert_eq!(
+                source(6),
+                Err(StorageGeometryError::RecursiveType(identity(6)))
+            );
+            assert_eq!(
+                source(99),
+                Err(StorageGeometryError::MissingType(identity(99)))
+            );
+
+            struct Selected {
+                application: LayoutApplicationId,
+                realization: TargetLayoutRealization,
+            }
+            impl RecordStorageResolver for Selected {
+                fn realization(
+                    &self,
+                    record: StructuralTypeId,
+                    application: LayoutApplicationId,
+                ) -> Result<&TargetLayoutRealization, StorageGeometryError> {
+                    if record != identity(4) || application != self.application {
+                        return Err(StorageGeometryError::UnresolvedLayout(record));
+                    }
+                    Ok(&self.realization)
+                }
+            }
+            let mut selected = Selected {
+                application,
+                realization: TargetLayoutRealization {
+                    schema_argument: terminal_psi::TargetLayoutSchemaArgument {
+                        abi_version: 4,
+                        fields: Vec::new(),
+                        retired_field_identities: Vec::new(),
+                    },
+                    target: "actual-target".into(),
+                    pointer_size: 8,
+                    pointer_alignment: 8,
+                    case_tag_size: 4,
+                    case_tag_alignment: 4,
+                    little_endian: true,
+                    storage: AuthoredRecordStorage {
+                        byte_size: 0,
+                        byte_alignment: 1,
+                    },
+                    fields: Vec::new(),
+                },
+            };
+            let field = StructuralFieldDeclaration {
+                inline_carrier: None,
+                id: StructuralFieldId::new(1).expect("field"),
+                identity: TerminalIdentityIndex(1),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Structural(identity(1)),
+                storage: None,
+            };
+            let direct = AuthoredFieldStorage::Direct { byte_offset: 0 };
+            let extent = |storage: &AuthoredFieldStorage, size| {
+                authored_field_storage_extent(
+                    module.structural_types.iter(),
+                    &field,
+                    storage,
+                    size,
+                    |child| (child == identity(1)).then_some((4, 4)),
+                )
+            };
+            assert_eq!(extent(&direct, 4), Ok(Some((0, 4))));
+            assert_eq!(
+                extent(&direct, 3),
+                Err("authored field extent exceeds its record storage")
+            );
+            let recipe = |width| {
+                AuthoredFieldStorage::Fragmented(semantic_vocabulary::AuthoredBitFragments::new([
+                    semantic_vocabulary::AuthoredBitFragment {
+                        container_byte_offset: 0,
+                        container_width_bits: 32,
+                        destination_lsb: 0,
+                        source_lsb: 0,
+                        width,
+                    },
+                ]))
+            };
+            assert_eq!(extent(&recipe(32), 4), Ok(None));
+            assert_eq!(
+                extent(&recipe(31), 4),
+                Err("fragment source ranges do not tile the declaration representation")
+            );
+            assert_eq!(
+                validate_storage_destination_intervals(vec![(0, 8), (8, 16)]),
+                Ok(())
+            );
+            assert_eq!(
+                validate_storage_destination_intervals(vec![(0, 8), (7, 16)]),
+                Err("authored field destination bits overlap")
+            );
+            let array = StructuralFieldType::Structural(identity(5));
+            assert_eq!(
+                schema_field_layout_source(&module, &array, &selected),
+                Ok(Source::Explicit)
+            );
+            selected.application = LayoutApplicationId(2);
+            assert_eq!(
+                schema_field_layout_source(&module, &array, &selected),
+                Err(StorageGeometryError::UnresolvedLayout(identity(4)))
+            );
         }
 
         #[test]

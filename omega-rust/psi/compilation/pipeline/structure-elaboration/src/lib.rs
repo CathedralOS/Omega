@@ -145,6 +145,12 @@ pub struct Compilation<'a> {
     /// closure. `Some(package)` selects that package; `None` selects standalone
     /// user source. An empty slice requests only the concrete root closure.
     pub subjects: &'a [Option<PackageKeyIdentity>],
+    /// Which of a subject's two checked contexts this compilation judges
+    /// (`wiki/spec/build/scoped_execution.md`, "Two checked contexts"). A
+    /// package's Build sources and Product sources are separate programs: a
+    /// Build activation's subject declarations are the ones read under the
+    /// Build dependency scope, and its entry must come from that context.
+    pub purpose: source::DependencyScope,
     /// The declarations the Build's selections name (selected providers and
     /// what each provides, layout-scope entries, chosen representations),
     /// whichever package declares them. The check claims each with its
@@ -376,6 +382,7 @@ pub fn elaborate_for(
             Unserved::Machine("no bound entry"),
         ));
     };
+    program.build_entry_context(first, compilation.purpose, compilation.entries)?;
     let entry = program.machine(*entry)?;
     program.fixed_inputs.push(entry);
     for other in others {
@@ -383,7 +390,7 @@ pub fn elaborate_for(
         program.fixed_inputs.push(other);
     }
     program.selected_declarations(entry, compilation.selected)?;
-    program.subject_declarations(entry, compilation.subjects)?;
+    program.subject_declarations(entry, compilation.subjects, compilation.purpose)?;
     let mut elaboration = finish_reading(program, entry, IdTable::default(), Some(typed))?;
     proof_scope::declare(typed, &mut elaboration)?;
     Ok(elaboration)

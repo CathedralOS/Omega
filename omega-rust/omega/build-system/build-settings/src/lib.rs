@@ -52,11 +52,12 @@ and rejoins its normal return (`ReturnedBuild`) with `PreparedBuildEvaluation::c
 to produce `EvaluatedBuild`.
 
 The crate is organized along that lifecycle:
-- `admission/` owns source and package admission before effects. Build source
-  preparation explicitly refuses until a structural producer supplies its real
-  source, declaration-authority and constant/provider custody (`checking.rs`).
-  `provider_execution.rs` admits actual selected runtime supplies, while
-  `program.rs` binds a future accepted source to its private checkpoint.
+- `admission/` owns source and package admission before effects. `checking.rs`
+  has the lowered-form checker judge the Build program as its own roster of the
+  typed frontier and names the owner of each thing the retired Build projection
+  did. `provider_execution.rs` admits actual selected runtime supplies against
+  the published module's demand, while `program.rs` binds the accepted source
+  to its private checkpoint.
 - `activation.rs` and `activation/` own the step-by-step `TerminalBuildActivation`
   that `orchestration` drives (`preparation.rs`, `project.rs`,
   `provider_installation.rs`, `scalar_completion.rs`, `source_join.rs`,

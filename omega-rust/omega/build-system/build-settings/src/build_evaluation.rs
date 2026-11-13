@@ -146,7 +146,9 @@ pub fn prepare_build_evaluation(
         pure_build_compilation: _,
         root_path,
         typed,
-        pre_checks,
+        // Admission evaluates no constant, so the Product's pending work is
+        // left whole (`admission/checking.rs`).
+        pre_checks: _,
         build_source,
         sources,
         package_inputs,
@@ -205,11 +207,9 @@ pub fn prepare_build_evaluation(
     let (prepared, providers, provider_folded_constants) =
         crate::admission::checking::prepare_admitted_build(
             typed,
-            pre_checks,
             selected_machine,
             package_inputs,
             dependency_activation,
-            execution_profile,
             timings,
         )?;
     let filesystem_scope = crate::prepare_filesystem_scope(

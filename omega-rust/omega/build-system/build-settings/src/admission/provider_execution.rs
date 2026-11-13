@@ -55,6 +55,15 @@ impl BuildProviderPlans {
                     "Build selected provider execution closure: {reason:?}"
                 ))
             })?;
+        // A selection is complete only against what the module actually
+        // calls. A provider the module demands and no plan supplies would
+        // otherwise surface as a failed call after authored code has run.
+        if !demand.missing_providers.is_empty() {
+            return Err(failure(format!(
+                "Build program demands providers no selected plan supplies: {:?}",
+                demand.missing_providers
+            )));
+        }
         let demanded = demand
             .imports
             .iter()
