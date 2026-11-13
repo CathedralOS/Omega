@@ -330,6 +330,7 @@ pub(crate) use diagnostics::Diagnostic;
 pub use product_operands::{
     PreparedProductRequirement, prepare_product_operand_application,
     prepare_product_requirement_operand, prepare_retained_product_application,
+    prepare_retained_product_requirement_operand,
 };
 pub(crate) mod default_domain_zero {
     use typed_trees::TypedTrees;
@@ -2104,6 +2105,10 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
     validation::static_bindings::validate_static_machine_bindings(&checking, &mut Vec::new())?;
     validation::conformance_applications::validate_conformance_applications(&checking)?;
     validation::validate_static_machine_selections(&checking)?;
+    // Generic proofs must read the same checked mathematical facts as ordinary
+    // source checking before a constant or layout computation can execute.
+    let mathematics = proof::mathematical_declarations::check_mathematical_declarations(&checking)?;
+    let checking = checking.with_prepared_mathematics(mathematics.prepared_view());
     validation::validate_generic_machine_contract_entailment(&checking)
 }
 

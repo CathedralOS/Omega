@@ -6360,12 +6360,40 @@ pub(crate) mod type_reference_queries {
                         ))
                         .is_some_and(|(expected, actual)| expected == actual)
                 }
-                (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(actual))
+                (
+                    TypeParameterKind::Machine {
+                        contract: crate::data::MachineParameterContract::RequirementIdentity,
+                    },
+                    StaticMachineBindingValue::Machine(actual),
+                )
                 | (
                     TypeParameterKind::Implementation,
                     StaticMachineBindingValue::Conformance(actual),
                 ) => {
                     self.same_static_machine_operand(argument, source_owner, actual, binding_owner)
+                }
+                (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(actual)) => {
+                    // Executable callable selections can name the machine or
+                    // its entry. Declaration-only operands keep their exact
+                    // authored correspondence in the preceding arm.
+                    use crate::type_identity::{
+                        IndexIdentityArgument, portable_applied_index_identity,
+                    };
+                    argument.const_literal == actual.const_literal
+                        && argument.evidence_projection == actual.evidence_projection
+                        && portable_applied_index_identity(
+                            self,
+                            IndexIdentityArgument::StaticArgument(argument),
+                            source_owner,
+                            &[],
+                        )
+                        .zip(portable_applied_index_identity(
+                            self,
+                            IndexIdentityArgument::StaticArgument(actual),
+                            binding_owner,
+                            &[],
+                        ))
+                        .is_some_and(|(left, right)| left == right)
                 }
                 _ => false,
             }

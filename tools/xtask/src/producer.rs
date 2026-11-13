@@ -224,16 +224,9 @@ fn build(
     directory: &Path,
     name: &str,
     arguments: &[&str],
+    target: Option<&Path>,
 ) -> Result<Vec<Value>, String> {
-    let mut command = Command::new("mbx");
-    command
-        .args(arguments)
-        .current_dir(root)
-        .stdin(Stdio::null())
-        .env("CARGO_PROFILE_DEV_OPT_LEVEL", "1")
-        .env("CARGO_PROFILE_TEST_OPT_LEVEL", "1")
-        .env("CARGO_UNSTABLE_CHECKSUM_FRESHNESS", "true")
-        .env("CARGO_BUILD_FINGERPRINT", "content");
+    let mut command = build_command(root, arguments, target);
     // A cold optimized build can outlast the selected programs. Give preparation
     // its own bound without changing checking, runtime, or proof budgets.
     let status =
@@ -256,11 +249,39 @@ fn build(
     Ok(artifacts)
 }
 
+fn build_command(root: &Path, arguments: &[&str], target: Option<&Path>) -> Command {
+    let mut command = Command::new("mbx");
+    command
+        .args(arguments)
+        .current_dir(root)
+        .stdin(Stdio::null())
+        .env("CARGO_PROFILE_DEV_OPT_LEVEL", "1")
+        .env("CARGO_PROFILE_TEST_OPT_LEVEL", "1")
+        .env("CARGO_UNSTABLE_CHECKSUM_FRESHNESS", "true")
+        .env("CARGO_BUILD_FINGERPRINT", "content");
+    if let Some(target) = target {
+        command.env("CARGO_TARGET_DIR", target);
+    }
+    command
+}
+
 pub fn prepare(
     root: &Path,
     directory: &Path,
     need_runner: bool,
     need_cli: bool,
+) -> Result<Producer, String> {
+    prepare_in_target(root, directory, need_runner, need_cli, None)
+}
+
+/// A baseline's source and build outputs must both stay separate from the
+/// caller, including when the caller exported an absolute CARGO_TARGET_DIR.
+pub fn prepare_in_target(
+    root: &Path,
+    directory: &Path,
+    need_runner: bool,
+    need_cli: bool,
+    target: Option<&Path>,
 ) -> Result<Producer, String> {
     fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     let before = source_identity(root)?;
@@ -278,7 +299,7 @@ pub fn prepare(
             return Err(format!("{name} identity command failed"));
         }
     }
-    let environment = [
+    let mut environment = [
         "CARGO_BUILD_JOBS",
         "CARGO_TARGET_DIR",
         "CARGO_INCREMENTAL",
@@ -293,6 +314,12 @@ pub fn prepare(
     .into_iter()
     .map(|key| (key, std::env::var(key).ok()))
     .collect::<std::collections::BTreeMap<_, _>>();
+    if let Some(target) = target {
+        environment.insert(
+            "CARGO_TARGET_DIR",
+            Some(target.to_string_lossy().into_owned()),
+        );
+    }
     execution::write_json(
         &directory.join("build-inputs.json"),
         &json!({"host": host_target(), "environment": environment,
@@ -335,7 +362,7 @@ pub fn prepare(
         if !needed {
             continue;
         }
-        let artifacts = build(root, directory, name, &args)?;
+        let artifacts = build(root, directory, name, &args, target)?;
         let target = if name == "runner-build" {
             "corpus_runner"
         } else {
@@ -525,6 +552,28 @@ pub fn load_prebuilt(root: &Path, directory: &Path, evidence: &Path) -> Result<P
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn isolated_build_uses_explicit_source_and_target_without_changing_process_environment() {
+        let root = Path::new("/isolated/source");
+        let target = root.join("target");
+        let command = build_command(root, &["test", "--no-run"], Some(&target));
+        assert_eq!(command.get_current_dir(), Some(root));
+        assert_eq!(command.get_program(), "mbx");
+        assert_eq!(
+            command
+                .get_envs()
+                .find(|(key, _)| *key == "CARGO_TARGET_DIR")
+                .unwrap()
+                .1,
+            Some(target.as_os_str())
+        );
+        assert!(
+            !build_command(root, &[], None)
+                .get_envs()
+                .any(|(key, _)| key == "CARGO_TARGET_DIR")
+        );
+    }
 
     #[test]
     fn prebuilt_runner_is_accepted_only_for_its_own_clean_commit_and_bytes() {

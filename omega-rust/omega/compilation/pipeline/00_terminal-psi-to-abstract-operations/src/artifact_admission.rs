@@ -155,6 +155,7 @@ mod native {
     }
 
     pub struct NativeExecutionSelection<'request> {
+        pub scope: Option<&'request crate::NativeExecutionScope>,
         pub scalar_applications: Option<super::NativeScalarApplications<'request>>,
         pub providers: &'request [crate::SelectedProviderAdapter],
         pub plans: &'request effects::SelectedProviderPlanFacts,
@@ -167,7 +168,7 @@ mod native {
         entry: semantic_vocabulary::MachineId,
         pub(crate) targets: AdmittedTargetMachineSelections,
         pub(crate) layouts: terminal_installation::AdmittedTargetLayouts,
-        pub(crate) scope: crate::native_execution_scope::NativeExecutionScope,
+        pub(crate) scope: Option<crate::NativeExecutionScope>,
         pub(crate) scalar_demand: Vec<semantic_vocabulary::ScalarApplicationId>,
     }
 
@@ -200,23 +201,39 @@ mod native {
                 &target_facts,
             )
             .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
-            let assumptions = selection
-                .plans
-                .assumed_binding_coordinates(module)
-                .map_err(ArtifactLoweringError::TargetFamily)?;
-            let scope = crate::native_execution_scope::NativeExecutionScope::derive(
-                module,
-                entry,
-                &selections,
-                selection.entry_call,
-                selection.providers,
-                &assumptions,
-                selection.callbacks,
-            )
-            .map_err(|error| ArtifactLoweringError::TargetFamily(error.to_string()))?;
-            let scalar_demand = scope
-                .scalar_application_demand(module, &selections, &layouts)
-                .map_err(ArtifactLoweringError::TargetFamily)?;
+            let scope = if let Some(scope) = selection.scope {
+                scope
+                    .require_source_input(
+                        artifact.view(),
+                        entry,
+                        &selections,
+                        selection.plans,
+                        selection.providers,
+                    )
+                    .map_err(|reason| ArtifactLoweringError::TargetFamily(reason.into()))?;
+                if scope.entry_call() != selection.entry_call
+                    || scope.callbacks() != selection.callbacks
+                {
+                    return Err(ArtifactLoweringError::TargetFamily(
+                        "native preparation changes its checked entry or callback inputs".into(),
+                    ));
+                }
+                Some(scope.clone())
+            } else {
+                // Raw choices do not establish complete callback, entry and
+                // provider coverage. Keep the ordinary full-module contract.
+                None
+            };
+            let scalar_demand = match scope.as_ref() {
+                Some(scope) => scope.scalar_application_demand(module, &selections, &layouts),
+                None => crate::NativeExecutionScope::full_module_scalar_demand(
+                    module,
+                    entry,
+                    &selections,
+                    &layouts,
+                ),
+            }
+            .map_err(ArtifactLoweringError::TargetFamily)?;
             Ok(Self {
                 profile,
                 entry,
@@ -242,6 +259,18 @@ mod native {
                 scalar_demand,
             } = self;
             let module = artifact.semantic_module();
+            let full_machines;
+            let machines = match scope.as_ref() {
+                Some(scope) => scope.machines(),
+                None => {
+                    full_machines = module
+                        .machines
+                        .iter()
+                        .map(|machine| machine.id)
+                        .collect::<Vec<_>>();
+                    &full_machines
+                }
+            };
             let scalar_applications = selection
                 .scalar_applications
                 .as_ref()
@@ -253,7 +282,7 @@ mod native {
                         &layouts,
                         selection,
                         &scalar_demand,
-                        scope.machines(),
+                        machines,
                     )
                 })
                 .transpose()
@@ -278,18 +307,28 @@ mod native {
                 module,
                 entry,
                 structural_types,
-                Some(&scope),
+                scope.as_ref(),
                 scalar_applications,
                 Some(&layouts),
             )
             .map_err(ArtifactLoweringError::Lowering)?;
             let mut input = retain_native_plan(module, plan, Some(selections))
                 .try_into_native_input(establishments)?;
-            input.optimization_input.retain_native_selections(
-                selection.entry_call.cloned(),
-                layouts,
-                scalar_applications.cloned(),
-            );
+            input
+                .optimization_input
+                .retain_native_selections(
+                    selection.entry_call.cloned(),
+                    layouts,
+                    scalar_applications.cloned(),
+                    scope
+                        .as_ref()
+                        .map(|scope| std::sync::Arc::new(scope.clone())),
+                    scope.as_ref().map_or_else(
+                        || *selection.plans.identity_digest().as_bytes(),
+                        crate::NativeExecutionScope::selected_provider_closure,
+                    ),
+                )
+                .map_err(|reason| ArtifactLoweringError::TargetFamily(reason.into()))?;
             Ok(input)
         }
     }
@@ -449,11 +488,14 @@ mod native {
                     );
                 }
             }
-            self.optimization_input.retain_selected_providers(
-                selected.family_realization_rows().to_vec(),
-                selected.external_requirement_applications().to_vec(),
-                selected.identities().clone(),
-            );
+            self.optimization_input
+                .retain_selected_providers(
+                    selected.family_realization_rows().to_vec(),
+                    selected.external_requirement_applications().to_vec(),
+                    selected.identities().clone(),
+                    *selected.identity_digest().as_bytes(),
+                )
+                .map_err(str::to_owned)?;
             Ok(self)
         }
 
@@ -685,6 +727,7 @@ mod native {
                     terminal_psi::TargetMachineCallable::Machine(entry),
                     std::slice::from_ref(&recipe),
                     &NativeExecutionSelection {
+                        scope: None,
                         scalar_applications: None,
                         providers: &[],
                         plans: &effects::SelectedProviderPlanFacts::default(),
@@ -706,7 +749,7 @@ mod native {
         use super::*;
         use semantic_vocabulary::{
             BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
-            OperationId, ScalarApplicationId, ScalarType, ValueId,
+            OperationId, ScalarType, ValueId,
         };
         use terminal_codec::CanonicalTerminalArtifact;
         use terminal_psi::{
@@ -827,6 +870,7 @@ mod native {
                     .expect("fixture declares an entry"),
                 &[],
                 &NativeExecutionSelection {
+                    scope: None,
                     scalar_applications: None,
                     providers: &[],
                     plans: &effects::SelectedProviderPlanFacts::default(),
@@ -837,94 +881,73 @@ mod native {
         }
 
         #[test]
-        fn native_scope_preserves_target_member_exclusion() {
-            let mut module = graph();
-            let callable =
-                |identity| terminal_psi::TargetMachineCallable::Machine(machine_id(identity));
-            module
-                .target_machine_families
-                .push(terminal_psi::TargetMachineFamily {
-                    canonical: callable(1),
-                    head_contract: [1; 32],
-                    members: vec![
-                        terminal_psi::TargetMachineFamilyMember {
-                            target: "macos_arm64".into(),
-                            callable: callable(1),
-                            supply: terminal_psi::TargetMachineSupply::CheckedBody,
-                        },
-                        terminal_psi::TargetMachineFamilyMember {
-                            target: "windows_x86_64".into(),
-                            callable: callable(2),
-                            supply: terminal_psi::TargetMachineSupply::CheckedBody,
-                        },
-                    ],
-                });
-            let input = prepare(module.clone()).unwrap();
-            assert_eq!(input.plan().functions.len(), 1);
-            assert_eq!(input.plan().functions[0].machine, machine_id(1));
-            module.entry = Some(callable(2));
+        fn raw_native_input_keeps_full_module_checking_without_a_selected_scope() {
             assert!(matches!(
-                prepare(module.clone()),
-                Err(ArtifactLoweringError::TargetFamily(_))
-            ));
-            assert!(matches!(
-                prepare_at(module, target::TargetProfile::WindowsX64),
+                prepare(graph()),
                 Err(ArtifactLoweringError::Lowering(
                     crate::LoweringError::UnclosedScalarApplication(_)
                 ))
             ));
-        }
-
-        #[test]
-        fn native_scope_omits_dormant_scalar_work_before_lowering() {
-            let input = prepare(graph()).unwrap();
-            assert_eq!(input.plan().functions.len(), 1);
-            assert_eq!(input.plan().functions[0].machine, machine_id(1));
-            assert_eq!(input.context().module().machines.len(), 3);
-            assert!(matches!(
-                input.plan().functions[0].operations[0],
-                abstract_operations::AbstractOperation::IntegerConstant {
-                    value: IntegerValue::Unsigned(7),
-                    ..
-                }
-            ));
-        }
-
-        #[test]
-        fn native_scope_retains_called_scalar_work_and_its_refusal() {
             let mut module = graph();
-            module.machines[0].blocks[0].operations[0].kind = call(2);
-            assert!(matches!(
-                prepare(module),
-                Err(ArtifactLoweringError::Lowering(crate::LoweringError::UnclosedScalarApplication(application)))
-                    if application == ScalarApplicationId::new(1).unwrap()
-            ));
+            module.machines.truncate(1);
+            let input = prepare(module).unwrap();
+            let plan = input.plan().clone();
+            let facts = input.into_optimization_input().into_lowering_facts();
+            facts
+                .require_lowering_context(&plan, target::NativeTarget::macos_arm64())
+                .unwrap();
+            assert!(
+                facts
+                    .native_execution_scope_for(
+                        plan.psi,
+                        target::NativeTarget::macos_arm64(),
+                        plan.entry,
+                        *effects::SelectedProviderPlanFacts::default()
+                            .identity_digest()
+                            .as_bytes()
+                    )
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(
+                facts
+                    .require_lowering_context(&plan, target::NativeTarget::windows_x64())
+                    .is_err()
+            );
+            let mut other_entry = plan.clone();
+            other_entry.entry = machine_id(2);
+            assert!(
+                facts
+                    .require_lowering_context(&other_entry, target::NativeTarget::macos_arm64())
+                    .is_err()
+            );
         }
 
         #[test]
-        fn native_scope_preserves_all_block_call_demand() {
+        fn optimizer_only_facts_do_not_claim_an_empty_native_scope() {
             let mut module = graph();
-            let mut block = module.machines[0].blocks[0].clone();
-            block.id = BlockId::new(2).unwrap();
-            block.operations[0].id = OperationId::new(2).unwrap();
-            block.operations[0].result = OperationResult::Scalar(ValueDeclaration {
-                id: ValueId::new(2).unwrap(),
-                scalar_type: scalar_type(),
-                qualifications: Default::default(),
-            });
-            block.operations[0].kind = call(2);
-            block.terminator = Terminator::Return {
-                edge: EdgeId::new(2).unwrap(),
-                value: ValueId::new(2).unwrap(),
-                cleanup_actions: Vec::new(),
-            };
-            module.machines[0].blocks.push(block);
-            assert!(matches!(
-                prepare(module),
-                Err(ArtifactLoweringError::Lowering(
-                    crate::LoweringError::UnclosedScalarApplication(_)
-                ))
-            ));
+            module.machines.truncate(1);
+            let bytes = terminal_codec::encode_module(&module).unwrap();
+            let input = crate::lower_artifact(crate::ArtifactSections {
+                semantic_bytes: &bytes,
+            })
+            .unwrap()
+            .into_optimization_artifact()
+            .into_optimization_input();
+            let plan = input.plan().clone();
+            let facts = input.into_lowering_facts();
+            assert!(
+                facts
+                    .native_execution_scope_for(
+                        plan.psi,
+                        target::NativeTarget::macos_arm64(),
+                        plan.entry,
+                        [0; 32],
+                    )
+                    .unwrap()
+                    .is_none(),
+                "no native admission must remain distinct from an empty selection"
+            );
         }
     }
 }

@@ -352,13 +352,17 @@ optimization. Native permission admission and proposal construction follow
 production; neither restarts Psi or independently verifies its fresh output.
 Callback placements stay in Omega rather than travelling through
 Psi as an opaque payload. One effective Psi optimization selection governs the
-whole program, including callback roots. The coordinator joins callback entries
-in that shared artifact before asking
-[Omega 00](../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal.rs)
-to construct the native proposal. Canonical semantic decoding, selected-provider
-demands, entry/comparison/boundary joins and callback placement replay belong to
-that stage, not to the compiler. Missing callback bodies reject during shared
-production or its exact declaration join; neither step executes an artifact.
+whole program, including callback roots. The coordinator passes the artifact
+and build choices to the [shared native proposal owner](../representations/abstract-operations/verified-input/src/native_proposal.rs).
+That owner checks the entry, selected implementations and callback occurrences;
+its [execution preparation](../representations/abstract-operations/verified-input/src/native_execution.rs)
+then determines the functions that can run and completes their implementation
+choices. [Omega 00](../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal.rs)
+lowers and admits that checked selection. The compiler orchestrates these
+operations rather than reconstructing their joins. Later stages read the shared
+record without importing the earlier producer. Missing callback bodies reject
+during shared production or the exact declaration join; neither step executes an
+artifact.
 
 Terminal production borrows the unoptimized program for authored exclusions,
 checking each application's main and selected callback roots before optimization.
@@ -581,13 +585,15 @@ alone is not evidence that a syscall-backed program runs.
 
 ### Program-entry settlement
 
-[Entry roots](../../../../wiki/spec/build/entry_roots.md) owns the source/arrival
-contract. [entry_settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement.rs) independently replays
-target, source signature, calling/storage plans, canonical artifact, exact
-Terminal entry, and service establishment before issuing the validated carrier.
+Starting a native program must preserve the entry contract reviewed for that
+build. [Entry roots](../../../../wiki/spec/build/entry_roots.md) defines the
+source and arrival contract. The [shared entry settlement](../representations/abstract-operations/verified-input/src/entry_settlement.rs)
+independently checks the target, source signature, calling/storage plans,
+canonical artifact, exact entry and service establishment before issuing the
+validated record.
 It does not call the Psi receipt producer to validate that producer's output.
 
-[entry_settlement.rs](../pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement.rs) joins
+[entry_settlement.rs](../representations/abstract-operations/verified-input/src/entry_settlement.rs) joins
 selected Fused service evidence to the Terminal receiver's attachment and exact
 erased fields, then to the selected provider plans. Semantic receiver identity
 and retained Terminal attachment identity are separate facts and need not have
@@ -639,9 +645,9 @@ ABI homes, complete call/relocation replay, and a genuinely reachable authored
 entry. Use rooted provider and callback controls retaining complete argument,
 result, and resource custody; metadata-only receipt tests do not close the route.
 
-Canonical callback applications and target calling applications enter the
-realization request separately. Omega 00's
-[callback settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement.rs)
+A callback must retain the function and argument placement selected by its
+calling contract. Canonical callback applications and target calling applications
+remain separate inputs to the realization request. The [shared callback settlement](../representations/abstract-operations/verified-input/src/callback_settlement.rs)
 joins their exact requirement and static binder ordinal, then produces the
 [backend placement](../backend/plans/backend-plan/src/callback_placements.rs):
 a direct callback parameter or record-field root with its native ordinal and

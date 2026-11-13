@@ -5749,22 +5749,106 @@ pub mod static_arguments {
             product_operand::{ProductOperandApplication, ProductSelectionOccurrence},
         };
 
-        fn parameters<'a>(
+        // A member application supplies its owner's arguments separately from
+        // its own. Borrow both checked telescopes so argument and source-recipe
+        // validation agree without treating an open member as an empty tuple.
+        struct SuppliedTelescope<'a> {
+            name: &'a str,
+            parameters: &'a [typed_trees::data::TypeParameter],
+            argument: &'a typed_trees::expression::StaticMachineArgument,
+            scope: super::ArgumentScope<'a>,
+        }
+
+        fn supplied_telescopes<'a>(
             program: &'a dyn crate::CheckingInput,
-            application: &ProductOperandApplication,
-        ) -> Option<(&'a str, &'a [typed_trees::data::TypeParameter])> {
-            if !matches!(
-                application.role?,
-                ProductOperandRole::BoundarySubject | ProductOperandRole::Provider
-            ) {
-                return None;
+            application: &'a ProductOperandApplication,
+            state: Option<&'a typed_trees::state::State>,
+        ) -> Result<Vec<SuppliedTelescope<'a>>, &'static str> {
+            let caller = super::ArgumentScope::Caller(state);
+            match application.role {
+                Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider) => {
+                    Ok(vec![SuppliedTelescope {
+                        name: program.symbols.name(application.declaration),
+                        parameters: program
+                            .data_type_parameters
+                            .span(application.declaration_parameters)
+                            .ok_or("Product nominal application lost its declared telescope")?,
+                        argument: &application.argument,
+                        scope: caller,
+                    }])
+                }
+                Some(ProductOperandRole::Requirement) => {
+                    let closed = program.closed_requirement_application(application.declaration);
+                    let template = closed
+                        .as_ref()
+                        .map_or(application.declaration, |closed| closed.template);
+                    let (owner, signature) = program
+                        .trait_machine_signature(template)
+                        .ok_or("Product requirement application lost its declared member")?;
+                    let retained = application
+                        .scope
+                        .scope(program.typed_program())
+                        .filter(|scope| scope.declaration.symbol == owner.symbol)
+                        .ok_or("Product requirement application lost its exact outer scope")?;
+                    if application.declaration_parameters != signature.type_parameters
+                        || usize::try_from(application.declaration_lifetime_count).ok()
+                            != Some(signature.lifetime_parameters.len())
+                    {
+                        return Err(
+                            "Product requirement application changed its declared member telescope",
+                        );
+                    }
+                    let whole = &application.argument;
+                    let mut frames = Vec::with_capacity(2);
+                    let member = if whole.symbol == owner.symbol {
+                        let outer = whole.application.as_ref().ok_or(
+                            "Product requirement application lost its supplied outer telescope",
+                        )?;
+                        let member = expression_table(program)
+                            .static_member(outer.member)
+                            .filter(|member| member.symbol == template)
+                            .ok_or("Product requirement application lost its exact member continuation")?;
+                        frames.push(SuppliedTelescope {
+                            name: program.symbols.name(owner.symbol),
+                            parameters: program.trait_type_parameters(owner),
+                            argument: whole,
+                            scope: caller,
+                        });
+                        member
+                    } else if whole.symbol == template {
+                        whole
+                    } else {
+                        return Err(
+                            "Product requirement application names a different owner or member",
+                        );
+                    };
+                    if member.application.is_some() {
+                        let closed = closed.ok_or(
+                            "Product requirement application lost its supplied member instance",
+                        )?;
+                        if !program.requirement_application_matches_contract_scope(
+                            closed.signature.symbol,
+                            &retained,
+                        ) {
+                            return Err(
+                                "Product requirement member instance changed its outer scope",
+                            );
+                        }
+                        frames.push(SuppliedTelescope {
+                            name: signature.name.as_str(),
+                            parameters: closed.invocation_contract_parameters,
+                            argument: member,
+                            scope: super::ArgumentScope::ClosedRequirement(closed.local_arguments),
+                        });
+                    } else if closed.is_some() {
+                        return Err(
+                            "Product requirement instance lost its supplied member arguments",
+                        );
+                    }
+                    Ok(frames)
+                }
+                _ => Err("Product application lost its designated declaration role"),
             }
-            Some((
-                program.symbols.name(application.declaration),
-                program
-                    .data_type_parameters
-                    .span(application.declaration_parameters)?,
-            ))
         }
 
         fn occurrence<'a>(
@@ -5798,54 +5882,56 @@ pub mod static_arguments {
                 typed_trees::product_operand::collect_product_selection_occurrences(typed);
             for handle in typed.live_product_operand_applications() {
                 let application = typed.product_operand_applications.get(handle);
-                let Some((name, parameters)) = parameters(program, application) else {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
-                            "Product nominal application lost its declared telescope: `{}` ({:?})",
-                            typed.symbols.name(application.declaration),
-                            application.role,
-                        ))
-                        .with_source_span(application.operand.source_span),
-                    );
-                    continue;
-                };
-                let Some(arguments) = application.argument.application.as_ref() else {
-                    diagnostics.push(
-                        Diagnostic::error("Product nominal application lost its original actuals")
-                            .with_source_span(application.operand.source_span),
-                    );
-                    continue;
-                };
                 let state = occurrence(program, application, &occurrences)
                     .and_then(|occurrence| program.state_by_symbol(occurrence.state));
-                if parameters.len() != arguments.arguments.len() {
-                    diagnostics.push(
-                        Diagnostic::error(
-                            "Product nominal application must supply every declaration parameter",
-                        )
-                        .with_source_span(application.operand.source_span),
-                    );
-                    continue;
-                }
-                if let Err(error) = super::validate_arguments(
-                    program,
-                    name,
-                    parameters,
-                    &arguments.arguments,
-                    super::ArgumentScope::Caller(state),
-                ) {
-                    diagnostics.push(error.with_source_span(application.operand.source_span));
-                }
+                let frames = match supplied_telescopes(program, application, state) {
+                    Ok(frames) => frames,
+                    Err(reason) => {
+                        diagnostics.push(
+                            Diagnostic::error(reason)
+                                .with_source_span(application.operand.source_span),
+                        );
+                        continue;
+                    }
+                };
                 let source = expression_table(typed)
                     .static_machine_application(application.supplying_application);
-                if let Err(error) =
-                    crate::conformance_applications::validate_conformance_lifetime_arguments(
+                for frame in frames {
+                    let Some(arguments) = frame.argument.application.as_ref() else {
+                        diagnostics.push(
+                            Diagnostic::error("Product application lost its original actuals")
+                                .with_source_span(application.operand.source_span),
+                        );
+                        continue;
+                    };
+                    let parameters = frame.parameters;
+                    if parameters.len() != arguments.arguments.len() {
+                        diagnostics.push(
+                            Diagnostic::error(
+                                "Product application must supply every declaration parameter",
+                            )
+                            .with_source_span(application.operand.source_span),
+                        );
+                        continue;
+                    }
+                    if let Err(error) = super::validate_arguments(
                         program,
-                        &application.argument,
-                        source.lexical_owner,
-                    )
-                {
-                    diagnostics.push(error.with_source_span(application.operand.source_span));
+                        frame.name,
+                        parameters,
+                        &arguments.arguments,
+                        frame.scope,
+                    ) {
+                        diagnostics.push(error.with_source_span(application.operand.source_span));
+                    }
+                    if let Err(error) =
+                        crate::conformance_applications::validate_conformance_lifetime_arguments(
+                            program,
+                            frame.argument,
+                            source.lexical_owner,
+                        )
+                    {
+                        diagnostics.push(error.with_source_span(application.operand.source_span));
+                    }
                 }
             }
         }
@@ -5860,42 +5946,50 @@ pub mod static_arguments {
                 typed_trees::product_operand::collect_product_selection_occurrences(typed);
             for handle in typed.live_product_operand_applications() {
                 let application = typed.product_operand_applications.get(handle);
-                let Some((_, parameters)) = parameters(program, application) else {
+                let context = occurrence(program, application, &occurrences);
+                let state =
+                    context.and_then(|occurrence| program.state_by_symbol(occurrence.state));
+                let Ok(frames) = supplied_telescopes(program, application, state) else {
                     continue;
                 };
-                let Some(arguments) = application.argument.application.as_ref() else {
-                    continue;
-                };
-                if application.environment.is_none()
-                    && let Some(context) = occurrence(program, application, &occurrences)
-                {
-                    let Some(machine) = program.machine(context.machine) else {
+                for frame in frames {
+                    let parameters = frame.parameters;
+                    let Some(arguments) = frame.argument.application.as_ref() else {
                         continue;
                     };
-                    let Some(state) = program.state_by_symbol(context.state) else {
-                        continue;
-                    };
-                    crate::value_custody::const_expressions::validate_argument_recipes(
-                        program,
-                        machine,
-                        state,
-                        parameters,
-                        &arguments.arguments,
-                        diagnostics,
-                        formation_obligations,
-                    );
-                } else {
-                    let source = expression_table(typed)
-                        .static_machine_application(application.supplying_application);
-                    for (parameter, argument) in parameters.iter().zip(arguments.arguments.iter()) {
-                        let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                    if application.environment.is_none()
+                        && let Some(context) = context
+                    {
+                        let Some(machine) = program.machine(context.machine) else {
                             continue;
                         };
-                        let Some(expression) = super::const_expression_argument(program, argument)
-                        else {
+                        let Some(state) = program.state_by_symbol(context.state) else {
                             continue;
                         };
-                        match crate::check_closed_const_expression(
+                        crate::value_custody::const_expressions::validate_argument_recipes(
+                            program,
+                            machine,
+                            state,
+                            parameters,
+                            &arguments.arguments,
+                            diagnostics,
+                            formation_obligations,
+                        );
+                    } else {
+                        let source = expression_table(typed)
+                            .static_machine_application(application.supplying_application);
+                        for (parameter, argument) in
+                            parameters.iter().zip(arguments.arguments.iter())
+                        {
+                            let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                                continue;
+                            };
+                            let Some(expression) =
+                                super::const_expression_argument(program, argument)
+                            else {
+                                continue;
+                            };
+                            match crate::check_closed_const_expression(
                     program,
                     source.lexical_owner,
                     expression,
@@ -5910,6 +6004,7 @@ pub mod static_arguments {
                     ),
                     Err(errors) => diagnostics.extend(errors),
                 }
+                        }
                     }
                 }
             }

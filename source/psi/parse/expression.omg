@@ -96,21 +96,21 @@ crashes Trap
 
     machine operand_token(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {
         let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Exclamation, .. } -> prefix(parser, input, OperatorKind::Not)
-            Token::Punctuation { punctuation: PunctuationKind::Minus, .. } -> prefix(parser, input, OperatorKind::Negate)
-            Token::Punctuation { punctuation: PunctuationKind::Tilde, .. } -> prefix(parser, input, OperatorKind::BitNot)
-            Token::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> borrow(parser, input)
-            Token::Punctuation { punctuation: PunctuationKind::LeftParen, .. } -> open_group(parser, input)
-            Token::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> open_array(parser, input)
-            Token::Integer { base, empty_digits, has_suffix, .. } -> literal(parser, input, ExpressionKind::Integer)
-            Token::Float { has_exponent, empty_exponent, has_suffix, .. } -> literal(parser, input, ExpressionKind::Float)
-            Token::StringLiteral -> literal(parser, input, ExpressionKind::String)
-            Token::Keyword { keyword: KeywordKind::True, .. } -> boolean(parser, input, true)
-            Token::Keyword { keyword: KeywordKind::False, .. } -> boolean(parser, input, false)
-            Token::Keyword { keyword: KeywordKind::Match, .. } -> match_open(parser, input)
-            Token::Keyword { keyword, .. } -> keyword_operand(parser, input, code, keyword)
-            Token::Identifier -> identifier_operand(parser, input)
+        transition token.kind {
+            TokenKind::Punctuation { punctuation: PunctuationKind::Exclamation, .. } -> prefix(parser, input, OperatorKind::Not)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Minus, .. } -> prefix(parser, input, OperatorKind::Negate)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Tilde, .. } -> prefix(parser, input, OperatorKind::BitNot)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> borrow(parser, input)
+            TokenKind::Punctuation { punctuation: PunctuationKind::LeftParen, .. } -> open_group(parser, input)
+            TokenKind::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> open_array(parser, input)
+            TokenKind::Integer { base, empty_digits, has_suffix, .. } -> literal(parser, input, ExpressionKind::Integer)
+            TokenKind::Float { has_exponent, empty_exponent, has_suffix, .. } -> literal(parser, input, ExpressionKind::Float)
+            TokenKind::StringLiteral -> literal(parser, input, ExpressionKind::String)
+            TokenKind::Keyword { keyword: KeywordKind::True, .. } -> boolean(parser, input, true)
+            TokenKind::Keyword { keyword: KeywordKind::False, .. } -> boolean(parser, input, false)
+            TokenKind::Keyword { keyword: KeywordKind::Match, .. } -> match_open(parser, input)
+            TokenKind::Keyword { keyword, .. } -> keyword_operand(parser, input, code, keyword)
+            TokenKind::Identifier -> identifier_operand(parser, input)
             _ -> reject(parser, input, code)
         }
     }
@@ -430,29 +430,29 @@ crashes Trap
 
     machine suffix(parser: &mut Parser, input: &TokenStream) {
         let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Dot, .. } -> field(parser, input)
-            Token::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> open_index(parser, input)
-            Token::Punctuation { punctuation: PunctuationKind::LeftParen, .. } -> open_call(parser, input)
-            Token::Keyword { keyword: KeywordKind::As, .. } -> cast(parser, input)
-            Token::Punctuation { punctuation: PunctuationKind::PipePipe, .. } -> binary(parser, input, OperatorKind::Or, 1)
-            Token::Punctuation { punctuation: PunctuationKind::AndAnd, .. } -> binary(parser, input, OperatorKind::And, 2)
-            Token::Punctuation { punctuation: PunctuationKind::EqualEqual, .. } -> binary(parser, input, OperatorKind::Equal, 3)
-            Token::Punctuation { punctuation: PunctuationKind::ExclamationEqual, .. } -> binary(parser, input, OperatorKind::NotEqual, 3)
-            Token::Punctuation { punctuation: PunctuationKind::Less, .. } -> less(parser, input)
-            Token::Punctuation { punctuation: PunctuationKind::LessEqual, .. } -> binary(parser, input, OperatorKind::LessEqual, 4)
-            Token::Punctuation { punctuation: PunctuationKind::Greater, .. } -> greater(parser, input)
-            Token::Punctuation { punctuation: PunctuationKind::GreaterEqual, .. } -> binary(parser, input, OperatorKind::GreaterEqual, 4)
-            Token::Punctuation { punctuation: PunctuationKind::Pipe, .. } -> binary(parser, input, OperatorKind::BitOr, 5)
-            Token::Punctuation { punctuation: PunctuationKind::Caret, .. } -> binary(parser, input, OperatorKind::BitXor, 6)
-            Token::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> binary(parser, input, OperatorKind::BitAnd, 7)
-            Token::Punctuation { punctuation: PunctuationKind::LessLess, .. } -> binary(parser, input, OperatorKind::ShiftLeft, 8)
-            Token::Punctuation { punctuation: PunctuationKind::Plus, .. } -> binary(parser, input, OperatorKind::Add, 9)
-            Token::Punctuation { punctuation: PunctuationKind::Minus, .. } -> binary(parser, input, OperatorKind::Subtract, 9)
-            Token::Punctuation { punctuation: PunctuationKind::Asterisk, .. } -> binary(parser, input, OperatorKind::Multiply, 10)
-            Token::Punctuation { punctuation: PunctuationKind::Slash, .. } -> binary(parser, input, OperatorKind::Divide, 10)
-            Token::Punctuation { punctuation: PunctuationKind::Percent, .. } -> binary(parser, input, OperatorKind::Modulo, 10)
-            Token::Identifier -> word_suffix(parser, input)
+        transition token.kind {
+            TokenKind::Punctuation { punctuation: PunctuationKind::Dot, .. } -> field(parser, input)
+            TokenKind::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> open_index(parser, input)
+            TokenKind::Punctuation { punctuation: PunctuationKind::LeftParen, .. } -> open_call(parser, input)
+            TokenKind::Keyword { keyword: KeywordKind::As, .. } -> cast(parser, input)
+            TokenKind::Punctuation { punctuation: PunctuationKind::PipePipe, .. } -> binary(parser, input, OperatorKind::Or, 1)
+            TokenKind::Punctuation { punctuation: PunctuationKind::AndAnd, .. } -> binary(parser, input, OperatorKind::And, 2)
+            TokenKind::Punctuation { punctuation: PunctuationKind::EqualEqual, .. } -> binary(parser, input, OperatorKind::Equal, 3)
+            TokenKind::Punctuation { punctuation: PunctuationKind::ExclamationEqual, .. } -> binary(parser, input, OperatorKind::NotEqual, 3)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> less(parser, input)
+            TokenKind::Punctuation { punctuation: PunctuationKind::LessEqual, .. } -> binary(parser, input, OperatorKind::LessEqual, 4)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Greater, .. } -> greater(parser, input)
+            TokenKind::Punctuation { punctuation: PunctuationKind::GreaterEqual, .. } -> binary(parser, input, OperatorKind::GreaterEqual, 4)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Pipe, .. } -> binary(parser, input, OperatorKind::BitOr, 5)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Caret, .. } -> binary(parser, input, OperatorKind::BitXor, 6)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> binary(parser, input, OperatorKind::BitAnd, 7)
+            TokenKind::Punctuation { punctuation: PunctuationKind::LessLess, .. } -> binary(parser, input, OperatorKind::ShiftLeft, 8)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Plus, .. } -> binary(parser, input, OperatorKind::Add, 9)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Minus, .. } -> binary(parser, input, OperatorKind::Subtract, 9)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Asterisk, .. } -> binary(parser, input, OperatorKind::Multiply, 10)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Slash, .. } -> binary(parser, input, OperatorKind::Divide, 10)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Percent, .. } -> binary(parser, input, OperatorKind::Modulo, 10)
+            TokenKind::Identifier -> word_suffix(parser, input)
             _ -> end_operand(parser, input)
         }
     }
@@ -2063,7 +2063,7 @@ crashes Trap
     }
 
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
-    requires cursor < 64
+    requires cursor < 64, parser.output.match_arm_count < 1024
     {
         parser.output.match_arms[parser.output.match_arm_count] = parser.pending_arms[cursor];
         parser.output.match_arm_count = parser.output.match_arm_count + 1;
@@ -2186,7 +2186,7 @@ crashes Trap
     }
 
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
-    requires cursor < 256
+    requires cursor < 256, parser.output.argument_count < 65536
     {
         parser.output.arguments[parser.output.argument_count] = parser.pending_arguments[cursor] as u64 in Trapping;
         parser.output.argument_count = parser.output.argument_count + 1;
@@ -2240,7 +2240,7 @@ crashes Trap
     }
 
     machine copy(parser: &mut Parser, input: &TokenStream, base: u64 in Trapping, cursor: u64 in Trapping)
-    requires cursor < 64
+    requires cursor < 64, parser.output.construct_field_count < 4096
     {
         parser.output.construct_fields[parser.output.construct_field_count] = parser.pending_fields[cursor];
         parser.output.construct_field_count = parser.output.construct_field_count + 1;
@@ -2326,19 +2326,19 @@ crashes Trap
 
     machine token(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) -> bool {
         let token: Token = input.tokens[index];
-        transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1)
-            Token::Punctuation { punctuation: PunctuationKind::Greater, .. } -> close(input, index, depth)
-            Token::Punctuation { punctuation: PunctuationKind::ColonColon, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Comma, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::RightBracket, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Apostrophe, .. } -> scan(input, index + 1, depth)
-            Token::Identifier -> scan(input, index + 1, depth)
-            Token::Keyword { keyword, .. } -> scan(input, index + 1, depth)
-            Token::Integer { base, empty_digits, has_suffix, .. } -> scan(input, index + 1, depth)
+        transition token.kind {
+            TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Greater, .. } -> close(input, index, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::ColonColon, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Comma, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::RightBracket, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Apostrophe, .. } -> scan(input, index + 1, depth)
+            TokenKind::Identifier -> scan(input, index + 1, depth)
+            TokenKind::Keyword { keyword, .. } -> scan(input, index + 1, depth)
+            TokenKind::Integer { base, empty_digits, has_suffix, .. } -> scan(input, index + 1, depth)
             _ -> absent()
         }
     }
@@ -2359,8 +2359,8 @@ crashes Trap
 
     machine opens_call(input: &TokenStream, index: u64 in Trapping) -> bool {
         let token: Token = input.tokens[index];
-        transition token {
-            Token::Punctuation { punctuation: PunctuationKind::LeftParen, .. } -> present()
+        transition token.kind {
+            TokenKind::Punctuation { punctuation: PunctuationKind::LeftParen, .. } -> present()
             _ -> absent()
         }
     }

@@ -292,6 +292,11 @@ refuses a second build or corpus run while one is active.
   `HashMap`/`BTreeMap` (`tools/dense_id_maps.txt`). Derived data is computed
   once by its stage owner and passed forward, never re-parsed from source text
   (`tools/source_text_reads.txt`) or cached in ad-hoc mutable maps (`tools/cache_state.txt`).
+  This applies to membership sets too, including collections whose key type is
+  inferred. Validate arena ownership and handle generations before indexing by
+  slot. Size scratch storage to the operation's actual domain: a query over a
+  small selected family should use that family's prepared membership or a
+  sorted slice, rather than allocate a table spanning every symbol on each query.
 - **Verify at trust boundaries ([pipeline.md](omega-rust/pipeline.md#verification-placement)):**
   Default compilation does not re-verify its own stage output. Verifiers run
   in corpus/test harnesses, at foreign package boundaries, and on explicit
@@ -308,6 +313,12 @@ refuses a second build or corpus run while one is active.
 - When a genuine specification ambiguity blocks progress, record the exact
   question in `OWNER_QUESTIONS.md` and cite it in the relevant README rather
   than inventing unratified language semantics.
+- When the code or tooling itself looks rotten (one idea built twice, a stage
+  reaching across a boundary, a verdict with nothing behind it, a test that
+  pins a bug), write five lines in
+  [OWNER_CODE_CONCERNS.md](OWNER_CODE_CONCERNS.md) and keep working. It never
+  blocks your change and never gets its own pull request. Your first hour in
+  an area is when you see it best; say what you saw.
 
 ## Sessions and subagents
 

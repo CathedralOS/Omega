@@ -483,6 +483,8 @@ mod providers {
     record_fields!(effects::provider_plan::ProviderPlanRow {
         method,
         requirement_identity,
+        declared_requirement_identity,
+        calling_signature,
         requirement_lifetime_partition,
         admitted_same_stack_bytes,
         binding
@@ -1004,6 +1006,7 @@ mod recovered {
         semantic_vocabulary::MachineId,
         semantic_vocabulary::OperationId,
         semantic_vocabulary::BoundaryMachineId,
+        semantic_vocabulary::CallingSignatureId,
     );
 
     impl RecordValue for terminal_psi::ProofDeclarationId {

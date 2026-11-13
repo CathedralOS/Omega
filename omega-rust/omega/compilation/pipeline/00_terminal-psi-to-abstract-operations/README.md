@@ -3,43 +3,45 @@
 Public contracts: [Terminal product](../../../../../wiki/spec/terminal-psi/product.md)
 and [boundary realization](../../../../../wiki/spec/terminal-psi/boundary_calls.md).
 
-The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
+This stage lowers checked Psi for native execution. The build's checked selection
+identifies which functions need target support here; raw artifact requests without
+that record keep full-module checking. Unused library helpers do not demand
+unavailable target operations through the selected route.
 
-- [retained_terminal.rs](src/retained_terminal.rs): the retained Terminal product
-  and its target-constrained native proposal. This owner joins canonical
-  semantics, entry custody, provider rows, callbacks, comparisons and exclusions
-  once, while the proposal is derived; the product has no codec and never
-  leaves the process, so neither re-entry nor admission replays those joins
-  ([verification placement](../../../../pipeline.md#verification-placement)).
-  Compiler reports only retain and expose its products. Build selection closes
-  into the existing validated native entry settlement before retention, so no
-  build-evaluator object or duplicate entry receipt crosses that boundary.
-  Providers, occurrences and boundary applications cross as complete units;
-  boundary coverage is retained without decomposing and rebuilding its rows.
-  Target identity comes from the validated entry. Application metadata belongs
-  to the backend target owner and is shared with native reports; application
-  intent remains independent of the image subsystem. Package permissions and
-  behavior exclusions remain independent inputs, never inferred from providers.
-  Build exclusions carry their selected service identities; the proposal maps
-  them to Terminal's local service IDs without a typed/checked program or a
-  source-resolution callback. This stage has no direct typed-tree, checked-tree or Lowered Psi crate
-  dependency. Callback occurrences arrive in the canonical Terminal module;
-  callback body receipts and ABI placements still retain source-side identity
-  through backend planning, which remains a separate unfinished handoff.
-  Its [proposal constructor](src/retained_terminal.rs) owns the full
-  producing sequence: entry settlement, canonical decode, provider demands,
-  callback and comparison joins, boundary coverage and registrar imports.
-  The compiler supplies completed callback artifacts and borrowed selections;
-  the constructor checks their roster and exact placement joins. Compiler
-  builtins are bound to their selected plan and Terminal boundary here, once.
-  It does not call compilation or grant native authority. Checked selections
-  remain transitional inputs until provider selection itself moves behind
-  Terminal Psi.
-  Its [native provider preparation](src/retained_terminal.rs)
-  joins package permissions and prepares callbacks, imports and builtins in
-  one operation. Derived import evidence remains invocation-owned through
-  admission and emission; the compiler forwards the stage's admission request
-  without defining a second copy of its custody fields.
+The build's starting function, implementations and callbacks are joined before
+lowering. The [shared input owner](../../representations/abstract-operations/verified-input/src/lib.rs)
+keeps that checked record with the lowered program. Later stages read the same
+record without depending on this earlier stage. The entry map is [lib.rs](src/lib.rs),
+which preserves the established public names through reexports.
+
+- The [shared proposal owner](../../representations/abstract-operations/verified-input/src/native_proposal.rs)
+  checks the chosen target, program entry, provider rows and callback occurrences
+  against the canonical artifact before publishing its immutable native proposal.
+  It does not compile source or grant native authority. Target identity comes
+  from the validated entry; no build-evaluator object or duplicate entry receipt
+  crosses this boundary. Providers, occurrences and boundary applications remain
+  complete groups. Application metadata belongs to the backend target owner;
+  package permissions and behavior exclusions remain independent inputs.
+  Selected exclusions map to the artifact's local service IDs without reopening
+  a typed or checked program or calling a source resolver.
+- The [shared execution owner](../../representations/abstract-operations/verified-input/src/native_execution.rs)
+  follows calls from the proposal's entry, implementations and callbacks. It
+  validates component replacements before excluding their local implementations.
+  The [scope walk](../../representations/abstract-operations/verified-input/src/native_execution_scope.rs)
+  also retains cleanup, installed-interrupt and code-layout requirements, plus
+  functions referenced by dynamic dispatch tables. Reached calls can require
+  additional direct or target-family implementations; demand completion checks
+  those additions and binds the final choices after completion. Original build
+  choices remain distinct from that completed selection.
+- [retained_terminal.rs](src/retained_terminal.rs) orchestrates lowering and
+  native provider preparation using the shared proposal and execution records.
+  It joins package permissions and prepares callbacks, imports and builtins for
+  admission. Derived import evidence remains invocation-owned through admission
+  and emission; the compiler forwards this stage's request rather than defining
+  a second set of its fields. The [codec](src/retained_terminal_codec.rs) persists
+  source-free derivation inputs. Recovery passes them through the same shared
+  proposal operation without reopening source. The in-memory retained product
+  itself does not encode a separate native authority record.
 - [native_execution_scope.rs](src/native_execution_scope.rs): the complete native entrance.
   Canonical input preparation, provider settlement and installation, and
   mechanism/exclusion review produce one admitted input before Omega 01.
@@ -52,18 +54,18 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   admission. Every admitted result retains the exact access-view input roster.
   Extraction into a consumer without roster custody rejects nonempty inputs;
   this check follows verification and lowering, not canonical decode.
-  [Native preparation](src/artifact_admission.rs) receives target,
-  provider, callback and ProgramEntry choices together. It selects the executable
-  closure from canonical Terminal through
-  [native_execution_scope.rs](src/native_execution_scope.rs), applies selected
-  geometry, and only then lowers those bodies. There is no partially lowered
-  native input followed by a public pruning step. Ordinary/no-normal calls,
+  [Native preparation](src/artifact_admission.rs) receives the complete checked
+  selection from the shared owner, verifies its artifact, entry, target and
+  original choices, applies selected geometry, then lowers those functions.
+  Raw requests without that record keep full-module checking and retain no
+  selected scope. There is no partially lowered native input followed by a
+  public pruning step. Ordinary/no-normal calls,
   cleanup, callbacks, native metadata and dynamic-table address roots retain
   their existing demand and per-block diagnostic order. Explicit artifact
   inspection and independent ownership validation still cover the full catalog.
 - The admitted handoff to Omega 01 is `VerifiedPsiOptimizationInput` in [verified-input](../../representations/abstract-operations/verified-input/src/lib.rs); Omega 01 builds its optimization unit from it.
 - `provider_installation`: exact selected-adapter and installation custody.
-- [callback_settlement.rs](src/callback_settlement.rs): rejoin a produced
+- [shared callback settlement](../../representations/abstract-operations/verified-input/src/callback_settlement.rs): rejoin a produced
   callback's Terminal interface to its exact selected calling application.
   Native placement reads each reached boundary's canonical calling telescope:
   semantic/native-only argument identities and order, nominal callback binders,
@@ -76,13 +78,14 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   the private channel's import exclusion live here, beside program-entry
   settlement. The coordinator supplies the artifact, placement and calling-plan
   roster; no checked-compilation wrapper or new pipeline stage is involved.
-  Its [registrar-import settlement](src/callback_settlement.rs)
+  Its [registrar-import settlement](../../representations/abstract-operations/verified-input/src/callback_settlement.rs)
   joins each ordered callback occurrence to the registrar's separate outbound
   plan and selected import row. The retained-Terminal and direct-native routes
   share this operation; exact operation multiplicity and check-only absence of
   an import remain explicit.
-- [settlement.rs](src/settlement.rs):
-  select from canonical requirements and checked body candidates using the
+- [Shared boundary settlement](../../representations/abstract-operations/verified-input/src/settlement.rs)
+  binds calls and comparisons to implementations already chosen by the build.
+  It selects from canonical requirements and checked body candidates using the
   target's Build rows. Intrinsic executions arrive already established by
   provider review. No checked application scope, source declaration lookup,
   const/type reconstruction or intrinsic semantic replay enters this operation.

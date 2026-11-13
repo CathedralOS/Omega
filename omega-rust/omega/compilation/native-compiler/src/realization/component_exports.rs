@@ -148,7 +148,8 @@ pub fn emit_component_exports<'input>(
             }
         }))?;
         let selections = proposal.post_terminal_optimizations().selections();
-        let prepared = proposal.prepare_native_providers(
+        let prepared = terminal_psi_to_abstract_operations::prepare_native_providers(
+            proposal,
             artifact,
             terminal_psi_to_abstract_operations::RetainedNativeProviderInputs {
                 execution: &execution,

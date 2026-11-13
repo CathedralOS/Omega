@@ -88,7 +88,8 @@ fn produce(
             work.lower(scalar_input)
         }?;
         let prepared = {
-            proposal.prepare_native_providers(
+            terminal_psi_to_abstract_operations::prepare_native_providers(
+                proposal,
                 artifact,
                 RetainedNativeProviderInputs {
                     execution: &execution,

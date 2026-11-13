@@ -12,6 +12,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 pub struct PackagePolicyProviderRow {
     pub(crate) method: String,
     pub(crate) requirement: PackageReviewNominalIdentity,
+    pub(crate) requirement_application: Option<String>,
     pub(crate) realization: Option<PackageReviewNominalIdentity>, // Authored realization machine (`None` for toolchain-settled rows).
     pub(crate) native_build: Option<PackagePolicyEvaluatedBindingProducer>, // Actual Build producer when native supply has no realization body.
     pub(crate) requirement_lifetime_partition: Vec<u32>,

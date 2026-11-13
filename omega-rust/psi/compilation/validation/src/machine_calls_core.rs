@@ -1115,6 +1115,18 @@ pub mod compiler_operations {
                 return Ok(None);
             };
             request.validate_shape()?;
+            let preparation = if request.operation.uses_tests_facet() {
+                "prepare_tests"
+            } else {
+                "prepare"
+            };
+            let (recording, _) = request
+                .operation
+                .product_recording_operation()
+                .ok_or("Build product request has no recording protocol")?;
+            let target = program
+                .closed_requirement_application(call.target_symbol)
+                .map_or(call.target_symbol, |application| application.template);
             let owner = program
                 .traits()
                 .iter()
@@ -1126,11 +1138,9 @@ pub mod compiler_operations {
                             .trait_machine_signatures(owner)
                             .iter()
                             .any(|signature| {
-                                signature.symbol == call.target_symbol
-                                    && matches!(
-                                        signature.name.as_str(),
-                                        "prepare" | "select" | "select_provider"
-                                    )
+                                signature.symbol == target
+                                    && (signature.name.as_str() == preparation
+                                        || signature.name.as_str() == recording)
                             })
                 })
                 .ok_or("Build product request has no exact compiler-owned recording operation")?;

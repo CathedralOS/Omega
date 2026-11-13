@@ -1078,9 +1078,15 @@ pub(crate) mod declarations {
                     .intern(&program.package_qualified_type_identity_text(parameter.type_reference))
             })
             .collect();
+        // A closed requirement keeps its full application in the semantic
+        // declaration, callable, types and contract below. Its nominal source
+        // is still the authored member, as checked registrations retain it.
+        let declared = program
+            .closed_requirement_application(signature.symbol)
+            .map_or(signature.symbol, |application| application.template);
         Ok(Some(CheckedMachineDeclaration {
             machine: nominal(identities, checked, sources, owner.symbol)?,
-            state: nominal(identities, checked, sources, signature.symbol)?,
+            state: nominal(identities, checked, sources, declared)?,
             semantic_declaration: semantic_identity(identities, checked, signature.symbol)
                 .map_err(|reason| format!("boundary requirement identity: {reason}"))?,
             parameter_types,

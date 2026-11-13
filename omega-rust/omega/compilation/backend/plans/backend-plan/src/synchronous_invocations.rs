@@ -143,6 +143,23 @@ pub fn validate_selected_synchronous_invocation_cycles<'plan>(
     let mut edges = vec![Vec::<usize>::new(); selected.len()];
     let mut diagnostics = Vec::new();
     for (source_index, source) in selected.iter().enumerate() {
+        let mut applications = source
+            .rows
+            .iter()
+            .map(|row| row.requirement_identity)
+            .collect::<Vec<_>>();
+        applications.sort_unstable();
+        if applications.windows(2).any(|pair| pair[0] == pair[1])
+            || applications
+                .iter()
+                .any(|identity| source.identities.text(*identity).is_empty())
+        {
+            diagnostics.push(diagnostics::Diagnostic::error(format!(
+                "ProviderPlan `{}` synchronous rows have absent or repeated selected applications",
+                source.name
+            )));
+            continue;
+        }
         for binding in &source.rows {
             let methods = source
                 .schema
@@ -164,13 +181,9 @@ pub fn validate_selected_synchronous_invocation_cycles<'plan>(
                 )));
                 continue;
             };
-            let row = match exact_row_for_schema_method(source, method) {
-                Ok(row) => row,
-                Err(diagnostic) => {
-                    diagnostics.push(diagnostic);
-                    continue;
-                }
-            };
+            // The iteration already names the selected call. Several closed
+            // calls can share this declared method without sharing a binding.
+            let row = binding;
             let target_names = match &row.binding {
                 ProviderBinding::CheckedAdapter { .. } => checked_targets(source, row),
                 _ => exact_authored_invocations(source, method).map(|targets| {

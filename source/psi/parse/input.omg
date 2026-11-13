@@ -97,8 +97,8 @@ crashes Trap
 
     machine loaded(parser: &mut Parser, input: &TokenStream, expected: PunctuationKind) -> bool {
         let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Punctuation { punctuation, .. } -> compare(punctuation, expected)
+        transition token.kind {
+            TokenKind::Punctuation { punctuation, .. } -> compare(punctuation, expected)
             _ -> absent()
         }
     }
@@ -123,8 +123,8 @@ crashes Trap
 
     machine loaded(parser: &mut Parser, input: &TokenStream, expected: KeywordKind) -> bool {
         let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Keyword { keyword, .. } -> compare(keyword, expected)
+        transition token.kind {
+            TokenKind::Keyword { keyword, .. } -> compare(keyword, expected)
             _ -> absent()
         }
     }
@@ -149,10 +149,10 @@ crashes Trap
 
     machine loaded(parser: &mut Parser, input: &TokenStream) -> bool {
         let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Identifier -> present()
-            Token::Keyword { keyword: KeywordKind::SelfValue, .. } -> absent()
-            Token::Keyword { keyword, .. } -> present()
+        transition token.kind {
+            TokenKind::Identifier -> present()
+            TokenKind::Keyword { keyword: KeywordKind::SelfValue, .. } -> absent()
+            TokenKind::Keyword { keyword, .. } -> present()
             _ -> absent()
         }
     }
@@ -280,8 +280,8 @@ crashes Trap
 
     machine loaded(parser: &mut Parser, input: &TokenStream, spelling: &[u8]) -> bool {
         let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Identifier -> spelled(input, token.decoded_start, token.decoded_length, spelling)
+        transition token.kind {
+            TokenKind::Identifier -> spelled(input, token.decoded_start, token.decoded_length, spelling)
             _ -> absent()
         }
     }
@@ -307,8 +307,8 @@ crashes Trap
 
     machine loaded(parser: &mut Parser, input: &TokenStream) -> bool {
         let token: Token = input.tokens[parser.current_index];
-        transition token {
-            Token::Integer { base, empty_digits, has_suffix, .. } -> present()
+        transition token.kind {
+            TokenKind::Integer { base, empty_digits, has_suffix, .. } -> present()
             _ -> absent()
         }
     }
@@ -464,8 +464,8 @@ crashes Trap
 
     machine opened(input: &TokenStream, index: u64 in Trapping) -> bool {
         let token: Token = input.tokens[index];
-        transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, 1)
+        transition token.kind {
+            TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, 1)
             _ -> absent()
         }
     }
@@ -479,20 +479,20 @@ crashes Trap
 
     machine token(input: &TokenStream, index: u64 in Trapping, depth: u64 in Trapping) -> bool {
         let token: Token = input.tokens[index];
-        transition token {
-            Token::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1)
-            Token::Punctuation { punctuation: PunctuationKind::Greater, .. } -> close(input, index, depth)
-            Token::Punctuation { punctuation: PunctuationKind::ColonColon, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Colon, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Comma, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Apostrophe, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::RightBracket, .. } -> scan(input, index + 1, depth)
-            Token::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> scan(input, index + 1, depth)
-            Token::Identifier -> scan(input, index + 1, depth)
-            Token::Keyword { keyword, .. } -> scan(input, index + 1, depth)
-            Token::Integer { base, empty_digits, has_suffix, .. } -> scan(input, index + 1, depth)
+        transition token.kind {
+            TokenKind::Punctuation { punctuation: PunctuationKind::Less, .. } -> scan(input, index + 1, depth + 1)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Greater, .. } -> close(input, index, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::ColonColon, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Colon, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Comma, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Apostrophe, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Ampersand, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::LeftBracket, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::RightBracket, .. } -> scan(input, index + 1, depth)
+            TokenKind::Punctuation { punctuation: PunctuationKind::Semicolon, .. } -> scan(input, index + 1, depth)
+            TokenKind::Identifier -> scan(input, index + 1, depth)
+            TokenKind::Keyword { keyword, .. } -> scan(input, index + 1, depth)
+            TokenKind::Integer { base, empty_digits, has_suffix, .. } -> scan(input, index + 1, depth)
             _ -> absent()
         }
     }
@@ -513,8 +513,8 @@ crashes Trap
 
     machine satisfies(input: &TokenStream, index: u64 in Trapping) -> bool {
         let token: Token = input.tokens[index];
-        transition token {
-            Token::Identifier -> spelled(input, token.decoded_start, token.decoded_length)
+        transition token.kind {
+            TokenKind::Identifier -> spelled(input, token.decoded_start, token.decoded_length)
             _ -> absent()
         }
     }

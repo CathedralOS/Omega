@@ -235,6 +235,8 @@ fn reject_unrequired_provider(
     plan.rows.push(ProviderPlanRow {
         method: "unused_native_probe".into(),
         requirement_identity,
+        declared_requirement_identity: requirement_identity,
+        calling_signature: None,
         requirement_lifetime_partition: Vec::new(),
         admitted_same_stack_bytes: 0,
         binding: ProviderBinding::Syscall { number: 0 },

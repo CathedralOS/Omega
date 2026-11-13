@@ -12,6 +12,6 @@ pub use plans::{NativeBuildRowOrigin, PreparedNativeBuildBindings};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBuildSupply {
-    pub selection: language_semantics::declaration_selection::NativeBindingSelection,
+    pub selection: build_time_evaluation::native_bindings::NativeBindingSelection,
     pub evaluation: std::sync::Arc<NativeBuildEvaluation>,
 }

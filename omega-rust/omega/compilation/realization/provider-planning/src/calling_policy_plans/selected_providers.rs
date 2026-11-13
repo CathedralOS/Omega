@@ -19,6 +19,7 @@ pub struct CallingPolicyProviderInputs<'program> {
 }
 
 pub(super) fn prepare(
+    checked: &checked_trees::CheckedTrees,
     services: ServiceCatalog<'_>,
     inputs: &CallingPolicyProviderInputs<'_>,
 ) -> Vec<(
@@ -34,7 +35,7 @@ pub(super) fn prepare(
                     target.target_name(),
                 ))])
             } else {
-                prepare_target(services, target, inputs)
+                prepare_target(checked, services, target, inputs)
             };
             (target, prepared)
         })
@@ -42,6 +43,7 @@ pub(super) fn prepare(
 }
 
 fn prepare_target(
+    checked: &checked_trees::CheckedTrees,
     services: ServiceCatalog<'_>,
     target: target::TargetProfile,
     inputs: &CallingPolicyProviderInputs<'_>,
@@ -56,6 +58,7 @@ fn prepare_target(
     )?;
     crate::target_machines::TargetProviderPreparationRequest {
         context: services.context(),
+        checked,
         exact_toolchain_sources: inputs.exact_toolchain_sources,
         application_roots: None,
         overrides: inputs.requested,

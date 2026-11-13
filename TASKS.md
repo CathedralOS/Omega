@@ -76,6 +76,7 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md) and [integer arithmetic](wiki/drafts/designs/computational_and_mathematical_integers.md).
   - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
+  - Implement [operator-independent domain composition and exact result keys](wiki/spec/language/domains.md#domain-composition-and-operators), including its selection and artifact acceptance controls.
   - Implement `i`/`u`, exact math `/`, quotient/remainder and checked bridges; migrate existing integer-proof fixtures under the design's controls.
   - Retire `operator` ([inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)); lower `f64 in D` / `i32 in D`.
   Acceptance: `declared_operator_match_result`, `body_bearing_comparison`, `generic_comparison_body`, `open_index_distributivity` and landing controls pass `--both`.
@@ -110,7 +111,7 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **PUBLISHED-WRITE-FRAMES.** Publish inferred [write frames](wiki/drafts/designs/published_write_frames.md) in interface identity.
 
-- **RECORD-OR-SUM-DATA.** Implement [record or sum data](wiki/drafts/designs/record_or_sum_data.md) with record decomposition and `let Pattern = expr;`; migrate `Token`, samples and tests.
+- **RECORD-OR-SUM-DATA.** Implement [record or sum data](wiki/drafts/designs/record_or_sum_data.md) with record decomposition and `let Pattern = expr;`; migrate samples and tests.
 
 - **REQUIRED-ISSUANCE-CHOICE.** Implement [required issuance](wiki/drafts/designs/required_issuance_choice.md) and its review rows.
 

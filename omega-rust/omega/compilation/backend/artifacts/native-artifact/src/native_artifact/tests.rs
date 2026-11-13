@@ -180,6 +180,8 @@ fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
             rows: vec![ProviderPlanRow {
                 method: "read".into(),
                 requirement_identity: row_requirement_identity,
+                declared_requirement_identity: row_requirement_identity,
+                calling_signature: None,
                 requirement_lifetime_partition: Vec::new(),
                 admitted_same_stack_bytes: 0,
                 binding: ProviderBinding::CheckedAdapter {

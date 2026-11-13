@@ -17,12 +17,12 @@ mod operations {
         match_count: usize,
     }
 
-    pub(crate) struct CallbackTerminalOperations<'terminal> {
+    pub struct CallbackTerminalOperations<'terminal> {
         requested: Vec<RequestedCallbackOperation<'terminal>>,
     }
 
     impl<'terminal> CallbackTerminalOperations<'terminal> {
-        pub(crate) fn new(
+        pub fn new(
             operation_ids: impl Iterator<Item = OperationId>,
             operations: impl Iterator<Item = &'terminal Operation>,
         ) -> Self {
@@ -49,7 +49,7 @@ mod operations {
             Self { requested }
         }
 
-        pub(crate) fn find(&self, operation: OperationId) -> Result<&'terminal Operation, usize> {
+        pub fn find(&self, operation: OperationId) -> Result<&'terminal Operation, usize> {
             let position = self
                 .requested
                 .binary_search_by_key(&operation, |entry| entry.identity)
@@ -488,12 +488,12 @@ mod registrar_imports {
     use terminal_psi::TerminalModule;
 
     #[derive(Clone, Copy)]
-    pub(crate) struct CallbackRegistrarOccurrence {
+    pub struct CallbackRegistrarOccurrence {
         pub placement_index: usize,
         pub terminal_operation: OperationId,
     }
 
-    pub(crate) fn settle_callback_registrar_imports(
+    pub fn settle_callback_registrar_imports(
         terminal_module: &TerminalModule,
         targets: Option<&terminal_installation::AdmittedTargetMachineSelections>,
         selected: &effects::SelectedProviderPlanFacts,
@@ -607,8 +607,6 @@ mod registrar_imports {
         Ok(rows)
     }
 }
-pub(crate) use operations::CallbackTerminalOperations;
+pub use operations::CallbackTerminalOperations;
 
-pub(crate) use registrar_imports::{
-    CallbackRegistrarOccurrence, settle_callback_registrar_imports,
-};
+pub use registrar_imports::{CallbackRegistrarOccurrence, settle_callback_registrar_imports};

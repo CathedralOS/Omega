@@ -1,10 +1,8 @@
 /*
-    Admission of Build-issued declarations about the Product: provider
-    selections, native bindings, assumed bindings, wire demands, root grants,
-    and behavior exclusions.
-
-    We rejoin executed Build choices and target defaults against the exact
-    declaration requests and lexical authority recorded in the Product source.
+Build can choose providers and native bindings for a Product without executing
+those implementations in Build's own graph. We check each choice against its
+original declaration and supplier, so saved and target-default choices keep the
+same authority.
 */
 
 pub mod test_groups {
@@ -46,6 +44,9 @@ pub mod assumed_bindings {
     pub use language_semantics::declaration_selection::AssumedBindingContract;
 }
 pub mod native_bindings {
+    // A native binding can close the boundary's arguments while leaving callback
+    // arguments to each call. Retain the checked Product operand so planning and
+    // saved packages never replace that application with the bare declaration.
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
         BuildOperation, ExecutedNativeBinding, ProductDeclarationRequest, ProductOperandRole,
@@ -57,12 +58,41 @@ pub mod native_bindings {
         product_operand::{resolve_build_request_author, resolve_product_path},
     };
 
-    pub use language_semantics::declaration_selection::NativeBindingSelection;
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct NativeBindingSelection {
+        pub application:
+            Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
+        pub subject: SymbolHandle,
+        pub requirement: SymbolHandle,
+        pub target: language_semantics::declaration_selection::ProductTarget,
+        pub locator: semantic_vocabulary::NativeBindingLocator,
+        pub producer: language_semantics::declaration_selection::NativeBindingProducer,
+        pub source_occurrence_digest: [u8; 32],
+        pub supplier_package: semantic_vocabulary::PackageKeyIdentity,
+        pub source_span: source::SourceSpan,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct CapturedNativeDeclaration {
+        pub application: Option<crate::provider_declarations::RetainedProductApplication>,
+        pub source: language_semantics::declaration_selection::NativeBindingSource,
+        pub requirement: symbols::RetainedDeclaration,
+        pub requirement_identity: String,
+        pub dependency_alias: Option<String>,
+    }
 
     fn requirement(
         typed: &TypedTrees,
         request: &ProductDeclarationRequest,
-    ) -> Result<(SymbolHandle, SymbolHandle), Diagnostic> {
+    ) -> Result<
+        (
+            SymbolHandle,
+            SymbolHandle,
+            Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
+        ),
+        Diagnostic,
+    > {
+        let typed = typed.product_declarations();
         request.validate_shape().map_err(Diagnostic::error)?;
         if request.operation != BuildOperation::NativeBinding {
             return Err(Diagnostic::error(
@@ -74,9 +104,37 @@ pub mod native_bindings {
                 "native binding lost its exact requirement operand",
             ));
         };
+        if operand.application.is_some() {
+            let mut applications =
+                typed
+                    .product_operand_applications
+                    .iter()
+                    .filter(|(_, prepared)| {
+                        prepared.role == Some(ProductOperandRole::Requirement)
+                            && prepared.operand == *operand
+                    });
+            let (handle, prepared) = applications.next().ok_or_else(|| {
+                Diagnostic::error("native binding has no prepared exact requirement application")
+            })?;
+            if applications.next().is_some() {
+                return Err(Diagnostic::error(
+                    "native binding has multiple prepared requirement applications",
+                ));
+            }
+            let owner = prepared
+                .scope
+                .scope(typed)
+                .filter(|scope| scope.declaration.is_boundary)
+                .ok_or_else(|| {
+                    Diagnostic::error("native binding lost its exact applied boundary scope")
+                })?;
+            return Ok((owner.declaration.symbol, prepared.declaration, Some(handle)));
+        }
         let symbol = resolve_product_path(typed, &operand.path, operand.source_span, ProductOperandRole::Requirement)
         .ok_or_else(|| Diagnostic::error(format!("native binding operand `{}` does not resolve to one visible Product boundary requirement", operand.path)).with_source_span(operand.source_span))?;
-        requirement_owner(typed, symbol).map_err(Diagnostic::error)
+        requirement_owner(typed, symbol)
+            .map(|(owner, requirement)| (owner, requirement, None))
+            .map_err(Diagnostic::error)
     }
 
     pub fn collect(
@@ -112,7 +170,7 @@ pub mod native_bindings {
                     "executed native binding has no retained source formation request",
                 ));
             }
-            let (subject, selected) = requirement(typed, &event.request)
+            let (subject, selected, application) = requirement(typed, &event.request)
                 .map_err(|error| vec![error.with_source_span(span)])?;
             let author = resolve_build_request_author(typed, event.selecting_machine)
                 .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
@@ -123,20 +181,52 @@ pub mod native_bindings {
                     .ok_or_else(|| {
                         refuse("native binding supplier has no immutable package identity")
                     })?;
-            if selections.iter().any(|prior| {
-                prior.requirement == selected
+            let application_identity = application
+                .map(|application| {
+                    typed
+                        .product_declarations()
+                        .product_operand_application_identity(application)
+                })
+                .transpose()
+                .map_err(&refuse)?
+                .flatten();
+            if application.is_some() && application_identity.is_none() {
+                return Err(refuse(
+                    "native binding lost its exact outer application identity",
+                ));
+            }
+            for prior in &selections {
+                let prior_identity = prior
+                    .application
+                    .map(|application| {
+                        typed
+                            .product_declarations()
+                            .product_operand_application_identity(application)
+                    })
+                    .transpose()
+                    .map_err(&refuse)?
+                    .flatten();
+                if prior.application.is_some() && prior_identity.is_none() {
+                    return Err(refuse(
+                        "prior native binding lost its exact outer application identity",
+                    ));
+                }
+                if prior_identity == application_identity
+                    && prior.requirement == selected
                     && prior.target == event.target
                     && prior.supplier_package == supplier_package
                     && prior.locator != event.locator
-            }) {
-                return Err(refuse(
-                    "conflicting native bindings for the same requirement, target and supplier precedence",
-                ));
+                {
+                    return Err(refuse(
+                        "conflicting native bindings for the same requirement, target and supplier precedence",
+                    ));
+                }
             }
             let scope = native_binding_formation(typed, author, Some(root), event.request.clone())
                 .and_then(|formation| formation.seal(supplier_package))
                 .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(span)])?;
             selections.push(NativeBindingSelection {
+                application,
                 subject,
                 requirement: selected,
                 target: event.target,
@@ -151,10 +241,10 @@ pub mod native_bindings {
     }
 
     mod capture {
+        use super::CapturedNativeDeclaration;
         use diagnostics::Diagnostic;
         use language_semantics::declaration_selection::{
-            CapturedNativeDeclaration, CapturedNativeIntent, ExecutedNativeBinding,
-            NativeBindingFormation,
+            CapturedNativeIntent, ExecutedNativeBinding, NativeBindingFormation,
         };
         use semantic_vocabulary::PackageKeyIdentity;
         pub fn capture_package_intents(
@@ -164,13 +254,14 @@ pub mod native_bindings {
             executed: &[ExecutedNativeBinding],
         ) -> Result<(Vec<CapturedNativeDeclaration>, Vec<CapturedNativeIntent>), Vec<Diagnostic>>
         {
+            let typed = typed.product_declarations();
             let declarations = formations
                 .iter()
                 .map(|formation| {
                     let source = formation
                         .seal(package)
                         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                    let (_, selected) = super::requirement(typed, &formation.request)
+                    let (_, selected, application) = super::requirement(typed, &formation.request)
                         .map_err(|error| vec![error])?;
                     let program = typed.product_declarations();
                     let (owner, signature) =
@@ -179,7 +270,8 @@ pub mod native_bindings {
                                 "captured native requirement lost its Product signature",
                             )]
                         })?;
-                    let anchor = symbols::RetainedDeclaration::capture(&program.symbols, selected)
+                    let template = program.closed_requirement_application(selected).map_or(selected, |closed| closed.template);
+                    let anchor = symbols::RetainedDeclaration::capture(&program.symbols, template)
                         .and_then(|anchor| {
                             symbols::RetainedDeclaration::from_retained_parts(
                                 anchor.source().clone(),
@@ -202,6 +294,7 @@ pub mod native_bindings {
                                     .map(|_| alias.to_owned())
                             });
                     Ok(CapturedNativeDeclaration {
+                        application: application.map(|application| crate::provider_declarations::RetainedProductApplication::capture_application(program, application)).transpose().map_err(|reason| vec![Diagnostic::error(reason)])?,
                         source,
                         requirement: anchor,
                         requirement_identity: program
@@ -241,13 +334,14 @@ pub mod native_bindings {
     pub use capture::capture_package_intents;
 
     pub fn collect_captured(
-        typed: &TypedTrees,
-        declarations: &[language_semantics::declaration_selection::CapturedNativeDeclaration],
+        typed: &mut TypedTrees,
+        declarations: &[CapturedNativeDeclaration],
         intents: &[language_semantics::declaration_selection::CapturedNativeIntent],
     ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
+        let typed = typed.product_declarations_mut();
         let mut resolved = Vec::with_capacity(declarations.len());
-        let program = typed.product_declarations();
         for declaration in declarations {
+            let program = typed.product_declarations();
             let refuse = |reason: &str| {
                 vec![Diagnostic::error(format!(
                     "captured native requirement `{}`: {reason}",
@@ -285,16 +379,10 @@ pub mod native_bindings {
                         }),
                 )
                 .map_err(refuse)?;
-            let (subject, requirement) =
-                requirement_owner(program, selected).map_err(|reason| refuse(&reason))?;
-            let (owner, signature) = program
-                .trait_machine_signature(requirement)
+            let (owner, _) = program
+                .trait_machine_signature(selected)
                 .ok_or_else(|| refuse("lost its exact Product signature"))?;
-            if program.trait_requirement_callable_identity_text(owner, signature)
-                != declaration.requirement_identity
-            {
-                return Err(refuse("changed its retained complete requirement identity"));
-            }
+            let subject = owner.symbol;
             let sources = program
                 .symbols
                 .source_map()
@@ -315,7 +403,7 @@ pub mod native_bindings {
                 ));
             }
             let target = dependency.map_or(supplier, |(_, package)| package);
-            if program.symbols.symbol_product_package_identity(requirement) != Some(target)
+            if program.symbols.symbol_product_package_identity(selected) != Some(target)
                 || dependency.is_some() && !owner.is_public
                 || !source::SourceMap::captured_reference_can_see_stratum(
                     supplier,
@@ -327,7 +415,34 @@ pub mod native_bindings {
                     "is not visible under its original Product package and temporal scope",
                 ));
             }
-            resolved.push(Some((subject, requirement)));
+            let application = declaration
+                .application
+                .as_ref()
+                .map(|application| application.prepare_requirement(typed, selected))
+                .transpose()
+                .map_err(|error| vec![error])?;
+            let requirement = match application {
+                Some(application) => {
+                    typed
+                        .product_operand_applications
+                        .get(application)
+                        .declaration
+                }
+                None => {
+                    requirement_owner(typed, selected)
+                        .map_err(|reason| refuse(&reason))?
+                        .1
+                }
+            };
+            let (owner, signature) = typed
+                .trait_machine_signature(requirement)
+                .ok_or_else(|| refuse("lost its exact Product signature"))?;
+            if typed.trait_requirement_callable_identity_text(owner, signature)
+                != declaration.requirement_identity
+            {
+                return Err(refuse("changed its retained complete requirement identity"));
+            }
+            resolved.push(Some((subject, requirement, application)));
         }
         let mut selections = Vec::with_capacity(intents.len());
         for intent in intents {
@@ -338,7 +453,8 @@ pub mod native_bindings {
                         "captured native effect lost its declared source occurrence",
                     )]
                 })?;
-            let Some((subject, requirement)) = resolved[intent.declaration as usize] else {
+            let Some((subject, requirement, application)) = resolved[intent.declaration as usize]
+            else {
                 continue;
             };
             let span = typed
@@ -350,6 +466,7 @@ pub mod native_bindings {
                     )]
                 })?;
             selections.push(NativeBindingSelection {
+                application,
                 subject,
                 requirement,
                 target: intent.target,
@@ -2414,12 +2531,12 @@ pub mod provider_declarations {
             use typed_trees_to_typed_trees::prepare_retained_product_application;
 
             #[derive(Debug, Clone, PartialEq, Eq)]
-            pub struct RetainedProviderApplication {
+            pub struct RetainedProductApplication {
                 pub graph: ProductStaticOperandGraph,
                 pub sources: Arc<source::SourceMap>,
                 pub identity: String,
             }
-            impl RetainedProviderApplication {
+            impl RetainedProductApplication {
                 pub(super) fn capture(
                     program: &typed_trees::TypedTrees,
                     identity: &ProviderSelectionIdentity,
@@ -2453,25 +2570,42 @@ pub mod provider_declarations {
                                 .into(),
                         );
                     }
+                    let captured = Self::capture_application(program, identity.application)?;
+                    if captured.identity != *expected {
+                        return Err(
+                            "selected application changed its complete static identity".into()
+                        );
+                    }
+                    Ok(Some(captured))
+                }
+
+                pub(crate) fn capture_application(
+                    program: &typed_trees::TypedTrees,
+                    handle: arena::Handle<ProductOperandApplication>,
+                ) -> Result<Self, String> {
+                    let prepared = program.product_operand_applications.get(handle);
+                    let identity = program
+                        .product_operand_application_identity(handle)
+                        .map_err(str::to_owned)?
+                        .and_then(|identity| program.type_identity_text(identity))
+                        .ok_or("closed Product application lost its complete identity")?;
                     let application = expression_table(program)
                         .static_machine_application(prepared.supplying_application);
                     let [argument] = expression_table(program)
                         .static_machine_application_arguments(prepared.supplying_application)
                     else {
-                        return Err(
-                            "selected nominal application lost its one whole operand".into()
-                        );
+                        return Err("closed Product application lost its whole operand".into());
                     };
                     let graph =
                         capture_closed_operand(program, argument, application.lexical_owner)?;
-                    Ok(Some(Self {
+                    Ok(Self {
                         graph,
                         sources: program
                             .symbols
                             .source_map()
                             .ok_or("selected application lost immutable source custody")?,
-                        identity: expected.clone(),
-                    }))
+                        identity,
+                    })
                 }
 
                 pub fn declaration_spans(&self) -> impl Iterator<Item = source::SourceSpan> + '_ {
@@ -2484,12 +2618,11 @@ pub mod provider_declarations {
                         .filter_map(|(_, name)| name.declaration)
                 }
 
-                pub(super) fn prepare(
+                pub(crate) fn operand(
                     &self,
-                    program: &mut typed_trees::TypedTrees,
+                    program: &typed_trees::TypedTrees,
                     declaration: symbols::SymbolHandle,
-                    role: ProductOperandRole,
-                ) -> Result<arena::Handle<ProductOperandApplication>, Diagnostic> {
+                ) -> Result<ProductDeclarationOperand, Diagnostic> {
                     let current = program.symbols.source_map().ok_or_else(|| {
                         Diagnostic::error("receiving Product has no source custody")
                     })?;
@@ -2541,7 +2674,17 @@ pub mod provider_declarations {
                     if let Some(reason) = failure {
                         return Err(Diagnostic::error(reason));
                     }
+                    if !graph.operands.is_valid(graph.root) {
+                        return Err(Diagnostic::error(
+                            "retained application lost its owned root operand",
+                        ));
+                    }
                     let root = graph.operands.get(graph.root);
+                    if graph.names.span(root.path).is_none() {
+                        return Err(Diagnostic::error(
+                            "retained application lost its owned declaration path",
+                        ));
+                    }
                     let path = graph
                         .names
                         .span_or_empty(root.path)
@@ -2549,7 +2692,7 @@ pub mod provider_declarations {
                         .map(|name| name.text.as_str())
                         .collect::<Vec<_>>()
                         .join("::");
-                    let operand = ProductDeclarationOperand {
+                    Ok(ProductDeclarationOperand {
                         path,
                         source_span: program
                             .symbols
@@ -2560,7 +2703,52 @@ pub mod provider_declarations {
                                 )
                             })?,
                         application: Some(Arc::new(graph)),
-                    };
+                    })
+                }
+
+                pub(crate) fn prepare_requirement(
+                    &self,
+                    program: &mut typed_trees::TypedTrees,
+                    declaration: symbols::SymbolHandle,
+                ) -> Result<arena::Handle<ProductOperandApplication>, Diagnostic> {
+                    let operand = self.operand(program, declaration)?;
+                    let prepared =
+                        typed_trees_to_typed_trees::prepare_retained_product_requirement_operand(
+                            program,
+                            &operand,
+                            declaration,
+                        )
+                        .map_err(|errors| {
+                            Diagnostic::error(
+                                errors
+                                    .iter()
+                                    .map(|error| error.message.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join("; "),
+                            )
+                        })?;
+                    let handle = prepared.application.ok_or_else(|| {
+                        Diagnostic::error("retained native requirement lost its application")
+                    })?;
+                    let actual = program
+                        .product_operand_application_identity(handle)
+                        .map_err(Diagnostic::error)?
+                        .and_then(|identity| program.type_identity_text(identity));
+                    if actual.as_ref() != Some(&self.identity) {
+                        return Err(Diagnostic::error(
+                            "retained native requirement changed its complete outer application identity",
+                        ));
+                    }
+                    Ok(handle)
+                }
+
+                pub(super) fn prepare(
+                    &self,
+                    program: &mut typed_trees::TypedTrees,
+                    declaration: symbols::SymbolHandle,
+                    role: ProductOperandRole,
+                ) -> Result<arena::Handle<ProductOperandApplication>, Diagnostic> {
+                    let operand = self.operand(program, declaration)?;
                     let handle =
                         prepare_retained_product_application(program, &operand, role, declaration)
                             .map_err(|errors| {
@@ -2585,16 +2773,16 @@ pub mod provider_declarations {
                 }
             }
         }
-        pub use applications::RetainedProviderApplication;
+        pub use applications::RetainedProductApplication;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct RetainedProviderSelection {
             pub subject: RetainedDeclaration,
             pub subject_identity: String,
-            pub subject_application: Option<RetainedProviderApplication>,
+            pub subject_application: Option<RetainedProductApplication>,
             pub provider: RetainedDeclaration,
             pub provider_identity: String,
-            pub provider_application: Option<RetainedProviderApplication>,
+            pub provider_application: Option<RetainedProductApplication>,
             pub target: ProductTarget,
             pub composition_mode: CompositionMode,
             pub origin: BuildSelectionOrigin,
@@ -2628,11 +2816,11 @@ pub mod provider_declarations {
                     subject_application: match &selection.subject {
                         ProviderSelectionSubject::BoundaryTrait(identity)
                         | ProviderSelectionSubject::BoundaryRequirement(identity) => {
-                            RetainedProviderApplication::capture(typed, identity)?
+                            RetainedProductApplication::capture(typed, identity)?
                         }
                         ProviderSelectionSubject::BoundaryOperatorFamily(_) => None,
                     },
-                    provider_application: RetainedProviderApplication::capture(
+                    provider_application: RetainedProductApplication::capture(
                         typed,
                         &selection.provider_type,
                     )?,
@@ -2660,7 +2848,7 @@ pub mod provider_declarations {
                                 candidates: &mut symbols::SourceSpanCandidates,
                                 anchor: &RetainedDeclaration,
                                 expected: &str,
-                                retained: Option<&RetainedProviderApplication>,
+                                retained: Option<&RetainedProductApplication>,
                                 role| {
                     let symbol = anchor
                         .rejoin(
@@ -3012,7 +3200,7 @@ pub mod provider_declarations {
             pub origin: language_semantics::declaration_selection::BuildSelectionOrigin,
         }
     }
-    pub use retained_selections::{RetainedProviderApplication, RetainedProviderSelection};
+    pub use retained_selections::{RetainedProductApplication, RetainedProviderSelection};
 
     use crate::build_time_evaluation::expression_table;
     use crate::is_exact_toolchain_build_prelude_data;

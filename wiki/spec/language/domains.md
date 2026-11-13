@@ -78,7 +78,7 @@ Carrier correspondence uses retained type/declaration identities and the exact
 generic substitutions and declared type equations. Matching domain names,
 matching record fields, or erasing an operand to its mathematical value cannot
 replace it. The comparison concerns the data carrier, not identical sets of
-domain qualifications; ordinary predicate, semantic-role, access, provenance,
+domain qualifications; ordinary predicate, domain compatibility, access, provenance,
 ownership, and borrow obligations remain independently enforced.
 
 A carrier-generic domain family has a separately applied carrier at each use.
@@ -495,7 +495,7 @@ domain i32::Impossible
 
 This defines a classification with no members, not a logical paradox or an
 inconsistent axiom. Existing predicate formation, name resolution, cycle, and
-semantic-role compatibility checks still apply. A declaration neither asserts
+domain compatibility checks still apply. A declaration neither asserts
 that a member exists nor makes its predicates ambient assumptions.
 
 Mentioning an uninhabited domain or declaring a machine parameter qualified by
@@ -737,8 +737,8 @@ must carry exactly the domains the destination declares. Arms and joins that
 produce one result agree on that exact set; a join neither intersects the
 arms' domains nor weakens to their common part.
 
-[Result-domain overloads](#result-domain-overloads) are unchanged. There the
-expected type selects among declared machines, each of which returns its own
+[Result-domain overloads](#result-domain-overloads) use the expected type to
+select among declared machines, each of which returns its own
 declared type. It inserts no cast.
 
 ### Operands
@@ -747,7 +747,7 @@ Builtin operators and comparisons, including the suffixed
 [policy operators](numeric_values.md#policy-operators), accept unqualified
 operands only. The rule is the same in executable code, `requires` and
 `ensures`. A qualified operand either has a declared operator for its exact
-type under [semantic roles and operators](#semantic-roles-and-operators) or is
+type under [domain composition and operators](#domain-composition-and-operators) or is
 cast first:
 
 ```omega
@@ -844,29 +844,32 @@ their existing grouping around `as`.
 A cast produces a result expression. Ordinary copy, move and borrow rules
 decide whether the source remains usable afterward.
 
-## Semantic roles and operators
+<a id="semantic-roles-and-operators"></a>
 
-Role identity is closed and compiler-owned. Packages supply theories within
-these roles, not new roles by declaration, and a domain's declaration
-determines its role:
+## Domain composition and operators
 
-| Role | Meaning | A domain has it when |
-| --- | --- | --- |
-| Arithmetic policy | Exact, wrapping, saturating, or trapping behavior. | It is `Wrapping`, `Saturating` or `Trapping` from `omega::core`. |
-| Denotation/dimension | Unit or other semantic interpretation. | It owns an operator: some machine declared with an operator token is homed in the domain. |
-| Predicate knowledge | Facts such as positivity, ranges, or UTF-8 validity. | It declares a `requires`. |
+Named decision: `operator-independent-domain-composition`, settled 2026-11-12.
 
-The roles are independent. `Degrees requires self < 360` with a
-`+ Degrees::add` is a denotation that also carries a predicate; the same
-declaration with no operator is predicate knowledge only. A domain is
-*predicate-only* when it declares predicates and is neither a denotation, a
-policy, an alias, an indexed family, nor restricted by an access policy.
+Declaring an operator does not change a domain's identity, membership rules,
+compatibility with other qualifications, or result-overload key. Predicates,
+establishment and access restrictions remain independent of the operations
+homed in the domain. Operator ownership does not infer a denotation/dimension
+role, and there is no one-denotation limit.
 
-A type may carry contributions in different roles, such as `Km & Wrapping`.
-It carries at most one arithmetic policy and at most one denotation:
-`Wrapping & Trapping` has conflicting arithmetic policies, and two domains
-that each own an operator have conflicting denotations. Any number of
-predicate-only domains may accompany them.
+A value may carry both units and a coordinate frame, or a unit and a size
+predicate, even when both domains own operators. Forming, storing or passing
+that qualified value does not require those operators to compose. Missing
+or competing applicable operators are diagnosed when an operation is selected,
+not inferred merely from the presence of the domains. Declaration-site
+duplicate-signature checks remain in force.
+
+This removes only operator-derived incompatibility. Every qualification still
+owes its predicates, establishment, access, custody and other applicable
+contracts. The existing core arithmetic-policy exclusion remains: at most one
+of `Wrapping`, `Saturating` and `Trapping` may qualify a type. Their
+incompatibility is a declared core policy rule, not a consequence of owning
+operators. No general incompatibility keyword or new domain-role declaration
+is introduced.
 
 An operator applies only when the instantiated parameter types of one
 declaration equal the operands' complete static qualified types, after alias
@@ -896,15 +899,18 @@ ensures result == ((left as -Small) > right)
 }
 ```
 
-Owning this operator gives `Small` the denotation role, so it then combines
-with predicate-only domains and a policy, not with another operator-owning
-domain.
+Adding this comparison to `Small` leaves a type qualified by both `Small`
+and an operator-owning unit domain legal. The comparison above still does not
+apply to that combined operand: its parameter names only `Small`. A use
+needs an exact combined declaration or a written cast. An exact combined
+declaration must prove its own result contract; neither constituent's
+operators or predicates supply automatic preservation.
 
 `Wrapping`, `Saturating` and `Trapping` are the `omega::core` contributions to
 the arithmetic-policy role. Their unsuffixed integer operators are defined by
 the [policy operators](numeric_values.md#policy-domains): the domain selects
 which suffixed operation `+` means for its operands. A policy operator written
-directly reads no qualification and contributes to no role.
+directly reads no qualification and attaches no policy domain.
 
 Resolution reads declared types and written casts, never flow facts: a proved
 `x in D` or a `requires x in D` on a plain `x` selects nothing.
@@ -928,25 +934,45 @@ defined by [numeric values](numeric_values.md) and total proof formation by
 ### Result-domain overloads
 
 Named machine and requirement calls may overload by result domain. Their
-dispatch projection contains the result's denotation and arithmetic-policy
-contributions under the [role table](#semantic-roles-and-operators), routed
-provenance, access-policy atoms, and empty explicit tags.
-[Predicate-only](#semantic-roles-and-operators) domains contribute no key, so
-`u32 in Degrees` selects an overload when `Degrees` owns an operator and does
-not when it only declares its range.
-The expected result projection must equal one declared projection; without an
-expected result, lookup selects the empty projection. Only afterward check
-predicates and ordinary compatibility.
+dispatch key contains the complete normalized declared result-domain set,
+including named predicate domains, indexed applications, core policies,
+routed domains, access-policy domains and empty tags. Alias expansion and
+inherited domains use the ordinary normalization rules. Operator ownership
+contributes nothing to this key: adding a comparison to `Degrees` changes
+neither its key nor which result overload a caller selects.
 
-Equal projections on the same path and parameter signature are declaration-site
-duplicates, even if written results differ by predicate refinement. Fixed
-operator spellings retain operand-directed selection, not this result rule.
+The expected result-domain set must equal one declared set; without an
+expected result, lookup selects the empty set. There is no search for a
+provable predicate, most-specific refinement or nearest domain subset.
+A flow fact or a result `ensures` clause adds no qualification to the key.
+Only afterward check predicates and ordinary compatibility.
 
-The expected type only selects among declared machines. The selected machine
-returns its own declared type, and that type must equal the destination's
-exactly: because predicate-only domains contribute no key, a destination that
-differs from the selected result by one still needs a written
-[domain cast](#literals-and-expected-types).
+Equal normalized sets on the same path and parameter signature are
+declaration-site duplicates; different predicate formulas or guarantees do
+not distinguish them. Distinct named predicate domains have distinct keys
+even when their predicates are equivalent. Fixed operator spellings retain
+operand-directed selection, not this result rule.
+
+The expected type only selects among declared machines. It does not add,
+remove or prove a domain. The selected machine returns its own declared type,
+which must match the destination exactly. Selecting a plainer result and then
+qualifying it requires an explicit [domain cast](#literals-and-expected-types).
+
+### Composition and selection acceptance
+
+Implementations must accept storing and passing a value with two
+operator-owning qualifications, before and after adding a comparison to one
+of them. Cover both disjoint operator tokens and domains that own the same
+token. At a use, one declaration matching the complete qualified operand types
+is selected; a missing exact declaration or competing exact candidates rejects.
+A false result predicate rejects independently of successful selection.
+
+Result-overload controls must distinguish named predicate domains without
+operators, retain the same selection after adding an operator, reject
+duplicate alias-expanded keys, and select only the empty domain set without
+an expected result. Flow membership must select nothing. Preserve selected
+operation identities and complete qualified signatures through checked
+artifacts, separate consumption, Psi execution and native lowering.
 
 ## Aliases and identity
 
@@ -968,7 +994,7 @@ affected callers, implementations, and consumers. A
 expanded atom, each under its own predicate, route or custody rules.
 
 The deterministic normalizer owns domain identity, semantic interface identity,
-and specialization keys: exact carrier, normalized atoms/roles, establishment
+and specialization keys: exact carrier, normalized domain atoms, establishment
 and read/write routes, canonical indices, and alias expansion. Stronger entailment
 may accept more programs but cannot change identity or operator meaning. Physical ABI remains
 the carrier's; semantic interface identity retains the domain theory.
@@ -983,7 +1009,7 @@ The family explicitly binds its carrier and canonical proof-static index. It
 imposes no carrier-wide arithmetic requirement and contributes no layout.
 Ordinary operator conformances require only the carrier operations they use.
 Each applies to the exact domain set its parameters declare under
-[semantic roles and operators](#semantic-roles-and-operators); an operand that
+[domain composition and operators](#domain-composition-and-operators); an operand that
 also carries a policy or predicate domain is cast to that set first or has its
 own declaration. Their guarantees establish surviving predicate facts.
 

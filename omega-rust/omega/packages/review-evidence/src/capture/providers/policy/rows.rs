@@ -117,6 +117,7 @@ pub(super) fn project(
             Ok(PackagePolicyProviderRow {
                 method: row.method.clone(),
                 requirement: requirement.clone(),
+                requirement_application: (row.requirement_identity != row.declared_requirement_identity).then(|| plan.identities.text(row.requirement_identity).to_owned()),
                 realization,
                 native_build,
                 requirement_lifetime_partition: row.requirement_lifetime_partition.clone(),

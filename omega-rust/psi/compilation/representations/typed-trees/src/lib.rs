@@ -1537,6 +1537,18 @@ impl TypedTrees {
         self.product_declaration_frontier.as_deref().unwrap_or(self)
     }
 
+    // Build checking may retain the Product snapshot separately from its own
+    // execution graph. Prepare designated Product operands in that same owner.
+    pub fn product_declarations_mut(&mut self) -> &mut TypedTrees {
+        match self {
+            Self {
+                product_declaration_frontier: Some(frontier),
+                ..
+            } => std::sync::Arc::make_mut(frontier),
+            original => original,
+        }
+    }
+
     pub fn machine_specialization(
         &self,
         instance: symbols::SymbolHandle,

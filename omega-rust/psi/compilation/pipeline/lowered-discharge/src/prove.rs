@@ -950,6 +950,29 @@ impl<'a> Prover<'a> {
         }
     }
 
+    /// The tightest literal bounds this prover can prove on an integer
+    /// `value`, lower then upper, leaving out a bound that is only its
+    /// carrier's. Each is found with the proof that a goal stating it would
+    /// get, so a caller may state either as a goal here and have it proved.
+    pub(crate) fn literal_bounds(
+        &mut self,
+        value: ValueId,
+    ) -> (Option<IntegerValue>, Option<IntegerValue>) {
+        let Some(ScalarType::Integer(integer)) = self.values.get(value).map(|row| row.scalar_type)
+        else {
+            return (None, None);
+        };
+        let lower = self
+            .bound(value, Direction::Lower)
+            .map(|bound| bound.literal)
+            .filter(|literal| *literal != integer.minimum_value());
+        let upper = self
+            .bound(value, Direction::Upper)
+            .map(|bound| bound.literal)
+            .filter(|literal| *literal != integer.maximum_value());
+        (lower, upper)
+    }
+
     /// The best bound on `value` in `direction`, memoized for this goal set.
     fn bound(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
         let slot = self

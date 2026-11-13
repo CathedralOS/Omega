@@ -1,8 +1,8 @@
 // We partition a batch of `PreparedPackageBuild` items into equal-product-source
 // cohorts (`select_build_batch`), check each cohort's source once, adopt
-// shared Terminal publications across equal publication inputs, and capture
-// each target's declarations in parallel with shared calling-program
-// publication (`capture_beside_publication`) before restoring caller order.
+// shared Terminal publications across equal publication inputs, and prepare
+// every target's declarations before publishing any shared code. Selection then
+// consumes those prepared values sequentially and restores caller order.
 
 use super::CompilationSession;
 use super::PreparedProductTarget;
@@ -141,16 +141,40 @@ impl CompilationSession {
                 }
             }
         }
-        for (position, owner, source, target, inputs) in applications {
-            let prepared = capture_beside_publication(&source, target, &inputs);
+        // Later children must not inspect checked source after an earlier
+        // child publishes their shared artifact. Keep test preparation errors
+        // deferred until the application succeeds, as test execution requires.
+        let prepared_applications = applications
+            .into_iter()
+            .map(|(position, owner, source, target, inputs)| {
+                let prepared = PreparedProductTarget::capture(&source, Some(target), Some(&inputs));
+                let tests = super::test_roots::select_test_roots(&source, target, &inputs).map(
+                    |selection| {
+                        let roots = selection
+                            .roots
+                            .into_iter()
+                            .map(|root| {
+                                let prepared = PreparedProductTarget::capture(
+                                    &root.source,
+                                    Some(target),
+                                    Some(&inputs),
+                                );
+                                (root, prepared)
+                            })
+                            .collect::<Vec<_>>();
+                        (selection.notes, roots)
+                    },
+                );
+                (position, owner, source, prepared, tests)
+            })
+            .collect::<Vec<_>>();
+        for (position, owner, source, prepared, tests) in prepared_applications {
             let mut outcome = crate::execution_settlement::select_product_target(&source, prepared);
             if outcome.result.is_ok() {
-                match super::test_roots::select_test_roots(&source, target, &inputs) {
-                    Ok(selection) => {
-                        outcome.test_notes = selection.notes;
-                        for root in selection.roots {
-                            let prepared =
-                                capture_beside_publication(&root.source, target, &inputs);
+                match tests {
+                    Ok((notes, roots)) => {
+                        outcome.test_notes = notes;
+                        for (root, prepared) in roots {
                             let selected = crate::execution_settlement::select_product_target(
                                 &root.source,
                                 prepared,
@@ -171,33 +195,4 @@ impl CompilationSession {
         }
         selected
     }
-}
-
-fn capture_beside_publication(
-    source: &compilation_products::CheckedProductSource,
-    target: target::TargetProfile,
-    inputs: &package_compilation::PackageCompilationInputs,
-) -> Result<PreparedProductTarget, Vec<diagnostics::Diagnostic>> {
-    let mut publication = if source.timings.is_enabled() {
-        artifacts::compile_timings::CompileTimings::enabled()
-    } else {
-        artifacts::compile_timings::CompileTimings::default()
-    };
-    let capture = || PreparedProductTarget::capture(source, Some(target), Some(inputs));
-    let prepared = std::thread::scope(|scope| {
-        let publish = super::checking::compile_thread::spawn_compile_worker(scope, || {
-            let _ = crate::terminal::retain_calling_program(source, &mut publication);
-        });
-        let prepared = capture();
-        if let Ok(worker) = publish {
-            worker
-                .join()
-                .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
-        }
-        prepared
-    });
-    prepared.map(|mut prepared| {
-        prepared.timings.extend(&publication);
-        prepared
-    })
 }

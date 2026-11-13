@@ -7,13 +7,13 @@
   binds integer and IEEE float comparison occurrences to settled executions, and
   delegates callback and program-entry sidecar validation.
 */
-pub(crate) mod boundary_application_settlement {
+pub mod boundary_application_settlement {
     use diagnostics::Diagnostic;
 
     pub struct BoundaryApplicationSettlement<'input> {
         pub selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
         pub selected_provider_provenance:
-            Vec<crate::providers::provider_admission::CompilerIntrinsicPlanProvenance<'input>>,
+            Vec<provider_admission::provider_admission::CompilerIntrinsicPlanProvenance<'input>>,
         pub calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
     }
 
@@ -21,30 +21,55 @@ pub(crate) mod boundary_application_settlement {
         pub fn settle(
             &self,
             artifact: &terminal_codec::CanonicalTerminalArtifact,
-            selected: &effects::SelectedProviderPlanFacts,
+            scope: &crate::NativeExecutionScope,
         ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>>
         {
-            let demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
-                artifact.manifest().semantic(),
-                artifact
-                    .semantic_module()
-                    .boundary_application_demands
-                    .clone(),
-            )
-            .map_err(|message| vec![Diagnostic::error(message)])?;
-            let realizations = provider_selection::select_boundary_applications(
+            settle(
+                artifact,
+                self.selected_provider_plans,
                 &self.selected_provider_provenance,
-                selected,
-                artifact.semantic_module(),
-                &demands,
-            )?;
-            let opaque_applications =
-                project_opaque_applications(&self.calling_applications, artifact.semantic_module())
-                    .map_err(|message| vec![Diagnostic::error(message)])?;
-            boundary_applications::TerminalBoundaryApplicationCoverage::new(demands, realizations)
-                .map_err(|message| vec![Diagnostic::error(message)])
-                .map(|coverage| coverage.with_opaque_applications(opaque_applications))
+                &self.calling_applications,
+                scope,
+            )
         }
+    }
+
+    pub fn settle(
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        selected: &effects::SelectedProviderPlanFacts,
+        provenance: &[provider_admission::provider_admission::CompilerIntrinsicPlanProvenance<
+            '_,
+        >],
+        calling: &[calling_conventions::BoundaryCallingApplication],
+        scope: &crate::NativeExecutionScope,
+    ) -> Result<boundary_applications::TerminalBoundaryApplicationCoverage, Vec<Diagnostic>> {
+        let demands = boundary_applications::TerminalBoundaryApplicationDemands::new(
+            artifact.manifest().semantic(),
+            scope
+                .boundary_application_demands(artifact.semantic_module())
+                .map_err(|message| vec![Diagnostic::error(message)])?,
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+        let provenance = provenance
+            .iter()
+            .map(|row| provider_selection::CompilerIntrinsicPlanProvenance {
+                plan: row.plan,
+                semantic_schema: row.semantic_schema,
+                row_executions: row.row_executions,
+                row_numeric_realizations: row.row_numeric_realizations,
+            })
+            .collect::<Vec<_>>();
+        let realizations = provider_selection::select_boundary_applications(
+            &provenance,
+            selected,
+            artifact.semantic_module(),
+            &demands,
+        )?;
+        let opaque_applications = project_opaque_applications(calling, artifact.semantic_module())
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+        boundary_applications::TerminalBoundaryApplicationCoverage::new(demands, realizations)
+            .map_err(|message| vec![Diagnostic::error(message)])
+            .map(|coverage| coverage.with_opaque_applications(opaque_applications))
     }
 
     fn project_opaque_applications(
@@ -77,9 +102,8 @@ pub(crate) mod boundary_application_settlement {
         boundary_applications::BoundaryOpaqueRepresentationApplications::new(rows)
     }
 }
-#[path = "callback_settlement.rs"]
-pub(crate) mod callback_settlement;
-pub(crate) mod comparison_settlement {
+pub use crate::callback_settlement;
+pub mod comparison_settlement {
     use boundary_applications::{
         BoundaryApplicationRealization, TerminalBoundaryApplicationCoverage,
         TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
@@ -88,15 +112,16 @@ pub(crate) mod comparison_settlement {
     use effects::{CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation};
     use semantic_vocabulary::{IeeeFloatComparisonOperation, IeeeFloatFormat};
 
-    pub(crate) struct SelectedComparisonOccurrences {
+    pub struct SelectedComparisonOccurrences {
         pub ieee_float: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
         pub integer: Vec<TerminalIntegerComparisonOccurrenceProposal>,
     }
 
-    pub(crate) fn settle_comparison_occurrences(
+    pub fn settle_comparison_occurrences(
         module: &terminal_psi::TerminalModule,
         selected: &effects::SelectedProviderPlanFacts,
         coverage: &TerminalBoundaryApplicationCoverage,
+        execution_machines: &[semantic_vocabulary::MachineId],
     ) -> Result<SelectedComparisonOccurrences, Vec<Diagnostic>> {
         let plans = selected.plans();
         let mut plan_indices = plans
@@ -110,7 +135,11 @@ pub(crate) mod comparison_settlement {
             ieee_float: Vec::new(),
             integer: Vec::new(),
         };
-        for machine in &module.machines {
+        for machine in module
+            .machines
+            .iter()
+            .filter(|machine| execution_machines.binary_search(&machine.id).is_ok())
+        {
             for operation in machine.operations() {
                 use terminal_psi::OperationKind;
                 if !matches!(
@@ -227,17 +256,18 @@ pub(crate) mod comparison_settlement {
             module,
             plans,
             &occurrences.ieee_float,
+            execution_machines,
         )
         .and_then(|()| {
             TerminalIntegerComparisonOccurrenceProposal::validate_roster(
                 module,
                 plans,
                 &occurrences.integer,
+                execution_machines,
             )
         })
         .map_err(|message| vec![Diagnostic::error(message)])?;
         Ok(occurrences)
     }
 }
-#[path = "entry_settlement.rs"]
-pub(crate) mod entry_settlement;
+pub use crate::entry_settlement;

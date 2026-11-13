@@ -111,6 +111,7 @@ Each with a negative twin, within the repository's fixture caps:
 - The generic spelling for a caller-selectable policy, which was already
   unsettled.
 - Whether a package may ever bind a suffixed token for its own types.
-- Whether the arithmetic-policy role should dissolve into ordinary domains.
-  That needs a rule for which `+` applies when a unit and a policy both home
-  one, so the role stays compiler-owned for now.
+- Whether the core arithmetic-policy exclusion should be removed. The
+  [operator-independent composition decision](../../spec/language/domains.md#domain-composition-and-operators)
+  retains that exclusion; exact qualified-operand matching already decides
+  which operation applies to a unit combined with one policy.
