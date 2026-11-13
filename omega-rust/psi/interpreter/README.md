@@ -1,20 +1,20 @@
 # Psi interpreters
 
-These independent engines execute target-neutral representations:
+This engine executes the target-neutral representation:
 
-- [Checked interpreter](checked-interpreter/src/interpreter.rs): checked-tree
-  evaluation of build-time machines, pending migration to Terminal Psi.
 - [Terminal interpreter](terminal-interpreter/README.md): execution of a verified
   Terminal Psi artifact.
 
-Compilation precedes execution in the calling product workflow. Engines depend
-on their input representations and semantic checks, not on the product compiler
+Compilation precedes execution in the calling product workflow. The engine depends
+on its input representation and semantic checks, not on the product compiler
 coordinator. This keeps compiler use of evaluation from creating a dependency
 cycle through an interpreter command workflow.
 
 [Compile-time admission and elaboration](../compilation/build-time-evaluation/README.md)
-belong to compilation. That service invokes the checked engine and installs its
-results into compiler representations; neither engine owns those transformations.
+belong to compilation. That service invokes the Terminal engine and installs its
+results into compiler representations; the engine does not own those
+transformations. A build-time machine that would have to run before the program
+is checked has no engine and is refused.
 
 Native realization remains Omega-owned; interpretation is not a fallback for
 unsupported native lowering. See the [pipeline contract](../../pipeline.md).

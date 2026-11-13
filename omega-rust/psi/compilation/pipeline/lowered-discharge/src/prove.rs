@@ -52,6 +52,7 @@ use semantic_vocabulary::{
 use terminal_check_tables::values::ValueRow;
 
 mod ranges;
+mod reach;
 
 use crate::known::{Fact, is_branch_fact};
 

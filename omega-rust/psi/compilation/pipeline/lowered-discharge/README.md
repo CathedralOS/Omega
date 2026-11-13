@@ -20,6 +20,9 @@ operations; [prove.rs](src/prove.rs) is the one prover.
 [joins.rs](src/joins.rs) infers and checks join predicates;
 [crashes.rs](src/crashes.rs) states crash-site coverage;
 [arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
+[prove/reach.rs](src/prove/reach.rs) says which unproved goals the integer
+rules could not have decided
+([below](#what-the-integer-rules-do-not-reach)).
 
 ## What it decides
 
@@ -830,12 +833,30 @@ Each of these is true in the programs that need it and has no derivation in
 the rules of [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md),
 so the obligation is `Unproved`. None is worked around here.
 
-One case of the second item is proved: a remainder by a divisor whose own
-bounds fix it to one literal (`divisor >= 16 && divisor <= 16`) takes the
-kernel's bound of the remainder by that literal spelled in place, carried
-onto the result through its equation and the proved `divisor == 16`
+Whether such an obligation rejects the program depends on what it rests on
+([prove/reach.rs](src/prove/reach.rs)). A goal that depends on a value
+defined by an operation the rules give no exact interval is unproved whether
+or not the program is right, so its cause is `NoRuleForGoalForm` and the
+route's verdict is `Incomplete`: the second and third items below, and any
+goal on an exclusive or, a bitwise and, or or not, a wrapping or saturating
+operation, or a quotient, remainder or right shift whose divisor or count no
+literal or earlier equation fixes. The dependence is read from the result
+equations of the values the goal names, never from how a search ended, and
+it follows an inferred input or result across a call (`Unreached`): a formal
+whose inferred condition describes such an actual, and the result of a
+private helper whose body returns one. A written contract does not carry it:
+an arrival or return that cannot establish a written clause is judged where
+the operation is, and a caller that needs more than a written contract
+states is rejected. A goal that fails on add, subtract, multiply, a cast, a
+left shift, or a divide or right shift by a literal alone is still `Reject`:
+the first, fourth and fifth items below are.
+
+One case of the second kind is proved instead: a remainder by a divisor
+whose own bounds fix it to one literal (`divisor >= 16 && divisor <= 16`)
+takes the kernel's bound of the remainder by that literal spelled in place,
+carried onto the result through its equation and the proved `divisor == 16`
 (`remainder_by_fixed_divisor`). The kernel has no in-place form for a
-quotient or a right shift, so those stay unproved.
+quotient or a right shift, so those stay unreached.
 
 - *A contradiction between two order facts when neither is a taken guard.*
   Two bare facts `low <= high` and `high < low` (two `requires`, or a
@@ -866,11 +887,11 @@ quotient or a right shift, so those stay unproved.
   order translation concludes `a + t <= b + t` and nothing rewrites
   `0 + last` to `last`, and `IntegerAddOrder` needs a strictly positive
   increment. It would take a landing on a proved equality, or `0 + x == x`
-  over mathematical integers
-  (`pass/facts/nine_arg_stack_calling_plan_through_local_exit` and the
-  `register_stack_arg` and `thirtytwo_arg` families, 15 programs). The same
-  gap leaves a quotient or right shift by `divisor >= 3 && divisor <= 3`
-  unproved.
+  over mathematical integers. These goals name only add and subtract, so
+  they still reject (`pass/facts/nine_arg_stack_calling_plan_through_local_exit`
+  and the `register_stack_arg` and `thirtytwo_arg` families, 15 programs).
+  The same gap is why a quotient or right shift by `divisor >= 3 &&
+  divisor <= 3` is unreached.
 
 ## Why this route and not the arithmetic engine
 

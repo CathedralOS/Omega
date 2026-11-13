@@ -113,7 +113,7 @@ crashes Trap
     machine assign(typer: &mut Typer, sources: &SourceSet, syntax: &SyntaxTrees, resolution: &NameResolution, statement: Statement) {
         type_tree(typer, sources, syntax, resolution, statement.target);
         type_tree(typer, sources, syntax, resolution, statement.value);
-        let place: bool = is_place(syntax, resolution, statement.target);
+        let place: bool = is_place(typer, syntax, resolution, statement.target);
         let destination: u64 in Trapping = place_type(typer, syntax, statement.target);
         transition typer.output.accepted && place {
             true -> assigned(typer, syntax, resolution, statement, destination)

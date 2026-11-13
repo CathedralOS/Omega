@@ -85,7 +85,8 @@ crashes Trap
 
     machine array_level(typer: &Typer, wanted: u64 in Trapping, shape_row: TypeRow, depth: u64 in Trapping) -> u64 in Trapping {
         let wanted_row: TypeRow = type_table_row(&typer.output.types, wanted);
-        transition wanted_row.kind == TypeKind::Array && wanted_row.length == shape_row.length {
+        transition wanted_row.kind == TypeKind::Array && wanted_row.length == shape_row.length
+            && wanted_row.domain == DomainBinding::Unqualified {
             true -> level(typer, wanted_row.inner, shape_row.inner, depth + 1)
             _ -> found(0)
         }

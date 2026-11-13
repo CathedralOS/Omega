@@ -2,7 +2,7 @@
 
 This is the Rust implementation note for the
 [observation contract](../../../../wiki/spec/build/observations.md).
-The [interpreter preparer](../../../psi/interpreter/checked-interpreter/src/filesystem.rs)
+The [Build host filesystem](../../build-system/build-settings/src/host/filesystem.rs)
 and providers share a closed catalog of 50 exact filesystem operation identities.
 Aliases and platform variants remain distinct. Resolve canonical toolchain
 requirements, not user declarations with matching names.
@@ -89,7 +89,7 @@ unlinked objects until their final handle closes. Reserve before a host operatio
 commit successful changes, and release failed reservations. An operation cannot
 fund its own required reservation. Teardown must reconcile the complete tree.
 
-The [build sponsor](../../../psi/interpreter/checked-interpreter/src/evaluation.rs)
+The [build sponsor](../../../psi/foundation/evaluation-accounting/src/lib.rs)
 shares closure budgets and reconciles invocation charges and peaks. Owned
 resources reserve before provider entry; borrowed views take no second resource
 slot. Cell/Text aliases share a lease released by the last alias. Completion

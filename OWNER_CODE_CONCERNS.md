@@ -74,6 +74,13 @@ own to defend. Say what you saw, not what you would build.
 - Cost: it is unclear whether a module from the lowered-form checker must carry the 146 float-table rows; one session is building them while the default compile shows they are not read for a program without floats.
 - Reported: 2026-11-13, Claude Code, while carrying the lowered-form checker's published module into Terminal production
 
+### Constructing the source compiler repeats an hour of checking before its tests
+- Category: verifying costs more than writing
+- Where: [tests/product/gate.sh:42](tests/product/gate.sh#L42), [tests/product/gate.sh:70](tests/product/gate.sh#L70)
+- Saw: frozen Rust producer b520 checked the 269-unit, 3.8 MB compiler in 4,089 seconds during update; native construction then took 3,796 seconds, including 3,227 seconds in Psi 05, with a peak near 19 GiB; all 191 product cases took 80 seconds afterward
+- Cost: a source repair spends hours in producer checking before its executable cases run; these measurements belong to the old checker being removed, and cannot stand for seed-chain or replacement-checker performance
+- Reported: 2026-11-12, Codex, while finishing bootstrap compiler construction and storage PRs #2782 and #2788
+
 ### Every Build program runs through the old checker and the old lowering stage
 - Category: the documents disagree
 - Where: `omega-rust/omega/build-system/build-settings/src/admission/checking.rs:323` (`CheckRequest::check()` on the Build program), `build-settings/src/activation/preparation.rs` (`PreparedBuildExecution::prepare` calls `TerminalProductionRequest::produce`), `omega-rust/psi/compilation/build-time-evaluation/src/machine_execution.rs:5082` and `:5457`, `build-time-evaluation/src/const_initializers.rs:137`
@@ -282,13 +289,6 @@ own to defend. Say what you saw, not what you would build.
 - Where: `omega-rust/psi/foundation/arena/src/arena.rs:1023-1038`, `:1113`; `paged.rs:462-476`, `:1093-1095`
 - Saw: `get` returns the dummy row when the index or generation does not match; `get_mut` returns `&mut self.dummy`; `span_or_empty` turns a span it cannot resolve into an empty slice; the crate header (`lib.rs:20`) gives the reason for handle zero only, not for a stale generation
 - Cost: every table in the Psi half sits on these containers, so a dangling handle anywhere looks like an empty declaration, not an error, and the next reader of the dummy sees whatever was last written to it
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### The checked interpreter answers thirteen host-sounding call names it could not resolve
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/interpreter/checked-interpreter/src/execution_expressions.rs:863-968`
-- Saw: when `resolve_static_call` fails and the call is unqualified, the names `tick_count`, `key_state`, `dc_create`, `get_dc`, `window_create`, `is_window`, `window_destroy`, `foreground_window`, `msg_peek`, `msg_translate`, `msg_dispatch`, `read_byte` and `blit` return made-up values (0, 1, a counter, the fifth argument); any other name returns the resolution error
-- Cost: a failed lookup becomes a successful call keyed on spelling alone, so a build-time program calling an undeclared machine with one of these names runs instead of stopping
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### The Terminal interpreter reports a failed run-time check as a malformed artifact, with one error for 1,329 sites
