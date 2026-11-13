@@ -10,7 +10,6 @@
 1 omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs
 2 omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization.rs
 1 omega-rust/psi/compilation/pipeline/lowered-discharge/src/places.rs
-1 omega-rust/psi/compilation/proof/src/checker.rs
 5 omega-rust/psi/compilation/representations/checked-trees/facts/src/contexts_and_places.rs
 1 omega-rust/psi/compilation/representations/checked-trees/facts/src/evidence.rs
 2 omega-rust/psi/compilation/representations/checked-trees/facts/src/predicates.rs

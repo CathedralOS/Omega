@@ -31,7 +31,6 @@
 1 omega-rust/omega/packages/source-acquisition/src/test_support.rs
 1 omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs
 3 omega-rust/psi/compilation/proof/admission/src/bounded_denotation.rs
-3 omega-rust/psi/compilation/proof/src/checker.rs
 2 omega-rust/psi/compilation/representations/checked-trees/facts/src/evidence.rs
 3 omega-rust/psi/compilation/representations/checked-trees/src/admissibility_and_borrow.rs
 7 omega-rust/psi/compilation/representations/checked-trees/src/flow.rs
