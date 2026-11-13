@@ -181,11 +181,7 @@ fn a_store_into_a_record_formal_leaves_the_callers_argument_alone() {
                     value: pair_of(1, 2),
                 },
                 invoke(2, vec![named(0, pair())]),
-                Statement::Evaluate(strict(
-                    Strict::Add,
-                    field(named(0, pair()), 0),
-                    headroom(1),
-                )),
+                Statement::Evaluate(strict(Strict::Add, field(named(0, pair()), 0), headroom(1))),
             ],
         )
     };
