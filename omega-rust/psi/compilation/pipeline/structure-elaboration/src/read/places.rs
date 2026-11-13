@@ -279,9 +279,11 @@ impl Program<'_> {
             formal_fields: false,
             mathematical: MathematicalTerms::Refused("mathematical comparison in a data requires"),
             subject: Some(DataSubject {
-                record,
+                value_type: ValueType::Record(record, Qualification::NONE),
                 symbol: data.predicate_subject_symbol,
                 root,
+                path: &[],
+                bare_fields: true,
             }),
         };
         let facts = super::span(
@@ -293,6 +295,41 @@ impl Program<'_> {
         let mut requires = Vec::with_capacity(facts.len());
         for fact in facts {
             requires.push(self.clause(id, &scope, self.fact(id, fact)?)?);
+        }
+        // dependent_values.md: "A data declaration's field qualifications
+        // and `requires` clauses define its default domain". A field in a
+        // domain with predicates owes them as clauses of this type, over
+        // the field (`predicates`).
+        let declared = self
+            .records
+            .get(record)
+            .ok_or_else(|| unserved("record identity"))?;
+        let fields: Vec<_> = declared
+            .fields()
+            .iter()
+            .map(|field| (field.id, field.value_type))
+            .collect();
+        let payloads: Vec<ValueType> = declared
+            .cases()
+            .iter()
+            .flat_map(|case| case.fields.iter().map(|field| field.value_type))
+            .collect();
+        for (field, value_type) in fields {
+            let path = [semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                field,
+            )];
+            requires.extend(self.field_predicates(id, &path, value_type)?);
+        }
+        // A payload's clause holds only of a value in its case, and no
+        // clause here is conditional on the case yet.
+        for value_type in payloads {
+            if value_type.qualification().domains.members().any(|domain| {
+                typed
+                    .domain_definition(domain)
+                    .is_some_and(super::authority::has_predicates)
+            }) {
+                return Err(unserved("case payload in a domain with predicates"));
+            }
         }
         self.records
             .get_mut(record)

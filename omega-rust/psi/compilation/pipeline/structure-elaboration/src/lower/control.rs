@@ -488,6 +488,52 @@ impl Lowering<'_> {
         Ok(Value::Scalar(result))
     }
 
+    /// `value as +D` for a domain with predicates: a jump, at the cast, to
+    /// a block whose one parameter is the cast's result and whose invariant
+    /// is the domain's predicates of that parameter. control_flow.md:
+    /// "Every arrival proves the predicate under simultaneous
+    /// destination-parameter to actual-argument substitution, before
+    /// destination hypotheses become available." The edge is therefore
+    /// where the cast's obligation is owed (domains.md: "Has predicates |
+    /// Prove them for this value."), and the block is where the result is
+    /// known to satisfy them. Nothing is computed: the parameter is the
+    /// operand's value.
+    pub(super) fn prove_membership(
+        &mut self,
+        operand: ValueId,
+        scalar_type: ScalarType,
+        clauses: &[Proposition],
+        stated: &str,
+        source: SourceOrigin,
+    ) -> Checked<ValueId> {
+        let id = self.id;
+        let established = self.block(source);
+        self.sources
+            .memberships
+            .push((established, stated.to_owned()));
+        let result = self.value(
+            scalar_type,
+            ValueOrigin::BlockParameter {
+                block: established,
+                position: 0,
+            },
+        );
+        self.parameter(established, result, scalar_type)?;
+        let mut predicate = Vec::with_capacity(clauses.len());
+        for clause in clauses {
+            predicate.push(canonical::substitute(clause, &[result], id)?);
+        }
+        self.invariants.push(terminal_psi::ScalarBlockInvariant {
+            machine: id,
+            header: established,
+            predicate: canonical::conjunction(predicate, id)?,
+            arrivals: Vec::new(),
+        });
+        self.jump(established, vec![operand], source)?;
+        self.enter(established);
+        Ok(result)
+    }
+
     /// Declares `value` as the next scalar parameter of `block`.
     pub(super) fn parameter(
         &mut self,

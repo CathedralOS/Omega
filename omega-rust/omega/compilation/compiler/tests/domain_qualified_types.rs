@@ -121,7 +121,21 @@ fn verdicts(name: &str, machines: &str) -> Vec<String> {
     .iter()
     .map(|verdict| match verdict {
         Ok(RouteVerdict::Accepted(_)) => "accepted".to_owned(),
-        Ok(RouteVerdict::Rejected { .. }) => "rejected".to_owned(),
+        // What was not proved, in the checker's words, and how many uses
+        // of storage nothing established.
+        Ok(RouteVerdict::Rejected {
+            unproved,
+            unestablished,
+            ..
+        }) => format!(
+            "rejected: {} unestablished; {}",
+            unestablished.len(),
+            unproved
+                .iter()
+                .map(|obligation| obligation.statement.as_str())
+                .collect::<Vec<_>>()
+                .join("; ")
+        ),
         Ok(RouteVerdict::Incomplete(_)) => "incomplete".to_owned(),
         Ok(RouteVerdict::FallBack(refusal)) => format!("not-supported: {refusal:?}"),
         Err(defect) => format!("defect: {defect:?}"),
@@ -202,14 +216,178 @@ fn removing_a_routed_domain_is_refused_by_name() {
     );
 }
 
-/// Nothing states a domain's predicates as an obligation on a cast's
-/// operand yet, so a program that declares such a domain is not accepted.
+/// A domain with predicates, on a scalar. Its predicates are contracts of
+/// the places declared in it: a cast proves them of its operand, a formal
+/// gives them to the body, a result promises them, and a field's are
+/// clauses of the data type that declares the field.
+const PREDICATES: &str = "\
+domain i32::Positive
+    requires self > 0;
+data Account {
+    balance: i32 in Positive;
+    count: i32;
+}
+machine keep(value: i32 in Positive) -> i32 in Positive {
+    value
+}
+";
+
+const ACCEPTED_PREDICATES: &str = "\
+machine literal() -> i32 in Positive {
+    5 as +Positive
+}
+machine guarded(value: i32) -> i32 in Positive requires value > 3 {
+    value as +Positive
+}
+machine known(value: i32 in Positive) -> i32 ensures result > 0 {
+    value as -Positive
+}
+machine relayed_positive(value: i32 in Positive) -> i32 in Positive {
+    keep(value)
+}
+machine promised() -> i32 ensures result > 0 {
+    let kept: i32 in Positive = keep(9 as +Positive);
+    kept as -Positive
+}
+machine opened(value: i32) -> Account requires value > 0 {
+    Account { balance: value as +Positive, count: 1 }
+}
+machine balance(account: Account) -> i32 ensures result > 0 {
+    account.balance as -Positive
+}
+machine deposited(account: Account) -> Account {
+    let mut held: Account = account;
+    held.balance = 7 as +Positive;
+    held
+}
+machine filled() -> Account {
+    let mut account: Account;
+    account.balance = 1 as +Positive;
+    account
+}
+";
+
+fn predicate_verdicts(name: &str, machines: &str) -> Vec<String> {
+    verdicts(name, &format!("{PREDICATES}{machines}"))
+}
+
 #[test]
-fn a_domain_with_predicates_is_refused_by_name() {
+fn a_domain_predicate_is_proved_at_the_cast_and_known_where_the_type_is_declared() {
+    assert_eq!(
+        predicate_verdicts("accepted_predicates", ACCEPTED_PREDICATES),
+        ACCEPTED_PARTS
+    );
+}
+
+/// A predicate twin is rejected, the checker's answer to an obligation it
+/// could not prove, and the rejection states `expected`.
+fn rejected(name: &str, machines: &str, expected: &str) {
+    let verdicts = predicate_verdicts(name, machines);
+    assert!(
+        verdicts.len() == 2
+            && verdicts
+                .iter()
+                .any(|verdict| verdict.starts_with("rejected")
+                    && verdict.contains(expected)
+                    && (expected != UNPROVED_CAST || verdict.contains(POSITIVE))),
+        "{name}: {verdicts:#?}"
+    );
+}
+
+/// What the rejection of a cast says, before the domain and its predicate.
+const UNPROVED_CAST: &str =
+    "cannot prove the value of this cast is in the domain it adds in machine `wrong`";
+
+/// The domain and predicate the rejection names.
+const POSITIVE: &str = "domain `i32::Positive` requires `self > 0`";
+
+/// Nothing is known of `value`, so the cast cannot prove `value > 0`.
+#[test]
+fn a_cast_that_cannot_prove_the_predicate_is_rejected() {
+    rejected(
+        "unproved_cast",
+        "machine wrong(value: i32) -> i32 in Positive {\n    value as +Positive\n}\n",
+        UNPROVED_CAST,
+    );
+}
+
+#[test]
+fn a_cast_of_a_value_outside_the_domain_is_rejected() {
+    rejected(
+        "false_cast",
+        "machine wrong() -> i32 in Positive {\n    0 as +Positive\n}\n",
+        UNPROVED_CAST,
+    );
+}
+
+/// The fact comes from the formal's domain: the same body over a plain
+/// formal does not prove its guarantee.
+#[test]
+fn a_plain_formal_gives_the_body_no_predicate() {
+    rejected(
+        "plain_formal",
+        "machine wrong(value: i32) -> i32 ensures result > 0 {\n    value\n}\n",
+        "cannot prove ensures contract for exit from wrong",
+    );
+}
+
+/// Zero is not positive, so a zeroed `Account` is not a value until its
+/// balance is stored: the declaration opens an invariant window and the
+/// return consumes the record while it is open.
+#[test]
+fn a_zeroed_record_whose_field_predicate_fails_at_zero_is_not_accepted() {
+    let verdicts = predicate_verdicts(
+        "zeroed_field",
+        "machine wrong() -> Account {\n    let account: Account;\n    account\n}\n",
+    );
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| verdict.starts_with("rejected: 1 unestablished")),
+        "{verdicts:#?}"
+    );
+}
+
+/// A zeroed local that is itself the qualified scalar has no owning data
+/// type to judge whether zero is a member.
+#[test]
+fn a_zeroed_scalar_in_a_domain_with_predicates_is_refused_by_name() {
+    let verdicts = predicate_verdicts(
+        "zeroed_scalar",
+        "machine wrong() -> i32 in Positive {\n    let value: i32 in Positive;\n    value\n}\n",
+    );
+    assert!(
+        verdicts.iter().any(|verdict| verdict
+            .contains("zero-established value in a domain that must be established")),
+        "{verdicts:#?}"
+    );
+}
+
+/// A field in the domain is stored only from a value of its exact type, so
+/// a store that would break the field's predicate is rejected at the cast
+/// that claims the value is in the domain.
+#[test]
+fn a_store_into_a_field_in_the_domain_is_rejected_at_the_cast_it_cannot_prove() {
+    rejected(
+        "broken_field",
+        "machine wrong(account: Account, value: i32) -> Account {
+    let mut held: Account = account;
+    held.balance = value as +Positive;
+    held
+}
+",
+        UNPROVED_CAST,
+    );
+}
+
+/// Predicates over the fields of a data value are not stated yet, so a
+/// domain that has them on a data carrier is refused where it is declared.
+#[test]
+fn a_domain_with_predicates_on_a_data_carrier_is_refused_by_name() {
     refused_with(
-        "predicates",
-        "domain i32::Positive\n    requires self > 0;\nmachine wrong(value: i32) -> i32 in Positive {\n    value as +Positive\n}\n",
-        "domain with predicates",
+        "data_predicates",
+        "domain Reading::Valid\n    requires self.value > 0;\n",
+        "constrained by a domain with predicates on a data carrier",
     );
 }
 

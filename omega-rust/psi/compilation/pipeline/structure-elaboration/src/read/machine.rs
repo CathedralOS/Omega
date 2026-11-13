@@ -82,6 +82,7 @@ impl<'t> Program<'t> {
                 "contract span",
             )?;
             if !machine.is_public
+                && self.typed.owned_conformance_realization(*symbol).is_none()
                 && !contracts.iter().any(|clause| {
                     clause.kind == SignatureContractKind::Requires
                         && clause.keyword_source_span.is_some()
@@ -382,9 +383,9 @@ impl<'t> Program<'t> {
     /// parameter `value: T in D` "gives the body the fact `value in D`".
     ///
     /// The formal's type already says it, so such a contract adds nothing
-    /// to read: the type is what a caller must supply, and the body is
-    /// given no assumption from the domain's predicates, which only makes
-    /// it prove more. Any other contract on a state stays refused.
+    /// to read: the type is what a caller must supply, and the domain's
+    /// predicates join the entry clauses from the type (`predicates`). Any
+    /// other contract on a state stays refused.
     fn contracts_restate_formal_domains(&self, state: &typed_trees::state::State) -> bool {
         use typed_trees::domain::ProofFact;
         use typed_trees::expression::ExpressionNode;
@@ -759,6 +760,7 @@ impl<'t> Program<'t> {
             &binders,
             &[],
         )?;
+        self.inherit_logical_contract(id, machine, &mut signature, &mut names)?;
         signature.termination = self.termination(id, machine)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
@@ -772,6 +774,87 @@ impl<'t> Program<'t> {
         names.machine = authored.name.as_str().to_owned();
         names.state = state.name.as_str().to_owned();
         Ok((signature, names, binders.len()))
+    }
+
+    /// An inline conformer's body is checked under its requirement, unlike
+    /// a selection row that attaches a route to an independently valid body
+    /// (conformances.md, "Binding a machine to a requirement"). Read the
+    /// requirement with its own symbols, then retain the logical clauses by
+    /// formal position. Written member clauses still owe refinement; omitted
+    /// operational ceilings keep their separate inference rules.
+    fn inherit_logical_contract(
+        &mut self,
+        id: MachineId,
+        machine: &'t Machine,
+        signature: &mut Signature,
+        names: &mut MachineNames,
+    ) -> Checked<()> {
+        let Some((_, row)) = self.typed.owned_conformance_realization(machine.symbol) else {
+            return Ok(());
+        };
+        let clauses = span(
+            &self.typed.signature_contracts,
+            machine.contracts,
+            id,
+            "contract span",
+        )?;
+        let authored = |kind| {
+            clauses
+                .iter()
+                .any(|clause| clause.kind == kind && clause.keyword_source_span.is_some())
+        };
+        let requires = !authored(SignatureContractKind::Requires);
+        let ensures = !authored(SignatureContractKind::Ensures);
+        if !requires && !ensures {
+            return Ok(());
+        }
+        let requirement = self.declared_requirement(id, row.declaring_trait, row.requirement)?;
+        let (inherited, inherited_names) = self.requirement_signature(id, requirement, &[])?;
+        if signature.parameters != inherited.parameters
+            || signature.result != inherited.result
+            || signature.erased != inherited.erased
+            || signature.borrowed != inherited.borrowed
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("inline member signature differs from its requirement's"),
+            ));
+        }
+        if requires {
+            // Implicit formal-domain obligations remain alongside inherited
+            // inputs. Canonicalization may merge an obligation both declare.
+            let mut clauses = std::mem::take(&mut signature.requires);
+            clauses.extend(inherited.requires);
+            let mut texts = std::mem::take(&mut names.requires);
+            texts.extend(inherited_names.requires);
+            signature.requires = canonical::clauses(clauses.clone(), Repeated::Merge, id)?;
+            names.requires = signature
+                .requires
+                .iter()
+                .map(|clause| {
+                    let position = clauses.iter().position(|candidate| candidate == clause);
+                    position
+                        .and_then(|position| texts.get(position).cloned())
+                        .unwrap_or_default()
+                })
+                .collect();
+        }
+        if ensures {
+            for (position, clause) in inherited.ensures.into_iter().enumerate() {
+                if !signature.ensures.contains(&clause) {
+                    signature.ensures.push(clause);
+                    names.ensures.push(
+                        inherited_names
+                            .ensures
+                            .get(position)
+                            .cloned()
+                            .unwrap_or_default(),
+                    );
+                }
+            }
+        }
+        Ok(())
     }
 
     /// The value parameters of a trait requirement, in declaration order,
@@ -1093,6 +1176,27 @@ impl<'t> Program<'t> {
                 }
             }
         }
+        // A formal or a result in a domain with predicates states them as
+        // entry clauses and guarantees (`predicates`); a clause the
+        // callable also wrote itself is stated once.
+        let domains = self.signature_predicates(
+            id,
+            &required,
+            &exit,
+            result.map(|result| (result, result_value)),
+        )?;
+        for (clause, text) in domains.requires {
+            if !requires.contains(&clause) {
+                requires.push(clause);
+                requires_text.push(text);
+            }
+        }
+        for (clause, text) in domains.ensures {
+            if !ensures.contains(&clause) {
+                ensures.push(clause);
+                ensures_text.push(text);
+            }
+        }
         // effects.md: "On a public checked body omitted `crashes` means no
         // crash route, exactly as `crashes none`. Private checked bodies may
         // omit any of the three to request inference." An authored
@@ -1224,7 +1328,7 @@ impl<'t> Program<'t> {
     /// or closed type equations decide it as true. One they decide as false
     /// is refused: the application is outside the family its declaration
     /// admits, and nothing about its body would mean anything.
-    fn states_nothing(
+    pub(super) fn states_nothing(
         &self,
         id: MachineId,
         expression: typed_trees::expression::ExpressionHandle,
@@ -1952,7 +2056,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
-        | ExpressionKind::Requalify(operand) => {
+        | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Establish { operand, .. } => {
             spans(operand, binder, out);
         }
         ExpressionKind::Call { arguments, .. } => {
@@ -2093,7 +2198,8 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
-        | ExpressionKind::Requalify(operand) => {
+        | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Establish { operand, .. } => {
             expression_slot_uses(operand, uses);
         }
         ExpressionKind::Call { arguments, .. } => {

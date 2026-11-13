@@ -10,10 +10,7 @@ The classification is executable, not only prose:
 `AcceptedProofRule::foundation`
 (`omega-rust/psi/compilation/proof/admission/src/classicality.rs`) assigns each
 rule a `ProofRuleFoundation` by exhaustive match, so a new certificate rule
-does not compile until it is classified. `ProofLemma::foundation` and
-`ForAllInRangeFact::ELIMINATION_FOUNDATION`
-(`omega-rust/psi/compilation/proof/src/lemmas.rs`) hold the obligation-side
-lemma vocabulary to the same rule. The module's tests pin the classification:
+does not compile until it is classified. The module's tests pin the classification:
 no rule may map to `Classical`, and only `SemanticAxiom` is a `TrustedAdmission`.
 This is a review inventory, not a proof that the implementations satisfy their
 assigned logical properties. Rule implementations, conversion, premise handling
@@ -144,25 +141,13 @@ existing rule, conversion algorithm or trusted admission. The combined calculus
 and its interpretation require the justification specified by the
 [foundation](foundation.md) and [kernel metatheory](kernel_metatheory.md).
 
-## Obligation-side lemma library and deciders (`omega-rust/psi/compilation/proof`)
+## Obligation formation and proof search
 
-These are obligation checkers and premise planners, not certificate rules:
-a checker decides an obligation against declared facts, and whatever it
-cannot discharge becomes a diagnostic rather than an accepted admission.
-
-| Surface | Foundation | Note |
-| ------- | ---------- | ---- |
-| `ProofLemma::{IndexInBounds, NonEmptyHasFirst, WindowLength, WindowSubrange, TailLengthDecreases}` | Constructive-decidable | Closed length/bounds/window relations over `usize`-shaped carriers; each lemma fires only when every premise in `premises()` is already established (`lemmas.rs`). `ProofLemma::foundation` enforces the row by exhaustive match — a new lemma does not compile until it is classified. |
-| `ForAllInRangeFact` / `QuantifiedBound` / `ElementIndex` | Constructive-decidable | Element discharge (`proves_element`, `contains_index`, `is_vacuous`) compares literal bounds only; symbolic bounds answer conservatively — never a decision over an undecidable relation. `ForAllInRangeFact::ELIMINATION_FOUNDATION` pins the elimination step to this row. |
-| `checker/{arrival_stability, assignment_stability, bounded_checks, dependent_bounds, float_ranges, guards, integer_ranges, named_constraints, return_arrival}` | Constructive-decidable | Total deciders over the checked finite shapes: range arithmetic, arrival joins, guard narrowing and named-constraint lookup are each decidable relations over declared data. |
-| `checker/certificate/` | Constructive-decidable over an untrusted input | Bounded-integer legs arrive as untrusted certificates that the proof-admission kernel re-decides; the *decision* is decidable, and the cited rule rows keep their own classification from the table above. |
-| `checker/measurement.rs` | N/A (instrumentation) | Proof-search cost accounting; discharges nothing. |
-| `obligations/{collection, constraints, identity, plan, program_queries, range_tests, ranges}` | N/A (plan formation) | Walks the typed program into obligations and derives/readbacks constraints; produces what must be proved, not inference. |
-| `boundary.rs` | Trusted admission (premise declaration) | Models what a host/provider primitive must establish and preserve — the obligation side of `EvidenceRoute::Admitted`; the obligations themselves are declarations, never proved. |
-| `proof_surface.rs` | N/A (report) | Collects declared proposition/domain/contract sites for reporting. |
-
-No lemma or decider performs case analysis over an undecidable relation,
-introduces a negated premise, or assumes a fact the roster does not carry.
+Collecting a contract site or constructing an obligation identifies what must be
+proved; neither supplies a derivation. Proof-search helpers produce candidate
+evidence for the classified rules above. A reported site, helper label or failed
+search must not be treated as an accepted fact. Boundary premises still require
+the explicit admissions described above.
 
 ## Verifier semantic-axiom reconstruction inventory
 

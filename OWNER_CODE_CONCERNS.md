@@ -87,6 +87,13 @@ framework or a list of features that remain unimplemented.
 - Cost: each new step kind (payload, saved subject) is taught to one walk at a time, and the ones that are missed either refuse a served program or skip an authority check
 - Reported: 2026-11-13, Claude Code, while lending case payloads
 
+### The lowered form drops declared domains, so only the reader knows a value's type
+- Category: a verdict with nothing behind it
+- Where: `structure-elaboration/src/lower.rs` and `policy.rs` (`qualifications: ScalarQualificationSetId::ZERO`); `terminal-psi/src/types_and_values.rs` (`ScalarQualificationCatalog`, `ScalarDomainDeclaration`, `ScalarQualificationCoercion`)
+- Saw: Terminal Psi has a catalog for scalar domains, their predicates and the edge where a value is coerced into one, and the lowered route fills none of it. Which domains a value carries, and who may add one, is decided in the reader and erased before the checker sees the program. A domain's predicates do reach the checker, as ordinary contracts and as the invariant of the block a cast continues in, but the nominal part does not.
+- Cost: the checker cannot re-derive that `value as +D` was authorized or that an argument carries the domain its parameter declares; a reader bug there is accepted with no row to contradict it, and a published artifact says nothing about domains
+- Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts
+
 ### Data applied at a lifetime is one record whose stored views name only the data's own binders
 - Category: a verdict with nothing behind it
 - Where: `structure-elaboration/src/read/types.rs` (`value_type`, the `Inner<'a>` arm), `read/places.rs` (`lifetime_binders`, `declared_field`), `read/bytes.rs` (`byte_view_type`)
@@ -156,13 +163,6 @@ framework or a list of features that remain unimplemented.
 - Saw: the first demands an `ExternalProviderConformance` row for every selected realization, the second only for requirements the module retains as a boundary; a six-machine scalar program with no float rows builds natively from the default compile, yet the same module is refused ("`NativeFloats` has no retained external implementation for `Float::add`") when a harness hands the proposal the provider declarations prepared for the old program.
 - Cost: proposal validation has two different retained-demand contracts. The Check-mode trial requires the 146 float-table rows while the earlier default scalar compile did not read them; treating the former as the default demand can force unrelated metadata into the product path. The all-catalog investigation is parked while the actual default consumer is reconciled.
 - Reported: 2026-11-13, Claude Code, while carrying the lowered-form checker's published module into Terminal production
-
-### The stage-coverage command still reports a column for the deleted Psi 06
-- Category: zombie machinery
-- Where: `tools/xtask/src/stage_coverage.rs` (`STAGES`), `tools/testing.md` stage-coverage section
-- Saw: `stage-coverage` counts lines under the deleted Psi 06 directory, so that column is always empty; the command exists to measure the old checker and has no reader once Psi 05 and `validation` are gone
-- Cost: the coverage table reads as if Psi 06 ran no lines, and the command outlives what it measures
-- Reported: 2026-11-12, Claude Code, while deleting Psi 06
 
 ### Constructing the source compiler repeats an hour of checking before its tests
 - Category: verifying costs more than writing
@@ -344,13 +344,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/psi/foundation/access-plans/src/placements.rs` (3,028 lines; `admit_access` at `:244`, `admit_owned_access` at `:264`, `adopt_owned_stable` at `:1754`), `primitive_access.rs` (1,251 lines), `plan_policy.rs:694`
 - Saw: no file outside the crate names `admit_access`, `admit_owned_access`, the three `adopt_owned_*` functions, `bind_schema_correspondence_to_access_plan`, `effect_footprints_conflict`, `PrimitiveAccessRequest`, `EstablishedOwnedAccess`, `SchemaCorrespondedAccessView` or `AccessAdmission`; inside the crate only `tests.rs` (7,168 lines, 109 tests) calls them; twelve crates depend on the crate for its validators
 - Cost: the crate header (`lib.rs:9-15`) says every stable, atomic or external access request is authorized before lowering, and a reader will believe a pipeline stage does that when none calls it
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Proof surface reports and vocabulary remain exported with no production consumer
-- Category: zombie machinery
-- Where: `omega-rust/psi/compilation/proof/src/lemmas.rs`, `boundary.rs`, `lib.rs` (`build_proof_surface_report`)
-- Saw: the checker, cache and duplicate checked-tree vocabulary have been deleted. The remaining crate honestly describes syntax-only reports, but the report is still called only by its own tests and the boundary/lemma descriptions have no external consumer.
-- Cost: unused public report and vocabulary APIs still require maintenance and look available for a new caller; establish a real product consumer or retire them, without touching the separate proof-admission kernel.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Public resolution entry points have no production callers
