@@ -815,14 +815,20 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
         falls_back("machine generic parameters"),
         falls_back("machine generic parameters"),
         falls_back("declaration const"),
-        falls_back("declaration domain"),
-        falls_back("declaration trait"),
+        // A tag-only domain is passed over; one with a predicate is not
+        // judged yet.
+        falls_back(
+            "declaration domain with predicates, a cleanup machine, operators or parameters",
+        ),
+        // A requirement has no body: nothing is owed until something
+        // implements or calls it.
+        Verdict::Accepted(1),
         falls_back("declaration measure"),
         falls_back("declaration proposition"),
         falls_back("contract named proposition"),
         Verdict::Accepted(2),
         Verdict::Accepted(2),
-        falls_back("call receiver, requirement or coercion call"),
+        falls_back("type reference"),
     ];
     assert_eq!(expected.len(), UNUSED_DECLARATIONS.len());
     let mut wrong = Vec::new();

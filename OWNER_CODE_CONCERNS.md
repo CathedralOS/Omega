@@ -67,6 +67,13 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### A sum's `requires` over each case's payload is refused, and it was judged before
+- Category: tests that pin the bug
+- Where: `structure-elaboration/src/read/contracts.rs` (`field_term`, `projected`); `tests/fixtures/fail/facts/four_variant_enum_payload_bound_through_local_rejected`
+- Saw: the fixture's data writes `requires ((self in Packet::Alpha) && (self.v >= 40u64 && self.v <= 80u64)) || ...` over four cases; `lowered_route_messages` pinned the route's rejection of its `main` with the fixture's whole sentence, and the route now refuses the closure as `contract data value compared whole in a clause`. The test could not run between the Build activation refusal and this change, so nothing showed which change lost it; the row was removed rather than re-pinned
+- Cost: a program whose sum states a bound per case is refused instead of judged, and no test says so
+- Reported: 2026-11-13, Claude Code, while moving the lowered-form checker's tests off the Build
+
 ### The seam that kept typed trees "beside the current checker" still exists, and two examples still compare against it
 - Category: zombie machinery
 - Where: `omega-rust/omega/compilation/compiler/src/checked/checking/typed_frontier.rs` (`CurrentCheckerVerdict`, `TypedFrontierCheck`, `check_keeping_typed_frontier`); `compiler/examples/route_one_comparison.rs`, `compiler/examples/structure_elaboration_corpus.rs`; `compiler/tests/support/fixture_package_inputs.rs` (`FixtureFrontierCheck`)
