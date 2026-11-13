@@ -1,7 +1,7 @@
 // Expected exit: 0
 // Psi checks both bodies; Linux realizes only its ordinary integer body.
 // A fused operation in the unselected Windows body supplies no Linux ISA demand.
-use omega::language::core::float_operations;
+use omega::language::core::F64::fused_multiply_add;
 
 linux_x86_64 machine selected_value() -> i32 { 7 }
 

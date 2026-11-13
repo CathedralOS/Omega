@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 
 domain i32::Three requires self == 3;
 domain i32::Positive requires self > 0;

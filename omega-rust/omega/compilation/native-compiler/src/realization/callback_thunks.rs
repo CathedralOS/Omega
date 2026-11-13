@@ -286,7 +286,8 @@ fn lower_callback_thunk(
             },
         ..request.admission
     };
-    let input = request.execution.lower_callable(
+    let (input, boundary_coverage) = terminal_psi_to_abstract_operations::lower_native_callable(
+        request.execution,
         settlement.artifact,
         request.proposal,
         admission.entry,
@@ -297,6 +298,10 @@ fn lower_callback_thunk(
             }
         }),
     )?;
+    let admission = terminal_psi_to_abstract_operations::NativeAdmissionRequest {
+        boundary_application_coverage: Some(&boundary_coverage),
+        ..admission
+    };
     let admitted = admit_prepared_native_realization(input, settlement.artifact, &admission)?;
     let cohort = admitted
         .input

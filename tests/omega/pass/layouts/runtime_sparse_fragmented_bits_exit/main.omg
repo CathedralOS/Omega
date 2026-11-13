@@ -1,8 +1,14 @@
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // The code's low and high bits occupy different containers 299 bytes apart.
 // Entries deliberately arrive out of source-bit order. The distant container
 // is three bytes wide; a write must preserve its neighboring mode bits.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 
 SparseBits satisfies FixedLayout<PackedFlags> {

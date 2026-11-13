@@ -4,7 +4,7 @@
 // place, so a store to another element before its loan is what the callee
 // reads. Exits 70 only when every loan read the expected byte; 71..74 name
 // the loan that did not.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Pair { low: u8; high: u8; }
 data Words { count: u8; bytes: [u8; 4]; }

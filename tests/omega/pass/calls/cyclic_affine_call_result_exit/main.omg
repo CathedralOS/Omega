@@ -7,7 +7,7 @@
 // result place enters `owned_places` at the call and the fixed-point join
 // rejects any traversal that fails to dispose it.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell {
     value: u64;

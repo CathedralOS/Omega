@@ -1,6 +1,6 @@
 // Both tail calls preserve n. No complete cycle decreases the joint rank,
 // so a measured signature alone cannot establish termination.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let r: u64 = Main::ping(main, 6);

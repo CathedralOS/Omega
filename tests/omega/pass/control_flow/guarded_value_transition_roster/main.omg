@@ -12,7 +12,7 @@
 // `subject == (counter.n < 4)` — an ill-typed nested equality — which is a
 // pattern-grammar spelling distinction, not a state-graph admission wall.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Msg {
     case Small(v: i32);

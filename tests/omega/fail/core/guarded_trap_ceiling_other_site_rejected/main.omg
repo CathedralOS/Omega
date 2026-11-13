@@ -1,7 +1,7 @@
 // Independent input guards produce independent crash sites. The ceiling
 // covers invalid `low`, but cannot cover invalid `high`. Exact coercions on
 // the successful path do not introduce any implicit crash behavior.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine pack(low: u16, high: u16) -> u16
 crashes Trap low > 255u16 {

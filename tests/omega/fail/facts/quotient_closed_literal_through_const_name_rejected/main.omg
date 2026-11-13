@@ -1,6 +1,6 @@
 // Closed literal argument 3i32 in Quotient::lift satisfies representative precondition amount == 3i32 and produces 3i32.
 
-use omega::language::core::relation;
+use omega::language::core::Equivalence;
 
 data Representative [copy] { value: i32; }
 

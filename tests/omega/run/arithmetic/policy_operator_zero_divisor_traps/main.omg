@@ -1,7 +1,7 @@
 // `/!` traps on a zero divisor when it runs. The same machine with a nonzero
 // divisor returns the quotient in
 // run/arithmetic/policy_operator_division_matches_policy_domains.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine quotient(value: i32, divisor: i32) -> i32 crashes Trap {

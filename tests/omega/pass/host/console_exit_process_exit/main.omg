@@ -1,7 +1,7 @@
 // One console line, then termination through `Console::exit_process` with
 // status 70. `write_line` is checked std code over the `write_byte`
 // intrinsic; `exit_process` ends the process, so nothing after it runs.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

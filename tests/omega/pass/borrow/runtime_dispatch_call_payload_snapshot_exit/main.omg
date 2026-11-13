@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Message { case Captured(value: i32); case Empty; }
 data Counter { value: i32; calls: u32 in Wrapping; }

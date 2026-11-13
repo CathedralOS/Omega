@@ -344,22 +344,24 @@ machine validate_utf8(lexer: &mut Lexer) {
     machine complete() {}
 }
 
-machine push_token(lexer: &mut Lexer, kind: Token) {
+machine push_token(lexer: &mut Lexer, kind: TokenKind) {
     retain_token(lexer, kind);
 }
 
-machine retain_token(lexer: &mut Lexer, kind: Token) {
+machine retain_token(lexer: &mut Lexer, kind: TokenKind) {
     let retained_decoded_start: u64 in Trapping = lexer.decoded_start;
     let retained_decoded_end: u64 in Trapping =
-        lexer.output.decoded_length as u64 in Trapping;
+        lexer.output.decoded_length as +Trapping;
     let retained_decoded_length: u64 in Trapping =
         retained_decoded_end - retained_decoded_start;
-    let mut token: Token = kind;
-    token.source = lexer.source.id.value;
-    token.start = lexer.token_start;
-    token.end = lexer.token_end;
-    token.decoded_start = retained_decoded_start;
-    token.decoded_length = retained_decoded_length;
+    let token: Token = Token {
+        kind: kind,
+        source: lexer.source.id.value,
+        start: lexer.token_start,
+        end: lexer.token_end,
+        decoded_start: retained_decoded_start,
+        decoded_length: retained_decoded_length
+    };
     token_stream_push(&mut lexer.output, token);
     transition lexer.output.last_retained {
         true -> done()
@@ -449,8 +451,8 @@ machine classify_keyword(lexer: &mut Lexer) {
     machine copy_kw(lexer: &mut Lexer) { let matched: bool = token_equals(lexer, "copy"); transition matched { true -> yes(lexer, KeywordKind::Copy) _ -> linear_kw(lexer) } }
     machine linear_kw(lexer: &mut Lexer) { let matched: bool = token_equals(lexer, "linear"); transition matched { true -> yes(lexer, KeywordKind::Linear) _ -> identifier(lexer) } }
 
-    machine yes(lexer: &mut Lexer, keyword: KeywordKind) { push_token(lexer, Token::Keyword { keyword: keyword }); }
-    machine identifier(lexer: &mut Lexer) { push_token(lexer, Token::Identifier); }
+    machine yes(lexer: &mut Lexer, keyword: KeywordKind) { push_token(lexer, TokenKind::Keyword { keyword: keyword }); }
+    machine identifier(lexer: &mut Lexer) { push_token(lexer, TokenKind::Identifier); }
 }
 
 machine lex_identifier(lexer: &mut Lexer) {
@@ -745,24 +747,30 @@ machine lex_cooked_string(lexer: &mut Lexer) {
 
     machine hex_first(lexer: &mut Lexer, index1: u64 in Trapping, index2: u64 in Trapping) {
         let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index1);
-        let high: u32 in Trapping = hex_digit_value(source_byte as u32 in Trapping);
+        let high: u32 in Trapping = hex_digit_value(source_byte as u32 +Trapping);
         transition high < 16 {
             true -> hex_second(lexer, index2, high)
             _ -> hex_invalid_first(lexer)
         }
     }
 
-    machine hex_second(lexer: &mut Lexer, index2: u64 in Trapping, high: u32 in Trapping) {
+    machine hex_second(lexer: &mut Lexer, index2: u64 in Trapping, high: u32 in Trapping)
+    requires high < 16
+    {
         let source_byte: u8 = source_unit_byte_or_nul(&lexer.source, index2);
-        let low: u32 in Trapping = hex_digit_value(source_byte as u32 in Trapping);
+        let low: u32 in Trapping = hex_digit_value(source_byte as u32 +Trapping);
         transition low < 16 {
             true -> hex_emit(lexer, high, low)
             _ -> hex_invalid_second(lexer)
         }
     }
 
-    machine hex_emit(lexer: &mut Lexer, high: u32 in Trapping, low: u32 in Trapping) {
-        let byte: u8 = (high * 16 + low) as u8;
+    // Each caller has checked its digit. Retain those bounds across the
+    // private calls so exact narrowing follows the actual hexadecimal value.
+    machine hex_emit(lexer: &mut Lexer, high: u32 in Trapping, low: u32 in Trapping)
+    requires high < 16, low < 16
+    {
+        let byte: u8 = ((high * 16 + low) as -Trapping) as u8;
         lexer_push_decoded(lexer, byte);
         lexer.cursor = lexer.cursor + 3;
         transition lexer.output.accepted { true -> scan(lexer) _ -> done() }
@@ -771,7 +779,7 @@ machine lex_cooked_string(lexer: &mut Lexer) {
     machine finish(lexer: &mut Lexer) {
         lexer.cursor = lexer.cursor + 1;
         lexer.token_end = lexer.cursor;
-        push_token(lexer, Token::StringLiteral);
+        push_token(lexer, TokenKind::StringLiteral);
     }
 
     machine unterminated(lexer: &mut Lexer) { let start: u64 in Trapping = lexer.token_start; let end: u64 in Trapping = lexer.source.length as u64 in Trapping; lexer_reject(lexer, LexDiagnosticCode::UnterminatedStringLiteral, start, end); }
@@ -1019,7 +1027,7 @@ machine lex_number(lexer: &mut Lexer) {
     machine finish_float(lexer: &mut Lexer, has_exponent: bool, empty_exponent: bool) {
         let has_suffix: bool = consume_suffix(lexer);
         lexer.token_end = lexer.cursor;
-        let float: Token = Token::Float {
+        let float: TokenKind = TokenKind::Float {
             has_exponent: has_exponent,
             empty_exponent: empty_exponent,
             has_suffix: has_suffix
@@ -1029,7 +1037,7 @@ machine lex_number(lexer: &mut Lexer) {
     machine finish_integer(lexer: &mut Lexer, base: NumericBase, empty_digits: bool) {
         let has_suffix: bool = consume_suffix(lexer);
         lexer.token_end = lexer.cursor;
-        let integer: Token = Token::Integer {
+        let integer: TokenKind = TokenKind::Integer {
             base: base,
             empty_digits: empty_digits,
             has_suffix: has_suffix
@@ -1178,7 +1186,7 @@ machine lex_punctuation(lexer: &mut Lexer, scalar_width: u64 in Trapping) {
 machine emit_punctuation(lexer: &mut Lexer, kind: PunctuationKind, length: u64 in Trapping) {
     lexer.cursor = lexer.cursor + length;
     lexer.token_end = lexer.cursor;
-    push_token(lexer, Token::Punctuation { punctuation: kind });
+    push_token(lexer, TokenKind::Punctuation { punctuation: kind });
 }
 
 machine reject_raw_string_candidate(lexer: &mut Lexer) {

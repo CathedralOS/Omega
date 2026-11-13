@@ -1,6 +1,5 @@
 // Moving an affine call result into a local consumes that home. A later
 // use of the same local is not a second owner of the moved value.
-use omega::language::core::float_operations;
 
 data Precise { high: f64; low: f64; }
 

@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // RUN CANARY (exit 70) + interpreter differential. F6's f32/f64 named total
 // orders are ordinary satisfier machines selected through a compile-time
@@ -7,8 +6,9 @@ use omega::language::core::float_operations;
 // -0 precedes +0, +infinity precedes positive NaN, and positive NaN payloads
 // increase. The sibling arithmetic NaN canaries separately pin ordinary
 // float `<` as a partial order (false on NaN).
-use omega::language::core::float_order;
-use omega_language_std::console;
+use omega::language::core::F32::TotalOrder;
+use omega::language::core::F64::TotalOrder;
+use omega_language_std::Console;
 
 machine selected_before<T, machine Before>(left: T, right: T) -> bool
 requires machine Before(left: T, right: T) -> bool;

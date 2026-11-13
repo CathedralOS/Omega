@@ -1,6 +1,6 @@
 // Expected exit: 70
 // Keep two disjoint pressure regions in one selected function. Both paths run.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine region_sum(seed: u64 in Trapping, first: bool) -> u64 in Trapping {
     transition first {

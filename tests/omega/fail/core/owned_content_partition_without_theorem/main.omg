@@ -1,5 +1,6 @@
 // Having a parent and producing plausible children is not a partition proof.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 
 data Pieces { left: Extent in Granted; right: Extent in Granted; }
 

@@ -1,7 +1,9 @@
 // A borrowed parent's numeric content is not owned input to a partition.
-use omega::language::core::extent;
-use omega::language::core::content;
-use omega::language::core::nat;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Granted::content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 
 data Pieces { left: Extent in Granted; right: Extent in Granted; }
 

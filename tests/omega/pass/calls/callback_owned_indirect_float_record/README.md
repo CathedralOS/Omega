@@ -14,3 +14,8 @@ caller-owned result area. A helper permutes all four members. Exit 0 requires
 This challenges direct-to-indirect argument transport and indirect-to-direct
 result transport, not just forwarding identical ABI pointers. The Darwin CIF
 prefix wrapper and explicit metadata loans match the other libffi witnesses.
+
+The native entry control also validates this actual D0–D3 transport before
+changing its CALL destination. Its generated effects must use vector state and
+reject a plan that removes vector permission, independently of the body's own
+effects. The complete entry emitter must reject the same changed plan.

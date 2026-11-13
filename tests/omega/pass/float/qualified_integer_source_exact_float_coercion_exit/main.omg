@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::is_finite;
 
 machine finite_value(value: f32) -> f32
 requires F32::is_finite(value) {

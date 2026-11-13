@@ -32,6 +32,9 @@ mod tests;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBuildRowOrigin {
+    pub application: Option<
+        arena::Handle<checked_trees::typed_trees::product_operand::ProductOperandApplication>,
+    >,
     pub requirement: symbols::SymbolHandle,
     pub origin: package_compilation::PackageNativeBindingOrigin,
 }
@@ -41,14 +44,17 @@ pub struct PreparedNativeBuildBindings {
 }
 
 struct PreparedNativeBuildBinding {
-    selection: language_semantics::declaration_selection::NativeBindingSelection,
+    selection: build_time_evaluation::native_bindings::NativeBindingSelection,
     requirement: Result<PreparedNativeRequirement, Vec<Diagnostic>>,
 }
 
 struct PreparedNativeRequirement {
+    application: Option<String>,
     owner: symbols::SymbolHandle,
     signature: symbols::SymbolHandle,
     identity: String,
+    declared_identity: String,
+    calling_signature: Option<semantic_vocabulary::CallingSignatureId>,
     method: String,
     surface: Option<RetainedServiceSurface>,
 }
@@ -68,19 +74,49 @@ impl PreparedNativeBuildBindings {
                         .trait_definition_by_symbol(selection.subject)
                         .filter(|owner| owner.is_boundary)
                         .ok_or_else(|| fail("native Build requirement lost its boundary owner"))?;
-                    let signature = typed
-                        .trait_machine_signature_by_symbol(owner, selection.requirement)
-                        .ok_or_else(|| {
-                            fail("native Build requirement lost its exact declared signature")
-                        })?;
+                    if selection.application.is_none() && (!typed.trait_type_parameters(owner).is_empty() || !owner.lifetime_parameters.is_empty()) {
+                        return Err(fail("native Build requirement lost its closed boundary application"));
+                    }
+                    let selected = typed.closed_requirement_application(selection.requirement);
+                    let template = selected.as_ref().map_or(selection.requirement, |selected| selected.template);
+                    let (declaring, signature) = typed.trait_machine_signature(template)
+                        .filter(|(declaring, _)| declaring.symbol == owner.symbol)
+                        .ok_or_else(|| fail("native Build requirement lost its exact declared signature"))?;
+                    let application = selection.application.map(|handle| {
+                        typed.product_operand_applications.is_valid(handle)
+                            .then(|| typed.product_operand_applications.get(handle))
+                            .filter(|application| application.role == Some(language_semantics::declaration_selection::ProductOperandRole::Requirement)
+                                && application.declaration == selection.requirement)
+                            .ok_or_else(|| fail("native Build requirement lost its prepared application"))
+                    }).transpose()?;
+                    let scope = application.map(|application| application.scope.scope(typed)
+                        .filter(|scope| scope.declaration.symbol == declaring.symbol)
+                        .ok_or_else(|| fail("native Build requirement changed its applied boundary owner"))).transpose()?;
+                    let application_identity = scope.as_ref().map(|scope| scope.portable_application_identity(typed)
+                        .and_then(|identity| typed.type_identity_text(identity))
+                        .ok_or_else(|| fail("native Build requirement lost its portable outer application"))).transpose()?;
+                    let declared_identity = typed.trait_requirement_callable_identity_text(owner, signature);
+                    let (identity, calling_signature) = match selected {
+                        Some(selected) => {
+                            let calling = services.signatures().abi_for_boundary(selected.signature.symbol)
+                                .ok_or_else(|| fail("native Build requirement lost its prepared declaration ABI"))?
+                                .as_ref().map_err(|reason| fail(reason.as_str()))?;
+                            (typed.trait_requirement_callable_identity_text(owner, selected.signature), Some(*calling))
+                        }
+                        None => (declared_identity.clone(), None),
+                    };
                     Ok(PreparedNativeRequirement {
+                        application: application_identity,
                         owner: owner.symbol,
                         signature: signature.symbol,
-                        identity: typed.trait_requirement_callable_identity_text(owner, signature),
+                        identity,
+                        declared_identity,
+                        calling_signature,
                         method: signature.name.as_str().to_owned(),
-                        surface: services.retain_declaration(
-                            ProviderSchemaDeclaration::BoundaryTrait(owner.symbol),
-                        ),
+                        surface: match scope {
+                            Some(scope) => services.retain_application(scope),
+                            None => services.retain_declaration(ProviderSchemaDeclaration::BoundaryTrait(owner.symbol)),
+                        },
                     })
                 })();
                 PreparedNativeBuildBinding {
@@ -145,6 +181,11 @@ impl PreparedNativeBuildBindings {
                 candidate.provenance.schema.symbol() == requirement.owner
                     && candidate.plan.target == target.target_name()
                     && candidate.plan.origin_package_identity == Some(selection.supplier_package)
+                    && candidate
+                        .plan
+                        .identities
+                        .text(candidate.plan.provider_application)
+                        == requirement.application.as_deref().unwrap_or("")
             });
             let index = match group {
                 Some(index) => index,
@@ -155,22 +196,38 @@ impl PreparedNativeBuildBindings {
                         .iter()
                         .map(|byte| format!("{byte:02x}"))
                         .collect::<String>();
-                    let provider = format!("native-build:{supplier}:{}", trait_name_text(&schema));
+                    let mut provider =
+                        format!("native-build:{supplier}:{}", trait_name_text(&schema));
+                    if let Some(application) = &requirement.application {
+                        let digest =
+                            crate::digest_encoder::content_identity(application.as_bytes());
+                        provider.push(':');
+                        for byte in digest {
+                            use std::fmt::Write;
+                            write!(provider, "{byte:02x}").expect("String formatting");
+                        }
+                    }
                     let name = crate::satisfies_plan_name(
                         target.target_name(),
                         trait_name_text(&schema),
                         &provider,
                     );
+                    let mut plan_identities = ProviderIdentityTable::default();
+                    let provider_application = requirement
+                        .application
+                        .as_deref()
+                        .map(|application| plan_identities.intern(application))
+                        .unwrap_or_default();
                     plans.push(DerivedProviderPlan {
                         plan: ProviderPlan {
                             name,
                             provider_type: provider,
                             provider_type_package_identity: Some(selection.supplier_package),
-                            provider_application: Default::default(),
+                            provider_application,
                             target: target.target_name().to_owned(),
                             schema,
                             rows: Vec::new(),
-                            identities: ProviderIdentityTable::default(),
+                            identities: plan_identities,
                             origin_package_identity: Some(selection.supplier_package),
                             origin_package: supplier,
                             digest_memo: Default::default(),
@@ -210,6 +267,11 @@ impl PreparedNativeBuildBindings {
             candidate.plan.rows.push(ProviderPlanRow {
                 method: requirement.method.clone(),
                 requirement_identity: candidate.plan.identities.intern(&requirement.identity),
+                declared_requirement_identity: candidate
+                    .plan
+                    .identities
+                    .intern(&requirement.declared_identity),
+                calling_signature: requirement.calling_signature,
                 requirement_lifetime_partition: Vec::new(),
                 admitted_same_stack_bytes: 0,
                 binding: production.evaluated.provider_binding(),
@@ -223,6 +285,7 @@ impl PreparedNativeBuildBindings {
                 .row_realizations
                 .push(ProviderRowRealization::BuildNative(Arc::new(
                     NativeBuildRowOrigin {
+                        application: selection.application,
                         requirement: requirement.signature,
                         origin: package_compilation::PackageNativeBindingOrigin {
                             primary: production,

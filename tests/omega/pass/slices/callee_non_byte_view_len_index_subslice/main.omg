@@ -6,7 +6,7 @@
 // just the length fact. The callees take only the view: forwarding `&mut Main`
 // beside a live shared loan of `main.entries` would alias that loan.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Entry {
     value: i32;

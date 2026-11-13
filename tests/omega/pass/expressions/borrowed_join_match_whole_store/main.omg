@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 data Pair { left: u64; right: u64; }
 data Main { a: Pair; b: Pair; }
 machine Main::main(main: &mut Main) reaches Console {

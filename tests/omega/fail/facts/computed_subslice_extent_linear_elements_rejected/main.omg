@@ -1,5 +1,4 @@
 // Forbidden input or result authority does not become a repeatable value.
-use omega::language::core::slice;
 data Token [linear] dropped by drop_token { code: u8; }
 machine drop_token(token: &mut Token) {}
 machine accepts(items: &[Token]) -> bool { items.len == 2 }

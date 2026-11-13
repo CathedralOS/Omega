@@ -1,6 +1,5 @@
 // A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.len).
 // Expected exit: 0
-use omega::language::core::slice;
 data Entry { value: i32; }
 machine verify_view(view: &[Entry], original: addr, measured: u64) -> u64 crashes Trap {
     transition view.len > 2 { true -> inspect(view, original, measured) _ -> bad() }

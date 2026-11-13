@@ -1,11 +1,15 @@
 // Time::elapsed_since receives the clock capability explicitly. The start
 // and elapsed values are local; sleep(30) must measure at least 30ms.
 // Exits: 70 ok; 1 = under 30ms / zeroed.
-use omega_language_std::time;
-use omega_language_std::time_host;
+use omega_language_std::Duration;
+use omega_language_std::Instant;
+use omega_language_std::Time;
+use omega_language_std::Time::now;
+use omega_language_std::Time::elapsed_since;
+use omega_language_std::TimeHost;
 
-use omega_language_std::console;
-use omega_language_std::clock;
+use omega_language_std::Console;
+use omega_language_std::Clock;
 
 data Main {
     time: Time;

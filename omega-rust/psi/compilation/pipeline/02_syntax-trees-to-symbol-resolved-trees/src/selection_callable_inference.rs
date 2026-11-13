@@ -2,7 +2,7 @@
     Callable parameter types originate at exact selected static-argument uses.
 
     Declaration inference reads ordinary resolved calls, never current callers'
-    implementations. A finite work list propagates an originating nominal route
+    implementations. A finite work list propagates complete originating types
     through forwarding binders. Every call remains in the ordinary body checker:
     its substituted argument contract must satisfy that published bound. Authored
     bounds are never rewritten, and an origin-free cycle publishes nothing.
@@ -31,7 +31,15 @@ struct Use {
     receiving: Handle<TypeParameter>,
     forwarded: Handle<TypeParameter>,
     arguments: Vec<(SymbolHandle, TypeReference)>,
+    selections: Vec<(SymbolHandle, StaticMachineArgument)>,
     source: SourceSpan,
+}
+
+#[derive(Clone)]
+struct StructuralOrigin {
+    parameter: Handle<TypeParameter>,
+    arguments: Vec<(SymbolHandle, TypeReference)>,
+    selections: Vec<(SymbolHandle, SymbolHandle)>,
 }
 
 struct Parameters {
@@ -126,18 +134,26 @@ pub(crate) fn infer(
     let mut dependents = vec![Vec::new(); parameters.inferred.len()];
     let mut ready = Vec::new();
     for (index, usage) in uses.iter().enumerate() {
-        let source = usage.receiving.arena_index() as usize;
-        if parameters.inferred[source] {
-            dependents[source].push(index);
-        } else {
+        let pending = pending_contract_parameters(program, usage.receiving);
+        if pending.is_empty() {
             ready.push(index);
+        } else {
+            for source in pending {
+                dependents[source.arena_index() as usize].push(index);
+            }
         }
     }
+    // The use graph names the original declaration rows. Complete copies may
+    // append nested parameters, but cannot introduce another inference demand.
+    let mut structural_origins = vec![None; parameters.inferred.len()];
     let mut cursor = 0;
     let mut diagnostics = Vec::new();
     while cursor < ready.len() {
         let usage = &uses[ready[cursor]];
         cursor += 1;
+        if !pending_contract_parameters(program, usage.receiving).is_empty() {
+            continue;
+        }
         let receiving = program
             .tables
             .declarations
@@ -149,6 +165,16 @@ pub(crate) fn infer(
                 "a forwarded callable requires a callable parameter type at its selected use",
             )]);
         };
+        if matches!(contract, MachineParameterContract::Structural(_)) {
+            match infer_structural(program, &parameters, usage, &mut structural_origins) {
+                Ok(true) => {
+                    ready.extend_from_slice(&dependents[usage.forwarded.arena_index() as usize])
+                }
+                Ok(false) => {}
+                Err(reason) => diagnostics.push(reason),
+            }
+            continue;
+        }
         let MachineParameterContract::Nominal {
             trait_definition,
             requirement,
@@ -157,9 +183,6 @@ pub(crate) fn infer(
         } = contract
         else {
             let message = match contract {
-                MachineParameterContract::Structural(_) => {
-                    "inference from structural callable parameter types is not implemented"
-                }
                 MachineParameterContract::RequirementIdentity => {
                     "a CallableInfo identity is not an originating callable parameter type"
                 }
@@ -246,6 +269,233 @@ pub(crate) fn infer(
     }
 }
 
+fn pending_contract_parameters(
+    program: &SymbolResolvedTrees,
+    parameter: Handle<TypeParameter>,
+) -> Vec<Handle<TypeParameter>> {
+    let mut pending = Vec::new();
+    let mut visit = vec![parameter];
+    let mut seen = Vec::new();
+    while let Some(handle) = visit.pop() {
+        if seen.contains(&handle) {
+            continue;
+        }
+        seen.push(handle);
+        match &program
+            .tables
+            .declarations
+            .data_type_parameters
+            .get(handle)
+            .kind
+        {
+            TypeParameterKind::Machine {
+                contract: MachineParameterContract::Inferred,
+            } => pending.push(handle),
+            TypeParameterKind::Machine {
+                contract: MachineParameterContract::Structural(signature),
+            } => visit.extend(signature.type_parameters.handles()),
+            _ => {}
+        }
+    }
+    pending
+}
+
+fn infer_structural(
+    program: &mut SymbolResolvedTrees,
+    parameters: &Parameters,
+    usage: &Use,
+    origins: &mut [Option<StructuralOrigin>],
+) -> Result<bool, Diagnostic> {
+    let selections = usage.selections.iter().map(|(formal, actual)| {
+        if actual.symbol.is_valid() && actual.application.is_none()
+            && actual.evidence_projection.is_none() && !actual.type_reference.is_valid()
+        {
+            Ok((*formal, actual.symbol))
+        } else {
+            Err(error(usage.source,
+                "inferred structural callable types with applied static selections are not implemented"))
+        }
+    }).collect::<Result<Vec<_>, _>>()?;
+    let origin = match &origins[usage.receiving.arena_index() as usize] {
+        Some(origin) => StructuralOrigin {
+            parameter: origin.parameter,
+            arguments: origin
+                .arguments
+                .iter()
+                .map(|(formal, actual)| {
+                    let copied = if let TypeReference::Named { symbol, .. } = actual {
+                        usage
+                            .arguments
+                            .iter()
+                            .find(|(parameter, _)| parameter == symbol)
+                            .map_or_else(|| actual.clone(), |(_, supplied)| supplied.clone())
+                    } else {
+                        actual.clone()
+                    };
+                    (*formal, copied)
+                })
+                .collect(),
+            selections: origin
+                .selections
+                .iter()
+                .map(|(formal, actual)| {
+                    (
+                        *formal,
+                        selections
+                            .iter()
+                            .find(|(parameter, _)| parameter == actual)
+                            .map_or(*actual, |(_, supplied)| *supplied),
+                    )
+                })
+                .collect(),
+        },
+        None => StructuralOrigin {
+            parameter: usage.receiving,
+            arguments: usage.arguments.clone(),
+            selections,
+        },
+    };
+    let destination = program
+        .tables
+        .declarations
+        .data_type_parameters
+        .get(usage.forwarded);
+    if !pending(destination) {
+        let Some(previous) = &origins[usage.forwarded.arena_index() as usize] else {
+            return Err(error(
+                usage.source,
+                "combining nominal and structural constraints on one inferred callable is not implemented",
+            ));
+        };
+        // A repeated route compares the exact originating declaration and all
+        // composed actuals. Distinct contracts require a conjunction owner;
+        // neither matching signatures nor visitation order may erase one.
+        if previous.parameter != origin.parameter {
+            return Err(error(
+                usage.source,
+                "combining distinct structural callable constraints during inference is not implemented",
+            ));
+        }
+        let same_parameters = previous
+            .arguments
+            .iter()
+            .map(|(formal, _)| formal)
+            .eq(origin.arguments.iter().map(|(formal, _)| formal));
+        let same_arguments = same_type_values(
+            program,
+            previous
+                .arguments
+                .iter()
+                .map(|(_, actual)| actual.clone())
+                .collect(),
+            origin
+                .arguments
+                .iter()
+                .map(|(_, actual)| actual.clone())
+                .collect(),
+            usage.source,
+        )?;
+        if !same_parameters || !same_arguments || previous.selections != origin.selections {
+            return Err(error(
+                usage.source,
+                "an inferred callable has conflicting substituted structural contract origins",
+            ));
+        }
+        return Ok(false);
+    }
+    let (destination_symbol, destination_name) = (destination.symbol, destination.name.clone());
+    let TypeParameterKind::Machine {
+        contract: MachineParameterContract::Structural(signature),
+    } = &program
+        .tables
+        .declarations
+        .data_type_parameters
+        .get(origin.parameter)
+        .kind
+    else {
+        return Err(error(
+            usage.source,
+            "an inferred structural callable lost its originating contract",
+        ));
+    };
+    let signature = signature.clone();
+    if has_enclosing_lifetime_parameters(program, parameters, signature.symbol) {
+        return Err(error(
+            usage.source,
+            "inference of structural callable types with an enclosing lifetime telescope is not implemented",
+        ));
+    }
+    let mut signature = program.copy_callable_signature(
+        &signature,
+        destination_symbol,
+        &origin.arguments,
+        &origin.selections,
+    );
+    signature.name = destination_name;
+    program
+        .tables
+        .declarations
+        .data_type_parameters
+        .get_mut(usage.forwarded)
+        .kind = TypeParameterKind::Machine {
+        contract: MachineParameterContract::Structural(signature),
+    };
+    origins[usage.forwarded.arena_index() as usize] = Some(origin);
+    Ok(true)
+}
+
+// This resolved use records type/selection actuals, not invocation-lifetime
+// substitutions. Keep an enclosing lifetime telescope explicit until ordinary
+// typed application elaboration can supply its exact region correspondence.
+// Lifetimes bound by the copied signature itself remain local to that type.
+fn has_enclosing_lifetime_parameters(
+    program: &SymbolResolvedTrees,
+    parameters: &Parameters,
+    symbol: SymbolHandle,
+) -> bool {
+    let mut owner = program.symbols.get(symbol).parent;
+    while owner.is_valid() {
+        let declaration = program.symbols.get(owner);
+        let has_lifetimes = match declaration.kind {
+            SymbolKind::Machine => program
+                .machine(owner)
+                .is_some_and(|machine| !machine.lifetime_parameters.is_empty()),
+            SymbolKind::Data => program
+                .data_definition_by_symbol(owner)
+                .is_some_and(|data| !data.lifetime_parameters.is_empty()),
+            SymbolKind::Trait => program
+                .trait_definition(owner)
+                .is_some_and(|definition| !definition.lifetime_parameters.is_empty()),
+            SymbolKind::Conformance => program
+                .conformances
+                .iter()
+                .find(|definition| definition.symbol == owner)
+                .is_some_and(|definition| !definition.lifetime_parameters.is_empty()),
+            SymbolKind::MachineParameter => parameters
+                .parameter(owner)
+                .and_then(|parameter| {
+                    match &program
+                        .tables
+                        .declarations
+                        .data_type_parameters
+                        .get(parameter)
+                        .kind
+                    {
+                        TypeParameterKind::Machine { contract } => contract.structural(),
+                        _ => None,
+                    }
+                })
+                .is_some_and(|signature| !signature.lifetime_parameters.is_empty()),
+            _ => false,
+        };
+        if has_lifetimes {
+            return true;
+        }
+        owner = declaration.parent;
+    }
+    false
+}
+
 fn collect_use(
     program: &SymbolResolvedTrees,
     parameters: &Parameters,
@@ -297,6 +547,7 @@ fn collect_use(
         ));
     }
     let mut substitutions = Vec::new();
+    let mut selections = Vec::new();
     for (formal, actual) in formals.iter().zip(arguments) {
         match formal.kind {
             TypeParameterKind::Type => {
@@ -308,7 +559,11 @@ fn collect_use(
                     "inferred callable types with value-parameter substitutions are not implemented",
                 ));
             }
-            _ => {}
+            TypeParameterKind::Machine { .. }
+            | TypeParameterKind::Implementation
+            | TypeParameterKind::Proposition { .. } => {
+                selections.push((formal.symbol, actual.clone()))
+            }
         }
     }
     for (formal, actual) in formals.iter().zip(arguments) {
@@ -334,6 +589,7 @@ fn collect_use(
             receiving,
             forwarded,
             arguments: substitutions.clone(),
+            selections: selections.clone(),
             source,
         });
     }
@@ -393,7 +649,24 @@ fn same_type_arguments(
     right: HandleSpan<TypeReference>,
     source: SourceSpan,
 ) -> Result<bool, Diagnostic> {
-    let mut pending = Vec::new();
+    same_type_values(
+        program,
+        program.child_type_references(left).to_vec(),
+        program.child_type_references(right).to_vec(),
+        source,
+    )
+}
+
+fn same_type_values(
+    program: &SymbolResolvedTrees,
+    left: Vec<TypeReference>,
+    right: Vec<TypeReference>,
+    source: SourceSpan,
+) -> Result<bool, Diagnostic> {
+    if left.len() != right.len() {
+        return Ok(false);
+    }
+    let mut pending = left.into_iter().zip(right).collect::<Vec<_>>();
     fn span(
         pending: &mut Vec<(TypeReference, TypeReference)>,
         program: &SymbolResolvedTrees,
@@ -407,9 +680,6 @@ fn same_type_arguments(
         }
         pending.extend(left.iter().cloned().zip(right.iter().cloned()));
         true
-    }
-    if !span(&mut pending, program, left, right) {
-        return Ok(false);
     }
     while let Some((left, right)) = pending.pop() {
         let owner = |reference: &TypeReference| -> Result<Option<SymbolHandle>, Diagnostic> {

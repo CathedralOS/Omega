@@ -1,5 +1,9 @@
 // Source checking must refuse an internal call before policy evaluation.
-use omega_language_std::calling;
+use omega_language_std::BoundarySignature;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::CallingPolicy;
+use omega_language_std::Calling;
 
 data LocalPolicy {}
 LocalCalling satisfies CallingPolicy {

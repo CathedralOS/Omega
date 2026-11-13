@@ -1,7 +1,22 @@
 // Embedding entry: read an already resident value through a qualified owner.
 // Export must retain the backing-field roles without a local initialize call.
-use omega::language::core::extent;
-use omega::language::core::layout;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Resident;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::FieldAccess;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::Access;
+use omega::language::core::Access::view_resident_mut;
+use omega::language::core::read;
 
 public data Word { value: u64; }
 public data WordPlacement {}

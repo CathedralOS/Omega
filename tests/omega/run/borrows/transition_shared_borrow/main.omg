@@ -1,7 +1,7 @@
 // Shared `&` returned at a transition tail: `first` borrows
 // `&main.buf[0]` through its transition's exit arm, and `main` reads the
 // referent back after the call.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     buf: [u8; 48];

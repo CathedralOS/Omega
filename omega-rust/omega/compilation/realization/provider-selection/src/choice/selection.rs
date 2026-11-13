@@ -286,8 +286,8 @@ pub(crate) fn select_provider_plan_indices<Declaration: Clone + Eq, Owner, Origi
                 candidates.iter().map(|index| { let plan = &plans[*index]; format!("`{}` [{:016x}]", plan.name, plan.report_fingerprint()) }).collect::<Vec<_>>().join(", "), slot.1,
             ),
             Error::SelectedTargetRealization { tier, declaration: index, slot } => format!(
-                "{} selects provider `{}` for canonical float operation `{}`; canonical f32/f64 operations are realized by target `{}`'s declared realization table, and Build programs and packages neither select nor override them -- call a named machine for a particular algorithm",
-                owner(tier), declaration(tier, index).provider_type.authored_path, slot.1, selected_target.target_name(),
+                "{} selects provider `{}` for canonical float operation `{}`; canonical f32/f64 operations are realized by the target's declared realization table, and Build programs and packages neither select nor override them -- call a named machine for a particular algorithm",
+                owner(tier), declaration(tier, index).provider_type.authored_path, slot.1,
             ),
             Error::OverlappingChoices { first, second } => format!(
                 "selected whole provider maps `{}` and `{}` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners", plans[first].name, plans[second].name,

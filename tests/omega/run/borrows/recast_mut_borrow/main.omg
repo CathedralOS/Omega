@@ -1,7 +1,7 @@
 // PENDING pin — REFERENCE-LOCAL-BINDING-ROUTES residual (2026-09-29 f4b3db3):
 // omits at 'statement sequence: local data: structural call binding'.
 // Recast `as &mut T` of an element — same wall.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Desc {
     tag: u32;

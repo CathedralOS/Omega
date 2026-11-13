@@ -169,6 +169,7 @@ pub(crate) fn select_test_roots(
                 slot: format!("{}::ProgramEntry", target.target_name()),
                 implementation: test_path.clone(),
                 implementation_symbol: symbol,
+                source_span: typed.symbols.symbol_source_span(symbol),
             }];
             let mut test_source = source.clone();
             test_source.computed_build_config = Arc::new(computed);

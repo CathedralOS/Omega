@@ -141,7 +141,7 @@ impl CallingSourcePreparation {
             });
         }
         let helpers = if has_pending {
-            super::selected_providers::prepare(services, &providers)
+            super::selected_providers::prepare(checked, services, &providers)
         } else {
             Vec::new()
         };

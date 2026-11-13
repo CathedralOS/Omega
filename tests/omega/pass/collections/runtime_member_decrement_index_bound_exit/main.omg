@@ -2,7 +2,7 @@
 // bound one lower, so the stack's pop reads `items[count]` after the
 // decrement without a separate guard. The bound is read before the store
 // replaces the field's facts.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Stack { items: [u32; 8]; count: u64; }
 

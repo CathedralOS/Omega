@@ -46,6 +46,14 @@ mbx xtask check-rules --base origin/main --title "lane: statement" --body-file P
 gh pr create --base main --head work/NAME --title "lane: statement" --body-file PR_BODY
 ```
 
+`check-rules --base` names the PR target or an ancestor commit. Diff rules use
+its unique merge base with `HEAD`, resolved once to an immutable commit, so
+later additions on the target branch stay outside the topic's changes. An
+ancestor base, including admission's `HEAD^1` merge parent, keeps the same scope.
+Missing, unrelated or ambiguous base history is an error; fetch the needed
+history or name an ancestor commit. Worktree-wide ratchets and title/body gates
+retain their existing inputs.
+
 Open the PR ready when the work is complete. Reuse an existing PR for the same
 branch; mark an existing draft ready with `gh pr ready NUMBER` when it is
 finished. Record the submitted revision, actual commands and results, known

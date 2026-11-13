@@ -2,7 +2,12 @@
 // Expected exit: 0
 // The claim crosses a terminal call inside an owned generic record, so the
 // call must stay in the establishing activation.
-use omega::language::core::activation;
+use omega::language::core::Activation;
+use omega::language::core::ActivationClaim;
+use omega::language::core::ActivationClaimAttempt;
+use omega::language::core::Activation::try_claim;
+use omega::language::core::ActivationClaim::bytes;
+use omega::language::core::ActivationClaim::release;
 data Holder<T> { claim: T; }
 
 machine write_read(bytes: &mut [u8]) -> u8 {

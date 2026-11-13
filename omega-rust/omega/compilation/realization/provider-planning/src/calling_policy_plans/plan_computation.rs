@@ -66,9 +66,30 @@ pub(crate) fn evaluate_default_calling_applications(
         };
         let ordinary = evaluate_ordinary_boundary_entry_plan(policy, &classified)
             .map_err(|diagnostic| diagnostic.to_string())?;
+        // Direct callback slots already declare their binder and native
+        // destination. The default ABI must carry that exact mapping alongside
+        // its placements; it neither chooses an inbound entry plan nor guesses
+        // which binder supplies a private layout field.
+        let mut plan = ordinary.plan().clone();
+        for parameter in projection.parameters() {
+            if let calling_conventions::BoundaryNativeParameterOrigin::PrivateCallback {
+                binder,
+                ..
+            } = parameter.origin
+            {
+                plan.call.callback_materializations.push(
+                    calling_conventions::CallbackMaterialization {
+                        binder,
+                        destination: calling_conventions::NativePlace::Parameter(
+                            parameter.identity,
+                        ),
+                    },
+                );
+            }
+        }
         let validated =
             calling_conventions::validate_boundary_entry_plan_with_callback_materializations(
-                ordinary.plan().clone(),
+                plan,
                 &classified,
                 &signature.callbacks,
             )

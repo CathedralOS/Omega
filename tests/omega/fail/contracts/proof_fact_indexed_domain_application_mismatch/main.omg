@@ -10,9 +10,13 @@
 // `tests/omega/pass/contracts/proof_fact_indexed_domain_application`; the
 // field-sourced sibling is
 // `tests/omega/fail/memory/bump_allocator_restated_resident_index_mismatch`.
-use omega::language::core::extent;
-use omega::language::core::content;
-use omega::language::core::nat;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Resident;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Granted::content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 
 public data Slot [copy] {
     value: u32;

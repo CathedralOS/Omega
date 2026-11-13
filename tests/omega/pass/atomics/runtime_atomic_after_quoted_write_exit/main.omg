@@ -4,7 +4,7 @@
 // fetch_add observes that store. Exit 70 when the prior and the result agree;
 // 71 and 72 name which one did not.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     counter: AtomicU32;

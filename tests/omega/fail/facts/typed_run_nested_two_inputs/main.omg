@@ -1,4 +1,5 @@
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 public data Unit {}
 public data Token [linear] { value: u64; }
 public domain Token::Owned established by issue;

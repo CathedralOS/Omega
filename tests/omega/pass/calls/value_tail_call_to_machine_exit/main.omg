@@ -14,7 +14,7 @@
 // `add` records the argument it received, so a leg that skipped the callee
 // or passed a wrong operand also fails. Each wrong result exits with its own
 // code (71-73); every leg agreeing exits 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Entry {
     value: i32;

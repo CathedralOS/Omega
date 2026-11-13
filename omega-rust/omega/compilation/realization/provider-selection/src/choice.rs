@@ -74,7 +74,66 @@ pub fn choose<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
             selected_by,
         });
     }
+    // Unused defaults still need valid declarations and composition choices.
+    // Check them before execution demand can omit their implementations.
+    let mut diagnostics = check_operator_families(&chosen);
+    for selected in &chosen {
+        if let Err(reason) = selected.selected_by.composition_mode() {
+            diagnostics.push(Diagnostic::error(reason));
+        } else {
+            check_selected_declaration(selected, &mut diagnostics);
+        }
+    }
+    if !diagnostics.is_empty() {
+        return Err(diagnostics);
+    }
     Ok(chosen)
+}
+
+fn check_selected_declaration<Declaration: PartialEq, Owner, Origin>(
+    selected: &SelectedProvider<Declaration, Owner, Origin>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let plan = &selected.candidate.plan;
+    let correspondence = &selected.candidate.declarations;
+    let declarations = match &selected.selected_by {
+        SelectionProvenance::BuildOverride(declarations)
+        | SelectionProvenance::TargetDefault(declarations) => declarations,
+        SelectionProvenance::UniqueCoveringCandidate => {
+            diagnostics.push(Diagnostic::error(format!(
+                "provider plan `{}` has no authored target selection or declared default",
+                plan.name,
+            )));
+            return;
+        }
+        SelectionProvenance::NativeBuild | SelectionProvenance::TargetRealization(_) => {
+            return;
+        }
+    };
+    if declarations.is_empty() {
+        diagnostics.push(Diagnostic::error(format!(
+            "selected provider plan `{}` has an authored selection origin without a declaration",
+            plan.name,
+        )));
+    }
+    for declaration in declarations {
+        diagnostics.extend(declaration.subject.owner_errors());
+        if let Err(reason) = &declaration.provider_type.declaration {
+            diagnostics.push(Diagnostic::error(reason.clone()));
+        }
+        if !declaration.subject.selects_schema(
+            &correspondence.schema,
+            plan.schema
+                .identity_text(plan.schema.declaration.trait_name),
+            plan.schema.root_application_identity(),
+        ) || !correspondence.provider.as_ref().is_some_and(|provider| {
+            same_declaration(&declaration.provider_type.declaration, provider)
+        }) {
+            diagnostics.push(Diagnostic::error(format!(
+                    "selected provider plan `{}` has a selection declaration outside its exact schema, provider, or selecting-machine provenance", plan.name,
+                )));
+        }
+    }
 }
 
 pub fn admit<'a, Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
@@ -113,43 +172,7 @@ pub fn admit<'a, Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
                 Err(refused) => diagnostics.extend(refused.iter().cloned()),
             }
         }
-        let declarations = match &selected.selected_by {
-            SelectionProvenance::BuildOverride(declarations)
-            | SelectionProvenance::TargetDefault(declarations) => declarations,
-            SelectionProvenance::UniqueCoveringCandidate => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "provider plan `{}` has no authored target selection or declared default",
-                    plan.name,
-                )));
-                continue;
-            }
-            SelectionProvenance::NativeBuild | SelectionProvenance::TargetRealization(_) => {
-                continue;
-            }
-        };
-        if declarations.is_empty() {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected provider plan `{}` has an authored selection origin without a declaration", plan.name,
-            )));
-        }
-        for declaration in declarations {
-            diagnostics.extend(declaration.subject.owner_errors());
-            if let Err(reason) = &declaration.provider_type.declaration {
-                diagnostics.push(Diagnostic::error(reason.clone()));
-            }
-            if !declaration.subject.selects_schema(
-                &correspondence.schema,
-                plan.schema
-                    .identity_text(plan.schema.declaration.trait_name),
-                plan.schema.root_application_identity(),
-            ) || !correspondence.provider.as_ref().is_some_and(|provider| {
-                same_declaration(&declaration.provider_type.declaration, provider)
-            }) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "selected provider plan `{}` has a selection declaration outside its exact schema, provider, or selecting-machine provenance", plan.name,
-                )));
-            }
-        }
+        check_selected_declaration(selected, &mut diagnostics);
     }
     diagnostics.extend(independent_join.finish());
     if !diagnostics.is_empty() {

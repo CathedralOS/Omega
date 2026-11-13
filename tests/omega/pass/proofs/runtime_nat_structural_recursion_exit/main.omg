@@ -11,8 +11,8 @@
 // fail/proofs/nat_nondescending_recursion_rejected); every runtime
 // consumption route into the machine refuses on existing rails (locals
 // fence, discard fences, purity fence).
-use omega::language::core::nat;
-use omega_language_std::console;
+use omega::language::core::Nat;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     Console::exit_process(70);

@@ -1,5 +1,5 @@
 // A record literal cannot hold two live exclusive loans of one field.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell requires value >= 0 && value <= 100 { stamp: i32; value: i32; }
 data Pair<'a> { left: &'a mut Cell; right: &'a mut Cell; }

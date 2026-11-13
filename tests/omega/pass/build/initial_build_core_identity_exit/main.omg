@@ -1,6 +1,5 @@
 // Expected exit: 0
 // Build and the program keep separate bodies while importing generic core contracts.
-use omega::language::core::extent;
 
 machine context_value() -> u8 { 11 }
 

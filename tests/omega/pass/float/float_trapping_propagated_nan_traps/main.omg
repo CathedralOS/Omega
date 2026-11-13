@@ -4,8 +4,7 @@
 // `as` (selection changes future operations, not the payload), but its next
 // Trapping arithmetic operation must trap instead of propagating it to exit 70.
 
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     quiet: f64;

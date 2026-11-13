@@ -32,10 +32,21 @@
 // matches to the account at admission; a shared policy could not split
 // the two accounts' resource classes.
 
-use omega::language::core::assembly;
-use omega::language::core::assembly_model;
-use omega::language::core::representation;
-use omega_language_std::calling;
+use omega::language::core::atomic_release_written;
+use omega::language::core::OpaqueRepresentation;
+use omega_language_std::AbiValueClass;
+use omega_language_std::BoundarySignature;
+use omega_language_std::ValueLocation;
+use omega_language_std::CallingConvention;
+use omega_language_std::EntryControl;
+use omega_language_std::MachineRegime;
+use omega_language_std::EntryStack;
+use omega_language_std::Preemption;
+use omega_language_std::BoundaryEntryPlan;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::CallingPolicy;
+use omega_language_std::Calling;
 
 // ---------------------------------------------------------------------------
 // The startup acknowledgement contract

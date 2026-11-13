@@ -9,7 +9,7 @@
 // `tag`, so reading the wrong element, the wrong field or the wrong stride
 // gives a different exit. Boolean observations select both a true and false
 // element through the same runtime-indexed read. All observations -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell {
     tag: u8;

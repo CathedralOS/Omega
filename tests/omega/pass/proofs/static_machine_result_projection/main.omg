@@ -1,5 +1,5 @@
 // Static selections keep their result carrier and field identity through wrappers.
-use omega::language::core::nat;
+use omega::language::core::Nat;
 data Observation { value: Nat; other: Nat; }
 machine project<machine Read>(index: Nat) -> Nat
 requires machine Read(index: Nat) -> Observation terminates;

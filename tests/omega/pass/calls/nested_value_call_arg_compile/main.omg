@@ -1,7 +1,7 @@
 // COMPILE CANARY (promoted from fail/ when the checked tree admitted
 // nested initializer calls): a machine call nested as a bound value-call's
 // argument (`let out = double(inc(3))`) checks cleanly.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main {
 }
 machine inc(x: i32) -> i32

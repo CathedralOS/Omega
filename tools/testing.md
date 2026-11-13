@@ -884,6 +884,17 @@ ls -l target/debug/omega                # inspect age; verify the producer recei
 OMEGA_LIBRARY_ROOT=$PWD/source/library ./target/debug/omega --check <root.omg>
 ```
 
+For one contract's citation and identity diagnostics, set
+`OMEGA_STRUCT_TRACE='contract=cauchy_at_reflexive'`. This selects the exact
+machine declaration name and suppresses the global structural/store trace.
+It reports the existing citation predicates, identity operands, computed
+normalization results and call/unfold refusals without repeating a judgment.
+The name is not a globally unique qualified identity, source-classification
+records may still appear, and events whose owner changes to a callee can be
+filtered out. Missing output alone does not prove a missing computation. Keep
+the ordinary output/resource guard. Other values retain the full structural
+trace behavior and the whole-call selector described below.
+
 When the compiler cannot prove a call's precondition, this trace reports which
 check stopped it and the values available then. `Requires` clauses declare those
 preconditions. Each checked alternative has an `observation` ID that connects its

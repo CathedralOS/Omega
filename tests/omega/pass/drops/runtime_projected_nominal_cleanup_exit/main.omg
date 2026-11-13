@@ -1,4 +1,5 @@
-use omega::language::core::external_binding;
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
 
 // This fixture explicitly assumes finite, normal completion of one byte write
 // from its reviewed external provider. It does not strengthen std::Console.

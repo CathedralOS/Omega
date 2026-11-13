@@ -5,7 +5,7 @@
 // 1 + 2 + ... + 8 = 36. `copy_into` copies all but the last byte through
 // the same view into a mutable slice, whose sum is 28.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     bytes: [u8; 8];

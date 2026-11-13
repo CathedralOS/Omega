@@ -1,4 +1,4 @@
-use omega::language::core::external_binding;
+use omega::language::core::ForeignBinding;
 data Table { before: u64; invoke: u64; after: u64; }
 boundary trait Query { machine query(table: &Table) -> u32 reaches; }
 machine query(table: &Table) -> u32

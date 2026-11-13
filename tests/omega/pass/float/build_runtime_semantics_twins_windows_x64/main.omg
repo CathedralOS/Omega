@@ -3,8 +3,30 @@
 // generic x86-64 does not yet admit. Its fixed-array length executes the same
 // baseline semantic machine at build time that Main executes at runtime.
 
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::FloatClass;
+use omega::language::core::F32::negate;
+use omega::language::core::F64::negate;
+use omega::language::core::F32::multiply_then_add;
+use omega::language::core::F64::multiply_then_add;
+use omega::language::core::F32::square_root;
+use omega::language::core::F64::square_root;
+use omega::language::core::F32::minimum;
+use omega::language::core::F64::minimum;
+use omega::language::core::F32::maximum;
+use omega::language::core::F64::maximum;
+use omega::language::core::F32::classify;
+use omega::language::core::F64::classify;
+use omega::language::core::F32::is_finite;
+use omega::language::core::F64::is_finite;
+use omega::language::core::F32::is_nan;
+use omega::language::core::F64::is_nan;
+use omega::language::core::F32::is_infinite;
+use omega::language::core::F64::is_infinite;
+use omega::language::core::F32::is_normal;
+use omega::language::core::F64::is_normal;
+use omega::language::core::F32::is_subnormal;
+use omega::language::core::F64::is_subnormal;
+use omega_language_std::Console;
 
 machine baseline_classifies_subnormal32(value: f32) -> bool {
     let class: FloatClass = F32::classify(value);

@@ -1,5 +1,18 @@
-use omega::language::core::extent;
-use omega_language_std::calling;
+use omega::language::core::ProgramStorageEntry;
+use omega_language_std::AbiValueClass;
+use omega_language_std::BoundarySignature;
+use omega_language_std::MachineRegister;
+use omega_language_std::ValueLocation;
+use omega_language_std::CallingConvention;
+use omega_language_std::EntryControl;
+use omega_language_std::MachineRegime;
+use omega_language_std::EntryStack;
+use omega_language_std::Preemption;
+use omega_language_std::BoundaryEntryPlan;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::CallingPolicy;
+use omega_language_std::Calling;
 
 // A different explicitly accepted entry-contract package. The schema keeps the
 // contract's declaration names and source path, but its calling policy plans

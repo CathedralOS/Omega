@@ -27,6 +27,7 @@ and package review tools to inspect manifests, traces, and proof certificates.
 
 mod block_wire;
 mod canonical_artifact;
+pub mod entry_receipt;
 mod wire_fields;
 pub(crate) use canonical_artifact::execution_code;
 mod foundation_validation;

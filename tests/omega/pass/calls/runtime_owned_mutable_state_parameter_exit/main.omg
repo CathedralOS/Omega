@@ -1,6 +1,6 @@
 // An owned state input may be mutated through its own exclusive loan, then
 // forwarded once. Binding mutability does not change incoming owned custody.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Amount { value: i32; }
 machine reset(amount: &write Amount) { amount.value = 0; }

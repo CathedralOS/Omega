@@ -148,20 +148,26 @@ are the one looking at it, it is yours: finish it or close it.
 
 ## The sample loop
 
-When validating a language mechanism across value placements, you are carrying
-one object through the compiler. Verify that same object across the nine
-orthogonal transport places: `local`, `field`, `parameter`, `call_result`,
+A language mechanism is one object carried through the compiler. It can travel
+through nine transport places: `local`, `field`, `parameter`, `call_result`,
 `match_join`, `const_name`, nested `machine` (`other_state/`), another
 `machine` (`other_machine/`), and a `Build`-selected target implementation
-(`target_body/`), with `ProgramEntry` bound for all four hosted targets and
-passing `omega run --both` (exit 0) alongside its negative twin. The pinned
-diagnostic, and the finite `tests/omega` facts fixture, is a photograph of that
-object. Done means the compiler still holds that same object. Changing the fact,
-the bound, or the operation so a place passes is repainting that photograph:
-a different object, and a green check on it does not count.
+(`target_body/`), on each of the four hosted targets,
+with a negative twin beside it. That matrix says what a capability means when
+it is complete. It is how a `TASKS.md` item states its acceptance, not what one
+pull request has to run.
 
-The corpus already remembers every placement that works. Your job is the
-placement you changed; the post-merge check guards the rest.
+A pull request proves the repair it makes. Name the existing failures it
+repairs, choose the smallest checks that show the mechanism works and that its
+rejection still happens, run them, and land when they pass. Widen only when a
+result shows a gap that bears on the repair; that more fixtures exist is not a
+reason. The corpus already remembers every placement that works, and the
+post-merge check guards the rest.
+
+The pinned diagnostic, and the finite `tests/omega` facts fixture, is a
+photograph of that object. Done means the compiler still holds that same object.
+Changing the fact, the bound, or the operation so a place passes is repainting
+that photograph: a different object, and a green check on it does not count.
 
 ### No new `samples/cli/facts` folder bloat
 

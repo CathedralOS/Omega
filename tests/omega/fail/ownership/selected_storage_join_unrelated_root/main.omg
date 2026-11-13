@@ -1,6 +1,5 @@
 // Reject: the replacement branch supplies a fresh root, not the original content.
 use borrowed_partition_support::main;
-use omega::language::core::content;
 use omega::language::core::drop;
 machine rejoin(whole: Region in Owned, select: bool) -> Region
 requires whole.length == 48

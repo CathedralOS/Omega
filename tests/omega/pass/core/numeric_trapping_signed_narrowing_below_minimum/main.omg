@@ -2,7 +2,7 @@
 // below i8's minimum. The operand is loaded through a borrowed record in a
 // separate machine, so the trap is the runtime check rather than a folded
 // constant. Ending normally (exit 0) means the trap was lost.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i32_to_i8_trapping;
 
 data Inputs { source: i32; }
 

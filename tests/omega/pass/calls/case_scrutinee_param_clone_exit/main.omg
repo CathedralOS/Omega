@@ -10,7 +10,7 @@
 // caller local declines at `call operation: claim-free affine result` in
 // Main::main. Expected outcome: rejected at the composed-route stage; every
 // admission upstream moves it deeper without changing this family split.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data ScanResultBase {
     address: u64;

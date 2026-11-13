@@ -8,7 +8,7 @@
 //   tag    3 read into a mutable local, which is then reassigned to 4;
 //          the original keeps 3 because only the copy changed
 //   active false -> true through the loan, read back as a bool
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Record {
     value: u16;

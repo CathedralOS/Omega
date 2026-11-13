@@ -5,7 +5,7 @@
 // written against the opposite rule; state_contracts.md "Mutation and subject
 // identity" says replacing a local reference binding changes that binding
 // without redirecting aliases made from its previous value.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

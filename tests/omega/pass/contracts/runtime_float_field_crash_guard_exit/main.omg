@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // A published crash guard observes the invocation-entry floating field.
 data Measurement { value: f64; }

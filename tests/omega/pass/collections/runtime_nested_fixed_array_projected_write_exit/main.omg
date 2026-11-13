@@ -1,6 +1,6 @@
 // Each indexed destination owns its own bound. The inner extent is three,
 // the outer extent two, and their AssignmentIndex depths reverse path order.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Matrix { cells: [[u8; 3]; 2]; }
 

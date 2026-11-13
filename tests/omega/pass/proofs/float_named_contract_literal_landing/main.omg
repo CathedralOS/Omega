@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // Unsuffixed arguments land at the selected declaration, including in proof
 // contracts. The returned zero and the projected zero have the same format.

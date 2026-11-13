@@ -1,7 +1,10 @@
 // Expected exit: 0
 // Packed bodies are bounded regions; malformed suffixes and capacity/remaining_steps
 // exhaustion never turn a partial element list into a successful document.
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::PackedRead;
+use omega::language::core::CompactBinary::read_packed;
+use omega::language::core::CompactBinary::signed_from_word;
 machine invalid(bytes: &[u8], capacity: u64, remaining_steps: u64) -> bool {
     let mut words: [u64; 3] = [99u64, 99u64, 99u64];
     transition capacity <= 3u64 && remaining_steps > 0u64 {

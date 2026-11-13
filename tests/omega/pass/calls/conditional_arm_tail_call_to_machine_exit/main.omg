@@ -5,7 +5,7 @@
 // which exits 70; the `false` arm tail-calls `Main::wrong(main)`, which exits 71.
 // `calls/transition_tail_call_to_machine` covers tail calls in unconditional
 // arms.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     stored: i32;

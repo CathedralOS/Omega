@@ -6,7 +6,7 @@
 // and no receiver-inserting call syntax
 // ([machines](../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state)).
 // Expected exit: 1.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Incrementable<T> {
     machine increment(counter: &mut T);

@@ -4,7 +4,7 @@
 // value, so a sibling's bits leaking into the argument fails the check.
 // Members at byte offsets 0, 1, 2 and 4, array elements at 1 and 2, and a
 // 16-bit member after a byte member are moved from owned parameters.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Byte { raw: u8; }
 data Half { raw: u16; }

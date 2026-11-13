@@ -1,6 +1,6 @@
 // The record view is used only for stores. Its nested field geometry must
 // reach the byte backing without relying on a subsequent record read.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell { value: u16; }
 data Pair { first: Cell; second: Cell; }

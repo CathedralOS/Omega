@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 data Payload { left: u64; right: u64; }
 data Pair { first: Payload; second: Payload; }
 machine choose(selected: u64) -> u64 {

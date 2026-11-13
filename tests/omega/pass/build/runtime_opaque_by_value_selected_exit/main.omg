@@ -5,8 +5,7 @@
 // carrier every by-value use needs (build/opaque_representations.md); without
 // it the same program checks and native realization refuses with the missing
 // selection named. Exit 72 once the field is written.
-use omega_language_std::console;
-use token;
+use omega_language_std::Console;
 
 data Main { held: Token; }
 

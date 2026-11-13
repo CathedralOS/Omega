@@ -1,6 +1,7 @@
 // Complete positive control: a local fixed byte buffer crosses a case edge
 // after the standard input provider filled it. With input 0 LF, exit 70.
-use omega_language_std::console;
+use omega_language_std::LineReadResult;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let mut input: [u8; 8];

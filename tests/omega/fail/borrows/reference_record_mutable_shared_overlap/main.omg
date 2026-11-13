@@ -1,6 +1,6 @@
 // A record literal cannot hold an exclusive loan of a cell together with a
 // shared loan of one of that cell's fields.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell requires value >= 0 && value <= 100 { stamp: i32; value: i32; }
 data View<'a> { writer: &'a mut Cell; reader: &'a i32; }

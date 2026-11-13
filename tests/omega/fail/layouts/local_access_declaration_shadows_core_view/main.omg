@@ -4,7 +4,15 @@
 // `Access<P, T>` cannot be resolved past it. No special rule rescues the core
 // name; a different local name or no import is the ordinary remedy, as the
 // pass twin `local_access_declaration_resolves_ordinarily` shows.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::FieldAccess;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
 
 data Access {
     level: u32;

@@ -692,6 +692,28 @@ mod tests {
     }
 
     #[test]
+    fn shared_receipt_consumers_preserve_stage_boundaries() {
+        for (owner, dependency, permitted) in [
+            (OMEGA_STAGES[1], OMEGA_STAGES[0], false),
+            (OMEGA_STAGES[2], OMEGA_STAGES[0], false),
+            (OMEGA_STAGES[2], OMEGA_STAGES[1], false),
+            (OMEGA_STAGES[3], OMEGA_STAGES[0], false),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![pkg("consumer", owner, &[("producer", dependency, None)])],
+            };
+            let violations = forbidden_dependency_violations(&metadata, &forbidden_rules())
+                .expect("fixture paths belong to the test workspace");
+            assert_eq!(
+                violations.is_empty(),
+                permitted,
+                "{owner} -> {dependency}: {violations:?}"
+            );
+        }
+    }
+
+    #[test]
     fn rejects_source_tree_dependency_behind_native_compiler() {
         let metadata = Metadata {
             workspace_root: "/repo".to_owned(),

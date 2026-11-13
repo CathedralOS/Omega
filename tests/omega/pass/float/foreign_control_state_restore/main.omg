@@ -7,9 +7,8 @@
 // compiler-owned `ForeignBinding::DllImport` value carrying one exact Mach-O
 // dylib-symbol import, so raw foreign bytes stay data.
 
-use omega::language::core::external_binding;
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F64::from_i32;
+use omega_language_std::Console;
 
 public boundary trait FloatingEnvironment {
     machine set_rounding(mode: i32) -> i32 reaches;

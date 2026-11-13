@@ -1,7 +1,7 @@
 // A `boundary operator` declares a checked operator contract with its own
 // requires/ensures; the satisfying provider restates both sides and the
 // caller discharges the requires by literal.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u16_to_u8_wrapping;
 
 data CheckedMath {}
 boundary operator CheckedMath::offset_zero(value: i32) -> i32

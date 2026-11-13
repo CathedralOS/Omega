@@ -3,7 +3,7 @@
 // shapes the exclusive arm does: a place rooted at a structural
 // parameter or at an earlier local of this state. Reading `borrowed`
 // in the transition guard reads through the admitted loan.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     size: u32;

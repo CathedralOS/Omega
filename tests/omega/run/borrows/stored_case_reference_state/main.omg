@@ -1,7 +1,7 @@
 // Expected exit: 0
 // A copied reference payload crosses its descriptor before a state borrows
 // the referent. The original owner stays live through the observation.
-use omega::language::core::option;
+use omega::language::core::Optional;
 data Cell [copy] { value: u64; }
 machine select(cell: &Cell) -> Optional<&Cell> {
     Optional::Some { value: cell }

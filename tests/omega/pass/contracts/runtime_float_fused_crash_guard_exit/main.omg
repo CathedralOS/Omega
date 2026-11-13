@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Reading { value: f64; }
 machine ping(reading: &Reading, count: u64) -> f64
 terminates by count

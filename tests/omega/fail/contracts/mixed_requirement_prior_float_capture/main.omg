@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 machine replace(value: &mut f64) -> u64
 ensures result == 0
 { value = 2.0; 0 }

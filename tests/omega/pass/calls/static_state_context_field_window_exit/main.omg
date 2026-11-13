@@ -1,4 +1,4 @@
-use omega::language::core::math;
+use omega::language::core::max_i32;
 
 // A static entry forwards its lent `context: &mut Main` into a state, and the
 // state lends fixed-array fields of that context as borrowed views. Across
@@ -16,7 +16,8 @@ use omega::language::core::math;
 //
 // Exits 70 only when every loan observed and updated the context's storage.
 
-use omega_language_std::console;
+use omega_language_std::LineReadResult;
+use omega_language_std::Console;
 
 data Main {
     pause: [u8; 4];

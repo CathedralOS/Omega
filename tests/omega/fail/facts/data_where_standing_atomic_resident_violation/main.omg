@@ -1,6 +1,5 @@
 // Expected rejection: the atomic resident must be valid after every store.
 // Restoring 99 later cannot excuse publishing 101 through shared atomic access.
-use omega::language::core::atomic;
 public data Cell requires self.value <= 100 { value: AtomicU32; }
 public machine overwrite(cell: &Cell) {
     cell.value.store(101, NoOrdering);

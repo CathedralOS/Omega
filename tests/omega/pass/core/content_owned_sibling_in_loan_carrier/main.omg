@@ -1,5 +1,6 @@
 // Returning both independent fields preserves owned backing and retained debt.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 public data ByteUnit {}
 public data Buffer [linear] { value: u64; }
 public domain Buffer::Owned;

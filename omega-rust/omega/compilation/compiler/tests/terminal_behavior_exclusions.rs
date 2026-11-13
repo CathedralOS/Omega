@@ -228,13 +228,13 @@ fn replay_calling_review(
         target,
         plans,
     ) = {
-        let fixture = prepare(relative);
-        let package_inputs = fixture.package_inputs;
-        let mut request = CheckedCompileRequest::new(&fixture.root_path, Some("macos_arm64"));
-        request.package_inputs = package_inputs.clone();
-        let checked = orchestration::check_source(&mut CompilationSession::default(), request)
-            .result
-            .expect("source and original calling policies check");
+        let mut fixture = prepare(relative);
+        let package_inputs = fixture.package_inputs.clone();
+        // Reuse the admitted dependency snapshots and completed Builds for this
+        // check instead of starting another source preparation.
+        let checked =
+            fixture_package_inputs::check_fixture(&mut fixture, "macos_arm64", Default::default())
+                .expect("source and original calling policies check");
         let execution = checked.execution();
         let source = checked.source_inspection().program();
         let target = execution.selected_target_profile.expect("fixture target");
@@ -639,11 +639,15 @@ fn late_application_attachment_outlives_source_and_preserves_recovered_attributi
         )
         .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
         .expect("publish without applications");
-        let encoded = compiler_storage::encode(&produced, Default::default())
-            .expect("encode source companion");
+        // Logical package imports retain the complete module cohort. Give this
+        // real library companion a finite budget larger than a small unit record.
+        let limits = compiler_storage::RecordLimits {
+            elements: 64 * 1024 * 1024,
+            ..Default::default()
+        };
+        let encoded = compiler_storage::encode(&produced, limits).expect("encode source companion");
         let recovered: psi_compiler::ProducedTerminalProgram =
-            compiler_storage::decode(&encoded, Default::default())
-                .expect("recover source companion");
+            compiler_storage::decode(&encoded, limits).expect("recover source companion");
         (
             produced.into_shared_portable().unwrap(),
             recovered.into_shared_portable().unwrap(),
@@ -918,7 +922,7 @@ fn executed_crash_selection_rejects_only_the_trapping_target() {
         match outcome.into_result() {
             Ok(_) => assert_eq!(target, "windows_x86_64"),
             Err(diagnostics) => {
-                assert_eq!(target, "macos_arm64");
+                assert_eq!(target, "macos_arm64", "{diagnostics:?}");
                 assert!(
                     diagnostics.iter().any(|diagnostic| diagnostic
                         .message

@@ -1,7 +1,8 @@
 // Expected exit: 70. Theorem-slot equality keeps its proposition identity
 // through f32/f64 realization copies; runtime IEEE equality remains ordered.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::negate;
+use omega::language::core::F64::negate;
+use omega_language_std::Console;
 
 trait Reflexive<T> {
     machine same(value: T)

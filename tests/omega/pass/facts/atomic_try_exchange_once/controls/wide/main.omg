@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // A non-observing single attempt returns the proposed u32 on failure and the displaced u32 on commit.
 // This control checks the same payload rule for the u64 native carrier.
-use omega::language::core::layout;
+use omega::language::core::AtomicTryExchangeOnceOutcome;
 data Cells { selected: AtomicU64; untouched: AtomicU64; }
 machine attempt64(cells: &Cells, expected: u64) -> AtomicTryExchangeOnceOutcome<u64> {
     let outcome: AtomicTryExchangeOnceOutcome<u64> = cells.selected.try_exchange_once(expected, 8589934691u64, ReceivePublish, Receive);

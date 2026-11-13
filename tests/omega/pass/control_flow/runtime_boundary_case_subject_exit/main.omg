@@ -1,7 +1,8 @@
 // A boundary call is a case-dispatch subject directly: its result is read
 // once, before arm selection. With stdin closed, `read_byte` yields Eof and
 // the program exits 70; a byte exits 71.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 
 data Main { }
 

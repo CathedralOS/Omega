@@ -1,5 +1,5 @@
 // Same-spelled payloads keep their selected case through nested member reads.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Reset { success: bool; }
 data Metadata { valid: bool; count: i32; }

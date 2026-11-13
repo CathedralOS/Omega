@@ -1,7 +1,7 @@
 // All target members satisfy one public requirement. Terminal keeps all
 // candidates, while this invocation installs only its own target's body.
 // A distinct competing provider must not donate its body to that selection.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Value {
     machine read(input: i32) -> i32 reaches ensures result == input;

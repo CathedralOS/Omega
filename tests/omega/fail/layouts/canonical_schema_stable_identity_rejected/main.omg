@@ -1,6 +1,12 @@
 // Canonical schema reflection preserves the exact optional stable identity.
-use omega::language::core::layout;
-use omega::language::core::option;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+use omega::language::core::Optional;
 
 data Payload { #7 value: u32; }
 

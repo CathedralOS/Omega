@@ -1,5 +1,4 @@
 // Expected exit: 0. The saved bool subject preserves its scalar call operand.
-use omega::language::core::float_operations;
 machine choose(value: bool) -> bool { value }
 machine route(first: bool) -> f64 {
  transition choose(first) { true -> 15.0 false -> 10.0 }

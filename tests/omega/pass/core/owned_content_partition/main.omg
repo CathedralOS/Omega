@@ -1,9 +1,11 @@
 // A checked partition derives authority from the consumed input, not from an
 // issuer or a destructor. The result's nominal carrier claims already exist;
 // the conservation transaction must give them the parent's backing lineage.
-use omega::language::core::extent;
-use omega::language::core::content;
-use omega::language::core::nat;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Granted::content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 
 data Pieces {
     left: Extent in Granted;

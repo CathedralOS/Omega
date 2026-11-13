@@ -1,6 +1,19 @@
 // Source-produced helper custody qualification; no native entry is bound.
 // The embedding test establishes exact backings and checks external effects.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::ExternalRead;
+use omega::language::core::FieldAccess;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::Access;
+use omega::language::core::Access::view_mut;
 
 public data Registers requires (transmit as u32) <= status {
     status: u32;

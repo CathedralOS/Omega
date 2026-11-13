@@ -3,7 +3,6 @@
 // flow and the catalog scratch clobbers. Native production retains each
 // register, direction and scalar operand/result through MRS/MSR encoding.
 // These privileged instructions are compiled, never run by a hosted gate.
-use omega::language::core::assembly;
 
 data Main {
     value: u64;

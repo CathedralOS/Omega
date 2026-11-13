@@ -1,6 +1,5 @@
 // Vertical gate silhouette: width is linear between adjacent elevations.
 // Nodes are validated before clipping; a zero width is a legitimate tip.
-use omega::language::core::float_operations;
 
 public data Node [copy] { elevation: f64; width: f64; }
 public data Profile { nodes: [Node; 8]; count: u64 in Wrapping; }

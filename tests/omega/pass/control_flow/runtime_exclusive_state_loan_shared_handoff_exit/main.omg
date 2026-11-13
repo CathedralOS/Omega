@@ -10,7 +10,7 @@
 // exits: 70 = every read saw the last writes; 71 = `check` read a stale
 // field; 72 = `confirm` read a stale element.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally { first: u64; grid: [[u64; 2]; 3]; }
 

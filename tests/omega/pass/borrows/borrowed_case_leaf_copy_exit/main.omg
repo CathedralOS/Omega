@@ -3,7 +3,7 @@
 // owned value, whether a straight-line `let` binds it, a branch state passes
 // it as an argument, or it is an element of a borrowed array. Exits 70 when
 // the three copies report First, Second and Second (1 + 2 + 2 = 5, plus 65).
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Kind [copy] {
     case First;

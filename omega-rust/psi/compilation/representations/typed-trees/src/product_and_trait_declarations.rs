@@ -230,7 +230,11 @@ pub mod product_operand {
                 let application = self.product_operand_applications.get(handle);
                 if !matches!(
                     application.role,
-                    Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider)
+                    Some(
+                        ProductOperandRole::BoundarySubject
+                            | ProductOperandRole::Provider
+                            | ProductOperandRole::Requirement
+                    )
                 ) {
                     return Err("Product application has no nominal declaration role");
                 }
@@ -238,14 +242,19 @@ pub mod product_operand {
                     .data_type_parameters
                     .span(application.declaration_parameters)
                     .ok_or("Product application has a stale declared formal table")?;
-                if parameters.is_empty() && application.declaration_lifetime_count == 0 {
+                if parameters.is_empty()
+                    && application.declaration_lifetime_count == 0
+                    && application.role != Some(ProductOperandRole::Requirement)
+                {
                     return Ok(None);
                 }
                 let identity = match application.role {
-                    Some(ProductOperandRole::BoundarySubject) => application
-                        .scope
-                        .scope(self)
-                        .and_then(|scope| scope.portable_application_identity(self)),
+                    Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Requirement) => {
+                        application
+                            .scope
+                            .scope(self)
+                            .and_then(|scope| scope.portable_application_identity(self))
+                    }
                     Some(ProductOperandRole::Provider) => self
                         .portable_conformance_application_identity(
                             application
@@ -1374,6 +1383,56 @@ pub mod product_operand {
                 .collect(),
         };
         Some(candidates)
+    }
+
+    /// Resolve the source-owned semantic arrival signature without reading a
+    /// body or constructing display/type-identity copies. A matching spelling
+    /// outside the product's exact core vocabulary is never this declaration.
+    pub fn core_arrival_requirement<'program>(
+        program: &'program TypedTrees,
+        requirement: &str,
+    ) -> Result<
+        (
+            &'program crate::trait_definition::TraitDefinition,
+            &'program crate::signature::StateSignature,
+        ),
+        String,
+    > {
+        let (owner, method) = requirement
+            .split_once("::")
+            .ok_or_else(|| "target semantic arrival has no requirement owner".to_owned())?;
+        let mut declarations = program.traits().iter().filter(|definition| {
+            definition.name.as_str() == owner
+                && definition.is_boundary
+                && program.symbols.core_vocabulary(definition.symbol)
+                    == Some(language_core::core_vocabulary::CoreVocabulary::ProgramStorageEntry)
+                && program
+                    .symbols
+                    .symbol_source_span(definition.symbol)
+                    .and_then(|span| program.symbols.source_file(span))
+                    .is_some_and(|file| file.dependency_scope == source::DependencyScope::Product)
+        });
+        let definition = declarations.next().ok_or_else(|| {
+            format!("target semantic arrival `{requirement}` has no exact core declaration")
+        })?;
+        if declarations.next().is_some() {
+            return Err(format!(
+                "target semantic arrival `{requirement}` has multiple core declaration instances"
+            ));
+        }
+        let mut signatures = program
+            .trait_machine_signatures(definition)
+            .iter()
+            .filter(|signature| signature.name.as_str() == method);
+        let signature = signatures.next().ok_or_else(|| {
+            format!("target semantic arrival `{requirement}` has no exact machine declaration")
+        })?;
+        if signatures.next().is_some() {
+            return Err(format!(
+                "target semantic arrival `{requirement}` has multiple machine declarations"
+            ));
+        }
+        Ok((definition, signature))
     }
 
     #[derive(Clone, Copy)]
@@ -3431,7 +3490,7 @@ pub mod trait_definition {
             .chain(
                 self.live_product_operand_applications().into_iter().filter_map(|handle| {
                     let application = self.product_operand_applications.get(handle);
-                    (application.role == Some(language_semantics::declaration_selection::ProductOperandRole::BoundarySubject))
+                    matches!(application.role, Some(language_semantics::declaration_selection::ProductOperandRole::BoundarySubject | language_semantics::declaration_selection::ProductOperandRole::Requirement))
                         .then(|| application.scope.scope(self)).flatten()
                 }),
             )

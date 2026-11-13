@@ -2,7 +2,7 @@
 // that member, and returns its result from the selected state after writing
 // one line. Only the selected arm writes; the result reaches the entry, which
 // exits with it.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data CommandKind {
     case Quit;

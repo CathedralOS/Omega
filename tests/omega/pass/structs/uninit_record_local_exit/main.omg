@@ -2,7 +2,7 @@
 // declaration establishes the affine root, so the exit drop carries the
 // declaration's provenance instead of an unknown claim. Exits 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Point {
     x: i32 in Trapping;

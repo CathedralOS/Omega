@@ -1,6 +1,5 @@
 // A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.len).
 // Expected exit: 0
-use omega::language::core::slice;
 const Count: u64 = 0;
 data Entry { value: i32; }
 machine whole_view<Element, const Count: u64>(items: &[Element; Count]) -> &[Element]

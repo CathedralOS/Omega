@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Token { value: i32; }
 data Reply { case Missing; case Present(value: Token); }

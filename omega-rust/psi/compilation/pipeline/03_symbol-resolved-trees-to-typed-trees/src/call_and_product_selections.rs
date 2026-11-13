@@ -62,22 +62,19 @@ pub(crate) mod build_selections {
             {
                 "bind_description"
             }
-            (BuildSelectionRequest::Declaration(binding), 3)
-                if binding.operation == BuildOperation::NativeBinding =>
-            {
-                "bind_native"
-            }
-            (BuildSelectionRequest::Declaration(binding), 1)
-                if binding.operation.selects_product_declarations()
-                    && binding.operation != BuildOperation::ProviderSelection =>
-            {
-                "select"
-            }
-            (BuildSelectionRequest::Declaration(binding), 2 | 3)
-                if binding.operation == BuildOperation::ProviderSelection =>
-            {
-                "select_provider"
-            }
+            (BuildSelectionRequest::Declaration(binding), count) => binding
+                .operation
+                .product_recording_operation()
+                .filter(|(_, arity)| {
+                    count == *arity
+                        || (binding.operation == BuildOperation::ProviderSelection
+                            && count.checked_add(1) == Some(*arity))
+                })
+                .map(|(name, _)| name)
+                .ok_or_else(|| {
+                    Diagnostic::error("Build selection has unexpected ordinary operands")
+                        .with_source_span(source_span)
+                })?,
             _ => {
                 return Err(
                     Diagnostic::error("Build selection has unexpected ordinary operands")
@@ -2086,7 +2083,7 @@ pub(crate) mod product_selections {
             None
         };
         let operands = operands.iter().skip(usize::from(requirement.is_some())).enumerate().map(|(position, operand)| {
-        let nominal_application = operand.application.is_some() && matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider));
+        let nominal_application = operand.application.is_some() && (matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider)) || operation == BuildOperation::NativeBinding);
         if operand.type_reference.is_valid() || (operand.application.is_some() && !nominal_application)
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
             || operand.path.is_empty() {

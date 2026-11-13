@@ -1,6 +1,15 @@
 // Expected exit: 0
 // Declaration order differs from stable tags; signed MIN keeps all 64 bits.
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::UnsignedRead;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::scalar_field;
+use omega::language::core::SignedRead;
+use omega::language::core::CompactBinary::read_scalar_field;
+use omega::language::core::CompactBinary::read_signed_field;
 use omega::language::core::reflect;
 data Packet { #2 bottom: i64; #0 delta: i32; #1 flag: bool; }
 machine fields(value: &Packet, context: &mut EncodeContext) {

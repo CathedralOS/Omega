@@ -2,7 +2,7 @@
 // Leaf observes its own stored value; Empty observes the forwarded argument.
 // Both results must agree before the hosted program exits 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Payload {
     case Leaf(value: u64);

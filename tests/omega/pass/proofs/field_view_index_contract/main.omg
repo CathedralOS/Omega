@@ -1,5 +1,4 @@
-use omega::language::core::slice;
-use omega::language::core::float_operations;
+use omega::language::core::slice_index;
 data SpectrumView<'samples> [copy] { samples: &'samples [f64]; temperature: f64; }
 machine radiance<'samples>(spectrum: SpectrumView<'samples>, column: u64) -> f64
 requires column < spectrum.samples.len { spectrum.samples[column] }

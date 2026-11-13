@@ -1,4 +1,11 @@
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::IntegerInterpretation;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // An exclusive loan of an IntegerAt leaf cannot reach a boundary callee through
 // an ordinary helper. The callee has no checked body, so it may write any `i64`
 // over the formal's whole footprint; only proven-fitting writes enter the

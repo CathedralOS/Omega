@@ -4,9 +4,10 @@
 // before the wrapper publishes its own `ensures`. One arm alone is not a
 // callable guarantee, and a value join is not a single completed value.
 // An authored conservation guarantee composes two theorem-free forwarding calls.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data ByteUnit {}
 

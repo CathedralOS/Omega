@@ -3,8 +3,9 @@
 // Rounding the product before adding its rounded cancellation produces zero;
 // a fused operation would preserve a positive residual.
 
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::multiply_then_add;
+use omega::language::core::F64::multiply_then_add;
+use omega_language_std::Console;
 
 data Main {
     result32: f32;

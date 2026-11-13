@@ -15,7 +15,7 @@
 // Any forward that lands on a snapshot or a stale carrier loses a write and
 // misses 70. Expected exit: 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     count: i32 in Wrapping;

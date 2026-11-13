@@ -4,7 +4,7 @@
 // moves nothing out of the local, and permits no write. Exits 70 only when
 // both callees read the caller's field through the loan.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Engine { rpm: i32 in Wrapping; }
 data Dash { engine: Engine; speed: i32 in Wrapping; }

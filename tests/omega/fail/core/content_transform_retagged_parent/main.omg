@@ -1,5 +1,6 @@
 // Entry Empty evidence cannot waive an active payload installed by a later write.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
 data Units {}
 data Ticket [linear] dropped by drop_ticket { quantity: u64; }

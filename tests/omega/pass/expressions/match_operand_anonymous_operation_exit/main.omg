@@ -5,7 +5,7 @@
 // fail/expressions/match_operand_anonymous_operation_overflow pins that the
 // destination is the carrier the exact-arithmetic proof uses.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

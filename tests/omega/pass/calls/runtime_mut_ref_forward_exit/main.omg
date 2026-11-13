@@ -9,7 +9,7 @@
 // itself, and `verify` reads it after the edge that drops `c`.
 // exit 71 = the forwarded write missed main.c.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Counter { n: i32 in Wrapping; }
 data Main { c: Counter; }

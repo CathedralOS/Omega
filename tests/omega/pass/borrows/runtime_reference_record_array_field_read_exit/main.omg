@@ -1,5 +1,5 @@
 // Project the record field and fixed array slot before crossing the descriptor.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell requires value >= 0, value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Pack { prefix: i32; cells: [&Cell; 2]; }

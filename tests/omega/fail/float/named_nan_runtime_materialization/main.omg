@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::square_root;
 
 const NAN: f32 = F32::square_root(-1.0f32);
 

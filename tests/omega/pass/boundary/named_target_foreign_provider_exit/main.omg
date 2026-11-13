@@ -1,5 +1,6 @@
 // Expected exit: 0. A named map selects the target member of a foreign family.
-use omega::language::core::external_binding;
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
 
 boundary trait ProcessProbe { machine identity() -> u32 reaches; }
 data NativeProcess {}

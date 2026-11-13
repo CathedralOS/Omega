@@ -3,8 +3,7 @@
 // Both permanent formats participate, and comparison is a separate identity
 // from arithmetic.
 
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     left32: f32;

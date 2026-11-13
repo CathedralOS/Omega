@@ -2,7 +2,7 @@
 // operand first, before arm selection. `Counter::flag` and `Main::pick` each
 // count their calls; exits 70 when the dispatch selects Second with payload 20
 // after exactly one call to each.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Pick {
     case First(v: i32);

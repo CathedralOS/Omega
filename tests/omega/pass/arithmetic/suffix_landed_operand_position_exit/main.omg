@@ -1,4 +1,4 @@
-use omega::language::core::math;
+use omega::language::core::max_u64;
 
 // RUN CANARY (exit 77, differential) -- CR4a: a width-SUFFIXED literal is
 // BORN LANDED (ch5 two-phase law: the type is chosen at the spelling), so
@@ -9,7 +9,7 @@ use omega::language::core::math;
 // the destination folds (a suffix lands the TYPE; domain stays contextual).
 // exit 78 = the suffix was stripped (yesterday's behavior) and a signed max
 // picked 5. Disagreement twin: fail/arithmetic/suffix_type_disagrees_rejected.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let z: u64 in Wrapping = 0;

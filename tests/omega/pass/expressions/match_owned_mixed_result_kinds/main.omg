@@ -12,7 +12,7 @@ machine choose(selected: bool) -> bool {
     result in Choice::Some
 }
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

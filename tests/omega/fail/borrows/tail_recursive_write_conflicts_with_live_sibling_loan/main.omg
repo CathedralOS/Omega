@@ -1,5 +1,5 @@
 // Intended rejection: a recursive callee writes a live shared-loan subtree.
-use omega::language::core::process_exit;
+use omega::language::core::ProcessExit;
 data Count { value: u64; }
 data Work { stable: Count; scratch: f64; }
 machine main() reaches ProcessExit {

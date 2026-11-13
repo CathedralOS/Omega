@@ -1,6 +1,6 @@
 module left;
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Sink {
     machine emit(byte: i32)

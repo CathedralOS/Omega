@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Carrier requires value >= 3.75, value <= 3.75 {
     value: f64;
 }

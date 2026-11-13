@@ -1,6 +1,6 @@
 // A matched owned structural payload can initialize another result directly.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Kind { case Other; case NotFound; }
 data Outcome { case Error(kind: Kind); case Ok; }

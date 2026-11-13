@@ -16,10 +16,21 @@
 // byte wrong; 78 remove not Ok; 79 remove(missing) not Error; 80 kind not
 // NotFound.
 
-use omega_language_std::filesystem;
-use omega_language_std::filesystem_host;
+use omega_language_std::File;
+use omega_language_std::ErrorKind;
+use omega_language_std::OpenResult;
+use omega_language_std::IoResult;
+use omega_language_std::UnitResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::open;
+use omega_language_std::Filesystem::read;
+use omega_language_std::Filesystem::close;
+use omega_language_std::Filesystem::write_all;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::create_dir;
+use omega_language_std::Filesystem::remove_dir;
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     fs: Filesystem;

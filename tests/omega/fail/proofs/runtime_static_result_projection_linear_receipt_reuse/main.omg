@@ -1,6 +1,6 @@
 use omega::language::core::drop;
-use omega::language::core::nat;
-use omega_language_std::console;
+use omega::language::core::Nat;
+use omega_language_std::Console;
 
 data Receipt [linear] dropped by drop_receipt { code: u64; }
 machine drop_receipt(receipt: &mut Receipt) {}

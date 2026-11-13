@@ -1,7 +1,19 @@
 // An explicitly installed private Registers allocation lends its exact exclusive placed view, reading status 41 and writing transmit 9 into the same backing before handback.
 // Expected exit: 0
 // Place: call_result.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::ExternalRead;
+use omega::language::core::FieldAccess;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::Access;
 
 public data Registers {
     status: u32;

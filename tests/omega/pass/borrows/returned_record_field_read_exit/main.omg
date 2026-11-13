@@ -1,6 +1,6 @@
 // Read the address actually returned by a runtime choice, including a nested
 // field offset. A static origin substituted for that address fails one choice.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Child { value: u64; }
 data Holder { padding: u64; child: Child; }

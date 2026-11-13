@@ -1,7 +1,7 @@
 // A shared reference bound to a local must retain the exact projected source.
 // Reduced from samples/cli/systems/descriptor_walk. Other reference producers
 // use the same local-binding semantics rather than receiver-specific routes.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     size: u32;

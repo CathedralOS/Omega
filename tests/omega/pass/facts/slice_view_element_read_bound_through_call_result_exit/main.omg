@@ -2,7 +2,6 @@
 // Place: call result. The slice view arrives from a call return result guaranteeing the extent bound.
 // Expected exit: 0
 
-use omega::language::core::slice;
 
 machine borrow_items(items: &[u64; 4]) -> &[u64]
     ensures result.len >= 3

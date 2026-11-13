@@ -1,8 +1,8 @@
 // A trapping conversion publishes `crashes Trap`. This caller authors only an
 // Abort ceiling, so the callee's Trap route is uncovered: a different crash
 // cause is not a substitute for the one the operation commits.
-use omega::language::core::numeric_conversion;
-use omega_language_std::console;
+use omega::language::core::narrow_u16_to_u8_trapping;
+use omega_language_std::Console;
 
 machine narrow(value: u16) -> u8
 crashes Abort

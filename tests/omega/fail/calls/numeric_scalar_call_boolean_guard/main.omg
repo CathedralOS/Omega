@@ -1,4 +1,5 @@
-use omega::language::core::math;
+use omega::language::core::min_i32;
+use omega::language::core::max_i32;
 
 machine evaluate(value: i32) -> i32 {
     transition min_i32(max_i32(value, 0), 10) {

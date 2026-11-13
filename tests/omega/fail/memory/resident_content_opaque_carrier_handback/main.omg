@@ -1,5 +1,7 @@
 // Must reject: a wrapper cannot hide an opaque writer behind a named carrier.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Resident;
+use omega::language::core::Extent::Granted;
 data Policy {}
 data Word { value: u64; }
 data LoanHolder {

@@ -2,10 +2,13 @@
 // Create/write/flush/reopen/seek/read, shared-cursor duplication, writable
 // attributes, non-replacing rename, missing old name, mkdir/delete/rmdir.
 // Failure exits 71..87 retain the original matrix's independent checks.
-use omega_language_std::windows_filesystem_host;
-use omega::language::core::filesystem_authority;
+use omega_language_std::WindowsFilesystemHost;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     buffer: [u8; 8];

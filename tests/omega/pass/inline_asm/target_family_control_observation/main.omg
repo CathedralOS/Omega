@@ -1,7 +1,6 @@
 // Compile witness: target-family crash inference distinguishes catalogued
 // processor observations from authored machine calls. Hardware faults are not
 // language crash routes, and the MachineControl authority remains required.
-use omega::language::core::assembly;
 
 linux_x86_64 machine observe() -> u64 reaches MachineControl {
     let mut control: u64 = 0;

@@ -1,6 +1,6 @@
 // A guard belongs to its observed scalar, not to an unrelated mutable
 // context argument. Construction also observes the latest local assignment.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Bounded requires value <= 5 { value: u64; }
 data Main { value: Bounded; }

@@ -1,8 +1,8 @@
 // Expected Windows exit: 70. Create an invisible system dialog window,
 // call the real GetForegroundWindow, then destroy the owned window. The
 // focused HWND is deliberately unasserted: CI may focus another application.
-use omega_language_std::console;
-use omega_language_std::windows_gui_host;
+use omega_language_std::Console;
+use omega_language_std::WindowsGuiHost;
 
 data Main {
     cls: [u8; 7];

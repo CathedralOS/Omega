@@ -1,4 +1,4 @@
-use omega_language_std::macos_gui;
+use omega_language_std::ObjectiveC;
 
 public boundary trait PresentationClient {
     machine send(receiver: u64, selector: u64) -> u64

@@ -8,7 +8,7 @@
 // call's own transfer. The identical construction with `kind` a structural
 // local from a call was always admitted, which is why the sibling Filesystem
 // machines that build their kind as a local stayed green. Exits 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Kind { case Other; case NotFound; }
 data Res { case Error(kind: Kind); case Empty; }
 data Probe { seen: i32; }

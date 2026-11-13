@@ -1,10 +1,20 @@
-use omega::language::core::presentation_authority;
-use omega::language::core::time_authority;
-use omega::language::core::native_execution_authority;
-use omega::language::core::filesystem_authority;
-use omega::language::core::process_authority;
-use omega::language::core::process_exit;
-use omega::language::core::float_operations;
+use omega::language::core::WindowManagement;
+use omega::language::core::SurfacePresentation;
+use omega::language::core::WindowEventObservation;
+use omega::language::core::WindowEventDispatch;
+use omega::language::core::GlobalInputObservation;
+use omega::language::core::ClockObservation;
+use omega::language::core::ExecutionDelay;
+use omega::language::core::NativeCodeExecution;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
+use omega::language::core::ProcessInput;
+use omega::language::core::ProcessOutput;
+use omega::language::core::ProcessExit;
 
 // PROVES the SAMPLES' whole behavior runs natively (render fire 16): a bounded
 // windowed app that opens a window with an image view, then for a few frames
@@ -26,7 +36,7 @@ use omega::language::core::float_operations;
 public domain [u8]::CString
 requires
     no_nul(self);
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait ObjectiveC {
     machine get_class(name: &[u8] in CString) -> u64

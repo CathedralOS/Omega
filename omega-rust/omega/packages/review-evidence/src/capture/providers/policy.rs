@@ -151,7 +151,7 @@ fn project_plan(
             .iter()
             .enumerate()
             .filter(|(_, row)| {
-                plan.identities.text(row.requirement_identity)
+                plan.identities.text(row.declared_requirement_identity)
                     == plan.schema.identity_text(method.requirement_identity)
             })
             .map(|(index, _)| index)
@@ -159,11 +159,16 @@ fn project_plan(
         if matching_rows.is_empty() && toolchain_settled {
             continue;
         }
-        let [index] = matching_rows.as_slice() else {
-            return Err(rejected(
-                "service method has no unique selected realization row",
-            ));
+        let Some(index) = matching_rows.first() else {
+            return Err(rejected("service method has no selected realization row"));
         };
+        if matching_rows.iter().any(|other| {
+            retained.provider.row_requirements[*other] != retained.provider.row_requirements[*index]
+        }) {
+            return Err(rejected(
+                "selected applications disagree on their declared service method",
+            ));
+        }
         methods.push(services::project(
             signatures,
             &plan.schema,
@@ -181,7 +186,12 @@ fn project_plan(
         toolchain_settled,
         selected_instances,
     )?;
-    rows.sort_by(|left, right| left.requirement.cmp(&right.requirement));
+    rows.sort_by(|left, right| {
+        left.requirement.cmp(&right.requirement).then_with(|| {
+            left.requirement_application
+                .cmp(&right.requirement_application)
+        })
+    });
     let mut grants = selected_execution
         .selected_provider_grants
         .as_slice()

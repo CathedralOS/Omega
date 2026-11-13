@@ -1,4 +1,11 @@
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::IntegerInterpretation;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // A program that holds a plan-laid IntegerAt layout checks every effectful
 // invocation's writes against physical storage. A later state that lends one
 // of its own owned locals to a callee writes only that local: its origin is

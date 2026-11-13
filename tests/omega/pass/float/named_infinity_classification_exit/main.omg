@@ -1,7 +1,10 @@
 // Classification distinguishes infinity from NaN and finite values, including
 // signed zero and the smallest subnormal. Both interchange formats return bool.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::negate;
+use omega::language::core::F64::negate;
+use omega::language::core::F32::is_infinite;
+use omega::language::core::F64::is_infinite;
+use omega_language_std::Console;
 
 data Main { }
 

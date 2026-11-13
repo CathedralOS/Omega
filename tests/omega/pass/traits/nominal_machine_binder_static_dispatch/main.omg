@@ -4,7 +4,7 @@
 // named-parameter contract.
 // Specialization selects Counter::increment without a runtime dictionary.
 // Expected exit: 1.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Incrementable<T> {
     machine increment(counter: &mut T);

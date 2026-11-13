@@ -4,7 +4,7 @@
 // position is privileged.
 // Tens::base() == 10 and Tens::combine(3, 4) == 3 * 10 + 4 == 34:
 // 10 + 34 == 44 -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Arithmetic<T> {
     machine base() -> i32;

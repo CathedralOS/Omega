@@ -5,7 +5,7 @@
 // dispatched exhaustively by the callee with no `_` arm, so every arm consumes
 // the owned subject. Exits 70 only when both dispatches reached their arms.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Event {
     case Add(amount: i32 in Wrapping);

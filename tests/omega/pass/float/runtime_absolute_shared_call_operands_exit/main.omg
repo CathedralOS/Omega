@@ -1,9 +1,8 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
 // The std package route binds float operators to boundary calls. The shared
 // operand of absolute value must finish once across those call actuals.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 data Counter { calls: u32 in Wrapping; voltage: f64; }
 data Main { counter: Counter; positive: f64; }
 machine step(counter: &mut Counter) -> f64 {

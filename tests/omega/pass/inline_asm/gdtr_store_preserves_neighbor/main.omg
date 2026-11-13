@@ -1,5 +1,4 @@
 // Writing ten descriptor bytes through a forwarded borrow preserves the separate neighboring byte fact.
-use omega::language::core::assembly;
 public data Buffer { before: u8; bytes: [u8; 10]; after: u8; }
 machine main() reaches MachineControl {
     let mut buffer: Buffer = Buffer { before: 17, bytes: [17,17,17,17,17,17,17,17,17,17], after: 17 };

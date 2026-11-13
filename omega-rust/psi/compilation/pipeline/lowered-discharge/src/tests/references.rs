@@ -206,6 +206,7 @@ fn conflicts(machines: Vec<Lending>) -> Vec<crate::ConflictingUse> {
             unproved,
             unestablished,
             conflicts,
+            ..
         } if unproved.is_empty() && unestablished.is_empty() => conflicts,
         verdict => panic!("the program must be rejected for its loans: {verdict:?}"),
     }

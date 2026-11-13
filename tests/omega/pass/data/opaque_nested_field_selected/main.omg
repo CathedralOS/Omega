@@ -1,4 +1,3 @@
-use token;
 
 // Ordinary Product data may nest selected opaque fields; the carrier arrives
 // through the Build selection, never through source construction.

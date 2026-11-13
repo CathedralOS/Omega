@@ -8,7 +8,7 @@
 // Mirrors mini-probe's `Reader::read_bytes(&main.reader, &main.info, 0, &mut main.buf)`
 // receiver calls carrying byte-view arguments.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Sink {
     filled: u64;

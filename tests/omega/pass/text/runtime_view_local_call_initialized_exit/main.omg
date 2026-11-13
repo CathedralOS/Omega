@@ -2,7 +2,7 @@
 // descriptor in the local's home, exactly as a later assignment of a call
 // result does. The home is then read, reassigned from another call and read
 // again.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

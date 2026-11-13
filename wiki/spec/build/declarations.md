@@ -170,6 +170,52 @@ commitments. Package-to-application loses dependency compatibility;
 application-to-package loses executable-activation compatibility. Report the
 directional broken contract, not a new package identity or a symmetric change.
 
+## Library responsibilities and names
+
+Named decision: `operating-system-library-name`, settled 2026-11-12. Rename
+the current `std` library to `system` and `alloc` to `allocation`. The names
+describe responsibilities that guide library organization:
+
+| Name | Responsibility |
+| --- | --- |
+| `core` | Foundational language-facing types, contracts and mechanisms. Compiler privilege remains confined to exact primitives, not the entire package. |
+| `system` | Interfaces and adapters to the execution environment: operating systems, firmware, platform entry and related services. |
+| `allocation` | Strategies for obtaining, partitioning, reusing and returning storage under their contracts. |
+| `collections` | Containers and operations on their elements, using the storage arrangements their contracts permit. |
+
+Firmware includes UEFI and its Boot Services handoff; `system` therefore
+does not mean only operating-system calls. OS independence is not an admission
+criterion for `core`: parsers, collections and compression can remain ordinary
+packages. Allocation need not use a heap or ambient allocator; a strategy can
+work over explicitly supplied storage without creating backing authority.
+
+These are library responsibilities, not compiler categories or a requirement
+to create four separately versioned packages. Modules can express the logical
+separation; independent use, dependencies or replacement can justify later
+package boundaries. The existing allocation library's container customer does
+not make all containers allocation strategies or fix their permanent home.
+No container rename, generalization of element support or collections extraction
+is required by this decision. Storage growth remains explicit where the
+container contract requires it; a name does not authorize hidden allocation,
+release or loss of resident-value cleanup obligations.
+
+Names should help readers predict the abstraction; conventional vocabulary is
+useful when it does so, and spelling out an abbreviation alone proves nothing
+about the contract. `std` can describe a standard distribution offering, but
+`system` describes the responsibility chosen for this package. Neither name,
+nor matching paths, grants compiler custody, platform authority or privileged
+provider selection. Those remain governed by exact primitives, admitted
+contracts and resolved dependencies.
+
+The physical rename remains implementation work under
+[LIBRARY-RESPONSIBILITY-NAMES](../../../TASKS.md#pipeline-route).
+Existing `std` and `alloc` spellings in source and contracts identify the
+libraries pending that migration, not additional package kinds. Rename their
+declarations, registrations, imports and exact compiler binding references
+coherently, preserving owner checks rather than trusting the new short names.
+The rename is separate from removing compiler coupling and does not demonstrate
+replaceability by itself.
+
 ## Ordinary library packages
 
 Named decision: `ordinary-library-packages`, settled 2026-11-12. `std` and
@@ -208,7 +254,8 @@ behavior retain normal checked implementations and package identities.
 The [validation delivery plan](../../drafts/designs/validation_subjects.md#ordinary-library-migration)
 tracks removal of mandatory/pinned `std` coupling independently of the
 registration-validation API and narrow core-check-root repair. This settlement
-does not choose the still-open runtime-provider policy or rename the libraries.
+does not itself deliver the library rename above or the
+[runtime providers](task_runtime.md#runtime-providers-and-call-authority).
 
 ## Default builds and anonymous owner identity
 

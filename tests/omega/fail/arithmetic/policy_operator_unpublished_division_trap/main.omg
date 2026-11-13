@@ -3,7 +3,7 @@
 // their `requires`. `/!` on a signed carrier can trap on a zero divisor and
 // on `MIN / -1`, and `%!` on an unsigned carrier on a zero divisor, so a
 // public machine that publishes no `crashes Trap` rejects.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 public machine guarded_quotient(value: i32, divisor: i32) -> i32 {

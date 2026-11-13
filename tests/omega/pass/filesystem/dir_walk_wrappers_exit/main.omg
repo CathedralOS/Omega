@@ -1,8 +1,16 @@
 // Expected exit: 70. Create nested directories, count two files, then remove
 // the tree and verify it is gone.
-use omega_language_std::filesystem;
-use omega_language_std::filesystem_host;
-use omega_language_std::console;
+use omega_language_std::IoResult;
+use omega_language_std::EmptyResult;
+use omega_language_std::UnitResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::write_all;
+use omega_language_std::Filesystem::exists;
+use omega_language_std::Filesystem::create_dir_all;
+use omega_language_std::Filesystem::read_dir_is_empty;
+use omega_language_std::Filesystem::read_dir_count;
+use omega_language_std::Filesystem::remove_dir_all;
+use omega_language_std::Console;
 data Main {
     fs: Filesystem;
     unit_result: UnitResult;

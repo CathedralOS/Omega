@@ -18,8 +18,7 @@
 // only element 2 passes both comparisons. Reading a wrong element, field,
 // format or stride stops elsewhere (exit 71) or nowhere (exit 72). Stopping
 // at element 2 -> exit 70.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Probe {
     tag: u8;

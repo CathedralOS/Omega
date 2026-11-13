@@ -1,7 +1,6 @@
 // A computed window carried inside a record has length 2, and write_pair writes its original backing.
 // Reject: the computed window has length 1, so hold cannot establish the length-2 fact.
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::I32::from_f64;
 
 data Held<'samples> { values: &'samples mut [f64]; }
 data Outcome<'samples>

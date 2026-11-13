@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 // A state-carried scalar crosses a console call, then signed fixed-view

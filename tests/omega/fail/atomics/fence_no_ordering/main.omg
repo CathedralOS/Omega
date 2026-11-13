@@ -1,4 +1,5 @@
-use omega::language::core::atomic;
+use omega::language::core::Atomic;
+use omega::language::core::Atomic::fence;
 machine fence_invalid() {
     Atomic::fence(NoOrdering);
 }

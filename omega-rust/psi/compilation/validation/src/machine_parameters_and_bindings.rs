@@ -124,6 +124,7 @@ pub mod machine_parameters {
         use binder_scope::CallableBinderScope;
 
         pub(crate) struct CallableParts<'a> {
+            pub(crate) declaration: structure_elaboration::CallableDeclaration<'a>,
             pub(crate) lexical_owner: SymbolHandle,
             pub(crate) contract_owner: SymbolHandle,
             pub(crate) lifetime_parameters: &'a [typed_trees::name::Identifier],
@@ -141,6 +142,7 @@ pub mod machine_parameters {
                 signature: &'a StateSignature,
             ) -> Self {
                 Self {
+                    declaration: structure_elaboration::CallableDeclaration::Signature(signature),
                     lexical_owner: crate::borrow_contracts::lexical_region_owner(
                         program,
                         signature.symbol,
@@ -358,6 +360,9 @@ pub mod machine_parameters {
                 parameter,
                 requirement,
                 &CallableParts {
+                    declaration: structure_elaboration::CallableDeclaration::Machine(
+                        actual_machine.symbol,
+                    ),
                     lexical_owner: actual_machine.symbol,
                     contract_owner: actual_machine.symbol,
                     lifetime_parameters: &actual_machine.lifetime_parameters,
@@ -440,36 +445,24 @@ pub mod machine_parameters {
             binder_bindings: &mut CallableBinderScope,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
+            use typed_trees::callable_signature_shapes::{
+                CallableShapeMismatch, CallableSignatureShape, compare_callable_signature_shapes,
+            };
             let formation_diagnostic_count = diagnostics.len();
             let actual_parameters = actual.parameters;
             let required_types = program.state_signature_type_parameters(requirement);
-            if required_types.len() != actual.type_parameters.len() {
-                diagnostics.push(Diagnostic::error(format!(
-            "{label} does not refine `{}`: its callable signature expects {} generic parameter(s), got {}",
-            parameter.name, required_types.len(), actual.type_parameters.len(),
-        )));
-                return;
+            if required_types.len() == actual.type_parameters.len() {
+                binder_bindings.static_bindings.extend(
+                    required_types
+                        .iter()
+                        .zip(actual.type_parameters)
+                        .map(|(required, actual)| BinderBinding {
+                            required: required.symbol,
+                            actual: actual.symbol,
+                        }),
+                );
             }
-            binder_bindings.static_bindings.extend(
-                required_types
-                    .iter()
-                    .zip(actual.type_parameters)
-                    .map(|(required, actual)| BinderBinding {
-                        required: required.symbol,
-                        actual: actual.symbol,
-                    }),
-            );
             let required_parameters = program.state_signature_parameters(requirement);
-            if required_parameters.len() != actual_parameters.len() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{label} does not refine `{}`: expected {} parameter(s), got {}",
-                    parameter.name,
-                    required_parameters.len(),
-                    actual_parameters.len()
-                )));
-                return;
-            }
-
             let mut formation_binders = binder_bindings.static_bindings.clone();
             formation_binders.extend(required_parameters.iter().zip(actual_parameters).map(
                 |(required, actual)| BinderBinding {
@@ -478,53 +471,68 @@ pub mod machine_parameters {
                 },
             ));
 
-            for (index, (required, actual)) in required_parameters
-                .iter()
-                .zip(actual_parameters)
-                .enumerate()
-            {
-                if required.is_mutable != actual.is_mutable
-                    || required.is_const != actual.is_const
-                    || required.relevance != actual.relevance
-                {
-                    diagnostics.push(Diagnostic::error(format!(
+            let mismatches = compare_callable_signature_shapes(
+                CallableSignatureShape {
+                    generic_arity: required_types.len(),
+                    parameters: required_parameters,
+                    return_type: requirement.return_type,
+                },
+                CallableSignatureShape {
+                    generic_arity: actual.type_parameters.len(),
+                    parameters: actual_parameters,
+                    return_type: actual.return_type,
+                },
+                |actual, required| {
+                    Ok::<_, std::convert::Infallible>(complete_callable_type_matches(
+                        program,
+                        actual,
+                        required,
+                        generic_types,
+                        bindings,
+                        &formation_binders,
+                    ))
+                },
+            )
+            .unwrap_or_else(|never| match never {});
+            for mismatch in mismatches {
+                match mismatch {
+                    CallableShapeMismatch::GenericArity { required, actual } => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{label} does not refine `{}`: its callable signature expects {} generic parameter(s), got {}",
+                            parameter.name, required, actual,
+                        )));
+                    }
+                    CallableShapeMismatch::ParameterArity { required, actual } => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{label} does not refine `{}`: expected {} parameter(s), got {}",
+                            parameter.name, required, actual,
+                        )));
+                    }
+                    CallableShapeMismatch::ParameterMode { position: index } => {
+                        diagnostics.push(Diagnostic::error(format!(
                         "{label} does not refine `{}`: parameter {} has a different calling mode",
                         parameter.name, index
                     )));
-                    continue;
+                    }
+                    CallableShapeMismatch::ParameterType { position: index } => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{label} does not refine `{}`: parameter {} expects `{}`, got `{}`",
+                            parameter.name,
+                            index,
+                            program
+                                .display_type_reference(required_parameters[index].type_reference),
+                            program.display_type_reference(actual_parameters[index].type_reference)
+                        )));
+                    }
+                    CallableShapeMismatch::ReturnType => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{label} does not refine `{}`: expected return `{}`, got `{}`",
+                            parameter.name,
+                            program.display_type_reference(requirement.return_type),
+                            program.display_type_reference(actual.return_type)
+                        )));
+                    }
                 }
-                if !complete_callable_type_matches(
-                    program,
-                    actual.type_reference,
-                    required.type_reference,
-                    generic_types,
-                    bindings,
-                    &formation_binders,
-                ) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{label} does not refine `{}`: parameter {} expects `{}`, got `{}`",
-                        parameter.name,
-                        index,
-                        program.display_type_reference(required.type_reference),
-                        program.display_type_reference(actual.type_reference)
-                    )));
-                }
-            }
-
-            if !complete_callable_type_matches(
-                program,
-                actual.return_type,
-                requirement.return_type,
-                generic_types,
-                bindings,
-                &formation_binders,
-            ) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{label} does not refine `{}`: expected return `{}`, got `{}`",
-                    parameter.name,
-                    program.display_type_reference(requirement.return_type),
-                    program.display_type_reference(actual.return_type)
-                )));
             }
 
             if diagnostics.len() != formation_diagnostic_count {
@@ -634,6 +642,7 @@ pub mod machine_parameters {
                 label,
                 parameter,
                 requirement,
+                actual.declaration,
                 actual.contracts,
                 required_parameters,
                 actual_parameters,
@@ -1912,6 +1921,7 @@ pub mod machine_parameters {
             label: &str,
             parameter: &TypeParameter,
             requirement: &typed_trees::signature::StateSignature,
+            actual_declaration: structure_elaboration::CallableDeclaration<'_>,
             actual_contracts: &[SignatureContract],
             required_parameters: &[StateParameter],
             actual_parameters: &[StateParameter],
@@ -1927,6 +1937,19 @@ pub mod machine_parameters {
         ) {
             let required_contracts = program.state_signature_contracts(requirement);
             let prepare_implication = || {
+                // The typed application owner must have spent every outer
+                // substitution before this witness reads the two contracts.
+                // An open correspondence keeps its existing checking route;
+                // it is never silently dropped from a lowered proof request.
+                if substitutions.is_empty()
+                    && binder_pairs.is_empty()
+                    && proof_scope.types.is_empty()
+                    && let Some(judgment) = crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare_lowered(
+                        program.typed_program(), requirement, actual_declaration,
+                    )
+                {
+                    return Some(judgment);
+                }
                 crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare(
                     program,
                     crate::proof_contracts::contract_entailment::CallableContract {
@@ -2043,11 +2066,15 @@ pub mod machine_parameters {
                     {
                         continue;
                     }
+                    let detail = implication
+                        .as_ref()
+                        .and_then(|judgment| judgment.refusal_detail())
+                        .map_or(String::new(), |detail| format!(": {detail}"));
                     diagnostics.push(Diagnostic::error(format!(
-                "{label} does not refine `{}`: its {} facts are not a conservative refinement",
-                requirement_identity,
-                contract_kind_name(&kind)
-            )));
+                        "{label} does not refine `{}`: its {} facts are not a conservative refinement{detail}",
+                        requirement_identity,
+                        contract_kind_name(&kind)
+                    )));
                 }
             }
             validate_crash_contract_refinement(
@@ -5722,22 +5749,106 @@ pub mod static_arguments {
             product_operand::{ProductOperandApplication, ProductSelectionOccurrence},
         };
 
-        fn parameters<'a>(
+        // A member application supplies its owner's arguments separately from
+        // its own. Borrow both checked telescopes so argument and source-recipe
+        // validation agree without treating an open member as an empty tuple.
+        struct SuppliedTelescope<'a> {
+            name: &'a str,
+            parameters: &'a [typed_trees::data::TypeParameter],
+            argument: &'a typed_trees::expression::StaticMachineArgument,
+            scope: super::ArgumentScope<'a>,
+        }
+
+        fn supplied_telescopes<'a>(
             program: &'a dyn crate::CheckingInput,
-            application: &ProductOperandApplication,
-        ) -> Option<(&'a str, &'a [typed_trees::data::TypeParameter])> {
-            if !matches!(
-                application.role?,
-                ProductOperandRole::BoundarySubject | ProductOperandRole::Provider
-            ) {
-                return None;
+            application: &'a ProductOperandApplication,
+            state: Option<&'a typed_trees::state::State>,
+        ) -> Result<Vec<SuppliedTelescope<'a>>, &'static str> {
+            let caller = super::ArgumentScope::Caller(state);
+            match application.role {
+                Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider) => {
+                    Ok(vec![SuppliedTelescope {
+                        name: program.symbols.name(application.declaration),
+                        parameters: program
+                            .data_type_parameters
+                            .span(application.declaration_parameters)
+                            .ok_or("Product nominal application lost its declared telescope")?,
+                        argument: &application.argument,
+                        scope: caller,
+                    }])
+                }
+                Some(ProductOperandRole::Requirement) => {
+                    let closed = program.closed_requirement_application(application.declaration);
+                    let template = closed
+                        .as_ref()
+                        .map_or(application.declaration, |closed| closed.template);
+                    let (owner, signature) = program
+                        .trait_machine_signature(template)
+                        .ok_or("Product requirement application lost its declared member")?;
+                    let retained = application
+                        .scope
+                        .scope(program.typed_program())
+                        .filter(|scope| scope.declaration.symbol == owner.symbol)
+                        .ok_or("Product requirement application lost its exact outer scope")?;
+                    if application.declaration_parameters != signature.type_parameters
+                        || usize::try_from(application.declaration_lifetime_count).ok()
+                            != Some(signature.lifetime_parameters.len())
+                    {
+                        return Err(
+                            "Product requirement application changed its declared member telescope",
+                        );
+                    }
+                    let whole = &application.argument;
+                    let mut frames = Vec::with_capacity(2);
+                    let member = if whole.symbol == owner.symbol {
+                        let outer = whole.application.as_ref().ok_or(
+                            "Product requirement application lost its supplied outer telescope",
+                        )?;
+                        let member = expression_table(program)
+                            .static_member(outer.member)
+                            .filter(|member| member.symbol == template)
+                            .ok_or("Product requirement application lost its exact member continuation")?;
+                        frames.push(SuppliedTelescope {
+                            name: program.symbols.name(owner.symbol),
+                            parameters: program.trait_type_parameters(owner),
+                            argument: whole,
+                            scope: caller,
+                        });
+                        member
+                    } else if whole.symbol == template {
+                        whole
+                    } else {
+                        return Err(
+                            "Product requirement application names a different owner or member",
+                        );
+                    };
+                    if member.application.is_some() {
+                        let closed = closed.ok_or(
+                            "Product requirement application lost its supplied member instance",
+                        )?;
+                        if !program.requirement_application_matches_contract_scope(
+                            closed.signature.symbol,
+                            &retained,
+                        ) {
+                            return Err(
+                                "Product requirement member instance changed its outer scope",
+                            );
+                        }
+                        frames.push(SuppliedTelescope {
+                            name: signature.name.as_str(),
+                            parameters: closed.invocation_contract_parameters,
+                            argument: member,
+                            scope: super::ArgumentScope::ClosedRequirement(closed.local_arguments),
+                        });
+                    } else if closed.is_some() {
+                        return Err(
+                            "Product requirement instance lost its supplied member arguments",
+                        );
+                    }
+                    Ok(frames)
+                }
+                _ => Err("Product application lost its designated declaration role"),
             }
-            Some((
-                program.symbols.name(application.declaration),
-                program
-                    .data_type_parameters
-                    .span(application.declaration_parameters)?,
-            ))
         }
 
         fn occurrence<'a>(
@@ -5771,54 +5882,56 @@ pub mod static_arguments {
                 typed_trees::product_operand::collect_product_selection_occurrences(typed);
             for handle in typed.live_product_operand_applications() {
                 let application = typed.product_operand_applications.get(handle);
-                let Some((name, parameters)) = parameters(program, application) else {
-                    diagnostics.push(
-                        Diagnostic::error(format!(
-                            "Product nominal application lost its declared telescope: `{}` ({:?})",
-                            typed.symbols.name(application.declaration),
-                            application.role,
-                        ))
-                        .with_source_span(application.operand.source_span),
-                    );
-                    continue;
-                };
-                let Some(arguments) = application.argument.application.as_ref() else {
-                    diagnostics.push(
-                        Diagnostic::error("Product nominal application lost its original actuals")
-                            .with_source_span(application.operand.source_span),
-                    );
-                    continue;
-                };
                 let state = occurrence(program, application, &occurrences)
                     .and_then(|occurrence| program.state_by_symbol(occurrence.state));
-                if parameters.len() != arguments.arguments.len() {
-                    diagnostics.push(
-                        Diagnostic::error(
-                            "Product nominal application must supply every declaration parameter",
-                        )
-                        .with_source_span(application.operand.source_span),
-                    );
-                    continue;
-                }
-                if let Err(error) = super::validate_arguments(
-                    program,
-                    name,
-                    parameters,
-                    &arguments.arguments,
-                    super::ArgumentScope::Caller(state),
-                ) {
-                    diagnostics.push(error.with_source_span(application.operand.source_span));
-                }
+                let frames = match supplied_telescopes(program, application, state) {
+                    Ok(frames) => frames,
+                    Err(reason) => {
+                        diagnostics.push(
+                            Diagnostic::error(reason)
+                                .with_source_span(application.operand.source_span),
+                        );
+                        continue;
+                    }
+                };
                 let source = expression_table(typed)
                     .static_machine_application(application.supplying_application);
-                if let Err(error) =
-                    crate::conformance_applications::validate_conformance_lifetime_arguments(
+                for frame in frames {
+                    let Some(arguments) = frame.argument.application.as_ref() else {
+                        diagnostics.push(
+                            Diagnostic::error("Product application lost its original actuals")
+                                .with_source_span(application.operand.source_span),
+                        );
+                        continue;
+                    };
+                    let parameters = frame.parameters;
+                    if parameters.len() != arguments.arguments.len() {
+                        diagnostics.push(
+                            Diagnostic::error(
+                                "Product application must supply every declaration parameter",
+                            )
+                            .with_source_span(application.operand.source_span),
+                        );
+                        continue;
+                    }
+                    if let Err(error) = super::validate_arguments(
                         program,
-                        &application.argument,
-                        source.lexical_owner,
-                    )
-                {
-                    diagnostics.push(error.with_source_span(application.operand.source_span));
+                        frame.name,
+                        parameters,
+                        &arguments.arguments,
+                        frame.scope,
+                    ) {
+                        diagnostics.push(error.with_source_span(application.operand.source_span));
+                    }
+                    if let Err(error) =
+                        crate::conformance_applications::validate_conformance_lifetime_arguments(
+                            program,
+                            frame.argument,
+                            source.lexical_owner,
+                        )
+                    {
+                        diagnostics.push(error.with_source_span(application.operand.source_span));
+                    }
                 }
             }
         }
@@ -5833,42 +5946,50 @@ pub mod static_arguments {
                 typed_trees::product_operand::collect_product_selection_occurrences(typed);
             for handle in typed.live_product_operand_applications() {
                 let application = typed.product_operand_applications.get(handle);
-                let Some((_, parameters)) = parameters(program, application) else {
+                let context = occurrence(program, application, &occurrences);
+                let state =
+                    context.and_then(|occurrence| program.state_by_symbol(occurrence.state));
+                let Ok(frames) = supplied_telescopes(program, application, state) else {
                     continue;
                 };
-                let Some(arguments) = application.argument.application.as_ref() else {
-                    continue;
-                };
-                if application.environment.is_none()
-                    && let Some(context) = occurrence(program, application, &occurrences)
-                {
-                    let Some(machine) = program.machine(context.machine) else {
+                for frame in frames {
+                    let parameters = frame.parameters;
+                    let Some(arguments) = frame.argument.application.as_ref() else {
                         continue;
                     };
-                    let Some(state) = program.state_by_symbol(context.state) else {
-                        continue;
-                    };
-                    crate::value_custody::const_expressions::validate_argument_recipes(
-                        program,
-                        machine,
-                        state,
-                        parameters,
-                        &arguments.arguments,
-                        diagnostics,
-                        formation_obligations,
-                    );
-                } else {
-                    let source = expression_table(typed)
-                        .static_machine_application(application.supplying_application);
-                    for (parameter, argument) in parameters.iter().zip(arguments.arguments.iter()) {
-                        let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                    if application.environment.is_none()
+                        && let Some(context) = context
+                    {
+                        let Some(machine) = program.machine(context.machine) else {
                             continue;
                         };
-                        let Some(expression) = super::const_expression_argument(program, argument)
-                        else {
+                        let Some(state) = program.state_by_symbol(context.state) else {
                             continue;
                         };
-                        match crate::check_closed_const_expression(
+                        crate::value_custody::const_expressions::validate_argument_recipes(
+                            program,
+                            machine,
+                            state,
+                            parameters,
+                            &arguments.arguments,
+                            diagnostics,
+                            formation_obligations,
+                        );
+                    } else {
+                        let source = expression_table(typed)
+                            .static_machine_application(application.supplying_application);
+                        for (parameter, argument) in
+                            parameters.iter().zip(arguments.arguments.iter())
+                        {
+                            let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                                continue;
+                            };
+                            let Some(expression) =
+                                super::const_expression_argument(program, argument)
+                            else {
+                                continue;
+                            };
+                            match crate::check_closed_const_expression(
                     program,
                     source.lexical_owner,
                     expression,
@@ -5883,6 +6004,7 @@ pub mod static_arguments {
                     ),
                     Err(errors) => diagnostics.extend(errors),
                 }
+                        }
                     }
                 }
             }

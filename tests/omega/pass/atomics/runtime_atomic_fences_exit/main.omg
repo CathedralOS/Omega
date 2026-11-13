@@ -1,4 +1,6 @@
-use omega::language::core::atomic;
+use omega::language::core::Atomic;
+use omega::language::core::FenceOrdering;
+use omega::language::core::Atomic::fence;
 
 // Serial control: every admitted fence ordering remains an event between
 // atomic operations, including through a shared-parameter helper and a state.

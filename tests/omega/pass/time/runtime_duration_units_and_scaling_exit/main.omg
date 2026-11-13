@@ -1,4 +1,11 @@
-use omega_language_std::time;
+use omega_language_std::Duration;
+use omega_language_std::DurationResult;
+use omega_language_std::Duration::MAX;
+use omega_language_std::Duration::from_milliseconds;
+use omega_language_std::Duration::from_microseconds;
+use omega_language_std::Duration::from_nanoseconds;
+use omega_language_std::Duration::checked_multiply;
+use omega_language_std::Duration::divide;
 
 machine unit_constructors() -> bool {
     let milliseconds: Duration = Duration::from_milliseconds(2001);

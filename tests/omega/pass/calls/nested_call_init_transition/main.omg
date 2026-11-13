@@ -3,7 +3,7 @@
 // result and a call nested inside an outer call's argument), and a named
 // target's argument — every nested call must be consumed into the outer
 // call roster for the body to admit a unit plan.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data Sum [copy] {
     case First;

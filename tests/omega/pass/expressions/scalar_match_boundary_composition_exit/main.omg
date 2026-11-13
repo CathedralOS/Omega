@@ -1,7 +1,6 @@
 // Scalar helpers share the caller's boundary namespace regardless of whether
 // the application appears inside a match subject or an ordinary call operand.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine narrow(value: f32, scale: f32, expected: f32) -> i64 {
     match (value + value) * scale { expected -> 7, _ -> 11 }

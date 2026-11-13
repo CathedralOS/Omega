@@ -1,7 +1,7 @@
 // The direct Console call and write_line's checked implementation both use
 // the selected write-byte provider row. The latter calls its opaque target
 // family head; each occurrence keeps its own contract and boundary identity.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

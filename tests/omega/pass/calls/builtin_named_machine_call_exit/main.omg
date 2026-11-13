@@ -1,6 +1,6 @@
 module builtin_named_machine_call_exit;
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // Authored machines spelled like the compiler's `clamp` and `max` builtins
 // shadow them. Each bare call selects the declaration in this module with its

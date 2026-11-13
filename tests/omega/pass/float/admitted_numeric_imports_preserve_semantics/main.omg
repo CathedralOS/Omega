@@ -1,8 +1,26 @@
 // Selected numeric imports share exact semantics with native realization.
 // ProcessExit authority is explicit and independent of the numeric supplies.
-use omega::language::core::float_operations;
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
+use omega::language::core::F32::negate;
+use omega::language::core::F64::multiply_then_add;
+use omega::language::core::F64::fused_multiply_add;
+use omega::language::core::F64::square_root;
+use omega::language::core::F32::minimum;
+use omega::language::core::F64::minimum;
+use omega::language::core::F64::maximum;
+use omega::language::core::F32::from_f64;
+use omega::language::core::F64::from_f32;
+use omega::language::core::F64::from_u64;
+use omega::language::core::I8::from_f32;
+use omega::language::core::I32::from_f64;
+use omega::language::core::I64::from_f64;
+use omega::language::core::U8::from_f64;
+use omega::language::core::U64::from_f64;
+use omega::language::core::F64::is_nan;
+use omega::language::core::F32::is_infinite;
+use omega::language::core::F64::divide_toward_zero;
+use omega::language::core::F32::divide_toward_positive;
+use omega::language::core::F64::divide_toward_negative;
+use omega::language::core::ProcessExit;
 
 data Main {
     base32: f32;

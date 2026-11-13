@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::from_f64;
 
 machine sample() -> f64 ensures result == 0.1f64 { 0.1 }
 

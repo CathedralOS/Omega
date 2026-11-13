@@ -1,6 +1,6 @@
 // Mutable invocation-local storage retains the declared overflow behavior.
 // Wrapping instead of trapping would reach exit 70 and fail the trap oracle.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

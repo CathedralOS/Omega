@@ -13,8 +13,15 @@
 //   square root rounds to nearest, ties to even: sqrt(2) is
 //   1.4142135623730951 (binary64) and 1.41421353816986083984375 (binary32),
 //   each above its truncation, and sqrt(-1) is NaN.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::negate;
+use omega::language::core::F64::negate;
+use omega::language::core::F32::square_root;
+use omega::language::core::F64::square_root;
+use omega::language::core::F32::minimum;
+use omega::language::core::F64::minimum;
+use omega::language::core::F32::maximum;
+use omega::language::core::F64::maximum;
+use omega_language_std::Console;
 
 data Main {
     zero64: f64;

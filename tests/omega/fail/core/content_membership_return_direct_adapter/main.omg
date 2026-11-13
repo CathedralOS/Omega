@@ -1,6 +1,10 @@
-use omega::language::core::extent;
-use omega::language::core::content;
-use omega::language::core::nat;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::VacantContentTransfer;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Granted::content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 Adapter satisfies VacantContentTransfer {
     machine transfer(storage: Extent in Granted) -> Extent
     ensures result in Granted,

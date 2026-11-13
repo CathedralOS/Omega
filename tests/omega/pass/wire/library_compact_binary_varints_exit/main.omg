@@ -1,5 +1,9 @@
 // Expected exit: 0
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::UnsignedRead;
+use omega::language::core::CompactBinary::write_unsigned;
+use omega::language::core::CompactBinary::read_unsigned;
 
 machine roundtrip(value: u64, expected_end: u64) crashes Trap {
     let mut bytes: [u8; 12] = [77u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 0u8, 99u8];

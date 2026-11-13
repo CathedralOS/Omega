@@ -4,7 +4,7 @@
 // field again and sees the first call's write. Exits 70 only when both results
 // and the caller's own field agree.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Banner { width: i32 in Wrapping; }
 data Screen { height: i32 in Wrapping; banner: Banner; }

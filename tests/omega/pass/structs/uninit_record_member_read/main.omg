@@ -2,7 +2,7 @@
 // scalar member read projects the declared field out of the established
 // zeroed root, so `made.x` returns 0 and the exit code observes it. Exits 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Point {
     x: i32 in Trapping;

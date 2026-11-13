@@ -1,7 +1,7 @@
 // Twin of `small_sum` in run/arithmetic/policy_operator_contracts called with
 // operands whose wrapped sum is 12. The requirement is the wrapped sum the
 // operator names, so the caller cannot prove `< 10`.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine small_sum(a: u32, b: u32) -> u32

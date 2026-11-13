@@ -1,6 +1,10 @@
 // A selected named policy map owns a target-family contract, not permission to
 // execute another deployment's body when the chosen deployment has no member.
-use omega_language_std::calling;
+use omega_language_std::BoundarySignature;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::CallingPolicy;
+use omega_language_std::Calling;
 
 data TargetPolicy {}
 TargetPolicyCalling satisfies CallingPolicy {

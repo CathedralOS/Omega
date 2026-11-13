@@ -1,7 +1,8 @@
 // Expected exit: 0.
 // The initial account enters only through the selected admitted InitialSupply
 // invocation after its provider has obtained a successful fresh allocation.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 
 public data ByteUnit {}
 public data Buffer [linear] { pointer: addr; }

@@ -45,6 +45,8 @@ pub enum CanonicalProviderDeclaration {
 pub struct PreparedProviderRealizations<Owner = ()> {
     pub provider_declaration: Option<String>,
     pub row_numeric_realizations: Vec<Option<String>>,
+    pub declarations:
+        Result<language_semantics::provider_declarations::ProviderDeclarations, Diagnostic>,
     pub owner: Owner,
 }
 
@@ -110,7 +112,17 @@ pub struct PreparedTargetChoices<Owner = (), Origin = ()> {
 
 #[derive(Clone, Copy)]
 pub enum ProviderApplicationDemand<'roots> {
-    Product(Option<&'roots [terminal_psi::ProofDeclarationId]>),
+    Product(
+        Option<&'roots [terminal_psi::ProofDeclarationId]>,
+        Result<
+            (
+                &'roots std::sync::Arc<terminal_psi::TerminalIdentityTable>,
+                &'roots terminal_psi::PreparedCallbackDeclarations,
+                &'roots [terminal_psi::CallbackRequirementId],
+            ),
+            &'roots [Diagnostic],
+        >,
+    ),
     Invocation(&'roots [terminal_psi::ProofDeclarationId]),
 }
 
@@ -119,7 +131,14 @@ pub struct SelectedTargetProviders<Owner, Origin> {
     pub facts: effects::SelectedProviderPlanFacts,
     pub demanded_plans: Vec<effects::provider_plan::ProviderPlan>, // fixed point's required candidate schemas, independent of which whole map wins
     pub invoked_declarations: Vec<terminal_psi::ProofDeclarationId>, // exact calls reached by this demand after the provider fixed point
-    pub choices: Vec<crate::SelectedProvider<CanonicalProviderDeclaration, Owner, Origin>>,
+    pub callback_roots: Option<Result<terminal_psi::PreparedTerminalRoots, Vec<Diagnostic>>>, // Product's existing callback result; Invocation makes no native callback claim
+    pub choices: Vec<
+        crate::SelectedProvider<
+            CanonicalProviderDeclaration,
+            PreparedProviderRealizations<Owner>,
+            Origin,
+        >,
+    >,
 }
 
 #[derive(Debug, Clone)]
@@ -174,6 +193,7 @@ impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
                     .map(|realizations| PreparedProviderRealizations {
                         provider_declaration: realizations.provider_declaration,
                         row_numeric_realizations: realizations.row_numeric_realizations,
+                        declarations: realizations.declarations,
                         owner: map(&choice.plan, realizations.owner),
                     });
                 PreparedProviderCandidate {
@@ -250,6 +270,9 @@ impl PreparedTargetProviderPublication {
         artifact: terminal_codec::TerminalArtifactView<'_>,
         optimization_selection: optimization_core::OptimizationSelectionIdentity,
         realization_scopes: &[String],
+        callback_identities: &std::sync::Arc<terminal_psi::TerminalIdentityTable>,
+        callbacks: &terminal_psi::PreparedCallbackDeclarations,
+        calling_requirements: &[terminal_psi::CallbackRequirementId],
     ) -> Vec<backend_plan::TerminalTargetProviderProposal> {
         self.targets
             .into_iter()
@@ -316,9 +339,12 @@ impl PreparedTargetProviderPublication {
                         }
                         prepared.select(
                             artifact,
-                            ProviderApplicationDemand::Product(application_roots.as_deref()),
+                            ProviderApplicationDemand::Product(application_roots.as_deref(), Ok((callback_identities, callbacks, calling_requirements))),
                             &self.assumed_bindings,
-                        ).map(|selected| selected.selection)
+                        ).and_then(|selected| {
+                            selected.callback_roots.ok_or_else(|| vec![Diagnostic::error("product provider choice lost callback preparation")])??;
+                            Ok(selected.selection)
+                        })
                     })
                     .map_err(|diagnostics| {
                         diagnostics
@@ -357,11 +383,58 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
         demand: ProviderApplicationDemand<'_>,
         assumed_bindings: &[effects::AssumedBindingContractSelection],
     ) -> Result<SelectedTargetProviders<Owner, Origin>, Vec<Diagnostic>> {
+        if matches!(demand, ProviderApplicationDemand::Product(..)) {
+            // Unused defaults still need valid configuration. Check their slots,
+            // coverage and conflicts with the usual Build override precedence,
+            // without activating the selected implementations' bodies.
+            let configured = self
+                .candidates
+                .iter()
+                .filter(|candidate| {
+                    self.defaults
+                        .iter()
+                        .chain(&self.overrides)
+                        .any(|choice| candidate.accepts_choice(choice))
+                })
+                .map(|candidate| candidate.choice.clone())
+                .collect();
+            let _ = crate::choose(configured, self.profile, &self.defaults, &self.overrides)?;
+        }
+        // The canonical registrar/use index is immutable over this choice. Build
+        // it once; only selected rows and reached callers vary in the fixed point.
+        let callback_associations = match demand {
+            ProviderApplicationDemand::Product(_, callbacks) => {
+                Some(callbacks.map_err(<[Diagnostic]>::to_vec).and_then(
+                    |(identities, callbacks, _)| {
+                        crate::CallbackProviderDeclarations::application_uses(
+                            callbacks,
+                            identities,
+                            artifact.module(),
+                        )
+                    },
+                ))
+            }
+            ProviderApplicationDemand::Invocation(_) => None,
+        };
+        let applications = artifact
+            .module()
+            .scalar_applications
+            .proof_scope
+            .applications();
         let mut demanded = vec![false; self.candidates.len()];
-        let mut previous = describe_selection::<Owner, Origin>(&[], artifact, assumed_bindings)?;
+        let mut previous_choices = Vec::new();
+        let mut previous =
+            describe_selection::<Owner, Origin>(&previous_choices, artifact, assumed_bindings)?;
         loop {
-            let invoked_declarations =
-                self.extend_application_demand(artifact, demand, &previous, &mut demanded)?;
+            let (invoked_declarations, callback_roots) = self.extend_application_demand(
+                artifact,
+                demand,
+                &previous,
+                &mut demanded,
+                callback_associations.as_ref(),
+                &applications,
+                &previous_choices,
+            )?;
             let candidates: Vec<_> = self
                 .candidates
                 .iter()
@@ -369,36 +442,35 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 .filter(|(_, demanded)| **demanded)
                 .map(|(candidate, _)| candidate.choice.clone())
                 .collect();
-            let invocation_defaults;
+            // Defaults choose among the slots this closure actually needs.
+            // Build overrides are deployment roots for Product selection, so
+            // they remain complete even when no application call reaches them.
+            let relevant = |choice: &&ProviderDeclaration<CanonicalProviderDeclaration, Origin>| {
+                self.candidates
+                    .iter()
+                    .zip(&demanded)
+                    .any(|(candidate, needed)| *needed && candidate.accepts_choice(choice))
+            };
+            let defaults = self
+                .defaults
+                .iter()
+                .filter(relevant)
+                .cloned()
+                .collect::<Vec<_>>();
             let invocation_overrides;
-            let (defaults, overrides) = match demand {
-                ProviderApplicationDemand::Product(_) => (&self.defaults[..], &self.overrides[..]),
+            let overrides = match demand {
+                ProviderApplicationDemand::Product(..) => &self.overrides[..],
                 ProviderApplicationDemand::Invocation(_) => {
-                    let relevant = |choice: &&ProviderDeclaration<
-                        CanonicalProviderDeclaration,
-                        Origin,
-                    >| {
-                        self.candidates
-                            .iter()
-                            .zip(&demanded)
-                            .any(|(candidate, needed)| *needed && candidate.accepts_choice(choice))
-                    };
-                    invocation_defaults = self
-                        .defaults
-                        .iter()
-                        .filter(relevant)
-                        .cloned()
-                        .collect::<Vec<_>>();
                     invocation_overrides = self
                         .overrides
                         .iter()
                         .filter(relevant)
                         .cloned()
                         .collect::<Vec<_>>();
-                    (&invocation_defaults[..], &invocation_overrides[..])
+                    &invocation_overrides[..]
                 }
             };
-            let selected = crate::choose(candidates, self.profile, defaults, overrides)?;
+            let selected = crate::choose(candidates, self.profile, &defaults, overrides)?;
             let proposed = describe_selection(&selected, artifact, assumed_bindings)?;
             if proposed == previous {
                 let (facts, selected) = crate::admit(
@@ -423,7 +495,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                                 declarations,
                                 native_build,
                                 canonical_float_map,
-                                owner: owner.owner,
+                                owner,
                             },
                             selected_by: selected.selected_by,
                         })
@@ -441,8 +513,13 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                         .collect(),
                     choices,
                     invoked_declarations,
+                    callback_roots,
                 });
             }
+            // Keep the existing chosen records with their canonical projection;
+            // the next round borrows their declaration facts instead of finding
+            // a candidate again from an independently supplied plan digest.
+            previous_choices = selected;
             previous = proposed;
         }
     }
@@ -453,7 +530,30 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
         demand: ProviderApplicationDemand<'_>,
         selected: &backend_plan::TerminalTargetProviderSelection,
         demanded: &mut [bool],
-    ) -> Result<Vec<terminal_psi::ProofDeclarationId>, Vec<Diagnostic>> {
+        associations: Option<
+            &Result<
+                (
+                    Vec<crate::bodies::CallbackApplicationUse<'_>>,
+                    Vec<crate::bodies::InstalledHelperUse>,
+                ),
+                Vec<Diagnostic>,
+            >,
+        >,
+        applications: &semantic_vocabulary::proof_applications::ProofApplications<
+            '_,
+            terminal_psi::ProofDeclarationId,
+            semantic_vocabulary::proof_applications::ProofCallGraph<
+                terminal_psi::ProofDeclarationId,
+            >,
+        >,
+        previous_choices: &[SelectedCanonicalProvider<Owner, Origin>],
+    ) -> Result<
+        (
+            Vec<terminal_psi::ProofDeclarationId>,
+            Option<Result<terminal_psi::PreparedTerminalRoots, Vec<Diagnostic>>>,
+        ),
+        Vec<Diagnostic>,
+    > {
         let module = artifact.module();
         let scope = &module.scalar_applications.proof_scope;
         let declaration = |callable| {
@@ -463,9 +563,12 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 )]
             })
         };
+        // Checking every library declaration does not deploy every body on the
+        // requested target. Start executable demand at Build's roots and grow
+        // it through explicit provider choices, including a rootless package's.
         let mut roots = match demand {
-            ProviderApplicationDemand::Product(roots) => roots.map(<[_]>::to_vec),
-            ProviderApplicationDemand::Invocation(roots) => Some(roots.to_vec()),
+            ProviderApplicationDemand::Product(roots, ..) => roots.unwrap_or_default().to_vec(),
+            ProviderApplicationDemand::Invocation(roots) => roots.to_vec(),
         };
         let mut edges = Vec::new();
         for row in &selected.checked_candidates {
@@ -473,10 +576,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 declaration(terminal_psi::TargetMachineCallable::Boundary(row.boundary))?;
             let body = declaration(terminal_psi::TargetMachineCallable::Machine(row.candidate))?;
             edges.push((requirement, body));
-            if matches!(demand, ProviderApplicationDemand::Product(_))
-                && let Some(roots) = &mut roots
-                && !roots.contains(&body)
-            {
+            if matches!(demand, ProviderApplicationDemand::Product(..)) && !roots.contains(&body) {
                 roots.push(body);
             }
         }
@@ -494,19 +594,109 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 declaration(terminal_psi::TargetMachineCallable::Boundary(supplied))?,
             ));
         }
-        let applications = scope.applications();
-        let reachable = match demand {
-            ProviderApplicationDemand::Product(_) => applications.reachability(
-                self.profile.target_name(),
-                true,
-                &edges,
-                roots.as_deref(),
+        roots.sort_unstable();
+        roots.dedup();
+        let callbacks = match demand {
+            ProviderApplicationDemand::Product(_, metadata) => Some(
+                metadata
+                    .map_err(<[Diagnostic]>::to_vec)
+                    .and_then(|(identities, metadata, calling)| {
+                        // Binding uses this same projection after grants. Here
+                        // its failure remains deferred callback data, so closed
+                        // Import aliases do not disappear from provisional choice.
+                        let mut choices = previous_choices.iter().collect::<Vec<_>>();
+                        choices.sort_by(|left, right| left.candidate.plan.selection_order(&right.candidate.plan));
+                        if choices.len() != plans.plans().len() {
+                            return Err(vec![Diagnostic::error("callback provider declarations lost the complete selected roster")]);
+                        }
+                        let mut declarations = Vec::with_capacity(choices.len());
+                        for (choice, plan) in choices.iter().zip(plans.plans()) {
+                            if choice.candidate.plan != *plan {
+                                return Err(vec![Diagnostic::error("callback provider declarations lost exact selected plan custody")]);
+                            }
+                            let realization = choice.candidate.owner.as_ref().map_err(Clone::clone)?;
+                            declarations.push(realization.declarations.as_ref().map(|declarations| crate::SelectedPlanDeclarations {
+                                plan, declarations: declarations.clone(),
+                            }).map_err(Clone::clone));
+                        }
+                        let enriched = crate::binding::enrich_selected_plans(plans.clone(), &declarations)?;
+                        let providers = crate::CallbackProviderDeclarations::prepare(
+                            &enriched,
+                            &metadata.declarations,
+                            &selected.plans,
+                            module,
+                        )?;
+                        let mut uses = crate::select_callback_declarations(
+                            &metadata.declarations,
+                            calling,
+                            &providers,
+                        )?;
+                        let mut installed = metadata.installed_roots(calling)?;
+                        for &usage in &installed {
+                            if !uses.contains(&usage) {
+                                uses.push(usage);
+                            }
+                        }
+                        // Keep the original complete roster, including dormant
+                        // checked uses, for later native callback admission.
+                        let retained = metadata.selected_roots(std::sync::Arc::clone(identities), uses.iter().copied());
+                        uses.sort_unstable_by_key(|usage| (usage.arena_index(), usage.generation()));
+                        uses.dedup();
+                        installed.sort_unstable_by_key(|usage| (usage.arena_index(), usage.generation()));
+                        installed.dedup();
+                        Ok((uses, installed, retained))
+                    }),
             ),
-            ProviderApplicationDemand::Invocation(_) => applications.invocation_reachability(
-                self.profile.target_name(),
-                &edges,
-                roots.as_deref().unwrap_or_default(),
-            ),
+            ProviderApplicationDemand::Invocation(_) => None,
+        };
+        let (reachable, callback_roots) = loop {
+            let mut reachable = match demand {
+                ProviderApplicationDemand::Product(..) => applications.reachability(
+                    self.profile.target_name(),
+                    true,
+                    &edges,
+                    Some(&roots),
+                ),
+                ProviderApplicationDemand::Invocation(_) => {
+                    applications.invocation_reachability(self.profile.target_name(), &edges, &roots)
+                }
+            };
+            reachable.machines.sort_unstable();
+            let error = match (&callbacks, associations) {
+                (Some(Ok((selected_uses, installed, _))), Some(Ok((associations, helpers)))) => {
+                    let extension = (|| -> Result<bool, Vec<Diagnostic>> {
+                        let callbacks = crate::CallbackProviderDeclarations::extend_reached_roots(
+                            associations,
+                            selected_uses,
+                            installed,
+                            &reachable.machines,
+                            &mut roots,
+                        )?;
+                        let helpers =
+                            crate::CallbackProviderDeclarations::extend_reached_installed_helpers(
+                                helpers,
+                                &reachable.machines,
+                                &mut roots,
+                            )?;
+                        Ok(callbacks || helpers)
+                    })();
+                    match extension {
+                        Ok(true) => continue,
+                        Ok(false) => None,
+                        Err(errors) => Some(errors),
+                    }
+                }
+                (Some(Err(errors)), _) | (_, Some(Err(errors))) => Some(errors.clone()),
+                (None, None) => None,
+                _ => Some(vec![Diagnostic::error(
+                    "callback demand lost its prepared application association",
+                )]),
+            };
+            let retained = match error {
+                Some(errors) => Some(Err(errors)),
+                None => callbacks.map(|callbacks| callbacks.map(|(_, _, roots)| roots)),
+            };
+            break (reachable, retained);
         };
         let mut calls = reachable.calls;
         calls.sort_unstable();
@@ -534,7 +724,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             else {
                 continue;
             };
-            if !reachable.machines.contains(&body_owner) {
+            if reachable.machines.binary_search(&body_owner).is_err() {
                 continue;
             }
             for operation in machine.operations() {
@@ -562,7 +752,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
                 .binary_search(&candidate.schema_owner.as_str())
                 .is_ok();
             let authored_map_demanded = match demand {
-                ProviderApplicationDemand::Product(_) => candidate.explicitly_selected,
+                ProviderApplicationDemand::Product(..) => candidate.explicitly_selected,
                 ProviderApplicationDemand::Invocation(_) => {
                     candidate.explicitly_selected
                         && candidate
@@ -573,7 +763,7 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             };
             *demanded |= root_invoked || authored_map_demanded;
         }
-        Ok(calls)
+        Ok((calls, callback_roots))
     }
 }
 

@@ -2,7 +2,7 @@
 // bodies are checked and retained, without demanding UEFI realization on a
 // development host. The portable-caller negative controls pin the distinct
 // obligation when a realized caller demands a missing target body.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Helper { seed: i32; }
 

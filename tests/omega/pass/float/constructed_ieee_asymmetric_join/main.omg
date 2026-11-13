@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Lower [copy] requires value >= 0.0 && value <= 0.125 { value:f64; }
 data Upper [copy] requires value >= 0.0 && value <= 0.25 { value:f64; }
 machine admit(value:f64)->f64 requires value>=0.0 && value<=0.25 {value}

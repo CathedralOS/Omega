@@ -5,7 +5,7 @@
 // signature. `items[0]` holds 70, so probing index 0 exits 70; any other
 // element exits 71.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Item {
     value: u64;

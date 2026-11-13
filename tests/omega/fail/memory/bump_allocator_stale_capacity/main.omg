@@ -1,4 +1,6 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
 use alloc::bump;
 
 // The first allocation ends its strategy loan, but invalidates the old count.

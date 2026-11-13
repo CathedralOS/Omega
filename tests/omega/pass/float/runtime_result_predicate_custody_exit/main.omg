@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 data Values { exact: f64; fraction: f64; }
 

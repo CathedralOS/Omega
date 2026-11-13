@@ -2,7 +2,7 @@
 // explicitly borrowed context and passes it to a by-value parameter. The callee
 // must observe the copied value and the caller's source must be left
 // unchanged — a copy projection duplicates the place, it does not move it.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data SourceId [copy] { value: u32 in Trapping; }
 data Src { id: SourceId; length: u32 in Trapping; }

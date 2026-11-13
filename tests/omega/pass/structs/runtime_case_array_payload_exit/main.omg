@@ -1,5 +1,5 @@
 // Array construction is an ordinary value producer inside a case payload.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Packet {
     case Empty;

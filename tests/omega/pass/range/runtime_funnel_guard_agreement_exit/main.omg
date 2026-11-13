@@ -1,7 +1,7 @@
 // Both guarded entries to push must justify storing sp in the bounded y field.
 // The entry requirement carries the guard; the data predicate keeps the field's
 // original 0..=15 restriction after the store. Expected exit: 7.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main requires y >= 0 && y <= 15 {
     sp: i32;

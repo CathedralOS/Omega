@@ -1,7 +1,7 @@
 // `s <= 254` on a u8 is NOT vacuous (the carrier reaches 255), but the
 // argument is a call whose result constant-folds, so the instantiated
 // premise `4 <= 254` is decided-true and the call discharges.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine echo(scale: u8) -> u8
 requires scale <= 254u8

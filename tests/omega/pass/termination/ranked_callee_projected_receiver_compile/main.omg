@@ -9,7 +9,7 @@
 // zeroes `cursor.remaining` on the projected referent, `run` reads it back
 // through `engine.cursor`, and `main` exits 70 only when that composed
 // write is observed (an unwritten cursor still reads 5 and exits 71).
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cursor requires remaining <= 8 { remaining: u64; }
 

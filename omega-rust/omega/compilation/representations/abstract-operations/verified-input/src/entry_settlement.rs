@@ -254,22 +254,22 @@ mod calling_plans {
 mod model {
     use super::PhysicalProgramEntry;
     use super::calling_plans::validate_paired_calling_plans;
-    use crate::TerminalAccessViewEstablishment;
     use calling_conventions::{
         BoundaryCallingApplication, BoundaryEntryPlan, ValidatedBoundaryEntryPlan,
     };
     use program_entry_plan::{SelectedProgramEntrySignature, SelectedProgramStorageEntryPlan};
     use terminal_installation::CheckedPrivateEntryRamRecipe;
+    use terminal_installation::TerminalAccessViewEstablishment;
     use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
     #[derive(Debug, Clone, Copy)]
     pub struct NativeProgramEntrySettlement<'entry> {
         pub checked_entry: Option<&'entry CheckedProgramEntryTerminalReceipt>,
-        pub(crate) physical_adapter: Option<&'entry PhysicalProgramEntry>,
-        pub(crate) source: &'entry SelectedProgramEntrySignature,
-        pub(crate) semantic_calling_application: Option<&'entry BoundaryCallingApplication>,
-        pub(crate) physical_calling_application: Option<&'entry BoundaryCallingApplication>,
-        pub(crate) storage_entry: Option<&'entry SelectedProgramStorageEntryPlan>,
+        pub physical_adapter: Option<&'entry PhysicalProgramEntry>,
+        pub source: &'entry SelectedProgramEntrySignature,
+        pub semantic_calling_application: Option<&'entry BoundaryCallingApplication>,
+        pub physical_calling_application: Option<&'entry BoundaryCallingApplication>,
+        pub storage_entry: Option<&'entry SelectedProgramStorageEntryPlan>,
     }
 
     impl<'entry> NativeProgramEntrySettlement<'entry> {
@@ -393,6 +393,19 @@ mod model {
     }
 
     impl ValidatedNativeProgramEntrySettlement {
+        pub(crate) fn bind_physical_adapter(
+            &mut self,
+            artifact: &terminal_codec::CanonicalTerminalArtifact,
+            selected: &[provider_admission::SelectedProviderAdapter],
+        ) -> Result<(), &'static str> {
+            let application = self
+                .physical_calling_application()
+                .ok_or("physical adapter selected without a physical arrival contract")?;
+            self.physical_adapter =
+                Some(PhysicalProgramEntry::bind(artifact, application, selected)?);
+            Ok(())
+        }
+
         pub fn as_settlement(&self) -> NativeProgramEntrySettlement<'_> {
             NativeProgramEntrySettlement {
                 checked_entry: Some(&self.checked_entry),
@@ -515,7 +528,7 @@ mod physical_adapter {
         pub(crate) fn bind(
             artifact: &terminal_codec::CanonicalTerminalArtifact,
             application: &calling_conventions::BoundaryCallingApplication,
-            selected: &[crate::SelectedProviderAdapter],
+            selected: &[provider_admission::SelectedProviderAdapter],
         ) -> Result<Self, &'static str> {
             let module = artifact.semantic_module();
             let mut candidates = module.provider_candidates.iter().filter(|candidate| {
@@ -582,14 +595,14 @@ mod physical_adapter {
 }
 mod semantic_call {
     use super::ValidatedNativeProgramEntrySettlement;
+    use crate::SelectedProgramEntryCall;
     use effects::CompilerIntrinsicExecutionIdentity;
     use effects::provider_plan::ProviderBinding;
-    use verified_optimization_input::SelectedProgramEntryCall;
 
     /// Settles the `ProgramEntry` call native admission selected for
     /// `artifact`, or `None` when no selected provider row carries the
     /// program's storage entry.
-    pub(crate) fn bind_selected_program_entry_call(
+    pub fn bind_selected_program_entry_call(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
         entry: &ValidatedNativeProgramEntrySettlement,
         selection: &effects::SelectedProviderPlanFacts,
@@ -715,9 +728,9 @@ mod semantic_call {
     }
 }
 
+pub use crate::SelectedProgramEntryCall;
 pub use physical_adapter::PhysicalProgramEntry;
-pub(crate) use semantic_call::bind_selected_program_entry_call;
-pub use verified_optimization_input::SelectedProgramEntryCall;
+pub use semantic_call::bind_selected_program_entry_call;
 
 pub use model::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,

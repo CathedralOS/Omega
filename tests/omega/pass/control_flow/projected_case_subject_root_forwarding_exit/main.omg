@@ -8,7 +8,7 @@
 // ("structural result has no selected disposition").
 // Data adds 7, Trait adds its location source 3, Definition stops the walk
 // and adds its span end 60 -> total 70; walking past it adds 50.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Span [copy] { start: u64 in Trapping; end: u64 in Trapping; }
 data Location [copy] { source: u64 in Trapping; span: Span; }

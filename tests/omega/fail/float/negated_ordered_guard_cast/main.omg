@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // NaN satisfies both negated ordered comparisons. They cannot establish a
 // finite conversion interval by taking the integer-order complements.

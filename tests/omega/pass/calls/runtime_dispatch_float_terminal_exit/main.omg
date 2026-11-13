@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // RUN CANARY (exit 70) -- a dispatched value call whose terminal is a FLOAT
 // place (`-> acc`, acc: f64). DISCOVERED SERVING 2026-07-10s while pinning
@@ -7,7 +6,7 @@ use omega::language::core::float_operations;
 // type-agnostic, so a float PLACE terminal round-trips byte-exact (1.5 in,
 // 1.5 out through the frame result slot). Float BINARY terminals
 // (`-> acc + 0.5`) remain the bail row (the binary serve is integer-only).
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine pick(main: &mut Main, n: i32, acc: f64) -> f64
 requires n >= 0

@@ -8,7 +8,7 @@
 // `inner.y` (a member that is not a payload field) still declines upstream
 // at checked-trees ("data `Inner` has no field `y`").
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Inner {
     x: i32 in Wrapping;

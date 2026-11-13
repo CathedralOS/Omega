@@ -1,5 +1,5 @@
 // Copying a shared reference payload must not grant mutable state access.
-use omega::language::core::option;
+use omega::language::core::Optional;
 data Cell [copy] { value: u64; }
 machine select(cell: &Cell) -> Optional<&Cell> {
     Optional::Some { value: cell }

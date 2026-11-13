@@ -1,5 +1,4 @@
 // Expected exit: 0.
-use omega::language::core::float_operations;
 data Work { count: u64; scratch: [f64; 2]; }
 data Envelope { work: Work; }
 machine main() crashes Trap {

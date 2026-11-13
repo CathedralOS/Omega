@@ -1087,6 +1087,18 @@ mod product {
                 _ => false,
             }
         }
+
+        // The checked recording call must agree with the authored request.
+        // Keep its ordinary operands beside its name so preparation and
+        // validation cannot admit a different Product operation's protocol.
+        pub const fn product_recording_operation(self) -> Option<(&'static str, usize)> {
+            match self {
+                Self::NativeBinding => Some(("bind_native", 3)),
+                Self::ProviderSelection => Some(("select_provider", 3)),
+                operation if operation.selects_product_declarations() => Some(("select", 1)),
+                _ => None,
+            }
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -1240,14 +1252,6 @@ mod product {
         pub requirement_path: String,
         pub source_occurrence_digest: [u8; 32],
         pub resolution_stratum: source::SourceResolutionStratum,
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct CapturedNativeDeclaration {
-        pub source: NativeBindingSource,
-        pub requirement: symbols::RetainedDeclaration,
-        pub requirement_identity: String,
-        pub dependency_alias: Option<String>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2620,8 +2624,7 @@ impl<'ledger> IntoIterator for &'ledger AuthoredDeclarationSelections {
 }
 
 pub use product::{
-    CapturedNativeDeclaration, CapturedNativeIntent, NativeBindingFormation, NativeBindingProducer,
-    NativeBindingSource,
+    CapturedNativeIntent, NativeBindingFormation, NativeBindingProducer, NativeBindingSource,
 };
 
 #[cfg(test)]
@@ -3048,8 +3051,8 @@ mod tests {
     }
 }
 
-// Build's settled selection rows for assumed bindings, native bindings and
-// program-entry roots. They are plain records over symbols, spans and the
+// Build's settled selection rows for assumed bindings and program-entry roots.
+// They are plain records over symbols, spans and the
 // selection vocabulary above, so they live with that vocabulary: the Psi
 // collectors that produce them and the Omega planners that consume them both
 // name them here, and neither has to import the other to share a row.
@@ -3062,20 +3065,9 @@ pub struct AssumedBindingContract {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeBindingSelection {
-    pub subject: SymbolHandle,
-    pub requirement: SymbolHandle,
-    pub target: ProductTarget,
-    pub locator: semantic_vocabulary::NativeBindingLocator,
-    pub producer: NativeBindingProducer,
-    pub source_occurrence_digest: [u8; 32],
-    pub supplier_package: semantic_vocabulary::PackageKeyIdentity,
-    pub source_span: SourceSpan,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RootBinding {
     pub slot: String,
     pub implementation: String,
     pub implementation_symbol: SymbolHandle,
+    pub source_span: Option<SourceSpan>,
 }

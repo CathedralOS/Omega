@@ -10,7 +10,7 @@
 // 4; `second` asks for nine bytes and takes the `Failed` arm. Exits 70 only
 // when the forwarded count, the passed tally and the filled byte all arrive.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data FillError {
     case Other;

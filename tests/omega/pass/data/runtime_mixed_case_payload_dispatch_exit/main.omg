@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70). A payload dispatch on a mixed-shape receiver field
 // selects the case from the tag and binds the payload from its overlay after
 // the common fields: `gold` must read back 50, not a common-field byte.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Event {
     consumed: bool;

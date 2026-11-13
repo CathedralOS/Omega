@@ -13,6 +13,7 @@ test-support = []
 installed-artifact = ["dep:executable-installation"]
 
 [dependencies]
+verified-optimization-input = { path = "../../../representations/abstract-operations/verified-input" }
 language-core = { path = "../../../../../psi/foundation/language-core" }
 provider-admission = { path = "../../../realization/provider-admission" }
 register-model = { path = "../../register-model" }

@@ -2,7 +2,7 @@
 // The field comparison is a real equality guard, so the ordinary flow/proof
 // machinery knows `main.header.ok == 0` inside the first arm.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Header [copy] {
     ok: i32;

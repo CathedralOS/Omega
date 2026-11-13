@@ -3,9 +3,10 @@
 // constructor preserve the same numeric partition without equating their
 // distinct claim identities or granting routed custody authority.
 // The harness executes both alternatives and consumes both retained results.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data ByteUnit {}
 

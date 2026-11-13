@@ -2,7 +2,6 @@
 // Place: target_body (invalid twin). Reading index 3 exceeds the guarded length bound of 3 elements.
 // Expected diagnostic: slice index out of bounds
 
-use omega::language::core::slice;
 
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;

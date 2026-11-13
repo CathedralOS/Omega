@@ -1,4 +1,5 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::square_root;
+use omega::language::core::F64::square_root;
 
 machine f32_result() -> bool {
     F32::square_root(64.0f32) == 8.0
