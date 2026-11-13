@@ -35,7 +35,7 @@ pub fn run_unlimited(
     directory: &Path,
     name: &str,
 ) -> Result<ExitStatus, String> {
-    run_bounded(command, directory, name, Duration::MAX, false)
+    run_bounded(command, directory, name, Duration::MAX)
 }
 
 /// Every invocation owns a fresh OS container, never the caller's process
@@ -108,39 +108,13 @@ impl Drop for OwnedCommand {
     }
 }
 
-/// Runs with no time limit, and copies the command's stderr to this process's
-/// stderr while it runs, so a long command reports as it goes instead of
-/// only in the file read after it ends.
-pub fn run_echoing_stderr(
-    command: &mut Command,
-    directory: &Path,
-    name: &str,
-) -> Result<ExitStatus, String> {
-    run_bounded(command, directory, name, Duration::MAX, true)
-}
-
 pub fn run_with_timeout(
     command: &mut Command,
     directory: &Path,
     name: &str,
     timeout: Duration,
 ) -> Result<ExitStatus, String> {
-    run_bounded(command, directory, name, timeout, false)
-}
-
-/// Copies what `path` gained since `offset` to this process's stderr.
-fn echo_growth(path: &Path, offset: &mut u64) {
-    use std::io::{Seek, SeekFrom, Write};
-    let Ok(mut file) = fs::File::open(path) else {
-        return;
-    };
-    let mut bytes = Vec::new();
-    if file.seek(SeekFrom::Start(*offset)).is_ok()
-        && let Ok(read) = file.read_to_end(&mut bytes)
-    {
-        *offset += read as u64;
-        let _ = std::io::stderr().write_all(&bytes);
-    }
+    run_bounded(command, directory, name, timeout)
 }
 
 fn run_bounded(
@@ -148,7 +122,6 @@ fn run_bounded(
     directory: &Path,
     name: &str,
     timeout: Duration,
-    echo_stderr: bool,
 ) -> Result<ExitStatus, String> {
     if timeout.is_zero() {
         return Err(format!("{name} requires a positive command timeout"));
@@ -182,15 +155,11 @@ fn run_bounded(
             "kind": if cfg!(windows) { "windows_job" } else { "unix_process_group" },
             "leader_id": owner.child().id(),
         });
-        let mut echoed = 0;
         let result = (|| loop {
             let finished = owner
                 .child()
                 .try_wait()
                 .map_err(|e| format!("wait {name}: {e}"))?;
-            if echo_stderr {
-                echo_growth(&stderr, &mut echoed);
-            }
             if let Some(status) = finished {
                 return Ok(status);
             }
