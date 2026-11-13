@@ -107,13 +107,12 @@ pub use checked_trees::PreparedProviderInventory;
 pub(crate) mod terminal_production {
     use checked_trees::CheckedTrees;
     use diagnostics::Diagnostic;
-    use lowered_psi_to_lowered_psi::PsiOptimizationStageError;
 
     use crate::custody::{ProducedTerminalProgram, TerminalProductionCustody};
     use crate::observation::PsiCompilationObserver;
     use crate::{TerminalMachineSelection, TerminalProgramRoots};
 
-    pub use lowered_psi_to_terminal_psi::ProgramEntryTerminalReceiptError;
+    pub use terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError;
 
     pub struct TerminalProductionRequest<'a> {
         pub publication: terminal_codec::TerminalPublication,
@@ -162,7 +161,6 @@ pub(crate) mod terminal_production {
     pub enum TerminalArtifactProductionError {
         BuildContext(Diagnostic),
         NoProductRoute,
-        Optimization(PsiOptimizationStageError),
         Artifact(terminal_codec::CanonicalTerminalArtifactError),
         EntryReceipt(ProgramEntryTerminalReceiptError),
     }
@@ -226,7 +224,7 @@ pub(crate) mod composition_roots {
     use crate::observation::{PsiCompilationObserver, PsiCompilationStage};
     use crate::{ProducedTerminalApplication, TerminalArtifactProductionError};
     use diagnostics::Diagnostic;
-    use lowered_psi_to_terminal_psi::prepare_program_entry_receipt;
+    use terminal_codec::entry_receipt::prepare_program_entry_receipt;
     use terminal_psi::{PreparedNominalRoot, TerminalMachineProvenance};
 
     #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]

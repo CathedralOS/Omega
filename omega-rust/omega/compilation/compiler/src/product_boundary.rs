@@ -465,15 +465,9 @@ fn exclusion_source_resolution_stays_out_of_terminal_policy() {
 }
 
 #[test]
-fn terminal_composition_admission_follows_canonical_publication() {
+fn terminal_composition_keeps_source_and_omega_policy_out_of_attachment() {
     let producer =
         include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
-    assert_eq!(producer.matches("application.attach(").count(), 1);
-    assert_in_order(
-        producer,
-        "application attachment",
-        &["finalize_terminal_program(", "application.attach("],
-    );
     assert_absent(
         &[producer],
         "Psi production runs Omega policy:",

@@ -65,11 +65,6 @@ const PARSER_STAGES: &[&str] = &[
     "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
 ];
 
-const TERMINAL_STAGES: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi",
-    "omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi",
-];
-
 const OMEGA_COMPILATION: &[&str] = &[
     "omega-rust/omega/compilation/pipeline",
     "omega-rust/omega/compilation/backend",
@@ -209,7 +204,6 @@ pub fn forbidden_rules() -> Vec<Rule> {
                 "omega-rust/psi/compilation/representations/syntax-trees",
                 "omega-rust/psi/compilation/representations/typed-trees",
                 "omega-rust/psi/compilation/representations/checked-trees",
-                "omega-rust/psi/compilation/representations/lowered-psi",
                 PROVIDER_PLANNING,
             ],
             reason: "Build reaches the language through product facades, not stages or representations",
@@ -272,13 +266,6 @@ pub fn forbidden_rules() -> Vec<Rule> {
             ],
             reason: "trust admission does not reconstruct grants from source or target owners",
             except_owners: vec![],
-            allowed: vec![],
-        },
-        Rule {
-            owners: vec![PSI_FACADE],
-            forbidden: TERMINAL_STAGES.to_vec(),
-            reason: "Psi 06-08 are sequenced only by terminal-production",
-            except_owners: vec![TERMINAL_PRODUCTION],
             allowed: vec![],
         },
         Rule {
