@@ -60,6 +60,9 @@ pub(crate) struct Program<'t> {
     pub boundary_symbols: IdTable<BoundaryMachineId, SymbolHandle>,
     pub boundary_signatures: IdTable<BoundaryMachineId, Signature>,
     boundary_services: IdTable<BoundaryMachineId, semantic_vocabulary::ServiceId>,
+    /// How each requirement's invocation ends, as the typed trees state it
+    /// (`Signatures::completions`).
+    pub boundary_completions: IdTable<BoundaryMachineId, semantic_vocabulary::BoundaryCompletion>,
     services: IdTable<
         semantic_vocabulary::ServiceId,
         (
@@ -188,6 +191,7 @@ impl<'t> Program<'t> {
             signatures: IdTable::default(),
             boundary_symbols: IdTable::default(),
             boundary_signatures: IdTable::default(),
+            boundary_completions: IdTable::default(),
             boundary_services: IdTable::default(),
             services: IdTable::default(),
             resolving_services: Vec::new(),

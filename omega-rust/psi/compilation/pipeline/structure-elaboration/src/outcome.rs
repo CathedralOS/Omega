@@ -429,10 +429,16 @@ impl Walk<'_> {
                             }
                         }
                     }
-                    // The reader serves ordinary returning requirements only;
-                    // external completion and suspended requirements retain an
-                    // explicit unsupported route before this graph is built.
-                    return Ok(true);
+                    // process_exit.md: the canonical operation "produces no
+                    // normal result or continuation", so evaluation never
+                    // finishes past it, exactly as past a call of a machine
+                    // no path of which returns.
+                    let semantic_vocabulary::TargetMachineCallable::Boundary(boundary) = *callee
+                    else {
+                        return Ok(true);
+                    };
+                    return Ok(self.signatures.completion(boundary, machine)?
+                        == semantic_vocabulary::BoundaryCompletion::NormalReturn);
                 };
                 // A caller sees the causes the callee publishes, as the
                 // table stands: its ceiling when it authors one, what its

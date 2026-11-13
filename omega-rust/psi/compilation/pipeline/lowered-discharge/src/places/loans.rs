@@ -10,8 +10,14 @@ parent lifetime, and restoration obligation."). The occurrence is the call,
 the captured place is the argument's place, the access is the argument's,
 and the lineage is the root's: a borrowed formal's root reborrows the loan
 the invocation passed in (`Lender::Incoming`), any other root lends owned
-storage (`Lender::Owner`). Every loan here is formed for one call and ends
-when it returns, so none is live on an edge and no edge disposes of one.
+storage (`Lender::Owner`). A loan formed for a call that returns ends when
+it does, so it is live on no edge and no edge disposes of it. A loan formed
+for a call with no normal return is carried into that terminal transfer
+(`wiki/spec/language/state_contracts.md`: "A caller-local loan carried into
+a terminal machine call closes at the last use of that loan and of every
+loan derived from it, even when that use is inside the callee's terminal
+chain"): the transfer's edge consumes it, and nothing of this machine runs
+after to use the lent place again.
 
 The rows are recomputed from the lowered form, as every other row is
 (`minted`): one `Loan` per borrowed argument of each call, created at the
@@ -41,7 +47,7 @@ certificate, as the initialization judgment has none. Two refusals, each
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
 use semantic_vocabulary::{InvocationSite, ObligationId};
-use terminal_check_tables::edges::Actual;
+use terminal_check_tables::edges::{Actual, Fate};
 use terminal_check_tables::obligations::{Lender, ObligationKind};
 use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
@@ -105,6 +111,165 @@ impl Storage<'_> {
             .map(|parameter| parameter.access)
     }
 
+    /// The loans one call forms: one per borrowed structural argument, in
+    /// argument order, each claiming its `Loan` row created at `before`.
+    /// `call` is the invocation site and callee when the construct is a
+    /// call; anything else may not lend.
+    #[allow(clippy::too_many_arguments)]
+    fn lent(
+        &self,
+        module: &terminal_psi::TerminalModule,
+        tables: &MachineTables,
+        (concerns, before): (Construct, ProgramPoint),
+        arguments: &[terminal_psi::StructuralArgument],
+        call: Option<(InvocationSite, terminal_psi::TargetMachineCallable)>,
+        claimed: &mut [bool],
+        formed: &mut Vec<Formed>,
+    ) -> Checked<()> {
+        if arguments
+            .iter()
+            .all(|argument| argument.access == StructuralAccess::Owned)
+        {
+            return Ok(());
+        }
+        let Some((site, callee)) = call else {
+            return Err(self.unsupported(concerns, "a loan to something not a call"));
+        };
+        let formals = module
+            .callable_structural_parameters(callee)
+            .ok_or_else(|| self.foreign(concerns, "call has no canonical structural formals"))?;
+        let (invocation, row) = tables
+            .invocations
+            .iter()
+            .find(|(_, row)| row.site == site)
+            .ok_or_else(|| self.foreign(concerns, "a call has no invocation row"))?;
+        // The structural lane's places, in argument order.
+        let places: Vec<_> = row
+            .actuals
+            .iter()
+            .enumerate()
+            .filter_map(|(position, actual)| match actual {
+                Actual::Place(place) => Some((position, *place)),
+                Actual::Value(_) => None,
+            })
+            .collect();
+        if places.len() != arguments.len() || formals.len() != arguments.len() {
+            return Err(self.foreign(
+                concerns,
+                "an invocation row's places are not the call's structural arguments",
+            ));
+        }
+        for ((argument, (position, place)), parameter) in arguments.iter().zip(places).zip(formals)
+        {
+            let Some(access) = reference_access(argument.access) else {
+                continue;
+            };
+            if access == ReferenceAccess::WriteOnly {
+                return Err(self.unsupported(concerns, "a write-only loan"));
+            }
+            // Terminal validation passes a borrowed argument only to a
+            // formal declared with the same access.
+            if parameter.access != argument.access {
+                return Err(self.foreign(
+                    concerns,
+                    "a loan's access is not its formal's declared access",
+                ));
+            }
+            let lent = self.argument(argument, concerns)?;
+            if lineage(self.machine, &tables.places, place)? != lent {
+                return Err(self.foreign(
+                    concerns,
+                    "an invocation row's place is not the place the call lends",
+                ));
+            }
+            let parent = self.incoming(argument.place);
+            let lender = if parent.is_some() {
+                Lender::Incoming
+            } else {
+                match self.root_kind(argument.place, concerns)? {
+                    StructuralPlaceKind::Parameter { .. }
+                    | StructuralPlaceKind::OperationResult { .. } => Lender::Owner,
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type, ..
+                    } if access == ReferenceAccess::Shared
+                        && self
+                            .declaration(structural_type, concerns)?
+                            .shape
+                            .is_shared_readable_byte_view() =>
+                    {
+                        Lender::Owner
+                    }
+                    _ => {
+                        return Err(self.unsupported(
+                            concerns,
+                            "a loan of storage that is neither a formal nor a result",
+                        ));
+                    }
+                }
+            };
+            let kind = ObligationKind::Loan {
+                captured: place,
+                access,
+                lender,
+            };
+            let (obligation, _) = tables
+                .obligations
+                .iter()
+                .find(|(obligation, row)| row.kind == kind && !claimed[index(obligation.get())])
+                .ok_or_else(|| self.foreign(concerns, "a loan the call forms has no row"))?;
+            let row = terminal_check_tables::row(
+                &tables.obligations,
+                obligation,
+                self.machine,
+                Construct::Obligation(obligation),
+            )?;
+            if row.created_at != before {
+                return Err(self.foreign(
+                    Construct::Obligation(obligation),
+                    "a loan is not created at the point before its call",
+                ));
+            }
+            claimed[index(obligation.get())] = true;
+            formed.push(Formed {
+                obligation,
+                invocation,
+                position,
+                access,
+                lineage: lent,
+                parent: parent.and_then(reference_access),
+            });
+        }
+        Ok(())
+    }
+
+    /// The loans a call with no normal return carries into its transfer are
+    /// exactly the obligations its edge consumes, each once, and the edge
+    /// disposes of nothing else. ownership.md: "every incoming owned
+    /// obligation occurs exactly once in the edge's transfer map, explicit
+    /// terminal consumption, eligible automatic cleanup, or validated
+    /// no-code affine discard."
+    fn carried(
+        &self,
+        tables: &MachineTables,
+        edge: semantic_vocabulary::EdgeId,
+        loans: &[Formed],
+    ) -> Checked<()> {
+        let concerns = Construct::Edge(edge);
+        let row = terminal_check_tables::row(&tables.edges, edge, self.machine, concerns)?;
+        let consumed = |loan: &Formed| {
+            row.dispositions.iter().any(|disposition| {
+                disposition.obligation == loan.obligation && disposition.fate == Fate::Consumed
+            })
+        };
+        if row.dispositions.len() != loans.len() || !loans.iter().all(consumed) {
+            return Err(self.foreign(
+                concerns,
+                "a no-normal call's edge does not consume exactly the loans it carries",
+            ));
+        }
+        Ok(())
+    }
+
     /// Recomputes every loan from the lowered form and refuses `tables`
     /// unless its `Loan` rows are exactly those, each once. Returns them in
     /// block and operation order, each call's loans in argument order.
@@ -120,141 +285,35 @@ impl Storage<'_> {
             for operation in &block.operations {
                 let concerns = Construct::Operation(operation.id);
                 let arguments = operation.kind.structural_arguments();
-                let lends = arguments
-                    .iter()
-                    .any(|argument| argument.access != StructuralAccess::Owned);
-                if lends {
-                    let Some(inputs) = operation.kind.declared_invocation() else {
-                        return Err(self.unsupported(concerns, "a loan to something not a call"));
-                    };
-                    let formals = module
-                        .callable_structural_parameters(inputs.callee)
-                        .ok_or_else(|| {
-                            self.foreign(concerns, "call has no canonical structural formals")
-                        })?;
-                    let site = InvocationSite::Operation(operation.id);
-                    let (invocation, row) = tables
-                        .invocations
-                        .iter()
-                        .find(|(_, row)| row.site == site)
-                        .ok_or_else(|| self.foreign(concerns, "a call has no invocation row"))?;
-                    // The structural lane's places, in argument order.
-                    let places: Vec<_> = row
-                        .actuals
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(position, actual)| match actual {
-                            Actual::Place(place) => Some((position, *place)),
-                            Actual::Value(_) => None,
-                        })
-                        .collect();
-                    if places.len() != arguments.len() || formals.len() != arguments.len() {
-                        return Err(self.foreign(
-                            concerns,
-                            "an invocation row's places are not the call's structural arguments",
-                        ));
-                    }
-                    for ((argument, (position, place)), parameter) in
-                        arguments.iter().zip(places).zip(formals)
-                    {
-                        let Some(access) = reference_access(argument.access) else {
-                            continue;
-                        };
-                        if access == ReferenceAccess::WriteOnly {
-                            return Err(self.unsupported(concerns, "a write-only loan"));
-                        }
-                        // Terminal validation passes a borrowed argument only
-                        // to a formal declared with the same access.
-                        if parameter.access != argument.access {
-                            return Err(self.foreign(
-                                concerns,
-                                "a loan's access is not its formal's declared access",
-                            ));
-                        }
-                        let lent = self.argument(argument, concerns)?;
-                        if lineage(self.machine, &tables.places, place)? != lent {
-                            return Err(self.foreign(
-                                concerns,
-                                "an invocation row's place is not the place the call lends",
-                            ));
-                        }
-                        let parent = self.incoming(argument.place);
-                        let lender = if parent.is_some() {
-                            Lender::Incoming
-                        } else {
-                            match self.root_kind(argument.place, concerns)? {
-                                StructuralPlaceKind::Parameter { .. }
-                                | StructuralPlaceKind::OperationResult { .. } => Lender::Owner,
-                                StructuralPlaceKind::ByteSequenceLiteral {
-                                    structural_type,
-                                    ..
-                                } if access == ReferenceAccess::Shared
-                                    && self
-                                        .declaration(structural_type, concerns)?
-                                        .shape
-                                        .is_shared_readable_byte_view() =>
-                                {
-                                    Lender::Owner
-                                }
-                                _ => {
-                                    return Err(self.unsupported(
-                                        concerns,
-                                        "a loan of storage that is neither a formal nor a result",
-                                    ));
-                                }
-                            }
-                        };
-                        let kind = ObligationKind::Loan {
-                            captured: place,
-                            access,
-                            lender,
-                        };
-                        let (obligation, _) = tables
-                            .obligations
-                            .iter()
-                            .find(|(obligation, row)| {
-                                row.kind == kind && !claimed[index(obligation.get())]
-                            })
-                            .ok_or_else(|| {
-                                self.foreign(concerns, "a loan the call forms has no row")
-                            })?;
-                        let row = terminal_check_tables::row(
-                            &tables.obligations,
-                            obligation,
-                            self.machine,
-                            Construct::Obligation(obligation),
-                        )?;
-                        if row.created_at != before {
-                            return Err(self.foreign(
-                                Construct::Obligation(obligation),
-                                "a loan is not created at the point before its call",
-                            ));
-                        }
-                        claimed[index(obligation.get())] = true;
-                        formed.push(Formed {
-                            obligation,
-                            invocation,
-                            position,
-                            access,
-                            lineage: lent,
-                            parent: parent.and_then(reference_access),
-                        });
-                    }
-                }
+                let call = operation
+                    .kind
+                    .declared_invocation()
+                    .map(|inputs| (InvocationSite::Operation(operation.id), inputs.callee));
+                self.lent(
+                    module,
+                    tables,
+                    (concerns, before),
+                    arguments,
+                    call,
+                    &mut claimed,
+                    &mut formed,
+                )?;
                 before = ProgramPoint::AfterOperation(operation.id);
             }
-            // A terminator lends nothing in this route: a no-normal call
-            // that lends is refused where it is lowered.
-            if block.terminator.module_invocation().is_some_and(|inputs| {
-                inputs
-                    .structural_arguments
-                    .iter()
-                    .any(|argument| argument.access != StructuralAccess::Owned)
-            }) {
-                return Err(self.unsupported(
-                    Construct::Block(block.id),
-                    "a no-normal call that lends storage",
-                ));
+            // A terminator that is a call lends as an operation does; the
+            // loans of one that never returns are disposed of on its edge.
+            if let Some((site, inputs)) = block.terminator.declared_invocation() {
+                let first = formed.len();
+                self.lent(
+                    module,
+                    tables,
+                    (Construct::Block(block.id), before),
+                    inputs.structural_arguments,
+                    Some((site, inputs.callee)),
+                    &mut claimed,
+                    &mut formed,
+                )?;
+                self.carried(tables, block.terminator.edge(), &formed[first..])?;
             }
         }
         for (obligation, row) in tables.obligations.iter() {

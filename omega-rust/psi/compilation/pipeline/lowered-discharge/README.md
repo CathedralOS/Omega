@@ -501,7 +501,7 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
   | --- | --- |
   | "A read relying on the domain or a dependent coupling." | a whole read of the place or of a place containing it: `StructuralLeafCopy`, a record operand of a literal, a record stored into a field; and a field read or a dispatch's bound payload beneath the place that takes a clause of its storage's type as a premise (`read_premises` or `payload_premises` not empty). A field read or dispatch with no premise, and a case test, rely on nothing and consume nothing. |
   | "Borrow creation or a call consuming the affected domain." | a call's record argument; this route passes records by value, copied first, so it is that copy, and the call itself (next row). Borrows are refused by elaboration. |
-  | "Transfer, return, scope expiration or loan handback ..." | a record passed on a `Jump` edge; and every `Return`, `ReturnUnit`, `ReturnStructural` and `InvokeNoNormal`, on its edge, which ends the scope of every place of the machine. A `Crash` consumes nothing: "A crash may abandon an open window". Loans are refused by elaboration. |
+  | "Transfer, return, scope expiration or loan handback ..." | a record passed on a `Jump` edge; and every `Return`, `ReturnUnit`, `ReturnStructural` and `InvokeNoNormal`, on its edge, which ends the scope of every place of the machine. A `Crash` consumes nothing: "A crash may abandon an open window". An `ExternalCompletion` consumes nothing either: process exit "may abandon outstanding in-domain obligations, including linear obligations, without cleanup or discharge claims" ([process exit](../../../../../wiki/spec/language/process_exit.md#abandonment-and-survivors)); a record it took as an argument would be read like a `Jump`'s. Loans are refused by elaboration. |
   | "Boundary/capability-carrying calls that may observe or expose the affected storage" | every call operation, for every window open at it. |
 
   "A call need not close an unrelated domain window when its complete
@@ -699,9 +699,13 @@ and the owner otherwise. The access must be the callee formal's declared
 access. A row the lowered form does not owe, or owes otherwise, is
 `ForeignIdentity`.
 
-Each loan is formed for one call and ends when the call returns, so none is
-live on an edge and no edge disposes of one; a call that never returns may
-not lend. What an exclusive loan's callee did is a store of its own: the
+A loan formed for a call that returns ends when it does, so it is live on no
+edge and no edge disposes of it. A loan formed for a call with no normal
+return (an `InvokeNoNormal` or `ExternalCompletion` terminator) is carried
+into that transfer, and its edge must consume exactly those loans, each once
+(`Fate::Consumed`), and dispose of nothing else; any other roster is
+`ForeignIdentity`. Nothing of the machine runs after such a call, so no later
+use can meet the loan. What an exclusive loan's callee did is a store of its own: the
 lent place holds contents its callee established, with no value identity
 here, from the call's normal continuation on (`Stored::Returned`), and
 nothing outside it changes. A sibling field keeps what it held, so a read of
@@ -1142,6 +1146,41 @@ other refusal is a defect of the route and comes back as `Err`.
 No router calls `judge` in the default compile yet: the comparison harness
 below is its only caller outside tests, and prints each unproved
 obligation's message with its outcome.
+
+## Calls that do not return
+
+A call with no normal completion is a terminator: `InvokeNoNormal` for a
+machine no path of which returns, `ExternalCompletion` for the boundary
+requirement that ends the process
+([calls and outcomes](../../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#external-process-exit)).
+Both are read through one view (`Terminator::declared_invocation`, the
+terminator form of `OperationKind::declared_invocation`), so the row checks,
+the `CallRequirement` goals, the loans and the ceilings treat the two
+declaration classes alike:
+
+- The invocation row restates the callee and actuals, and each `requires`
+  clause of the callee is owed at the point before the terminator, over the
+  scalar actuals. The exit status is an ordinary operand: its arithmetic
+  obligations are owed before the call.
+- The call adds no knowledge: guarantees "apply only on normal return;
+  external exit neither establishes them nor necessarily violates them".
+- A boundary declaration and its call site must state one completion
+  (`callee`): a requirement that completes externally is called only as a
+  terminator and one that returns only as an operation, or the row is
+  `ForeignIdentity`. An external completion whose declaration has a crash
+  route is refused: the canonical operation "permits no source crash".
+- What the requirement reaches is charged to the caller on the terminator's
+  edge, as every call's is ([Published ceilings](#published-ceilings-service-reach-and-synchronous-entries)).
+- Nothing is owed after it. Its edge goes to `Destination::NoNormal`, no
+  `NormalGuarantee` is minted for it, and no window is consumed
+  ([Invariant windows](#invariant-windows)): exit "creates no return value,
+  consumption receipt, cleanup successor, or post-exit frontier"
+  ([ownership](../../../../../wiki/spec/terminal-psi/ownership.md)). An arm
+  that returns beside one that exits owes its guarantees as before.
+
+The route mints no claim yet, so `frontier_lower_bound` is empty and there is
+no abandoned obligation to list on the edge; when owned data arrives, an
+exit's edge is where `Fate::Abandoned` belongs.
 
 ## Published ceilings: service reach and synchronous entries
 

@@ -1,0 +1,25 @@
+use omega::language::core::ProcessExit;
+
+// Expected exit: 0. The program ends through the canonical process-exit
+// requirement, which has no normal return. `require_success` exits on one
+// arm and returns on the other: only the returning arm owes the guarantee,
+// and there the status is zero. `main` never returns, so the storage
+// `entry_start` lends it is carried into that call and nothing runs after it.
+data Main { status: i32; }
+
+machine require_success(status: i32) ensures status == 0 reaches ProcessExit {
+    transition status == 0 {
+        true -> {}
+        false -> ProcessExit::exit_process(status)
+    }
+}
+
+machine main(root: &mut Main) reaches ProcessExit {
+    require_success(root.status);
+    ProcessExit::exit_process(0);
+}
+
+machine entry_start() reaches ProcessExit {
+    let mut entry_storage: Main;
+    main(&mut entry_storage);
+}

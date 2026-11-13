@@ -363,9 +363,31 @@ pub struct Signature {
 pub(crate) struct Signatures<'a> {
     pub machines: &'a IdTable<MachineId, Signature>,
     pub boundaries: &'a IdTable<BoundaryMachineId, Signature>,
+    /// How an invocation of each boundary requirement ends when it does not
+    /// crash. The canonical process-exit requirement "produces no normal
+    /// result or continuation" (`wiki/spec/language/process_exit.md`);
+    /// every other requirement returns. It is the leaf fact of
+    /// `Outcome::completes_normally`: whether a machine with a body returns
+    /// is derived from the calls of that body, so a machine has no row.
+    pub completions: &'a IdTable<BoundaryMachineId, semantic_vocabulary::BoundaryCompletion>,
 }
 
 impl<'a> Signatures<'a> {
+    /// The declared completion of a boundary requirement.
+    pub fn completion(
+        self,
+        boundary: BoundaryMachineId,
+        caller: MachineId,
+    ) -> terminal_check_tables::Checked<semantic_vocabulary::BoundaryCompletion> {
+        terminal_check_tables::row(
+            self.completions,
+            boundary,
+            caller,
+            terminal_check_tables::Construct::Machine,
+        )
+        .copied()
+    }
+
     pub fn get(
         self,
         callable: TargetMachineCallable,

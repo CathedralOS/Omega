@@ -130,7 +130,7 @@ pub fn reverify_at_call(
     )?;
     let row = terminal_check_tables::row(&tables.invocations, invocation, caller, concerns)?;
     let terminal_psi::TargetMachineCallable::Machine(callee) =
-        crate::callee(&elaboration.module, caller, invocation, &row.callee)?
+        crate::callee(&elaboration.module, caller, invocation, row)?
     else {
         return Err(refuse(
             RefusalReason::Unsupported,
