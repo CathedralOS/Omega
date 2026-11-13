@@ -503,8 +503,9 @@ Name the tiers in `--filter` (`pass/,fail/,run/`), as the script does: with an
 empty filter the gate passes every fixture name to the runner in one
 environment string, which Linux refuses. Before 2026-11-11 each invocation
 spent about six minutes rebuilding the runner (see the freshness paragraph
-below); an unchanged tree now reuses it in under a second. xtask stops a runner
-at 1800 seconds, so forty shards of about 440 fixtures is the size that fits. On the
+below); an unchanged tree now reuses it in under a second. A corpus run has no
+time limit and prints each fixture as it finishes; shards exist to spread the work,
+and forty shards of about 440 fixtures is the size the sweep uses. On the
 two test VMs that is about 22 minutes a shard. To split the work, give each
 host its own `todo.txt` and merge the ledgers by taking each fixture's block
 from the host that stamped it with the new commit. The script's header carries
@@ -1655,8 +1656,13 @@ environment must allow `ghcr.io` and its blob host
 `pkg-containers.githubusercontent.com`. The SessionStart hook in `.claude/settings.json` runs
 `bash tools/warm_build.sh session-start`, which unpacks it into the primary
 checkout's `target/` and into `.agents/worktree/worker-1/target` before the
-session's first command. Measured on the same container with the archives CI
-published for commit `fd5aef2f7`: 14 s to restore both, then
+session's first command. Managed Codex environments can run the same command
+from their setup script; `CODEX_ENVIRONMENT_ID` enables restoration and preserves
+the restored worker's base during acquisition, just as `CLAUDE_CODE_REMOTE=true`
+does for Claude Code. Local Codex sessions do not opt in merely by running Codex.
+The archive's Cargo paths and toolchain must still match the environment for
+its compiled artifacts to be reused. Measured on the same container with the
+archives CI published for commit `fd5aef2f7`: 14 s to restore both, then
 `mbx build -p omega` took 30 s in the primary checkout, where it reran the
 `compiler` build script and recompiled 4 crates, and 5 s in the worker slot.
 

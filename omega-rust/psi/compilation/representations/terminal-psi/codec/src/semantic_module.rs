@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 254`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 255`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -22,9 +22,7 @@ pub(crate) mod canonical_order {
 
     use std::collections::BTreeSet;
 
-    use semantic_vocabulary::{
-        ContentTerm, IntegerMathTerm, Proposition, PropositionId, ScalarTerm,
-    };
+    use semantic_vocabulary::{Proposition, PropositionId, ScalarTerm};
     use terminal_psi::{
         BoundaryApplication, BoundaryApplicationArgument, BoundaryMachineResult,
         ContentIdentityReshuffle, CrashRouteBucket, CrashRouteGuard, FloatMeaningSource,
@@ -33,10 +31,10 @@ pub(crate) mod canonical_order {
         TerminalModule, Terminator, call_structural_pair_pattern,
     };
 
+    use super::CodecError;
     use super::proposition_wire::encode_proposition;
     use super::scalar_term_wire::encode_scalar_term;
     use super::wire::{Writer, require_increasing, strictly_increasing};
-    use super::{CodecError, MAX_CONTENT_TERM_DEPTH, MAX_PROPOSITION_DEPTH, MAX_SCALAR_TERM_DEPTH};
 
     macro_rules! noncanonical {
         ($reason:expr) => {
@@ -234,7 +232,7 @@ pub(crate) mod canonical_order {
             "scalar block invariants by machine and header",
         )?;
         for invariant in &module.scalar_block_invariants {
-            validate_canonical_proposition(&invariant.predicate, 0)?;
+            validate_canonical_proposition(&invariant.predicate)?;
             require_increasing(
                 invariant.arrivals.iter().map(|arrival| arrival.edge),
                 "scalar block invariant arrivals by EdgeId",
@@ -342,13 +340,13 @@ pub(crate) mod canonical_order {
             if let Some(StructuralFieldType::RefinedScalar(refinement)) =
                 &declaration.scalar_restriction
             {
-                validate_canonical_proposition(refinement.predicate(), 0)?;
+                validate_canonical_proposition(refinement.predicate())?;
             }
             // Authored order is the clauses' identity (a `DataDomain`
             // obligation names its clause by position), so only each
             // clause's own form is canonical, not their order.
             for clause in &declaration.requires {
-                validate_canonical_proposition(clause, 0)?;
+                validate_canonical_proposition(clause)?;
             }
             let (fields, cases) = match &declaration.shape {
                 StructuralTypeShape::Record { fields, .. } => (fields.as_slice(), &[][..]),
@@ -363,7 +361,7 @@ pub(crate) mod canonical_order {
                 .chain(cases.iter().flat_map(|case| &case.fields))
             {
                 if let StructuralFieldType::RefinedScalar(refinement) = &field.field_type {
-                    validate_canonical_proposition(refinement.predicate(), 0)?;
+                    validate_canonical_proposition(refinement.predicate())?;
                 }
             }
             match &declaration.shape {
@@ -499,13 +497,13 @@ pub(crate) mod canonical_order {
                 "boundary scalar domain requirements by argument index and domain",
             )?;
             for proposition in &declaration.scalar_requires {
-                validate_canonical_proposition(proposition, 0)?;
+                validate_canonical_proposition(proposition)?;
             }
             if !canonical_propositions_strictly_increase(&declaration.scalar_requires)? {
                 return Err(noncanonical!("boundary scalar requires propositions"));
             }
             for proposition in &declaration.scalar_ensures {
-                validate_canonical_proposition(proposition, 0)?;
+                validate_canonical_proposition(proposition)?;
             }
             if !canonical_propositions_strictly_increase(&declaration.scalar_ensures)? {
                 return Err(noncanonical!("boundary scalar ensures propositions"));
@@ -781,7 +779,7 @@ pub(crate) mod canonical_order {
             for block in &machine.blocks {
                 if let Terminator::Crash { site_guard, .. } = &block.terminator {
                     for predicate in site_guard {
-                        validate_canonical_proposition(predicate.proposition(), 0)?;
+                        validate_canonical_proposition(predicate.proposition())?;
                     }
                 }
                 if let Terminator::Jump {
@@ -857,7 +855,7 @@ pub(crate) mod canonical_order {
                         .map(|clause| &clause.proposition),
                 );
             for proposition in propositions {
-                validate_canonical_proposition(proposition, 0)?;
+                validate_canonical_proposition(proposition)?;
             }
             if !canonical_propositions_strictly_increase(&machine.contract.requires)? {
                 return Err(noncanonical!("requires propositions"));
@@ -948,154 +946,103 @@ pub(crate) mod canonical_order {
                 CrashRouteGuard::Predicate(predicate) => Some(predicate),
             })
         {
-            validate_canonical_proposition(predicate.proposition(), 0)?;
+            validate_canonical_proposition(predicate.proposition())?;
         }
         Ok(())
     }
 
-    fn validate_canonical_proposition(
-        proposition: &Proposition,
-        depth: usize,
-    ) -> Result<(), CodecError> {
+    fn validate_canonical_proposition(proposition: &Proposition) -> Result<(), CodecError> {
         enum Step<'a> {
-            Validate(&'a Proposition, usize),
+            Validate(&'a Proposition),
             StrictlyIncreasing(&'a [Proposition], &'static str),
         }
-        let mut pending = vec![Step::Validate(proposition, depth)];
+        let mut pending = vec![Step::Validate(proposition)];
         while let Some(step) = pending.pop() {
             match step {
-                Step::Validate(proposition, depth) => {
-                    if depth > MAX_PROPOSITION_DEPTH {
-                        return Err(CodecError::PropositionNestingTooDeep);
-                    }
-                    match proposition {
-                        Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
-                        Proposition::Equal(left, right) => {
-                            validate_scalar_term_depth(left)?;
-                            validate_scalar_term_depth(right)?;
-                            if canonical_scalar_term_bytes(left)?
-                                > canonical_scalar_term_bytes(right)?
-                            {
-                                return Err(noncanonical!("equality operands"));
-                            }
-                        }
-                        Proposition::LessThan(left, right)
-                        | Proposition::LessOrEqual(left, right) => {
-                            validate_scalar_term_depth(left)?;
-                            validate_scalar_term_depth(right)?;
-                        }
-                        Proposition::IntegerMathEqual(left, right) => {
-                            validate_integer_math_term_depth(left)?;
-                            validate_integer_math_term_depth(right)?;
-                            if left > right {
-                                return Err(noncanonical!(
-                                    "mathematical integer equality operands"
-                                ));
-                            }
-                        }
-                        Proposition::IntegerMathLessThan(left, right)
-                        | Proposition::IntegerMathLessOrEqual(left, right) => {
-                            validate_integer_math_term_depth(left)?;
-                            validate_integer_math_term_depth(right)?;
-                        }
-                        Proposition::IeeeFloatComparison {
-                            kind, left, right, ..
-                        } => {
-                            if kind.is_symmetric() && left > right {
-                                return Err(noncanonical!("IEEE equality operands"));
-                            }
-                        }
-                        Proposition::ScalarIeeeFloatComparison {
-                            kind, left, right, ..
-                        } => {
-                            validate_scalar_term_depth(left)?;
-                            validate_scalar_term_depth(right)?;
-                            if kind.is_symmetric() && left > right {
-                                return Err(noncanonical!("scalar IEEE equality operands"));
-                            }
-                        }
-                        Proposition::ByteSequenceEqual { left, right } => {
-                            if left > right {
-                                return Err(noncanonical!("byte-sequence equality operands"));
-                            }
-                        }
-                        Proposition::StructuralCaseMembership { .. } => {}
-                        Proposition::StructuralIdentity { left, right } => {
-                            if left > right {
-                                return Err(noncanonical!("structural identity operands"));
-                            }
-                        }
-                        Proposition::Conjunction(conjuncts) => {
-                            if conjuncts
-                                .iter()
-                                .any(|conjunct| matches!(conjunct, Proposition::Conjunction(_)))
-                            {
-                                return Err(CodecError::NestedConjunction);
-                            }
-                            pending.push(Step::StrictlyIncreasing(
-                                conjuncts,
-                                "conjunction propositions",
-                            ));
-                            for conjunct in conjuncts.iter().rev() {
-                                pending.push(Step::Validate(conjunct, depth + 1));
-                            }
-                        }
-                        Proposition::Disjunction(disjuncts) => {
-                            if disjuncts
-                                .iter()
-                                .any(|disjunct| matches!(disjunct, Proposition::Disjunction(_)))
-                            {
-                                return Err(CodecError::NestedDisjunction);
-                            }
-                            pending.push(Step::StrictlyIncreasing(
-                                disjuncts,
-                                "disjunction propositions",
-                            ));
-                            for disjunct in disjuncts.iter().rev() {
-                                pending.push(Step::Validate(disjunct, depth + 1));
-                            }
-                        }
-                        Proposition::Implication {
-                            premise,
-                            conclusion,
-                        } => {
-                            pending.push(Step::Validate(conclusion, depth + 1));
-                            pending.push(Step::Validate(premise, depth + 1));
-                        }
-                        Proposition::ContentConservation(conservation) => {
-                            validate_content_term_depth(conservation.left())?;
-                            validate_content_term_depth(conservation.right())?;
+                Step::Validate(proposition) => match proposition {
+                    Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
+                    Proposition::Equal(left, right) => {
+                        if canonical_scalar_term_bytes(left)? > canonical_scalar_term_bytes(right)?
+                        {
+                            return Err(noncanonical!("equality operands"));
                         }
                     }
-                }
+                    Proposition::LessThan(_, _) | Proposition::LessOrEqual(_, _) => {}
+                    Proposition::IntegerMathEqual(left, right) => {
+                        if left > right {
+                            return Err(noncanonical!("mathematical integer equality operands"));
+                        }
+                    }
+                    Proposition::IntegerMathLessThan(_, _)
+                    | Proposition::IntegerMathLessOrEqual(_, _) => {}
+                    Proposition::IeeeFloatComparison {
+                        kind, left, right, ..
+                    } => {
+                        if kind.is_symmetric() && left > right {
+                            return Err(noncanonical!("IEEE equality operands"));
+                        }
+                    }
+                    Proposition::ScalarIeeeFloatComparison {
+                        kind, left, right, ..
+                    } => {
+                        if kind.is_symmetric() && left > right {
+                            return Err(noncanonical!("scalar IEEE equality operands"));
+                        }
+                    }
+                    Proposition::ByteSequenceEqual { left, right } => {
+                        if left > right {
+                            return Err(noncanonical!("byte-sequence equality operands"));
+                        }
+                    }
+                    Proposition::StructuralCaseMembership { .. } => {}
+                    Proposition::StructuralIdentity { left, right } => {
+                        if left > right {
+                            return Err(noncanonical!("structural identity operands"));
+                        }
+                    }
+                    Proposition::Conjunction(conjuncts) => {
+                        if conjuncts
+                            .iter()
+                            .any(|conjunct| matches!(conjunct, Proposition::Conjunction(_)))
+                        {
+                            return Err(CodecError::NestedConjunction);
+                        }
+                        pending.push(Step::StrictlyIncreasing(
+                            conjuncts,
+                            "conjunction propositions",
+                        ));
+                        for conjunct in conjuncts.iter().rev() {
+                            pending.push(Step::Validate(conjunct));
+                        }
+                    }
+                    Proposition::Disjunction(disjuncts) => {
+                        if disjuncts
+                            .iter()
+                            .any(|disjunct| matches!(disjunct, Proposition::Disjunction(_)))
+                        {
+                            return Err(CodecError::NestedDisjunction);
+                        }
+                        pending.push(Step::StrictlyIncreasing(
+                            disjuncts,
+                            "disjunction propositions",
+                        ));
+                        for disjunct in disjuncts.iter().rev() {
+                            pending.push(Step::Validate(disjunct));
+                        }
+                    }
+                    Proposition::Implication {
+                        premise,
+                        conclusion,
+                    } => {
+                        pending.push(Step::Validate(conclusion));
+                        pending.push(Step::Validate(premise));
+                    }
+                    Proposition::ContentConservation(_) => {}
+                },
                 Step::StrictlyIncreasing(propositions, order_label) => {
                     if !canonical_propositions_strictly_increase(propositions)? {
                         return Err(noncanonical!(order_label));
                     }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn validate_integer_math_term_depth(term: &IntegerMathTerm) -> Result<(), CodecError> {
-        let mut pending = vec![(term, 0_usize)];
-        while let Some((term, depth)) = pending.pop() {
-            if depth > MAX_SCALAR_TERM_DEPTH {
-                return Err(CodecError::ScalarTermNestingTooDeep);
-            }
-            match term {
-                IntegerMathTerm::MathValue { .. } | IntegerMathTerm::IntegerLiteral(_) => {}
-                IntegerMathTerm::Embed(term) => validate_scalar_term_depth_from(term, depth + 1)?,
-                IntegerMathTerm::Add(left, right)
-                | IntegerMathTerm::Subtract(left, right)
-                | IntegerMathTerm::Multiply(left, right) => {
-                    pending.push((left, depth + 1));
-                    pending.push((right, depth + 1));
-                }
-                IntegerMathTerm::ShiftLeft { value, count } => {
-                    pending.push((value, depth + 1));
-                    pending.push((count, depth + 1));
                 }
             }
         }
@@ -1118,7 +1065,7 @@ pub(crate) mod canonical_order {
 
     fn canonical_proposition_bytes(proposition: &Proposition) -> Result<Vec<u8>, CodecError> {
         let mut writer = Writer::default();
-        encode_proposition(&mut writer, proposition, 0)?;
+        encode_proposition(&mut writer, proposition)?;
         Ok(writer.finish())
     }
 
@@ -1134,40 +1081,8 @@ pub(crate) mod canonical_order {
 
     fn canonical_scalar_term_bytes(term: &ScalarTerm) -> Result<Vec<u8>, CodecError> {
         let mut writer = Writer::default();
-        encode_scalar_term(&mut writer, term, 0)?;
+        encode_scalar_term(&mut writer, term)?;
         Ok(writer.finish())
-    }
-
-    fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
-        validate_scalar_term_depth_from(term, 0)
-    }
-
-    fn validate_scalar_term_depth_from(term: &ScalarTerm, depth: usize) -> Result<(), CodecError> {
-        let mut pending = vec![(term, depth)];
-        while let Some((term, depth)) = pending.pop() {
-            if depth > MAX_SCALAR_TERM_DEPTH {
-                return Err(CodecError::ScalarTermNestingTooDeep);
-            }
-            for operand in term.operands() {
-                pending.push((operand, depth + 1));
-            }
-        }
-        Ok(())
-    }
-
-    fn validate_content_term_depth(term: &ContentTerm) -> Result<(), CodecError> {
-        let mut pending = vec![(term, 0_usize)];
-        while let Some((term, depth)) = pending.pop() {
-            if depth > MAX_CONTENT_TERM_DEPTH {
-                return Err(CodecError::ContentTermNestingTooDeep);
-            }
-            if let ContentTerm::Separate(terms) = term {
-                for term in terms {
-                    pending.push((term, depth + 1));
-                }
-            }
-        }
-        Ok(())
     }
 
     fn validate_identity_reshuffles(rows: &[ContentIdentityReshuffle]) -> Result<(), CodecError> {
@@ -4547,20 +4462,14 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 253 combines checked Id formations with installed interrupt
-// registrations and execution kinds, retaining input/result lifetimes, provider
-// application roles, target case-tag geometry, lifecycle target inputs and
-// separate source/destination relocation requirements. Both independently
-// extended 252 layouts, and all earlier layouts, are incompatible.
-pub(crate) const FORMAT_MARKER: u16 = 254;
+// Marker 255 encodes every recursive term (scalar and integer math terms,
+// propositions, proof terms, capacity scalars and static bindings) as a
+// postorder table of rows whose children are handles to earlier rows, so
+// nesting depth has no bound. Marker 254, which nested those terms inline under
+// a 256-level bound, and all earlier layouts are incompatible.
+pub(crate) const FORMAT_MARKER: u16 = 255;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
-
-pub(crate) const MAX_PROPOSITION_DEPTH: usize = 256;
-
-pub(crate) const MAX_SCALAR_TERM_DEPTH: usize = 256;
-
-pub(crate) const MAX_CONTENT_TERM_DEPTH: usize = 256;
 
 pub(crate) const MAX_CONTENT_IDENTITY_BYTES: usize = 1 << 20;
 
@@ -4648,11 +4557,7 @@ pub fn decode_crash_route_buckets(
 pub fn decode_canonical_proposition(
     bytes: &[u8],
 ) -> Result<semantic_vocabulary::Proposition, CodecError> {
-    decode_canonical(
-        bytes,
-        |reader| decode_proposition(reader, 0),
-        canonical_proposition_order_key,
-    )
+    decode_canonical(bytes, decode_proposition, canonical_proposition_order_key)
 }
 
 pub fn semantic_fingerprint(module: &TerminalModule) -> Result<SemanticFingerprint, CodecError> {

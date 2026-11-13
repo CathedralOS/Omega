@@ -59,6 +59,16 @@ the complete requirement contract. Neither locator construction nor selection
 proves behavior or grants execution authority. Representation or protocol
 adaptation requires a checked adapter, not an asserted locator conversion.
 
+Ordinary library packages follow [their resolved package owners](declarations.md#ordinary-library-packages)
+regardless of distribution. Only declarations genuinely requiring compiler
+realization retain exact sealed custody under the catalog and its source/owner
+correspondence rules; ordinary `std` wrappers do not become compiler-owned by
+living beside such a declaration. Separate any necessary primitive or entry
+bridge explicitly while preserving checked bindings and behavioral contracts.
+Neither a bundled path nor a copied name, signature or source file establishes
+that custody, and extracting the boundary is not permission to stop verifying
+the compiler distribution or its sealed primitive identities.
+
 ## Locator values
 
 `ForeignBinding<ObjectLength, SymbolLength, VersionLength>`

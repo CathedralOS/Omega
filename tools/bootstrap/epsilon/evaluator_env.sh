@@ -17,8 +17,8 @@
 # identity check that the bytes being materialized are the bound ones; it is
 # not a proof that the evaluator implements Epsilon. Changing a member or the
 # manifest invalidates the dependent evidence and must update every record.
-EPSILON_EVALUATOR_MANIFEST_SIZE=15877
-EPSILON_EVALUATOR_MANIFEST_SHA256=4a9de761eabdb76ce7daab666817255ac3cc5e66edd0ae8a115acb4cf7e33228
+EPSILON_EVALUATOR_MANIFEST_SIZE=16779
+EPSILON_EVALUATOR_MANIFEST_SHA256=915588f07a415b37c5106e4be8d790c40c1fa381ffb4d997dea6f20fdf8c4e6f
 EPSILON_EVALUATOR_PACKED_SIZE=617354
 EPSILON_EVALUATOR_PACKED_SHA256=4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e
 

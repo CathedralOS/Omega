@@ -1,6 +1,6 @@
 //! Corpus verification, recording, and regression listing (`cargo xtask corpus`).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -11,6 +11,53 @@ use crate::fixture_selection::FixtureSelection;
 use crate::repo_root;
 
 pub(crate) const SELECTION_BUDGET: usize = 200;
+/// The fixtures one step away from `named`, with why each was added: the same
+/// name in another tier (a pass program's fail twin), and the fixture just
+/// before and just after it by name in its own group, which are usually
+/// variants of the same construct.
+// ponytail: neighbours by name, not by mechanism; a coverage index (which
+// fixtures execute the changed lines) is the upgrade when names mislead.
+pub(crate) fn blast_wave(named: &[String], all: &BTreeSet<String>) -> Vec<(String, &'static str)> {
+    let group = |fixture: &str| {
+        fixture
+            .rsplit_once('/')
+            .map_or("", |(group, _)| group)
+            .to_owned()
+    };
+    let mut wave: Vec<(String, &'static str)> = Vec::new();
+    let mut add = |fixture: Option<&String>, reason: &'static str| {
+        if let Some(fixture) = fixture
+            && !named.contains(fixture)
+            && !wave.iter().any(|(seen, _)| seen == fixture)
+        {
+            wave.push((fixture.clone(), reason));
+        }
+    };
+    for fixture in named {
+        if let Some((_, suffix)) = fixture.split_once('/') {
+            for tier in ["pass", "fail", "run"] {
+                add(all.get(&format!("{tier}/{suffix}")), "twin");
+            }
+        }
+        let same_group = |other: &&String| group(other) == group(fixture);
+        add(
+            all.range::<String, _>(..fixture)
+                .next_back()
+                .filter(same_group),
+            "neighbour",
+        );
+        add(
+            all.range::<String, _>((
+                std::ops::Bound::Excluded(fixture),
+                std::ops::Bound::Unbounded,
+            ))
+            .next()
+            .filter(same_group),
+            "neighbour",
+        );
+    }
+    wave
+}
 const REGRESSION_PREFIX: &str = "regressed-from:";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,10 +82,37 @@ pub struct CorpusRecord {
 }
 
 /// Where a downloaded copy of the published check ledger is kept, relative to
-/// the repository root. The post-merge check publishes it on the project site;
-/// fetch it with
-/// `curl -fsSL --create-dirs -o build/corpus-ledger/corpus_outcomes.txt https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt`.
+/// the repository root. The post-merge check publishes it on the project site.
 pub const PUBLISHED_LEDGER: &str = "build/corpus-ledger/corpus_outcomes.txt";
+const PUBLISHED_LEDGER_URL: &str = "https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt";
+
+/// Downloads the published ledger so a run is compared with what main was
+/// last measured to do. The file in the repository is only as new as the last
+/// time someone committed it, and a blast compared with a stale ledger is
+/// never clean for reasons that are not the change's. Best effort: with no
+/// network or no `curl`, the previous download or the repository's file is
+/// used, as before.
+fn refresh_published_ledger(root: &Path) {
+    let path = root.join(PUBLISHED_LEDGER);
+    let fetched = path.with_extension("fetching");
+    let downloaded = Command::new("curl")
+        .args(["-fsSL", "--max-time", "30", "--create-dirs", "-o"])
+        .arg(&fetched)
+        .arg(PUBLISHED_LEDGER_URL)
+        .stdin(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success());
+    // Only a download that reads as a ledger replaces the last good copy.
+    let usable = downloaded
+        && fs::read_to_string(&fetched)
+            .is_ok_and(|text| parse_records(&text).is_ok_and(|records| !records.is_empty()));
+    if usable {
+        let _ = fs::rename(&fetched, &path);
+    } else {
+        let _ = fs::remove_file(&fetched);
+        eprintln!("corpus: could not refresh the published ledger; using the copy on disk");
+    }
+}
 
 /// The downloaded published ledger, when one is present and readable as a
 /// ledger. An empty or unreadable download is ignored, so a failed fetch falls
@@ -523,9 +597,23 @@ pub fn observe(
     if check_sites {
         command.env("OMEGA_COMPILER_CHECK_SITES", "1");
     }
-    let status = execution::run(&mut command, evidence, "runner")?;
-    if !status.success() {
-        return Err(format!("runner exited {status}; original output retained"));
+    // The runner writes each record as its fixture finishes, so a run that
+    // fails or is stopped still says how far it got and where.
+    let stopped = match execution::run_echoing_stderr(&mut command, evidence, "runner") {
+        Ok(status) if status.success() => None,
+        Ok(status) => Some(format!("runner exited {status}; original output retained")),
+        Err(reason) => Some(reason),
+    };
+    if let Some(reason) = stopped {
+        let finished = fs::read_to_string(&records_path).map_or(0, |text| {
+            text.lines()
+                .filter(|line| !line.is_empty() && !line.starts_with('\t'))
+                .count()
+        });
+        return Err(format!(
+            "{reason}; {finished} finished fixture record(s) are kept in {}",
+            records_path.display()
+        ));
     }
     fs::read_to_string(records_path).map_err(|e| format!("read original runner records: {e}"))
 }
@@ -689,6 +777,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     // publishes the measured one. A downloaded copy is the newer statement of
     // what main does, so reads compare with it. `--record` and `--golden`
     // keep naming the file they were given.
+    if !record && !explicit_golden && !native && !interpret && !list_pinned {
+        refresh_published_ledger(&root);
+    }
     let golden_path = match published_ledger(&root) {
         Some(published) if !record && !explicit_golden && !native && !interpret => {
             println!(
@@ -727,6 +818,55 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         );
         return Err(2);
     }
+    // A run before merging is the fixtures the author names plus the ring
+    // around them. Anything larger is a sweep: a checkpoint, run in the
+    // background, never a step toward landing one change.
+    let selection = if sweep || !shard.trim().is_empty() {
+        FixtureSelection::fragments(&filter)
+    } else {
+        let list = |selection: &FixtureSelection| {
+            selected_fixture_names(&root, selection).map_err(|e| {
+                eprintln!("corpus: {e}");
+                2u8
+            })
+        };
+        // The author names fixtures, because they know which ones the change
+        // targets. A fragment that matches several is a family, and choosing
+        // a family is choosing by name what to sweep.
+        let mut named = Vec::new();
+        for fragment in filter.split(',').map(str::trim).filter(|f| !f.is_empty()) {
+            let matches = list(&FixtureSelection::fragments(fragment))?;
+            match matches.iter().find(|name| name.as_str() == fragment) {
+                Some(exact) => named.push(exact.clone()),
+                None if matches.len() == 1 => named.extend(matches),
+                None => {
+                    eprintln!(
+                        "corpus: `{fragment}` matches {} fixtures, so it names a family, not a fixture. Name each fixture this change targets (tier/group/name); the gate adds the ones around them. A group or tier is a sweep (--sweep): a background checkpoint, not a pre-merge step.",
+                        matches.len()
+                    );
+                    return Err(2);
+                }
+            }
+        }
+        named.sort();
+        named.dedup();
+        let all: BTreeSet<String> = list(&FixtureSelection::All)?.into_iter().collect();
+        let wave = blast_wave(&named, &all);
+        eprintln!(
+            "corpus: {} named fixture(s), {} around them (depth 1)",
+            named.len(),
+            wave.len()
+        );
+        for (fixture, reason) in &wave {
+            eprintln!("corpus:   + {fixture} ({reason})");
+        }
+        FixtureSelection::exact(named.into_iter().chain(wave.into_iter().map(|(f, _)| f))).map_err(
+            |e| {
+                eprintln!("corpus: {e}");
+                2u8
+            },
+        )?
+    };
 
     if runner.is_some() {
         eprintln!(
@@ -751,7 +891,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let records_text = observe(
         &root,
         binary,
-        &FixtureSelection::fragments(&filter),
+        &selection,
         &shard,
         native.then_some(target),
         interpret,
@@ -805,6 +945,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
     let mut regressed = 0usize;
     let mut moved = 0usize;
+    // The rows that differ from the ledger: what a blast that is not clean
+    // leaves to investigate.
+    let mut differing: Vec<&str> = Vec::new();
     for row in &observed {
         let Some(before) = prior_map.get(&row.fixture) else {
             println!("+ {}: new fixture ({})", row.fixture, row.status);
@@ -831,6 +974,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 row.fixture, before.status, row.status
             );
             regressed += 1;
+            differing.push(&row.fixture);
         } else if before.status != row.status
             || before.expected_satisfied != row.expected_satisfied
             || before.facts != row.facts
@@ -841,9 +985,19 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 row.fixture, before.status, row.status
             );
             moved += 1;
+            differing.push(&row.fixture);
         }
     }
 
+    if !differing.is_empty() && !sweep {
+        // The next step is those rows, not a wider run: the same fixtures on
+        // the commit this change started from say whether the change moved
+        // them or main already had.
+        eprintln!(
+            "corpus: the blast is not clean. Investigate these rows; do not widen the run. In a worktree at the base commit:\n  mbx xtask corpus --filter {}",
+            differing.join(",")
+        );
+    }
     if regressed > 0 {
         eprintln!(
             "corpus: {regressed} regressed, {moved} moved across {} observed fixture(s)",
@@ -856,8 +1010,14 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             observed.len()
         );
         Err(1)
-    } else {
+    } else if sweep {
         println!("corpus: clean — {} fixture(s) verified", observed.len());
+        Ok(())
+    } else {
+        println!(
+            "corpus: blast clean — {} fixture(s) verified; nothing more to run before merging",
+            observed.len()
+        );
         Ok(())
     }
 }
@@ -865,6 +1025,50 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The wave around a named fixture is its twin in another tier and the
+    /// fixtures beside it by name in its own group, never another group's and
+    /// never one that was named.
+    #[test]
+    fn the_blast_wave_is_twins_and_same_group_neighbours() {
+        let all: BTreeSet<String> = [
+            "fail/calls/b",
+            "pass/calls/a",
+            "pass/calls/b",
+            "pass/calls/c",
+            "pass/calls/d",
+            "pass/loops/a",
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+        let wave = |named: &[&str]| {
+            let named: Vec<String> = named.iter().map(|name| (*name).to_owned()).collect();
+            blast_wave(&named, &all)
+                .into_iter()
+                .map(|(fixture, reason)| format!("{fixture} {reason}"))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            wave(&["pass/calls/b"]),
+            [
+                "fail/calls/b twin",
+                "pass/calls/a neighbour",
+                "pass/calls/c neighbour"
+            ]
+        );
+        // The last fixture of a group has no neighbour in the next group.
+        assert_eq!(wave(&["pass/calls/d"]), ["pass/calls/c neighbour"]);
+        // A named fixture is never also part of the wave.
+        assert_eq!(
+            wave(&["pass/calls/b", "pass/calls/c"]),
+            [
+                "fail/calls/b twin",
+                "pass/calls/a neighbour",
+                "pass/calls/d neighbour"
+            ]
+        );
+    }
 
     #[test]
     fn losing_a_matched_native_rejection_carries_a_regression_token() {

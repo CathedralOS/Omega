@@ -157,6 +157,14 @@ it is not an empty call set. Selected-provider cycle policy consumes these
 summaries, while receiving executable admission checks installed call closure
 independently.
 
+Under [selected-provider cycle policy](../language/effects.md#direct-synchronous-invocation),
+retained requirement dependencies are not edges to every eligible supplier.
+Composition resolves each provider-controlled call for its exact application
+and target while preserving concrete direct calls and conservative callback or
+native alternatives. Unselected suppliers add no hypothetical wiring. Preserve
+these distinctions through source checking, lowering, publication and replacement;
+an abstract or unavailable target cannot become a fabricated empty call set.
+
 ## Publication and separate consumption
 
 Named decision: `psi-execution-admission`, ratified 2026-11-07, superseding

@@ -64,104 +64,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - Does a call cycle through a generic provider count when Build selects a different provider for that application?
-
-Decision name: `applied-provider-cycle-selection`.
-
-**Customer.** `ENTRY-CONTENT-ROOTS` on [TASKS.md](TASKS.md) accepts
-`pass/capabilities/*` through `omega run --both`.
-`tests/omega/pass/capabilities/selected_applied_synchronous_chain_exit`
-declares `FirstStage<const Phase: u64> satisfies Stage<Phase>`, whose `read`
-calls `Stage<2u64>::read()`, and `SecondStage<const Phase: u64> satisfies
-Stage<Phase>`, whose `read` returns 73. Build selects `FirstStage<1u64>` for
-`Stage<1u64>` and `SecondStage<2u64>` for `Stage<2u64>`. Neither requirement
-nor implementation states `terminates`. The product requirement is a staged
-provider chain where one application's provider calls another application of
-the same boundary.
-
-The ledger records the row `checked`, but on current `main` checking rejects
-it on every target: *"machine call cycle: `FirstStage::read` can re-enter
-itself through a selector call or boundary requirement call; termination
-across implementation selection is not yet ranked"*. Without selection,
-`FirstStage<2u64>` is a supplied implementation of `Stage<2u64>`, so
-`FirstStage<2u64>::read` → `Stage<2u64>::read` → `FirstStage<2u64>::read` is
-an unranked cycle; only the Build row for `Stage<2u64>` removes it.
-
-**Gap.** Two ratified passages give different answers:
-
-- [Provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection):
-  *"Psi checks every supplied implementation independently of target
-  selection."* `tests/omega/fail/termination/unselected_implementation_reentry_rejected`
-  pins that an unranked cycle through an unselected implementation rejects.
-  Read alone, this fixture rejects.
-- [Termination](wiki/spec/language/termination.md), checked dependency row:
-  *"Instantiate the exact selected operation's termination premises under its
-  actual argument substitution."* With
-  [generic selected requirements](wiki/spec/build/provider_selection.md#generic-selected-requirements)
-  (*"The selected generic member must implement the public contract for every
-  admitted application"*), read alone, only the selected `SecondStage<2u64>`
-  is called and there is no cycle.
-
-Neither says whether "supplied" ranges over every application a generic
-implementation could satisfy, or only the applications Build admits for it.
-
-**Question.**
-
-- **(a)** Does Psi's selection-independent cycle check include
-  `FirstStage<2u64>` as a supplier of `Stage<2u64>`, so the fixture rejects
-  and moves to `fail/` (or gains a ranking or `terminates` promise)?
-- **(b)** Or does the check range only over the applications Build admits for
-  each generic implementation, so the fixture is accepted and the call graph
-  must follow the exact closed application?
-
-Until answered the row is left red and the call graph is unchanged.
-
-### Q2 - How does `Build::validate` name a dependency, and how is a bundled library made a subject?
-
-Decision name: `validation-subjects` (`Build::validate` naming).
-
-**Customer.** The toolchain release gate, which
-[validation subjects](wiki/spec/build/validation_subjects.md#admission-and-release)
-says "checks each bundled library as a subject", and any product that wants
-its dependency checked in full with `Build::validate`.
-
-The specification's example registers dependencies as identifiers:
-
-```omega
-Build::dependency(builder, core, locator);
-Build::validate(builder, core);
-```
-
-Premise update (#2530 and the corpus migration that retires `depend*`): the
-shipped vocabulary now registers a dependency as a configured description,
-`Build::dependency(builder, description) -> DependencyRegistration` (and
-`Build::build_dependency` for Build scope), where
-`dependency::from_source(source)` builds the description and
-`dependency::with_alias(&mut description, "vendor")` sets its alias. It still
-names no dependency by identifier; the registration carries no fields, and the
-coordinator knows the dependency by its alias bytes. The returned
-`DependencyRegistration` is one candidate argument for `Build::validate`; this
-note does not choose it. The bundled `core`, `std` and `alloc` are never registered by a
-product at all; the toolchain supplies them. Today
-`omega --check source/library/core/main.omg` is refused with
-`source root ... overlaps toolchain root`, so no command can check a bundled
-library as a subject.
-
-The question:
-
-- **(a)** Is the argument of `Build::validate` the dependency's alias, as in
-  `Build::validate(builder, "vendor")`, the returned `DependencyRegistration`,
-  or a new identifier form?
-- **(b)** How is a bundled library named as a subject: by
-  `Build::validate(builder, "core")` without registration, by checking the
-  library's own directory as a root (lifting the overlap refusal for the
-  toolchain's own packages), or by another form?
-
-Until answered `Build::validate` is not implemented and the release gate has
-no full-package check of `core` and `std`. Ordinary checks already treat only
-the root package as a subject.
-
-### Q3 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
+### Q1 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
 
 Decision name: `sealed-runtime-providers`.
 
@@ -216,7 +119,7 @@ Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
 these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
 retirement.
 
-### Q4 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
+### Q2 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
 
 Decision name: `operating-system-library-name`. Raised by Jarod for Zac.
 

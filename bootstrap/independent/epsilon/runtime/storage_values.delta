@@ -1,0 +1,9 @@
+; Direct compiled parameters name homes; transfers retain values and the homes
+; of machine parameters. Neither list contains syntax or executable AST nodes.
+(data EpsilonCompiledHomes
+  (NoEpsilonCompiledHomes)
+  (MoreEpsilonCompiledHomes Int EpsilonCompiledHomes))
+
+(data EpsilonCompiledArguments
+  (NoEpsilonCompiledArguments)
+  (MoreEpsilonCompiledArguments EpsilonRuntimeValue EpsilonCompiledArguments))

@@ -1,10 +1,4 @@
 
-; ---- body-resolution catalog foundation ----------------------------------
-
-(def epsilon_integer_literal_value ((literal EpsilonIntegerLiteral)) Int
-  (match literal
-    ((EpsilonIntegerSpan start end value) value)))
-
 (def epsilon_types_equal ((source EpsilonSourceView) (left EpsilonType)
   (right EpsilonType)) Int
   (match left

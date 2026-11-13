@@ -1233,7 +1233,6 @@ pub(crate) mod lowering_error {
         CrashFrontierClaimNotLowered(PermissionClaimIdentity),
         InvalidContentDomainIdentity,
         ZeroContentProjectionFingerprint,
-        ContentTermNestingTooDeep,
         ConflictingContentPlaceRoot {
             id: PlaceId,
             first: StructuralPlaceKind,

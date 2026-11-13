@@ -2455,6 +2455,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "optimization",
  "semantic-vocabulary",
  "source",
  "symbols",

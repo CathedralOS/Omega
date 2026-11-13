@@ -288,7 +288,6 @@ pub fn prepare(
         "RUSTC_WORKSPACE_WRAPPER",
         "RUST_MIN_STACK",
         "OMEGA_CORPUS_JOBS",
-        "OMEGA_CORPUS_FIXTURE_SECS",
         "OMEGA_CORPUS_EXECUTE_SECS",
     ]
     .into_iter()

@@ -230,6 +230,60 @@ data OmegaUseSyntax {
     end: i32;
 }
 
+// Invocation supplies package ownership and direct dependency aliases. Source
+// text supplies modules and imports. Unit byte ranges are disjoint immutable
+// views in one buffer; sharing that buffer never shares a lexical/import scope.
+data OmegaSourcePackage {
+    name: OmegaRelativeSpan;
+    // Invocation-owned trust: ordinary=0, toolchain core=1, toolchain std=2.
+    role: i32;
+}
+
+data OmegaSourceDependency {
+    requester: i32;
+    target: i32;
+    alias: OmegaRelativeSpan;
+}
+
+data OmegaSourceUnit {
+    package: i32;
+    start: i32;
+    end: i32;
+    first_module_member: i32;
+    module_member_count: i32;
+    has_module: i32;
+}
+
+data OmegaSourceSet {
+    packages: [OmegaSourcePackage; 64];
+    dependencies: [OmegaSourceDependency; 256];
+    units: [OmegaSourceUnit; 512];
+    package_count: i32;
+    dependency_count: i32;
+    unit_count: i32;
+}
+
+data OmegaDeclarationKind {
+    case Data;
+    case Machine;
+}
+
+data OmegaImportBindingKind {
+    case Namespace;
+    case Data;
+    case Machine;
+}
+
+data OmegaImportBinding {
+    kind: OmegaImportBindingKind;
+    target: i32;
+}
+
+data OmegaNamePath {
+    members: [OmegaRelativeSpan; 16384];
+    count: i32;
+}
+
 data OmegaRootKind {
     case Use;
     case Data;
@@ -261,6 +315,7 @@ data OmegaTypeConsumer {
 }
 
 data OmegaPathDestination {
+    case Module;
     case Use;
     case Machine;
 }
@@ -440,6 +495,7 @@ data OmegaStatementSyntax {
 }
 
 data OmegaCallStatementSyntax {
+    name_member_count: i32;
     first_receiver_member: i32;
     receiver_member_count: i32;
     receiver_starts_at_self: i32;
@@ -455,6 +511,9 @@ data OmegaCallStatementSyntax {
 data OmegaCallExpressionSyntax {
     has_receiver: i32;
     receiver: i32;
+    // Named `::` members precede any value projections. This distinguishes
+    // a qualified free call from a receiver call with the same final spelling.
+    name_member_count: i32;
     target: OmegaRelativeSpan;
     first_machine_argument: i32;
     machine_argument_count: i32;
@@ -930,6 +989,9 @@ data OmegaSuspendedExpressionSlot {
 }
 
 data OmegaParser {
+    sources: OmegaSourceSet;
+    unit_index: i32;
+    unit_first_root: i32;
     scan: OmegaLexScan;
     // Only Complete authorizes consumers to inspect rows below the matching
     // count. Failure/incomplete may leave unowned prefixes; reset invalidates
@@ -1104,6 +1166,7 @@ data OmegaParser {
     statement_start: i32;
     statement_first_path_member: i32;
     statement_path_member_count: i32;
+    statement_name_member_count: i32;
     statement_starts_at_self: i32;
     call_first_machine_argument: i32;
     call_first_argument: i32;

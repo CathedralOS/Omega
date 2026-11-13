@@ -13,11 +13,11 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **LOWERED-FORM-CHECKER.** Outranks every item below (owner ruling, 2026-11-12). The [lowered-form checker](wiki/drafts/designs/check_on_lowered_form.md) lowers first and proves on unsealed Terminal Psi; it replaces Psi 05, validation and Psi 06 (about 790k lines) once no program needs them. Read that record's "The decision", "The gate" and "Lane order" first.
   - Where it stands: the router (`omega-rust/omega/compilation/compiler/src/checked/checking/lowered_route.rs`) lets the route's verdict govern a whole compilation and falls back on `Unsupported`; gate conditions 1 and 2 hold except rooting the entry-contract source; generic forms are judged once (#2674); references and loans started (#2685). Tests: `compiler/tests/lowered_route_{subjects,generics,governance,publication,messages}.rs`.
-  - Step 1, product route: a program only the route accepts stops with "no product route yet" because product selection, the provider inventory, target preparation and the program-entry receipt read Psi 05's trees. Feed them the route's published module (`AcceptedClosure::publish` in `psi/compilation/pipeline/lowered-discharge/src/verdict.rs`, #2666), one at a time, keeping the old path for fallbacks. Done when `run/calls/scalar_contract_route_exit` runs from the default compile and route-only programs pass `omega run --both`.
-  - Step 2, gate: root `std/targets/<target>/entry.omg` so the four `fail/build/*entry*` programs the route accepts are rejected (no ad-hoc entry rule); wire `reverify_specialization` (`lowered-discharge`) into the compile so stage-04 specializations decide carried certificates instead of searching; then ask the owner whether condition 3 is met.
+  - Step 1, product route: a program only the route accepts stops with "no product route yet" because product selection, the provider inventory and target preparation read Psi 05's trees. Feed them the route's published module (`AcceptedClosure::publish` in `psi/compilation/pipeline/lowered-discharge/src/verdict.rs`, #2666), one at a time, keeping the old path for fallbacks. The entry receipt resolves on that module (`structure-elaboration/src/declare.rs`). Next: the route must publish the boundary machines and `ExternalProviderConformance` rows of the target's float realization table (Psi 06: `retention.rs`, `external_providers::project`), which Omega 00 requires in the application's own module (`validate_external_provider_owners`); then carry the published artifact from `lowered_route.rs` to `terminal_artifact.rs` and the evidence seals to Omega 00, and state declaration identities for stage-04 generated machines. Done when `run/calls/scalar_contract_route_exit` runs from the default compile and route-only programs pass `omega run --both`.
+  - Step 2, gate: complete the installed continuation's logical contracts from its bound entry source (no ad-hoc entry rule); wire `reverify_specialization` (`lowered-discharge`) into the compile so stage-04 specializations decide carried certificates instead of searching; then ask the owner whether condition 3 is met.
   - Step 3, lanes in order of programs unblocked, re-measured first: owned non-`[copy]` data and affine locals, entry machines taking their own state (`Main::main(&mut Main)`), the rest of generics, Q8 caller-inferred helper facts (5 signed `shift_left` rows), calls and callee summaries. After each, run `cargo xtask stage-coverage` on newly governed programs.
   - Step 4, condition 4: delete the old-stage code only fully governed programs reach; report lines deleted beside lines the route needed, and check time before and after.
-  - Rule: build a construct a lane needs in the route, not in the stages it replaces; repair those only to unblock CI or close a soundness hole. Pushed wip worth landing first: `work/psi-flat-term-tables`, and single commits on `work/compiler-typed-library-slices` (subject naming) and `work/psi-effect-memory` (bounded planning window).
+  - Rule: build a construct a lane needs in the route, not in the stages it replaces; repair those only to unblock CI or close a soundness hole. Pushed wip worth landing first: single commits on `work/compiler-typed-library-slices` (subject naming) and `work/psi-effect-memory` (bounded planning window).
   Acceptance: the four gate conditions pass on main and Psi 05, validation and Psi 06 are deleted with every corpus row still green.
 
 - **NESTED-MACHINE-UNIFICATION.** Replace `state` with nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
@@ -85,9 +85,11 @@ Write each item so any agent can start from it alone: current state, files and e
   Acceptance: two-target builds run Psi `00–07` and Build once and Omega `00–09` once per target with clean boundary guards.
 
 - **VALIDATION-SUBJECTS.** Implement [validation subjects](wiki/drafts/designs/validation_subjects.md): check the selected packages in full and dependencies only through their required semantic closure.
-  - First give the toolchain release gate an explicit full-package check of each bundled library; a sample corpus does not count.
+  - Add reusable activation-scoped registrations, Build/Product subjects and direct library checks with preserved owners.
   - Carry the subject set through orchestration, discover dependencies while checking (types, data, proofs, cleanup, conformances, bindings), keep deferred bodies in name resolution; add `Build::validate`, the all-members workspace default, and full validation of the admitted revision.
-  Acceptance: the eight cases in the draft pass; a one-line `omega --check` no longer body-checks unreached library machines and its measured Psi 05 time drops accordingly.
+  Acceptance: draft cases pass; app checking excludes unrelated library bodies and lowers measured Psi 05 work.
+
+- **ORDINARY-LIBRARY-PACKAGES.** Remove mandatory/pinned `std` and hidden entry coupling ([acceptance](wiki/drafts/designs/validation_subjects.md#ordinary-library-migration)); preserve primitive custody and release integrity. Independent of validation delivery.
 
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Settle providers over Terminal Psi in `execution_settlement.rs`.
   - Move `execution_settlement.rs`, `provider_binding.rs`, `operators.rs`, opaque/const/review paths, float/FMA/GUI calls, and target capsules to Terminal Psi.
@@ -183,7 +185,7 @@ Write each item so any agent can start from it alone: current state, files and e
 <a id="process-exit-contract"></a>
 
 - **ENTRY-CONTENT-ROOTS.** (covers **PROCESS-EXIT-CONTRACT**) Complete provisioned receivers ([entry_roots.md](wiki/spec/build/entry_roots.md)) and [process exit](wiki/spec/language/process_exit.md) (`boundary_calls.rs`, `hosted_receiver.rs`, `std/process.omg`), deleting `core/binding.omg`.
-  Acceptance: `samples/cli/basics/{number_guess,cli_mvp,generic_counters}`, `pass/capabilities/*`, and `pass/host/process_exit_*` pass `omega run --both`.
+  Acceptance: [selected-provider graphs](wiki/drafts/designs/selected_provider_cycle_graph.md#acceptance), `samples/cli/basics/{number_guess,cli_mvp,generic_counters}`, `pass/capabilities/*`, and `pass/host/process_exit_*` pass `omega run --both`.
 
 ## P2 - Materialization and access policies
 

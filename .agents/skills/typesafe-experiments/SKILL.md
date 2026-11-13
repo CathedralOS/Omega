@@ -36,15 +36,13 @@ Tune state, candidate coverage, question meaning, and downstream policy separate
 when attribution matters. Independent questions can share state but cannot see one
 another's answers. Include enough identities and relationships for the judgment;
 do not send an entire code trace merely because it fits. Preserve tool receipts and
-concise explicit rationales, not private model reasoning. The user reported a 32k
-context window in this experiment; verify the active model's limit before scaling.
+concise explicit rationales, not private model reasoning. Verify the active
+model's context limit before scaling.
 
 For whole-machine semantic review, ask one Noul per explicit behavior obligation
-over the same source. On the 2026-09-29 state-graph probe, this cleared clean
-cases and identified affected obligations where a global violation Noul plus
-culprit Choice false-flagged clean. A state-indexed graph did not improve accuracy over
-raw source; do not build a graph extractor on this evidence. A compact state
-view saved some input tokens, not demonstrated end-to-end agent time. Count the
+over the same source; a global violation Noul plus culprit Choice false-flags
+clean cases. A state-indexed graph did not improve accuracy over raw source,
+so do not build a graph extractor. Count the
 cost of obtaining obligations and checking actual runtime behavior before
 calling this a workflow gain.
 
