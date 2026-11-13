@@ -75,6 +75,35 @@ pub mod reflection {
         use crate::types::{TypeReferenceHandle, TypeReferenceNode};
         use symbols::{SymbolHandle, SymbolKind};
 
+        /// Keep an authored declaration operand when constructing the actual
+        /// call. Use the existing description role so it cannot become a
+        /// runtime value or an execution of the described declaration.
+        pub fn declaration_query_argument_role(
+            typed: &TypedTrees,
+            call: crate::references::StaticArgumentCall<'_>,
+        ) -> crate::references::StaticArgumentRole {
+            use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
+            let target = match call {
+                crate::references::StaticArgumentCall::Expression(_, call) => call.target_symbol,
+                crate::references::StaticArgumentCall::Statement(call) => call.target_symbol,
+            };
+            let declaration = typed
+                .machine_by_symbol(target)
+                .or_else(|| typed.machine_holding_state(target));
+            if declaration.is_some_and(|declaration| {
+                matches!(
+                    typed.core_vocabulary(declaration.symbol),
+                    Some(CoreVocabulary::Reflection(
+                        ReflectionDeclaration::Schema | ReflectionDeclaration::Callable
+                    ))
+                )
+            }) {
+                crate::references::StaticArgumentRole::DeclarationDescription
+            } else {
+                crate::references::StaticArgumentRole::ValueDependency
+            }
+        }
+
         pub fn exact_symbol_identity(
             typed: &TypedTrees,
             symbol: SymbolHandle,
@@ -254,9 +283,40 @@ pub mod reflection {
             pub is_self_edge: bool,
         }
 
+        fn selected_type_identity(
+            typed: &TypedTrees,
+            reference: TypeReferenceHandle,
+            declaration: SymbolHandle,
+        ) -> Result<String, String> {
+            if !typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return Err("a schema type lost its retained reference".into());
+            }
+            let retained = typed.type_reference_table.operand_lifetime_owner(reference);
+            let owner = if retained.is_valid() {
+                retained
+            } else {
+                declaration
+            };
+            crate::type_identity::applied_type_identity_in_region_scope(
+                typed,
+                reference,
+                owner,
+                owner,
+                &[],
+                &[],
+            )
+            .and_then(|identity| typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or_else(|| "a schema type has no complete owned identity".into())
+        }
+
         fn nominal_expectations(
             typed: &TypedTrees,
             type_reference: TypeReferenceHandle,
+            argument_owner: SymbolHandle,
             root_owner_identity: &str,
             root_application_identity: Option<&str>,
         ) -> Result<Vec<NominalExpectation>, String> {
@@ -264,6 +324,7 @@ pub mod reflection {
             collect_nominal_expectations(
                 typed,
                 type_reference,
+                argument_owner,
                 root_owner_identity,
                 root_application_identity,
                 &mut found,
@@ -274,6 +335,7 @@ pub mod reflection {
         fn collect_nominal_expectations(
             typed: &TypedTrees,
             type_reference: TypeReferenceHandle,
+            argument_owner: SymbolHandle,
             root_owner_identity: &str,
             root_application_identity: Option<&str>,
             found: &mut Vec<NominalExpectation>,
@@ -290,7 +352,8 @@ pub mod reflection {
                             typed.package_qualified_type_identity_text(application)
                         )
                     })?;
-                let application_identity = typed.package_qualified_type_identity_text(application);
+                let application_identity =
+                    selected_type_identity(typed, application, argument_owner)?;
                 let is_self_edge = owner_identity == root_owner_identity
                     && match root_application_identity {
                         Some(root_application) => application_identity == root_application,
@@ -333,6 +396,7 @@ pub mod reflection {
                         collect_nominal_expectations(
                             typed,
                             *argument,
+                            argument_owner,
                             root_owner_identity,
                             root_application_identity,
                             found,
@@ -346,6 +410,7 @@ pub mod reflection {
                     collect_nominal_expectations(
                         typed,
                         *base_type,
+                        argument_owner,
                         root_owner_identity,
                         root_application_identity,
                         found,
@@ -355,6 +420,7 @@ pub mod reflection {
                     collect_nominal_expectations(
                         typed,
                         *referee,
+                        argument_owner,
                         root_owner_identity,
                         root_application_identity,
                         found,
@@ -365,6 +431,7 @@ pub mod reflection {
                     collect_nominal_expectations(
                         typed,
                         *element_type,
+                        argument_owner,
                         root_owner_identity,
                         root_application_identity,
                         found,
@@ -391,6 +458,7 @@ pub mod reflection {
             let expectations = nominal_expectations(
                 typed,
                 field.type_reference,
+                field.symbol,
                 owner_identity,
                 root_application_identity,
             )?;
@@ -401,8 +469,11 @@ pub mod reflection {
                     declaration_position,
                     stable_number: field.identity,
                     erased: field.relevance.is_erased(),
-                    qualified_type: typed
-                        .package_qualified_type_identity_text(field.type_reference),
+                    qualified_type: selected_type_identity(
+                        typed,
+                        field.type_reference,
+                        field.symbol,
+                    )?,
                     nominal_references: Vec::new(),
                     owner_case,
                 },
@@ -469,6 +540,35 @@ pub mod reflection {
                     typed.symbols.display_path(subject, "::")
                 )
             })?;
+            construct_data_schema_graph(typed, data, None, authority)
+        }
+
+        /// The selected reference keeps the actual arguments; its declaration
+        /// alone cannot describe substituted fields or lifetime relationships.
+        pub fn construct_semantic_schema_graph_for_type(
+            typed: &TypedTrees,
+            reference: TypeReferenceHandle,
+            authority: SchemaQueryAuthority,
+        ) -> Result<SemanticSchemaGraph, String> {
+            if !typed
+                .type_reference_table
+                .contains_type_reference(reference)
+            {
+                return Err("a schema query lost its selected type reference".into());
+            }
+            let data = typed
+                .closed_data_definition(reference)
+                .ok_or("a schema query requires its exact retained data application")?;
+            construct_data_schema_graph(typed, data, Some(reference), authority)
+        }
+
+        fn construct_data_schema_graph(
+            typed: &TypedTrees,
+            data: &DataDefinition,
+            reference: Option<TypeReferenceHandle>,
+            authority: SchemaQueryAuthority,
+        ) -> Result<SemanticSchemaGraph, String> {
+            let subject = data.symbol;
             if data.quotient.is_some() {
                 return Err(format!(
                     "schema reflection cannot observe quotient `{}`: a quotient does not expose its representative outside its checked quotient contract",
@@ -486,9 +586,10 @@ pub mod reflection {
                     ));
                 }
             }
-            let application_identity = data
-                .generic_instance
-                .map(|instance| typed.package_qualified_type_identity_text(instance));
+            let application_identity = reference
+                .or(data.generic_instance)
+                .map(|reference| selected_type_identity(typed, reference, data.symbol))
+                .transpose()?;
 
             let mut nodes = vec![SchemaNode::Invalid, SchemaNode::Invalid];
             let root = SchemaNodeHandle(1);

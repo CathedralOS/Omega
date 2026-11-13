@@ -305,6 +305,7 @@ pub struct PureTerminalEvaluationReceipt {
     machine: symbols::SymbolHandle,
     requester: symbols::SymbolHandle,
     caller: symbols::SymbolHandle,
+    call: typed_trees::expression::ExpressionHandle,
     arguments: Vec<BuildTimeValue>,
     program: Arc<psi_terminal_production::ProducedTerminalProgram>,
     admission: terminal_installation::AdmittedCompilerEvaluation,
@@ -315,6 +316,7 @@ pub struct PureTerminalEvaluationReceipt {
 impl PureTerminalEvaluationReceipt {
     pub(crate) fn new(
         accepted: &psi_terminal_production::AcceptedTerminalSource,
+        call: typed_trees::expression::ExpressionHandle,
         entry: &crate::PreparedBuildMachineEntry,
         arguments: &[BuildTimeValue],
         program: Arc<psi_terminal_production::ProducedTerminalProgram>,
@@ -343,6 +345,7 @@ impl PureTerminalEvaluationReceipt {
             machine,
             requester,
             caller,
+            call,
             arguments: arguments.to_vec(),
             program,
             admission,
@@ -364,6 +367,18 @@ impl PureTerminalEvaluationReceipt {
     }
     pub const fn caller(&self) -> symbols::SymbolHandle {
         self.caller
+    }
+    /// The actual generated call belongs to this receipt's immutable source.
+    /// Consumers inspect its selected operand here, not a separately supplied
+    /// type handle or a later search through the structural catalogue.
+    pub fn call(&self) -> Result<&typed_trees::expression::TableCallExpression, String> {
+        if !self.source.expression_table.expression_is_valid(self.call) {
+            return Err("source invocation call has another source owner".into());
+        }
+        self.source
+            .expression_table
+            .call_node(self.call)
+            .ok_or_else(|| "source invocation lost its retained call".into())
     }
     pub fn arguments(&self) -> &[BuildTimeValue] {
         &self.arguments
@@ -414,6 +429,41 @@ impl PureTerminalEvaluationReceipt {
             || self.program.evidence().is_none()
         {
             return Err("source invocation lost its accepted source/code custody".into());
+        }
+        let caller = self
+            .source
+            .machine_by_symbol(self.caller)
+            .ok_or("source invocation lost its caller declaration")?;
+        let [state] = self.source.machine_states(caller) else {
+            return Err("source invocation lost its unique caller entry".into());
+        };
+        let Some(typed_trees::statement::StatementNode::Transition(transition)) = self
+            .source
+            .statement_table
+            .statements(state.statement_nodes)
+            .last()
+        else {
+            return Err("source invocation lost its actual return call".into());
+        };
+        if !self
+            .source
+            .statement_table
+            .transition_target_is_valid(transition.target)
+            || !matches!(
+                self.source.statement_table.transition_target(transition.target),
+                typed_trees::statement::TransitionTargetNode::Value(value) if *value == self.call
+            )
+        {
+            return Err("source invocation receipt names another call".into());
+        }
+        let call = self.call()?;
+        if call.target_symbol != self.machine
+            && self
+                .source
+                .machine_holding_state(call.target_symbol)
+                .is_none_or(|machine| machine.symbol != self.machine)
+        {
+            return Err("source invocation call selects another declaration".into());
         }
         let selected = self
             .program
