@@ -2211,7 +2211,7 @@ pub(crate) mod lexical_selection {
         while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
             if matches!(
                 syntax.expressions.expression(expression),
-                ExpressionNode::Name(_) | ExpressionNode::Call(_)
+                ExpressionNode::Name { .. } | ExpressionNode::Call(_)
             ) {
                 return true;
             }
@@ -2230,14 +2230,17 @@ pub(crate) mod lexical_selection {
         let mut origins = Vec::new();
         while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
             match syntax.expressions.expression(expression) {
-                ExpressionNode::Name(path) => {
-                    if path.application.is_some() {
+                ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } => {
+                    if path_application.is_some() {
                         return Err(
                             "machine index constant paths cannot discard static applications"
                                 .to_owned(),
                         );
                     }
-                    let members = syntax.expressions.identifier_path_members(path.members);
+                    let members = syntax.expressions.identifier_path_members(path.to_owned());
                     let (Some(first), Some(last)) = (members.first(), members.last()) else {
                         return Err("machine index operand lost its authored name path".to_owned());
                     };
@@ -2349,14 +2352,20 @@ pub(crate) mod lexical_selection {
     > {
         let reference = authored.target.source_span();
         let qualified_reference = match syntax.expressions.expression(authored.receiver) {
-            ExpressionNode::Name(path) if path.application.is_some() => {
+            ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } if path_application.is_some() => {
                 return Err(
                     "machine index call receiver requires an unapplied declaration path".to_owned(),
                 );
             }
-            ExpressionNode::Name(path) => syntax
+            ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } => syntax
                 .expressions
-                .identifier_path_members(path.members)
+                .identifier_path_members(path.to_owned())
                 .first()
                 .filter(|first| first.source_span().source_id == reference.source_id)
                 .map(|first| {
@@ -5796,9 +5805,10 @@ pub(crate) fn evaluate(
                         Identifier::new(member, reference),
                     );
             }
-            let expression = syntax
-                .expressions
-                .insert(ExpressionNode::Name(members.into()));
+            let expression = syntax.expressions.insert(ExpressionNode::Name {
+                members: members,
+                application: None,
+            });
             syntax.expressions.set_source_span(expression, reference);
             syntax
                 .type_references

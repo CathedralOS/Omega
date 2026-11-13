@@ -613,7 +613,7 @@ pub(crate) mod bodies {
                 let capture = exprs(syntax_trees).insert_transition_subject(subject);
                 let (head, guard) = if matches!(
                     exprs_of(syntax_trees).expression(value),
-                    ExpressionNode::Name(_)
+                    ExpressionNode::Name { .. }
                 ) {
                     (value, ExpressionHandle::invalid())
                 } else if arm_pattern_is_condition(syntax_trees, value) {
@@ -792,7 +792,10 @@ pub(crate) mod bodies {
                     .collect::<Vec<_>>();
                 let has_rest = parsed_fields.has_rest;
                 let proof_selectors = parsed_fields.proof_selectors;
-                let head = exprs(syntax_trees).insert(ExpressionNode::Name(path.into()));
+                let head = exprs(syntax_trees).insert(ExpressionNode::Name {
+                    members: path,
+                    application: None,
+                });
                 let capture = exprs(syntax_trees).insert_transition_subject(subject);
                 let saved = exprs(syntax_trees).insert(ExpressionNode::SavedSubject(
                     syntax_trees::expression::TableSavedSubject {
@@ -974,9 +977,10 @@ pub(crate) mod bodies {
                         .expressions
                         .append_identifier_path_member(name.clone());
                     let path = HandleSpan::from_parts(path_start, 1);
-                    *subject_expression = syntax_trees
-                        .expressions
-                        .insert(ExpressionNode::Name(path.into()));
+                    *subject_expression = syntax_trees.expressions.insert(ExpressionNode::Name {
+                        members: path,
+                        application: None,
+                    });
                     subject_captures.push((name, captured));
                 }
 
@@ -1313,9 +1317,12 @@ pub(crate) mod bodies {
                     expression: ExpressionHandle,
                 ) -> Option<usize> {
                     match exprs_of(syntax_trees).expression(expression) {
-                        ExpressionNode::Name(path) if path.application.is_none() => Some(
+                        ExpressionNode::Name {
+                            members: path,
+                            application: path_application,
+                        } if path_application.is_none() => Some(
                             exprs_of(syntax_trees)
-                                .identifier_path_members(path.members)
+                                .identifier_path_members(path.to_owned())
                                 .len(),
                         ),
                         ExpressionNode::Member(member) => {
@@ -1398,9 +1405,13 @@ pub(crate) mod bodies {
     ) -> Option<arena::HandleSpan<syntax_trees::identifier::Identifier>> {
         use syntax_trees::expression::ExpressionNode;
         match syntax_trees.expressions.expression(expression).clone() {
-            ExpressionNode::Name(path) if path.application.is_none() => Some(
-                copy_identifier_path_to_statement_table(syntax_trees, path.members),
-            ),
+            ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } if path_application.is_none() => Some(copy_identifier_path_to_statement_table(
+                syntax_trees,
+                path.to_owned(),
+            )),
             ExpressionNode::Member(member) => {
                 let receiver =
                     copy_expression_to_statement_identifier_path(syntax_trees, member.receiver)?;

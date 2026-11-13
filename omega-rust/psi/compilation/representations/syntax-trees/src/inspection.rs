@@ -541,20 +541,23 @@ pub mod snapshot {
                     access: value.access.name(),
                     value: Box::new(snapshot_expression_handle(syntax_trees, value.target)),
                 },
-                ExpressionNode::Name(path) => ExpressionSnapshot::Name {
+                ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } => ExpressionSnapshot::Name {
                     path: snapshot_identifier_slice(
                         syntax_trees,
                         syntax_trees
                             .expressions
-                            .identifier_path_members(path.members),
+                            .identifier_path_members(path.to_owned()),
                     ),
-                    application: path.application.as_ref().map(|application| {
+                    application: path_application.as_ref().map(|application| {
                         Box::new(snapshot_static_argument(
                             syntax_trees,
                             &crate::expression::StaticMachineArgument {
                                 path: syntax_trees
                                     .expressions
-                                    .identifier_path_members(path.members)
+                                    .identifier_path_members(path.to_owned())
                                     .to_vec()
                                     .into_boxed_slice(),
                                 application: Some(application.clone()),

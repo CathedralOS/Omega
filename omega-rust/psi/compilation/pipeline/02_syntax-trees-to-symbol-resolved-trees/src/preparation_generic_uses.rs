@@ -189,8 +189,11 @@ mod assignments {
                     _ => continue,
                 };
                 let expected_type = match syntax.expressions.expression(assignment.target) {
-                    ExpressionNode::Name(path) if path.application.is_none() => {
-                        let [name] = syntax.expressions.identifier_path_members(path.members)
+                    ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } if path_application.is_none() => {
+                        let [name] = syntax.expressions.identifier_path_members(path.to_owned())
                         else {
                             continue;
                         };
@@ -455,8 +458,11 @@ mod calls {
         local_owner_types: &HashMap<String, String>,
     ) -> Option<String> {
         match syntax.expressions.expression(receiver) {
-            ExpressionNode::Name(path) if path.application.is_none() => {
-                let [local] = syntax.expressions.identifier_path_members(path.members) else {
+            ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } if path_application.is_none() => {
+                let [local] = syntax.expressions.identifier_path_members(path.to_owned()) else {
                     return None;
                 };
                 local_owner_types.get(local.as_str(syntax)).cloned()
@@ -746,9 +752,12 @@ mod constructors {
             }
             return;
         }
-        if let ExpressionNode::Name(path) = syntax.expressions.expression(expression)
-            && path.application.is_none()
-            && frontier.captures(syntax, path.members)
+        if let ExpressionNode::Name {
+            members: path,
+            application: path_application,
+        } = syntax.expressions.expression(expression)
+            && path_application.is_none()
+            && frontier.captures(syntax, path.to_owned())
         {
             return;
         }
@@ -795,9 +804,10 @@ mod constructors {
         };
         let definition = definition.clone();
         let authored_name = match syntax.expressions.expression(expression) {
-            ExpressionNode::Name(path) if path.application.is_none() => {
-                constructor_path_name(syntax, path.members)
-            }
+            ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } if path_application.is_none() => constructor_path_name(syntax, path.to_owned()),
             ExpressionNode::StructLiteral(literal) => Some(literal.constructor_name.clone()),
             _ => None,
         };
@@ -806,7 +816,7 @@ mod constructors {
         };
         let payload_free = matches!(
             syntax.expressions.expression(expression),
-            ExpressionNode::Name(_)
+            ExpressionNode::Name { .. }
         );
         let alias = instance.and_then(|instance| {
             super::alias_constructors::select(
@@ -824,7 +834,7 @@ mod constructors {
             .or_else(|| {
                 if matches!(
                     syntax.expressions.expression(expression),
-                    ExpressionNode::Name(_)
+                    ExpressionNode::Name { .. }
                 ) {
                     selected_case_value(syntax, selection, &authored_name)
                 } else {
@@ -856,7 +866,7 @@ mod constructors {
         if let Some(alias) = &alias
             && matches!(
                 syntax.expressions.expression(expression),
-                ExpressionNode::Name(_)
+                ExpressionNode::Name { .. }
             )
             && let Some(case) = &case
         {
@@ -871,18 +881,26 @@ mod constructors {
             );
             return;
         }
-        if let ExpressionNode::Name(path) = syntax.expressions.expression(expression) {
-            if path.application.is_some() {
+        if let ExpressionNode::Name {
+            members: path,
+            application: path_application,
+        } = syntax.expressions.expression(expression)
+        {
+            if path_application.is_some() {
                 return;
             }
             if instance.is_some()
                 && let Some(case) = case
-                && let Some(carrier_span) = constructor_carrier_span(syntax, path.members)
+                && let Some(carrier_span) = constructor_carrier_span(syntax, path.to_owned())
             {
                 let path = closed_sum_path(syntax, closed, carrier_span, case);
-                syntax
-                    .expressions
-                    .replace_expression(expression, ExpressionNode::Name(path.into()));
+                syntax.expressions.replace_expression(
+                    expression,
+                    ExpressionNode::Name {
+                        members: path,
+                        application: None,
+                    },
+                );
             }
             return;
         }
@@ -1054,8 +1072,11 @@ mod expressions {
             ExpressionNode::Call(call) => {
                 visit_static_argument_type_inputs(syntax, &call.machine_arguments, visit)
             }
-            ExpressionNode::Name(path) => {
-                if let Some(application) = &path.application {
+            ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } => {
+                if let Some(application) = &path_application {
                     visit_static_argument_type_inputs(syntax, &application.arguments, visit);
                     if let Some(member) = syntax.expressions.static_member(application.member) {
                         visit_static_argument_type_inputs(
@@ -1364,7 +1385,7 @@ mod expressions {
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
-            | ExpressionNode::Name(_)
+            | ExpressionNode::Name { .. }
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_)
             | ExpressionNode::TypeExpression(_) => {}
@@ -1505,18 +1526,22 @@ mod patterns {
                         .to_vec();
                     for (ordinal, mut retained) in patterns.into_iter().enumerate() {
                         if !retained.is_structural
-                            && let ExpressionNode::Name(path) =
-                                syntax.expressions.expression(retained.pattern.head)
-                            && path.application.is_none()
-                            && frontier.captures(syntax, path.members)
+                            && let ExpressionNode::Name {
+                                members: path,
+                                application: path_application,
+                            } = syntax.expressions.expression(retained.pattern.head)
+                            && path_application.is_none()
+                            && frontier.captures(syntax, path.to_owned())
                         {
                             continue;
                         }
                         if !retained.is_structural
-                            && let ExpressionNode::Name(path) =
-                                syntax.expressions.expression(retained.pattern.head)
-                            && path.application.is_none()
-                            && let Some(name) = constructor_path_name(syntax, path.members)
+                            && let ExpressionNode::Name {
+                                members: path,
+                                application: path_application,
+                            } = syntax.expressions.expression(retained.pattern.head)
+                            && path_application.is_none()
+                            && let Some(name) = constructor_path_name(syntax, path.to_owned())
                             && selection.is_some_and(|selection| {
                                 selection.constructor_prefix_is_value(syntax, &name)
                             })
@@ -1599,12 +1624,13 @@ mod patterns {
                         return None;
                     };
                     let closed = match syntax.expressions.expression(membership.value) {
-                        ExpressionNode::Name(subject_path)
-                            if subject_path.application.is_none() =>
-                        {
+                        ExpressionNode::Name {
+                            members: subject_path,
+                            application: subject_path_application,
+                        } if subject_path_application.is_none() => {
                             let [subject] = syntax
                                 .expressions
-                                .identifier_path_members(subject_path.members)
+                                .identifier_path_members(subject_path.to_owned())
                             else {
                                 return None;
                             };
@@ -1709,8 +1735,11 @@ mod patterns {
         }
         active.push(expression);
         let result = match syntax.expressions.expression(expression) {
-            ExpressionNode::Name(path) if path.application.is_none() => {
-                let [name] = syntax.expressions.identifier_path_members(path.members) else {
+            ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } if path_application.is_none() => {
+                let [name] = syntax.expressions.identifier_path_members(path.to_owned()) else {
                     return None;
                 };
                 if let Some(reference) = types
@@ -1766,13 +1795,17 @@ mod patterns {
         expected: TypeReferenceHandle,
         head: syntax_trees::expression::ExpressionHandle,
     ) -> TypeReferenceHandle {
-        let ExpressionNode::Name(path) = syntax.expressions.expression(head) else {
+        let ExpressionNode::Name {
+            members: path,
+            application: path_application,
+        } = syntax.expressions.expression(head)
+        else {
             return Default::default();
         };
-        if path.application.is_some() {
+        if path_application.is_some() {
             return Default::default();
         }
-        let original_path = path.members;
+        let original_path = path.to_owned();
         let Some(name) = constructor_path_name(syntax, original_path) else {
             return Default::default();
         };
@@ -1808,9 +1841,13 @@ mod patterns {
             let start = syntax.expressions.append_identifier_path_member(carrier);
             HandleSpan::from_parts(start, 1)
         };
-        syntax
-            .expressions
-            .replace_expression(head, ExpressionNode::Name(selected.into()));
+        syntax.expressions.replace_expression(
+            head,
+            ExpressionNode::Name {
+                members: selected,
+                application: None,
+            },
+        );
         application
     }
 }

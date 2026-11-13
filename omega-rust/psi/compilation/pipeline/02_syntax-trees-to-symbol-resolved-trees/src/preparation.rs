@@ -2968,9 +2968,10 @@ pub(crate) mod trait_defaults {
             let name =
                 Identifier::generated(syntax.items.state_parameter(parameter).name.as_str(syntax));
             let member = syntax.expressions.append_identifier_path_member(name);
-            syntax.expressions.insert(ExpressionNode::Name(
-                HandleSpan::from_parts(member, 1).into(),
-            ))
+            syntax.expressions.insert(ExpressionNode::Name {
+                members: HandleSpan::from_parts(member, 1),
+                application: None,
+            })
         });
         let equality = syntax
             .expressions
@@ -3398,13 +3399,16 @@ pub(crate) mod trait_defaults {
         }
         let node = syntax.expressions.expression(expression).clone();
         match node {
-            ExpressionNode::Name(mut path) => {
-                if let Some(application) = path.application.as_ref() {
+            ExpressionNode::Name {
+                members: path,
+                application: mut path_application,
+            } => {
+                if let Some(application) = path_application.as_ref() {
                     let argument = StaticMachineArgument {
                         type_reference: TypeReferenceHandle::invalid(),
                         path: syntax
                             .expressions
-                            .identifier_path_members(path.members)
+                            .identifier_path_members(path.to_owned())
                             .into(),
                         application: Some(application.clone()),
                         const_literal: None,
@@ -3414,10 +3418,14 @@ pub(crate) mod trait_defaults {
                     let rewritten =
                         rewritten_static_argument(syntax, &argument, substitution, &mut changed);
                     if changed {
-                        path.application = rewritten.application;
-                        syntax
-                            .expressions
-                            .replace_expression(expression, ExpressionNode::Name(path));
+                        path_application = rewritten.application;
+                        syntax.expressions.replace_expression(
+                            expression,
+                            ExpressionNode::Name {
+                                members: path,
+                                application: path_application,
+                            },
+                        );
                     }
                 }
             }
@@ -3642,13 +3650,16 @@ pub(crate) mod trait_defaults {
                         const_literal: Some(literal.clone()),
                         evidence_projection: None,
                     }),
-                    ExpressionNode::Name(path) => Some(StaticMachineArgument {
+                    ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } => Some(StaticMachineArgument {
                         type_reference: TypeReferenceHandle::invalid(),
                         path: syntax
                             .expressions
-                            .identifier_path_members(path.members)
+                            .identifier_path_members(path.to_owned())
                             .into(),
-                        application: path.application.clone(),
+                        application: path_application.clone(),
                         const_literal: None,
                         evidence_projection: None,
                     }),
@@ -3830,8 +3841,13 @@ pub(crate) mod declared_types {
                     children.push(reference)
                 });
                 match templates.expressions.expression(expression) {
-                    ExpressionNode::Name(path) if path.application.is_none() => {
-                        let [name] = templates.expressions.identifier_path_members(path.members)
+                    ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } if path_application.is_none() => {
+                        let [name] = templates
+                            .expressions
+                            .identifier_path_members(path.to_owned())
                         else {
                             bindings.unresolved.push(expression);
                             continue;
@@ -3866,7 +3882,7 @@ pub(crate) mod declared_types {
                             bindings.unresolved.push(expression);
                         }
                     }
-                    ExpressionNode::Name(_) | ExpressionNode::Call(_) => {
+                    ExpressionNode::Name { .. } | ExpressionNode::Call(_) => {
                         bindings.unresolved.push(expression)
                     }
                     _ => {}
@@ -3880,15 +3896,19 @@ pub(crate) mod declared_types {
             selection: &ConstantSelection<'_>,
             expression: ExpressionHandle,
         ) -> bool {
-            let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
+            let ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } = syntax.expressions.expression(expression)
+            else {
                 return false;
             };
-            if path.application.is_some() {
+            if path_application.is_some() {
                 return false;
             }
             let name = syntax
                 .expressions
-                .identifier_path_members(path.members)
+                .identifier_path_members(path.to_owned())
                 .iter()
                 .map(|member| member.as_str(syntax))
                 .collect::<Vec<_>>()
@@ -3933,8 +3953,10 @@ pub(crate) mod declared_types {
                                     .expressions
                                     .append_identifier_path_member_to_span(&mut path, member);
                             }
-                            let expression =
-                                syntax.expressions.insert(ExpressionNode::Name(path.into()));
+                            let expression = syntax.expressions.insert(ExpressionNode::Name {
+                                members: path,
+                                application: None,
+                            });
                             syntax.expressions.set_source_span(expression, span);
                             expression
                         }
@@ -4105,11 +4127,14 @@ pub(crate) mod declared_types {
                 bound: &[String],
             ) -> Result<(), Diagnostic> {
                 match syntax.expressions.expression(expression).clone() {
-                    ExpressionNode::Name(path) => {
-                        let application = path.application;
+                    ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } => {
+                        let application = path_application;
                         let path = syntax
                             .expressions
-                            .identifier_path_members(path.members)
+                            .identifier_path_members(path.to_owned())
                             .to_vec();
                         let Some(first) = path.first() else {
                             return Ok(());
@@ -4312,9 +4337,10 @@ pub(crate) mod declared_types {
                 let head = syntax
                     .expressions
                     .append_identifier_path_member(projection.term.clone());
-                let receiver = syntax.expressions.insert(ExpressionNode::Name(
-                    arena::HandleSpan::from_parts(head, 1).into(),
-                ));
+                let receiver = syntax.expressions.insert(ExpressionNode::Name {
+                    members: arena::HandleSpan::from_parts(head, 1),
+                    application: None,
+                });
                 syntax.expressions.set_source_span(receiver, term_span);
                 let expression = syntax.expressions.insert(ExpressionNode::Member(
                     syntax_trees::expression::TableMemberExpression {

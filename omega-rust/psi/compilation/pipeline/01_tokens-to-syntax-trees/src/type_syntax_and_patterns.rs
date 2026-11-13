@@ -270,11 +270,16 @@ pub(crate) mod patterns {
                     ),
                     access: inner.access,
                 }),
-                ExpressionNode::Name(path) => {
+                ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } => {
                     if let Some((field, case_variant, component)) = path
                         .application
                         .is_none()
-                        .then(|| single_destructured_field_name(syntax_trees, path.members, fields))
+                        .then(|| {
+                            single_destructured_field_name(syntax_trees, path.to_owned(), fields)
+                        })
                         .flatten()
                     {
                         if component == language_core::PatternComponent::Case {
@@ -298,7 +303,10 @@ pub(crate) mod patterns {
                             })
                         }
                     } else {
-                        ExpressionNode::Name(path)
+                        ExpressionNode::Name {
+                            members: path,
+                            application: path_application,
+                        }
                     }
                 }
                 ExpressionNode::Range(range) => ExpressionNode::Range(TableRangeExpression {
@@ -558,10 +566,13 @@ pub(crate) mod type_syntax {
                                 }
                             }
                         }
-                        ExpressionNode::Name(path) if path.application.is_none() => {
+                        ExpressionNode::Name {
+                            members: path,
+                            application: path_application,
+                        } if path_application.is_none() => {
                             let members = syntax_trees
                                 .expressions
-                                .identifier_path_members(path.members);
+                                .identifier_path_members(path.to_owned());
                             let name = Identifier::new(
                                 members
                                     .iter()
@@ -764,7 +775,8 @@ pub(crate) mod type_syntax {
             {
                 let (expression, rest) = parse_static_argument_expression(syntax_trees, input)?
                     .ok_or_else(|| input.error_here("expected static argument expression"))?;
-                if let ExpressionNode::Name(_) = syntax_trees.expressions.expression(expression) {
+                if let ExpressionNode::Name { .. } = syntax_trees.expressions.expression(expression)
+                {
                     let name = Identifier::new(
                         syntax_trees.display_expression_name(expression),
                         syntax_trees.expressions.source_span(expression),
@@ -785,7 +797,7 @@ pub(crate) mod type_syntax {
                 if let Some((expression, expression_rest)) = const_expression
                     && !matches!(
                         syntax_trees.expressions.expression(expression),
-                        ExpressionNode::Name(_)
+                        ExpressionNode::Name { .. }
                     )
                     && (expression_rest.at_punctuation(PunctuationKind::Comma)
                         || expression_rest.at_punctuation(PunctuationKind::Greater))

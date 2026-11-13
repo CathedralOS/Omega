@@ -306,8 +306,11 @@ mod arguments {
                     ExpressionNode::Integer(literal) => {
                         super::integer_literal_value(literal).map(|value| value.to_string())
                     }
-                    ExpressionNode::Name(path) if path.application.is_none() => {
-                        let [member] = syntax.expressions.identifier_path_members(path.members)
+                    ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } if path_application.is_none() => {
+                        let [member] = syntax.expressions.identifier_path_members(path.to_owned())
                         else {
                             return None;
                         };
@@ -555,8 +558,11 @@ mod arguments {
                 match syntax.expressions.expression(*expression) {
                     ExpressionNode::Integer(literal) => super::integer_literal_value(literal)
                         .map(|value| ClosedArgumentIdentity::Constant(value.to_string())),
-                    ExpressionNode::Name(path) if path.application.is_none() => {
-                        let [member] = syntax.expressions.identifier_path_members(path.members)
+                    ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } if path_application.is_none() => {
+                        let [member] = syntax.expressions.identifier_path_members(path.to_owned())
                         else {
                             return None;
                         };
@@ -1899,12 +1905,15 @@ mod static_argument_positions {
                 }
                 let mut name = call.target.as_str(syntax).to_owned();
                 if call.receiver.is_valid() {
-                    let ExpressionNode::Name(path) = syntax.expressions.expression(call.receiver)
+                    let ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } = syntax.expressions.expression(call.receiver)
                     else {
                         continue;
                     };
                     let prefix = syntax_expressions(syntax)
-                        .identifier_path_members(path.members)
+                        .identifier_path_members(path.to_owned())
                         .iter()
                         .map(|part| part.as_str(syntax))
                         .collect::<Vec<_>>()
@@ -2177,8 +2186,11 @@ mod substitution {
         members: &HashMap<String, V>,
     ) -> bool {
         match syntax.expressions.expression(expression) {
-            ExpressionNode::Name(path) if path.application.is_none() => {
-                let [member] = syntax.expressions.identifier_path_members(path.members) else {
+            ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } if path_application.is_none() => {
+                let [member] = syntax.expressions.identifier_path_members(path.to_owned()) else {
                     return false;
                 };
                 members.contains_key(member.as_str(syntax))
@@ -2208,13 +2220,17 @@ mod substitution {
             return Ok(());
         }
         let single_name = |side: ExpressionHandle| -> Option<Identifier> {
-            let ExpressionNode::Name(path) = syntax.expressions.expression(side) else {
+            let ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } = syntax.expressions.expression(side)
+            else {
                 return None;
             };
-            if path.application.is_some() {
+            if path_application.is_some() {
                 return None;
             }
-            let [member] = syntax.expressions.identifier_path_members(path.members) else {
+            let [member] = syntax.expressions.identifier_path_members(path.to_owned()) else {
                 return None;
             };
             Some(member.clone())
@@ -2302,9 +2318,9 @@ mod substitution {
             ExpressionNode::Membership(membership) => {
                 let is_self = matches!(
                     syntax.expressions.expression(membership.value),
-                    ExpressionNode::Name(path)
-                        if path.application.is_none() && matches!(
-                            syntax.expressions.identifier_path_members(path.members),
+                    ExpressionNode::Name { members: path, application: path_application }
+                        if path_application.is_none() && matches!(
+                            syntax.expressions.identifier_path_members(path.to_owned()),
                             [member] if member.as_str(syntax) == "self"
                         )
                 );
@@ -2439,14 +2455,18 @@ mod substitution {
                 }
             }
             ExpressionNode::Membership(membership) => {
-                let ExpressionNode::Name(path) = syntax.expressions.expression(membership.value)
+                let ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } = syntax.expressions.expression(membership.value)
                 else {
                     return Undecided;
                 };
-                if path.application.is_some() {
+                if path_application.is_some() {
                     return Undecided;
                 }
-                let [self_member] = syntax.expressions.identifier_path_members(path.members) else {
+                let [self_member] = syntax.expressions.identifier_path_members(path.to_owned())
+                else {
                     return Undecided;
                 };
                 if self_member.as_str(syntax) != "self" {

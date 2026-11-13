@@ -984,13 +984,16 @@ pub(crate) mod parse_postfix {
     ) -> Result<ExpressionHandle, ParseError> {
         let expression = exprs_of(syntax_trees).expression(expression);
         let call = match expression {
-            ExpressionNode::Name(path) => {
-                if path.application.is_some() {
+            ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } => {
+                if path_application.is_some() {
                     return Err(ParseError::new(
                         "a declaration description is not an executable callable value",
                     ));
                 }
-                let path = path.members;
+                let path = path.to_owned();
                 let (target, receiver) = call_path_target_and_receiver(syntax_trees, path);
                 let target = target.ok_or_else(|| ParseError::new("missing call target"))?;
                 Ok(TableCallExpression {
@@ -1035,16 +1038,20 @@ pub(crate) mod parse_postfix {
         syntax_trees: &SyntaxTrees,
         expression: ExpressionHandle,
     ) -> Result<language_core::atomic::MemoryOrdering, String> {
-        let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(expression) else {
+        let ExpressionNode::Name {
+            members: path,
+            application: path_application,
+        } = exprs_of(syntax_trees).expression(expression)
+        else {
             return Err(
             "atomic ordering must be one of `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`"
                 .to_owned(),
         );
         };
-        if path.application.is_some() {
+        if path_application.is_some() {
             return Err("atomic ordering cannot have static arguments".to_owned());
         }
-        let members = exprs_of(syntax_trees).identifier_path_members(path.members);
+        let members = exprs_of(syntax_trees).identifier_path_members(path.to_owned());
         if members.len() != 1 {
             return Err(
             "atomic ordering must be an unqualified built-in name: `NoOrdering`, `Receive`, `Publish`, `ReceivePublish`, or `GlobalOrder`"
@@ -1334,7 +1341,7 @@ pub(crate) mod parse_postfix {
             || rest.at_punctuation(PunctuationKind::Greater))
             || matches!(
                 scratch.expressions.expression(expression),
-                ExpressionNode::Name(_)
+                ExpressionNode::Name { .. }
             )
         {
             return Ok(None);
@@ -1463,13 +1470,17 @@ pub(crate) mod parse_postfix {
         {
             return call;
         }
-        let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(call.receiver) else {
+        let ExpressionNode::Name {
+            members: path,
+            application: path_application,
+        } = exprs_of(syntax_trees).expression(call.receiver)
+        else {
             return call;
         };
-        if path.application.is_some() {
+        if path_application.is_some() {
             return call;
         }
-        let path = path.members;
+        let path = path.to_owned();
         let members = exprs_of(syntax_trees)
             .identifier_path_members(path)
             .to_vec();
@@ -1483,7 +1494,10 @@ pub(crate) mod parse_postfix {
         let owner_path = syntax_trees
             .expressions
             .copy_identifier_path_prefix(path, members.len() - 1);
-        let owner = exprs(syntax_trees).insert(ExpressionNode::Name(owner_path.into()));
+        let owner = exprs(syntax_trees).insert(ExpressionNode::Name {
+            members: owner_path,
+            application: None,
+        });
         let receiver = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
             receiver: owner,
             access_source_span: facet.source_span(),
@@ -1509,7 +1523,10 @@ pub(crate) mod parse_postfix {
             let receiver_path = syntax_trees
                 .expressions
                 .copy_identifier_path_prefix(path, count - 1);
-            exprs(syntax_trees).insert(ExpressionNode::Name(receiver_path.into()))
+            exprs(syntax_trees).insert(ExpressionNode::Name {
+                members: receiver_path,
+                application: None,
+            })
         };
         (target, receiver)
     }
@@ -1561,10 +1578,7 @@ pub(crate) mod primary {
         syntax: &mut SyntaxTrees,
         input: Input<'tokens, 'source>,
         allows_type_expression: bool,
-    ) -> Option<(
-        syntax_trees::expression::TableNamePath,
-        Input<'tokens, 'source>,
-    )> {
+    ) -> Option<(ExpressionNode, Input<'tokens, 'source>)> {
         let (_, after_name) = input.expect_token().ok()?;
         if !after_name.at_punctuation(PunctuationKind::Less)
             && !after_name.at_punctuation(PunctuationKind::ColonColon)
@@ -1596,7 +1610,7 @@ pub(crate) mod primary {
                 exprs(syntax).append_identifier_path_member_to_span(&mut members, member);
             }
             Some((
-                syntax_trees::expression::TableNamePath {
+                ExpressionNode::Name {
                     members,
                     application: Some(application),
                 },
