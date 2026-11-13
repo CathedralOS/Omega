@@ -292,6 +292,11 @@ refuses a second build or corpus run while one is active.
   `HashMap`/`BTreeMap` (`tools/dense_id_maps.txt`). Derived data is computed
   once by its stage owner and passed forward, never re-parsed from source text
   (`tools/source_text_reads.txt`) or cached in ad-hoc mutable maps (`tools/cache_state.txt`).
+  This applies to membership sets too, including collections whose key type is
+  inferred. Validate arena ownership and handle generations before indexing by
+  slot. Size scratch storage to the operation's actual domain: a query over a
+  small selected family should use that family's prepared membership or a
+  sorted slice, rather than allocate a table spanning every symbol on each query.
 - **Verify at trust boundaries ([pipeline.md](omega-rust/pipeline.md#verification-placement)):**
   Default compilation does not re-verify its own stage output. Verifiers run
   in corpus/test harnesses, at foreign package boundaries, and on explicit
