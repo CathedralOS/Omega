@@ -7,13 +7,11 @@
 use crate::ProviderPlanningContext;
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::provider_planning::trait_name_text;
-use checked_trees::typed_trees::service_declarations::projection;
-use checked_trees::typed_trees::service_declarations::{
-    PreparedServiceSurface, ProviderSchemaDeclaration,
-};
 use effects::provider_plan::{ServiceCallingApplication, ServiceCallingPlan, ServiceSchema};
+use typed_trees::service_declarations::projection;
+use typed_trees::service_declarations::{PreparedServiceSurface, ProviderSchemaDeclaration};
 
-pub use checked_trees::typed_trees::service_declarations::projection::is_product_declaration;
+pub use typed_trees::service_declarations::projection::is_product_declaration;
 
 pub(crate) fn attach_calling(
     prepared: &PreparedServiceSurface<'_>,
@@ -65,7 +63,7 @@ fn attach_requirement_calling(
     source: ProviderSchemaDeclaration,
     argument_owner: symbols::SymbolHandle,
     requirements: impl IntoIterator<Item = symbols::SymbolHandle>,
-    boundary_arguments: &[checked_trees::typed_trees::types::TypeReferenceHandle],
+    boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
     native_application: Option<&str>,
     calling_plans: &[BoundaryCallingPlanRealization],
 ) -> ServiceSchema {
@@ -107,7 +105,7 @@ fn attach_requirement_calling(
 
 pub fn from_typed_operator(
     context: ProviderPlanningContext<'_>,
-    operator: &checked_trees::typed_trees::operator::OperatorDefinition,
+    operator: &typed_trees::operator::OperatorDefinition,
 ) -> Option<ServiceSchema> {
     let projected = projection::from_typed_operator(context, operator)?;
     Some(ServiceSchema::from_declaration(projected.declaration))
@@ -115,7 +113,7 @@ pub fn from_typed_operator(
 
 pub fn from_typed_boundary_requirement(
     context: ProviderPlanningContext<'_>,
-    requirement: &checked_trees::typed_trees::machine::Machine,
+    requirement: &typed_trees::machine::Machine,
 ) -> Option<ServiceSchema> {
     let projected = projection::from_typed_boundary_requirement(context, requirement)?;
     Some(ServiceSchema::from_declaration(projected.declaration))
@@ -124,14 +122,13 @@ pub fn from_typed_boundary_requirement(
 pub fn schema_binds_exact_boundary_operator(
     context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
-    operator: &checked_trees::typed_trees::operator::OperatorDefinition,
+    operator: &typed_trees::operator::OperatorDefinition,
 ) -> bool {
     let program = context.typed;
     context.contains(operator.symbol)
         && operator.is_boundary
-        && checked_trees::typed_trees::operator::boundary_operator_requirement_identity(
-            program, operator,
-        ) == trait_name_text(schema)
+        && typed_trees::operator::boundary_operator_requirement_identity(program, operator)
+            == trait_name_text(schema)
         && program.symbols.symbol_package_identity(operator.symbol)
             == schema.declaration.trait_package_identity
 }
@@ -139,7 +136,7 @@ pub fn schema_binds_exact_boundary_operator(
 pub fn schema_binds_exact_boundary_trait(
     context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
-    trait_definition: &checked_trees::typed_trees::trait_definition::TraitDefinition,
+    trait_definition: &typed_trees::trait_definition::TraitDefinition,
 ) -> bool {
     let program = context.typed;
     context.contains(trait_definition.symbol)
@@ -154,7 +151,7 @@ pub fn schema_binds_exact_boundary_trait(
 pub fn schema_binds_exact_boundary_requirement(
     context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
-    requirement: &checked_trees::typed_trees::machine::Machine,
+    requirement: &typed_trees::machine::Machine,
 ) -> bool {
     let program = context.typed;
     if !context.contains(requirement.symbol)

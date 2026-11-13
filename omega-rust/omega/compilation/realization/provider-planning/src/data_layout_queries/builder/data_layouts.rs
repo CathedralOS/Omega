@@ -28,8 +28,8 @@ use crate::data_layout_queries::{
     StoredIntegerLayout, TargetClosedDataLayoutIdentity, TypeLayout, VariantLayout,
 };
 use calling_conventions::{callback_layout_plan_id, callback_plan_laid_layout_id};
-use checked_trees::typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
 use diagnostics::Diagnostic;
+use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
 
 impl<'program> LayoutBuilder<'program> {
     pub(crate) fn compute_data_layout(

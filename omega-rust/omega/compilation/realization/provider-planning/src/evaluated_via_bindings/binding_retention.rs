@@ -14,19 +14,19 @@ use crate::evaluated_via_bindings::{
     retained_usage,
 };
 use crate::provider_planning::entry_state;
-use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{
     EvaluatedBindingReceipt, EvaluatedForeignImport, EvaluatedForeignSyscall,
 };
 use symbols::SymbolHandle;
 use target::{TargetProfile, normalize_foreign_locator};
+use typed_trees::TypedTrees;
 
 impl<'program> ViaProducer<'program> {
     pub fn resolve(
         typed: &'program TypedTrees,
         target: TargetProfile,
-        conformance: &checked_trees::typed_trees::machine::TraitConformance,
+        conformance: &typed_trees::machine::TraitConformance,
     ) -> Result<Self, Diagnostic> {
         let expression = conformance.via_expression;
         let source_span = typed.expression_table.source_span(expression);

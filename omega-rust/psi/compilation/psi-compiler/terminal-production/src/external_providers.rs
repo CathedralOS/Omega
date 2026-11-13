@@ -10,13 +10,13 @@
     replacement producer has to meet.
 */
 
-use checked_trees::CheckedTrees;
 use std::sync::{Arc, Weak};
 use symbols::SymbolHandle;
 use terminal_psi::{
     ExternalProviderConformance, NominalDeclarationIdentity, PreparedCallbackDeclarations,
     TerminalIdentityTable,
 };
+use typed_trees::FrozenTypedTrees;
 
 /// The refusal a caller receives where the removed stage used to produce a value.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -72,14 +72,14 @@ impl ExternalProviderDeclarations {
 }
 
 pub fn project_external_provider_declarations(
-    _checked: &CheckedTrees,
+    _checked: &FrozenTypedTrees,
     _sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<ExternalProviderDeclarations, NoProductRoute> {
     Err(NO_PROJECTION)
 }
 
 pub struct PreparedExternalProviderDeclarations {
-    checked: Weak<CheckedTrees>,
+    checked: Weak<FrozenTypedTrees>,
     sources: Arc<[(source::SourceId, [u8; 32])]>,
     declarations: ExternalProviderDeclarations,
     review: language_semantics::boundary_provider_review::RetainedBoundaryProviderReview,
@@ -130,7 +130,7 @@ impl PreparedExternalProviderDeclarations {
     }
 
     pub fn prepare(
-        _checked: Arc<CheckedTrees>,
+        _checked: Arc<FrozenTypedTrees>,
         _sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<Self, NoProductRoute> {
         Err(NO_PROJECTION)
@@ -138,7 +138,7 @@ impl PreparedExternalProviderDeclarations {
 
     pub fn require_owner(
         &self,
-        checked: &CheckedTrees,
+        checked: &FrozenTypedTrees,
         sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<(), NoProductRoute> {
         self.require_owner_address(checked, sources)
@@ -146,7 +146,7 @@ impl PreparedExternalProviderDeclarations {
 
     pub fn require_prepared_owner(
         &self,
-        checked: &Weak<CheckedTrees>,
+        checked: &Weak<FrozenTypedTrees>,
         sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<(), NoProductRoute> {
         self.require_owner_address(checked.as_ptr(), sources)
@@ -154,12 +154,12 @@ impl PreparedExternalProviderDeclarations {
 
     fn require_owner_address(
         &self,
-        checked: *const CheckedTrees,
+        checked: *const FrozenTypedTrees,
         sources: &[(source::SourceId, [u8; 32])],
     ) -> Result<(), NoProductRoute> {
         if self.checked.as_ptr() != checked || self.sources.as_ref() != sources {
             return Err(NoProductRoute(
-                "external declarations belong to another checked program or source custody",
+                "external declarations belong to another frozen source owner or source custody",
             ));
         }
         Ok(())

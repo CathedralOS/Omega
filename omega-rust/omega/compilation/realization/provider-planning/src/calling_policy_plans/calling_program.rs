@@ -26,10 +26,9 @@ enum CallingStorageScope<'account> {
 
 #[derive(Debug)]
 pub struct CallingProgram {
-    pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>, // association only; never keeps source alive
+    pub source_owner: std::sync::Weak<typed_trees::FrozenTypedTrees>, // association only; never keeps source alive
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
-    pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
-    pub source_preparation: std::sync::Arc<super::CallingSourcePreparation>,
+    pub source_records: std::sync::Arc<[typed_trees::SourceRecordCorrespondence]>,
     pub evaluator: CallingPolicyEvaluator, // Build evaluation's executors; omitted from catalog equality
 }
 
@@ -38,32 +37,12 @@ impl PartialEq for CallingProgram {
         std::sync::Weak::ptr_eq(&self.source_owner, &other.source_owner)
             && self.artifact == other.artifact
             && self.source_records == other.source_records
-            && self.source_preparation == other.source_preparation
     }
 }
 
 impl Eq for CallingProgram {}
 
 impl CallingProgram {
-    /// Whether this boundary trait declares a `Calling<Policy>` relationship,
-    /// whatever applications of it were evaluated.
-    pub(crate) fn declares_calling(&self, boundary: symbols::SymbolHandle) -> bool {
-        self.source_preparation
-            .requests
-            .iter()
-            .any(|request| request.boundary == boundary)
-    }
-
-    pub(crate) fn require_owner(
-        &self,
-        source_owner: &std::sync::Weak<checked_trees::CheckedTrees>,
-    ) -> Result<(), String> {
-        if std::sync::Weak::ptr_eq(&self.source_owner, source_owner) {
-            return Ok(());
-        }
-        Err("calling-policy code belongs to a different checked source owner".into())
-    }
-
     pub(crate) fn evaluate(
         &self,
         policy: &terminal_psi::CallingPolicyInstance,

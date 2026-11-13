@@ -18,8 +18,6 @@ process-exit retain nonblocking, crash-free envelopes.
 
 use crate::provider_planning::is_unit_type;
 use crate::provider_planning::type_reference_node;
-use checked_trees::typed_trees::TypedTrees;
-use checked_trees::typed_trees::types::TypeReferenceNode;
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
@@ -28,6 +26,8 @@ use language_semantics::MachineSupplyMode;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::{BuiltinTypeAtom, SymbolHandle};
 use target::HostedIntrinsicBundle;
+use typed_trees::TypedTrees;
+use typed_trees::types::TypeReferenceNode;
 
 #[derive(Clone, Copy)]
 pub struct AcceptedIntrinsicBinding<'a> {
@@ -466,8 +466,9 @@ impl ExitProcessDeclaration {
         let kind = if matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
             ExitProcessDeclarationKind::CheckedAdapter {
                 requirement_exits: matches!(
-                    checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
-                        typed, requirement,
+                    typed_trees::boundary_completions::boundary_requirement_completion(
+                        typed,
+                        requirement,
                     ),
                     semantic_vocabulary::BoundaryCompletion::External(
                         semantic_vocabulary::ExternalCompletionKind::ProcessExit
@@ -686,7 +687,7 @@ fn boundary_row_shape(
                     || (evaluated_import
                         && conformance.external_binding.is_none()
                         && conformance.via_expression.is_valid()))
-                && checked_trees::typed_trees::machine::resolve_satisfied_declaration(
+                && typed_trees::machine::resolve_satisfied_declaration(
                     typed,
                     realization,
                     conformance,
@@ -698,8 +699,8 @@ fn boundary_row_shape(
 }
 
 fn exact_boundary_signature(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    signature: &checked_trees::typed_trees::signature::StateSignature,
+    typed: &typed_trees::TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
     requirement_name: &str,
     trait_symbol: SymbolHandle,
     shape: BoundaryIntrinsicShape,
@@ -743,8 +744,8 @@ fn exact_boundary_signature(
 }
 
 fn exact_realization_contracts(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    realization: &checked_trees::typed_trees::machine::Machine,
+    typed: &typed_trees::TypedTrees,
+    realization: &typed_trees::machine::Machine,
     expect_unconditional_trap: bool,
 ) -> bool {
     let contracts = typed.machine_contracts(realization);
@@ -755,15 +756,15 @@ fn exact_realization_contracts(
 }
 
 fn exact_unconditional_trap_crash_contract(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    signature: &checked_trees::typed_trees::signature::StateSignature,
+    typed: &typed_trees::TypedTrees,
+    signature: &typed_trees::signature::StateSignature,
 ) -> bool {
     sole_unconditional_trap(typed.state_signature_contracts(signature))
 }
 
 fn exact_boundary_state(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    state: &checked_trees::typed_trees::state::State,
+    typed: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
     trait_symbol: SymbolHandle,
     shape: BoundaryIntrinsicShape,
 ) -> bool {
@@ -790,9 +791,9 @@ fn exact_boundary_state(
 }
 
 fn canonical_storage_parameters(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    parameters: &[checked_trees::typed_trees::signature::StateParameter],
-    contracts: &[checked_trees::typed_trees::signature::SignatureContract],
+    typed: &typed_trees::TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
+    contracts: &[typed_trees::signature::SignatureContract],
 ) -> bool {
     if parameters.len() != 2 || contracts.len() != parameters.len() {
         return false;
@@ -805,7 +806,7 @@ fn canonical_storage_parameters(
                 || parameter.is_mutable
                 || !matches!(
                     contract.kind,
-                    checked_trees::typed_trees::signature::SignatureContractKind::Requires
+                    typed_trees::signature::SignatureContractKind::Requires
                 )
                 || contract.binding.is_some()
             {
@@ -816,12 +817,12 @@ fn canonical_storage_parameters(
             else {
                 return false;
             };
-            let [checked_trees::typed_trees::types::TypeConstraintNode::Domain(domain)] =
+            let [typed_trees::types::TypeConstraintNode::Domain(domain)] =
                 typed.type_reference_table.constraints(*constraints)
             else {
                 return false;
             };
-            let [checked_trees::typed_trees::domain::ProofFact::Membership(membership)] =
+            let [typed_trees::domain::ProofFact::Membership(membership)] =
                 typed.proof_facts.span_or_empty(contract.facts)
             else {
                 return false;
@@ -845,8 +846,8 @@ fn canonical_storage_parameters(
 }
 
 fn exact_address_type(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    reference: checked_trees::typed_trees::types::TypeReferenceHandle,
+    typed: &typed_trees::TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
 ) -> bool {
     matches!(type_reference_node(typed, reference),
         TypeReferenceNode::Named { symbol, .. }
@@ -854,8 +855,8 @@ fn exact_address_type(
 }
 
 pub(crate) fn exact_byte_read_type(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    type_reference: checked_trees::typed_trees::types::TypeReferenceHandle,
+    typed: &typed_trees::TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     trait_symbol: SymbolHandle,
 ) -> bool {
     let TypeReferenceNode::Named { symbol, name } = type_reference_node(typed, type_reference)
@@ -872,8 +873,8 @@ pub(crate) fn exact_byte_read_type(
 }
 
 fn exact_i32_parameter(
-    typed: &checked_trees::typed_trees::TypedTrees,
-    parameters: &[checked_trees::typed_trees::signature::StateParameter],
+    typed: &typed_trees::TypedTrees,
+    parameters: &[typed_trees::signature::StateParameter],
 ) -> bool {
     let [parameter] = parameters else {
         return false;
@@ -889,16 +890,14 @@ fn exact_i32_parameter(
     typed.symbols.builtin_type_atom(*symbol) == Some(BuiltinTypeAtom::I32) && name.as_str() == "i32"
 }
 
-fn sole_unconditional_trap(
-    contracts: &[checked_trees::typed_trees::signature::SignatureContract],
-) -> bool {
+fn sole_unconditional_trap(contracts: &[typed_trees::signature::SignatureContract]) -> bool {
     let [contract] = contracts else {
         return false;
     };
     matches!(
         contract.kind,
-        checked_trees::typed_trees::signature::SignatureContractKind::Crashes {
-            cause: checked_trees::typed_trees::signature::CrashCause::Trap,
+        typed_trees::signature::SignatureContractKind::Crashes {
+            cause: typed_trees::signature::CrashCause::Trap,
         }
     ) && contract.facts.is_empty()
         && contract.binding.is_none()

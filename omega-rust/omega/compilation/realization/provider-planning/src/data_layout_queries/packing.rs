@@ -7,10 +7,10 @@
 
 use crate::data_layout_queries::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use arena::{Arena, HandleSpan};
-use checked_trees::typed_trees::name::Identifier;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use typed_trees::name::Identifier;
 
 #[derive(Debug)]
 pub(super) struct PlannedField {
@@ -140,9 +140,9 @@ mod tests {
     use super::{PlannedField, align_to, pack_fields, place_fields_by_plan};
     use crate::data_layout_queries::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
     use arena::Arena;
-    use checked_trees::typed_trees::name::Identifier;
     use std::sync::Arc;
     use symbols::SymbolHandle;
+    use typed_trees::name::Identifier;
 
     fn planned(name: &str, size: usize, alignment: usize) -> PlannedField {
         PlannedField {

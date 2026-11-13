@@ -15,9 +15,9 @@ use crate::data_layout_queries::{
 };
 use arena::Arena;
 use calling_conventions::{callback_layout_slot_id, callback_requirement_id};
-use checked_trees::typed_trees::TypedTrees;
 use diagnostics::Diagnostic;
 use target::NativeTarget;
+use typed_trees::TypedTrees;
 
 pub(crate) fn close_private_callback_layouts(
     program: &TypedTrees,
@@ -311,8 +311,8 @@ fn close_path(
 }
 
 pub(crate) fn close_private_callback_demands(
-    plan: &checked_trees::typed_trees::typed_trees::PlanLaidLayout,
-    geometry: &checked_trees::typed_trees::PlanLaidGeometry,
+    plan: &typed_trees::typed_trees::PlanLaidLayout,
+    geometry: &typed_trees::PlanLaidGeometry,
     fields: &[FieldLayout],
     target: NativeTarget,
     canonical_layout_subject: &str,

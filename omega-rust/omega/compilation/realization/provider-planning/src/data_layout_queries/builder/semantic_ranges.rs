@@ -8,8 +8,8 @@ use crate::data_layout_queries::FieldLayout;
 use diagnostics::Diagnostic;
 
 pub(crate) fn plan_laid_semantic_ranges(
-    plan: &checked_trees::typed_trees::typed_trees::PlanLaidLayout,
-    geometry: &checked_trees::typed_trees::PlanLaidGeometry,
+    plan: &typed_trees::typed_trees::PlanLaidLayout,
+    geometry: &typed_trees::PlanLaidGeometry,
     fields: &[FieldLayout],
 ) -> Result<Vec<(u64, u64)>, Diagnostic> {
     let mut ranges = SemanticRanges {
@@ -97,8 +97,8 @@ pub(crate) fn plan_laid_semantic_ranges(
 }
 
 struct SemanticRanges<'a> {
-    plan: &'a checked_trees::typed_trees::typed_trees::PlanLaidLayout,
-    geometry: &'a checked_trees::typed_trees::PlanLaidGeometry,
+    plan: &'a typed_trees::typed_trees::PlanLaidLayout,
+    geometry: &'a typed_trees::PlanLaidGeometry,
     ranges: Vec<(u64, u64)>,
 }
 

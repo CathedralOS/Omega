@@ -5,9 +5,9 @@
 
 use crate::ProviderPlanningContext;
 use crate::provider_planning::entry_state;
-use checked_trees::typed_trees::trait_definition::Conformance;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow};
 use symbols::SymbolHandle;
+use typed_trees::trait_definition::Conformance;
 
 pub(crate) use build_time_evaluation::provider_declarations::{
     eligible, named_requirement_lifetime_arguments,
@@ -34,7 +34,7 @@ pub enum ProviderTraitApplication<'a> {
         declaration: &'a Conformance,
         lifetime_arguments: &'a [u32],
     },
-    Machine(&'a checked_trees::typed_trees::machine::TraitConformance),
+    Machine(&'a typed_trees::machine::TraitConformance),
 }
 
 impl ProviderTraitApplication<'_> {
@@ -52,7 +52,7 @@ pub fn provider_trait_application<'a>(
     context: ProviderPlanningContext<'a>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-    machine: &checked_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
 ) -> Option<ProviderTraitApplication<'a>> {
@@ -88,14 +88,10 @@ pub fn provider_trait_application<'a>(
         .machine_trait_conformances(machine)
         .iter()
         .filter(|conformance| {
-            let Some(checked_trees::typed_trees::machine::SatisfiedDeclaration::Trait {
+            let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
                 definition,
                 requirement: signature,
-            }) = checked_trees::typed_trees::machine::resolve_satisfied_declaration(
-                typed,
-                machine,
-                conformance,
-            )
+            }) = typed_trees::machine::resolve_satisfied_declaration(typed, machine, conformance)
             else {
                 return false;
             };
@@ -115,7 +111,7 @@ pub fn provider_trait_requirement_matches(
     context: ProviderPlanningContext<'_>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-    machine: &checked_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
     declaring_trait: SymbolHandle,
     requirement: SymbolHandle,
 ) -> bool {
@@ -131,7 +127,7 @@ pub(crate) fn named_provider_row<'a>(
     context: ProviderPlanningContext<'a>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-) -> Option<&'a checked_trees::typed_trees::trait_definition::ConformanceRow> {
+) -> Option<&'a typed_trees::trait_definition::ConformanceRow> {
     let typed = context.typed;
     let definition = named_provider(context, plan)?;
     let mut matching = definition.rows.iter().filter(|entry| {
@@ -150,9 +146,8 @@ pub(crate) fn named_provider_row<'a>(
         let Some(member) = typed.machine(entry.realization_machine) else {
             return false;
         };
-        if checked_trees::typed_trees::provider_declarations::satisfaction_provider_declaration(
-            typed, member,
-        ) != Some(definition.symbol)
+        if typed_trees::provider_declarations::satisfaction_provider_declaration(typed, member)
+            != Some(definition.symbol)
         {
             return false;
         }
@@ -160,7 +155,7 @@ pub(crate) fn named_provider_row<'a>(
             .machine_trait_conformances(member)
             .iter()
             .filter_map(|edge| {
-                checked_trees::typed_trees::provider_declarations::boundary_satisfaction_identity(
+                typed_trees::provider_declarations::boundary_satisfaction_identity(
                     typed, member, edge,
                 )
             })
@@ -181,7 +176,7 @@ pub fn provider_row_matches(
     context: ProviderPlanningContext<'_>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
-    machine: &checked_trees::typed_trees::machine::Machine,
+    machine: &typed_trees::machine::Machine,
 ) -> bool {
     let typed = context.typed;
     if !context.contains(machine.symbol) {

@@ -4,11 +4,11 @@
 // (`closed_float_execution`) is narrower than the complete numeric requirement
 // catalog (`execution_identity`).
 
-use checked_trees::typed_trees::TypedTrees;
-use checked_trees::typed_trees::typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement as SourceRequirement;
-pub use checked_trees::typed_trees::typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind;
-pub use checked_trees::typed_trees::typed_trees::declarations::numeric_intrinsics::primitive_numeric_type;
 use effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema};
+use typed_trees::TypedTrees;
+use typed_trees::typed_trees::declarations::intrinsic_requirements::IntrinsicRequirement as SourceRequirement;
+pub use typed_trees::typed_trees::declarations::intrinsic_requirements::IntrinsicRequirementKind;
+pub use typed_trees::typed_trees::declarations::numeric_intrinsics::primitive_numeric_type;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntrinsicRequirement<'typed>(SourceRequirement<'typed>);
@@ -48,7 +48,7 @@ impl<'typed> IntrinsicRequirement<'typed> {
 
     pub fn from_operator(
         typed: &'typed TypedTrees,
-        operator: &'typed checked_trees::typed_trees::operator::OperatorDefinition,
+        operator: &'typed typed_trees::operator::OperatorDefinition,
     ) -> Option<Self> {
         SourceRequirement::from_operator(typed, operator).map(Self)
     }

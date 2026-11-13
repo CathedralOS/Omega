@@ -1809,7 +1809,6 @@ dependencies = [
  "build-time-evaluation",
  "build-time-values",
  "calling-conventions",
- "checked-trees",
  "component-description",
  "diagnostics",
  "effects",

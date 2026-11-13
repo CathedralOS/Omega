@@ -34,15 +34,13 @@ use crate::data_layout_queries::{
     TypeLayoutDescriptor, VariantLayout,
 };
 use arena::{Arena, Handle};
-use checked_trees::typed_trees::TypedTrees;
-use checked_trees::typed_trees::data::{DataDefinition, DataMember};
-use checked_trees::typed_trees::trait_definition::TraitDefinition;
-use checked_trees::typed_trees::types::{
-    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
 use diagnostics::Diagnostic;
 use symbols::{BuiltinType, SymbolHandle};
 use target::NativeTarget;
+use typed_trees::TypedTrees;
+use typed_trees::data::{DataDefinition, DataMember};
+use typed_trees::trait_definition::TraitDefinition;
+use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 pub fn build_layout_plan(
     program: &TypedTrees,
@@ -71,7 +69,7 @@ pub fn build_layout_plan_for_roots(
         OpaqueRepresentationDemand::CatalogConstruction,
     );
 
-    let proof_only = checked_trees::typed_trees::proof_only::classify(program);
+    let proof_only = typed_trees::proof_only::classify(program);
 
     for data_definition in program.data_definitions() {
         if !roots.contains(&data_definition.symbol) {
@@ -423,11 +421,9 @@ impl<'program> LayoutBuilder<'program> {
 }
 
 pub(crate) mod generic_bindings {
-    use checked_trees::typed_trees::TypedTrees;
-    use checked_trees::typed_trees::types::{
-        FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
-    };
     use symbols::SymbolHandle;
+    use typed_trees::TypedTrees;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
     #[derive(Debug, Clone, Copy)]
     pub(crate) struct GenericLayoutBinding<'program> {

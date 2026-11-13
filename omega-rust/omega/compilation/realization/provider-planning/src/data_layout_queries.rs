@@ -42,14 +42,14 @@ pub use layout_plan::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OpaqueCarrierSelection {
     pub opaque: symbols::SymbolHandle,
-    pub carrier_type: checked_trees::typed_trees::types::TypeReferenceHandle,
+    pub carrier_type: typed_trees::types::TypeReferenceHandle,
 }
 
 pub(crate) mod sizing {
     use crate::data_layout_queries::{TypeLayout, type_layout};
-    use checked_trees::typed_trees::types::PrimitiveType;
     pub(crate) use layout::{fat_descriptor_layout, pointer_layout};
     use target::NativeTarget;
+    use typed_trees::types::PrimitiveType;
 
     fn primitive_layout(
         pointer_size: usize,
