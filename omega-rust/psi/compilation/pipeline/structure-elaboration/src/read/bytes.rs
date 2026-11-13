@@ -99,7 +99,51 @@ pub(super) fn source_byte_view(
     )))
 }
 
+/// The region a byte view's type names: what the view may be used during.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ViewRegion {
+    /// A literal's bytes, which every region is within.
+    Literal,
+    /// A view written without a lifetime, `&[u8]`.
+    Elided,
+    /// A lifetime parameter of the declaration the view's type was written
+    /// in, a machine or data, by its position there.
+    Parameter(typed_trees::type_identity::LifetimeParameterIdentity),
+}
+
 impl Program<'_> {
+    /// The region of `value_type` when it is a byte view, read from the
+    /// occurrence its row was made from. `None` for every other type, and
+    /// for a view whose lifetime its owner does not declare, which
+    /// `source_byte_view` refused before a row was made.
+    pub(super) fn view_region(&self, value_type: ValueType) -> Option<ViewRegion> {
+        let ValueType::Record(row, _) = value_type else {
+            return None;
+        };
+        if !matches!(self.records.get(row)?.shape, StorageShape::ByteSequence(_)) {
+            return None;
+        }
+        let source = self.record_sources.get(row)?;
+        let Some(application) = &source.application else {
+            return Some(ViewRegion::Literal);
+        };
+        let table = &self.typed.type_reference_table;
+        let TypeReferenceNode::Reference { lifetime, .. } =
+            table.type_reference(application.reference)
+        else {
+            return None;
+        };
+        let Some(tag) = lifetime else {
+            return Some(ViewRegion::Elided);
+        };
+        let owner = match table.operand_lifetime_owner(application.reference) {
+            retained if retained.is_valid() => retained,
+            _ => source.region_owner,
+        };
+        typed_trees::type_identity::lifetime_parameter_identity(self.typed, owner, tag.as_str())
+            .map(ViewRegion::Parameter)
+    }
+
     pub(super) fn byte_view_type(
         &mut self,
         machine: MachineId,

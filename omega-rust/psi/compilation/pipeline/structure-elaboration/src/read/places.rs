@@ -781,6 +781,15 @@ impl Program<'_> {
             return None;
         }
         let symbol = match self.typed.expression_table.expression(handle) {
+            // `S::C` written out resolves twice: its first member to the
+            // sum and the whole path to the case, which is the one meant.
+            ExpressionNode::Name(path)
+                if !path.static_application.is_valid()
+                    && path.symbol.is_valid()
+                    && self.typed.symbols.get(path.symbol).kind == SymbolKind::Variant =>
+            {
+                path.symbol
+            }
             ExpressionNode::Name(path) => path.resolved_symbol()?,
             ExpressionNode::StructLiteral(literal) => {
                 if !literal.fields.is_empty() {
@@ -1018,7 +1027,7 @@ fn record_shape<'m>(
 /// binders with one tag would be one parameter to every lookup. A use that
 /// names an undeclared tag is refused where its type is read
 /// (`lifetime_application`).
-fn lifetime_binders(id: MachineId, binders: &[Identifier]) -> Checked<()> {
+pub(super) fn lifetime_binders(id: MachineId, binders: &[Identifier]) -> Checked<()> {
     for (position, binder) in binders.iter().enumerate() {
         if binder.as_str().is_empty() {
             return Err(refuse(
@@ -1034,7 +1043,7 @@ fn lifetime_binders(id: MachineId, binders: &[Identifier]) -> Checked<()> {
             return Err(refuse(
                 id,
                 Construct::Machine,
-                Unserved::Typing("data that declares a lifetime twice"),
+                Unserved::Typing("declaration that states a lifetime twice"),
             ));
         }
     }
@@ -1268,7 +1277,7 @@ mod tests {
             lifetime_binders(machine(), &tags(&["a", "b", "a"]))
                 .unwrap_err()
                 .detail,
-            "typing data that declares a lifetime twice"
+            "typing declaration that states a lifetime twice"
         );
         assert_eq!(
             lifetime_binders(machine(), &[Identifier::default()])

@@ -26,6 +26,18 @@ use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
 
+/// A refusal of what `declaration` writes between `<` and `>`, by the rule
+/// it broke and the declaration's name.
+fn refuse_parameters(
+    id: MachineId,
+    what: &'static str,
+    declaration: &str,
+) -> terminal_check_tables::Refusal {
+    let mut refusal = refuse(id, Construct::Machine, Unserved::Machine(what));
+    refusal.detail = format!("{}: `{declaration}`", refusal.detail);
+    refusal
+}
+
 impl<'t> Program<'t> {
     /// A helper with no written input requirement can use what every caller
     /// guarantees. A written `requires true` must still support every input.
@@ -207,7 +219,11 @@ impl<'t> Program<'t> {
         reading: Reading,
     ) -> Checked<()> {
         let outer = std::mem::take(&mut self.scope);
+        // The machine owns the lifetimes its signature names, as a data
+        // declaration owns those of its fields (`lifetime_owner`).
+        let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
         let read = self.signature(id, symbol, &reading);
+        self.lifetime_owner = enclosing;
         let scope = std::mem::replace(&mut self.scope, outer);
         let (signature, names, value_parameters) = read?;
         self.symbols.push(symbol);
@@ -512,8 +528,8 @@ impl<'t> Program<'t> {
         // something after all: one applied at type arguments, or a generic
         // one, whose parameters the body would be read under. Lifetime
         // parameters of the data type give it nothing either: the machine
-        // is read under no lifetime binder, so a formal that names one of
-        // them is refused where its type is read (`lifetime_application`).
+        // is read under its own lifetime binders, and a call gives a region
+        // only to those (`calls`, `view_regions`).
         if machine.attached_data_application.is_valid() {
             return unserved("attached data applied at type arguments");
         }
@@ -567,9 +583,13 @@ impl<'t> Program<'t> {
         if machine.suspends || machine.blocks {
             return unserved("suspends or blocks");
         }
-        if !machine.lifetime_parameters.is_empty() {
-            return unserved("generic parameters");
-        }
+        // Lifetime parameters make no second machine: lifetimes.md,
+        // "Lifetime arguments are erased regions, separate from runtime
+        // generic arity, layout and monomorphization". The machine is read
+        // once with each binder as a region of its own, which a view's type
+        // names (`bytes`), and a call gives each one the region of the view
+        // it is passed (`calls`, `view_regions`).
+        super::places::lifetime_binders(id, &machine.lifetime_parameters)?;
         // An implementation parameter binds no type and no value: the body
         // only calls through it. A value parameter (`const Units: u64`) is a
         // value of a known carrier, read as a formal no caller passes
@@ -579,31 +599,52 @@ impl<'t> Program<'t> {
         if parameters.is_empty() != machine.type_parameters.is_empty() {
             return unserved("type parameter span");
         }
-        let served = match reading {
-            Reading::Closed => parameters.is_empty(),
+        // Each refusal says which rule the parameters broke and names the
+        // declaration: they are different constructs with different work
+        // behind them, and one shared text sent a reader to the wrong one.
+        let unserved_parameters =
+            |what| Err(refuse_parameters(id, what, machine.name.as_str()));
+        match reading {
+            Reading::Closed if parameters.is_empty() => {}
+            Reading::Closed => {
+                return unserved_parameters("generic machine read without arguments");
+            }
             // A type parameter is opaque here: a value of it can be named,
             // passed and returned, and nothing selects on it. One declared
             // `[linear]` must be used exactly once, which this route does
             // not judge, so only the default and `[copy]` are read.
-            Reading::GenericEntry => parameters.iter().all(|parameter| match parameter.kind {
-                typed_trees::data::TypeParameterKind::Implementation
-                | typed_trees::data::TypeParameterKind::Const { .. } => true,
-                typed_trees::data::TypeParameterKind::Type => {
-                    parameter.bounds.multiplicity != language_core::Multiplicity::Linear
+            Reading::GenericEntry => {
+                for parameter in parameters {
+                    match parameter.kind {
+                        typed_trees::data::TypeParameterKind::Implementation
+                        | typed_trees::data::TypeParameterKind::Const { .. } => {}
+                        typed_trees::data::TypeParameterKind::Type
+                            if parameter.bounds.multiplicity
+                                != language_core::Multiplicity::Linear => {}
+                        typed_trees::data::TypeParameterKind::Type => {
+                            return unserved_parameters("linear type parameter");
+                        }
+                        _ => {
+                            return unserved_parameters(
+                                "parameter that is no type, value or implementation",
+                            );
+                        }
+                    }
                 }
-                _ => false,
-            }),
+            }
             // Applied at one type argument per parameter, all type
             // parameters; so is one alternative of a finite family.
             Reading::Applied(arguments) | Reading::Alternative(arguments) => {
-                parameters.len() == arguments.len()
-                    && parameters.iter().all(|parameter| {
-                        parameter.kind == typed_trees::data::TypeParameterKind::Type
+                if parameters.len() != arguments.len()
+                    || parameters.iter().any(|parameter| {
+                        parameter.kind != typed_trees::data::TypeParameterKind::Type
                     })
+                {
+                    return unserved_parameters(
+                        "arguments that are not one type for each type parameter",
+                    );
+                }
             }
-        };
-        if !served {
-            return unserved("generic parameters");
         }
         if !machine.declared_type_equations.is_empty()
             || !machine.owned_data.is_empty()
@@ -753,7 +794,11 @@ impl<'t> Program<'t> {
         for parameter in parameters {
             let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
             else {
-                return unserved("generic parameters");
+                return Err(refuse_parameters(
+                    id,
+                    "requirement parameter that is not a value",
+                    requirement.name.as_str(),
+                ));
             };
             if !parameter.symbol.is_valid() {
                 return Err(refuse(
@@ -791,9 +836,19 @@ impl<'t> Program<'t> {
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
         }
-        if !requirement.lifetime_parameters.is_empty() || !requirement.conformance_bounds.is_empty()
-        {
-            return unserved("generic parameters");
+        if !requirement.lifetime_parameters.is_empty() {
+            return Err(refuse_parameters(
+                id,
+                "requirement with lifetime parameters",
+                requirement.name.as_str(),
+            ));
+        }
+        if !requirement.conformance_bounds.is_empty() {
+            return Err(refuse_parameters(
+                id,
+                "requirement with conformance bounds",
+                requirement.name.as_str(),
+            ));
         }
         let binders = self.requirement_binders(id, requirement)?;
         if binders.len() != arguments.len()
@@ -1278,7 +1333,14 @@ impl<'t> Program<'t> {
         if erased {
             return unserved("erased reference parameter");
         }
-        if named_lifetime {
+        // A byte view keeps the region it names in its type (`bytes`). A
+        // reference to anything else is a loan of one place, and what its
+        // lifetime relates it to has no reader yet.
+        let is_view = matches!(
+            self.typed.type_reference_table.type_reference(referee),
+            TypeReferenceNode::Slice { .. }
+        );
+        if named_lifetime && !is_view {
             return unserved("reference parameter with a named lifetime");
         }
         // Stage 01 sets `is_mutable` for an exclusive reference; a shared
@@ -1293,10 +1355,7 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = if matches!(
-            self.typed.type_reference_table.type_reference(referee),
-            TypeReferenceNode::Slice { .. }
-        ) {
+        let value_type = if is_view {
             self.value_type(id, formal.type_reference)?
         } else {
             self.value_type(id, referee)?
@@ -1380,6 +1439,7 @@ impl<'t> Program<'t> {
         }
         let (machine, state) = self.declaration(id, symbol)?;
         self.scope = self.scopes.get(id).cloned().unwrap_or_default();
+        self.lifetime_owner = symbol;
         let formals = span(
             &typed.state_parameters,
             state.parameters,

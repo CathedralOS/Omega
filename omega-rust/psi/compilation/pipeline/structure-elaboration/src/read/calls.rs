@@ -1132,22 +1132,19 @@ impl<'t> Program<'t> {
             boundaries: &self.boundary_signatures,
         }
         .get(callee, id)?;
-        if signature.parameters.len() != read.len()
-            || signature
-                .parameters
-                .iter()
-                .zip(&read)
-                .any(|(formal, actual)| actual.result != Some(*formal))
-        {
+        if signature.parameters.len() != read.len() {
             return Err(refuse(
                 id,
                 Construct::Machine,
                 Unserved::Typing("argument types"),
             ));
         }
+        let result = signature.result;
+        let formals: Vec<ValueType> = signature.parameters.clone();
+        let result = self.view_regions(id, &formals, &read, result)?;
         // A value a call returns is the result of an operation, and no
         // operation of the lowered form has a result of a rigid type.
-        if matches!(signature.result, Some(crate::body::ValueType::Rigid(_))) {
+        if matches!(result, Some(crate::body::ValueType::Rigid(_))) {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1160,9 +1157,111 @@ impl<'t> Program<'t> {
                 arguments: read,
                 designated: None,
             },
-            result: signature.result,
+            result,
             source,
         })
+    }
+
+    /// Holds a call's arguments to its callee's formal types and gives the
+    /// call's result type.
+    ///
+    /// Every type but a byte view's is the formal's exactly. A view's type
+    /// names a region, and a region a callee's signature names is the
+    /// callee's own: a lifetime parameter it declares, or a lifetime it
+    /// left out. lifetimes.md: "Lifetime arguments are erased regions", so
+    /// the callee is one machine, judged once with each as a region it
+    /// knows nothing else about, and the call stands a region of the caller
+    /// in for it: the region of the view the caller passes. One parameter
+    /// stands for one region, so two views passed for it are views of the
+    /// same one; there are no "general authored outlives bounds" to relate
+    /// two.
+    ///
+    /// The result is read back the same way. "An explicit result lifetime
+    /// relates its reference leaves to the corresponding input lifetime":
+    /// a result view of a parameter is a view of the region the call gave
+    /// that parameter. "For an elided output, one unambiguous reference
+    /// input supplies the relation": the callee's body may return any view
+    /// it was passed without a lifetime, so the result is a view of the one
+    /// region all of those are views of, and a call that passes two is
+    /// refused. A literal is within every region and decides none.
+    fn view_regions(
+        &self,
+        id: MachineId,
+        formals: &[ValueType],
+        actuals: &[Expression],
+        result: Option<ValueType>,
+    ) -> Checked<Option<ValueType>> {
+        use super::bytes::ViewRegion;
+        let typing = |what| Err(refuse(id, Construct::Machine, Unserved::Typing(what)));
+        // What each lifetime parameter of the callee stands for at this
+        // call, and the views passed for formals without a lifetime.
+        let mut named: Vec<(ViewRegion, ValueType)> = Vec::new();
+        let mut unnamed: Vec<ValueType> = Vec::new();
+        for (formal, actual) in formals.iter().zip(actuals) {
+            // A lifetime a data declaration binds is not the callee's to
+            // be given a region for: such a view is passed only as itself.
+            let region = self.view_region(*formal).filter(|region| match region {
+                ViewRegion::Parameter(parameter) => {
+                    self.data_declaration(parameter.declaration).is_none()
+                }
+                ViewRegion::Elided | ViewRegion::Literal => true,
+            });
+            let Some(region) = region else {
+                if actual.result != Some(*formal) {
+                    return typing("argument types");
+                }
+                continue;
+            };
+            // A literal is read at the formal's own type (`byte_literal`).
+            if matches!(
+                &actual.kind,
+                ExpressionKind::Borrow { place, .. }
+                    if matches!(place.kind, ExpressionKind::ByteLiteral(_))
+            ) {
+                if actual.result != Some(*formal) {
+                    return typing("argument types");
+                }
+                continue;
+            }
+            let (ValueType::Record(formal_row, formal_domains), Some(passed)) =
+                (*formal, actual.result)
+            else {
+                return typing("argument types");
+            };
+            let ValueType::Record(row, domains) = passed else {
+                return typing("argument types");
+            };
+            if self.view_region(passed).is_none()
+                || domains != formal_domains
+                || self.data_type(id, row)?.shape != self.data_type(id, formal_row)?.shape
+            {
+                return typing("argument types");
+            }
+            match region {
+                ViewRegion::Elided | ViewRegion::Literal => unnamed.push(passed),
+                ViewRegion::Parameter(_) => {
+                    match named.iter().find(|(parameter, _)| *parameter == region) {
+                        Some((_, earlier)) if *earlier != passed => {
+                            return typing("views of two regions passed for one lifetime");
+                        }
+                        Some(_) => {}
+                        None => named.push((region, passed)),
+                    }
+                }
+            }
+        }
+        match result.and_then(|result| self.view_region(result)) {
+            None | Some(ViewRegion::Literal) => Ok(result),
+            Some(ViewRegion::Elided) => match unnamed.split_first() {
+                None => Ok(result),
+                Some((first, rest)) if rest.iter().all(|other| other == first) => Ok(Some(*first)),
+                Some(_) => typing("result without a lifetime of a call passed views of two regions"),
+            },
+            Some(region) => match named.iter().find(|(parameter, _)| *parameter == region) {
+                Some((_, stood)) => Ok(Some(*stood)),
+                None => typing("result lifetime that no argument is a view of"),
+            },
+        }
     }
 
     /// The argument for a borrowed formal: `&place` or `&mut place`, or a
@@ -1201,15 +1300,22 @@ impl<'t> Program<'t> {
                 self.typed.expression_table.display_name(argument),
             ));
         }
+        // A byte view is itself the borrow: a place that holds one, a
+        // binding or a field, is passed as it stands, shared.
+        let view = formal.access == ReferenceAccess::Shared && self.view_region(expected).is_some();
         let (target, access) = match self.node(id, argument)? {
             ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 match slots[slot].borrowed {
                     Some(_) => (argument, formal.access),
+                    None if view && self.view_region(slots[slot].value_type).is_some() => {
+                        (argument, formal.access)
+                    }
                     None => return unserved("argument for a borrowed formal that is not a borrow"),
                 }
             }
+            ExpressionNode::Member(_) if view => (argument, formal.access),
             _ => return unserved("argument for a borrowed formal that is not a borrow"),
         };
         if access != formal.access {
@@ -1346,10 +1452,49 @@ fn root_slot<'a>(
     }
 }
 
+/// One place a call lends: the binding at its root and, when the place is
+/// that binding or fields beneath it and nothing else, the field positions
+/// down to it. `None` stands for the whole binding.
+struct Lent {
+    root: usize,
+    fields: Option<Vec<usize>>,
+}
+
+/// `binding.field.field`: the binding and the field positions beneath it.
+fn field_path(expression: &Expression) -> Option<(usize, Vec<usize>)> {
+    match &expression.kind {
+        ExpressionKind::Slot(slot) => Some((*slot, Vec::new())),
+        ExpressionKind::Field { base, field } => {
+            let (root, mut fields) = field_path(base)?;
+            fields.push(*field);
+            Some((root, fields))
+        }
+        _ => None,
+    }
+}
+
+/// Whether the storage at `fields` beneath `root` (all of `root` for
+/// `None`) shares any with a lent place: one is the other or lies within
+/// it. Two different fields of one record share nothing.
+fn overlaps(lent: &[Lent], root: usize, fields: Option<&[usize]>) -> bool {
+    lent.iter().any(|lent| {
+        lent.root == root
+            && match (&lent.fields, fields) {
+                (Some(lent), Some(fields)) => {
+                    let shared = lent.len().min(fields.len());
+                    lent[..shared] == fields[..shared]
+                }
+                _ => true,
+            }
+    })
+}
+
 /// Arguments run left to right, but this lowering forms loans together at
 /// the call. Conservatively refuse any argument read or newly evaluated
-/// selector of a root this call lends, including reads before a loan. This
+/// selector of storage this call lends, including reads before a loan. This
 /// preserves the existing restriction until loan timing is represented.
+/// Storage is compared exactly where it is named exactly: a field is not
+/// its sibling, so `f(&record.a, record.b)` lends nothing `record.b` reads.
 fn lent_storage_is_untouched<'a>(
     id: MachineId,
     arguments: &'a [Expression],
@@ -1365,9 +1510,12 @@ fn lent_storage_is_untouched<'a>(
     let mut lent = Vec::new();
     for argument in arguments {
         if let ExpressionKind::Borrow { place, .. } = &argument.kind
-            && let Some(slot) = root_slot(id, place, &captures)?
+            && let Some(root) = root_slot(id, place, &captures)?
         {
-            lent.push(slot);
+            lent.push(Lent {
+                root,
+                fields: field_path(place).map(|(_, fields)| fields),
+            });
         }
     }
     if lent.is_empty() {
@@ -1398,7 +1546,7 @@ fn lent_storage_is_untouched<'a>(
 fn selectors_mention<'a>(
     id: MachineId,
     place: &'a Expression,
-    slots: &[usize],
+    lent: &[Lent],
     captures: &mut Vec<(
         arena::Handle<typed_trees::expression::CompletedValueCapture>,
         &'a Expression,
@@ -1406,11 +1554,11 @@ fn selectors_mention<'a>(
 ) -> Checked<bool> {
     match &place.kind {
         ExpressionKind::Index { base, index } => {
-            Ok(selectors_mention(id, base, slots, captures)?
-                || mentions(id, index, slots, captures)?)
+            Ok(selectors_mention(id, base, lent, captures)?
+                || mentions(id, index, lent, captures)?)
         }
         ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
-            selectors_mention(id, base, slots, captures)
+            selectors_mention(id, base, lent, captures)
         }
         ExpressionKind::SavedSubject(_) => {
             root_slot(id, place, captures)?;
@@ -1424,16 +1572,20 @@ fn selectors_mention<'a>(
 fn mentions<'a>(
     id: MachineId,
     expression: &'a Expression,
-    slots: &[usize],
+    lent: &[Lent],
     captures: &mut Vec<(
         arena::Handle<typed_trees::expression::CompletedValueCapture>,
         &'a Expression,
     )>,
 ) -> Checked<bool> {
     match &expression.kind {
-        ExpressionKind::Slot(slot) => Ok(slots.contains(slot)),
+        ExpressionKind::Slot(slot) => Ok(overlaps(lent, *slot, Some(&[]))),
         ExpressionKind::SavedSubject(_) => {
-            Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))
+            Ok(root_slot(id, expression, captures)?.is_some_and(|root| overlaps(lent, root, None)))
+        }
+        ExpressionKind::Field { .. } if field_path(expression).is_some() => {
+            Ok(field_path(expression)
+                .is_some_and(|(root, fields)| overlaps(lent, root, Some(&fields))))
         }
         ExpressionKind::Integer(_)
         | ExpressionKind::ByteLiteral(_)
@@ -1447,21 +1599,21 @@ fn mentions<'a>(
         | ExpressionKind::IsCase {
             subject: operand, ..
         }
-        | ExpressionKind::Borrow { place: operand, .. } => mentions(id, operand, slots, captures),
+        | ExpressionKind::Borrow { place: operand, .. } => mentions(id, operand, lent, captures),
         ExpressionKind::Array { elements } => {
             for element in elements {
-                if mentions(id, element, slots, captures)? {
+                if mentions(id, element, lent, captures)? {
                     return Ok(true);
                 }
             }
             Ok(false)
         }
         ExpressionKind::Index { base, index } => {
-            Ok(mentions(id, base, slots, captures)? || mentions(id, index, slots, captures)?)
+            Ok(mentions(id, base, lent, captures)? || mentions(id, index, lent, captures)?)
         }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, operand) in fields {
-                if mentions(id, operand, slots, captures)? {
+                if mentions(id, operand, lent, captures)? {
                     return Ok(true);
                 }
             }
@@ -1473,7 +1625,7 @@ fn mentions<'a>(
             arms,
             default,
         } => {
-            if mentions(id, subject, slots, captures)? {
+            if mentions(id, subject, lent, captures)? {
                 return Ok(true);
             }
             if let Some(capture) = capture {
@@ -1481,12 +1633,12 @@ fn mentions<'a>(
             }
             let result = (|| {
                 for (_, arm) in arms {
-                    if mentions(id, arm, slots, captures)? {
+                    if mentions(id, arm, lent, captures)? {
                         return Ok(true);
                     }
                 }
                 match default {
-                    Some(arm) => mentions(id, arm, slots, captures),
+                    Some(arm) => mentions(id, arm, lent, captures),
                     None => Ok(false),
                 }
             })();
@@ -1497,11 +1649,11 @@ fn mentions<'a>(
         }
         ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
-            Ok(mentions(id, left, slots, captures)? || mentions(id, right, slots, captures)?)
+            Ok(mentions(id, left, lent, captures)? || mentions(id, right, lent, captures)?)
         }
         ExpressionKind::Call { arguments, .. } => {
             for argument in arguments {
-                if mentions(id, argument, slots, captures)? {
+                if mentions(id, argument, lent, captures)? {
                     return Ok(true);
                 }
             }

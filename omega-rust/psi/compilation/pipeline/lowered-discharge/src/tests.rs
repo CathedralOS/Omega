@@ -33,6 +33,7 @@ mod entry_inputs;
 mod guard_contradiction;
 mod inferred_bounds;
 mod lifetime_elision;
+mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
 mod proof_scope;
