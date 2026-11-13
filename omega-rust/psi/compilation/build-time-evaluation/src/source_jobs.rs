@@ -7,6 +7,9 @@ use typed_trees::TypedTrees;
 
 mod build_activation;
 mod invocation;
+mod schema_evaluation;
+mod schema_geometry;
+mod schema_values;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {
