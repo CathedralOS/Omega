@@ -230,11 +230,18 @@ machine main() crashes Trap {
         .expect("Omega 00 carries the exact restoration")
         .into_optimization_artifact()
         .into_optimization_input();
-        abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
-            input,
-            psi_work::WorkSchedule::CURRENT.identity(),
+        let (_, unit) =
+            abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+                input,
+                psi_work::WorkSchedule::CURRENT.identity(),
+            )
+            .expect("Omega 01 verifies the restored owned home")
+            .into_parts();
+        optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
+            &unit,
+            &[],
         )
-        .expect("Omega 01 verifies the restored owned home");
+        .expect("the independent current ownership walk reconstructs the restored owner");
         let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
             .expect("restored module encodes");
         let mut execution =

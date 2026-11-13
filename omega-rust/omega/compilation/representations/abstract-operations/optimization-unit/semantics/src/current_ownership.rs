@@ -7702,14 +7702,24 @@ mod replay {
                         .or_insert_with(|| frontier.snapshot());
                 }
 
-                if let O::MoveStructuralField {
-                    source: root,
+                if let O::StoreStructuralField {
+                    disposition,
+                    destination,
                     path,
                     field,
                     ..
+                } = &node.operation
+                {
+                    value_use.receiving_store(
+                        &frontier,
+                        destination,
+                        path,
+                        *field,
+                        *disposition,
+                    )?;
                 }
-                | O::StoreStructuralField {
-                    destination: root,
+                if let O::MoveStructuralField {
+                    source: root,
                     path,
                     field,
                     ..
@@ -7723,20 +7733,12 @@ mod replay {
                         root.structural_type(),
                         path,
                         *field,
-                        match &node.operation {
-                            O::StoreStructuralField { disposition, .. } => {
-                                disposition.required_access()
-                            }
-                            _ => terminal_psi::StructuralAccess::MutableBorrow,
-                        },
+                        terminal_psi::StructuralAccess::MutableBorrow,
                     )
                     .is_some_and(|selected| {
-                        consumed.iter().all(|absent| {
-                            (absent.is_empty()
-                                && matches!(&node.operation, O::StoreStructuralField { .. })
-                                && super::value_custody::uninstalled_home(&frontier, root.place()))
-                                || !structural_paths_may_overlap(absent, &selected)
-                        })
+                        consumed
+                            .iter()
+                            .all(|absent| !structural_paths_may_overlap(absent, &selected))
                     });
                     if !available {
                         return Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive(
@@ -8579,7 +8581,7 @@ mod replay {
                         result.multiplicity,
                     )?;
                     if matches!(&node.operation, O::EstablishStructuralLocal { .. })
-                        && result.multiplicity == StructuralMultiplicity::Linear
+                        && result.multiplicity != StructuralMultiplicity::Unrestricted
                     {
                         frontier
                             .partial_custody_paths
@@ -9514,9 +9516,10 @@ mod value_custody {
     use abstract_operations::StructuralWindowRoot;
     use optimization_unit::PsiOptimizationFunction;
     use semantic_vocabulary::{BlockId, PlaceId, StructuralCaseId, StructuralTypeId};
+    use std::collections::BTreeSet;
     use terminal_psi::{
         StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
-        StructuralTypeDeclaration,
+        StructuralStoreDisposition, StructuralTypeDeclaration,
     };
 
     pub(super) struct ValueUse<'a> {
@@ -9528,7 +9531,7 @@ mod value_custody {
     }
 
     pub(super) fn uninstalled_home(current: &CurrentOwnership, place: PlaceId) -> bool {
-        current.owned_places.get(&place) == Some(&StructuralMultiplicity::Linear)
+        current.owned_places.contains_key(&place)
             && current
                 .partial_custody_paths
                 .get(&place)
@@ -9537,7 +9540,111 @@ mod value_custody {
                 })
     }
 
+    /// A receiving region must be wholly absent. Several missing children can
+    /// cover it, but an absent ancestor does not authorize installing just one
+    /// child and silently forgetting the ancestor's remaining missing region.
+    fn vacant_region(
+        types: &[StructuralTypeDeclaration],
+        root: StructuralTypeId,
+        missing: &BTreeSet<Vec<StructuralPathSegment>>,
+        hole: &[StructuralPathSegment],
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
+    ) -> bool {
+        if missing.iter().any(|absent| {
+            terminal_semantics::structural_paths_may_overlap(absent, hole)
+                && !absent.starts_with(hole)
+        }) {
+            return false;
+        }
+        if missing.contains(hole) {
+            return true;
+        }
+        let Some(selected) =
+            terminal_semantics::runtime_structural_path_tip(types.iter(), root, hole)
+        else {
+            return false;
+        };
+        let children = missing
+            .iter()
+            .filter_map(|absent| absent.strip_prefix(hole).map(<[_]>::to_vec))
+            .collect();
+        // Zero residual output proves coverage without enumerating untouched
+        // array elements. The existing typed partition checks the paths.
+        super::residuals::selected_affine_residuals(
+            types,
+            selected.id,
+            &children,
+            0,
+            &|path, case| {
+                let mut selected = hole.to_vec();
+                selected.extend_from_slice(path);
+                admitted_case(&selected, case)
+            },
+        )
+        .is_some_and(|residuals| residuals.is_empty())
+    }
+
     impl ValueUse<'_> {
+        pub(super) fn receiving_store(
+            &self,
+            current: &CurrentOwnership,
+            destination: &StructuralWindowRoot,
+            path: &[StructuralPathSegment],
+            field: Option<semantic_vocabulary::StructuralFieldId>,
+            disposition: StructuralStoreDisposition,
+        ) -> Result<(), OptimizationUnitValidationError> {
+            let hole = super::references::window_hole(
+                self.function,
+                self.types,
+                destination.place(),
+                destination.structural_type(),
+                path,
+                field,
+                disposition.required_access(),
+            )
+            .ok_or_else(|| {
+                self.refusal(destination.place(), "store has no exact receiving window")
+            })?;
+            if destination.parameter().is_some()
+                || destination.multiplicity() == StructuralMultiplicity::Unrestricted
+                || !terminal_semantics::projection_stays_in_inline_storage(
+                    self.types.iter(),
+                    destination.structural_type(),
+                    &hole,
+                )
+            {
+                return Ok(());
+            }
+            let missing = current.partial_custody_paths.get(&destination.place());
+            if !current.owned_places.contains_key(&destination.place()) && missing.is_none() {
+                return Err(self.refusal(destination.place(), "store targets an ended owned home"));
+            }
+            let ready = match disposition {
+                StructuralStoreDisposition::Vacant => missing.is_some_and(|missing| {
+                    vacant_region(
+                        self.types,
+                        destination.structural_type(),
+                        missing,
+                        &hole,
+                        &|path, case| (self.admitted_case)(destination.place(), path, case),
+                    )
+                }),
+                StructuralStoreDisposition::ReplaceDiscardable => missing.is_none_or(|missing| {
+                    missing.iter().all(|absent| {
+                        !terminal_semantics::structural_paths_may_overlap(absent, &hole)
+                    })
+                }),
+            };
+            if !ready {
+                return Err(self.refusal_at(
+                    destination.place(),
+                    &hole,
+                    "store disposition does not match the owned receiving region",
+                ));
+            }
+            Ok(())
+        }
+
         fn refusal(&self, place: PlaceId, reason: &'static str) -> OptimizationUnitValidationError {
             self.refusal_at(place, &[], reason)
         }
@@ -9880,15 +9987,218 @@ mod value_custody {
                 }
             }
             if owned
-                && hole.is_empty()
                 && let Some(missing) = current.partial_custody_paths.get_mut(&destination.place())
             {
-                missing.remove(&Vec::new());
+                missing.retain(|absent| !absent.starts_with(&hole));
                 if missing.is_empty() {
                     current.partial_custody_paths.remove(&destination.place());
                 }
             }
+            if owned && destination.multiplicity() != StructuralMultiplicity::Unrestricted {
+                current
+                    .owned_places
+                    .entry(destination.place())
+                    .or_insert(destination.multiplicity());
+            }
             Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod store_tests {
+        use super::*;
+        use semantic_vocabulary::{PsiSemanticId, StructuralPlaceKind};
+        use std::collections::BTreeMap;
+        use terminal_psi::{
+            ArrayExtent, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+            StructuralRecordStorage, StructuralTypeShape,
+            TerminalIdentityIndex,
+        };
+
+        fn id<T: PsiSemanticId>(raw: u64) -> T {
+            T::new(raw).unwrap()
+        }
+
+        fn context() -> (
+            PsiOptimizationFunction,
+            Vec<StructuralTypeDeclaration>,
+            StructuralWindowRoot,
+        ) {
+            let types = (1..=3)
+                .map(|raw| StructuralTypeDeclaration {
+                    id: id(raw),
+                    identity: TerminalIdentityIndex(raw as u32),
+                    quotient_carrier: None,
+                    owns_linear_claim: false,
+                    copyable: false,
+                    no_code_affine_cleanup: true,
+                    descriptor_cleanup: true,
+                    scalar_restriction: None,
+                    requires: Vec::new(),
+                    shape: if raw == 1 {
+                        StructuralTypeShape::Record {
+                            fields: Vec::new(),
+                            storage: StructuralRecordStorage::Packed,
+                        }
+                    } else {
+                        StructuralTypeShape::FixedArray {
+                            element: id(raw - 1),
+                            length: ArrayExtent::Literal(2),
+                        }
+                    },
+                })
+                .collect();
+            let parameter = StructuralParameterDeclaration {
+                place: id(1),
+                position: 0,
+                structural_type: id(3),
+                multiplicity: StructuralMultiplicity::Affine,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            };
+            let function = PsiOptimizationFunction {
+                machine: id(1),
+                attachment: None,
+                nominal_cleanup_subject: None,
+                entry: id(1),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter.clone()],
+                structural_places: vec![StructuralPlaceDeclaration {
+                    id: id(1),
+                    kind: StructuralPlaceKind::Parameter { position: 0 },
+                }],
+                result: abstract_operations::AbstractFunctionResult::Unit,
+                declared_places: BTreeSet::from([id(1)]),
+                entry_claim_declarations: Vec::new(),
+                block_entry_claims: Vec::new(),
+                content_entry_claims: Vec::new(),
+                verified_contract: None,
+                evidence_contract_lanes: Vec::new(),
+                entry_claims: BTreeSet::new(),
+                published_service_ceiling: Vec::new(),
+                declared_service_reach: Vec::new(),
+                facts: Vec::new(),
+                blocks: Vec::new(),
+            };
+            (function, types, StructuralWindowRoot::Parameter(parameter))
+        }
+
+        fn current(missing: Vec<Vec<StructuralPathSegment>>) -> CurrentOwnership {
+            CurrentOwnership {
+                claims: BTreeMap::new(),
+                owned_places: BTreeMap::from([(id(1), StructuralMultiplicity::Affine)]),
+                partial_custody_paths: if missing.is_empty() {
+                    BTreeMap::new()
+                } else {
+                    BTreeMap::from([(id(1), missing.into_iter().collect())])
+                },
+                live_references: Vec::new(),
+            }
+        }
+
+        fn path(indices: &[u64]) -> Vec<StructuralPathSegment> {
+            indices
+                .iter()
+                .map(|index| StructuralPathSegment::FixedIndex(*index))
+                .collect()
+        }
+
+        #[test]
+        fn a_receiving_region_needs_full_vacancy_and_an_allocated_home() {
+            let (function, types, destination) = context();
+            let use_value = ValueUse {
+                function: &function,
+                types: &types,
+                block: id(1),
+                node: 0,
+                admitted_case: &|_, _, _| false,
+            };
+            let vacant = StructuralStoreDisposition::Vacant;
+            let replace = StructuralStoreDisposition::ReplaceDiscardable;
+            let check = |current: &CurrentOwnership, region: &[u64], mode| {
+                use_value.receiving_store(current, &destination, &path(region), None, mode)
+            };
+            let complete = current(vec![path(&[0, 0]), path(&[0, 1])]);
+            assert!(
+                check(&complete, &[0], vacant).is_ok(),
+                "both children cover the receiving subtree"
+            );
+            assert!(check(&complete, &[0], replace).is_err());
+            assert!(
+                check(&complete, &[1], vacant).is_err(),
+                "a missing sibling is not the receiving region"
+            );
+            assert!(check(&complete, &[1], replace).is_ok());
+            assert!(
+                check(&current(vec![path(&[0, 0])]), &[0], vacant).is_err(),
+                "one child remains live"
+            );
+            assert!(
+                check(&current(vec![path(&[0])]), &[0, 0], vacant).is_err(),
+                "an ancestor hole cannot lose its other missing children"
+            );
+            let mut ended = current(Vec::new());
+            assert!(
+                check(&ended, &[0], vacant).is_err(),
+                "occupied storage is not vacant"
+            );
+            ended.owned_places.clear();
+            assert!(check(&ended, &[0], vacant).is_err());
+            assert!(
+                check(&ended, &[0], replace).is_err(),
+                "a declaration cannot recreate an ended home"
+            );
+        }
+
+        #[test]
+        fn installing_a_subtree_preserves_other_holes_and_rejoins_its_home() {
+            let (function, types, destination) = context();
+            let use_value = ValueUse {
+                function: &function,
+                types: &types,
+                block: id(1),
+                node: 0,
+                admitted_case: &|_, _, _| false,
+            };
+            let mut frontier = current(vec![path(&[0]), path(&[1])]);
+            frontier.owned_places.clear(); // All owned members moved out; the home remains allocated.
+            use_value
+                .receiving_store(
+                    &frontier,
+                    &destination,
+                    &path(&[0]),
+                    None,
+                    StructuralStoreDisposition::Vacant,
+                )
+                .unwrap();
+            use_value
+                .install_store(
+                    &mut frontier,
+                    &destination,
+                    &path(&[0]),
+                    None,
+                    &StructuralArgument::whole(id(2), StructuralAccess::Owned),
+                    StructuralAccess::MutableBorrow,
+                )
+                .unwrap();
+            assert_eq!(
+                frontier.owned_places.get(&id(1)),
+                Some(&StructuralMultiplicity::Affine)
+            );
+            assert_eq!(
+                frontier.partial_custody_paths.get(&id(1)),
+                Some(&BTreeSet::from([path(&[1])]))
+            );
+            assert!(use_value.observing(&frontier, id(1), &path(&[0])).is_ok());
+            assert!(use_value.observing(&frontier, id(1), &path(&[1])).is_err());
+            assert!(use_value.observing(&frontier, id(1), &[]).is_err());
+            let empty = current(vec![Vec::new()]);
+            assert!(
+                uninstalled_home(&empty, id(1)),
+                "a vacant affine local has no invented value"
+            );
         }
     }
 }
