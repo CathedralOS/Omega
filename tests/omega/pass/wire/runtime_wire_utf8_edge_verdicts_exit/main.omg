@@ -1,4 +1,11 @@
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::CompactBinary::valid_utf8;
+use omega::language::core::ScalarSlot;
+use omega::language::core::ScalarPlanContext;
+use omega::language::core::FrameRead;
+use omega::language::core::CompactBinary::plan_scalar;
+use omega::language::core::CompactBinary::read_record;
+use omega::language::core::CompactBinary::plan_payload;
 use omega::language::core::reflect;
 // RUN CANARY (exit 70) + interpreter differential. The decode-boundary
 // UTF-8 validator's edge classes, one leg each over hand-crafted wire
@@ -12,7 +19,7 @@ use omega::language::core::reflect;
 domain [u8]::Utf8
 requires
     valid_utf8(self);
-use omega_language_std::console;
+use omega_language_std::Console;
 data LabelMessage {
     #0 count: u32;
     #1 label: &[u8] in Utf8;

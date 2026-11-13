@@ -3,8 +3,9 @@
 // authorize a request the released bytes would have to satisfy. Offering the
 // rewound residual as the allocation's capacity premise — the pre-monotonic
 // reading — must be refused before `reset` recomposes the backing.
-use omega::language::core::extent;
-use omega::language::core::content;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
 use alloc::bump;
 
 // Every claim the refused attempt would have left behind, so the rejection

@@ -1,12 +1,23 @@
-use omega::language::core::presentation_authority;
-use omega::language::core::time_authority;
-use omega::language::core::native_execution_authority;
-use omega::language::core::filesystem_authority;
-use omega::language::core::process_authority;
-use omega::language::core::process_exit;
+use omega::language::core::WindowManagement;
+use omega::language::core::SurfacePresentation;
+use omega::language::core::WindowEventObservation;
+use omega::language::core::WindowEventDispatch;
+use omega::language::core::GlobalInputObservation;
+use omega::language::core::ClockObservation;
+use omega::language::core::ExecutionDelay;
+use omega::language::core::NativeCodeExecution;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
+use omega::language::core::ProcessInput;
+use omega::language::core::ProcessOutput;
+use omega::language::core::ProcessExit;
 // Expected Windows exit: 70. Exercise a returning import without pointer arguments.
-use omega_language_std::console;
-use omega_language_std::windows_gui_host;
+use omega_language_std::Console;
+use omega_language_std::WindowsGuiHost;
 
 data Main { }
 machine Main::main(main: &mut Main) reaches

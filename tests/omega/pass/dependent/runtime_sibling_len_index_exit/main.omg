@@ -1,7 +1,7 @@
 // A state's precondition relates an explicit context field to a sibling slice
 // parameter: main.j < items.len. The caller's guard establishes that relation;
 // the callee then indexes without another guard. Expected exit: 7.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { buf: [u8; 8]; j: u64; out: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     main.buf[5] = 7;

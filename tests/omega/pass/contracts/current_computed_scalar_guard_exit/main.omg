@@ -1,7 +1,7 @@
 // A guard constrains the observed local or field, not a replay of its producer.
 // The fixed-array extent and its literal denote the same exact capacity.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Buffer { bytes: [u8; 256]; }
 data Width { value: u64; }

@@ -1,6 +1,6 @@
 // A reassigned borrowed-view local forwards its current descriptor to the
 // next state, which observes the second view.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

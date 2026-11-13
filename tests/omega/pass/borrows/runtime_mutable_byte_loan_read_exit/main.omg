@@ -2,7 +2,7 @@
 // a reversal built from it, and a read through a `&mut [u8]` view. An
 // exclusive loan that may be written may be read; each read is a snapshot
 // of the byte at that point.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { bytes: [u8; 5]; more: [u8; 4]; }
 

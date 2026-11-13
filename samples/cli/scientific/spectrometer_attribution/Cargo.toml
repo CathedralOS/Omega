@@ -17,6 +17,7 @@ optimization-core = { path = "../../../../omega-rust/omega/foundation/optimizati
 build-declarations = { path = "../../../../omega-rust/omega/packages/build-declarations" }
 package-compilation = { path = "../../../../omega-rust/omega/packages/package-compilation" }
 package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
+package-source = { path = "../../../../omega-rust/omega/packages/source-acquisition" }
 build-time-evaluation = { path = "../../../../omega-rust/psi/compilation/build-time-evaluation" }
 provider-planning = { path = "../../../../omega-rust/omega/compilation/realization/provider-planning" }
 semantic-vocabulary = { path = "../../../../omega-rust/psi/foundation/semantic-vocabulary" }

@@ -1,5 +1,4 @@
 // Expected error: cannot prove index `row` is within length 2
-use omega::language::core::float_operations;
 
 data Storage { cells: [[[f64; 2]; 2]; 2]; }
 

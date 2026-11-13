@@ -1,5 +1,5 @@
 // Expected exit: 0.
-use omega::language::core::option;
+use omega::language::core::Optional;
 data Counter { value: u64; }
 machine tick(counter: &mut Counter) -> u64 {
  transition counter.value < 100 { true -> increment(counter) false -> 100 }

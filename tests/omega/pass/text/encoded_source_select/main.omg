@@ -1,4 +1,11 @@
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::IntegerInterpretation;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // `&mut view.value.value` loans the plan-laid leaf as a plain `&mut i64`
 // out to helpers. `select_recursive<'storage>` returns one of its two
 // `&'storage mut` sources (the declared source union) under a

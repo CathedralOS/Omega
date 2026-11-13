@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Pair [copy] { lower: f64; upper: f64; selected: f64; }
 data Narrow [copy] { selected: f32; }
 machine choose(source: Pair, pick_lower: bool) -> Pair {

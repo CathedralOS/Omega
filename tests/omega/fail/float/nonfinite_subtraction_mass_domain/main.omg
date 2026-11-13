@@ -1,6 +1,5 @@
 // Ordered subtraction without finiteness does not establish a nonnegative
 // mass: +infinity - +infinity is NaN.
-use omega::language::core::float_operations;
 
 domain f64::NonnegativeMass
 requires self >= 0.0;

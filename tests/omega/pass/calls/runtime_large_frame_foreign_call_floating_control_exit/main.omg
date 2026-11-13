@@ -3,7 +3,7 @@
 // The restore forms the slot address in `x9` before loading the saved FPCR
 // into it; the save keeps the FPCR in `x9` and forms the address in IP0.
 // Exits with `abs(-70)`, 70, once the saved FPCR is restored.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Magnitude {
     machine absolute(value: i32) -> i32 reaches;

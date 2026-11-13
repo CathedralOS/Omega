@@ -1,6 +1,6 @@
 // Local record observations keep member policies, including through nested storage.
 // Overflow must wrap/clamp at the operation, before explicit policy erasure.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Reading [copy] {
     wrapping: u8 in Wrapping;

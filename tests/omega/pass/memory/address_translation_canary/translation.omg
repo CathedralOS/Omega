@@ -49,10 +49,11 @@ module translation;
 // deriving target translation entries. The values are provider-recorded
 // evidence bound by the receipt crossings, not source-proven facts, and
 // reading them grants no access: an address is data, not authority.
-use omega::language::core::assembly;
-use omega::language::core::extent;
-use omega::language::core::content;
-use omega::language::core::nat;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Granted::content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 
 // One translation-activation fact an install receipt must establish,
 // spelled as authored contract data. The identity is inert: naming a fact

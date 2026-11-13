@@ -6,7 +6,7 @@
 // exits with its own code.
 //
 // Expected: 10 != 12 falls through, 6 == 6 holds -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

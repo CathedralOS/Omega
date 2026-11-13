@@ -5,7 +5,7 @@
 // one closure. Each callee returns one exact payloadless case; each matching
 // arm binds the guaranteed term and the next state consumes nothing but the
 // outcome. Exit 0 when every arm selects its evidence.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Outcome [copy] {
     case Success;

@@ -2,7 +2,7 @@
 // its trap is an effect, so `_ = ...` must still execute the check. u64
 // 4294967296 is one past u32's maximum. Ending normally (exit 0) means the
 // discarded call was removed with its result.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u64_to_u32_trapping;
 
 data Inputs { source: u64; }
 

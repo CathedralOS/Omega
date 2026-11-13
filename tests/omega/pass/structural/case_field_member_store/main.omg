@@ -8,7 +8,7 @@
 // An owned `source: Box` stays declined at checked-trees: the parameter is
 // affine, so the member read would be a move leaving a husk, not a copy.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Fmt [copy] {
     case Decimal;

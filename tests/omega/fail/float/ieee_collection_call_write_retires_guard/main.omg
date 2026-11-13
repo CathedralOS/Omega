@@ -1,5 +1,5 @@
 // Expected exit: 0
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 data Reading [copy] { values: [f64; 2]; other: f64; }
 machine spoil(target: &mut [f64; 2]) {
     target[0] = 200000000000000000000.0;

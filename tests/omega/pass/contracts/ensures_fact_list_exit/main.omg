@@ -10,7 +10,7 @@
 //
 // Exits 70 only when the final count is exactly 1.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Counter {
     slots: [i32; 4];

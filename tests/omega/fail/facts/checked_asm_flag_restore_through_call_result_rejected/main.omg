@@ -1,5 +1,4 @@
 // A literal is not a saved-flags place.
-use omega::language::core::assembly;
 
 machine capture() -> u64 ensures (result & 64u64) == 64u64 {
     let mut saved: u64 = 0;

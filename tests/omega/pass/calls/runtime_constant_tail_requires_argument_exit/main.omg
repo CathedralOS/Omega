@@ -3,7 +3,7 @@
 // exact identity requirement after Point::zero unfolds; Shape::Unit meets
 // count's requirement in the same way. The differing-constructor control is
 // fail/calls/struct_constant_requires_argument_rejected.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Point { x: u64; y: u64; }
 data Shape {
     case Unit;

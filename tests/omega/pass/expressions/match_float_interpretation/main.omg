@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 machine choose32(value: f32, first: f32, second: f32) -> i64 {
     match value { first -> 7, second -> 9, _ -> 11 }

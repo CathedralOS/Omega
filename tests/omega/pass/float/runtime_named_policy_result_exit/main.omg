@@ -1,5 +1,4 @@
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // The selected declaration owns the result policy. A namespace that happens
 // to be called F32 neither inherits its arguments' policy nor erases its result.

@@ -1,5 +1,4 @@
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::Console;
 data Model { z: [f64; 5]; grid: [[f64; 2]; 2]; }
 data Cursor { index: i64; }
 data Main { model: Model; cursor: Cursor; }

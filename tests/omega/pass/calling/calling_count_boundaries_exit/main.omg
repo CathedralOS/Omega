@@ -1,7 +1,9 @@
 // Count predicates describe values, not ABI authority. Exercise their exact
 // upper limits through ordinary aggregate returns before observing them.
-use omega_language_std::calling;
-use omega_language_std::console;
+use omega_language_std::NativePlace;
+use omega_language_std::BoundarySignature;
+use omega_language_std::CallPlan;
+use omega_language_std::Console;
 
 data Main { }
 

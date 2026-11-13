@@ -1,7 +1,7 @@
 // Expected Windows exit: 70. Unterminated/empty C strings refuse creation;
 // NULL is never a live window and cannot be successfully destroyed.
-use omega_language_std::windows_gui_host;
-use omega_language_std::console;
+use omega_language_std::WindowsGuiHost;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches
     Console + NativeCodeExecution + WindowManagement +

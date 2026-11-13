@@ -1,5 +1,4 @@
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // RUN CANARY (exit 70) + interpreter differential. Borrowed IEEE formals read
 // and replace their callers' original binary32 and binary64 cells through the

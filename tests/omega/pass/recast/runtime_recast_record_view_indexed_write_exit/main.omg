@@ -2,7 +2,7 @@
 // through a local carries its write authority through the loan ledger, so a
 // runtime-indexed field store through the view resolves to the loaned home
 // under the view's declared shape.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Pair {
     low: i32;

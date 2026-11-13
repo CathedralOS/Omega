@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // std math is_finite, natively (2026-07-14): the portable spelling
 // `is_finite(x) = (x - x == 0.0)` runs through the real dispatch pipeline
@@ -9,8 +8,8 @@ use omega::language::core::float_operations;
 // fix routes -- before it, a failed inline arm guard sailed past its
 // sibling arm into the caller's failure trailer and both false legs
 // answered true. Distinct exit codes name the first leg that misses.
-use omega::language::core::math;
-use omega_language_std::console;
+use omega::language::core::is_finite;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     transition { _ -> finite_leg(main, 2.5, 0.0) }

@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Reading { case Empty; case Full(value: f64); }
 machine read(reading: &Reading) -> f64
 requires reading in Reading::Full

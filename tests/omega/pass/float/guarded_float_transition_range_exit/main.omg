@@ -1,7 +1,6 @@
 // A co-located float guard discharges a declared transition requirement.
 // `difference >= 0.5 && difference <= 8.0` proves the state requirements,
 // including the literal on the left and a field place. Each quotient is 0.5.
-use omega::language::core::float_operations;
 
 data Gap { difference: f64; }
 

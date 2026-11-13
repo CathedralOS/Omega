@@ -1,9 +1,13 @@
-use omega::language::core::math;
+use omega::language::core::min_f32;
+use omega::language::core::max_f32;
+use omega::language::core::sqrt_f32;
+use omega::language::core::min_f64;
+use omega::language::core::max_f64;
+use omega::language::core::sqrt_f64;
 
 // Float shorthand must execute its exact requirement call, including field
 // result stores. Neither the builtin alias nor an ISA shortcut supplies it.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     left32: f32;

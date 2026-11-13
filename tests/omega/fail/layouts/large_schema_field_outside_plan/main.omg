@@ -1,5 +1,11 @@
 // Full-width schema sizes do not permit a field to extend beyond its plan.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 data Payload { bytes: [u8; 65536]; }
 

@@ -1,4 +1,4 @@
-use omega::language::core::nat;
+use omega::language::core::Nat;
 data Observation { value: Nat; }
 machine project<machine Read>(index: Nat) -> Nat
 requires machine Read(index: Nat) -> Observation;

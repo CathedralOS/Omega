@@ -1,10 +1,21 @@
 // Expected exit: 0. A real directory provider withholds every d_type hint.
 // Portable enumeration still distinguishes a directory, file and symlink;
 // recursive removal must remove the tree without following the outside link.
-use omega_language_std::filesystem;
-use omega_language_std::posix_filesystem_host;
-use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega_language_std::DirEntry;
+use omega_language_std::DirEntryResult;
+use omega_language_std::UnitResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::write_all;
+use omega_language_std::Filesystem::exists;
+use omega_language_std::Filesystem::create_dir;
+use omega_language_std::Filesystem::create_dir_all;
+use omega_language_std::Filesystem::symlink;
+use omega_language_std::Filesystem::read_dir_nth;
+use omega_language_std::Filesystem::remove_dir_all;
+use omega_language_std::PosixFilesystemHost;
+use omega_language_std::Console;
+use omega::language::core::widen_u8_to_u64;
+use omega::language::core::narrow_i64_to_u64_exact;
 
 UnknownDirectoryEntries satisfies PosixFilesystemHost {
     machine open(path: &[u8] in Path, flags: i32) -> i32 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {

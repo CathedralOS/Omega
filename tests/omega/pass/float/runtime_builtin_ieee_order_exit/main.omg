@@ -1,9 +1,14 @@
-use omega::language::core::math;
+use omega::language::core::min_f32;
+use omega::language::core::max_f32;
+use omega::language::core::min_f64;
+use omega::language::core::max_f64;
 
 // The named min/max fixture pins ordered NaN and right-operand tie behavior.
 // These identical expectations exercise builtin selection with runtime operands.
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use omega::language::core::F32::from_i32;
+use omega::language::core::F64::from_i32;
 data Main {first:f64;second:f64;tie:f64;small:f32;small_tie:f32;}
 machine Main::main(main:&mut Main) reaches Console {
  let byte:ByteRead=block Console::read_byte();

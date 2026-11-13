@@ -2,7 +2,7 @@
 // too: an ordinary machine body, a local record copied out, and a nested
 // field, with u64, u32 and bool leaves. Each store must name its own checked
 // declaration. Exit 70 only when every write is observed.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Inner { mark: u32; seen: bool; }
 data Tally { count: u64; limit: u64; inner: Inner; }

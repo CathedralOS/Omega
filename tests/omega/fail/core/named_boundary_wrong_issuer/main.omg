@@ -1,4 +1,5 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 // A matching spelling and carrier are not the domain owner's selected issuer.
 boundary trait Impostor {
     machine grant(root: Extent) -> Extent reaches ensures result in Extent::Granted;

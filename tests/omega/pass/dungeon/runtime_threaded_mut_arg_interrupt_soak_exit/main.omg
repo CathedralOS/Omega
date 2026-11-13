@@ -10,7 +10,7 @@
 // million times so the run spans many timer ticks; if any emitted slot copy
 // parks data in an interrupt-clobbered register, the pointer (or the count)
 // corrupts and the run crashes or exits 71 instead of 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally {
     // Defined-overflow domain: the threaded `&mut` sink keeps unconditional

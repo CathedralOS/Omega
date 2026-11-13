@@ -1,4 +1,6 @@
-use omega::language::core::atomic;
+use omega::language::core::Atomic;
+use omega::language::core::FenceOrdering;
+use omega::language::core::Atomic::fence;
 data Trace { calls: u32 in Wrapping; }
 data Options { ordering: FenceOrdering; }
 machine choose(trace: &mut Trace) -> FenceOrdering

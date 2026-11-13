@@ -1,6 +1,6 @@
 // A proof embedding is a value term, not an unresolved operational call.
 // Its enclosing projection remains subject to ordinary denotation checks.
-use omega::language::core::nat;
+use omega::language::core::Nat;
 
 machine magnitude(value: u64) -> Nat {
     embed(value) as Nat

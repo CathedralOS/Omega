@@ -9,7 +9,7 @@
 // runs on a value the program holds at runtime rather than on a literal
 // argument. gauss_sum(4, 0) visits (4, 0), (3, 4), (2, 7), (1, 9), (0, 10)
 // and returns 10; the program exits 70 on that value and 71 otherwise.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     count: u64 in Wrapping;

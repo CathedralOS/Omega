@@ -1,4 +1,5 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 boundary trait Writer {
  machine replace(storage:&mut Extent in Granted) reaches;
 }

@@ -1,6 +1,6 @@
 // Expected exit: 0
 // A false outgoing guard still installs its completed descriptor replacement before the next arm.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Cell [copy] { case Held(value: u64 in Wrapping); case Empty; }
 data Pair<'source> [copy] { target: &'source Cell; }
 data Choice<'source> { case Some(payload: Pair<'source>); }

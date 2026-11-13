@@ -2,7 +2,6 @@
 // Place: parameter (invalid twin). Reading index 3 exceeds the guarded length bound of 3 elements.
 // Expected diagnostic: slice index out of bounds
 
-use omega::language::core::slice;
 
 machine pass_through(param: &[u64]) -> &[u64]
     requires param.len >= 3

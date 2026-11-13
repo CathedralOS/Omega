@@ -4,7 +4,7 @@
 // verifies end-to-end (the documented `UnknownStructuralArgument` on this
 // shape is dead). Companion wall pin: nested_call_tail_roots_exit.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data ItemList {
     items: [u64; 4];

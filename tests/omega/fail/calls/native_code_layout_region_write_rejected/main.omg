@@ -1,6 +1,6 @@
 // The exact selected executable application supplies a nonzero native entry and finite attributed code regions at runtime.
 // Reject: owning the layout record cannot grant writes through its shared regions.
-use omega::language::core::code_layout;
+use omega::language::core::CodeLayout;
 machine selected<T, const Salt: u64>(value: T) -> T { value }
 machine overwrite(layout: &mut CodeLayout)
 requires layout.regions.len > 0

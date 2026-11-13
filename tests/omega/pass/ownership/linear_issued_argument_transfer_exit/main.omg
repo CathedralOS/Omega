@@ -2,7 +2,7 @@
 // Expected exit: 37. Named, projected, parameter and fresh call-result operands
 // exercise the same ownership transfer through ordinary and boundary calls.
 use omega::language::core::drop;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data Token [linear] dropped by drop_token { code: u8; }
 machine drop_token(token: &mut Token) {}

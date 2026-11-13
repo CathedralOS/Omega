@@ -10,8 +10,8 @@
 // value-side slot carve-out (local_used_as_runtime_indexed_write_value,
 // the twin of the runtime-INDEX carve-out). Static-folding RHS values
 // always lowered (probed); this pins the runtime-RHS shape.
-use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega_language_std::Console;
+use omega::language::core::narrow_u32_to_u8_wrapping;
 data Main
 requires
     rows <= 2,

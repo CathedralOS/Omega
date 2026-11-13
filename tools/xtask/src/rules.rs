@@ -88,6 +88,22 @@ fn show_git_file(root: &Path, rev: &str, path: &str) -> String {
     git(root, &["show", &format!("{rev}:{path}")]).unwrap_or_default()
 }
 
+fn pr_diff_base(root: &Path, requested: Option<&str>) -> Result<String, String> {
+    // Every diff rule must inspect the topic's changes, not undo work that
+    // arrived on its target after the fork. Resolve once so concurrent fetches
+    // cannot make the ledger, paths and diagnostic-pin checks use different bases.
+    let requested = requested.unwrap_or("origin/main");
+    let bases = git(root, &["merge-base", "--all", requested, "HEAD"])?;
+    let bases: Vec<_> = bases.lines().filter(|base| !base.is_empty()).collect();
+    match bases.as_slice() {
+        [base] => Ok((*base).to_owned()),
+        _ => Err(format!(
+            "expected one PR merge base for {requested} and HEAD, found {}; fetch the needed history or name an ancestor commit with --base",
+            bases.len()
+        )),
+    }
+}
+
 fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
@@ -2041,13 +2057,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         &read_dangling_baseline(&dangling_baseline_text),
     ));
 
-    let base_rev = match base {
-        Some(b) => b,
-        None => git(&root, &["merge-base", "origin/main", "HEAD"])
-            .unwrap_or_else(|_| "HEAD".to_owned())
-            .trim()
-            .to_owned(),
-    };
+    let base_rev = pr_diff_base(&root, base.as_deref()).map_err(|error| {
+        eprintln!("check_rules: {error}");
+        2u8
+    })?;
 
     // Diff checks against `base_rev`
     // An unreadable diff leaves 0, so a claimed movement fails closed.
@@ -2244,12 +2257,202 @@ struct Ledger;
                 .trim()
                 .to_owned()
         }
+
+        fn changes_since(&self, base: &str) -> Vec<(char, String)> {
+            git(
+                &self.root,
+                &["diff", "--name-status", "--no-renames", base, "HEAD"],
+            )
+            .unwrap()
+            .lines()
+            .map(|line| {
+                let (status, path) = line.split_once('\t').unwrap();
+                (status.chars().next().unwrap(), path.to_owned())
+            })
+            .collect()
+        }
     }
 
     impl Drop for DiagnosticPinRepository {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.root);
         }
+    }
+
+    #[test]
+    fn pr_scope_excludes_files_added_to_main_after_the_topic_forked() {
+        let repo = DiagnosticPinRepository::new();
+        let fork = repo.commit(&[("shared.md", Some("shared\n"))]);
+        let main = repo.commit(&[
+            (
+                "tests/omega/fail/contracts/new_on_main/main.omg",
+                Some("fixture\n"),
+            ),
+            (
+                "tests/omega/fail/contracts/new_on_main/expected.txt",
+                Some("required diagnostic\n"),
+            ),
+        ]);
+        git(
+            &repo.root,
+            &["update-ref", "refs/remotes/origin/main", &main],
+        )
+        .unwrap();
+        git(&repo.root, &["checkout", "--quiet", "--detach", &fork]).unwrap();
+        repo.commit(&[("topic.md", Some("independent topic change\n"))]);
+
+        let base = pr_diff_base(&repo.root, Some("origin/main")).unwrap();
+        let changes = repo.changes_since(&base);
+        assert_eq!(changes, [('A', "topic.md".to_owned())]);
+        assert!(expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new()).is_empty());
+        assert_eq!(pr_diff_base(&repo.root, None).unwrap(), fork);
+    }
+
+    #[test]
+    fn pr_scope_still_rejects_a_pin_actually_deleted_by_the_topic() {
+        let repo = DiagnosticPinRepository::new();
+        let pin = "tests/omega/fail/contracts/existing/expected.txt";
+        let fork = repo.commit(&[
+            ("shared.md", Some("shared\n")),
+            (pin, Some("required diagnostic\n")),
+        ]);
+        let main = repo.commit(&[(
+            "tests/omega/fail/contracts/new_on_main/expected.txt",
+            Some("another required diagnostic\n"),
+        )]);
+        git(
+            &repo.root,
+            &["update-ref", "refs/remotes/origin/main", &main],
+        )
+        .unwrap();
+        git(&repo.root, &["checkout", "--quiet", "--detach", &fork]).unwrap();
+        repo.commit(&[(pin, None)]);
+
+        let base = pr_diff_base(&repo.root, Some("origin/main")).unwrap();
+        let changes = repo.changes_since(&base);
+        assert_eq!(changes, [('D', pin.to_owned())]);
+        let violations = expected_pin_violations(&repo.root, &base, &changes, &BTreeSet::new());
+        assert_eq!(violations.len(), 1);
+        assert!(violations[0].contains(pin));
+    }
+
+    #[test]
+    fn pr_scope_preserves_ancestor_and_admission_merge_parent_diffs() {
+        let repo = DiagnosticPinRepository::new();
+        let fork = repo.commit(&[("shared.md", Some("shared\n"))]);
+        let topic = repo.commit(&[("topic.md", Some("topic change\n"))]);
+        let ancestor = pr_diff_base(&repo.root, Some(&fork)).unwrap();
+        assert_eq!(
+            repo.changes_since(&ancestor),
+            [('A', "topic.md".to_owned())]
+        );
+        git(&repo.root, &["checkout", "--quiet", "--detach", &fork]).unwrap();
+        let main = repo.commit(&[("main.md", Some("main change\n"))]);
+        git(
+            &repo.root,
+            &[
+                "merge",
+                "--quiet",
+                "--no-ff",
+                &topic,
+                "-m",
+                "admission merge",
+            ],
+        )
+        .unwrap();
+        let parent = pr_diff_base(&repo.root, Some("HEAD^1")).unwrap();
+        assert_eq!(repo.changes_since(&parent), [('A', "topic.md".to_owned())]);
+        assert_eq!(show_git_file(&repo.root, &main, "main.md"), "main change\n");
+        // Admission checks a shallow checkout of GitHub's synthetic merge.
+        git(
+            &repo.root,
+            &[
+                "clone",
+                "--quiet",
+                "--no-local",
+                "--depth=2",
+                ".",
+                "shallow",
+            ],
+        )
+        .unwrap();
+        let shallow = repo.root.join("shallow");
+        assert_eq!(
+            git(&shallow, &["rev-parse", "--is-shallow-repository"])
+                .unwrap()
+                .trim(),
+            "true"
+        );
+        let parent = pr_diff_base(&shallow, Some("HEAD^1")).unwrap();
+        assert_eq!(
+            git(&shallow, &["diff", "--name-only", &parent, "HEAD"]).unwrap(),
+            "topic.md\n"
+        );
+    }
+
+    #[test]
+    fn pr_scope_refuses_invalid_or_unrelated_bases_instead_of_empty_coverage() {
+        let repo = DiagnosticPinRepository::new();
+        repo.commit(&[("shared.md", Some("shared\n"))]);
+        assert!(pr_diff_base(&repo.root, Some("missing-reference")).is_err());
+        assert!(pr_diff_base(&repo.root, None).is_err());
+        let tree = git(&repo.root, &["rev-parse", "HEAD^{tree}"]).unwrap();
+        let unrelated = git(
+            &repo.root,
+            &["commit-tree", tree.trim(), "-m", "unrelated root"],
+        )
+        .unwrap();
+        git(
+            &repo.root,
+            &["update-ref", "refs/remotes/origin/main", unrelated.trim()],
+        )
+        .unwrap();
+        assert!(pr_diff_base(&repo.root, None).is_err());
+    }
+
+    #[test]
+    fn pr_scope_requires_an_explicit_ancestor_when_history_has_two_merge_bases() {
+        let repo = DiagnosticPinRepository::new();
+        let fork = repo.commit(&[("shared.md", Some("shared\n"))]);
+        let left = repo.commit(&[("left.md", Some("left\n"))]);
+        git(&repo.root, &["checkout", "--quiet", "--detach", &fork]).unwrap();
+        let right = repo.commit(&[("right.md", Some("right\n"))]);
+        let tree = git(&repo.root, &["rev-parse", "HEAD^{tree}"]).unwrap();
+        let cross = |first: &str, second: &str| {
+            git(
+                &repo.root,
+                &[
+                    "commit-tree",
+                    tree.trim(),
+                    "-p",
+                    first,
+                    "-p",
+                    second,
+                    "-m",
+                    "cross merge",
+                ],
+            )
+            .unwrap()
+            .trim()
+            .to_owned()
+        };
+        let main = cross(&left, &right);
+        let topic = cross(&right, &left);
+        git(
+            &repo.root,
+            &["update-ref", "refs/remotes/origin/main", &main],
+        )
+        .unwrap();
+        git(&repo.root, &["checkout", "--quiet", "--detach", &topic]).unwrap();
+        assert_eq!(
+            git(&repo.root, &["merge-base", "--all", "origin/main", "HEAD"])
+                .unwrap()
+                .lines()
+                .count(),
+            2
+        );
+        assert!(pr_diff_base(&repo.root, Some("origin/main")).is_err());
+        assert_eq!(pr_diff_base(&repo.root, Some(&left)).unwrap(), left);
     }
 
     #[test]

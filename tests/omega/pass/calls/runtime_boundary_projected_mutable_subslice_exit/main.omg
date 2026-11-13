@@ -1,6 +1,6 @@
 // The same dynamic record-field view is passed through a named boundary
 // provider and an ordinary call. Prefix/suffix sentinels retain disjoint bytes.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public boundary trait Fill { machine fill(bytes: &mut [u8], value: u8) reaches; }
 FillProvider satisfies Fill { machine fill(bytes: &mut [u8], value: u8) { fill_realization(bytes, value) } }

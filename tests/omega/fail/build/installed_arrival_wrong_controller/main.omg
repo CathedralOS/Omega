@@ -1,21 +1,45 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Descriptor facts retain the Cathedral port of Philipp Oppermann (2017).
 // Native admission control only: no installation assumptions and no runtime claim.
-use omega::language::core::assembly_model;
-use omega::language::core::interrupt;
-use omega::language::core::FieldEntry;
-use omega::language::core::FieldPlan;
-use omega::language::core::FixedLayout;
-use omega::language::core::LayoutPlan;
-use omega::language::core::LayoutPlan::place_private;
-use omega::language::core::LayoutStorage;
-use omega::language::core::LayoutTarget;
-use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::port_written;
+use omega::language::core::InterruptAcknowledgement;
+use omega::language::core::InterruptAcknowledgement::Pending;
+use omega::language::core::InterruptEntry;
+use omega::language::core::InterruptAcknowledgementCompletion;
 use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 use omega::language::core::OpaqueRepresentation;
-use omega::language::core::static_interrupt;
-use omega::language::core::task_register;
-use std::calling;
+use omega::language::core::StaticInterruptTableValidation;
+use omega::language::core::StaticInterruptWork;
+use omega::language::core::StaticInterruptStack;
+use omega::language::core::StaticInterruptFrame;
+use omega::language::core::StaticInterruptArrival;
+use omega::language::core::X86StaticInterruptScope;
+use omega::language::core::X86StaticInterruptScope::run;
+use omega::language::core::complete_installed_interrupt;
+use omega::language::core::TaskRegisterControl;
+use std::AbiValueClass;
+use std::AbiValueShape;
+use std::BoundarySignature;
+use std::MachineRegister;
+use std::ValueLocation;
+use std::CallingConvention;
+use std::EntryControl;
+use std::MachineRegime;
+use std::EntryStack;
+use std::Preemption;
+use std::BoundaryEntryPlan;
+use std::CallingPolicyRejection;
+use std::BoundaryPlanResult;
+use std::CallingPolicy;
+use std::Calling;
 
 public data TaskStateSegment [copy] { reserved_1: u32; privilege_stack_table: [u64; 3]; reserved_2: u64; interrupt_stack_table: [u64; 7]; reserved_3: u64; reserved_4: u16; iomap_base: u16; }
 

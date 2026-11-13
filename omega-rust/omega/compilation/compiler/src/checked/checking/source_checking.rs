@@ -41,6 +41,8 @@ pub(crate) fn check_product_source(
         .map(|file| file.source_id);
     let layout_scopes = layout_target_scopes(&typed, build)?;
     let external_roots = build.program_roots();
+    let bindings =
+        provider_planning::program_entry::bound_program_entry_shapes(&typed, &build.root_bindings)?;
     // Validation subjects: the root package is checked in full; a dependency
     // only where the root package or one of the Build's selections reaches it
     // (`PackageCompilationInputs::is_validation_subject`).
@@ -48,6 +50,16 @@ pub(crate) fn check_product_source(
         root_package: package_inputs.map(PackageCompilationInputs::root),
     };
     let mut demanded = external_roots.clone();
+    // Binding signatures are source dependencies even when the visible
+    // projection has no arguments. Retain their metadata without turning the
+    // semantic schema into another executable root or importing its effects.
+    demanded.extend(bindings.iter().flat_map(|binding| {
+        [
+            binding.semantic_schema_symbol,
+            binding.requirement_symbol,
+            binding.implementation,
+        ]
+    }));
     // The target realization table supplies canonical float operations, so,
     // as for the Build activation, the sealed catalog map and its public
     // requirements stay whether or not the program names them.
@@ -208,6 +220,7 @@ pub(crate) fn check_product_source(
         entries: &external_roots,
         subject,
         selected: &selected,
+        bindings: &bindings,
     };
     let mut judged = None;
     let mut route = None;
@@ -260,6 +273,7 @@ pub(crate) fn check_product_source(
             entries: external_roots.clone(),
             subject,
             selected,
+            bindings,
         });
     }
     let outcome = outcome?;

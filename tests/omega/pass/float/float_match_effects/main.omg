@@ -2,7 +2,6 @@
 // left-to-right — the subject runs once, each pattern runs until the
 // first hit; `calls` counts 1 subject + 2 pattern evaluations; an
 // unselected arm never evaluates `divide(0)`.
-use omega::language::core::float_operations;
 
 machine divide(value: i64) -> i64 {
     let numerator: i64 in Trapping = 7;

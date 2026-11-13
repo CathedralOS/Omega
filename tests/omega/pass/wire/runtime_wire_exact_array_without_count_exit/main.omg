@@ -1,4 +1,9 @@
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::packed_field;
 use omega::language::core::reflect;
 // A fixed array contributes exactly N repeated elements. No synthetic
 // `<name>_count` sibling is required or consulted: the schema's static
@@ -12,7 +17,7 @@ use omega::language::core::reflect;
 //     1..4         -> 0x01 0x02 0x03 0x04
 // written = 7.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Telemetry {
     #0 readings: [u32; 4];

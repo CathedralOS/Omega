@@ -1,7 +1,13 @@
 // Library C layout preserves explicit child representation values, geometry and alias identity across transport.
 // Expected exit: 0
-use omega::language::core::layout;
-use omega::language::core::c_layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+use omega::language::core::CLayout;
 
 data Payload [copy] { first: u8; second: u64; last: u16; }
 Spread satisfies FixedLayout<Payload> {

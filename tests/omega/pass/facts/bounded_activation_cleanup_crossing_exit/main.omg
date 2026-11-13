@@ -42,7 +42,12 @@ machine drop_room(room: &mut Room) reaches Console { emit(); }
 // Expected exit: 0
 // Commit three bytes under bound eight, write/read the committed region,
 // release it, and observe checked rejection of a request for nine bytes.
-use omega::language::core::activation;
+use omega::language::core::Activation;
+use omega::language::core::ActivationClaim;
+use omega::language::core::ActivationClaimAttempt;
+use omega::language::core::Activation::try_claim;
+use omega::language::core::ActivationClaim::bytes;
+use omega::language::core::ActivationClaim::release;
 
 machine write_read(bytes: &mut [u8]) -> u8 {
     transition bytes.len >= 3 {

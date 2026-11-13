@@ -1,5 +1,4 @@
-use omega::language::core::process_exit;
-use omega_language_std::process_exit;
+use omega::language::core::ProcessExit;
 
 // The `via` sibling of `checked_boundary_requirement_*`: public boundary-trait
 // requirements whose unique covering satisfiers are external leaves.

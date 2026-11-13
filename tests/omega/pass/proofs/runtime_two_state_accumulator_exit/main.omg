@@ -1,5 +1,5 @@
 // Two-state variant: descend(3, 9) still returns 1 and Main exits 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

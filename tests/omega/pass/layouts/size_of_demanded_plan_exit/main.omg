@@ -1,7 +1,13 @@
 // Expected exit: 0
 // A size query demands and validates the selected layout without a stored instance.
-use omega::language::core::layout;
-use omega_language_std::console;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+use omega_language_std::Console;
 
 CompactBits satisfies FixedLayout<Flags> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan

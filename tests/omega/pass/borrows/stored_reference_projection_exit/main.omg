@@ -1,5 +1,5 @@
 // A nested reference carrier preserves its backing across unrelated computation.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell { value: i32; }
 data Message { body: &Cell; }

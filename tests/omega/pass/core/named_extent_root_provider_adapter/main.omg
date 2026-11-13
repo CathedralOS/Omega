@@ -1,4 +1,6 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::ExtentRootProvider;
 
 // Named ownership and an attached exact edge owe the same requirement.
 // The adapter returns geometry; only the admitted boundary grants authority.

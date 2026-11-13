@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // RUN CANARY (exit 70) + interpreter differential. A mutable alias between
 // established typed records may retain facts when both layouts have identical
@@ -7,7 +6,7 @@ use omega::language::core::float_operations;
 // `0..=2` store the same bits in `i16` and `u16`, and both ratios share the
 // `f32` carrier and interval. The field names deliberately differ:
 // representation, not nominal spelling, owns the judgment.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data SignedRecord
 requires

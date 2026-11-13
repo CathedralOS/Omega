@@ -3,7 +3,7 @@
 // write goes through a `&mut [u8]` byte view and one through a `&mut [u32]`
 // element view; `text/runtime_number_to_decimal_exit` covers a bounded byte
 // field.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { bytes: [u8; 4]; words: [u32; 4]; }
 

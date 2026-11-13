@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // An Exact `as f64` inside a nested machine is proved from what its one
 // caller guaranteed. An integer converts exactly when it is `m * 2^e` with

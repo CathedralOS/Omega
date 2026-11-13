@@ -1,6 +1,6 @@
 // A constructor consumes an ordinary array value, not just literal syntax.
 // Its field observations must retain the supplied element order and values.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Packet { samples: [i32; 2]; }
 data Main { packet: Packet; }

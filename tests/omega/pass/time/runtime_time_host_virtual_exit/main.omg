@@ -6,9 +6,9 @@
 // GetSystemTimePreciseAsFileTime; native canaries then assert inequalities,
 // not exact values).
 // Expected exit: 70.
-use omega_language_std::time_host;
+use omega_language_std::TimeHost;
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     second_ticks: u64;

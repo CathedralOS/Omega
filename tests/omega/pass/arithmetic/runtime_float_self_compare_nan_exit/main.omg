@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // The canonical isNaN idiom: `f != f` is TRUE exactly when f is NaN (IEEE),
 // and `f == f` is FALSE. This was silently miscompiled by the untyped
@@ -6,7 +5,7 @@ use omega::language::core::float_operations;
 // TYPE-GATED (2026-07-02): float self-compares now lower to the real
 // ucomis* runtime compare, whose NaN parity handling the sibling canary
 // runtime_float_nan_comparison_exit pins for distinct operands.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main {
     f: f64;
 }

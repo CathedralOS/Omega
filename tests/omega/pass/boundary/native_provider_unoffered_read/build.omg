@@ -1,4 +1,5 @@
-use omega::language::core::external_binding;
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
 machine build(builder: &mut Build) {
     Build::application(builder, "native_provider_unoffered_read");
     Build::bind<Probe::read>(builder, linux_x86_64,

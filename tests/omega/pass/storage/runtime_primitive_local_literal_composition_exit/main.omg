@@ -1,5 +1,5 @@
 // A primitive local and a byte literal retain distinct storage in one function.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine measure() -> u64 {
     let mut count: u64 = 1;

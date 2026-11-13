@@ -1,5 +1,6 @@
 // Expected exit: 0. Substituted guarantees keep distinct formal scopes.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 use omega::language::core::drop;
 data Units {}
 const FirstExpected: u64 = 29;

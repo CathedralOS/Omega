@@ -3,7 +3,7 @@
 // `add` pair reaches on AArch64, so the address offset continues in page
 // steps from the destination register. Exits 70 when the byte written through
 // `Big::fill` reads back through `main.big`.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Big {
     bytes: [u8; 33554432] in Trapping;

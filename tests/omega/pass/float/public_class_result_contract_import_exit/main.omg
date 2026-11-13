@@ -1,4 +1,5 @@
-use omega::language::core::float_operations;
+use omega::language::core::FloatClass;
+use omega::language::core::F32::classify;
 machine category(value: f32) -> FloatClass
 ensures result == F32::classify(value) {
     F32::classify(value)

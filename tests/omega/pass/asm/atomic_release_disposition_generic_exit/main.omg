@@ -1,5 +1,5 @@
 // Expected exit: 0. One release store completes one exact linear claim.
-use omega::language::core::assembly_model;
+use omega::language::core::atomic_release_written;
 data Cell { value: AtomicU32; }
 data Ack<Value> [linear] { nonce: Value; }
 boundary trait Completion {

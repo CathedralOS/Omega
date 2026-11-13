@@ -2,7 +2,9 @@
 // receives those existing views and carries their descriptor identity from
 // requires to ensures; it does not replay a reference-bearing call.
 
-use omega::language::core::seq;
+use omega::language::core::Seq;
+use omega::language::core::BagView;
+use omega::language::core::Bag;
 
 machine bag_equality_carries(before: BagView, items: BagView)
 requires

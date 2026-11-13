@@ -1,7 +1,7 @@
 // A local mutable slice retains its local record backing across a state handoff.
 // The successor mutates the original first element and observes the write.
 // Exit 70 pins the descriptor, backing storage and exclusive-loan transfer.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Counter { n: i32 in Wrapping; }
 data Room { exits: [Counter; 2]; }
 data Main { }

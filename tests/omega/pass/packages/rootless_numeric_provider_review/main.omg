@@ -1,6 +1,7 @@
 // A reusable numeric library has no ProgramEntry. Review must retain supplied
 // external declarations even when no call selects their implementation.
-use omega::language::core::float_operations;
+use omega::language::core::F32::negate;
+use omega::language::core::F32::is_nan;
 
 public trait NumericProviderMember {
     machine native_negate(value: f32) -> f32;

@@ -1,5 +1,11 @@
-use omega::language::core::external_binding;
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::IntegerInterpretation;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // A plan-laid record recasts to its exact byte-shaped foreign ABI:
 // `value as &mut ForeignByte` hands `&mut SignedByte<PortableByte>` storage
 // to the `i8` view `bzero`/`memcmp` consume — `reaches A + B` unions both

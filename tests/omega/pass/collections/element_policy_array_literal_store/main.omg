@@ -27,7 +27,7 @@
 //
 // Local record-field observations have their own native regression at
 // `tests/omega/pass/structs/runtime_local_record_policy_exit`.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     row: [i32 in Wrapping; 3];

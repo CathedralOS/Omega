@@ -1,7 +1,16 @@
 // Expected exit: 0
 // Independent zigzag words include both signed extrema. Blob reads preserve
 // exact content and input loans; truncation and impossible lengths reject.
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::UnsignedRead;
+use omega::language::core::CompactBinary::read_unsigned;
+use omega::language::core::SignedRead;
+use omega::language::core::CompactBinary::write_signed;
+use omega::language::core::CompactBinary::read_signed;
+use omega::language::core::BlobRead;
+use omega::language::core::CompactBinary::write_blob;
+use omega::language::core::CompactBinary::read_blob;
 
 machine signed_back(bytes: &[u8], original: i64, size: u64) -> bool {
     transition CompactBinary::read_signed(bytes, 0u64) {

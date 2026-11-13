@@ -1,7 +1,7 @@
 // An owned affine record travels around a ranked state cycle and is disposed
 // at the exit state. Each edge transfers the whole record; no state keeps a
 // second copy.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Token { id: u32; }
 data Main { }

@@ -1,6 +1,7 @@
 // Expected exit: 0. Reusing register names copies plan metadata; it does not
 // remove a clobber entry or make a placement an alias of the clobber array.
-use omega_language_std::calling;
+use omega_language_std::MachineRegister;
+use omega_language_std::BoundaryEntryPlan;
 
 machine xmm_index(register: MachineRegister) -> u64 {
     transition register {

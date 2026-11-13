@@ -8,7 +8,24 @@
 // Exit 0 when every result holds; a wrong result executes `crash Trap;`.
 // `main` takes no arguments and reaches no service, so the Terminal
 // interpreter runs the same program beside the native product.
-use omega::language::core::numeric_conversion;
+use omega::language::core::widen_u8_to_u16;
+use omega::language::core::widen_u8_to_u32;
+use omega::language::core::widen_u8_to_u64;
+use omega::language::core::widen_u16_to_u32;
+use omega::language::core::widen_u16_to_u64;
+use omega::language::core::widen_u32_to_u64;
+use omega::language::core::widen_i8_to_i16;
+use omega::language::core::widen_i8_to_i32;
+use omega::language::core::widen_i8_to_i64;
+use omega::language::core::widen_i16_to_i32;
+use omega::language::core::widen_i16_to_i64;
+use omega::language::core::widen_i32_to_i64;
+use omega::language::core::widen_u8_to_i16;
+use omega::language::core::widen_u8_to_i32;
+use omega::language::core::widen_u8_to_i64;
+use omega::language::core::widen_u16_to_i32;
+use omega::language::core::widen_u16_to_i64;
+use omega::language::core::widen_u32_to_i64;
 
 data Inputs {
     max_u8: u8;

@@ -8,7 +8,7 @@
 // pong additionally witnesses a conditional value pair — `When -> (expr)`
 // beside the `Always -> (expr)` fallback on one transition.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Msg {
     case Ping(x: i32);

@@ -1,4 +1,11 @@
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::IntegerInterpretation;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // Expected exit: 0. A typed-cell re-view composes its signed byte encoding
 // with the unsigned observation, rather than narrowing the logical i64 directly.
 

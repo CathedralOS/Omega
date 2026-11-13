@@ -1,9 +1,15 @@
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // Layout relevance: `proof` remains a semantic field of Certified but is
 // absent from reflected Schema and physical placement. The policy therefore
 // sees two fields and places `right` at byte 16. Interpreter and native reads
 // must agree after a whole-value copy.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Spread16State { index: u64 in Wrapping; }
 machine Spread16State::make_plan(spread16: &mut Spread16State, schema: Schema) -> LayoutPlan {

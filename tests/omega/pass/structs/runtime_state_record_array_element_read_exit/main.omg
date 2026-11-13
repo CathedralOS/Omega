@@ -6,7 +6,7 @@
 // observe the caller's stores; the runtime selector keeps its bound as the
 // state's arrival requirement. Exits 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Samples {
     items: [i32; 4];

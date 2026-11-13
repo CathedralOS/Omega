@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell [copy] { value: u64; stamp: u64; }
 data Main { cells: [Cell; 9]; }

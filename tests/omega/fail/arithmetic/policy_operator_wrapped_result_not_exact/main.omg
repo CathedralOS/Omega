@@ -1,7 +1,7 @@
 // Twin of `regained` in run/arithmetic/policy_operator_exact_result_fact
 // with `+%` and `+|` in place of `+!`. A wrapped or clamped sum can differ
 // from `left + right`, so nothing proves that `sum - left` fits `u64`.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine regained_wrapped(left: u64, right: u64) -> u64 {

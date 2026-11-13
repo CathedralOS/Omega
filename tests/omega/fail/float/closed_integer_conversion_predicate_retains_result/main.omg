@@ -1,4 +1,5 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::from_i32;
+use omega::language::core::F32::is_infinite;
 
 machine infinite_value(value: f32)
 requires F32::is_infinite(value) {}

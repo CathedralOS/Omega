@@ -1,4 +1,5 @@
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 machine false_length(storage: Extent in Granted) -> Extent
 requires storage.length == 4096
 ensures result in Granted, result.length == 1 {

@@ -5,7 +5,7 @@
 // exhaustive, so no `_` arm is needed. Each value is checked at run time.
 // fail/control_flow/single_case_guarded_arm_nonexhaustive pins that guarded
 // arms alone never cover their case.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain i32::Step requires 0 <= self && self <= 60;
 

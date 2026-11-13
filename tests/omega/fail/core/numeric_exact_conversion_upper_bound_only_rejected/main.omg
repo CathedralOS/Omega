@@ -2,8 +2,8 @@
 // satisfies it too. `narrow_i32_to_u8_exact` also requires `value >= 0`, so
 // this call rejects; an upper bound alone does not make a signed value fit
 // an unsigned carrier.
-use omega::language::core::numeric_conversion;
-use omega_language_std::console;
+use omega::language::core::narrow_i32_to_u8_exact;
+use omega_language_std::Console;
 
 machine narrow(value: i32) -> u8
 requires

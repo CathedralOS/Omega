@@ -6,7 +6,7 @@
 // an element leaf below a field, a record element whose field is read, a
 // Boolean element below a record element, and the same reads in a later
 // state. Any wrong element or skipped evaluation exits 71.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Row [copy] { v: i32; flags: [bool; 2]; }
 data Inner [copy] { bytes: [u8; 4]; }

@@ -1,5 +1,5 @@
 // Shared borrow of a record referent returned at a transition tail.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Node {
     value: i32;

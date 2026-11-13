@@ -9,7 +9,7 @@
 //
 // 40 + 30 = 70, exit 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main requires 0 <= x, x <= 100, 0 <= y, y <= 100 {
     x: i32;

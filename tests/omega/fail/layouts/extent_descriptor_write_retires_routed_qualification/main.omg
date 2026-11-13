@@ -1,6 +1,7 @@
 // A descriptor write through an alias is not an external-content write.
 // Its prior routed qualification cannot justify this normal-return guarantee.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 
 domain Extent::Registered established by register;
 

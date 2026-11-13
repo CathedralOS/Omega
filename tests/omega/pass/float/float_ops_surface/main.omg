@@ -1,7 +1,6 @@
 // `use omega::language::core::float_operations` makes primitive f32/f64
 // spellings resolve to named Float requirements: `+ - * /` arithmetic
 // and `== != <` comparisons both participate; field stores carry f32.
-use omega::language::core::float_operations;
 
 data Main {
     left32: f32; right32: f32; sum32: f32; quotient32: f32;

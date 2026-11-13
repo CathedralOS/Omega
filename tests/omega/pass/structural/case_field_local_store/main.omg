@@ -6,7 +6,7 @@
 // pair on the established home. Previously the checked side declined every
 // root that was not a parameter, so the machine was omitted outright
 // ("Unit structural case field store has no lowered operation").
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Fmt [copy] {
     case Decimal;

@@ -1,8 +1,14 @@
 // Basic identity laws for recursive Nat values. The clauses below cover
 // reflexivity, symmetry, transitivity and constructor injectivity. Later
 // examples explicitly cite the core arithmetic laws they consume.
-use omega::language::core::nat;
-use omega_language_std::console;
+use omega::language::core::Nat;
+use omega::language::core::add;
+use omega::language::core::mul;
+use omega::language::core::add_zero_right;
+use omega::language::core::add_comm;
+use omega::language::core::add_assoc;
+use omega::language::core::mul_comm;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console { Console::exit_process(70); }
 machine nat_refl(a: Nat)

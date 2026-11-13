@@ -2,7 +2,6 @@
 // cannot observe `level` while the exclusive loan `raised` is still live:
 // `raised` is used after the comparison. The integer, call-operand and other
 // read positions are `read_positions_during_live_exclusive_loan`.
-use omega::language::core::float_operations;
 
 machine float_comparison_operand() -> bool {
     let mut level: f32 = 1.0;

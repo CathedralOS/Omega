@@ -2,7 +2,7 @@
 // `%` wraps, `|` saturates and `!` traps. The operands and the result stay
 // plain integers, so nothing here carries a policy domain except the
 // comparison values each machine builds to show the two spellings agree.
-use omega_language_std::console;
+use omega_language_std::Console;
 const STEP: u32 = 4000000000;
 // A constant computed by a machine makes the compiler check a projection of
 // this program that leaves out the machines below; their suffixed operators

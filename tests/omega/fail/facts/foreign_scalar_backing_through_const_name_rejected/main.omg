@@ -1,6 +1,5 @@
 // A shared inline scalar-field loan exports its original backing through the thin foreign ABI without changing adjacent fields.
 // Expected exit: 0
-use omega::language::core::external_binding;
 const WORD: u32 = 172180033;
 const INITIAL: Cell = Cell { prefix: 1650614882, word: WORD, suffix: 1684300900 };
 data Cell [copy] { prefix: u32; word: u32; suffix: u32; }

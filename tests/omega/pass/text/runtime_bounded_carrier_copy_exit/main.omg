@@ -3,7 +3,7 @@ domain [u8]::Utf8 requires valid_utf8(self);
 // Shorter and empty replacements publish their own live length. Copies preserve
 // the source and unrelated sibling storage; successful execution prints the
 // actual concatenated field rather than an unrelated constant.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8; 32]::Utf8
 requires

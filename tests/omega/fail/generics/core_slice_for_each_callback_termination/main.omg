@@ -1,4 +1,5 @@
-use omega::language::core::iteration;
+use omega::language::core::ElementStep;
+use omega::language::core::for_each;
 
 data Item { value: u32; }
 

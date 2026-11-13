@@ -4,7 +4,7 @@
 // `screen.banner`, and the local is still whole for the read that follows.
 // Exits 70 only when the projected loan updated the caller's field.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Banner { width: i32 in Wrapping; }
 data Screen { banner: Banner; height: i32 in Wrapping; }

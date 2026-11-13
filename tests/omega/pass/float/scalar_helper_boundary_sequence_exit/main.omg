@@ -1,8 +1,8 @@
 // A scalar helper sequences ordinary calls, locals and boundary operations.
 // Its result returns to an ordinary caller; no helper name or source pattern
 // grants the floating-point applications a checked body.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::from_i32;
+use omega_language_std::Console;
 
 machine marker(value: i32) -> i32 { value }
 

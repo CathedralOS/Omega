@@ -1,9 +1,16 @@
 // Expected exit: 70 (Windows only). Select an owned UTF-8 name and native
 // attributes, distinguish exhaustion from errors, and skip dot entries.
 // Each phase has one child, so no enumeration-order or snapshot is assumed.
-use omega_language_std::windows_filesystem_host;
-use omega_language_std::console;
-use omega::language::core::filesystem_authority;
+use omega_language_std::WindowsDirectoryEntry;
+use omega_language_std::WindowsDirectoryEntryResult;
+use omega_language_std::WindowsFilesystemHost;
+use omega_language_std::Console;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 
 data Main { handle: u64; }
 

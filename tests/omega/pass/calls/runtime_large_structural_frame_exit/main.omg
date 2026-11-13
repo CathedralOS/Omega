@@ -1,6 +1,6 @@
 // Preserve both ends of a large local across a by-value call, then carry
 // its observed result through a separate record factory and borrowed call.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Buffer { values: [i32; 8192]; marker: i32; }
 data Ticket { code: i32; }

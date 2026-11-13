@@ -2,7 +2,12 @@
 // Expected exit: 0
 // Place: target_body.
 
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::scalar_field;
 use omega::language::core::reflect;
 
 data Value { #0 value: u64; }

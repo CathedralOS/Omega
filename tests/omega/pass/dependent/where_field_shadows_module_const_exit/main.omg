@@ -4,7 +4,7 @@
 // constant would make the fact `99 <= 5`, which no construction satisfies.
 // The facts prove `found`'s arrival contract, and the state body's bare
 // `value` still selects the constant. Exit 3 + 4 = 7.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 const value: u64 = 99;
 

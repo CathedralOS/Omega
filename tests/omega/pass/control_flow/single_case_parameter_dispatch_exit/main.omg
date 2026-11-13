@@ -5,7 +5,7 @@
 // sum wider than the register ABI is observed through the address of its
 // argument copy. The case edge still loads every payload it binds.
 // Exits 70 when 30 + 30 + 10 arrive.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Only [copy] {
     case Sole;

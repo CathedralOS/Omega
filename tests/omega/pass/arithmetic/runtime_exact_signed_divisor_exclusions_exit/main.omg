@@ -1,5 +1,5 @@
 // Signed exclusions permit either sign, without selecting an interval branch.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { numerator: i32; divisor: i32; }
 

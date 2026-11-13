@@ -2,7 +2,16 @@
 // Expected exit: 0
 // The parent bound is 16 and its committed prefix is 8. The cut at bound 8
 // and committed 4 covers that claim. Another machine writes and reads the byte.
-use omega::language::core::activation;
+use omega::language::core::Activation;
+use omega::language::core::ActivationClaim;
+use omega::language::core::ActivationClaimAttempt;
+use omega::language::core::Activation::try_claim;
+use omega::language::core::ActivationClaim::bytes;
+use omega::language::core::ActivationClaim::release;
+use omega::language::core::ActivationClaimSplit;
+use omega::language::core::ActivationClaim::split;
+use omega::language::core::ActivationClaimMerge;
+use omega::language::core::ActivationClaim::merge;
 
 data Divider {}
 

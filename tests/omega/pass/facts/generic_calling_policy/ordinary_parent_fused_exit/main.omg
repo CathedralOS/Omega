@@ -1,19 +1,19 @@
 // Expected exit: 0
 // Ordinary inherited requirements may run fused; requesting a physical component ABI must refuse their non-boundary owner.
 use omega_language_std::AbiValueClass;
-use omega_language_std::BoundaryEntryPlan;
-use omega_language_std::BoundaryPlanResult;
 use omega_language_std::BoundarySignature;
-use omega_language_std::Calling;
-use omega_language_std::CallingConvention;
-use omega_language_std::CallingPolicy;
-use omega_language_std::CallingPolicyRejection;
-use omega_language_std::EntryControl;
-use omega_language_std::EntryStack;
-use omega_language_std::MachineRegime;
 use omega_language_std::MachineRegister;
-use omega_language_std::Preemption;
 use omega_language_std::ValueLocation;
+use omega_language_std::CallingConvention;
+use omega_language_std::EntryControl;
+use omega_language_std::MachineRegime;
+use omega_language_std::EntryStack;
+use omega_language_std::Preemption;
+use omega_language_std::BoundaryEntryPlan;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::CallingPolicy;
+use omega_language_std::Calling;
 public data Box<Element> { value: Element; }
 boundary trait ValuePlan {
     machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult reaches;

@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 
 // Twin of pass/domains/float_conversion_qualification_transport_exit: the
 // returned and passed conversions are qualified into `Positive`, which their

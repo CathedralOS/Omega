@@ -7,9 +7,22 @@ module isa::x86_64::interrupts::entry;
 // provisioned stack before the existing PIC/PIT operations can make it live.
 
 use facts::x86_interrupt_stacks;
-use omega::language::core::interrupt;
-use omega::language::core::representation;
-use std::calling;
+use omega::language::core::InterruptAcknowledgement;
+use omega::language::core::InterruptEntry;
+use omega::language::core::OpaqueRepresentation;
+use std::AbiValueClass;
+use std::BoundarySignature;
+use std::ValueLocation;
+use std::CallingConvention;
+use std::EntryControl;
+use std::MachineRegime;
+use std::EntryStack;
+use std::Preemption;
+use std::BoundaryEntryPlan;
+use std::CallingPolicyRejection;
+use std::BoundaryPlanResult;
+use std::CallingPolicy;
+use std::Calling;
 
 // Installation carries the identity of one pending interrupt in five words.
 // Selecting this representation only fixes storage; it cannot construct an

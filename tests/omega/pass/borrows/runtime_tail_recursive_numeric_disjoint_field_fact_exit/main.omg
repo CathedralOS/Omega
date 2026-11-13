@@ -1,6 +1,7 @@
 // Expected exit: 0.
 // A complete recursive scratch-write frame must preserve the sibling bound.
-use omega::language::core::float_operations;
+use omega::language::core::F64::square_root;
+use omega::language::core::F64::from_u64;
 data Work { count: u64; scratch: f64; }
 machine main() crashes Trap {
     let mut work: Work;

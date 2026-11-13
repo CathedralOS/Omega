@@ -3,7 +3,7 @@
 // The remaining provider calls an ordinary boundary dependency; that is not
 // an absent target body and still closes through normal provider selection.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 boundary trait Value {
     machine read() -> i32 reaches;

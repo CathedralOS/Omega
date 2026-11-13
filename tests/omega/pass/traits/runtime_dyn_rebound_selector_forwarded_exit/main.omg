@@ -2,7 +2,7 @@
 // that dispatches through it. Only the latest selection reaches the helper;
 // the item is passed separately and is not captured by either selection.
 // Primary would report 99; Bumped reports 99 + 1 == 100 -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Shape<T> {
     machine code(subject: &T) -> i32;

@@ -1,4 +1,6 @@
-use omega::language::core::task;
+use omega::language::core::Task;
+use omega::language::core::TaskOutcome;
+use omega::language::core::TaskLifecycle;
 use omega::language::core::drop;
 
 // TR4 lifecycle conservation: the checked helper operations call the borrow

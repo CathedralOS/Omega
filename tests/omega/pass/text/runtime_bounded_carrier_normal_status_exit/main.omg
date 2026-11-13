@@ -1,6 +1,6 @@
 // Explicit owners preserve each declared capacity and carry the live byte count.
 // Accessors validate the actual prefix; copies and joins preserve the authored result.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8]::Utf8
 requires

@@ -1,6 +1,6 @@
 // Application binders can occur only inside a compound argument. They do not
 // become invocation binders, and the member's separate telescope still matches.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public trait Readable<Field> {
     machine read<Value>(field: &Field, value: Value) -> Value;

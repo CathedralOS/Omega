@@ -16,7 +16,7 @@
 // `level * 10`. Element 1 holds 70 in `hp`, and its neighbours hold 5 and 9,
 // so reading the wrong field, element or stride cannot produce 70; an
 // exhausted scan exits 1. Element 2's level -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell requires level <= 9 {
     hp: i32;

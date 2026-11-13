@@ -2,7 +2,6 @@
 // A field of an affine record is one owner. The record may arrive through a
 // local bound to a call, a parameter, a direct call result, or a nested field,
 // and the carrier may be an f64 record or an i32 record.
-use omega::language::core::float_operations;
 
 data Precise { high: f64; low: f64; }
 data Holder { value: Precise; }

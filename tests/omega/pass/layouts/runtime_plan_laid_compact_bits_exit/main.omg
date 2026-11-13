@@ -1,9 +1,15 @@
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 // A plan-laid owned value whose three logical fields share one byte. The
 // `code` field is itself split across two fragments. Ordinary field writes
 // must use masked RMW so later writes preserve siblings; reads must reconstruct
 // the logical scalar from every fragment. Exit 70 pins both behaviors.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 
 CompactBits satisfies FixedLayout<PackedFlags> {

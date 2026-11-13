@@ -9,8 +9,7 @@
 //   10 / 3      -> 3.3333333333333335 (truncation gives 3.333333333333333)
 // and the binary32 analogues with 2^-23 in place of 2^-52. Operands are field
 // reads so each operation executes at run time.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     one64: f64;

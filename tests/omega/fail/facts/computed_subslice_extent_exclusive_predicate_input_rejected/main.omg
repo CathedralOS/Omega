@@ -1,5 +1,4 @@
 // Forbidden input or result authority does not become a repeatable value.
-use omega::language::core::slice;
 machine accepts(items: &mut [u8]) -> bool { items.len == 2 }
 machine inspect(items: &mut [u8])
 requires accepts(items) == true

@@ -1,5 +1,17 @@
-use omega::language::core::numeric_conversion;
-use omega_language_std::console;
+use omega::language::core::narrow_u8_to_i8_exact;
+use omega::language::core::narrow_u8_to_i8_wrapping;
+use omega::language::core::narrow_u16_to_i8_saturating;
+use omega::language::core::widen_u16_to_i32;
+use omega::language::core::narrow_u32_to_i32_trapping;
+use omega::language::core::narrow_u64_to_i64_exact;
+use omega::language::core::narrow_u64_to_i64_saturating;
+use omega::language::core::narrow_i8_to_u64_wrapping;
+use omega::language::core::narrow_i16_to_u8_exact;
+use omega::language::core::narrow_i16_to_u8_wrapping;
+use omega::language::core::narrow_i16_to_u8_saturating;
+use omega::language::core::narrow_i32_to_u32_trapping;
+use omega::language::core::narrow_i64_to_u64_exact;
+use omega_language_std::Console;
 
 data Main {
     unsigned_exact: i8;

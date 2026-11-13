@@ -2,8 +2,13 @@
 // F32/F64 boundary requirement, retains the exact selected target plan, and
 // only then redirects to the compiler's min/max/sqrt lowering.
 
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::square_root;
+use omega::language::core::F64::square_root;
+use omega::language::core::F32::minimum;
+use omega::language::core::F64::minimum;
+use omega::language::core::F32::maximum;
+use omega::language::core::F64::maximum;
+use omega_language_std::Console;
 
 data Main {
     min_nan_first32: f32;

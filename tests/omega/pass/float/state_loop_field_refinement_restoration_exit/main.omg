@@ -1,5 +1,4 @@
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main requires value >= 0.0 && value <= 1.0 { value: f32; }
 machine Main::fill(main: &mut Main) {
     transition { _ -> step(main, 0) }

@@ -4,8 +4,7 @@
 // store into the field keep the value, and an inclusive negative f64 endpoint
 // is an ordinary member. fail/float/float_range_field_store_outside_range
 // pins the store the exclusive endpoint refuses.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Ratio [copy]
 requires

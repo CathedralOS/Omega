@@ -1,5 +1,5 @@
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::Console;
+use omega::language::core::F32::from_f64;
 
 // Narrowing an f64 to f32 overflows to infinity for large inputs, so a
 // `-> f32 in Finite` result owes a proof at the return. Each machine narrows

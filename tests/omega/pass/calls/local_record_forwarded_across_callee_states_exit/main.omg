@@ -11,7 +11,7 @@
 // Exit 71: the scalar result is wrong. Exit 72: the record result is wrong.
 // Exit 73: the whole-record loan read the wrong field. Expected exit: 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally { hits: i32 in Wrapping; misses: i32 in Wrapping; }
 data Report { total: i32 in Wrapping; }

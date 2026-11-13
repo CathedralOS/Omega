@@ -1,6 +1,6 @@
 // Ordinary const requirements admit exactly capacities 1 through 64.
 // Two applications retain their separate layouts and writable array storage.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Buffer<const Capacity: u64> requires Capacity >= 1 && Capacity <= 64 {
     items: [i32; Capacity];

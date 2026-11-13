@@ -38,7 +38,6 @@
 // carried-loan machinery that would let `install_borrowed` thread the
 // `BorrowedMapping` carrier is upstream work, so the borrowed route keeps
 // its authority-only drivers for now.
-use omega::language::core::assembly;
 use cathedral::tables;
 use cathedral::hardware;
 use translation::Mapping;

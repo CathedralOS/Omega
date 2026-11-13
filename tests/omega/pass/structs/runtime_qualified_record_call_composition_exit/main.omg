@@ -1,6 +1,6 @@
 // A non-interval field domain survives nested calls and whole transfer.
 // The structural argument preceding value must not shift its scalar slot.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain i32::NotFive requires self != 5;
 data Marker [copy] { }

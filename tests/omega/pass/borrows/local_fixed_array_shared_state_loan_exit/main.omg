@@ -1,7 +1,7 @@
 // Shared fixed arrays lend their exact storage across a selected state edge.
 // Bytes use a bounded byte carrier; i32 arrays retain their element layout.
-use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega_language_std::Console;
+use omega::language::core::widen_u8_to_i32;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let bytes: [u8; 4] = "ABCD";

@@ -1,7 +1,12 @@
 // Expected exit: 0
 // Forty fields of five types are emitted in stable-number order by authored
 // typed traversal and the source library, independently of declaration order.
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::scalar_field;
 use omega::language::core::reflect;
 data FortyFields {
     #39 field_0: u8;

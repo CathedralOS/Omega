@@ -1,7 +1,6 @@
 // Invalid: the private `convert` gains a second arrival from the unguarded arm,
 // so `value == 3.0` no longer holds on every arrival and the Exact cast cannot
 // prove the operand integral.
-use omega::language::core::float_operations;
 
 machine guarded(value: f64) -> i32 {
     transition value == 3.0 { true -> convert(value) false -> convert(value) }

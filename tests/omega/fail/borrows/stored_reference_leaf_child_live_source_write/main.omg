@@ -1,5 +1,5 @@
 // The stored parent descriptor remains until its explicit child borrow ends.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell requires value >= 0 && value <= 100 { value: i32; ready: bool; }
 data Message { body: &mut Cell; stamp: i32; }

@@ -1,7 +1,13 @@
 // Must reject: an ordinary opaque machine cannot borrow the compiler
 // primitive's normal-completion contract by copying its result signature.
-use omega::language::core::extent;
-use omega::language::core::layout;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Resident;
+use omega::language::core::Extent::Granted;
+use omega::language::core::ResourceProfile;
+use omega::language::core::AccessOutcome;
+use omega::language::core::AccessReturn;
+use omega::language::core::AccessInitializationFailure;
 
 public data Policy {}
 public data Word { value: u64; }

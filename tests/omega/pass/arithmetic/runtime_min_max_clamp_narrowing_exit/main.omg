@@ -1,4 +1,5 @@
-use omega::language::core::math;
+use omega::language::core::min_i32;
+use omega::language::core::max_i32;
 
 // RUN canary (decision 17 S4 narrowing): min/max clamp narrowing lets a clamped
 // value feed EXACT arithmetic. `main.seed` is a full-range i32 (opaque). `max(_, 0)`
@@ -11,7 +12,7 @@ use omega::language::core::math;
 //
 // seed ZII (0): max(0,0)=0, min(0,60)=0, +70 -> 70 -> exit 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     seed: i32;

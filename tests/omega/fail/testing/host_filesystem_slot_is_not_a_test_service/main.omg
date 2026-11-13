@@ -3,7 +3,9 @@
 // portable `FilesystemService`. That slot is the host's own descriptor surface,
 // which the test runner does not back, so naming it cannot widen a test group
 // to the real filesystem; the build refuses before any test runs.
-use omega_language_std::filesystem;
+use omega_language_std::Filesystem;
+use omega_language_std::FilesystemService;
+use omega_language_std::Filesystem::exists;
 
 trait Tests {
     machine journal()

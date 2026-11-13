@@ -1,5 +1,5 @@
 // REFUSE: replacing a mutable shared descriptor does not move the prior store.
-use omega::language::core::assembly_model;
+use omega::language::core::atomic_release_written;
 data Cell { value: AtomicU64; }
 data Ack [linear] { nonce: u64; }
 boundary trait Completion {

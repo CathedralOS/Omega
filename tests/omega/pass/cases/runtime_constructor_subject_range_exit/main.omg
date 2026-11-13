@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // Completed u8 operands retain their 0..255 range when widened into
 // constructor fields selected by bare names or the exact logical subject.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i32_to_u8_wrapping;
 
 data ByteRead [copy]
     requires (self in ByteRead::Eof)

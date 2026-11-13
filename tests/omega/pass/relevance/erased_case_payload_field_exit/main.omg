@@ -5,7 +5,7 @@
 // erased payload took an ABI position, `value` would shift and the exit code
 // would change. Exit 70 = `value` observed as 70; 71 = wrong tag or a
 // payload-position slide.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Evidence { case Only; }
 data Certified {

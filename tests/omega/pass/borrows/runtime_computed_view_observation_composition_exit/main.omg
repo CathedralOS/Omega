@@ -1,6 +1,5 @@
 // Reborrows observe the returned descriptor, including after its source is
 // rebound. The contract uses a callee telescope unrelated to the caller's.
-use omega::language::core::slice;
 
 machine middle<Element>(items: &[Element], start: u64, end: u64) -> &[Element]
 requires start <= end && end <= items.len

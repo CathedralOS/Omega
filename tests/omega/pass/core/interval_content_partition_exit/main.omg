@@ -2,9 +2,10 @@
 // Expected exit: 0
 // These locally owned coordinates exercise conservation, not physical backing.
 // Region::Owned is not Extent::Granted and its drop hook releases no memory.
-use omega::language::core::content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Content;
 use omega::language::core::drop;
-use omega::language::core::nat;
+use omega::language::core::Nat;
 
 data Region [linear] dropped by drop_region { start: u64; end: u64; }
 machine drop_region(region: &mut Region) {}

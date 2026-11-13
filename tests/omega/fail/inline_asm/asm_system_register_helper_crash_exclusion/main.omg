@@ -1,4 +1,3 @@
-use omega::language::core::assembly;
 data Main { value: u64; }
 machine read_then_trap() -> u64 reaches MachineControl crashes Trap {
     let mut observed: u64 = 0;

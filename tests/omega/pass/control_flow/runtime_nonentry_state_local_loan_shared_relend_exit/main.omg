@@ -10,7 +10,7 @@
 //
 // exits: 70 = both chains read their writes back; 71 = the edge-ending
 // chain read the wrong count; 72 = the returning chain did.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Output { count: u64; accepted: bool; }
 data Parser { output: Output; cursor: u64; }

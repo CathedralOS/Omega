@@ -1,4 +1,4 @@
-use omega::language::core::process_exit;
+use omega::language::core::ProcessExit;
 data Token [linear] { value: i32; }
 machine returning() {}
 machine maybe_exit(exit: bool) reaches ProcessExit {

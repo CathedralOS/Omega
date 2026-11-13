@@ -1,6 +1,7 @@
 // Expected exit: 0
 // Independent Unicode boundary and malformed byte classes.
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::CompactBinary::valid_utf8;
 machine main() crashes Trap {
     let empty: [u8; 0] = [];
     let ascii: [u8; 3] = [0u8, 65u8, 127u8];

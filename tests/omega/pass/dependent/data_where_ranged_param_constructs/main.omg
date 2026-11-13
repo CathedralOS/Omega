@@ -6,7 +6,7 @@
 // local of that machine: a provisioned entry context must be valid at zero
 // (wiki/spec/build/entry_roots.md), so a gated record cannot be one of its
 // fields.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Player
 requires
     health >= 1,

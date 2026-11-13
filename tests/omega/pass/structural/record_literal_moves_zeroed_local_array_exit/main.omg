@@ -3,7 +3,7 @@
 // fill it. A record literal field then moves the whole array, the same way
 // it moves an initialized local or a parameter. Untouched elements keep
 // their zero establishment through the move.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data FieldEntry { key: u64; offset: u64; }
 data Plan { entries: [FieldEntry; 8]; entry_count: u64; }

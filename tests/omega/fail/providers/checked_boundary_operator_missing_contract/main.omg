@@ -1,6 +1,7 @@
 // A checked body is not an admitted leaf: it must prove the boundary
 // operator's public result contract before its ProviderPlan can be selected.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u16_to_u8_wrapping;
+use omega::language::core::narrow_u16_to_u8_saturating;
 
 data CheckedMath {}
 

@@ -3,7 +3,7 @@
 // `scan`, which forwards the view to `compare` twice. The local's storage must
 // outlive every state holding a view and die once where the last one leaves.
 // Exit 70 shows `compare` read what `prepare` wrote through both views.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Stream { values: [i32; 2]; count: u32; }
 data Context { }

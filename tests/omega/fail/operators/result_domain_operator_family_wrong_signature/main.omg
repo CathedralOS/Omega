@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::I8::from_f32;
 
 machine wrong(value: f32) -> bool
 satisfies I8::from_f32 {

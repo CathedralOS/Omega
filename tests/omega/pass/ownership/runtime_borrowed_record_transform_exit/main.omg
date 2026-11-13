@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::drop;
 
 data Inventory [linear] dropped by drop_inventory { slots: i32; }

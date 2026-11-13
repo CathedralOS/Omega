@@ -1,8 +1,11 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 // Direct POSIX transfers retain projected byte-view backing beyond 4096 bytes.
 // Empty views still reach the OS; positional I/O preserves the cursor and
 // neither an oversized requested count nor a projected view may touch sentinels.
-use omega_language_std::posix_filesystem_host;
+use omega_language_std::PosixFilesystemHost;
 
 data Main {
     source: [u8; 8200];

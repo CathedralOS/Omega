@@ -6,7 +6,7 @@
 // machine signature's own. No ranking witness is authored. Square-and-multiply
 // computes 3^7 mod 100 = 2187 mod 100 = 87; each factor is reduced `% 100`
 // first, so every product is provably bounded and every divisor nonzero.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine modular_power(base: i32, exponent: i32) -> i32 {
     transition exponent < 0 {

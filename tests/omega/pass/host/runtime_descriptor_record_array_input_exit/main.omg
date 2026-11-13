@@ -1,7 +1,6 @@
 // The record owns its byte array. Window reads and a whole-field write lend
 // that storage without transferring the record or touching its sibling field.
-use omega_language_std::calling;
-use byte_view_calling;
+use omega_language_std::Calling;
 
 public boundary trait DescriptorIo: Calling<ByteViewCallingPolicy<u8>> {
     machine read_bytes(descriptor: i32, bytes: &mut [u8]) -> i64 reaches blocks;

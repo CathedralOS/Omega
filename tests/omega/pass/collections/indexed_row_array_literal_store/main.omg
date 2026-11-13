@@ -11,7 +11,7 @@
 // Rows of structural elements ([Cell; N]) take the structural-value route
 // instead: each element replaces its own window below the row's index
 // (`case_array_literal_row_store_exit`).
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main {
     grid: [[i32 in Wrapping; 3]; 2];
 }

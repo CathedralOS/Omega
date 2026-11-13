@@ -1,4 +1,4 @@
-use omega::language::core::math;
+use omega::language::core::max_i32;
 
 // A static machine lends its own local fixed arrays through element views.
 // `&values[..]` establishes a shared `&[i32]` descriptor over the local
@@ -7,7 +7,7 @@ use omega::language::core::math;
 // `&[i32]` views of its storage. Exits 70 only when every view observed the
 // one local backing with its exact extent and contents.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine largest(values: &[i32], current: i32) -> i32 {
     transition values.len > 0 {

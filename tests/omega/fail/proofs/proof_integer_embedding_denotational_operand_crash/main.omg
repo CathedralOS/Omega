@@ -1,4 +1,4 @@
-use omega::language::core::nat;
+use omega::language::core::Nat;
 
 machine observed(value: u64) -> u64 crashes Trap {
     value

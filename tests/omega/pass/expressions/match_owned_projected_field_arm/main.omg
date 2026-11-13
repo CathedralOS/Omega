@@ -2,7 +2,7 @@
 // field of an existing local on one arm and a field of a call's structural
 // product on another — while each root's untouched residual siblings die on
 // the selected edge.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Payload { left: u64; right: u64; }
 data Pair { first: Payload; second: Payload; }

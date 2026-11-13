@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i64;
 
 machine widened(value: i16) -> f32 {
     let selected: f32 in Saturating = value as f32 in Saturating;

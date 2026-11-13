@@ -3,7 +3,7 @@
 // is an impossible case on this instance and a transition covering only
 // `Boolean` is already exhaustive -- no `_` arm needed.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Value<T>
     requires ((self in Value::Integer) && T == i32)

@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 // This user-owned named boundary requirement has the same apparent float
 // carrier shape as a core operation. Its F32 namespace grants no sealed policy

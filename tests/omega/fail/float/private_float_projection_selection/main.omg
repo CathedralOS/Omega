@@ -1,4 +1,5 @@
-use omega::language::core::float_operations;
+use omega::language::core::FloatSemantics::is_finite;
+use omega::language::core::F32::is_finite;
 
 // The public slot's exact Boolean guarantee must survive caller import.
 machine finite(value: f32) -> bool

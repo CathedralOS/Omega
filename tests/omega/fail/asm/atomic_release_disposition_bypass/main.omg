@@ -1,6 +1,5 @@
 // REFUSE: an unperformed, mismatched or already spent store cannot settle a claim.
-use omega::language::core::assembly_model;
-use omega::language::core::assembly;
+use omega::language::core::atomic_release_written;
 data Cell { value: AtomicU64; }
 data Ack [linear] { nonce: u64; }
 boundary trait Completion {

@@ -1,6 +1,7 @@
 // Runtime provider defaults belong to the target's installation, not to the
 // portable requirement or whichever target first produced the artifact.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 
 // An unused foreign loan contract retains proof evidence, not a callable
 // provider demand. No installation supplies BorrowedWriter.

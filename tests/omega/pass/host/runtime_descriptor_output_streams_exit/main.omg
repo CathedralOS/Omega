@@ -1,7 +1,6 @@
 // Each entry uses its exact native calling policy and the same write/backing oracle.
 // The two ordinary entry bodies differ only in their concrete native ABI facet.
-use omega_language_std::calling;
-use omega_language_std::posix_byte_view_calling;
+use omega_language_std::Calling;
 
 public boundary trait LinuxDescriptorProbe: Calling<SystemVByteViewCalling> {
     machine write_bytes(descriptor: i32, bytes: &[u8]) -> i64 reaches;

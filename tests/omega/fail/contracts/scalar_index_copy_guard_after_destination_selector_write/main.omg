@@ -1,5 +1,6 @@
 // Expected error contains: cannot prove
-use omega_language_std::console;
+use omega_language_std::LineReadResult;
+use omega_language_std::Console;
 data Main { items: [u8; 64]; saved: u8; copies: [u8; 64]; other: u64; }
 machine Main::main(main: &mut Main) reaches Console {
     let read: LineReadResult = block Console::read_line(&mut main.items);

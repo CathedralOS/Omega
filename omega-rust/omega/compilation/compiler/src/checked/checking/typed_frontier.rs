@@ -44,6 +44,8 @@ pub struct TypedFrontier {
     /// representations. The check claims them and their closure even when no
     /// entry reaches them.
     pub selected: Vec<symbols::SymbolHandle>,
+    /// The distinct visible-continuation obligations of the executed bindings.
+    pub bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
 }
 
 /// What the current checker concluded about a program that reached it.

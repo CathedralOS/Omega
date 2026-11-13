@@ -23,7 +23,7 @@
 // precedes forwarding `main` itself; forwarding `main` first would hold it
 // while `make` forms a second exclusive loan
 // (fail/borrows/state_argument_borrows_forwarded_reference).
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Pair [copy] {
     a: i32 in Wrapping;

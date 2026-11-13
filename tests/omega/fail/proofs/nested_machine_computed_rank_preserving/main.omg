@@ -1,5 +1,6 @@
 // Subtracting zero through an ordinary helper does not decrease the rank.
-use omega::language::core::nat;
+use omega::language::core::Nat;
+use omega::language::core::saturating_sub;
 
 machine descend(value: Nat) -> Nat
 terminates by value

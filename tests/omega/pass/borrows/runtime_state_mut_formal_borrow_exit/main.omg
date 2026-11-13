@@ -1,7 +1,7 @@
 // Expected: a later state lends its `mut` scalar formal to `bump`, then
 // assigns it from the lent result: 66 becomes 69, then 70, and the program
 // exits 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine bump(value: &mut u32) {
     value = value / 2 + 36;

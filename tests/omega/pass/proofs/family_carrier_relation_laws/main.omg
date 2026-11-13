@@ -5,7 +5,7 @@
 // premise at its recovered packs. The family's fields hold no borrowed
 // storage, so its borrow frontier is empty for every pack. Binder names are
 // positional: `chained_symmetric` names its first binder `Second`.
-use omega::language::core::relation;
+use omega::language::core::Equivalence;
 
 data Index {
 }

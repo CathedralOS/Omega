@@ -1,6 +1,8 @@
 // Existing-directory acceptance queries metadata; the wrapper cannot hide it.
-use omega_language_std::filesystem;
-use omega::language::core::filesystem_authority;
+use omega_language_std::UnitResult;
+use omega_language_std::FilesystemService;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 
 public machine create_without_query(path: &[u8] in Path) -> UnitResult
 blocks

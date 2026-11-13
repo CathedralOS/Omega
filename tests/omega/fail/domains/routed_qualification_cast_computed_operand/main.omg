@@ -1,6 +1,6 @@
 // A computed operand whose predicate holds still cannot issue a routed domain:
 // `3 > 0` is true, but only `Issuer::issue` may establish `Issued`.
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 
 domain i32::Issued requires self > 0 established by Issuer::issue;
 trait Issuer { machine issue() -> i32 ensures result in Issued; }

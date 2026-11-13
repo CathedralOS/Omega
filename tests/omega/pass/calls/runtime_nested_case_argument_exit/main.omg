@@ -4,7 +4,7 @@
 // affine payload moves into its callee, which owns its selected-case cleanup.
 // The sibling Context argument owns both its explicit scalar field and the
 // synthesized zero initializer for padding; neither belongs to the case.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data ScanCompareTypeImmediate [copy] {
     case Equal;

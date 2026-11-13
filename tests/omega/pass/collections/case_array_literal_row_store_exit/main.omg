@@ -3,7 +3,7 @@
 // prefixes each element's window, exactly as a whole-field store appends the
 // element's own index, and the runtime row re-proves its bound from `i <= 1`.
 // Both rows stay distinct: exit 3.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Cell {
     case Wall;
     case Floor;

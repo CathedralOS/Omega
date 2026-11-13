@@ -4,7 +4,7 @@
 // silently honoring it would steer signedness/width decisions against the
 // declared type. Domain is not part of the check (suffixes land the TYPE;
 // the destination's arithmetic domain stays contextual).
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) {
     let x: u32 = 5i8;

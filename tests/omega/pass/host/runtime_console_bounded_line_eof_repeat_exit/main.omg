@@ -1,7 +1,8 @@
 // EOF is stable, not one-shot: a second read_line after EndOfInput(0) reports
 // EndOfInput(0) again rather than Invalid or a failure. Exit 21 = two clean
 // empty reads; 99 = any other stop reason or count.
-use omega_language_std::console;
+use omega_language_std::LineReadResult;
+use omega_language_std::Console;
 
 data Main {
     line: [u8; 4];

@@ -1,6 +1,14 @@
 // A policy's private call closure still owes each concrete callee premise.
 // Removing unrelated runtime bodies from its probe must not grant this call.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with_reach;
+use omega::language::core::Access;
 
 public data Register { value: u64; }
 public data CheckedPolicy {}

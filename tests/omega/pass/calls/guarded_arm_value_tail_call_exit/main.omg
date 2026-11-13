@@ -17,7 +17,7 @@
 //
 // Each wrong leg exits with its own code (71-74); every leg agreeing
 // exits 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Entry {
     value: i32;

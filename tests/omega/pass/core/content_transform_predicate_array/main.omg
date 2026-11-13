@@ -1,5 +1,6 @@
 // Predicate-only array memberships are not additional resource accounts.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 data Units {}
 data Cell [copy] { value: u64; }
 domain Cell::Positive requires self.value > 0;

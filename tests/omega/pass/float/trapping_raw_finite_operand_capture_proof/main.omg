@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::is_finite;
 
 // Both detached operands must retain the same source relation at invocation.
 machine finite_product(left: f32 in Trapping, right: f32 in Trapping) -> f32 in Trapping

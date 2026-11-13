@@ -2,8 +2,7 @@
 // window inside a record. The caller writes through a local, that field, a
 // parameter, and the call result.
 // Expected native exit: 0
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::I32::from_f64;
 
 data Held<'samples> { values: &'samples mut [f64]; }
 

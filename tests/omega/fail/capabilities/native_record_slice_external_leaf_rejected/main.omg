@@ -1,4 +1,4 @@
-use omega::language::core::external_binding;
+use omega::language::core::ForeignBinding;
 data Packet<'a> { bytes: &'a [u8]; }
 boundary trait NativePacket {
     machine send(value: &Packet) reaches;

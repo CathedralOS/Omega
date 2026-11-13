@@ -1,8 +1,9 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
 // Runtime predicates leave both effectful operands unselected.
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use omega::language::core::F64::from_i32;
 data Values {value:f64;}
 data Main {values:Values;}
 machine tick(values:&mut Values)->f64 {values.value=values.value+1.0;values.value}
