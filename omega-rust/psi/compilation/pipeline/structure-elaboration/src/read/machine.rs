@@ -1962,7 +1962,8 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
                 target_spans(target, out);
             }
         }
-        Statement::Declare { .. }
+        Statement::CaptureReference { .. }
+        | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Store { .. }
         | Statement::Evaluate(_) => {}
@@ -1980,7 +1981,8 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .map(|(_, target, source)| (target, *source))
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
-        Statement::Declare { .. }
+        Statement::CaptureReference { .. }
+        | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Bind { .. }
         | Statement::Store { .. }
@@ -2146,6 +2148,7 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
                 target(arm, uses);
             }
         }
+        Statement::CaptureReference { original, .. } => uses[*original] += 1,
         Statement::Declare { .. } => {}
     }
 }

@@ -156,8 +156,8 @@ struct Slot {
     /// An `[erased]` formal or local. A contract clause and an erased
     /// position may name it; a runtime expression may not.
     erased: bool,
-    /// A formal passed by reference, and its access. Its `value_type` is
-    /// the referent's: the slot names the caller's storage, read and (for
+    /// A reference formal or its captured binding, and its access. Its
+    /// `value_type` is the referent's: the slot names the caller's storage, read and (for
     /// `&mut`) written in place, never an SSA value or a root of its own.
     borrowed: Option<language_core::ReferenceAccess>,
 }
@@ -1172,9 +1172,8 @@ mod tests {
         );
     }
 
-    // Capturing a selector uses the ordinary local binder. Its complete type
-    // must survive; a reference must not become an integer snapshot merely
-    // because both appear in an index expression.
+    // A captured scalar remains a value; a captured reference keeps the
+    // original storage and access instead of snapshotting the referent.
     #[test]
     fn operand_captures_keep_their_complete_binding_type() {
         use typed_trees::statement::TableLocalData;
@@ -1206,6 +1205,13 @@ mod tests {
             .insert(TypeReferenceNode::Reference {
                 referee: carrier,
                 access: ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let exclusive = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: carrier,
+                access: ReferenceAccess::Mutable,
                 lifetime: None,
             });
         let initial = typed
@@ -1251,6 +1257,26 @@ mod tests {
         );
         assert!(!slot.assignable && !slot.homed && slot.borrowed.is_none());
         assert!(matches!(statement, crate::Statement::Bind { slot: 0, .. }));
+        let (captured, statement) = program
+            .local(
+                machine(),
+                &borrowed,
+                &TableLocalData {
+                    type_reference: reference,
+                    initial_value: borrowed_name,
+                    ..local.clone()
+                },
+            )
+            .unwrap();
+        assert_eq!(captured.borrowed, Some(ReferenceAccess::Shared));
+        assert!(captured.homed);
+        assert!(matches!(
+            statement,
+            crate::Statement::CaptureReference {
+                slot: 1,
+                original: 0
+            }
+        ));
         let mut refusal = |local: &TableLocalData| {
             program
                 .local(machine(), &borrowed, local)
@@ -1260,11 +1286,11 @@ mod tests {
         };
         assert_eq!(
             refusal(&TableLocalData {
-                type_reference: reference,
+                type_reference: exclusive,
                 initial_value: borrowed_name,
                 ..local.clone()
             }),
-            "type reference"
+            "statement reference capture without matching storage and access"
         );
         assert_eq!(
             refusal(&TableLocalData {

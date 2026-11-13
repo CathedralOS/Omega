@@ -262,8 +262,10 @@ impl Walk<'_> {
                         return Ok(normal);
                     }
                 }
-                // An erased binding evaluates nothing, so it reaches no call.
-                Statement::Declare { .. } | Statement::Witness { .. } => {}
+                // These bindings evaluate no value and reach no call.
+                Statement::Declare { .. }
+                | Statement::Witness { .. }
+                | Statement::CaptureReference { .. } => {}
                 // Exactly one arm runs and each completes the machine, so
                 // the dispatch completes normally when some arm does and
                 // nothing follows it.

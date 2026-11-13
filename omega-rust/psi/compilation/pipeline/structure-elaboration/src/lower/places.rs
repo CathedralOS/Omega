@@ -444,7 +444,9 @@ fn statement_homes<'b>(statement: &'b Statement, homes: &mut Vec<(ValueType, Opt
             expression_homes(destination, homes);
             expression_homes(value, homes);
         }
-        Statement::Declare { .. } | Statement::Witness { .. } => {}
+        Statement::Declare { .. }
+        | Statement::Witness { .. }
+        | Statement::CaptureReference { .. } => {}
         Statement::Dispatch {
             subject,
             arms,
@@ -1363,7 +1365,8 @@ impl<'a> Lowering<'a> {
     /// and where its authority comes from. loans.md: "Loan formation
     /// captures a place, not a live selector expression."
     ///
-    /// The place is a slot or a field path beneath one. A scalar local that
+    /// Case and field steps stay on the loan, so checking still requires
+    /// the selected case to be active. A scalar local that
     /// is an SSA value (`needs_home`) first gets a home holding its current
     /// value, the operation the current pipeline emits for a local it lends
     /// (structural_access.md: "`EstablishPrimitiveLocal` consumes an exactly
