@@ -82,10 +82,37 @@ pub struct CorpusRecord {
 }
 
 /// Where a downloaded copy of the published check ledger is kept, relative to
-/// the repository root. The post-merge check publishes it on the project site;
-/// fetch it with
-/// `curl -fsSL --create-dirs -o build/corpus-ledger/corpus_outcomes.txt https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt`.
+/// the repository root. The post-merge check publishes it on the project site.
 pub const PUBLISHED_LEDGER: &str = "build/corpus-ledger/corpus_outcomes.txt";
+const PUBLISHED_LEDGER_URL: &str = "https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt";
+
+/// Downloads the published ledger so a run is compared with what main was
+/// last measured to do. The file in the repository is only as new as the last
+/// time someone committed it, and a blast compared with a stale ledger is
+/// never clean for reasons that are not the change's. Best effort: with no
+/// network or no `curl`, the previous download or the repository's file is
+/// used, as before.
+fn refresh_published_ledger(root: &Path) {
+    let path = root.join(PUBLISHED_LEDGER);
+    let fetched = path.with_extension("fetching");
+    let downloaded = Command::new("curl")
+        .args(["-fsSL", "--max-time", "30", "--create-dirs", "-o"])
+        .arg(&fetched)
+        .arg(PUBLISHED_LEDGER_URL)
+        .stdin(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success());
+    // Only a download that reads as a ledger replaces the last good copy.
+    let usable = downloaded
+        && fs::read_to_string(&fetched)
+            .is_ok_and(|text| parse_records(&text).is_ok_and(|records| !records.is_empty()));
+    if usable {
+        let _ = fs::rename(&fetched, &path);
+    } else {
+        let _ = fs::remove_file(&fetched);
+        eprintln!("corpus: could not refresh the published ledger; using the copy on disk");
+    }
+}
 
 /// The downloaded published ledger, when one is present and readable as a
 /// ledger. An empty or unreadable download is ignored, so a failed fetch falls
@@ -750,6 +777,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     // publishes the measured one. A downloaded copy is the newer statement of
     // what main does, so reads compare with it. `--record` and `--golden`
     // keep naming the file they were given.
+    if !record && !explicit_golden && !native && !interpret && !list_pinned {
+        refresh_published_ledger(&root);
+    }
     let golden_path = match published_ledger(&root) {
         Some(published) if !record && !explicit_golden && !native && !interpret => {
             println!(
