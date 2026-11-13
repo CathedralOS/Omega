@@ -2020,15 +2020,10 @@ dependencies = [
  "backend-plan",
  "diagnostics",
  "effects",
- "language-semantics",
- "package-compilation",
+ "optimization-core",
  "provider-planning",
- "psi-terminal-production",
- "semantic-vocabulary",
- "symbols",
  "target",
- "terminal-psi",
- "trust-model",
+ "terminal-codec",
 ]
 
 [[package]]

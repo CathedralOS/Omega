@@ -479,10 +479,12 @@ belongs to Omega realization. It binds callback placements and provider grants,
 closes selected review and accepted service roles, and constructs direct-call
 supplies without rewriting Psi's checked result. Psi
 derives candidate specializations from authored conformances independently of
-runtime provider selection. `SelectedExecution` retains the resulting program,
-target custody and complete review records; the coordinator does not reconstruct
-them. Terminal production borrows this completed result, and conversion to a
-checked compilation is infallible custody assembly, not a late source phase.
+runtime provider selection. On the lowered route `SelectedExecution` retains
+the target and its settled provider plans only
+([selected-dispatch](../realization/selected-dispatch/README.md)); Terminal
+production borrows it to form the provider proposal a target's conditions are
+checked against, and conversion to a checked compilation is custody assembly,
+not a late source phase.
 
 Native proposal construction replaces checked-adapter specialization rows with
 Terminal's complete candidate associations. It uses the same exact selecting

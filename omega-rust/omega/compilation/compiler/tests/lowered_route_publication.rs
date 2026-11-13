@@ -85,20 +85,15 @@ fn accepted(
         },
     )) {
         Ok(RouteVerdict::Accepted(closure)) => {
-            let signature = checked
-                .execution()
-                .selected_program_entry
-                .as_ref()
-                .expect("selected entry")
-                .source_signature();
-            let root = terminal_psi::PreparedNominalRoot::new(
-                signature.declaration(),
-                signature.machine_name(),
-                None,
-            )
-            .expect("exact selected root");
-            let signature = signature.identity().bytes();
-            (closure, root, signature, checked)
+            // The entry root and its signature identity belong to the selected
+            // program entry. A checked compilation carries the target and its
+            // settled provider plans only, and nothing on the lowered route
+            // selects the entry from the accepted module yet.
+            let _: (
+                Box<lowered_discharge::AcceptedClosure>,
+                Box<compiler::CheckedCompilation>,
+            ) = (closure, checked);
+            panic!("{fixture}: no product route yet: the selected program entry has no producer")
         }
         other => panic!("{fixture}: the route must accept: {other:?}"),
     }
@@ -288,10 +283,13 @@ fn the_published_module_states_each_machines_declaration_identity() {
     let (closure, _, _, checked) = accepted(fixture);
     let publication = closure.publish().expect("the accepted module publishes");
     let published = publication.artifact.semantic_module();
-    // The current checker's program is the code published for the
-    // compilation's other readers; the calling program shares its artifact.
-    let current = std::sync::Arc::clone(&checked.providers().calling_program.artifact);
-    let current = current.semantic_module();
+    // The compilation's accepted source is the code published for the
+    // compilation's other readers.
+    let current = checked
+        .terminal_publication()
+        .accepted()
+        .expect("the compilation holds its accepted source")
+        .module();
 
     let text = |module: &terminal_psi::TerminalModule, identity| {
         module

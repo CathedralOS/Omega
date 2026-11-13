@@ -55,10 +55,8 @@ impl PackageReviewSource {
 
     pub fn publish_component(&self) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
         super::run_on_compile_thread(|| {
-            let request = crate::product_execution::ProductRequest::Component {
-                checked: self.retained.checked.clone(),
-                retain_native_inputs: false,
-            };
+            let request =
+                crate::product_execution::ProductRequest::Component(self.retained.checked.clone());
             let ((), output) = crate::target_batch::produce_products(vec![((), Ok(request))])
                 .into_iter()
                 .next()

@@ -13,10 +13,7 @@ mod semantic_bindings;
 pub use input::{IntoPackageReviewInput, PackageReviewInput};
 pub use package_review::{PackageReviewProjectionError, project_package_review};
 pub use runtime_permissions::PreparedRuntimePolicy;
-pub use semantic_bindings::{
-    SemanticBindingProjectionError, candidate_hosted_exit_bindings, candidate_service_bindings,
-    candidate_target_entry_binding,
-};
+pub use semantic_bindings::{SemanticBindingProjectionError, candidate_target_entry_binding};
 
 use diagnostics::Diagnostic;
 

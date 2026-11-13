@@ -203,12 +203,6 @@ pub(super) fn projection_error(
             role,
             candidate_count,
         },
-        SemanticBindingProjectionError::Invalid { role } => {
-            CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
-                consumer: consumer.clone(),
-                role,
-            }
-        }
         SemanticBindingProjectionError::MissingCallableFacts { diagnostics } => {
             CompileResolvedPackageReviewsError::Compilation {
                 package: consumer.clone(),

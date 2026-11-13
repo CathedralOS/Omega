@@ -569,16 +569,23 @@ own to defend. Say what you saw, not what you would build.
 - Cost: nobody can tell from the code which Build operations work; the unused parameters and the result types (`AdmittedProductDeclarations`, `NativeBindingSelection`) describe a design that has no implementation and will drift from whatever replaces it
 - Reported: 2026-11-13, Claude Code, while taking the witness's finished Build to its Product
 
-### Selected-provider custody is a data model whose "nothing" cannot be constructed
-- Category: a verdict with nothing behind it
-- Where: `selected-dispatch/src/selected_execution.rs` (`SelectedExecution`), `provider-planning/src/provider_settlement.rs` (`ProviderSettlement`), `provider-planning/src/service_declarations.rs`, `provider-planning/src/target_machines/prepared_providers.rs`, `psi-compiler/terminal-production/src/external_providers.rs`
-- Saw: the old checker's deletion kept about thirty retained fields that every product consumer reads (`compiler/src/terminal/terminal_artifact.rs`, `product_execution.rs`, `package_review.rs`), but removed their producers. `ServiceDeclarations` and `ProviderPublicationCatalog` have private fields and no constructor at all; `PreparedExternalProviderDeclarations::prepare` always refuses. So even a program that reaches no boundary requirement cannot be handed on after its providers settle to none.
-- Cost: provider settlement can decide a program's supply and still has nowhere to put the answer; rebuilding the producers field by field would restore the old shape, while the consumers only need the plans, the entry and the calling program of the accepted artifact
-- Reported: 2026-11-13, Claude Code, while rebuilding target preparation and provider settlement on the accepted Terminal module
-
 ### The parser still accepts a boundary requirement with no `crashes` clause
 - Category: a verdict with nothing behind it
 - Where: `01_tokens-to-syntax-trees/src/declarations.rs` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `structure-elaboration/src/read/calls.rs` (`boundary`); `samples/` and `tests/fixtures/`
 - Saw: effects.md says a boundary requirement "must likewise write `crashes`". Only the lowered-form checker enforces it, and only at a call. The bundled library now writes the clause on all 400 of its requirements, but 1,745 requirements in 1,062 files under `samples/` and 70 in 40 files under `tests/fixtures/` do not, so the parser cannot refuse the omission until those are migrated, each to the ceiling its providers really have
 - Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
+
+### Executable products have consumers downstream and no producer in the compiler
+- Category: a verdict with nothing behind it
+- Where: `compiler/src/product_execution.rs` (`refuse_executable_product`); `CompilationOutput::{Native, Component}`, `CheckedProductReport::{Terminal, Native}`; `provider-planning/src/program_entry.rs` (`SelectedCompilerProgramEntry`), `provider_planning::{SelectedProviderReviewProvenance, ProviderPlanProvenance, DerivedProviderPlan}`, `psi-compiler/terminal-production/src/external_providers.rs` (`PreparedExternalProviderDeclarations`), `compiler/src/checked/compilation_session.rs` (`component_products`)
+- Saw: the compiler now refuses Terminal, native and component products by name, because the selected program entry, callback roots, behavior exclusions and native provider declarations they need have no producer. Their downstream shape is still standing: output variants nothing constructs, entry and provenance records with private fields and no constructor, a component-product roster the session fills and nothing reads, and Omega 00's `TerminalNativeProposalRequest` with about seventeen inputs of the old custody
+- Cost: the lane that makes a program run has to decide for each of those whether it is derived from the accepted artifact and the settled plans or deleted; left as they are they read as working machinery and invite a producer shaped like the deleted checker's
+- Reported: 2026-11-13, Claude Code, while narrowing the selected-execution custody to the target and its settled plans
+
+### Tests of the compiler crate assert on source text
+- Category: a test that pins a bug
+- Where: `omega-rust/omega/compilation/compiler/src/product_boundary.rs` (20 tests), `provider-planning/src/source_guards.rs`
+- Saw: each test `include_str!`s other crates' sources and asserts that a spelling is present or absent, such as `pub callback_roots: terminal_psi::PreparedTerminalRoots`. Nine of them named files or fields of the deleted custody and had to be deleted with it; none of them would have noticed that the custody had no producer
+- Cost: a refactor fails tests that say nothing about behaviour, and the architecture rules they stand for are not checked where `xtask check-boundary` could check them
+- Reported: 2026-11-13, Claude Code, while narrowing the selected-execution custody to the target and its settled plans

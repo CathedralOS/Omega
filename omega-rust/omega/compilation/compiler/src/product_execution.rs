@@ -1,42 +1,31 @@
 /*
 We plan each requested compilation stop (`Check`, `Terminal`, `Native`,
-`Inspection`, or `Component`) and finish its admitted Terminal Psi product.
+`Inspection`, or `Component`) and finish its product.
 
-The compiler owns batch ordering and shared Terminal production; this module
-finishes non-native stops directly and packages native work into a source-free
-`PendingNativeProduct` for application Build completion. Permission and trust
-admission run after selected execution settlement, ensuring that planning alone
-never grants authority to execute or publish.
+The compiler owns batch ordering and shared Terminal production. A `Check` or
+`Inspection` stop joins the shared portable Terminal batch
+(`TerminalProductUse::Declarations` / `Inspection`): the accepted program is
+produced once, its target-local scalar conditions and task activations are
+checked against the target's settled provider plans, and permission and trust
+admission run on the sealed `CheckedCompilation`, so planning alone never
+grants authority to publish.
+
+A `Terminal`, `Native` or `Component` stop is an executable product. It needs
+the selected program entry, callback roots and the native declarations of its
+provider plans, formed from the accepted artifact and the settled plans.
+Nothing on the lowered route produces those yet, so `ProductRequest::plan`
+refuses these stops by name instead of reading a retained copy of them.
 */
 
-/*
-When a non-executing `Check` request still owes scalar proof conditions
-(`has_proof_obligations`), `CheckingCompilation` joins the shared portable
-Terminal batch under `TerminalProductUse::Declarations` to evaluate target-local
-scalar conditions and task activations without requiring a `ProgramEntry` or
-native permissions.
-
-When a native or component product is requested, we project and validate the
-checked package's accepted Terminal authority permission rows
-(`accepted_terminal_authority_permission_policy`) and optionally capture
-deterministic native derivation inputs before preparing the source-free
-`RetainedTerminalArtifact`.
-*/
-
-mod component;
 mod inspection;
 
 use crate::execution_settlement::SelectedProductTarget;
-use crate::terminal::{
-    ProducedTerminalProduct, TerminalProductRequest, TerminalProductUse, TerminalProductionView,
-};
+use crate::terminal::{ProducedTerminalProduct, TerminalProductRequest};
 use crate::{CheckedCompilation, CompileReport};
 use compilation_products::{
     CheckedProductReport, NativeProductRequest, ProductReportPlan, ProductReportRequest,
 };
-use component::ComponentPublication;
 use diagnostics::Diagnostic;
-use native_compiler::TerminalApplication;
 use optimization_core::OptimizationSelections;
 use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 use std::path::PathBuf;
@@ -166,28 +155,12 @@ pub(crate) enum ProductRequest {
         product: CompilationProduct,
         permissions: Option<TerminalPermissionAcceptance>,
     },
-    Component {
-        checked: CheckedCompilation,
-        retain_native_inputs: bool,
-    },
-}
-
-pub(crate) enum CompilationWork {
-    Complete(CompilationOutput),
-    Terminal(TerminalCompilation),
+    Component(CheckedCompilation),
 }
 
 pub(crate) enum TerminalCompilation {
-    Requested(RequestedTerminalCompilation),
     Checking(CheckingCompilation),
-    Component(ComponentPublication),
     Inspection(inspection::InspectionCompilation),
-}
-
-pub(crate) struct RequestedTerminalCompilation {
-    realization: SelectedProductTarget,
-    report: ProductReportPlan,
-    permissions: Option<TerminalPermissionAcceptance>,
 }
 
 pub(crate) struct CheckingCompilation {
@@ -217,11 +190,7 @@ impl CheckingCompilation {
     }
 
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
-        TerminalProductRequest {
-            view: TerminalProductionView::selection(&mut self.realization.custody, None),
-            selections: &self.selections,
-            use_kind: TerminalProductUse::Declarations,
-        }
+        TerminalProductRequest::declarations(&mut self.realization.custody, &self.selections)
     }
 
     pub(crate) fn finish(
@@ -232,7 +201,7 @@ impl CheckingCompilation {
             .check_conditions(&mut self.realization.custody)
             .and_then(|()| {
                 self.realization
-                    .check_declaration_requirements(Some(produced.module()))
+                    .check_declaration_requirements(produced.module())
             });
         if let Err(diagnostics) = completed {
             return Err(CompilationProductError::ProductionAttempt {
@@ -268,7 +237,7 @@ impl CheckingCompilation {
 }
 
 impl ProductRequest {
-    pub(crate) fn plan(self) -> Result<CompilationWork, CompilationProductError> {
+    pub(crate) fn plan(self) -> Result<TerminalCompilation, CompilationProductError> {
         let (realization, root, product, permissions) = match self {
             Self::Requested {
                 realization,
@@ -276,21 +245,21 @@ impl ProductRequest {
                 product,
                 permissions,
             } => (realization, root, product, permissions),
-            Self::Component {
-                checked,
-                retain_native_inputs,
-            } => {
-                let component = ComponentPublication::prepare(checked, retain_native_inputs)?;
-                return Ok(CompilationWork::Terminal(TerminalCompilation::Component(
-                    component,
-                )));
+            Self::Component(checked) => {
+                if checked.sources().package_identity().is_none() {
+                    return Err(vec![Diagnostic::error(
+                        "component publication requires package-aware checked custody for the dependency compiled as its own component",
+                    )]
+                    .into());
+                }
+                return Err(refuse_executable_product("a component").into());
             }
         };
         let requested = match product {
             CompilationProduct::Inspection(machine) => {
-                return Ok(CompilationWork::Terminal(TerminalCompilation::Inspection(
+                return Ok(TerminalCompilation::Inspection(
                     inspection::InspectionCompilation::new(realization, machine),
-                )));
+                ));
             }
             CompilationProduct::Check => ProductReportRequest::Check,
             CompilationProduct::Terminal(rollback) => ProductReportRequest::Terminal(rollback),
@@ -298,44 +267,33 @@ impl ProductRequest {
         };
         let report = ProductReportPlan::new(root, requested, &realization.custody.build);
         if report.needs_terminal(&realization.custody.build_admission) {
-            Ok(CompilationWork::Terminal(TerminalCompilation::Requested(
-                RequestedTerminalCompilation {
-                    realization,
-                    report,
-                    permissions,
-                },
-            )))
-        } else {
-            if realization.custody.execution.has_proof_obligations {
-                return Ok(CompilationWork::Terminal(TerminalCompilation::Checking(
-                    CheckingCompilation::new(realization, report, permissions),
-                )));
-            }
-            let runtime_policy = std::sync::Arc::clone(&realization.runtime_policy);
-            let checked = realization.finish_check()?;
-            admit_permissions(&checked, &runtime_policy, permissions.as_ref(), false)?;
-            checked
-                .admit_trust()
-                .map_err(CompilationProductError::TrustAdmission)?;
-            match report.prepare(&checked)? {
-                CheckedProductReport::Complete(report) => {
-                    Ok(CompilationWork::Complete(CompilationOutput::Report(report)))
-                }
-                _ => Err(vec![Diagnostic::error(
-                    "non-executable product requested Terminal production",
-                )]
-                .into()),
-            }
+            return Err(refuse_executable_product(if report.is_native() {
+                "a native"
+            } else {
+                "a Terminal"
+            })
+            .into());
         }
+        // The accepted Terminal module always exists on this route, so every
+        // non-executing stop checks its target-local conditions against it.
+        Ok(TerminalCompilation::Checking(CheckingCompilation::new(
+            realization,
+            report,
+            permissions,
+        )))
     }
+}
+
+fn refuse_executable_product(product: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(format!(
+        "no product route yet: {product} product needs the selected program entry and the native declarations of its provider plans, which have no producer on this route"
+    ))]
 }
 
 impl TerminalCompilation {
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
         match self {
-            Self::Requested(product) => product.terminal_request(),
             Self::Checking(product) => product.terminal_request(),
-            Self::Component(product) => product.terminal_request(),
             Self::Inspection(product) => product.terminal_request(),
         }
     }
@@ -345,121 +303,10 @@ impl TerminalCompilation {
         produced: crate::terminal::ProducedTerminalProduct,
     ) -> Result<CompilationOutput, CompilationProductError> {
         match self {
-            Self::Requested(product) => product.finish(produced.into_application()?),
             Self::Checking(product) => product.finish(produced),
             Self::Inspection(product) => product.finish(produced),
-            Self::Component(product) => product
-                .finish(produced.into_application()?)
-                .map(CompilationOutput::Component),
         }
     }
-}
-
-impl RequestedTerminalCompilation {
-    pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
-        TerminalProductRequest {
-            view: TerminalProductionView::selection(
-                &mut self.realization.custody,
-                self.report
-                    .is_native()
-                    .then_some(&self.realization.independent_components),
-            ),
-            selections: self.report.optimizations(),
-            use_kind: TerminalProductUse::Application,
-        }
-    }
-
-    pub(crate) fn finish(
-        self,
-        produced: TerminalApplication,
-    ) -> Result<CompilationOutput, CompilationProductError> {
-        let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
-        let checked = self.realization.into_checked_compilation()?;
-        (|| -> Result<_, CompilationProductError> {
-            admit_permissions(&checked, &runtime_policy, self.permissions.as_ref(), true)?;
-            checked
-                .admit_trust()
-                .map_err(CompilationProductError::TrustAdmission)
-        })()?;
-        let product = self.report.prepare(&checked)?;
-        let report = match product {
-            CheckedProductReport::Complete(_) => {
-                return Err(vec![Diagnostic::error(
-                    "executable product unexpectedly completed without an artifact",
-                )]
-                .into());
-            }
-            CheckedProductReport::Terminal {
-                settlement,
-                rollback,
-            } => {
-                let request =
-                    checked.terminal_native_proposal_request(rollback.effective(), &[])?;
-                let terminal = produced.prepare(request)?;
-                settlement
-                    .with_timings(checked.timings().phases().to_vec())
-                    .finish_terminal(terminal, rollback.into_receipt())?
-            }
-            CheckedProductReport::Native {
-                mut settlement,
-                request,
-                rollback,
-            } => {
-                let native_request =
-                    checked.terminal_native_proposal_request(rollback.effective(), &[])?;
-                let captured_inputs = request.retain_native_inputs.then(|| {
-                    let permissions = accepted_terminal_authority_permission_policy(&checked)?;
-                    let bytes = native_compiler::retain_native_derivation_inputs(
-                        &produced.receipt,
-                        produced.physical_entry_adapter,
-                        &produced.provider_proposals,
-                        &native_request,
-                        &permissions,
-                        &request.installation_assumptions,
-                    )
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
-                    Ok::<_, Vec<Diagnostic>>((bytes, permissions))
-                });
-                let terminal = produced.prepare(native_request)?;
-                let inputs = match captured_inputs {
-                    Some(captured) => {
-                        captured.map(|(bytes, permissions)| (Some(bytes), permissions))
-                    }
-                    None => accepted_terminal_authority_permission_policy(&checked)
-                        .map(|permissions| (None, permissions)),
-                };
-                let (retained_native_inputs, accepted_package_permissions) =
-                    inputs.map_err(|diagnostics| CompilationProductError::ProductionAttempt {
-                        diagnostics,
-                        accounting: std::mem::take(settlement.source_completion_accounting_mut()),
-                    })?;
-                let subsystem = checked.build().config.settings.subsystem;
-                let settlement = settlement.with_timings(checked.timings().phases().to_vec());
-                return Ok(CompilationOutput::Native(Box::new(
-                    compilation_products::PendingNativeProduct {
-                        terminal,
-                        retained_native_inputs,
-                        components: checked.into_independent_components(),
-                        accepted_package_permissions,
-                        request,
-                        rollback,
-                        subsystem,
-                        settlement,
-                        tests: Vec::new(),
-                        test_notes: Vec::new(),
-                    },
-                )));
-            }
-        };
-        Ok(CompilationOutput::Report(report))
-    }
-}
-
-pub(crate) fn accepted_terminal_authority_permission_policy(
-    checked: &CheckedCompilation,
-) -> Result<native_compiler::TerminalAuthorityPermissionPolicy, Vec<Diagnostic>> {
-    let (permissions, permission_identities) = checked.execution().terminal_authority_permissions();
-    native_compiler::admit_package_permissions(permissions, permission_identities)
 }
 
 fn admit_permissions(
@@ -489,30 +336,6 @@ fn admit_permissions(
         permissions
             .validate(&input)
             .map_err(CompilationProductError::TrustAdmission)?;
-    } else {
-        // Without accepted root rows nothing has accepted a deployed
-        // component's environmental premise; ordinary compilation never
-        // creates that acceptance as a side effect.
-        let demands = checked.providers().component_assumption_demands();
-        if !demands.is_empty() {
-            return Err(CompilationProductError::TrustAdmission(
-                demands
-                    .iter()
-                    .map(|demand| {
-                        Diagnostic::error(format!(
-                            "independent component package {} assumes {}, which no accepted lock row of the consuming project covers; review it with omega update",
-                            demand
-                                .component
-                                .digest()
-                                .iter()
-                                .map(|byte| format!("{byte:02x}"))
-                                .collect::<String>(),
-                            demand.bound_rows.join(", "),
-                        ))
-                    })
-                    .collect(),
-            ));
-        }
     }
     Ok(())
 }
