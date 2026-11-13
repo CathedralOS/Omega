@@ -1,0 +1,13 @@
+# c1 member rows that do not flip at witness first-bad (strict exit codes)
+
+## pass/borrows/runtime_returned_stored_view_reborrow_exit
+- parent `18fc751d006008859b8c23f100456b58c89a02db` vs first-bad `f2c75870ebaf890328b787fa6d8ed50e868edbb8`: **1 | 1** (no flip)
+- c1 good anchor `576c5c9433a95c1f4dcb4f18197f408afbfe92cd`: strict **1** (already PIN-class at witness good anchor)
+- Conclusion: member breakage is not introduced at witness first-bad `f2c75870…`; separate causality from witness row.
+
+## pass/slices/runtime_mutable_slice_result_whole_forward_exit
+- parent vs c1 first-bad `f2c75870…`: **0 | 0** (no flip at witness boundary)
+- First-parent binary search after `f2c75870ebaf890328b787fa6d8ed50e868edbb8` .. PIN:
+  - member-first-bad: `77271bfb91344cd3d3788e1d8563796983dfbf13`
+  - first parent: `2476d1be2203009f1b32b8164bb6224c562c3bd5` — compiler: preserve updated borrowed fields through selected calls (#1604)
+  - subject: psi: preserve saved references when pointer fields change (#1794)
