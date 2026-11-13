@@ -122,6 +122,9 @@ fn equal_bytes_do_not_erase_distinct_capture_requests_from_records() {
 #[test]
 fn selected_files_do_not_open_unselected_special_members_and_required_absence_fails() {
     let root = temp_root("selected");
+    // macOS temporary roots can already exceed the Unix socket pathname bound.
+    #[cfg(unix)]
+    let root = Path::new("/tmp").join(root.file_name().unwrap());
     std::fs::create_dir_all(root.join("unselected")).unwrap();
     std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
     #[cfg(unix)]
