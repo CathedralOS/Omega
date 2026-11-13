@@ -252,16 +252,19 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
     let formation_started = Instant::now();
     match lowered_discharge::check_bound_callable_shapes(typed, &frontier.bindings) {
         Ok(failures) if !failures.is_empty() => {
+            let mut best: Option<SiteClass> = None;
             for failure in &failures {
                 let site = failure
                     .source_span
                     .map(structure_elaboration::SourceOrigin::Authored);
+                let class = sites.class(site);
+                best = Some(best.map_or(class, |best| best.min(class)));
                 lines.push(format!(
                     "formation\t{}\t{}\t{}\tsite={}",
                     main.display(),
                     one_line(&failure.detail),
                     sites.describe_route(site),
-                    sites.class(site).name()
+                    class.name()
                 ));
             }
             if current == "rejected" {
@@ -270,7 +273,16 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
                     .map(|failure| failure.detail.clone())
                     .collect();
                 let (fragment, expected) = pinned_fragments(main, &messages);
-                lines.push(format!("quality\t{}\troot=compilation\tfragment={fragment}\tsite=formation\texpected={}", main.display(), one_line(expected)));
+                let site = if sites.spans.is_empty() {
+                    "current-unpositioned".to_owned()
+                } else {
+                    best.map_or_else(|| "-".to_owned(), SiteClass::name)
+                };
+                lines.push(format!(
+                    "quality\t{}\troot=compilation\tfragment={fragment}\tsite={site}\texpected={}",
+                    main.display(),
+                    one_line(expected)
+                ));
             }
             return vec![format!(
                 "{head}\troot=compilation\troute=rejected\troute_us={}\tformations={}",

@@ -35,7 +35,10 @@
 //
 // A rejection the current checker places in the Build program or an
 // entry-contract source is its own to decide, and stands. A diagnostic with
-// no source file cannot be placed, so it counts as one of those.
+// no source file cannot be placed, so it counts as one of those. When the
+// route independently rejects too, its diagnostics follow the current
+// checker's intact diagnostics; preserving verdict authority does not hide
+// another established source error.
 
 use diagnostics::Diagnostic;
 use lowered_discharge::RouteVerdict;
@@ -171,13 +174,19 @@ pub(super) fn govern<T>(
     let Some(route) = route else {
         return current;
     };
-    if let Err(rejection) = &current
-        && !rejection
-            .iter()
-            .all(|diagnostic| outside_current_scope(scope, diagnostic))
-    {
-        return current;
-    }
+    let current = match current {
+        Err(mut rejection)
+            if !rejection
+                .iter()
+                .all(|diagnostic| outside_current_scope(scope, diagnostic)) =>
+        {
+            if let RouteJudgment::Rejected(additional) = route {
+                rejection.extend(additional);
+            }
+            return Err(rejection);
+        }
+        other => other,
+    };
     match route {
         RouteJudgment::Undecided => current,
         // The route's rejection is the compilation's. When the current
@@ -309,17 +318,21 @@ mod tests {
 
     /// A current rejection that cannot be placed outside the Build program
     /// and the entry contract is the current checker's to decide: neither
-    /// the route's acceptance nor its rejection replaces it.
+    /// the route's acceptance nor its rejection replaces it. An independent
+    /// route rejection adds its diagnostics after the current checker's.
     #[test]
     fn an_unplaced_current_rejection_stands() {
-        for route in [RouteJudgment::Accepted, rejected("route")] {
+        for (route, expected) in [
+            (RouteJudgment::Accepted, vec!["current"]),
+            (rejected("route"), vec!["current", "route"]),
+        ] {
             assert_eq!(
                 messages(govern(
                     Err(vec![Diagnostic::error("current")]),
                     Some(route),
                     &NONE
                 )),
-                ["current"]
+                expected
             );
         }
     }
