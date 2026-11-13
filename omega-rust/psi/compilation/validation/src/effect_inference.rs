@@ -447,12 +447,22 @@ pub(crate) mod invocations {
         InvocationInferencePlan {
             machines: work
                 .into_iter()
-                .map(|machine| {
+                .zip(program.machines())
+                .map(|(mut machine, declaration)| {
                     let effective = if machine.uses_published {
                         machine.published.clone()
                     } else {
                         machine.transitive.clone()
                     };
+                    // Public checked bodies publish their completed inference when
+                    // invokes is omitted. Visibility does not close this axis.
+                    if declaration.is_public
+                        && declaration.supply_mode
+                            == language_semantics::MachineSupplyMode::CheckedBody
+                        && program.machine_invokes(declaration).is_empty()
+                    {
+                        machine.published = effective.clone();
+                    }
                     MachineInvocationInference {
                         machine: machine.symbol,
                         published: machine.published,
@@ -588,7 +598,6 @@ pub(crate) mod invocations {
             symbol: machine.symbol,
             uses_published: family_members.is_empty()
                 && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-                    || machine.is_public
                     || !program.machine_invokes(machine).is_empty()),
             family_members,
             published: published.clone(),

@@ -1,0 +1,11 @@
+public boundary trait Entry {
+    machine enter() reaches none crashes none;
+}
+
+// A caller uses this published ceiling even when this implementation needs none.
+machine possible_entry() reaches none crashes none invokes Entry {}
+
+// Omission on a public checked body publishes the inferred entry ceiling.
+public machine forward() reaches none crashes none {
+    possible_entry();
+}

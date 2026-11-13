@@ -1,0 +1,8 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "public_invokes_inference");
+    let helper_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../packages/public_invokes_helper" }));
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}

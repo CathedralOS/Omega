@@ -2,10 +2,11 @@
 We verify machine synchronous-invocation declarations and ceilings against
 checked compilation custody.
 
-A virtual family head has no authored `invokes` clause: its published ceiling
-is the union of every retained member's effective checked ceiling. Source
-review verifies that derivation against immutable compilation custody without
-selecting a deployment or running semantic inference again.
+Public checked bodies without an authored `invokes` clause publish their checked
+inference. A virtual family head publishes the union of every retained member's
+effective checked ceiling. Source review verifies those derivations against
+immutable compilation custody without selecting a deployment or running semantic
+inference again.
 */
 
 use crate::capture::PackageReviewInput;
@@ -32,10 +33,13 @@ pub(crate) fn validate_machine_invocations(
         machine.name.as_str(),
         "synchronous-invocation",
     )?;
-    let expected = family_invocation_ceiling(compilation, machine)?.unwrap_or(declared);
+    let expected = match family_invocation_ceiling(compilation, machine)? {
+        Some(family) => family,
+        None => declaration_invocation_ceiling(compilation, machine, declared)?,
+    };
     if checked.published_targets != expected {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` authored invokes targets do not equal its exact checked published ceiling",
+            "reviewed callable `{}` invokes ceiling does not equal its exact checked published ceiling",
             machine.name,
         ))]);
     }
@@ -52,6 +56,29 @@ pub(crate) fn validate_machine_invocations(
     }
 
     Ok(())
+}
+
+fn declaration_invocation_ceiling(
+    compilation: &PackageReviewInput<'_>,
+    machine: &typed_trees::machine::Machine,
+    declared: Vec<flow_effects::InvocationTarget>,
+) -> Result<Vec<flow_effects::InvocationTarget>, Vec<Diagnostic>> {
+    if machine.is_public
+        && machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
+        && compilation.machine_invokes(machine).is_empty()
+    {
+        // Read the completed body inference from the original checked custody,
+        // not the review facts whose published ceiling we are validating.
+        let original = machine_invocation(
+            &compilation.custody.facts.synchronous_invocations.machines,
+            machine.symbol,
+            machine.name.as_str(),
+            "public synchronous-invocation custody",
+        )?;
+        Ok(original.checked_inferred_targets.clone())
+    } else {
+        Ok(declared)
+    }
 }
 
 fn family_invocation_ceiling(
@@ -89,7 +116,8 @@ fn family_invocation_ceiling(
             "family member synchronous-invocation custody",
         )?;
         if declared.len() != compilation.machine_invokes(declaration).len()
-            || checked.published_targets != declared
+            || checked.published_targets
+                != declaration_invocation_ceiling(compilation, declaration, declared)?
             || checked != original
         {
             return Err(rejected(

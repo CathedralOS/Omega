@@ -1,0 +1,13 @@
+// Omitting invokes on this callable type is closed, unlike a checked body.
+use invocation_helper;
+use invocation_helper::Entry;
+
+machine apply<const Callback: machine() reaches none crashes none>()
+reaches none crashes none
+{
+    Callback();
+}
+
+machine main() reaches none crashes none {
+    apply<invocation_helper::forward>();
+}
