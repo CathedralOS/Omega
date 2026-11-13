@@ -34,13 +34,11 @@ impl TerminalApplication {
                 .bind_physical_adapter(&self.artifact)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
         }
-        Ok(
-            RetainedTerminalArtifact::new_with_native_realization_proposal(
-                self.artifact,
-                proposal.with_target_provider_proposals(self.provider_proposals),
-            )
-            .with_evidence(self.evidence)?,
+        RetainedTerminalArtifact::new_with_native_realization_proposal(
+            self.artifact,
+            proposal.with_target_provider_proposals(self.provider_proposals),
         )
+        .with_evidence(self.evidence)
     }
 }
 

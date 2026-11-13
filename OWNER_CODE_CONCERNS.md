@@ -71,7 +71,7 @@ own to defend. Say what you saw, not what you would build.
 - Category: one idea, several implementations
 - Where: `omega-rust/omega/compilation/realization/provider-admission/src/provider_admission/compiler_builtins/retained.rs:287` (`validate_external_provider_owners`) and `:295` (`validate_retained_external_provider_owners`); caller `omega-rust/omega/compilation/representations/abstract-operations/verified-input/src/native_proposal.rs:338`
 - Saw: the first demands an `ExternalProviderConformance` row for every selected realization, the second only for requirements the module retains as a boundary; a six-machine scalar program with no float rows builds natively from the default compile, yet the same module is refused ("`NativeFloats` has no retained external implementation for `Float::add`") when a harness hands the proposal the provider declarations prepared for the old program.
-- Cost: it is unclear whether a module from the lowered-form checker must carry the 146 float-table rows; one session is building them while the default compile shows they are not read for a program without floats.
+- Cost: proposal validation has two different retained-demand contracts. The Check-mode trial requires the 146 float-table rows while the earlier default scalar compile did not read them; treating the former as the default demand can force unrelated metadata into the product path. The all-catalog investigation is parked while the actual default consumer is reconciled.
 - Reported: 2026-11-13, Claude Code, while carrying the lowered-form checker's published module into Terminal production
 
 ### Constructing the source compiler repeats an hour of checking before its tests
