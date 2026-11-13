@@ -101,7 +101,7 @@ fn relay(item_type: ValueType, bound: u128) -> Shape {
             Strict::Add,
             Expression {
                 kind: ExpressionKind::Call {
-                    callee: id(2),
+                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                     arguments: vec![item(item_type), slot(1, u32_type())],
                 },
                 result: Some(u32_value()),

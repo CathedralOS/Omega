@@ -1012,7 +1012,7 @@ pub use types::{
 };
 pub use values::*;
 
-use semantic_vocabulary::{MachineId, ServiceId};
+use semantic_vocabulary::{MachineId, Proposition, ServiceId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalMathematicalCarrier {
@@ -1156,6 +1156,65 @@ impl TerminalModule {
 
     pub fn machine(&self, id: MachineId) -> Option<&TerminalMachine> {
         self.machines.iter().find(|machine| machine.id == id)
+    }
+
+    /// Read the written contract of the exact declaration a call names. A
+    /// boundary contributes its interface contract, never a fabricated body
+    /// or a body-derived result summary. Provider admission remains separate.
+    pub fn callable_requires(
+        &self,
+        callable: crate::TargetMachineCallable,
+    ) -> Option<&[Proposition]> {
+        match callable {
+            crate::TargetMachineCallable::Machine(machine) => {
+                Some(&self.machine(machine)?.contract.requires)
+            }
+            crate::TargetMachineCallable::Boundary(boundary) => {
+                Some(&self.boundary_machine(boundary)?.scalar_requires)
+            }
+        }
+    }
+
+    pub fn callable_ensures(
+        &self,
+        callable: crate::TargetMachineCallable,
+    ) -> Option<impl Iterator<Item = &Proposition>> {
+        let (machine, boundary) = match callable {
+            crate::TargetMachineCallable::Machine(machine) => (Some(self.machine(machine)?), None),
+            crate::TargetMachineCallable::Boundary(boundary) => {
+                (None, Some(self.boundary_machine(boundary)?))
+            }
+        };
+        Some(
+            machine
+                .into_iter()
+                .flat_map(|machine| {
+                    machine
+                        .contract
+                        .ensures
+                        .iter()
+                        .map(|clause| &clause.proposition)
+                })
+                .chain(
+                    boundary
+                        .into_iter()
+                        .flat_map(|boundary| &boundary.scalar_ensures),
+                ),
+        )
+    }
+
+    pub fn callable_structural_parameters(
+        &self,
+        callable: crate::TargetMachineCallable,
+    ) -> Option<&[StructuralParameterDeclaration]> {
+        match callable {
+            crate::TargetMachineCallable::Machine(machine) => {
+                Some(&self.machine(machine)?.structural_parameters)
+            }
+            crate::TargetMachineCallable::Boundary(boundary) => {
+                Some(&self.boundary_machine(boundary)?.structural_parameters)
+            }
+        }
     }
 
     pub fn calling_abi_signature(

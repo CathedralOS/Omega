@@ -100,8 +100,11 @@ fn callees(elaboration: &Elaboration, id: MachineId) -> Checked<Vec<MachineId>> 
             .invocations
             .values()
             .filter_map(|call| match call.callee {
-                Callee::Machine(callee) => Some(callee),
-                Callee::Selected { .. } => None,
+                Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => {
+                    Some(callee)
+                }
+                Callee::Selected { .. }
+                | Callee::Declared(semantic_vocabulary::TargetMachineCallable::Boundary(_)) => None,
             })
             .collect(),
     )
@@ -269,14 +272,7 @@ fn summarize(
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let mut scratch = original.clone();
-    let prepared = prepare(
-        &module.machines,
-        &module.structural_types,
-        &elaboration.domains,
-        id,
-        &mut scratch,
-        knowledge,
-    )?;
+    let prepared = prepare(module, &elaboration.domains, id, &mut scratch, knowledge)?;
     let declared_joins = joins::prepare(
         lowered,
         id,
@@ -302,7 +298,7 @@ fn summarize(
         .collect::<Vec<_>>();
     joins::check(
         &joins::Machine {
-            machines: &module.machines,
+            module,
             lowered,
             storage: &storage,
             id,

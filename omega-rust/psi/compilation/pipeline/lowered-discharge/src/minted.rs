@@ -58,11 +58,11 @@ use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    BoundaryParameterKind, ModuleInvocationInputs, OperationKind, StructuralTypeDeclaration,
-    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
+    BoundaryParameterKind, ModuleInvocationInputs, StructuralTypeDeclaration, TerminalMachine,
+    TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
-use crate::{refusal, semantics_refusal, terminal_machine};
+use crate::{refusal, semantics_refusal};
 
 fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
@@ -95,7 +95,7 @@ fn successors(terminator: &Terminator) -> Vec<(EdgeId, Destination)> {
 
 struct Minted<'a> {
     machine: MachineId,
-    machines: &'a [TerminalMachine],
+    module: &'a terminal_psi::TerminalModule,
     tables: &'a MachineTables,
     /// Whether the lowered form has claimed each obligation row, by position.
     obligations: Vec<bool>,
@@ -198,7 +198,7 @@ impl Minted<'_> {
     fn call(
         &mut self,
         site: InvocationSite,
-        inputs: ModuleInvocationInputs<'_>,
+        inputs: ModuleInvocationInputs<'_, semantic_vocabulary::TargetMachineCallable>,
         before: ProgramPoint,
         concerns: Construct,
     ) -> Checked<()> {
@@ -211,7 +211,7 @@ impl Minted<'_> {
             return Err(self.foreign(concerns, "a call does not have exactly one invocation row"));
         };
         let concerns = Construct::Invocation(invocation);
-        if row.callee != Callee::Machine(inputs.callee) {
+        if row.callee != Callee::Declared(inputs.callee) {
             return Err(self.foreign(concerns, "an invocation row names another callee"));
         }
         // The scalar lane and the record lane, each in argument order.
@@ -245,9 +245,19 @@ impl Minted<'_> {
                 "an invocation row's actuals are not the call's arguments",
             ));
         }
-        let clauses = terminal_machine(self.machines, inputs.callee, self.machine)?
-            .contract
-            .requires
+        let callee = crate::callee(self.module, self.machine, invocation, &row.callee)?;
+        if !inputs.claim_transfers.is_empty() || !inputs.completion_receipts.is_empty() {
+            return Err(refusal(
+                RefusalReason::Unsupported,
+                self.machine,
+                concerns,
+                "call needs its exact claim-transfer and completion-receipt proof",
+            ));
+        }
+        let clauses = self
+            .module
+            .callable_requires(callee)
+            .ok_or_else(|| self.foreign(concerns, "callee has no canonical requires contract"))?
             .len();
         if inputs.requirement_obligations.len() != clauses
             || row.requirements != inputs.requirement_obligations
@@ -276,7 +286,7 @@ impl Minted<'_> {
 /// rows are the ones `lowered` itself owes and states.
 pub(crate) fn follow_the_lowered_form(
     id: MachineId,
-    machines: &[TerminalMachine],
+    module: &terminal_psi::TerminalModule,
     lowered: &TerminalMachine,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
@@ -284,7 +294,7 @@ pub(crate) fn follow_the_lowered_form(
     values_are_declared(id, lowered, tables)?;
     let mut minted = Minted {
         machine: id,
-        machines,
+        module,
         tables,
         obligations: vec![false; tables.obligations.len()],
         invocations: vec![false; tables.invocations.len()],
@@ -366,7 +376,7 @@ pub(crate) fn follow_the_lowered_form(
                     }
                 }
             }
-            if let Some(inputs) = operation.kind.module_invocation() {
+            if let Some(inputs) = operation.kind.declared_invocation() {
                 minted.call(
                     InvocationSite::Operation(operation.id),
                     inputs,
@@ -376,16 +386,22 @@ pub(crate) fn follow_the_lowered_form(
             }
             // A call that may return and crash is a crash site of its own,
             // owing coverage per cause among its continuations.
-            if let OperationKind::Call {
-                crash_continuations,
-                ..
-            }
-            | OperationKind::CallUnit {
-                crash_continuations,
-                ..
-            } = &operation.kind
-            {
-                for bucket in crash_continuations {
+            if let Some(inputs) = operation.kind.declared_invocation() {
+                let routes = match inputs.callee {
+                    terminal_psi::TargetMachineCallable::Machine(_) => inputs.crash_continuations,
+                    terminal_psi::TargetMachineCallable::Boundary(boundary) => {
+                        &module
+                            .boundary_machine(boundary)
+                            .ok_or_else(|| {
+                                minted.foreign(
+                                    Construct::Operation(operation.id),
+                                    "call names an absent boundary",
+                                )
+                            })?
+                            .crash_routes
+                    }
+                };
+                for bucket in routes {
                     minted.owed(
                         ObligationKind::CrashCoverage {
                             site: CrashSite::Operation(operation.id),
@@ -418,7 +434,7 @@ pub(crate) fn follow_the_lowered_form(
         if let Some(inputs) = block.terminator.module_invocation() {
             minted.call(
                 InvocationSite::InvokeNoNormal(block.terminator.edge()),
-                inputs,
+                inputs.declared(),
                 before,
                 Construct::Block(block.id),
             )?;
@@ -537,7 +553,7 @@ pub(crate) fn follow_the_lowered_form(
                 concerns,
                 "call through a selector value",
             ),
-            Callee::Machine(_) => minted.foreign(
+            Callee::Declared(_) => minted.foreign(
                 concerns,
                 "an invocation row restates no call of this machine",
             ),

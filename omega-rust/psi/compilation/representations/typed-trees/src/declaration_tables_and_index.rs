@@ -2317,7 +2317,7 @@ pub(crate) mod declaration_tables {
 
         pub fn retain_live_trait_implementation_applications(
             &mut self,
-            removed: &std::collections::HashSet<symbols::SymbolHandle>,
+            removed: impl Fn(symbols::SymbolHandle) -> bool,
         ) {
             let mut captured_supplies =
                 std::collections::HashMap::<_, Vec<_>, symbols::BuildSymbolHasher>::default();
@@ -2331,7 +2331,7 @@ pub(crate) mod declaration_tables {
             }
             let owner_removed = |mut owner: symbols::SymbolHandle| {
                 while owner.is_valid() {
-                    if removed.contains(&owner) {
+                    if removed(owner) {
                         return true;
                     }
                     owner = self.symbols.get(owner).parent;
@@ -3494,7 +3494,8 @@ pub(crate) mod declaration_tables {
                     ..Default::default()
                 });
             let removed = std::collections::HashSet::from([owner]);
-            program.retain_live_trait_implementation_applications(&removed);
+            program
+                .retain_live_trait_implementation_applications(|symbol| removed.contains(&symbol));
             assert!(program.machine_by_symbol(owner).is_none());
             assert_eq!(program.data_implementation_applications.len(), 1);
             assert_eq!(
@@ -3513,7 +3514,8 @@ pub(crate) mod declaration_tables {
             assert!(!references.symbols.contains(&owner));
 
             program.roots.machines = Default::default();
-            program.retain_live_trait_implementation_applications(&removed);
+            program
+                .retain_live_trait_implementation_applications(|symbol| removed.contains(&symbol));
             assert!(program.data_implementation_applications.is_empty());
         }
     }

@@ -104,7 +104,7 @@ use terminal_check_tables::{
     UnprovedCause,
 };
 use terminal_codec::ObligationEvidenceSeal;
-use terminal_psi::{ScalarBlockInvariant, TerminalMachine, Terminator};
+use terminal_psi::{TerminalMachine, TerminalModule, Terminator};
 
 use graph::Graph;
 
@@ -382,10 +382,8 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
         }
         let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
         machines.push(machine(
-            &module.machines,
-            &module.structural_types,
+            module,
             &elaboration.domains,
-            &module.scalar_block_invariants,
             id,
             tables,
             knowledge,
@@ -424,7 +422,8 @@ impl Unreached {
     pub(crate) fn values(&self, lowered: &TerminalMachine, tables: &MachineTables) -> Vec<ValueId> {
         let mut values = self.formals.get(lowered.id).cloned().unwrap_or_default();
         for call in tables.invocations.values() {
-            if let Callee::Machine(callee) = call.callee
+            if let Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) =
+                call.callee
                 && self.results.get(callee) == Some(&true)
                 && let InvocationSite::Operation(operation) = call.site
                 && let Some(result) = operation_result(lowered, operation)
@@ -484,15 +483,16 @@ fn terminal_machine(
 }
 
 fn machine(
-    machines: &[TerminalMachine],
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    module: &TerminalModule,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
-    invariants: &[ScalarBlockInvariant],
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
     unreached: &[ValueId],
 ) -> Checked<MachineDischarge> {
+    let machines = &module.machines;
+    let structural_types = &module.structural_types;
+    let invariants = &module.scalar_block_invariants;
     let lowered = terminal_machine(machines, id, id)?;
     if !tables.knowledge.is_empty() {
         return Err(refusal(
@@ -506,7 +506,7 @@ fn machine(
         types,
         graph,
         context,
-    } = prepare(machines, structural_types, domains, id, tables, knowledge)?;
+    } = prepare(module, domains, id, tables, knowledge)?;
     let storage = places::Storage::new(
         id,
         lowered,
@@ -519,7 +519,7 @@ fn machine(
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
-    let (lent, conflicts) = storage.loans(machines, tables)?;
+    let (lent, conflicts) = storage.loans(module, tables)?;
     for (obligation, verdict) in lent {
         let slot = decided
             .get_mut(usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX))
@@ -552,7 +552,7 @@ fn machine(
     )?;
     let weakened_joins = joins::check(
         &joins::Machine {
-            machines,
+            module,
             lowered,
             storage: &storage,
             id,
@@ -575,7 +575,7 @@ fn machine(
             continue;
         }
         let verdict = goal(
-            machines, lowered, &storage, id, obligation, &row.kind, tables, &types,
+            module, lowered, &storage, id, obligation, &row.kind, tables, &types,
         )
         .and_then(|goal| {
             decide(
@@ -761,7 +761,7 @@ fn machine(
 /// `requires`, result equations and field-read equations, branch
 /// conditions, dispatch bindings and callee guarantees.
 fn fill_knowledge(
-    machines: &[TerminalMachine],
+    module: &TerminalModule,
     id: MachineId,
     lowered: &TerminalMachine,
     tables: &mut MachineTables,
@@ -883,13 +883,20 @@ fn fill_knowledge(
                 ));
             }
         };
-        let callee = callee(id, invocation, &row.callee)?;
+        let callee = callee(module, id, invocation, &row.callee)?;
         let actuals = scalar_actuals(&row.actuals);
-        let contract = &terminal_machine(machines, callee, id)?.contract;
-        let erased = erased_actuals(lowered, contract, id, invocation, row.site)?;
-        for (clause, ensures) in contract.ensures.iter().enumerate() {
+        let erased = callable_erased_actuals(module, lowered, callee, id, invocation, row.site)?;
+        let ensures = module.callable_ensures(callee).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                id,
+                Construct::Invocation(invocation),
+                "callee has no canonical guarantee contract",
+            )
+        })?;
+        for (clause, ensures) in ensures.enumerate() {
             let proposition = substitute(
-                &ensures.proposition,
+                ensures,
                 &mut ErasedTerms {
                     terms: &erased,
                     runtime: &mut ScalarActuals {
@@ -926,13 +933,14 @@ pub(crate) struct Prepared {
 /// Fills `tables.knowledge` from the lowered form and builds what deciding
 /// needs. Knowledge already present is kept: it is this machine's own.
 pub(crate) fn prepare(
-    machines: &[TerminalMachine],
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+    module: &TerminalModule,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
 ) -> Checked<Prepared> {
+    let machines = &module.machines;
+    let structural_types = &module.structural_types;
     let lowered = terminal_machine(machines, id, id)?;
     let fill = tables.knowledge.is_empty();
     let types = tables.values.map(|_, row| row.scalar_type);
@@ -940,7 +948,7 @@ pub(crate) fn prepare(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, machines, lowered, tables, &types)?;
+    minted::follow_the_lowered_form(id, module, lowered, tables, &types)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     if fill {
@@ -954,7 +962,7 @@ pub(crate) fn prepare(
             &types,
         )?;
         storage.owed_are_minted(tables)?;
-        fill_knowledge(machines, id, lowered, tables, knowledge, &types, &storage)?;
+        fill_knowledge(module, id, lowered, tables, knowledge, &types, &storage)?;
     }
     // A value of a type parameter has no type the kernel could hold it at,
     // so the context does not list it (`concrete`).
@@ -1097,19 +1105,100 @@ fn result_equation(
     )
 }
 
-fn callee(
+pub(crate) fn callee(
+    module: &TerminalModule,
     machine: MachineId,
     invocation: terminal_check_tables::InvocationId,
     callee: &Callee,
-) -> Checked<MachineId> {
+) -> Checked<semantic_vocabulary::TargetMachineCallable> {
+    let concerns = Construct::Invocation(invocation);
+    let unavailable = |detail| refusal(RefusalReason::Unsupported, machine, concerns, detail);
+    let Callee::Declared(callee) = *callee else {
+        return Err(unavailable("call through a selector value"));
+    };
     match callee {
-        Callee::Machine(callee) => Ok(*callee),
-        Callee::Selected { .. } => Err(refusal(
-            RefusalReason::Unsupported,
+        semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
+            terminal_machine(&module.machines, callee, machine)?;
+        }
+        semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
+            let declaration = module.boundary_machine(boundary).ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    concerns,
+                    "boundary declaration is unavailable",
+                )
+            })?;
+            if declaration.declaration.is_none()
+                || declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
+                || declaration.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn
+            {
+                return Err(unavailable(
+                    "boundary call has no supported exact callable contract",
+                ));
+            }
+            if declaration.declaration.as_ref().is_some_and(|checked| {
+                checked.source.published_may_suspend || checked.source.published_may_block
+            }) {
+                return Err(unavailable(
+                    "boundary call needs its suspension and blocking proof",
+                ));
+            }
+            if !declaration.requires.is_empty()
+                || !declaration.normal_qualifications.is_empty()
+                || !declaration.scalar_domain_requirements.is_empty()
+                || declaration.structural_parameters.iter().any(|formal| {
+                    !formal.qualifications.is_empty()
+                        || !formal.projected_qualifications.is_empty()
+                        || !formal.additional_input_qualifications.is_empty()
+                })
+            {
+                return Err(unavailable(
+                    "boundary call needs its structural qualification proof",
+                ));
+            }
+            if !declaration.reference_outputs.is_empty()
+                || !declaration.result_reference_regions.is_empty()
+                || !declaration.program_local_root_introductions.is_empty()
+                || !declaration.content_guarantees.is_empty()
+                || matches!(&declaration.result, terminal_psi::BoundaryMachineResult::Structural(result)
+                    if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty())
+            {
+                return Err(unavailable(
+                    "boundary call needs its result, reference and content custody proof",
+                ));
+            }
+            if !declaration.fixed_service_reach.is_empty()
+                || !declaration.published_service_ceiling.is_empty()
+            {
+                return Err(unavailable(
+                    "boundary call needs its nonempty declared reach proof",
+                ));
+            }
+        }
+    }
+    Ok(callee)
+}
+
+fn callable_erased_actuals(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    callee: semantic_vocabulary::TargetMachineCallable,
+    machine: MachineId,
+    invocation: terminal_check_tables::InvocationId,
+    site: InvocationSite,
+) -> Checked<Vec<(ValueId, ScalarTerm)>> {
+    match callee {
+        semantic_vocabulary::TargetMachineCallable::Machine(callee) => erased_actuals(
+            caller,
+            &terminal_machine(&module.machines, callee, machine)?.contract,
             machine,
-            Construct::Invocation(invocation),
-            "call through a selector value",
-        )),
+            invocation,
+            site,
+        ),
+        // BoundaryCall has no erased operand lane, and structural reading
+        // refuses a requirement whose contract would need one.
+        semantic_vocabulary::TargetMachineCallable::Boundary(_) => Ok(Vec::new()),
     }
 }
 
@@ -1520,7 +1609,7 @@ fn connective(
 /// The goal of one obligation, over this machine's values.
 #[allow(clippy::too_many_arguments)]
 fn goal(
-    machines: &[TerminalMachine],
+    module: &TerminalModule,
     lowered: &TerminalMachine,
     storage: &places::Storage<'_>,
     id: MachineId,
@@ -1530,7 +1619,7 @@ fn goal(
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<Proposition> {
     let goal = stated_goal(
-        machines, lowered, storage, id, obligation, kind, tables, types,
+        module, lowered, storage, id, obligation, kind, tables, types,
     )?;
     concrete(tables, id, Construct::Obligation(obligation), &goal)?;
     Ok(goal)
@@ -1569,7 +1658,7 @@ fn concrete(
 
 #[allow(clippy::too_many_arguments)]
 fn stated_goal(
-    machines: &[TerminalMachine],
+    module: &TerminalModule,
     lowered: &TerminalMachine,
     storage: &places::Storage<'_>,
     id: MachineId,
@@ -1588,11 +1677,30 @@ fn stated_goal(
                 id,
                 Construct::Invocation(invocation),
             )?;
-            let callee = terminal_machine(machines, callee(id, invocation, &row.callee)?, id)?;
-            let erased = erased_actuals(lowered, &callee.contract, id, invocation, row.site)?;
+            let callee = callee(module, id, invocation, &row.callee)?;
+            let erased =
+                callable_erased_actuals(module, lowered, callee, id, invocation, row.site)?;
+            let clauses = module.callable_requires(callee).ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    concerns,
+                    "callee has no canonical requires contract",
+                )
+            })?;
+            let formals = module
+                .callable_structural_parameters(callee)
+                .ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        concerns,
+                        "callee has no canonical structural formals",
+                    )
+                })?;
             let clause = usize::try_from(clause)
                 .ok()
-                .and_then(|clause| callee.contract.requires.get(clause))
+                .and_then(|clause| clauses.get(clause))
                 .ok_or_else(|| {
                     refusal(
                         RefusalReason::ForeignIdentity,
@@ -1617,7 +1725,7 @@ fn stated_goal(
                 InvocationSite::Operation(site) => over_actuals(&mut storage.at_call(
                     tables,
                     &row.actuals,
-                    callee,
+                    formals,
                     site,
                     concerns,
                 )?),
@@ -1675,7 +1783,7 @@ fn stated_goal(
             joins::arrival_goal(lowered, id, obligation, edge, tables)
         }
         ObligationKind::CrashCoverage { site, cause } => {
-            crashes::coverage_goal(lowered, id, obligation, site, cause)
+            crashes::coverage_goal(module, lowered, tables, id, obligation, site, cause)
         }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }

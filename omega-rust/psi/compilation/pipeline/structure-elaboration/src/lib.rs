@@ -559,7 +559,7 @@ fn elaborate_witness_call(
     let source = SourceOrigin::Unpositioned(Unpositioned::ConformanceWitness);
     let call = Expression {
         kind: ExpressionKind::Call {
-            callee,
+            callee: callee.into(),
             arguments: required
                 .parameters
                 .iter()
@@ -623,10 +623,14 @@ fn finish_reading(
     let mut elaboration = lower_generic_for(
         entry,
         &bodies,
-        &program.signatures,
+        body::Signatures {
+            machines: &program.signatures,
+            boundaries: &program.boundary_signatures,
+        },
         &program.records,
         &program.requirements,
         program.publication,
+        Some(&program),
     )?;
     if let Some(typed) = declared {
         declare::declare(
@@ -690,20 +694,25 @@ pub fn lower_generic(
     lower_generic_for(
         entry,
         bodies,
-        signatures,
+        body::Signatures {
+            machines: signatures,
+            boundaries: &IdTable::default(),
+        },
         records,
         requirements,
         terminal_codec::TerminalPublication::Portable,
+        None,
     )
 }
 
 fn lower_generic_for(
     entry: MachineId,
     bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
+    signatures: body::Signatures<'_>,
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
     publication: terminal_codec::TerminalPublication,
+    declarations: Option<&read::Program<'_>>,
 ) -> Checked<Elaboration> {
     for requirement in requirements {
         let body = terminal_check_tables::row(bodies, *requirement, entry, Construct::Machine)?;
@@ -715,7 +724,7 @@ fn lower_generic_for(
             ));
         }
     }
-    let components = components::components(bodies, signatures)?;
+    let components = components::components(bodies, signatures.machines)?;
     let outcomes = outcome::outcomes(bodies, signatures, requirements)?;
     let mut module = TerminalModule::for_entry(entry);
     // Terminal Psi declares each record type once for the module, with the
@@ -733,6 +742,16 @@ fn lower_generic_for(
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;
+    if let Some(source) = declarations {
+        source.publish_services(entry, &mut module)?;
+        source.publish_boundaries(entry, signatures, &outcomes, &declared.records, &mut module)?;
+    } else if !signatures.boundaries.is_empty() {
+        return Err(refuse(
+            entry,
+            Construct::Machine,
+            Unserved::Declaration("boundary contracts have no exact source owner"),
+        ));
+    }
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();
     for position in 1..=bodies.len() as u64 {
@@ -890,10 +909,14 @@ mod publication_scope_tests {
             lower_generic_for(
                 entry,
                 &bodies,
-                &signatures,
+                body::Signatures {
+                    machines: &signatures,
+                    boundaries: &IdTable::default(),
+                },
                 &IdTable::default(),
                 &[],
                 publication,
+                None,
             )
             .unwrap()
         };

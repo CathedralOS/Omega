@@ -251,6 +251,7 @@ fn physical_source(reference: TypeReferenceHandle) -> RecordSource {
             reference,
             substitutions: Vec::new(),
         }),
+        region_owner: SymbolHandle::invalid(),
         fields: Vec::new(),
         cases: Vec::new(),
     }
