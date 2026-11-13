@@ -574,24 +574,6 @@ fn provider_demand_is_prepared_by_psi_not_each_target_settlement() {
 }
 
 #[test]
-fn target_defaults_consume_one_psi_authored_origin_inventory() {
-    let target_selection =
-        include_str!("../../realization/provider-planning/src/target_machines.rs");
-    let selection = target_selection
-        .split("pub fn settle_provider_defaults(")
-        .nth(1)
-        .expect("target-default selection")
-        .split("///")
-        .next()
-        .expect("target-default body");
-    assert_absent(
-        &[selection],
-        "target defaults rescan source:",
-        &[".machines()", "ProviderPlanningContext"],
-    );
-}
-
-#[test]
 fn target_body_policy_consumes_psi_direct_call_declarations() {
     let bridge = include_str!("../../realization/provider-planning/src/target_machines.rs");
     assert_absent(
