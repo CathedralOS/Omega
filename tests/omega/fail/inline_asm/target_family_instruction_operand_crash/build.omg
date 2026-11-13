@@ -1,6 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "target_family_instruction_operand_crash");
-    builder.freestanding = true;
-    Build::exclude_crash(builder, CrashCause::Trap);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

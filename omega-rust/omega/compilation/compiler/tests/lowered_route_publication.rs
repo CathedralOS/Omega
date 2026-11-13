@@ -101,7 +101,8 @@ fn accepted(
 #[test]
 fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let (closure, root, signature) = accepted("tests/omega/run/calls/scalar_contract_route_exit");
+    let (closure, root, signature) =
+        accepted("tests/fixtures/run/calls/scalar_contract_route_exit");
     let publication = closure.publish().expect("the accepted module publishes");
 
     // The artifact holds exactly the module the route checked.
@@ -179,7 +180,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         .expect("the published program runs");
     let expected_exit = std::fs::read_to_string(
         repo_root()
-            .join("tests/omega/run/calls/scalar_contract_route_exit/expected_native_exit.txt"),
+            .join("tests/fixtures/run/calls/scalar_contract_route_exit/expected_native_exit.txt"),
     )
     .unwrap();
     assert_eq!(expected_exit.trim(), "0");
@@ -246,7 +247,7 @@ fn current_product(fixture: &str) -> terminal_codec::CanonicalTerminalArtifact {
 #[test]
 fn the_published_module_states_each_machines_declaration_identity() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let fixture = "tests/omega/run/calls/scalar_contract_route_exit";
+    let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
     let (closure, _, _) = accepted(fixture);
     let publication = closure.publish().expect("the accepted module publishes");
     let published = publication.artifact.semantic_module();

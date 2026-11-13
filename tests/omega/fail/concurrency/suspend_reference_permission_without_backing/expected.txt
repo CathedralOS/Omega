@@ -1,2 +1,0 @@
-`unknown` may retain borrowed storage
-carry permission on the descriptor does not establish loan preservation

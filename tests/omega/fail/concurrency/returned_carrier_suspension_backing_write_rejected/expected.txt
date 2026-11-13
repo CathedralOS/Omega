@@ -1,1 +1,0 @@
-mutates `second` while local borrow `projected` is still active

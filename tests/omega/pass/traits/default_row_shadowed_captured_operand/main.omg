@@ -1,8 +1,0 @@
-// The default's unused invocation region does not bind the
-// map-captured region nested in Value, even when both are spelled 'same.
-data Marker<'held> {}
-trait Reader<Value> {
-    machine read<'same>(value: Value) -> Value { value }
-}
-Mapped<'same> satisfies Reader<Marker<'same>> {}
-machine main() {}

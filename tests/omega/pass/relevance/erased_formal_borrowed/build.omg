@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "erased_formal_borrowed");
-    builder.freestanding = true;
-}

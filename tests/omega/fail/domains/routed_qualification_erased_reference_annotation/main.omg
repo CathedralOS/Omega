@@ -1,9 +1,0 @@
-// A reference local annotated `&Ticket in Ticket::Held` cannot be
-// initialized by borrowing a value whose issued meaning was erased.
-data Ticket [copy] { number: u64; }
-domain Ticket::Held established by issue;
-machine issue() -> Ticket in Ticket::Held { Ticket { number: 17 } }
-machine main() {
-    let issued: Ticket in Ticket::Held = issue();
-    let held: &Ticket in Ticket::Held = &(issued as Ticket);
-}

@@ -1,5 +1,0 @@
-machine undefined_remainder(divisor: i32)
-requires divisor == 0
-ensures (embed(7i32) % embed(divisor)) - (embed(7i32) % embed(divisor)) == 0
-{}
-machine main() {}

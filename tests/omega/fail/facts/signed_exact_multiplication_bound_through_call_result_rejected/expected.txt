@@ -1,1 +1,0 @@
-machine `multiply` cannot prove ensures contract proof fact `result >= 40 && result <= 90`

@@ -1,1 +1,0 @@
-state `take` receives `main` as both mutable and read-only

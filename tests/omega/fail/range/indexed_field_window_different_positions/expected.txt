@@ -1,3 +1,0 @@
-cannot complete return from machine `Grid::main` state `main`
-the `requires` facts of `grid.cells[*]` (data `Cell`)
-unproved; restore them first

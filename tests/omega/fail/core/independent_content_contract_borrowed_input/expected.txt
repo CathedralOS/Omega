@@ -1,1 +1,0 @@
-retained-after-return authority requires a consumed owned input

@@ -98,6 +98,7 @@ impl Program<'_> {
                         | ExpressionKind::Not(_)
                         | ExpressionKind::BitwiseNot(_)
                         | ExpressionKind::Cast(_)
+                        | ExpressionKind::Requalify(_)
                         | ExpressionKind::ShortCircuit { .. }
                         | ExpressionKind::Borrow { .. }
                         | ExpressionKind::Call { .. } => {
@@ -188,6 +189,11 @@ impl Program<'_> {
             let value_type = self.value_type(id, local.type_reference)?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
+                // Its home would be declared with the identity of a
+                // primitive type the lowered form has no row for.
+                ValueType::Qualified(..) => {
+                    return unserved("uninitialized local of a policy-qualified type");
+                }
                 ValueType::Record(_) => None,
                 ValueType::Scalar(_) => Some(
                     self.typed
@@ -248,6 +254,22 @@ impl Program<'_> {
             && slots[named].borrowed.is_some()
         {
             return unserved("local bound to a reference without a declared type");
+        }
+        // domains.md, "Literals and expected types": "An expected type
+        // selects the carrier in which an anonymous literal lands. It never
+        // inserts a domain cast", and "An annotated `let` is no exception".
+        // So `let x: u32 in Wrapping = 5;` binds a plain `u32` to a
+        // Wrapping local, which only a cast does.
+        if let Some(declared) = declared
+            && declared.policy().is_some()
+            && value_type.policy().is_none()
+            && declared.scalar() == value_type.scalar()
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("local initializer without the arithmetic policy of its local"),
+            ));
         }
         if declared.is_some_and(|declared| declared != value_type) {
             return Err(refuse(

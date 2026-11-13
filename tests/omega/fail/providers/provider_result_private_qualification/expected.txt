@@ -1,1 +1,0 @@
-does not satisfy trait `TokenMint` machine `issue`: expected return `Token`, got `Token[in Token::Issued]`

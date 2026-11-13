@@ -1,2 +1,0 @@
-cannot use `receipts[0]` in machine `main` state `entry` (statement 3)
-after `receipts[0]` was transferred or consumed at statement 2: it holds no value

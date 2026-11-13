@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "default_component_abi_wrong_arity");
-    let mut producer_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../pass/build/default_component_abi_extents/producer" });
-    dependency::with_alias(&mut producer_dependency, "producer");
-    let producer_registration: DependencyRegistration = Build::dependency(builder, producer_dependency);
-    Build::select_provider<producer::main::Inspect<u8, u16>, producer::main::Inspector>(builder, macos_arm64, CompositionMode::Independent);
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-}

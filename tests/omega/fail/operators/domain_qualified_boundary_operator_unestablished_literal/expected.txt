@@ -1,1 +1,0 @@
-cannot prove requires contract for call equal from nested: 7 in i32::Counted

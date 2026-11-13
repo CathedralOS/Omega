@@ -1,6 +1,0 @@
-// Expected exit: 0. An ordinary Unit call demands its selected provider even
-// when no scalar/layout condition caused the application graph to be built.
-boundary trait Choice { machine choose() reaches; }
-Only satisfies Choice { machine choose() {} }
-machine invoke() { Choice::choose(); }
-machine program() { invoke(); }

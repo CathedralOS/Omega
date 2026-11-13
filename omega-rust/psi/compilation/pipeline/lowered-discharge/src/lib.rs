@@ -90,9 +90,9 @@ use proof_admission::{
     ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, InvocationSite,
-    MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext, ScalarTerm,
-    ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
+    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, IntegerMathTerm,
+    InvocationSite, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
+    ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use structure_elaboration::Elaboration;
 use terminal_check_tables::edges::{Actual, Callee, Destination};
@@ -343,9 +343,10 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
     // summarized under no input, and what it returns because of the input
     // its callers establish is a further clause. A summary already in the
     // contract is not added twice.
-    result_summaries::infer(elaboration, knowledge)?;
-    entry_inputs::infer(elaboration, knowledge)?;
-    result_summaries::infer(elaboration, knowledge)?;
+    let mut unreached = Unreached::new(elaboration);
+    result_summaries::infer(elaboration, knowledge, &mut unreached)?;
+    entry_inputs::infer(elaboration, knowledge, &mut unreached)?;
+    result_summaries::infer(elaboration, knowledge, &mut unreached)?;
     let module = &elaboration.module;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
@@ -378,6 +379,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
             });
             continue;
         }
+        let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
         machines.push(machine(
             &module.machines,
             &module.structural_types,
@@ -386,9 +388,65 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
             id,
             tables,
             knowledge,
+            &beyond,
         )?);
     }
     Ok(Discharge { machines })
+}
+
+/// Values that have no defining operation in the machine that names them and
+/// still stand for one the integer rules do not reach (`prove::reach`): a
+/// formal whose input condition was inferred from a caller's unreached
+/// actual, and the result of a call to a private helper whose body returns
+/// an unreached value. A goal that depends on one is `Incomplete` when it is
+/// not proved, as it would be were the operation in the same machine.
+///
+/// Only inferred conditions carry this across a call. A written contract is
+/// the program's own claim: an arrival or a return that cannot establish it
+/// is judged where the operation is, and a caller that needs more than the
+/// contract states is rejected.
+pub(crate) struct Unreached {
+    formals: IdTable<MachineId, Vec<ValueId>>,
+    results: IdTable<MachineId, bool>,
+}
+
+impl Unreached {
+    fn new(elaboration: &Elaboration) -> Self {
+        Self {
+            formals: elaboration.tables.machines.map(|_, _| Vec::new()),
+            results: elaboration.tables.machines.map(|_, _| false),
+        }
+    }
+
+    /// The unreached values of the machine `lowered`: its marked formals and
+    /// the results of its calls of marked helpers.
+    pub(crate) fn values(&self, lowered: &TerminalMachine, tables: &MachineTables) -> Vec<ValueId> {
+        let mut values = self.formals.get(lowered.id).cloned().unwrap_or_default();
+        for call in tables.invocations.values() {
+            if let Callee::Machine(callee) = call.callee
+                && self.results.get(callee) == Some(&true)
+                && let InvocationSite::Operation(operation) = call.site
+                && let Some(result) = operation_result(lowered, operation)
+            {
+                values.push(result);
+            }
+        }
+        values
+    }
+
+    pub(crate) fn mark_formal(&mut self, machine: MachineId, formal: ValueId) {
+        if let Some(formals) = self.formals.get_mut(machine)
+            && !formals.contains(&formal)
+        {
+            formals.push(formal);
+        }
+    }
+
+    pub(crate) fn mark_result(&mut self, machine: MachineId) {
+        if let Some(result) = self.results.get_mut(machine) {
+            *result = true;
+        }
+    }
 }
 
 fn refusal(
@@ -432,6 +490,7 @@ fn machine(
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
+    unreached: &[ValueId],
 ) -> Checked<MachineDischarge> {
     let lowered = terminal_machine(machines, id, id)?;
     if !tables.knowledge.is_empty() {
@@ -501,6 +560,7 @@ fn machine(
             context: &context,
             relations: knowledge != Knowledge::LiteralIntervals,
             declared: &declared,
+            unreached,
         },
         tables,
         &mut decided,
@@ -526,6 +586,7 @@ fn machine(
                 row.created_at,
                 goal,
                 knowledge != Knowledge::LiteralIntervals,
+                unreached,
             )
             .map(Discharged::Certificate)
         });
@@ -642,6 +703,7 @@ fn machine(
                 consumption.point,
                 goal,
                 knowledge != Knowledge::LiteralIntervals,
+                unreached,
             )
         });
         let verdict = match proved {
@@ -1327,6 +1389,18 @@ pub(crate) fn substitute(
         Proposition::LessOrEqual(left, right) => {
             Proposition::LessOrEqual(bound(left, bindings)?, bound(right, bindings)?)
         }
+        Proposition::IntegerMathEqual(left, right) => Proposition::IntegerMathEqual(
+            bound_mathematical(left, bindings)?,
+            bound_mathematical(right, bindings)?,
+        ),
+        Proposition::IntegerMathLessThan(left, right) => Proposition::IntegerMathLessThan(
+            bound_mathematical(left, bindings)?,
+            bound_mathematical(right, bindings)?,
+        ),
+        Proposition::IntegerMathLessOrEqual(left, right) => Proposition::IntegerMathLessOrEqual(
+            bound_mathematical(left, bindings)?,
+            bound_mathematical(right, bindings)?,
+        ),
         Proposition::StructuralCaseMembership { subject, case } => {
             if bindings.case(subject.root(), subject.path(), *case)? {
                 Proposition::Truth
@@ -1368,6 +1442,41 @@ fn bound(term: &ScalarTerm, bindings: &mut dyn Bindings) -> Result<ScalarTerm, U
         _ => Err(Unbound::Unsupported(
             "clause term outside the scalar subset",
         )),
+    }
+}
+
+/// One mathematical-integer term of a clause under substitution. An embedded
+/// name is replaced by what `bindings` says it stands for, embedded again:
+/// the value keeps its carrier, and a literal actual is the mathematical
+/// integer it denotes (`IntegerMathTerm::embed`). The arithmetic around it is
+/// over unbounded integers and is kept as written
+/// (mathematical_values.md: "These terms denote unbounded mathematical
+/// integers and cannot overflow").
+fn bound_mathematical(
+    term: &IntegerMathTerm,
+    bindings: &mut dyn Bindings,
+) -> Result<IntegerMathTerm, Unbound> {
+    let embedded = |term: ScalarTerm| {
+        IntegerMathTerm::embed(term).ok_or(Unbound::Unsupported(
+            "clause embeds a term that is not an integer",
+        ))
+    };
+    match term {
+        IntegerMathTerm::IntegerLiteral(_) => Ok(term.clone()),
+        IntegerMathTerm::MathValue { source_type, value } => {
+            embedded(bindings.value(*value, ScalarType::Integer(*source_type))?)
+        }
+        IntegerMathTerm::Embed(scalar) => embedded(bound(scalar, bindings)?),
+        IntegerMathTerm::Add(..)
+        | IntegerMathTerm::Subtract(..)
+        | IntegerMathTerm::Multiply(..)
+        | IntegerMathTerm::ShiftLeft { .. } => {
+            let mut bound_term = term.clone();
+            for operand in bound_term.operands_mut() {
+                *operand = bound_mathematical(operand, bindings)?;
+            }
+            Ok(bound_term)
+        }
     }
 }
 
@@ -1624,6 +1733,7 @@ fn decide(
     point: ProgramPoint,
     goal: Proposition,
     relations: bool,
+    unreached: &[ValueId],
 ) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
     let mut prover = prove::Prover::new(
@@ -1635,8 +1745,10 @@ fn decide(
     );
     let proof = prover.prove(&goal).map_err(|reason| {
         // Classified by the goal's form, not by which search path failed
-        // last, so the outcome does not depend on search order.
-        let cause = if prove::has_rules_for(&goal) {
+        // last, so the outcome does not depend on search order: the form as
+        // written, and the form of the operations that define the values it
+        // names (`prove::reach`).
+        let cause = if prover.has_rules_for(&goal) && !prover.beyond_rules(&goal, unreached) {
             UnprovedCause::NoDerivation
         } else {
             UnprovedCause::NoRuleForGoalForm
@@ -1797,8 +1909,8 @@ fn returned(lowered: &TerminalMachine, exit: EdgeId) -> Option<ValueId> {
 }
 
 /// `clause` with the result pseudo-value `result` replaced by `value`, in
-/// the comparison and connective forms a clause over scalars has. Any other
-/// form is left as it is: it then still names the pseudo-value, which no
+/// the comparison and connective forms a clause over scalars or mathematical
+/// integers has. Any other form is left as it is: it then still names the pseudo-value, which no
 /// knowledge row describes, so it is unproved and never wrongly accepted.
 fn returned_for_result(clause: &Proposition, result: ValueId, value: ValueId) -> Proposition {
     let term = |term: &ScalarTerm| match term {
@@ -1813,10 +1925,34 @@ fn returned_for_result(clause: &Proposition, result: ValueId, value: ValueId) ->
             .map(|part| returned_for_result(part, result, value))
             .collect()
     };
+    // An embedded `result` is the returned value embedded: the embedding
+    // keeps the carrier, and the two have the same one.
+    fn mathematical(term: &IntegerMathTerm, result: ValueId, value: ValueId) -> IntegerMathTerm {
+        let mut returned = term.clone();
+        match &mut returned {
+            IntegerMathTerm::MathValue { value: id, .. } if *id == result => *id = value,
+            other => {
+                for operand in other.operands_mut() {
+                    *operand = mathematical(operand, result, value);
+                }
+            }
+        }
+        returned
+    }
+    let math = |term: &IntegerMathTerm| mathematical(term, result, value);
     match clause {
         Proposition::Equal(left, right) => Proposition::Equal(term(left), term(right)),
         Proposition::LessThan(left, right) => Proposition::LessThan(term(left), term(right)),
         Proposition::LessOrEqual(left, right) => Proposition::LessOrEqual(term(left), term(right)),
+        Proposition::IntegerMathEqual(left, right) => {
+            Proposition::IntegerMathEqual(math(left), math(right))
+        }
+        Proposition::IntegerMathLessThan(left, right) => {
+            Proposition::IntegerMathLessThan(math(left), math(right))
+        }
+        Proposition::IntegerMathLessOrEqual(left, right) => {
+            Proposition::IntegerMathLessOrEqual(math(left), math(right))
+        }
         Proposition::Conjunction(conjuncts) => Proposition::Conjunction(parts(conjuncts)),
         Proposition::Disjunction(disjuncts) => Proposition::Disjunction(parts(disjuncts)),
         other => other.clone(),

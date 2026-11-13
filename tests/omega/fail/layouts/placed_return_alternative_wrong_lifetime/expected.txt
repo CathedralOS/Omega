@@ -1,1 +1,0 @@
-returns a view with lifetime `'a`, but no input borrows `'a`

@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from retain_view
-result.bytes.len == selected.bytes.len

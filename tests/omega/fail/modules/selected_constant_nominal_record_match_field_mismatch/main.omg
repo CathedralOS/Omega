@@ -1,5 +1,0 @@
-use foreign::SELECTED;
-data Token [copy] {value:u64;}
-data Outer [copy] {inner:Token;}
-const ALIAS:Outer=match true{true->Outer{inner:Token{value:7}},false->Outer{inner:SELECTED}};
-machine main(){}

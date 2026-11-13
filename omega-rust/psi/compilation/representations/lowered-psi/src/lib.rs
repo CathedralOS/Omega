@@ -16,7 +16,7 @@ boundary.
 */
 
 /*
-- Produced by: `Psi 06` (`06_checked-trees-to-lowered-psi`) and transformed in place by `Psi 07` (`07_lowered-psi-to-lowered-psi`).
+- Produced by: nothing yet (the checked-tree lowering stage is deleted); transformed in place by `Psi 07` (`07_lowered-psi-to-lowered-psi`).
 - Consumed by: `Psi 08` (`08_lowered-psi-to-terminal-psi`) and `terminal-production`.
 */
 

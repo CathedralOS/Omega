@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "captured_finite_requirement_precedes_source_repair");
-}

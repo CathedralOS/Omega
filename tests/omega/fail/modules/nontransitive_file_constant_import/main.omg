@@ -1,4 +1,0 @@
-use m::b;
-machine result() -> u32 { SEED }
-data Main {}
-machine Main::main() {}

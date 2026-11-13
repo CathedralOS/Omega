@@ -1,5 +1,0 @@
-module first;
-
-public data Counter {
-    #1 counter: i32;
-}

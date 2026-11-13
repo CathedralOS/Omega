@@ -1,3 +1,0 @@
-assignment cannot write `pair` because it is not mutable
-assignment cannot write `values` because it is not mutable
-write-only argument `slot` for state `entry` is not writable

@@ -17,8 +17,8 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 `#requirements-and-evidence`, `#sessions-and-subagents`).
 
 - **Standalone session:** One agent executes Steps 1–5 end to end.
-- **Coordinator + subagents:** The coordinator runs Step 1 from `TASKS.md` and
-  `tests/omega/corpus_outcomes.txt` (without reading `omega-rust/` source files
+- **Coordinator + subagents:** The coordinator runs Step 1 from `TASKS.md`
+  (without reading `omega-rust/` source files
   to pre-diagnose the bug) and dispatches each worker immediately; the worker
   executes Steps 2–5 in its own context window and lands its own PR.
 
@@ -36,21 +36,19 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
    - Run `cargo xtask claims status` and `gh pr list --state open`.
    - Select the capability and root-cause family using the priority order in
      [AGENTS.md](../../../AGENTS.md#the-sample-loop) (`TASKS.md` capability and
-     migration items, pinned regression clusters in
-     `tests/omega/corpus_outcomes.txt` via `--list-pinned-regressions`, and
-     failing representative programs in `samples/` via `cargo xtask sample-gate`).
-   - Do **not** create new `samples/cli/facts/<fact>/` folders or 18-fixture
-     `tests/omega/{pass,fail}/facts/` matrices (they are frozen by
-     `cargo xtask check-rules` to prevent corpus bloat).
+     migration items, and failing representative programs in `samples/` via
+     `cargo xtask sample-gate`).
+   - Do **not** create new `samples/cli/facts/<fact>/` folders or add anything
+     under `tests/omega/` (`cargo xtask check-rules` rejects both).
 3. **Register or update the claim:**
    ```bash
    cargo xtask claims claim --board TASKS.md --item <ID> --owner "<label>" --path <paths>
    ```
    Keep the claim note concise: parent task, remaining acceptance, current
    witness, observed failure, and next action. Start it with the cluster line:
-   `Gate: <release-gate> | mechanism: <what fails> | rows sharing it: <N> of <total> | fix location: shared, or one-off because <reason>`.
-   Refine the mechanism after tracing; the count keeps the task from shrinking
-   to its witness. At initial dispatch, `--path`
+   `Gate: <release-gate> | mechanism: <what fails> | programs sharing it: <which> | fix location: shared, or one-off because <reason>`.
+   Refine the mechanism after tracing; naming the programs keeps the task from
+   shrinking to its witness. At initial dispatch, `--path`
    can name the witness/board paths or subsystem directory from the recorded
    diagnostic; workers refine paths if needed after tracing.
 
@@ -79,8 +77,8 @@ that already has one, widen that mechanism and make the general fix in this PR.
 1. **Generalize the mechanism end to end:** Apply
    [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering)
    and the [decision-making framing](../../../AGENTS.md#decision-making-framing-for-compiler-completion)
-   (fail-closed semantics, exact projected-path scoping, full `Psi 05 -> 06 -> 08 -> Native`
-   carry-through).
+   (fail-closed semantics, exact projected-path scoping, full carry-through from
+   the lowered-form checker to native execution).
 2. **Write inline design reasoning:** At the module entry or decision site,
    document why the mechanism fits and what invariant holds so the next reader
    does not have to reconstruct it.
@@ -88,36 +86,35 @@ that already has one, widen that mechanism and make the general fix in this PR.
    you changed (e.g., sibling fields where one is valid and one is invalid, or
    matching vs. fallback runtime paths) and confirm the mechanism holds and the
    invalid one is still rejected. Pin any newly uncovered behavior with a
-   focused positive/negative fixture pair under
-   `tests/omega/{pass,fail,run}/<behavior>/` (never a new 36-file fact folder).
+   test on the changed code and, when it needs a program, a focused
+   positive/negative pair kept beside that test under
+   `tests/fixtures/` (never a new 36-file fact folder).
    The other placements and targets are the capability's acceptance on
    `TASKS.md`; reach for one only when a result here points at it.
 
-## Step 4: Validate, Sweep the Root-Cause Family & Reconcile `TASKS.md`
+## Step 4: Validate & Reconcile `TASKS.md`
 
-Done means the compiler still holds the same object. The pinned diagnostic, and
-the finite `tests/omega` facts fixture, is a photograph of that object.
-Changing the fact, the bound, or the operation so a place passes is repainting
-that photograph: a different object, and a green check on it is not done.
+Done means the compiler still holds the same object. A kept program's pinned
+diagnostic is a photograph of that object. Changing the fact, the bound, or the
+operation so a place passes is repainting that photograph: a different object,
+and a green check on it is not done.
 
-1. **Prove what you built, then the ring around it ([Law of completion](../../../AGENTS.md#law-of-completion)):**
-   - Prove the change itself: the unit tests of the crates you touched.
-   - Run `cargo xtask corpus --filter <fixtures>` naming only the fixtures
-     this change targets. You already know which they are. The
-     gate adds the ring around them (each one's twin in the other tiers and
-     its neighbours by name) and prints every record as it finishes.
-   - A clean blast ends pre-merge testing. Land.
-   - A blast that is not clean is an investigation of those rows: run the
-     command the gate prints, the same fixtures at the base commit, to learn
-     whether your change moved them. Never widen the run.
-   - A full run is a checkpoint (`--sweep`, in the background, on request or
-     nightly), not a step toward landing one change.
-   - Put the result in the PR body: `Proof: <tests on the change> | blast: <n>
-     fixtures | <clean, or what the rows that moved turned out to be>`.
-2. **Leave the ledger alone:** Do not run `corpus --record` or edit
-   `tests/omega/corpus_outcomes.txt`; the post-merge check writes it. Ensure no
-   leftover `omega.lock` or `build/` directories sit inside `tests/omega/`
-   fixtures (never delete `tests/omega/pass/build/`).
+1. **Prove the thing you built, then a very small area around it ([Law of completion](../../../AGENTS.md#law-of-completion)):**
+   - Prove the change itself: tests on the code you changed, in the crates you
+     touched.
+   - Then a very small area around it: the tests that read the same mechanism
+     (for the lowered-form checker, the `lowered_route_*` tests in
+     `omega-rust/omega/compilation/compiler/tests/`), and the witness the
+     `TASKS.md` item names with `omega run --both`.
+   - If that is fine, land.
+   - If it is not, investigate that failure: run the same test at the base
+     commit to learn whether your change caused it. Never widen the run.
+   - There is no corpus to run and no ledger. Do not build a replacement.
+   - Put the result in the PR body: `Proof: <tests on the change and the area
+     around it> | <clean, or what failed and what it turned out to be>`.
+2. **Leave no build output behind:** Ensure no leftover `omega.lock` or
+   `build/` directories sit inside the kept fixtures under
+   `tests/fixtures/` (never delete its `pass/build/` group).
 3. **Update `TASKS.md`:** Delete the completed bullet or clause
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
    passes"` history prose), and run `cargo xtask check-rules --base origin/main`.
@@ -126,7 +123,7 @@ that photograph: a different object, and a green check on it is not done.
 
 1. **Push HEAD to a remote `work/` ref and open the PR ready:**
    ```bash
-   # In a compiler lane, PR_BODY also carries the `Gate:` line from AGENTS.md.
+   # In a compiler lane, PR_BODY also carries the `Gate:` and `Proof:` lines from AGENTS.md.
    cargo xtask provenance  # append this model-audit line to the commit and PR_BODY
    mbx clippy -p <crate> --all-targets -- -D warnings  # each Rust crate you touched
    git push origin HEAD:refs/heads/work/<lane>-<topic>

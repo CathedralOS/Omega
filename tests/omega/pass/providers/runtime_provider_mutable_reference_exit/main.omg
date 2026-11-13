@@ -1,9 +1,0 @@
-// Expected exit: 0. Store and read a provider-owned thread-local object.
-data ErrorNumber { value: i32; }
-boundary trait ErrorAccess { machine locate() -> &mut ErrorNumber reaches; }
-machine main() reaches ErrorAccess crashes Trap {
- let error: &mut ErrorNumber = ErrorAccess::locate();
- error.value = 42;
- transition error.value == 42 { true -> done() false -> bad() }
- machine done() {} machine bad() { crash Trap; }
-}

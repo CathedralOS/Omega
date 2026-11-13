@@ -1,4 +1,0 @@
-machine invalid(value: u64) -> addr
-requires value <= 4096
-{ value as addr }
-machine main() {}

@@ -1,1 +1,0 @@
-array extent constant must have an integer carrier

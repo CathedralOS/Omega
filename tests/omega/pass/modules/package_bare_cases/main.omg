@@ -1,4 +1,0 @@
-// CHECK: package aliases select the same exact payload-free case as braces.
-use leaf::settings;
-machine bare() -> leaf::settings::Value { leaf::settings::Value::Empty }
-machine braces() -> leaf::settings::Value { leaf::settings::Value::Empty {} }

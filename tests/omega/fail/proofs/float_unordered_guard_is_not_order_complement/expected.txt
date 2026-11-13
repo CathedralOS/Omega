@@ -1,1 +1,0 @@
-machine `unordered_is_not_positive` ensures contract proof fact

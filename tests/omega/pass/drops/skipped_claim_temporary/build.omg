@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "skipped_claim_temporary");
-    builder.freestanding = true;
-}

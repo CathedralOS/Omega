@@ -817,12 +817,11 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             eprintln!("sample-gate: {e}");
             4u8
         })?;
-    let producer =
-        producer::prepare(&repo, &evidence.join("producer"), false, true).map_err(|e| {
-            eprintln!("sample-gate: {e}");
-            4u8
-        })?;
-    let cli = producer.cli.as_deref().ok_or(4u8)?;
+    let producer = producer::prepare(&repo, &evidence.join("producer")).map_err(|e| {
+        eprintln!("sample-gate: {e}");
+        4u8
+    })?;
+    let cli = producer.cli.as_path();
 
     let mut failed = 0usize;
     for proj in &projects {

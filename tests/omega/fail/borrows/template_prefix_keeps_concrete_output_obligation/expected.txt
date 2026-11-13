@@ -1,1 +1,0 @@
-stored call has no complete statement-successor effects: an invocation relation is unavailable

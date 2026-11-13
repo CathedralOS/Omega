@@ -1,3 +1,0 @@
-data Index<Limit:u32> [copy] { value:u32; }
-machine bad(flag:bool,unbounded:u32) { let limit:u32=match flag {true->8 _->unbounded}; let indexed:Index<(limit+1u32)> = Index{value:8}; }
-machine main() {}

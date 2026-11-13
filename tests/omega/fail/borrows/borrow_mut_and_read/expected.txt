@@ -1,1 +1,0 @@
-receives `main.value` as both mutable and read-only

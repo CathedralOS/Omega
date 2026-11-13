@@ -1,1 +1,0 @@
-cannot prove requires contract for call accept from main: 130 in u32::Clear

@@ -1,2 +1,0 @@
-cannot prove ensures contract
-position <= 1

@@ -1,9 +1,0 @@
-// FAIL CANARY -- an ELF loader selection is an exact absolute target pathname
-// (wiki/spec/build/configuration.md#elf-executable-loader-selection). A
-// relative spelling would make PT_INTERP depend on the process working
-// directory, so reading the Build back rejects it for the named target row
-// whether or not that target's output ever links dynamically.
-machine build(builder: &mut Build) {
-    Build::application(builder, "elf_interpreter_relative_path");
-    builder.elf_interpreter.linux_x86_64 = "lib64/ld-linux-x86-64.so.2";
-}

@@ -1,1 +1,0 @@
-Pair.first does not establish drop_receipt clause

@@ -1,3 +1,0 @@
-module first;
-public data Carrier {}
-public machine Carrier::value() -> u64 { 7u64 }

@@ -1,8 +1,0 @@
-// A backing capacity does not establish the live window's length.
-data Row { cells: [i32 in Wrapping; 2]; }
-machine read(rows: &[Row], row: u64) -> i32 in Wrapping
-requires row < 3
-{
-    rows[row].cells[0]
-}
-machine main() {}

@@ -1,8 +1,0 @@
-// A trait requirement binds operator syntax as an ordinary machine
-// (`machine + add(...)`); the separate `operator` introducer is retired
-// rather than accepted as an alias for the same requirement.
-trait Additive<Value> {
-    operator + add(left: Value, right: Value) -> Value;
-}
-
-machine main() {}

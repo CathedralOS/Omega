@@ -1,7 +1,0 @@
-machine nested_formation(divisor: i32)
-requires divisor != 0
-ensures
-    embed(7i32) / (embed(0i32) * (embed(divisor) / embed(0i32)) + 1)
-        == embed(7i32) / (embed(0i32) * (embed(divisor) / embed(0i32)) + 1)
-{}
-machine main() {}

@@ -1,2 +1,0 @@
-partial exact remainder
-the divisor must be proven nonzero

@@ -1,7 +1,7 @@
 # Host build budget
 
 Agent count and build load are separate resources. Several agents can read,
-edit and reason at once, but every build, corpus run and compiled program they
+edit and reason at once, but every build, test run and compiled program they
 start shares one machine. On a workstation its owner is using, that machine is
 not the agents' to fill: on 2026-11-09 four local workers each ran
 `mbx build -p omega` with default settings on a 24-CPU Windows workstation and
@@ -17,7 +17,6 @@ describe how those runs were admitted at the time. Use the mechanisms below.
 | --- | --- | --- |
 | mbx scheduler budget | Every mbx-run Cargo command that shares the mbx cache directory | `scheduler.cpus`, `scheduler.reserve_cpus` in the mbx configuration, or `MBX_SCHEDULER_CPUS`, `MBX_SCHEDULER_RESERVE_CPUS` in the environment |
 | Cargo jobs | One Cargo invocation | `CARGO_BUILD_JOBS`, or `-j N` |
-| Corpus workers | One corpus run | `OMEGA_CORPUS_JOBS` |
 | Operating-system priority | One process tree | `nice -n 19 <command>`; on Windows, the Idle priority class |
 | CPU affinity or a cgroup CPU quota | One process tree, inherited by its children | `taskset`, a cgroup, or on Windows `ProcessorAffinity` |
 
@@ -34,8 +33,8 @@ agents behind each other but leaves nothing for anyone else. Cache hits take no
 permit. `scheduler.priority = "low"` only changes admission order among mbx
 builds; it does not lower operating-system priority.
 
-Programs that do not run through mbx are outside that pool: `corpus_runner`
-executing fixtures, `omega` itself, a compiled sample. Cap those with their own
+Programs that do not run through mbx are outside that pool: `omega` itself, a
+compiled sample. Cap those with their own
 setting, or charge them to the pool with
 `mbx reserve --cpus N -- <command>`.
 
@@ -53,7 +52,7 @@ the owner states replaces these defaults.
    budget at most three quarters of the logical CPUs for all agent work
    combined and keep whole cores free for the owner. Do not overcorrect either:
    a build crawling on a sliver of an idle machine wastes it.
-3. Run builds and corpus runs at the lowest operating-system priority, so
+3. Run builds and test runs at the lowest operating-system priority, so
    interactive work preempts them.
 4. Put the budget in every worker prompt. A subagent does not inherit the
    coordinator's shell environment.
@@ -63,7 +62,7 @@ the owner states replaces these defaults.
 The examples are for a 24-CPU host. POSIX shells:
 
 ```bash
-export MBX_SCHEDULER_CPUS=18 CARGO_BUILD_JOBS=18 OMEGA_CORPUS_JOBS=6
+export MBX_SCHEDULER_CPUS=18 CARGO_BUILD_JOBS=18
 nice -n 19 mbx build -p omega < /dev/null
 ```
 
@@ -74,7 +73,7 @@ to 23, which leaves six for the owner:
 
 ```powershell
 $p = Get-Process -Id $PID; $p.PriorityClass = 'Idle'; $p.ProcessorAffinity = 0xFFFFC0
-$env:MBX_SCHEDULER_CPUS = '18'; $env:CARGO_BUILD_JOBS = '18'; $env:OMEGA_CORPUS_JOBS = '6'
+$env:MBX_SCHEDULER_CPUS = '18'; $env:CARGO_BUILD_JOBS = '18'
 mbx build -p omega
 ```
 
@@ -96,36 +95,30 @@ different budgets, and the POSIX form.
 
 ## On the test VMs
 
-One heavy job per machine. A build, a corpus run or a batch of compiler runs
+One heavy job per machine. A build, a test run or a batch of compiler runs
 is heavy; reading logs, `git` and editing are not. The VMs have 16 cores and 11
-to 12 GB each, and memory is what runs out: on 2026-11-09 the ledger re-record
-lost a shard to the kernel's out-of-memory killer when a second batch of
-compiler runs was started beside it, and lost others to settings changed while
-it ran.
+to 12 GB each, and memory is what runs out: on 2026-11-09 a long run of
+compiler jobs lost one to the kernel's out-of-memory killer when a second batch
+of compiler runs was started beside it, and lost others to settings changed
+while it ran.
 
 - `~/omega-agent/bin/vm-heavy <label> <command...>` on `omega-linux` and
   `omega-win`, installed from [`tools/vm_heavy.sh`](vm_heavy.sh), runs a
   command holding the machine's lock. It refuses with exit
-  75 while a compiler build, a corpus run or another guarded job is active
+  75 while a compiler build or another guarded job is active
   there. `omega-remote` routes every command that names `mbx`, `cargo` or a
   built binary through it. Wait, or use the other VM. For a deliberate overlap,
   start the command with `OMEGA_REMOTE_SHARE=1`.
 - Do not change the settings of a job that is already running. Measure one
-  unit first (one shard, one build), choose the settings, then leave them.
-- A corpus runner with eight workers reached 8 GB there and was no faster than
-  six. Use `OMEGA_CORPUS_JOBS=6`.
+  unit first (one build), choose the settings, then leave them.
 - On `omega-win`, Defender scanned every file a slot worktree touched until
-  `C:\Users\jarod` was excluded; the checking phase of a shard then dropped
+  `C:\Users\jarod` was excluded; a checking run then dropped
   from 18 minutes to 6. A new Windows VM needs that exclusion, which is its
   owner's to add.
 
-[`tools/ledger_sweep.sh`](ledger_sweep.sh) re-records the whole ledger within
-these limits; [testing](testing.md#re-recording-the-whole-ledger) says how to
-start it.
-
 ## One hold for a whole chain
 
-Run a local chain (check, crate tests, scoped corpus gate) as sequential steps
+Run a local chain (check, crate tests, a sample gate) as sequential steps
 in one shell under one budget, and finish it before pushing: integration builds
 run on GitHub, not on the host ([landing](landing.md)). Docs-only changes need
 no compiler build.

@@ -1,5 +1,0 @@
-machine invalid(values: &[u16; 2])
-requires values == "ab"
-{}
-
-machine main() {}

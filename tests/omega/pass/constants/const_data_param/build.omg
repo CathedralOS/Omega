@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "const_data_param");
-    builder.freestanding = true;
-}

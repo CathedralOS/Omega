@@ -16,7 +16,7 @@ fn retained_execution_preserves_identity_and_resumes_without_decoding() {
     let profile = target::TargetProfile::host_if_supported().expect("supported test host");
     let outcomes = orchestration::build(BuildRequest {
         root_path: repository
-            .join("tests/omega/pass/calls/machine_self_call_recursion_compile/main.omg"),
+            .join("tests/fixtures/pass/calls/machine_self_call_recursion_compile/main.omg"),
         build_directory: Some(directory.path().to_path_buf()),
         targets: BuildTargets::Single(profile),
         product: ProjectProduct::Native {

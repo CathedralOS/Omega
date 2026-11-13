@@ -1,1 +1,0 @@
-A bodyless trait requirement publishes termination and a Trap route. Termination permits a terminal crash, so it does not establish a crash-free denotational result. Repeating the call equality in Requires and Ensures cannot bypass the selected public interface formation obligation.

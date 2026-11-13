@@ -88,11 +88,11 @@ fn canaries_ignore_local_build_output() {
         .ancestors()
         .find(|directory| directory.join("rust-toolchain.toml").is_file())
         .expect("parser crate should live under omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees");
-    let gitignore_path = repo_root.join("tests/omega/.gitignore");
+    let gitignore_path = repo_root.join("tests/fixtures/.gitignore");
     let gitignore = fs::read_to_string(&gitignore_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", gitignore_path.display()));
 
-    // Depth-anchored on purpose (see tests/omega/.gitignore's comment):
+    // Depth-anchored on purpose (see tests/fixtures/.gitignore's comment):
     // `**/build/` also swallowed the fail/build/ CATEGORY (the build.omg
     // canaries), silently keeping committed FAIL_CANARIES entries' files out
     // of git. The canary tree is uniformly <kind>/<category>/<name>/.

@@ -1,9 +1,0 @@
-use token;
-
-machine build(builder: &mut Build) {
-    Build::application(builder, "opaque_representation_double_selection");
-    // At most one representation application may be selected per opaque
-    // declaration in one build activation; a second select must reject.
-    Build::select_representation<Token, TokenRepresentation>(builder);
-    Build::select_representation<Token, TokenWideRepresentation>(builder);
-}

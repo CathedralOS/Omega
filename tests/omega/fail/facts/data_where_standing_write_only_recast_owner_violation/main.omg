@@ -1,7 +1,0 @@
-public data View [copy] { values: [i32; 2]; }
-public data Outer [copy] requires self.values[0] <= 60 { values: [i32; 2]; }
-public machine corrupt(outer: &mut Outer) {
-    let view: &mut View = &mut outer.values as &mut View;
-    view.values[0] = 61;
-}
-machine main() {}

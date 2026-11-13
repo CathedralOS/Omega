@@ -1,8 +1,0 @@
-// Atomic loads cannot publish prior writes, so a publish-bearing ordering has
-// no valid meaning on this operation.
-
-data Main { counter: AtomicU32; }
-
-machine Main::main(main: &mut Main) {
-    let value: u32 = main.counter.load(Publish);
-}

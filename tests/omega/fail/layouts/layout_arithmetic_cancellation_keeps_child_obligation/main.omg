@@ -1,6 +1,0 @@
-data Empty {}
-data Geometry { bytes: u64; }
-machine main() {
-    let bytes: u64 = size_of<u8>();
-    let invalid: u64 = (bytes + 18446744073709551615) - bytes;
-}

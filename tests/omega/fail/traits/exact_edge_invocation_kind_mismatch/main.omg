@@ -1,7 +1,0 @@
-public trait Readable<Field> {
-    machine read<Value>(field: &Field);
-}
-public data Reader {}
-boundary machine Reader::read<Element, const Width: u32>(field: &Element)
-satisfies Readable<Element>::read;
-machine main() {}

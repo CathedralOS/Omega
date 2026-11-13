@@ -1,2 +1,0 @@
-machine selected<T>(value: T) -> T { value }
-machine main() { code_layout<selected>(); }

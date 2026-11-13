@@ -1,1 +1,0 @@
-root binding slot `windows_x86_64::ProgramEntry` does not match the product description's slot `linux_arm64::ProgramEntry`

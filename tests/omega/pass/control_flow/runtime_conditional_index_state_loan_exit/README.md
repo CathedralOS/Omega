@@ -1,1 +1,0 @@
-Run `omega run --both tests/omega/pass/control_flow/runtime_conditional_index_state_loan_exit/main.omg`. Both engines must exit 0. Source and Build are byte-identical to the frozen conditional_state_entry_selection witness; its observable assertions remain unchanged.

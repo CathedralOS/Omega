@@ -1,1 +1,0 @@
-construction of `Divisor` field `amount` is not proven in domain `i32::NonZero`

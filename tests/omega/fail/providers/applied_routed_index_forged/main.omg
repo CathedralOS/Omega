@@ -1,7 +1,0 @@
-data Token { value: u64; }
-data Word {}
-domain<Value> Token::Issued<Value> established by Supply::issue;
-boundary trait Supply<Value> {
-    machine issue() -> Token in Issued<Value> reaches;
-}
-machine forged() -> Token in Issued<Word> { Token { value: 29 } }

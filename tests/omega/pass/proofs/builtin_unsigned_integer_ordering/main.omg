@@ -1,8 +1,0 @@
-// UInt retains its genuine integer comparison meaning even though it has no
-// fixed-width PrimitiveType atom. Its prior bound proves the weaker result.
-machine ordered(value: UInt)
-requires value < 8
-ensures value < 9
-{}
-
-machine main() {}

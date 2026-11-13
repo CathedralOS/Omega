@@ -1,1 +1,0 @@
-reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation

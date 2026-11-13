@@ -20,13 +20,16 @@ operations; [prove.rs](src/prove.rs) is the one prover.
 [joins.rs](src/joins.rs) infers and checks join predicates;
 [crashes.rs](src/crashes.rs) states crash-site coverage;
 [arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
+[prove/reach.rs](src/prove/reach.rs) says which unproved goals the integer
+rules could not have decided
+([below](#what-the-integer-rules-do-not-reach)).
 
 ## What it decides
 
 | Kind | Goal | Hypotheses available at its point |
 | --- | --- | --- |
 | `OperationSafety` | Terminal semantics' canonical goal for the operation (`proof_bearing_scalar_leaf_semantics`): representability of an exact add, subtract, multiply or cast, a defined division or remainder, a shift count in range | entry `requires`, result equations of the operations before it, callee `ensures` after earlier calls |
-| `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
+| `CallRequirement` | the callee's `requires` clause at that position, its scalar formals replaced by the call's scalar actuals (embedded where the clause embeds them, see [Clauses over mathematical integers](#clauses-over-mathematical-integers)) and each field of a record formal by the one value that field of the record actual holds at the call | the same, before the call |
 | `NormalGuarantee` | this machine's `ensures` clause at that position, with `result` replaced by the value that exit returns | the same, on the exit edge |
 | `DataDomain` | one clause of a data type's `requires`, with `self` replaced by the values the place holds once the owing operation completes ([Data `requires`](#data-requires)); when a store or a zero establishment leaves it unproved, the same clause over what the place holds at each consumption point the [invariant window](#invariant-windows) reaches open | the same, before the operation or the consumption point |
 | `PublishedGuarantee` | not proved: held when every return edge's `NormalGuarantee` for the clause is discharged | - |
@@ -71,6 +74,34 @@ see [What a dispatch binds](#what-a-dispatch-binds)). Each row's proposition is 
 an obligation only when its point dominates the obligation's point.
 Requires and guarantees go in as assumptions, result equations as semantic
 axioms, which is how the kernel's definition rules cite them.
+
+## Clauses over mathematical integers
+
+A `requires` or `ensures` may compare mathematical integers,
+`embed(rest) + embed(count) * 10 <= 99`
+([structure elaboration](../structure-elaboration/README.md#mathematical-integers-in-a-clause)).
+The one substitution (`substitute`) states such a clause wherever a scalar
+clause is stated: at a call each embedded formal is the actual embedded, in
+the actual's carrier, and a literal actual is the integer it denotes
+(`bound_mathematical`); on a return the embedded `result` is the returned
+value embedded (`returned_for_result`). The arithmetic around the embeddings
+is over unbounded integers and is kept as written, so stating the clause
+adds no obligation of its own
+([mathematical values](../../../../../wiki/spec/terminal-psi/mathematical_values.md#integer-terms):
+"These terms denote unbounded mathematical integers and cannot overflow").
+
+What the prover does with the goal is narrower than what a clause can say:
+
+| Goal | Outcome |
+| --- | --- |
+| every value it names is fixed to a literal by a result equation (`packed(9, 9)`) | the kernel evaluates the closed comparison (`by_transport`, then `ClosedIntegerRelation`); a false one is `NoDerivation`, which rejects the call |
+| `<=` between a literal and one add, subtract or multiply of values of one carrier and literals | bounded from the values' intervals, the rule an exact operation's representability goal uses (`arithmetic_interval`); a failure is `NoDerivation` |
+| the same proposition as a hypothesis at that point (a caller that requires the clause it passes on) | taken from the hypothesis |
+| a deeper term, operands of two carriers, or `==` or `<` over values that are not fixed | no rule: `NoRuleForGoalForm`, so the route answers `Incomplete`, never accepted and never called wrong |
+
+`Prover::has_rules_for` draws that line from the goal's form with each value
+an equation fixes to a literal read as that literal, the reading
+`beyond_rules` already uses for the operations behind a goal's values.
 
 ## Erased formals at a call
 
@@ -830,12 +861,30 @@ Each of these is true in the programs that need it and has no derivation in
 the rules of [integer certificates](../../../../../wiki/spec/terminal-psi/integer_certificates.md),
 so the obligation is `Unproved`. None is worked around here.
 
-One case of the second item is proved: a remainder by a divisor whose own
-bounds fix it to one literal (`divisor >= 16 && divisor <= 16`) takes the
-kernel's bound of the remainder by that literal spelled in place, carried
-onto the result through its equation and the proved `divisor == 16`
+Whether such an obligation rejects the program depends on what it rests on
+([prove/reach.rs](src/prove/reach.rs)). A goal that depends on a value
+defined by an operation the rules give no exact interval is unproved whether
+or not the program is right, so its cause is `NoRuleForGoalForm` and the
+route's verdict is `Incomplete`: the second and third items below, and any
+goal on an exclusive or, a bitwise and, or or not, a wrapping or saturating
+operation, or a quotient, remainder or right shift whose divisor or count no
+literal or earlier equation fixes. The dependence is read from the result
+equations of the values the goal names, never from how a search ended, and
+it follows an inferred input or result across a call (`Unreached`): a formal
+whose inferred condition describes such an actual, and the result of a
+private helper whose body returns one. A written contract does not carry it:
+an arrival or return that cannot establish a written clause is judged where
+the operation is, and a caller that needs more than a written contract
+states is rejected. A goal that fails on add, subtract, multiply, a cast, a
+left shift, or a divide or right shift by a literal alone is still `Reject`:
+the first, fourth and fifth items below are.
+
+One case of the second kind is proved instead: a remainder by a divisor
+whose own bounds fix it to one literal (`divisor >= 16 && divisor <= 16`)
+takes the kernel's bound of the remainder by that literal spelled in place,
+carried onto the result through its equation and the proved `divisor == 16`
 (`remainder_by_fixed_divisor`). The kernel has no in-place form for a
-quotient or a right shift, so those stay unproved.
+quotient or a right shift, so those stay unreached.
 
 - *A contradiction between two order facts when neither is a taken guard.*
   Two bare facts `low <= high` and `high < low` (two `requires`, or a
@@ -866,11 +915,11 @@ quotient or a right shift, so those stay unproved.
   order translation concludes `a + t <= b + t` and nothing rewrites
   `0 + last` to `last`, and `IntegerAddOrder` needs a strictly positive
   increment. It would take a landing on a proved equality, or `0 + x == x`
-  over mathematical integers
-  (`pass/facts/nine_arg_stack_calling_plan_through_local_exit` and the
-  `register_stack_arg` and `thirtytwo_arg` families, 15 programs). The same
-  gap leaves a quotient or right shift by `divisor >= 3 && divisor <= 3`
-  unproved.
+  over mathematical integers. These goals name only add and subtract, so
+  they still reject (`pass/facts/nine_arg_stack_calling_plan_through_local_exit`
+  and the `register_stack_arg` and `thirtytwo_arg` families, 15 programs).
+  The same gap is why a quotient or right shift by `divisor >= 3 &&
+  divisor <= 3` is unreached.
 
 ## Why this route and not the arithmetic engine
 
@@ -1083,6 +1132,39 @@ No router calls `judge` in the default compile yet: the comparison harness
 below is its only caller outside tests, and prints each unproved
 obligation's message with its outcome.
 
+## Running the checker on a source program
+
+The probe shows this crate one source program and prints its verdict. It does
+not run the program's Build and it does not run the old checker (Psi 05,
+validation's judgments, Psi 06), so it keeps working while those stages are
+removed and while no Build program can run:
+
+```
+mbx run -p compiler --example route_probe -- tests/fixtures/run/calls/scalar_contract_route_exit/main.omg < /dev/null
+mbx run -p compiler --example route_probe -- <program>/main.omg [--entry NAME] [--target NAME] < /dev/null
+```
+
+It types the sources as a compilation does (Psi 00 through 03), binds the
+named machine to the target's `ProgramEntry` in the Build's place, prepares
+the product up to Psi 04's frozen typed trees, and runs
+`structure_elaboration` and `judge_compilation` on them. It prints one line
+per judged part (the entry closure, then each subject declaration's check
+form) and ends each source with `<path>\troute=<verdict>`: `accepted`,
+`rejected`, `incomplete`, `not-supported`, or `no-typed-trees` when Psi 00
+through 04 stopped first. The exit code is 0 only when every source was
+accepted. Without `--entry`, `main` is bound when the source declares it and a
+source without one is judged with no entry; `--target` defaults to
+`linux_x86_64`.
+
+Limits. No Build machine is checked or executed, so the program is judged
+without anything its Build would select: providers, representations, native
+bindings, generated sources, settings and dependencies. The source is its own
+validation subject, so its uncalled declarations are judged too. The harness
+is `CompilationSession::typed_frontier_without_build`
+(`omega-rust/omega/compilation/compiler/src/checked/checking/unbuilt_source.rs`),
+pinned by `compiler/tests/route_probe.rs`. It is a probe, not a way to
+compile, and the CLI never calls it.
+
 ## Measuring against the current checker
 
 `omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs` runs
@@ -1217,7 +1299,7 @@ reach the prover, and the tests count prover starts.
 
 `compiler`'s example `generic_certificate_carry` runs the same three steps
 from source, on the typed trees of
-`tests/omega/run/generics/implementation_parameter_contract` and its fail
+`tests/fixtures/run/generics/implementation_parameter_contract` and its fail
 twin. The twin differs only in the bound `advance` promises, `result <= 18`:
 a search over each of its two specializations alone proves that bound, and
 the generic check refuses it.
@@ -1288,7 +1370,7 @@ use, not once for every value.
 | `a_body_that_reads_the_parameter_as_an_operand_is_not_carried` | the limit below |
 
 `compiler`'s test `lowered_route_generics` runs the three steps from source
-on `tests/omega/pass/facts/lexical_generic_bound_through_local_exit`, where
+on `tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit`, where
 `Selected::value<const Units: u64>` is a trait member called as
 `Implementation::value<7>(7)`, and on its fail twin, which differs only in
 the requirement's contract (`requires true`): the member then asks `input <=
@@ -1351,9 +1433,12 @@ judged form applies, whichever package declares it, and leaves the applied
 machine's rows in the caller's form to that judgment
 (`judge_generic_forms`, [verdict.rs](src/verdict.rs)). A form judged alone
 (`judge`) still refuses those rows, because nothing it knows of proves
-them, and so does a form whose machine applies itself, directly or through
-others: every form on such a cycle would take the next one's contract as
-given, and no form judges that the recursion ends. A requirement reached
+them. A generic machine that applies itself, directly or through others, is
+refused by name (`generic machine ... on a call cycle`) whether or not it
+states a contract: every form on such a cycle would take the next one's
+contract as given, and no form judges the cycle (tail position, a
+`terminates` promise) the way elaboration judges a cycle among bodies it
+read. A requirement reached
 through an implementation parameter is not covered: its rows stay refused
 until each conformance's refinement is judged in the same compilation.
 

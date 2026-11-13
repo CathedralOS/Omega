@@ -1,1 +1,0 @@
-permitted transitive machine-state use includes interrupted state the entry stub does not save

@@ -1,2 +1,0 @@
-macos_arm64 0
-windows_x86_64 0

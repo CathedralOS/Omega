@@ -70,12 +70,16 @@ use crate::{
 
 /// Adds a proved result summary to the contract of each machine in
 /// `Elaboration::local_results` that has one, callees first.
-pub(crate) fn infer(elaboration: &mut Elaboration, knowledge: Knowledge) -> Checked<()> {
+pub(crate) fn infer(
+    elaboration: &mut Elaboration,
+    knowledge: Knowledge,
+    unreached: &mut crate::Unreached,
+) -> Checked<()> {
     if elaboration.local_results.is_empty() {
         return Ok(());
     }
     for id in callees_first(elaboration)? {
-        summarize(elaboration, id, knowledge)?;
+        summarize(elaboration, id, knowledge, unreached)?;
     }
     Ok(())
 }
@@ -237,7 +241,12 @@ fn widest(
     }))
 }
 
-fn summarize(elaboration: &mut Elaboration, id: MachineId, knowledge: Knowledge) -> Checked<()> {
+fn summarize(
+    elaboration: &mut Elaboration,
+    id: MachineId,
+    knowledge: Knowledge,
+    unreached: &mut crate::Unreached,
+) -> Checked<()> {
     let module = &elaboration.module;
     let lowered = terminal_machine(&module.machines, id, id)?;
     let TerminalMachineResult::Scalar(declared) = &lowered.result else {
@@ -287,6 +296,7 @@ fn summarize(elaboration: &mut Elaboration, id: MachineId, knowledge: Knowledge)
         &prepared.types,
     )?;
     let relations = knowledge != Knowledge::LiteralIntervals;
+    let beyond = unreached.values(lowered, &scratch);
     let mut decided = (0..scratch.obligations.len())
         .map(|_| None)
         .collect::<Vec<_>>();
@@ -301,6 +311,7 @@ fn summarize(elaboration: &mut Elaboration, id: MachineId, knowledge: Knowledge)
             context: &prepared.context,
             relations,
             declared: &declared_joins,
+            unreached: &beyond,
         },
         &mut scratch,
         &mut decided,
@@ -350,6 +361,11 @@ fn summarize(elaboration: &mut Elaboration, id: MachineId, knowledge: Knowledge)
                 &scratch.values,
                 relations,
             );
+            // A caller's goal on this result then depends on an operation
+            // the integer rules do not reach, whatever is described of it.
+            if prover.value_beyond_rules(*value, &beyond) {
+                unreached.mark_result(id);
+            }
             let (lower, upper) = prover.literal_bounds(*value);
             lowest = widest(lowest, lower, integer, std::cmp::Ordering::Less);
             highest = widest(highest, upper, integer, std::cmp::Ordering::Greater);
@@ -401,6 +417,7 @@ fn summarize(elaboration: &mut Elaboration, id: MachineId, knowledge: Knowledge)
             ProgramPoint::Edge(*edge),
             goal,
             relations,
+            &beyond,
         )
         .is_err()
         {

@@ -1,3 +1,0 @@
-boundary data Token [copy];
-
-machine main() {}

@@ -1,4 +1,0 @@
-use value;
-use unused;
-
-public machine launch() {}

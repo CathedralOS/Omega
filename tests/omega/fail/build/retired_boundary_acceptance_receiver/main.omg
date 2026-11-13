@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    builder.accept_boundary<Boundary>();
-}

@@ -1,1 +1,0 @@
-Run `omega run --both tests/omega/pass/borrows/runtime_indexed_scalar_descriptor_call/main.omg`. Both engines return `0`. The runtime-selected stored scalar reference transports its existing address-and-codec descriptor; the caller checks the selected value and its neighbor.

@@ -1,5 +1,0 @@
-machine invalid(numerator: i32, divisor: i32) -> i32
-    requires divisor != 0, numerator / divisor == 0
-{
-    0
-}

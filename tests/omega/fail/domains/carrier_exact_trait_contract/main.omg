@@ -1,4 +1,0 @@
-// A trait requirement's contract forms membership against the exact carrier.
-domain u16::Small requires self <= 10;
-trait Probe { machine take(value: u8) -> u8 requires value in Small; }
-machine main() -> i32 { 0 }

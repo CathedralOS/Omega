@@ -10,8 +10,7 @@ use serde_json::{Value, json};
 use crate::execution;
 
 pub struct Producer {
-    pub runner: Option<PathBuf>,
-    pub cli: Option<PathBuf>,
+    pub cli: PathBuf,
     pub executables: Vec<Value>,
 }
 
@@ -223,9 +222,8 @@ fn build(
     directory: &Path,
     name: &str,
     arguments: &[&str],
-    target: Option<&Path>,
 ) -> Result<Vec<Value>, String> {
-    let mut command = build_command(root, arguments, target);
+    let mut command = build_command(root, arguments);
     let status = run_preparation(&mut command, directory, name)?;
     if !status.success() {
         return Err(format!("{name} failed; see retained build stderr"));
@@ -255,7 +253,7 @@ fn run_preparation(
     execution::run_unlimited(command, directory, name)
 }
 
-fn build_command(root: &Path, arguments: &[&str], target: Option<&Path>) -> Command {
+fn build_command(root: &Path, arguments: &[&str]) -> Command {
     let mut command = Command::new("mbx");
     command
         .args(arguments)
@@ -265,30 +263,12 @@ fn build_command(root: &Path, arguments: &[&str], target: Option<&Path>) -> Comm
         .env("CARGO_PROFILE_TEST_OPT_LEVEL", "1")
         .env("CARGO_UNSTABLE_CHECKSUM_FRESHNESS", "true")
         .env("CARGO_BUILD_FINGERPRINT", "content");
-    if let Some(target) = target {
-        command.env("CARGO_TARGET_DIR", target);
-    }
     command
 }
 
-pub fn prepare(
-    root: &Path,
-    directory: &Path,
-    need_runner: bool,
-    need_cli: bool,
-) -> Result<Producer, String> {
-    prepare_in_target(root, directory, need_runner, need_cli, None)
-}
-
-/// A baseline's source and build outputs must both stay separate from the
-/// caller, including when the caller exported an absolute CARGO_TARGET_DIR.
-pub fn prepare_in_target(
-    root: &Path,
-    directory: &Path,
-    need_runner: bool,
-    need_cli: bool,
-    target: Option<&Path>,
-) -> Result<Producer, String> {
+/// Build the `omega` CLI and record its bytes with the Cargo options that
+/// produced them.
+pub fn prepare(root: &Path, directory: &Path) -> Result<Producer, String> {
     fs::create_dir_all(directory).map_err(|e| e.to_string())?;
     let before = source_identity(root)?;
     execution::write_json(&directory.join("source-before.json"), &before)?;
@@ -305,7 +285,7 @@ pub fn prepare_in_target(
             return Err(format!("{name} identity command failed"));
         }
     }
-    let mut environment = [
+    let environment = [
         "CARGO_BUILD_JOBS",
         "CARGO_TARGET_DIR",
         "CARGO_INCREMENTAL",
@@ -314,95 +294,49 @@ pub fn prepare_in_target(
         "RUSTC_WRAPPER",
         "RUSTC_WORKSPACE_WRAPPER",
         "RUST_MIN_STACK",
-        "OMEGA_CORPUS_JOBS",
-        "OMEGA_CORPUS_EXECUTE_SECS",
     ]
     .into_iter()
     .map(|key| (key, std::env::var(key).ok()))
     .collect::<std::collections::BTreeMap<_, _>>();
-    if let Some(target) = target {
-        environment.insert(
-            "CARGO_TARGET_DIR",
-            Some(target.to_string_lossy().into_owned()),
-        );
-    }
     execution::write_json(
         &directory.join("build-inputs.json"),
         &json!({"host": host_target(), "environment": environment,
         "forced_profile": {"dev": "1", "test": "1"}, "freshness": "checksum/content"}),
     )?;
-    let mut producer = Producer {
-        runner: None,
-        cli: None,
-        executables: Vec::new(),
-    };
-    for (needed, name, args) in [
-        (
-            need_runner,
-            "runner-build",
-            vec![
-                "test",
-                "--locked",
-                "--no-run",
-                "--message-format=json",
-                "-p",
-                "compiler",
-                "--test",
-                "corpus_runner",
-            ],
-        ),
-        (
-            need_cli,
-            "cli-build",
-            vec![
-                "build",
-                "--locked",
-                "--message-format=json",
-                "-p",
-                "omega",
-                "--bin",
-                "omega",
-            ],
-        ),
-    ] {
-        if !needed {
-            continue;
-        }
-        let artifacts = build(root, directory, name, &args, target)?;
-        let target = if name == "runner-build" {
-            "corpus_runner"
-        } else {
-            "omega"
-        };
-        let artifact = artifacts
-            .iter()
-            .find(|v| v["target"]["name"] == target && v["executable"].is_string())
-            .ok_or_else(|| format!("{name} produced no {target}"))?;
-        let receipt = artifact_receipt(artifact)?;
-        let path = PathBuf::from(
+    let name = "cli-build";
+    let arguments = [
+        "build",
+        "--locked",
+        "--message-format=json",
+        "-p",
+        "omega",
+        "--bin",
+        "omega",
+    ];
+    let artifacts = build(root, directory, name, &arguments)?;
+    let artifact = artifacts
+        .iter()
+        .find(|v| v["target"]["name"] == "omega" && v["executable"].is_string())
+        .ok_or_else(|| format!("{name} produced no omega"))?;
+    let compiler = artifacts
+        .iter()
+        .find(|v| {
+            v["target"]["name"] == "compiler"
+                && v["filenames"].as_array().is_some_and(|v| {
+                    v.iter()
+                        .filter_map(Value::as_str)
+                        .any(|p| p.ends_with(".rlib"))
+                })
+        })
+        .ok_or("build lacks compiler library profile")?;
+    let producer = Producer {
+        cli: PathBuf::from(
             artifact["executable"]
                 .as_str()
                 .ok_or("missing executable")?,
-        );
-        if name == "runner-build" {
-            producer.runner = Some(path);
-        } else {
-            producer.cli = Some(path);
-        }
-        producer.executables.push(receipt);
-        let compiler = artifacts
-            .iter()
-            .find(|v| {
-                v["target"]["name"] == "compiler"
-                    && v["filenames"].as_array().is_some_and(|v| {
-                        v.iter()
-                            .filter_map(Value::as_str)
-                            .any(|p| p.ends_with(".rlib"))
-                    })
-            })
-            .ok_or("build lacks compiler library profile")?;
-        producer.executables.push(artifact_receipt(compiler)?);
-    }
+        ),
+        executables: vec![artifact_receipt(artifact)?, artifact_receipt(compiler)?],
+    };
     let after = source_identity(root)?;
     execution::write_json(&directory.join("source-after.json"), &after)?;
     if before != after {
@@ -428,133 +362,6 @@ impl Producer {
     }
 }
 
-/// The runner's file name in a directory written by [`export_runner`].
-pub const EXPORTED_RUNNER: &str = "corpus_runner";
-/// The receipt `prepare` wrote for that runner, copied beside it unchanged.
-pub const EXPORTED_RECEIPT: &str = "producer.json";
-
-fn runner_record(receipt: &Value) -> Result<&Value, String> {
-    receipt["executables"]
-        .as_array()
-        .and_then(|records| {
-            records.iter().find(|record| {
-                record["cargo_artifact"]["target"]["name"] == "corpus_runner"
-                    && record["cargo_artifact"]["executable"].is_string()
-            })
-        })
-        .ok_or_else(|| "receipt records no corpus runner".to_owned())
-}
-
-/// Copy the runner `prepare` just built, and the receipt that names its
-/// source commit and bytes, into `out` so another job can run it without
-/// compiling. `receipts` is the directory `prepare` wrote into.
-pub fn export_runner(producer: &Producer, receipts: &Path, out: &Path) -> Result<(), String> {
-    let runner = producer
-        .runner
-        .as_deref()
-        .ok_or("producer built no runner")?;
-    fs::create_dir_all(out).map_err(|e| format!("create {}: {e}", out.display()))?;
-    let copy = out.join(EXPORTED_RUNNER);
-    // `fs::copy` keeps the executable bit.
-    fs::copy(runner, &copy).map_err(|e| format!("copy {}: {e}", runner.display()))?;
-    for name in [EXPORTED_RECEIPT, "build-inputs.json"] {
-        fs::copy(receipts.join(name), out.join(name)).map_err(|e| format!("copy {name}: {e}"))?;
-    }
-    let receipt = read_receipt(out)?;
-    if execution::digest(&copy)? != runner_record(&receipt)?["sha256"] {
-        return Err("exported runner differs from the one its receipt records".to_owned());
-    }
-    producer.verify()
-}
-
-fn read_receipt(directory: &Path) -> Result<Value, String> {
-    let path = directory.join(EXPORTED_RECEIPT);
-    let bytes = fs::read(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))
-}
-
-/// The commit an exported runner's receipt says it was built from.
-pub fn prebuilt_revision(directory: &Path) -> Result<String, String> {
-    read_receipt(directory)?["source"]["revision"]
-        .as_str()
-        .map(str::to_owned)
-        .ok_or_else(|| "receipt names no source revision".to_owned())
-}
-
-/// Whether a runner built elsewhere may judge this checkout.
-///
-/// `receipt` is the `producer.json` its build wrote, `checkout` is
-/// [`source_identity`] of the tree whose fixtures it would run, and
-/// `runner_digest` is the digest of the runner file actually present. The
-/// runner is accepted only when it was built on this host kind from a clean
-/// tree at the same commit and tree as the checkout, the checkout is clean
-/// too, and the file is byte-for-byte the one the build recorded. This is the
-/// identity `prepare` records and nothing more; it trusts the receipt's
-/// origin, so use it only for a runner handed over inside one workflow run.
-pub fn check_prebuilt(
-    receipt: &Value,
-    checkout: &Value,
-    runner_digest: &str,
-) -> Result<(), String> {
-    if receipt["host"] != host_target() {
-        return Err(format!(
-            "runner was built for {}, not {}",
-            receipt["host"],
-            host_target()
-        ));
-    }
-    let built = &receipt["source"];
-    for key in ["revision", "tree"] {
-        let (Some(built), Some(here)) = (built[key].as_str(), checkout[key].as_str()) else {
-            return Err(format!("runner receipt or checkout names no source {key}"));
-        };
-        if built != here {
-            return Err(format!(
-                "runner was built from {key} {built}, but the checkout is at {here}"
-            ));
-        }
-    }
-    if built["tracked_changes"] != "" {
-        return Err("runner was built from a tree with uncommitted changes".to_owned());
-    }
-    if checkout["tracked_changes"] != "" {
-        return Err(
-            "the checkout has uncommitted changes, so a runner built elsewhere cannot match it"
-                .to_owned(),
-        );
-    }
-    if runner_record(receipt)?["sha256"] != runner_digest {
-        return Err("runner bytes differ from the ones its receipt records".to_owned());
-    }
-    Ok(())
-}
-
-/// Load a runner [`export_runner`] wrote, instead of building one, after
-/// [`check_prebuilt`] accepts it for the checkout at `root`. The receipt is
-/// kept in `evidence`, and the returned producer's `verify` re-reads the
-/// runner's bytes exactly as it does for a runner built here.
-pub fn load_prebuilt(root: &Path, directory: &Path, evidence: &Path) -> Result<Producer, String> {
-    let directory = fs::canonicalize(directory)
-        .map_err(|e| format!("prebuilt runner {}: {e}", directory.display()))?;
-    let receipt = read_receipt(&directory)?;
-    let runner = directory.join(EXPORTED_RUNNER);
-    let digest = execution::digest(&runner)?;
-    let checkout = source_identity(root)?;
-    check_prebuilt(&receipt, &checkout, &digest)
-        .map_err(|e| format!("prebuilt runner {}: {e}", directory.display()))?;
-    fs::create_dir_all(evidence).map_err(|e| e.to_string())?;
-    execution::write_json(&evidence.join("source-before.json"), &checkout)?;
-    execution::write_json(
-        &evidence.join("producer.json"),
-        &json!({"prebuilt": directory, "receipt": receipt}),
-    )?;
-    Ok(Producer {
-        runner: Some(runner.clone()),
-        cli: None,
-        executables: vec![json!({"path": runner, "sha256": digest})],
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -565,7 +372,10 @@ mod tests {
             &std::env::temp_dir().join("omega-preparation-budget-tests"),
         )
         .unwrap();
-        for (name, mode, code) in [("runner-build", "delayed", 0), ("cli-build", "failure", 23)] {
+        for (name, mode, code) in [
+            ("delayed-build", "delayed", 0),
+            ("cli-build", "failure", 23),
+        ] {
             let mut command = Command::new(std::env::current_exe().unwrap());
             command
                 .args([
@@ -591,116 +401,6 @@ mod tests {
             assert_eq!(receipt["container_cleanup"]["scope"], "owned_process_tree");
             assert_eq!(receipt["container_cleanup"]["reaped"], true);
         }
-        fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn isolated_build_uses_explicit_source_and_target_without_changing_process_environment() {
-        let root = Path::new("/isolated/source");
-        let target = root.join("target");
-        let command = build_command(root, &["test", "--no-run"], Some(&target));
-        assert_eq!(command.get_current_dir(), Some(root));
-        assert_eq!(command.get_program(), "mbx");
-        assert_eq!(
-            command
-                .get_envs()
-                .find(|(key, _)| *key == "CARGO_TARGET_DIR")
-                .unwrap()
-                .1,
-            Some(target.as_os_str())
-        );
-        assert!(
-            !build_command(root, &[], None)
-                .get_envs()
-                .any(|(key, _)| key == "CARGO_TARGET_DIR")
-        );
-    }
-
-    #[test]
-    fn prebuilt_runner_is_accepted_only_for_its_own_clean_commit_and_bytes() {
-        let source = |revision: &str, tree: &str, changes: &str| json!({"revision": revision, "tree": tree, "tracked_changes": changes});
-        let receipt = |source: Value| {
-            json!({"source": source, "host": host_target(), "executables": [
-            {"path": "/t/libcompiler.rlib", "sha256": "lib", "cargo_artifact": {"target": {"name": "compiler"}, "executable": null}},
-            {"path": "/t/corpus_runner-1", "sha256": "abc", "cargo_artifact": {"target": {"name": "corpus_runner"}, "executable": "/t/corpus_runner-1"}}]})
-        };
-        let built = receipt(source("r1", "t1", ""));
-        let here = source("r1", "t1", "");
-        assert!(check_prebuilt(&built, &here, "abc").is_ok());
-        // Another commit, another tree, or other bytes: refused.
-        assert!(check_prebuilt(&built, &source("r2", "t1", ""), "abc").is_err());
-        assert!(check_prebuilt(&built, &source("r1", "t2", ""), "abc").is_err());
-        assert!(check_prebuilt(&built, &here, "lib").is_err());
-        // A dirty tree on either side cannot be matched by commit.
-        assert!(check_prebuilt(&built, &source("r1", "t1", " M x.rs"), "abc").is_err());
-        assert!(check_prebuilt(&receipt(source("r1", "t1", "?? x")), &here, "abc").is_err());
-        // A receipt for another host, with no runner, or with no identity.
-        let mut foreign = built.clone();
-        foreign["host"] = json!("elsewhere");
-        assert!(check_prebuilt(&foreign, &here, "abc").is_err());
-        let mut no_runner = built.clone();
-        no_runner["executables"] = json!([]);
-        assert!(check_prebuilt(&no_runner, &here, "abc").is_err());
-        assert!(check_prebuilt(&json!({"host": host_target()}), &json!({}), "abc").is_err());
-    }
-
-    #[test]
-    fn exported_runner_keeps_its_mode_and_missing_or_changed_files_refuse_to_load() {
-        let directory = std::env::temp_dir().join(format!(
-            "omega-prebuilt-test-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let receipts = directory.join("producer");
-        let out = directory.join("runner");
-        fs::create_dir_all(&receipts).unwrap();
-        let built = directory.join("corpus_runner-abcd");
-        fs::write(&built, b"runner image").unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&built, fs::Permissions::from_mode(0o755)).unwrap();
-        }
-        let digest = execution::digest(&built).unwrap();
-        let record = json!({"path": built, "sha256": digest,
-            "cargo_artifact": {"target": {"name": "corpus_runner"}, "executable": built}});
-        execution::write_json(
-            &receipts.join(EXPORTED_RECEIPT),
-            &json!({"source": {"revision": "r1", "tree": "t1", "tracked_changes": ""},
-                "host": host_target(), "executables": [record.clone()]}),
-        )
-        .unwrap();
-        fs::write(receipts.join("build-inputs.json"), b"{}").unwrap();
-        let producer = Producer {
-            runner: Some(built.clone()),
-            cli: None,
-            executables: vec![record],
-        };
-        export_runner(&producer, &receipts, &out).unwrap();
-        assert_eq!(prebuilt_revision(&out).unwrap(), "r1");
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mode = fs::metadata(out.join(EXPORTED_RUNNER))
-                .unwrap()
-                .permissions()
-                .mode();
-            assert_eq!(mode & 0o111, 0o111);
-        }
-        // This checkout is not at revision `r1`, so the load refuses; so does
-        // a directory with no receipt or no runner.
-        let root = crate::repo_root();
-        let evidence = directory.join("evidence");
-        let refusal = load_prebuilt(&root, &out, &evidence).err().unwrap();
-        assert!(refusal.contains("revision"), "{refusal}");
-        assert!(load_prebuilt(&root, &directory.join("absent"), &evidence).is_err());
-        fs::remove_file(out.join(EXPORTED_RUNNER)).unwrap();
-        assert!(load_prebuilt(&root, &out, &evidence).is_err());
-        fs::remove_file(out.join(EXPORTED_RECEIPT)).unwrap();
-        assert!(prebuilt_revision(&out).is_err());
         fs::remove_dir_all(directory).unwrap();
     }
 
@@ -734,8 +434,7 @@ mod tests {
         .unwrap();
         let record = artifact_receipt(&artifact).unwrap();
         let producer = Producer {
-            runner: None,
-            cli: Some(executable.clone()),
+            cli: executable.clone(),
             executables: vec![record],
         };
         assert!(producer.verify().is_ok());

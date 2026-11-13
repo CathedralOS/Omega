@@ -1,2 +1,0 @@
-data `Slot` case `Found` literal violates the case constraint
-`requires` fact evaluates FALSE at this construction

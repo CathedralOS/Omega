@@ -102,7 +102,8 @@ impl Lowering<'_> {
                         .push(StructuralArgument::whole(root, StructuralAccess::Owned));
                     evaluated.consumed.push(root);
                 }
-                Some(ValueType::Scalar(_) | ValueType::Rigid(_)) | None => {
+                Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_))
+                | None => {
                     let value = self.scalar(argument)?;
                     evaluated.actuals.push(Actual::Value(value));
                     evaluated.scalars.push(value);
@@ -182,6 +183,7 @@ impl Lowering<'_> {
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
             | ExpressionKind::Cast(_)
+            | ExpressionKind::Requalify(_)
             | ExpressionKind::ShortCircuit { .. }
             | ExpressionKind::Borrow { .. } => Ok(None),
         }
@@ -351,7 +353,7 @@ impl Lowering<'_> {
             Some(ValueType::Rigid(_)) => {
                 return Err(self.internal("a call returns a value of a rigid type"));
             }
-            Some(ValueType::Scalar(scalar_type)) => {
+            Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
                 let kind = if structural_arguments.is_empty() {
                     OperationKind::Call {
                         callee,

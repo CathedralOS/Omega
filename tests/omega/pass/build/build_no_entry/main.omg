@@ -1,6 +1,0 @@
-// `entry` binds at realize/run, not at check: an application with
-// no machine named `entry` checks fine — the ProgramEntry contract
-// only engages when a terminal artifact or execution is requested.
-machine helper() -> i32 {
-    0
-}

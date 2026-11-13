@@ -1,6 +1,0 @@
-// Borrowing a qualified value is not producing an owned qualified payload.
-data Token { value: u64; }
-domain Token::Issued established by Issuer::issue;
-data Borrowed<T> { case Ready(value: &T); }
-boundary trait Issuer { machine issue() -> Borrowed<Token in Issued> reaches; }
-machine main() {}

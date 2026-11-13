@@ -1,1 +1,0 @@
-reading `instant` crosses an open default-domain invariant window

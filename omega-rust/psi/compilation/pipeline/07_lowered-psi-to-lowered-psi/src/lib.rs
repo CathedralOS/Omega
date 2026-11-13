@@ -17,8 +17,7 @@ records its input and output semantic identities.
 */
 
 /*
-Stage 07 (`lowered-psi-to-lowered-psi`) consumes `LoweredPsi` from
-`checked-trees-to-lowered-psi` (Stage 06) and produces
+Stage 07 (`lowered-psi-to-lowered-psi`) consumes `LoweredPsi` and produces
 `PsiOptimizationStageResult` for `lowered-psi-to-terminal-psi` (Stage 08).
 */
 

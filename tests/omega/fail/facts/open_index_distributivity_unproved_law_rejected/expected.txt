@@ -1,2 +1,0 @@
-machine `times_index_distribute` realizes `IndexSemiring::distribute`
-which the requirement does not imply

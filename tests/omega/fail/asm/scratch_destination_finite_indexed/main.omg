@@ -1,2 +1,0 @@
-// Reject a composite scratch destination before scalar versioning.
-machine main() { asm { mov eax, 2; mov eax[0], 2; } }

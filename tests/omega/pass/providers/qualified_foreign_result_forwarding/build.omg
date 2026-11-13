@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "qualified_foreign_result_forwarding");
-    // Source-only contract checks call concrete leaves; no abstract service
-    // invocation or program entry requests target-specific provider settlement.
-}

@@ -1,5 +1,0 @@
-module foreign;
-
-public data Token [copy] { value: i32; }
-public const SELECTED: Token = Token { value: 7 };
-public machine get() -> Token { SELECTED }

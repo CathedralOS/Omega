@@ -1,1 +1,0 @@
-receives `windows[1].values` while local borrow `returned` is still active

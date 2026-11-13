@@ -1,1 +1,0 @@
-wire compatibility fact `Readable` is requested twice

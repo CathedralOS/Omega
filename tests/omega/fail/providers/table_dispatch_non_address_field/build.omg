@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "table_dispatch_non_address_field");
-    Build::bind(builder, macos_arm64::ProgramEntry, main);
-}

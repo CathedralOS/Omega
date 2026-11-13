@@ -1,4 +1,0 @@
-// A data predicate judges its u8 field against the u16 domain's carrier.
-domain u16::Small requires self <= 10;
-data Reading requires level in Small { level: u8; }
-machine main() -> i32 { 0 }

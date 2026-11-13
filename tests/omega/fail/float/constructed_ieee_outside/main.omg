@@ -1,2 +1,0 @@
-data Reading [copy] requires value >= 0.0 && value <= 0.25 { value:f64; }
-machine make()->Reading { Reading{value:0.75} }

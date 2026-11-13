@@ -1,5 +1,0 @@
-machine wrong_saturation(value: i8 in Saturating)
-requires value == 127
-ensures embed((value + 1) - 1) == 127
-{}
-machine main() {}

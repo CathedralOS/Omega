@@ -79,7 +79,7 @@ fn expected_fragment(fixture: &str) -> String {
 #[test]
 fn a_program_rejected_after_psi_04_still_yields_typed_trees() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let fixture = "tests/omega/fail/dependent/applied_default_domain_unrelated_bound";
+    let fixture = "tests/fixtures/fail/dependent/applied_default_domain_unrelated_bound";
     let FixtureFrontierCheck::Rejected {
         frontier,
         diagnostics,
@@ -116,7 +116,7 @@ fn a_program_rejected_after_psi_04_still_yields_typed_trees() {
 #[test]
 fn a_program_that_fails_to_parse_does_not_reach_psi_04() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let fixture = "tests/omega/fail/parse/machine_clause_garbage_rejected";
+    let fixture = "tests/fixtures/fail/parse/machine_clause_garbage_rejected";
     let FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics) =
         check_on_compile_worker(fixture)
     else {

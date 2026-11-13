@@ -1,2 +1,0 @@
-`Unrelated::less` binds the fixed operator token `<` over operands that name no declared type or domain
-`Unrelated::add` binds the fixed operator token `+` over operands that name no declared type or domain

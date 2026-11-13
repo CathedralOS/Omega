@@ -1,7 +1,0 @@
-trait Reading { machine read() -> i32; }
-data SelectedReading { }
-machine SelectedReading::read() -> i32 satisfies Reading::read { 7 }
-trait Consumer<Reader satisfies Reading> { }
-trait Concrete: Consumer<SelectedReading> { }
-data Main { }
-machine Main::main() { }

@@ -1,2 +1,0 @@
-cannot prove ensures contract for exit from rejected
-no exact incoming reference origin for values

@@ -1,9 +1,0 @@
-machine narrow() -> u32 in Wrapping { 18446744073709551615 }
-machine beyond_unsigned() -> u64 { 18446744073709551616 }
-data Narrow { value: u32 in Wrapping; }
-data Signed { value: i64; }
-machine record_narrow() { let value: Narrow = Narrow { value: 18446744073709551615 }; }
-machine record_signed() { let value: Signed = Signed { value: 18446744073709551615 }; }
-machine array_narrow() { let value: [u32 in Wrapping; 1] = [18446744073709551615]; }
-machine qualified_array_narrow() { let value: [u32; 1] in Wrapping = [18446744073709551615]; }
-machine nested_qualified_array_narrow() { let value: [[u32; 1] in Wrapping; 1] = [[18446744073709551615]]; }

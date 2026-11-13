@@ -15,7 +15,7 @@ use fixture_package_inputs::{
     discover_fixture, fixture_build_snapshot, produce_fixture, repo_root, review_fixture,
 };
 
-const FIXTURE: &str = "tests/omega/pass/write_only/state_forwarded_scalar_store_exit/main.omg";
+const FIXTURE: &str = "tests/fixtures/pass/write_only/state_forwarded_scalar_store_exit/main.omg";
 
 #[test]
 fn a_repeated_std_product_check_is_reused_before_layout_evaluation() {

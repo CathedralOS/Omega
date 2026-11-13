@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "lower_upper_endpoints");
-    builder.freestanding = true;
-}

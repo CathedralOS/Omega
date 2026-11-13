@@ -1,6 +1,0 @@
-data Packet [copy] { value: f32 in Trapping; }
-machine packet(value: f32 in Trapping) -> Packet
-crashes Trap false {
-    transition { _ -> Packet { value: value * 2.0f32 } }
-}
-machine main() {}

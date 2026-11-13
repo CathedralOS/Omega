@@ -1,1 +1,0 @@
-cannot discharge outcome-specific guarantee on exit through pick::entry from the terminal call to `succeed`

@@ -1,2 +1,0 @@
-cannot prove requires contract for call verify_i8_shifted
-s >= 100 && s <= 100

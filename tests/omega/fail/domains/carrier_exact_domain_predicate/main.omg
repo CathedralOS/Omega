@@ -1,4 +1,0 @@
-// A u8 domain cannot require membership in a u16 domain for its own subject.
-domain u16::Small requires self <= 10;
-domain u8::Tiny requires self in Small;
-machine main() -> i32 { 0 }

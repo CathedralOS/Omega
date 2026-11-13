@@ -1,1 +1,0 @@
-linux_arm64 machine main() { asm { subs w1, 2, 1 } }

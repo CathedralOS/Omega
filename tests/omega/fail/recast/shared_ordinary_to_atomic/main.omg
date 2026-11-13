@@ -1,5 +1,0 @@
-machine view(value: &u64) { let atomic: &AtomicU64 = value as &AtomicU64; }
-machine main() {
-    let number: u64 = 17;
-    view(&number);
-}

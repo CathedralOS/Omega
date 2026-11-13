@@ -1,1 +1,0 @@
-an owned activation claim cannot transfer to another activation or provider

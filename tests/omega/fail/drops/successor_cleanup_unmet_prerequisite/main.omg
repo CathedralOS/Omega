@@ -1,9 +1,0 @@
-data Token dropped by drop_token { ready: bool; }
-
-machine drop_token(token: &mut Token) requires token.ready {}
-
-machine main() {
-    let token: Token = Token { ready: false };
-    transition { _ -> done() }
-    machine done() {}
-}

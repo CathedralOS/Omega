@@ -1,2 +1,0 @@
-cannot prove published termination for machine `wrap`
-targets `Write::try_from::try_from` through `Write`, summary Some(NoGuarantee)

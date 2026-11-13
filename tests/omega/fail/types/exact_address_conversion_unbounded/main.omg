@@ -1,2 +1,0 @@
-machine invalid(value: u64) -> addr { value as addr }
-machine main() {}

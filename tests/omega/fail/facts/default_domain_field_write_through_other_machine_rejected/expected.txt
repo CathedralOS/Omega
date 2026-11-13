@@ -1,3 +1,0 @@
-cannot complete return from machine `revise` state `entry`
-the `requires` facts of `held` (data `Interval`)
-unproved; restore them first

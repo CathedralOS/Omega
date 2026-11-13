@@ -1,2 +1,0 @@
-cannot prove requires contract for call consume from issue
-value in i64::Classified

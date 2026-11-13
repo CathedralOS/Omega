@@ -1,1 +1,0 @@
-creates local borrow `fresh` while local borrow `held` is still active

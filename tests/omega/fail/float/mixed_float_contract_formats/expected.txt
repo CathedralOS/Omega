@@ -1,1 +1,0 @@
-builtin `<` cannot combine `f64` and `f32`

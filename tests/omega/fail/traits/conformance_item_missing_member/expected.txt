@@ -1,1 +1,0 @@
-closed conformance `PointShape satisfies Shape` is incomplete: missing `Shape::code`

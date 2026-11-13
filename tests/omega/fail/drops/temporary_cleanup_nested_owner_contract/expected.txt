@@ -1,1 +1,0 @@
-Outer.token does not establish drop_token clause `token.value == 7`

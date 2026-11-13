@@ -1,1 +1,0 @@
-static type equality cannot mix a type operand with a runtime value

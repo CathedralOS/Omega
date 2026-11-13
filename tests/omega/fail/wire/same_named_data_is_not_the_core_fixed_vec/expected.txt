@@ -1,1 +1,0 @@
-machine `SelectedCodec::member` requires type predicate does not hold for the supplied arguments

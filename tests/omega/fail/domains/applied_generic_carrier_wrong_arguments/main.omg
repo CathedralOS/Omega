@@ -1,6 +1,0 @@
-data Pair<A, B> { first: A; second: B; }
-domain<A, B> Pair<A, B>::Typed<A, B>;
-
-machine retain(pair: Pair<u32, u64> in Typed<u64, u32>) -> Pair<u32, u64> {
-    pair as Pair<u32, u64>
-}

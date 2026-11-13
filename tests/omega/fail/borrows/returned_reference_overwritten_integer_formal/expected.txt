@@ -1,1 +1,0 @@
-mutates `values[1]` while local borrow `selected` is still active

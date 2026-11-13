@@ -1,1 +1,0 @@
-stable identity #1 is declared more than once

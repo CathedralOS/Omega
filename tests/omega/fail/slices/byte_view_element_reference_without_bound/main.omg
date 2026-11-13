@@ -1,3 +1,0 @@
-machine copy(value: &u8) -> u8 { value }
-machine first(bytes: &[u8]) -> u8 { copy(&bytes[0]) }
-machine main() {}

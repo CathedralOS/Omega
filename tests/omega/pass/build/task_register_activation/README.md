@@ -1,9 +1,0 @@
-# Activate a task register from retained storage
-
-The compiled Omega body checks a GDT and its task-state bytes, activates the task register, reads its selector, and rejects a second activation of the now-busy descriptor. It also refuses a different table with an otherwise valid descriptor, a mismatched task-state buffer, a code descriptor and an out-of-table selector. Build selects the ordinary `X86TaskRegisterControl` implementation.
-
-The CPU harness owns the GDT and task-state bytes until shutdown. It independently checks TR, the complete available-to-busy descriptor change, neighboring words, untouched task-state bytes, RSP, callee-saved registers and IF/DF after eight ordinary calls. The first call activates; later calls must refuse the busy descriptor. Expected output is `B........P`, with QEMU exit33. The hosted application only demands this entry and is never executed. `--corrupt-neighbor` must fail the independent memory check.
-
-Use the existing [native-entry CPU tooling](../../../../../tools/native_entry_cpu/README.md), capture this fixture, extract its `CallReturn` entry, and select `--oracle task-register-call`. The source controls reject a shared GDT, a task-state buffer of the wrong size, using a saved descriptor value as proof that it survived activation unchanged, and calling without the required machine-control service.
-
-The closed test runs at CPL0 with interrupts masked and no asynchronous delivery, debugging exceptions or concurrent changes to GDTR/the descriptor. The buffers remain mapped and live. A false result reports a preflight refusal; architectural faults are not converted to false. This does not install interrupt roots, reload CS, deliver timers, issue acknowledgements or prove multiprocessor behavior. Terminal interpretation currently refuses task-register hardware operations explicitly.

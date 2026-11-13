@@ -1,8 +1,0 @@
-machine open_total<LeftNodes: u64, LeftTotal: u64, RightNodes: u64, RightTotal: u64, Nodes: u64, Total: u64>(
-    
-) -> u64
-requires Nodes <= 8 && embed(LeftNodes) + embed(RightNodes) + 1 == embed(Nodes)
-         && embed(LeftTotal) + embed(RightTotal) + 1 == embed(Total)
-requires embed(Total) >= 10 * embed(Nodes)
-ensures result <= 80
-{ Total }

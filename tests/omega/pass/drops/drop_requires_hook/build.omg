@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "drop_requires_hook");
-    builder.freestanding = true;
-}

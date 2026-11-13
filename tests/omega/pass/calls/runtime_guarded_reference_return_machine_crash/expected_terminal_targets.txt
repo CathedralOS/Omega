@@ -1,4 +1,0 @@
-linux_x86_64 trap
-linux_arm64 trap
-macos_arm64 trap
-windows_x86_64 trap

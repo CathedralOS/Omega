@@ -1,1 +1,0 @@
-cannot prove rank range `0..=9` for the rank produced by the selected view

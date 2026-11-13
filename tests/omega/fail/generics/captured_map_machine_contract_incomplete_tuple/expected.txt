@@ -1,1 +1,0 @@
-captured Machine argument requires a complete selected provider tuple

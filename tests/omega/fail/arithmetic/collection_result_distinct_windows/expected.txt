@@ -1,1 +1,0 @@
-cannot prove index `count` is within length 1

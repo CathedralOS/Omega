@@ -1,1 +1,0 @@
-requires equations define `Left` through itself

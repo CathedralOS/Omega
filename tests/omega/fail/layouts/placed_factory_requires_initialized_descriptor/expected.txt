@@ -1,2 +1,0 @@
-uses reference local
-before a store

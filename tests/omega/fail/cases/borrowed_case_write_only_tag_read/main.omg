@@ -1,7 +1,0 @@
-data Message { case Active(value: u32); case Empty; }
-machine inspect(message: &write Message) -> u32 {
-    match message {
-        Message::Active { value } -> value
-        Message::Empty -> 0
-    }
-}

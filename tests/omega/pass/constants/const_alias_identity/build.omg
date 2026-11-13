@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "const_alias_identity");
-    builder.freestanding = true;
-}

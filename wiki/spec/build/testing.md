@@ -305,22 +305,21 @@ Neither creates a special source-level test main. Native execution needs its own
 real containment and authority; an in-process trap does not become recoverable
 by convention.
 
-## The language corpus
+## Compiler tests
 
-`tests/omega` is the Omega language's test suite. Each case is an ordinary
-package: a `pass` case must check, a `fail` case must reject with its expected
-diagnostic fragment, and a runnable case (the `run` tier and `*_exit` pass
-cases) has an ordinary program entry whose exit status and output are its
-result. Compiler behavior is tested by adding a case here; a repository-wide
-Rust harness or a foreign-language driver program does not substitute for one.
+The repository's own compiler behavior is tested by Rust tests on the code
+that implements it. A test that needs an Omega program reads an ordinary
+package kept under `tests/fixtures/<tier>/<group>/<name>/`: a `pass` case must
+check, a `fail` case must reject with its expected diagnostic fragment, and a
+runnable case (the `run` tier and `*_exit` pass cases) has an ordinary program
+entry whose exit status and output are its result. Where a runnable case
+executes natively and on the interpreter (`omega run --both`), the native exit
+status must equal the interpreted one; a disagreement is a compiler defect.
+Native execution on the host proves nothing about another target, so a
+target-specific result belongs to a case built for that target.
 
-The corpus runner selects how runnable cases execute: natively on the host
-target, on the checked interpreter that `omega run --both` uses, or both. In
-both, the native exit status must equal the interpreted one; a disagreement is
-a compiler defect. A case the interpreter declines records that it was
-declined rather than a result. Native execution on the host proves nothing
-about another target, so a target-specific result belongs to a case built for
-that target.
+The fixture corpus that was this suite until 2026-11-13 (`tests/omega`) is
+deleted; `tests/README.md` records how to read it from history.
 
 ## Implementation acceptance
 

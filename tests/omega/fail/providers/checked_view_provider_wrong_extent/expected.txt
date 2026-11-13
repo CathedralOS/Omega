@@ -1,1 +1,0 @@
-requires `index < second.len`, which the requirement does not imply

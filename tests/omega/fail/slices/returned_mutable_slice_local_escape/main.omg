@@ -1,2 +1,0 @@
-machine escape() -> &mut [i32] { let mut local: [i32; 2]; &mut local[0..1] }
-machine main() { let view: &mut [i32] = escape(); }

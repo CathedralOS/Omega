@@ -1,1 +1,0 @@
-const parameter `Count` of `capacity` requires `u64`, but `Supplied` declares `u32`

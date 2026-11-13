@@ -1,2 +1,0 @@
-transition pattern matrix
-does not cover

@@ -1,2 +1,0 @@
-module m::a;
-public machine seed() -> u32 { 7 }

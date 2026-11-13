@@ -1,7 +1,0 @@
-const Count: u64 = extent();
-data Storage { bytes: [u8; Count]; }
-machine extent() -> u64 {
-    let storage: Storage = Storage { bytes: [0u8] };
-    storage.bytes.len
-}
-machine main() {}

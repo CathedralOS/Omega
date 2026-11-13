@@ -1,3 +1,0 @@
-cannot prove ensures contract
-wrong_reflexivity
-result == value

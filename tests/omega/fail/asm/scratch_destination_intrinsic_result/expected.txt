@@ -1,1 +1,0 @@
-assembly scratch register destination must be a plain register name

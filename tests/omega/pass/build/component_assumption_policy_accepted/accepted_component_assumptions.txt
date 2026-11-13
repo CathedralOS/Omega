@@ -1,1 +1,0 @@
-Accept this fixture's exact checked root component assumption rows.

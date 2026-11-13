@@ -1,7 +1,0 @@
-data Ticket { value: u64; }
-data First {}
-data Second {}
-domain<P> Ticket::Issued<P> established by issue;
-machine issue<P>(value: u64) -> Ticket in Issued<P> { Ticket { value: value } }
-machine counterfeit<P>(value: u64) -> Ticket in Issued<P> { Ticket { value: value } }
-machine main() { let ticket: Ticket in Issued<First> = counterfeit<First>(73); }

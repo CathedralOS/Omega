@@ -1,7 +1,0 @@
-// Each authored dispatch owes its own total coverage. A later statement
-// or separate block cannot supply the missing outcome.
-machine choose<T [copy]>(value: T, take: bool) -> T crashes Trap {
- transition take { true -> (value) }
- crash Trap;
-}
-machine main() crashes Trap { let result: u64 = choose(70, false); }

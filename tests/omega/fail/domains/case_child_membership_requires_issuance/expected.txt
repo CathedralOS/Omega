@@ -1,5 +1,0 @@
-call observe from forged_common::entry: parameter event.common requires Ticket::Issued
-call observe from forged_payload::entry: parameter event::Packed.payload requires Ticket::Issued
-call observe from stale_common::entry: parameter event.common requires Ticket::Issued
-call observe from wrong_payload_issuer::entry: parameter event::Packed.payload requires Ticket::Issued
-call observe from inactive_payload_forged_common::entry: parameter event.common requires Ticket::Issued

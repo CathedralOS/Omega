@@ -1,7 +1,0 @@
-machine `fractional` state `entry` cannot prove Exact float-to-`i32` cast
-machine `negative_fraction` state `entry` cannot prove Exact float-to-`u32` cast
-machine `unknown` state `entry` cannot prove Exact float-to-`i32` cast
-machine `integer_ends_are_not_enough` state `entry` cannot prove Exact float-to-`i32` cast
-machine `overflow` state `entry` cannot prove Exact float-to-`i32` cast
-machine `nan` state `entry` cannot prove Exact float-to-`i32` cast
-machine `stale_guard` state `guarded` cannot prove Exact float-to-`i32` cast

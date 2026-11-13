@@ -1,1 +1,0 @@
-product-provider path access requires a compiler-issued ProductProviderRef

@@ -1,3 +1,0 @@
-cannot complete return from machine `corrupt` state `entry`
-the `requires` facts of `outer` (data `Outer`)
-unproved; restore them first

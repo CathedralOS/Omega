@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "dup_match_order");
-    builder.freestanding = true;
-}

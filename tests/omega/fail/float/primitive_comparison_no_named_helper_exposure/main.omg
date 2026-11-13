@@ -1,2 +1,0 @@
-// Primitive token availability exposes no ordinary named helpers.
-machine main() { let observed: bool = F64::is_finite(0.25); }

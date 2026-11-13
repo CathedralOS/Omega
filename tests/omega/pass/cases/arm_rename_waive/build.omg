@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "arm_rename_waive");
-    builder.freestanding = true;
-}

@@ -1,1 +1,0 @@
-no `domain` named `Typed` is declared for `Pair<u32, u64>`

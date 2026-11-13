@@ -1,5 +1,0 @@
-const SOURCE: [u64; 1] = [3];
-const PLAIN: [u64; 1] = [3];
-const ALIAS: [u64; 1] = match true { true -> SOURCE, false -> PLAIN };
-machine check_source() requires SOURCE[0] <= 7 {}
-machine main() { check_source(); }

@@ -1,5 +1,0 @@
-machine value() -> u64
-terminates
-{
-    0u64
-}

@@ -1,1 +1,0 @@
-proposition `ready` argument 1 does not match parameter `value` type `i32`

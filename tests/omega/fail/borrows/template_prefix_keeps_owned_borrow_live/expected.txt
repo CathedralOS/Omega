@@ -1,1 +1,0 @@
-mutates `number.number` while local borrow `held` is still active

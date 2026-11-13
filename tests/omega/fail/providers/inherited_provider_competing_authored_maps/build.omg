@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "inherited_provider_competing_authored_maps");
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

@@ -1,8 +1,0 @@
-trait SelectedValue {
-    machine value(input: f32) -> u8 in Saturating;
-    machine law(input: f32)
-    requires value(input) == value(input)
-    ensures value(input) == value(input);
-}
-
-machine main() {}

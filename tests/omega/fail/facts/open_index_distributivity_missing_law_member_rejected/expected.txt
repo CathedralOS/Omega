@@ -1,2 +1,0 @@
-closed conformance `Canonical satisfies IndexSemiring` is incomplete
-missing `IndexSemiring::distribute`

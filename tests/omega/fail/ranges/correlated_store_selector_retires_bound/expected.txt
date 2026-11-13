@@ -1,1 +1,0 @@
-this write left the `requires` facts of `output[0]` (data `Limited`) unproved

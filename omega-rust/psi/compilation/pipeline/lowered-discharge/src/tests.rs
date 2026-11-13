@@ -22,11 +22,15 @@ use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
+mod arithmetic_policies;
+mod empty_records;
 mod entry_inputs;
 mod guard_contradiction;
 mod inferred_bounds;
+mod mathematical_clauses;
 mod mutable_formals;
 mod ranges;
+mod reach;
 mod references;
 mod result_summaries;
 mod type_parameters;

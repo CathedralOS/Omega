@@ -1,2 +1,0 @@
-exact arithmetic in machine `previous`
-exact arithmetic in machine `take`

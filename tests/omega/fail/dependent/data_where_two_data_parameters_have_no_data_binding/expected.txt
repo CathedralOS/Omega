@@ -1,3 +1,0 @@
-cannot complete return from machine `Main::ambiguous` state `ambiguous`
-the `requires` facts of `first` (data `Main`)
-unproved; restore them first

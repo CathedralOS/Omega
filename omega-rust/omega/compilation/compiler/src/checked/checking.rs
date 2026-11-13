@@ -23,6 +23,7 @@ mod product_selections;
 pub(super) mod source_build;
 mod source_checking;
 pub(crate) mod typed_frontier;
+pub(super) mod unbuilt_source;
 
 pub use compilation_products::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,

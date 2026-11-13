@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "uefi_os_handoff_invocation");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-    Build::bind(builder, uefi_x86_64::ProgramEntry, entry_start);
-}

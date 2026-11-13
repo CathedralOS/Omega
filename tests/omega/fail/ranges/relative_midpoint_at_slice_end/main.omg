@@ -1,7 +1,0 @@
-machine read(values: &[u64], lower: u64) -> u64
-requires lower < values.len
-{
-    let position: u64 = lower + (values.len - lower) / 1;
-    values[position]
-}
-machine main() {}
