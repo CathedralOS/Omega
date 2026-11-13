@@ -531,6 +531,7 @@ mod evidence_seal_tests {
             result: Some(u32_type().into()),
             requires: vec![at_most(1), at_most(2)],
             ensures: Vec::new(),
+            reaches: structure_elaboration::ReachCeiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });

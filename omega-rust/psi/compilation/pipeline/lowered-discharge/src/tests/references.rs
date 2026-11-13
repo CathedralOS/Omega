@@ -83,6 +83,7 @@ pub(super) fn lower_lending(machines: Vec<Lending>) -> Checked<structure_elabora
             result: None,
             requires: machine.requires,
             ensures: Vec::new(),
+            reaches: structure_elaboration::ReachCeiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });

@@ -267,6 +267,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
         result: Some(invalid.result),
         requires: Vec::new(),
         ensures: Vec::new(),
+        reaches: structure_elaboration::ReachCeiling::Inferred,
         crashes: CrashCeiling::Authored(Vec::new()),
         termination: Termination::Silent,
     });
@@ -320,6 +321,7 @@ fn an_array_move_vacates_only_its_exact_element() {
                 unproved,
                 unestablished,
                 conflicts,
+                ..
             } = verdict
             else {
                 panic!("the moved element must fail storage checking: {verdict:?}");

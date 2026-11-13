@@ -453,14 +453,16 @@ impl<'t> Program<'t> {
         if machine.structural_type_equations_pending {
             return unserved("pending type equations");
         }
-        // Row 1 is the interned empty row (`ServiceReachRowTable::EMPTY_ROW`).
-        if !matches!(
-            machine.service_reach_row,
-            language_semantics::ServiceReachRowId::NULL
-                | language_semantics::ServiceReachRowTable::EMPTY_ROW
-        ) || machine.service_reach_is_installation_bound
+        // A written `reaches` ceiling is read with the signature
+        // (`reach_ceiling`). A ceiling bound by an installation is an
+        // abstract row with no concrete services to compare.
+        if machine.service_reach_is_installation_bound
+            || self
+                .typed
+                .service_reach_rows
+                .is_abstract(machine.service_reach_row)
         {
-            return unserved("service reach");
+            return unserved("service reach bound by an installation");
         }
         if machine.suspends || machine.blocks {
             return unserved("suspends or blocks");
@@ -619,6 +621,9 @@ impl<'t> Program<'t> {
             &[],
         )?;
         signature.termination = self.termination(id, machine)?;
+        // A machine's header clauses belong to the machine declaration; its
+        // formals belong to its one state, which `contract` was given.
+        signature.reaches = self.reach_ceiling(id, machine.symbol)?;
         // Diagnostics name the declaration the author wrote, not a clone
         // stage 04 generated from it.
         let authored = crate::template_of(self.typed, symbol)
@@ -710,13 +715,13 @@ impl<'t> Program<'t> {
         if !requirement.invokes.is_empty() {
             return unserved("invokes");
         }
-        if !matches!(
-            requirement.service_reach_row,
-            language_semantics::ServiceReachRowId::NULL
-                | language_semantics::ServiceReachRowTable::EMPTY_ROW
-        ) || requirement.service_reach_is_installation_bound
+        if requirement.service_reach_is_installation_bound
+            || self
+                .typed
+                .service_reach_rows
+                .is_abstract(requirement.service_reach_row)
         {
-            return unserved("service reach");
+            return unserved("service reach bound by an installation");
         }
         if requirement.suspends || requirement.blocks {
             return unserved("suspends or blocks");
@@ -967,6 +972,7 @@ impl<'t> Program<'t> {
             // only crash-free members.
             (Declarer::Requirement { .. }, false) => CrashCeiling::Inferred,
         };
+        let reaches = self.reach_ceiling(id, owner)?;
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         // Each clause's text follows it into canonical order. A repeated
@@ -1000,6 +1006,7 @@ impl<'t> Program<'t> {
                 result,
                 requires,
                 ensures,
+                reaches,
                 crashes,
                 // A requirement's termination is its selected member's to
                 // keep; a machine's is read from its plan by its caller.

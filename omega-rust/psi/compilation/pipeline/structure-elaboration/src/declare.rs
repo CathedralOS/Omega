@@ -73,6 +73,24 @@ pub(crate) fn declare(
 ) {
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files());
+    // A service is committed to by its portable identity, never by its
+    // module-local number.
+    let services: Vec<(semantic_vocabulary::ServiceId, String)> = elaboration
+        .module
+        .services
+        .iter()
+        .map(|service| {
+            (
+                service.id,
+                elaboration
+                    .module
+                    .identities
+                    .text(service.identity)
+                    .unwrap_or_default()
+                    .to_owned(),
+            )
+        })
+        .collect();
     let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
     for machine in &mut elaboration.module.machines {
         // A requirement stands for a contract, not a source-produced body.
@@ -85,7 +103,29 @@ pub(crate) fn declare(
             signatures.get(machine.id),
         ) {
             (Ok(sources), Some(symbol), Some(signature)) => {
-                declaration(typed, sources, *symbol, signature, machine, &mut identities)
+                let reach = machine
+                    .published_service_ceiling
+                    .iter()
+                    .map(|service| {
+                        services
+                            .iter()
+                            .find(|(id, _)| id == service)
+                            .map(|(_, identity)| identity.as_str())
+                            .filter(|identity| !identity.is_empty())
+                            .ok_or("a published service has no identity")
+                    })
+                    .collect::<Result<Vec<_>, _>>();
+                reach.and_then(|reach| {
+                    declaration(
+                        typed,
+                        sources,
+                        *symbol,
+                        signature,
+                        machine,
+                        &reach,
+                        &mut identities,
+                    )
+                })
             }
             (Err(_), _, _) => Err("a toolchain source has no exact identity"),
             _ => Err("the machine has no typed-tree declaration"),
@@ -104,6 +144,7 @@ fn declaration(
     symbol: SymbolHandle,
     signature: &Signature,
     machine: &TerminalMachine,
+    reach: &[&str],
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
     let declared = typed
@@ -165,6 +206,7 @@ fn declaration(
             .map(|clause| &clause.proposition),
         &machine.contract.crash_routes,
         signature.termination,
+        reach,
     );
 
     Ok(CheckedMachineDeclaration {
@@ -195,6 +237,7 @@ pub(crate) fn boundary(
     typed: &TypedTrees,
     symbol: SymbolHandle,
     signature: &Signature,
+    reach: &[&str],
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<
     (
@@ -257,6 +300,7 @@ pub(crate) fn boundary(
             .declared_crash_routes()
             .ok_or("boundary declaration has no published crash ceiling")?,
         signature.termination,
+        reach,
     );
     let source = CheckedMachineDeclaration {
         machine: NominalDeclarationIdentity::new(owner_identity),
@@ -293,6 +337,7 @@ fn declaration_contract_commitment<'a>(
     ensures: impl IntoIterator<Item = &'a semantic_vocabulary::Proposition>,
     crash_routes: &[terminal_psi::CrashRouteBucket],
     termination: crate::Termination,
+    reach: &[&str],
 ) -> [u8; 32] {
     let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
     callable.hash(&mut commitment);
@@ -312,6 +357,12 @@ fn declaration_contract_commitment<'a>(
     }
     crash_routes.hash(&mut commitment);
     termination.hash(&mut commitment);
+    // The published service reach is part of what a caller relies on. An
+    // empty row adds nothing, so a contract with no reach commits as it
+    // did before reach was read; a nonempty one is hashed with its length.
+    if !reach.is_empty() {
+        reach.hash(&mut commitment);
+    }
     commitment.0.finish()
 }
 

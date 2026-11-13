@@ -161,6 +161,7 @@ fn accept_compilation(
                 unproved,
                 unestablished,
                 conflicts,
+                exceeded,
             }) => {
                 let before = diagnostics.len();
                 diagnostics.extend(formations.iter().map(|entry| entry.reject_diagnostic()));
@@ -170,6 +171,7 @@ fn accept_compilation(
                 }
                 diagnostics.extend(unestablished.iter().map(|entry| entry.reject_diagnostic()));
                 diagnostics.extend(conflicts.iter().map(|entry| entry.reject_diagnostic()));
+                diagnostics.extend(exceeded.iter().map(|entry| entry.reject_diagnostic()));
                 if before == diagnostics.len() {
                     diagnostics.push(route_defect("a rejection names no failure"));
                 }
@@ -228,6 +230,7 @@ mod tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
+            reaches: structure_elaboration::ReachCeiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });

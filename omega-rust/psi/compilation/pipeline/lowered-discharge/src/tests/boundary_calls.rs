@@ -5,7 +5,7 @@
 use super::*;
 use std::sync::Arc;
 
-fn typed(text: &str) -> typed_trees::TypedTrees {
+pub(super) fn typed(text: &str) -> typed_trees::TypedTrees {
     let mut sources = source::SourceMap::default();
     let source = sources
         .add("boundary_calls/source.omg".into(), text.to_owned())
@@ -24,7 +24,7 @@ fn typed(text: &str) -> typed_trees::TypedTrees {
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
-fn entry(typed: &typed_trees::TypedTrees) -> symbols::SymbolHandle {
+pub(super) fn entry(typed: &typed_trees::TypedTrees) -> symbols::SymbolHandle {
     typed
         .machines()
         .iter()

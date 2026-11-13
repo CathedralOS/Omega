@@ -234,6 +234,8 @@ pub struct Signature {
     /// in authored order.
     pub ensures: Vec<Proposition>,
     pub crashes: CrashCeiling,
+    /// What the header says about service reach.
+    pub reaches: ReachCeiling,
     pub termination: Termination,
 }
 
@@ -388,6 +390,21 @@ pub fn formal_values(
             ValueId::new(*next)
         })
         .collect()
+}
+
+/// What a header says about service reach.
+/// `wiki/spec/language/effects.md`: "A present clause is an upper bound, not
+/// an assertion of exact equality and not an additive contribution", and
+/// "Omission requests inference and is distinct from an explicit empty
+/// clause."
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReachCeiling {
+    /// No `reaches` clause. A checked body's published reach is then derived
+    /// from its calls (`outcome`); a boundary requirement must not omit it.
+    Inferred,
+    /// The services the clause names "and their boundary parents", strictly
+    /// increasing. Empty is `reaches none`.
+    Authored(Vec<semantic_vocabulary::ServiceId>),
 }
 
 /// What the machine's header says about crashing.

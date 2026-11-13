@@ -1132,6 +1132,41 @@ No router calls `judge` in the default compile yet: the comparison harness
 below is its only caller outside tests, and prints each unproved
 obligation's message with its outcome.
 
+## Service reach
+
+A written `reaches` clause is a ceiling on the services a machine's calls may
+reach ([effects](../../../../../wiki/spec/language/effects.md#declarations)).
+Three crates each do one part, and the fact travels in the module:
+
+- `structure-elaboration` reads the clause of a checked body, a requirement
+  and a boundary requirement with one reader (`read/services.rs`,
+  `reach_ceiling`) into `Signature::reaches`, as the named boundary services
+  and their boundary parents, and tells `reaches none` from an omitted clause
+  by the authored row. `outcome.rs` derives what each machine publishes as a
+  fixed point over the call graph: its written ceiling, or else what its calls
+  contribute, where a boundary call contributes its requirement's ceiling.
+  Lowering writes the rows: `declared_service_reach` and
+  `published_service_ceiling` on a machine, both reach rows on a boundary
+  declaration, the module's `services` and `root_service_reach`.
+- `lowered-discharge` judges (`service_reach.rs`): at every call, what the
+  callee publishes lies inside what the caller publishes. The callee's
+  published row is the only thing read of it. A call outside is a rejection of
+  the program at that call (`RouteVerdict::Rejected::exceeded`), with no
+  certificate, like a loan conflict; a row that is not canonical, omits a
+  boundary parent, or disagrees with the written ceiling or the root reach is
+  a table fault.
+
+Not served: a ceiling bound by an installation (`machine service reach bound
+by an installation`), a written ceiling over a requirement that defers its
+reach, and a call through a selector value in a module that declares services.
+
+`invokes` is not served (`machine invokes`). It is the next refusal of every
+Build program, because `Build::application` writes `invokes
+BuildRequestOperations`. Terminal Psi has no row for a machine's synchronous
+entries, so the checker cannot judge that ceiling on the module as it judges
+reach. Whether Terminal Psi gains such a row or the judgment is made
+elsewhere is not decided by `pipeline.md` or the Terminal Psi pages.
+
 ## Running the checker on a source program
 
 The probe shows this crate one source program and prints its verdict. It does
