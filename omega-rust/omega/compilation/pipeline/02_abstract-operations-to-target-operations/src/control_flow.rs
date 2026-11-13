@@ -441,7 +441,7 @@ mod program_image {
 
     pub(crate) fn lower(
         operation: &AbstractOperation,
-        target: target::NativeTarget,
+        profile: Option<target::TargetProfile>,
         declarations: &BTreeMap<BoundaryMachineId, &terminal_psi::BoundaryMachineDeclaration>,
         settlements: &BTreeMap<BoundaryMachineId, BoundarySettlementBinding>,
         site: &mut RowSite<'_>,
@@ -473,7 +473,7 @@ mod program_image {
         let AbstractBoundaryResult::Scalar(result) = result else {
             return Err(mismatch);
         };
-        if target != target::NativeTarget::uefi_x64()
+        if profile != Some(target::TargetProfile::UefiX64)
             || binding.execution != execution
             || binding.realization
                 != BoundarySettlementRealization::Builtin(
@@ -2541,6 +2541,7 @@ impl LiveDefinitions {
 pub(crate) fn lower(
     function: &AbstractFunction,
     target: NativeTarget,
+    profile: Option<target::TargetProfile>,
     functions: &BTreeMap<MachineId, &AbstractFunction>,
     dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
     borrowed_reference_sources: references::BorrowedSources,
@@ -2964,6 +2965,7 @@ pub(crate) fn lower(
                         provenance,
                     ),
                     target,
+                    profile,
                     functions,
                     dynamic_dispatch,
                     boundary_machines,

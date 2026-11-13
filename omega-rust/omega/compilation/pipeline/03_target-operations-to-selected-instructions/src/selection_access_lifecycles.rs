@@ -4626,6 +4626,7 @@ pub(crate) mod tests {
             ),
             work_schedule: WorkScheduleIdentity::new(1).unwrap(),
             target,
+            profile: None,
             entry: MachineId::new(1).unwrap(),
             scalar_functions: vec![],
         };

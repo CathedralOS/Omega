@@ -87,6 +87,20 @@ framework or a list of features that remain unimplemented.
 - Cost: each new step kind (payload, saved subject) is taught to one walk at a time, and the ones that are missed either refuse a served program or skip an authority check
 - Reported: 2026-11-13, Claude Code, while lending case payloads
 
+### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
+- Category: one idea, several implementations
+- Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `structure-elaboration/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
+- Saw: typing reads `u32` as an integer because the text of the name is `u32`, with `AtomicU32` and `AtomicU32#AccessField<` mapped to the same carrier by string prefix; the lowered-form checker reads it as an integer because its symbol sits in a compiler-installed root slot. Two enums named `PrimitiveType` restate the answer for the two tree representations
+- Cost: a package type spelled like a primitive and the width-indexed spellings (`u13`, `u<N>`) each have to be taught to both routes, and the two can disagree about one type reference
+- Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
+
+### Three vocabularies still list eight integer widths by name
+- Category: branch per shape
+- Where: `language-semantics/src/numeric_intrinsics.rs` (`NumericType`, published in Terminal Psi); `numerics/src/float_semantics.rs` (the integer side of float conversions); `omega/packages/review-evidence` (`primitive_type_row`, one wire tag per width)
+- Saw: the front end now states an integer as a sign and a width, and these three convert that pair back into one of eight variants at their door, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
+- Cost: every width beyond the eight stops at whichever of these it meets first, and each is a published or cross-stage vocabulary that needs its own versioned change
+- Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
+
 ### The lowered form drops declared domains, so only the reader knows a value's type
 - Category: a verdict with nothing behind it
 - Where: `structure-elaboration/src/lower.rs` and `policy.rs` (`qualifications: ScalarQualificationSetId::ZERO`); `terminal-psi/src/types_and_values.rs` (`ScalarQualificationCatalog`, `ScalarDomainDeclaration`, `ScalarQualificationCoercion`)
@@ -295,13 +309,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/psi/interpreter/terminal-interpreter/src/boundary_values.rs:696`; example at `engine_execution.rs:3691`
 - Saw: `malformed()` returns `VerifiedOperationMalformed` and is called 1,329 times across 15 files; an exact add, multiply or divide whose result does not fit ends in `.ok_or(malformed())?`; a program crash is built on only 7 lines (trapping integer, trapping float, crash terminator, host effect); no crate outside the interpreter names the variant
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Windows x64 and UEFI x64 are the same `NativeTarget` value, so "UEFI only" checks also pass for Windows
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/backend/target/src/target_profile.rs:695-711`; checks at `.../images/image-emission/src/function_fragments.rs:1883`, `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/control_flow.rs:476`, `omega-rust/omega/compilation/realization/provider-admission/src/provider_admission/compiler_builtins.rs:176`, `.../isa-x86_64/src/semantic_unit_wrapper_encoding.rs:408`
-- Saw: `windows_x64()` and `uefi_x64()` return identical fields (x86-64, COFF, 8-byte pointers) and the type has no operating-system field; at least 8 non-test sites compare against `NativeTarget::uefi_x64()`, one with the message "image residence requires the selected UEFI image"
-- Cost: an agent reading those checks believes Windows is refused there; whether it is depends on a separate `TargetProfile` check somewhere else, which each site leaves unstated
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### A missing target profile is replaced by the build host at 16 places

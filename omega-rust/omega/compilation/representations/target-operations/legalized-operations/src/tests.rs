@@ -156,6 +156,7 @@ pub(super) fn call_aware_plan() -> LegalizedOperationPlan {
         optimization_unit: OptimizationUnitIdentity::from_canonical_bytes(b"unit"),
         work_schedule: WorkScheduleIdentity::new(1).expect("work schedule"),
         target: NativeTarget::from_omega_target_name(Some("uefi_x86_64")).expect("UEFI target"),
+        profile: None,
         entry: id(1),
         scalar_functions: vec![LegalizedScalarFunction {
             machine: id(1),

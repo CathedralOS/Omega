@@ -2411,6 +2411,19 @@ pub(crate) mod call_origin {
         unit: &super::PsiOptimizationUnit,
         input: target_operations::BoundaryOriginFacts<'_>,
     ) -> Result<(), LegalizationError> {
+        let profile = input
+            .target_machine_selections
+            .map(|selection| target::TargetProfile::from_canonical_target_name(selection.target()))
+            .transpose()
+            .map_err(|_| LegalizationError::custody())?;
+        if native.profile != profile
+            || profile.is_some_and(|profile| profile.native_realization() != Some(native.target))
+            || input
+                .target_machine_selections
+                .is_some_and(|selection| selection.terminal_psi() != native.psi)
+        {
+            return Err(LegalizationError::custody());
+        }
         for function in &native.functions {
             for operation in function.graph.operations() {
                 if let TargetUnitOperation::Call {

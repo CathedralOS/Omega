@@ -554,8 +554,8 @@ fn expected_relocation(
 fn validate_contract_surface(
     contract: &OptimizedProgramStorageSemanticEntryContract,
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
-    if contract.target() != target::NativeTarget::uefi_x64()
-        || contract.target_slot() != target::TargetProfile::UefiX64.program_entry_slot()
+    if contract.target_slot() != target::TargetProfile::UefiX64.program_entry_slot()
+        || contract.target() != contract.target_slot().owner.native_target()
         || contract.semantic_boundary_entry_plan().call.policy != CallingPolicy::MicrosoftX64
         || contract
             .semantic_boundary_entry_plan()

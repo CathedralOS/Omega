@@ -19,7 +19,9 @@
 # model: every unit is reported as bypassed and its store stays empty. The
 # same setting is what makes a plain directory restore sound: Cargo compares
 # source contents, not file times, so a fresh clone reuses a restored build and
-# recompiles exactly the crates whose sources differ.
+# recompiles exactly the crates whose sources differ. Build scripts are the
+# exception: Cargo still dates their inputs by modification time, which
+# settle_source_times handles.
 #
 # There are two slots because Cargo gives the two places a session builds in
 # different identities. A pool worktree (.agents/worktree/worker-N) sits inside
@@ -200,6 +202,27 @@ stale_restore() {
   fi
 }
 
+# settle_source_times <dir> <published-commit>: date the checkout's tracked
+# files back to the published commit, so the restored build is not rerun.
+# Checksum freshness covers what rustc reads, but Cargo still judges a build
+# script's rerun-if-changed inputs by modification time. The compiler crate's
+# build script watches every file under omega-rust/ and source/library/, and a
+# fresh clone writes all of them after CI built: without this, the first build
+# reruns that script and recompiles compiler, package-manager, orchestration
+# and omega (21-35 s). Only a clean checkout at the published commit holds the
+# exact bytes that build read, so any other checkout keeps its real times.
+settle_source_times() {
+  local dir=$1 commit=$2 when
+  [ "$(git -C "$dir" rev-parse HEAD 2>/dev/null)" = "$commit" ] || return 0
+  [ -z "$(git -C "$dir" status --porcelain --untracked-files=all 2>/dev/null)" ] || return 0
+  # The commit exists before CI starts building it, so its time is older than
+  # every timestamp the build recorded.
+  when=$(git -C "$dir" log -1 --format=%ct "$commit") || return 0
+  (cd "$dir" && git ls-files -z | xargs -0 -r touch -h -c -d "@$when" &&
+    git ls-files -z | xargs -0 -r dirname -z | sort -zu | xargs -0 -r touch -h -c -d "@$when") ||
+    echo "warm build: could not date $dir back to ${commit:0:12}; the first build reruns the compiler build script"
+}
+
 # restore <slot> [replace-stale]
 restore() (
   local slot=$1 replace=${2:-} root dir stage manifest commit asset want have need free started
@@ -274,6 +297,7 @@ restore() (
   rmdir "$dir/target" 2>/dev/null || true
   mv -T "$stage/target" "$dir/target" 2>/dev/null ||
     fail "$slot: $dir/target appeared during the restore; left as it is"
+  settle_source_times "$dir" "$commit"
   echo "warm build: $slot restored commit ${commit:0:12} into $dir/target in $(($(date +%s) - started)) s"
 )
 

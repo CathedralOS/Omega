@@ -623,18 +623,7 @@ pub(crate) mod arithmetic_results {
         };
         if !matches!(
             source_symbols.builtin_type_atom(carrier),
-            Some(
-                BuiltinTypeAtom::I8
-                    | BuiltinTypeAtom::I16
-                    | BuiltinTypeAtom::I32
-                    | BuiltinTypeAtom::I64
-                    | BuiltinTypeAtom::U8
-                    | BuiltinTypeAtom::U16
-                    | BuiltinTypeAtom::U32
-                    | BuiltinTypeAtom::U64
-                    | BuiltinTypeAtom::F32
-                    | BuiltinTypeAtom::F64
-            )
+            Some(BuiltinTypeAtom::Integer(_) | BuiltinTypeAtom::F32 | BuiltinTypeAtom::F64)
         ) {
             return;
         }
@@ -952,14 +941,7 @@ pub(crate) mod const_arguments {
             }
             Some(match program.symbols.builtin_type_atom(symbol)? {
                 Atom::Bool => Carrier::Boolean,
-                Atom::I8 => Carrier::Integer(Landed::I8),
-                Atom::I16 => Carrier::Integer(Landed::I16),
-                Atom::I32 => Carrier::Integer(Landed::I32),
-                Atom::I64 => Carrier::Integer(Landed::I64),
-                Atom::U8 => Carrier::Integer(Landed::U8),
-                Atom::U16 => Carrier::Integer(Landed::U16),
-                Atom::U32 => Carrier::Integer(Landed::U32),
-                Atom::U64 => Carrier::Integer(Landed::U64),
+                Atom::Integer(carrier) => Carrier::Integer(Landed::Fixed(carrier)),
                 _ => return None,
             })
         }
@@ -985,7 +967,7 @@ pub(crate) mod const_arguments {
             let refuse = |found: String| {
                 let expected = match carrier {
                     Carrier::Integer(landed) => landed.name(),
-                    Carrier::Boolean => "bool",
+                    Carrier::Boolean => "bool".to_owned(),
                 };
                 Diagnostic::error(format!(
                     "const argument for `{}` of `{}` must be a `{expected}`, found {found}",
@@ -1011,11 +993,8 @@ pub(crate) mod const_arguments {
                         .value_i64()
                         .map(i128::from)
                         .or_else(|| literal.value_u64().map(i128::from));
-                    let (least, greatest) = landed.bounds();
                     match value {
-                        Some(value) if (least..=greatest).contains(&value) => {
-                            Ok(Some(value.to_string()))
-                        }
+                        Some(value) if landed.admits_i128(value) => Ok(Some(value.to_string())),
                         _ => Err(refuse(format!(
                             "`{}`, which is outside that type",
                             literal.canonical_spelling().as_str()
