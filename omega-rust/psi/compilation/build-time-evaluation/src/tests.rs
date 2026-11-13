@@ -337,6 +337,110 @@ fn machine_names(typed: &typed_trees::TypedTrees) -> Vec<&str> {
 }
 
 #[test]
+fn indexed_assignment_literals_retain_the_receivers_actual_type_application() {
+    // The constructor must use the declared array element type, keeping
+    // Cell<u32> separate from Cell<u64>. This checks typing metadata;
+    // execution and establishment remain later checks.
+    let (_, _, base, _) = typed_base(&[(
+        "program/main.omg",
+        r#"
+data Cell<T> { value: T; }
+data Store { small: [Cell<u32>; 2]; large: [Cell<u64>; 2]; }
+machine fill(store: &mut Store) {
+    store.small[0] = Cell { value: 7 };
+    store.large[1] = Cell { value: 4294967296 };
+}
+"#,
+    )]);
+    let typed = base.typed();
+    let machine = typed
+        .realized_machine_named("fill")
+        .expect("actual source machine");
+    let assignments = typed
+        .machine_states(machine)
+        .iter()
+        .flat_map(|state| {
+            typed
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .filter_map(move |statement| match statement {
+                    typed_trees::statement::StatementNode::Assignment(assignment) => {
+                        Some((state, assignment))
+                    }
+                    _ => None,
+                })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(assignments.len(), 2);
+    let mut receiving_types = Vec::new();
+    for ((state, assignment), (field_name, primitive)) in assignments.iter().zip([
+        ("small", typed_trees::types::PrimitiveType::U32),
+        ("large", typed_trees::types::PrimitiveType::U64),
+    ]) {
+        let declared = typed.state_parameters(state)[0].type_reference;
+        let carrier = typed.type_reference_table.peeled_type_reference(declared);
+        let store = typed
+            .closed_data_definition(carrier)
+            .expect("actual Store carrier");
+        let field = typed
+            .data_members(store)
+            .iter()
+            .filter_map(typed_trees::data::DataMember::as_field)
+            .find(|field| field.name.as_str() == field_name)
+            .expect("actual receiving field");
+        let typed_trees::types::TypeReferenceNode::FixedArray {
+            element_type: receiving,
+            ..
+        } = typed
+            .type_reference_table
+            .type_reference(field.type_reference)
+        else {
+            panic!("actual array field")
+        };
+        let receiving = *receiving;
+        receiving_types.push(receiving);
+        let application = typed
+            .closed_data_definition(receiving)
+            .expect("actual receiving application");
+        assert_eq!(application.name.as_str(), "Cell");
+        let required = typed
+            .expression_table
+            .construction_required_type_reference(assignment.value);
+        let identity = |reference| {
+            typed_trees::type_identity::applied_type_identity_in_region_scope(
+                typed,
+                reference,
+                machine.symbol,
+                machine.symbol,
+                &[],
+                &[],
+            )
+            .expect("the actual application has complete identity")
+        };
+        assert_eq!(identity(required), identity(receiving));
+        assert_eq!(
+            typed.type_reference_table.operand_lifetime_owner(required),
+            machine.symbol
+        );
+        let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+            typed.expression_table.expression(assignment.value)
+        else {
+            panic!("actual authored constructor")
+        };
+        assert_eq!(literal.application_type, required);
+        let [typed_trees::data::DataMember::Field(field)] = typed.data_members(application) else {
+            panic!("the exact applied field roster")
+        };
+        assert_eq!(
+            typed.primitive_type_reference(field.type_reference),
+            Some(primitive)
+        );
+    }
+    assert_ne!(receiving_types[0], receiving_types[1]);
+}
+
+#[test]
 fn an_activated_program_keeps_only_its_selected_sources() {
     // A retained base holds two files and the program being compiled
     // selects the first. The second file's machine and constant leave the
