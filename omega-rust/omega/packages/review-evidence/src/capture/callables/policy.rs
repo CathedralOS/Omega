@@ -25,11 +25,11 @@ use target::TargetProfile;
 use typed_trees_to_checked_trees::infer_checked_crash_causes;
 
 pub(crate) fn project_checked_callable_policy<'a>(
-    input: impl Into<PackageReviewInput<'a>>,
+    input: impl crate::IntoPackageReviewInput<'a>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyCallables, Vec<Diagnostic>> {
-    let input = input.into();
+    let input = input.into_review_input()?;
     let compilation = &input;
     if compilation.custody.sources().package_identity() != Some(package)
         || compilation.custody.execution().selected_target_profile != Some(target)

@@ -17,7 +17,7 @@ re-running borrow, proof, or termination analysis.
 - Consumed by: `Psi 06` (`06_checked-trees-to-lowered-psi`), `Psi 08` (`08_lowered-psi-to-terminal-psi`), `checked-interpreter`, and Omega realization/compiler crates.
 - Flat module layout:
   - `lib.rs`: `CheckedTrees`, `KeyedRows`, `ShiftedRows`, callback declarations, and source guards.
-  - `providers_and_trust.rs`: provider declarations and instances.
+  - `providers_and_trust.rs`: provider declarations.
   - `admissibility_and_borrow.rs`: acceptance verdicts (`admissibility`) and borrow/loan lifecycle facts (`borrow`).
   - `facts.rs`, `contract_and_obligation_facts.rs`, `termination_and_cleanup_facts.rs`: `CheckFacts` and declaration, contract, crash, carry, content, cleanup, and termination fact tables.
   - `flow.rs`, `flow_ownership_and_roots.rs`, `flow_terminal.rs`, `flow_terminal_units.rs`: `FlowFacts`, ownership/claim transfers, and checked Terminal lowering plans.
@@ -159,7 +159,7 @@ pub use typed_trees::{
 };
 
 mod providers_and_trust;
-pub use providers_and_trust::{provider_declarations, provider_instances};
+pub use providers_and_trust::provider_declarations;
 mod admissibility_and_borrow;
 pub use admissibility_and_borrow::{admissibility, borrow};
 mod contract_and_obligation_facts;

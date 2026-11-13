@@ -29,11 +29,11 @@ use validation::CheckingProjection;
 use validation::conformance_applications::close_conformance_application;
 
 pub(crate) fn project_checked_conformance_policy<'a>(
-    input: impl Into<PackageReviewInput<'a>>,
+    input: impl crate::IntoPackageReviewInput<'a>,
     application: &ClosedConformanceApplication,
     lifetime_binders: &[Identifier],
 ) -> Result<PackagePolicyClosedConformanceApplication, Vec<Diagnostic>> {
-    let compilation = &input.into();
+    let compilation = &input.into_review_input()?;
     let declaration = compilation
         .conformance_by_symbol(application.declaration)
         .ok_or_else(|| rejected("an application without its exact declaration"))?;

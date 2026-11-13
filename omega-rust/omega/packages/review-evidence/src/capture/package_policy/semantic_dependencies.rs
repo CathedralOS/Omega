@@ -146,7 +146,6 @@ fn nominal_declarations(
                 if !compilation.typed.symbols.symbols().nodes().is_valid(symbol)
                     || !compilation
                         .custody
-                        .typed
                         .symbols
                         .symbols()
                         .nodes()
@@ -189,11 +188,10 @@ fn nominal_declarations(
                             .contains_type_reference(candidate)
                             || !compilation
                                 .custody
-                                .typed
                                 .type_reference_table
                                 .contains_type_reference(original)
                             || compilation.typed.normalized_type_identity(candidate)
-                                != compilation.custody.typed.normalized_type_identity(original)
+                                != compilation.custody.normalized_type_identity(original)
                         {
                             return Err(invalid(
                                 "semantic dependency application differs from checked custody",
@@ -210,7 +208,7 @@ fn nominal_declarations(
                 };
                 let identity = nominal_identity(compilation, symbol)?;
                 let original = nominal_identity_from_symbols(
-                    &compilation.custody.typed.symbols,
+                    &compilation.custody.symbols,
                     symbol,
                     compilation.custody.sources().exact_toolchain_sources(),
                 )?;

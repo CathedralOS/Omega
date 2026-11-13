@@ -13,11 +13,11 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(crate) fn project_checked_boundary_application_policy<'a>(
-    input: impl Into<PackageReviewInput<'a>>,
+    input: impl crate::IntoPackageReviewInput<'a>,
     package: PackageKeyIdentity,
     original_indices: &[usize],
 ) -> Result<PackagePolicyBoundaryApplications, Vec<Diagnostic>> {
-    let input = input.into();
+    let input = input.into_review_input()?;
     let projected = input
         .external_providers
         .is_none()

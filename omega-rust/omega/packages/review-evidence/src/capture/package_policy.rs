@@ -43,12 +43,12 @@ impl<'program> PolicyCheckingContexts<'program> {
 }
 
 pub fn project_checked_package_policy<'a>(
-    input: impl Into<PackageReviewInput<'a>>,
+    input: impl crate::IntoPackageReviewInput<'a>,
     target: TargetProfile,
     package: PackageKeyIdentity,
 ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
-    let input = input.into();
-    let queries = PolicyCheckingContexts::new(input.program, input.custody);
+    let input = input.into_review_input()?;
+    let queries = PolicyCheckingContexts::new(input.program, input.original_program);
     let mathematical_calls =
         super::contracts::mathematical_calls::MathematicalCallQueries::new(&queries.candidate);
     let original_mathematical_calls =

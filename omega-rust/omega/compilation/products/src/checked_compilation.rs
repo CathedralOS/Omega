@@ -78,6 +78,9 @@ impl CheckedCompilation {
         sources
             .require_owner(execution.source_inspection.program())
             .map_err(|error| vec![error])?;
+        terminal_publication
+            .require_source_owner(execution.source_inspection.program())
+            .map_err(|error| vec![error])?;
         Ok(Self {
             source_completion_accounting: Default::default(),
             execution,
