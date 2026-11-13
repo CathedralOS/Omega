@@ -1008,12 +1008,7 @@ pub(crate) mod expression {
         })
         .copied()
         .ok_or_else(|| {
-            let head = match syntax_trees.expressions.expression(saved.pattern_head) {
-                syntax::ExpressionNode::Name(path) => syntax_trees.expressions
-                    .identifier_path_members(*path).iter()
-                    .map(|name| name.as_str(syntax_trees)).collect::<Vec<_>>().join("::"),
-                _ => "<non-name>".to_owned(),
-            };
+            let head = syntax_trees.display_expression_name(saved.pattern_head);
             Diagnostic::error(format!(
                 "saved match subject read has no enclosing arm capture in `{}::{}` for `{head}`: capture {:?}, head {:?}, purpose {:?}, enclosing {:?}",
                 lowerer.current_machine_name.as_deref().unwrap_or("<declaration>"),
@@ -1181,11 +1176,14 @@ pub(crate) mod expression {
             syntax_trees.expressions.expression(expression)
             && call.target_is_static
             && call.receiver.is_valid()
-            && let syntax::expression::ExpressionNode::Name(receiver) =
-                syntax_trees.expressions.expression(call.receiver)
+            && let syntax::expression::ExpressionNode::Name {
+                members: receiver,
+                application: receiver_application,
+            } = syntax_trees.expressions.expression(call.receiver)
+            && receiver_application.is_none()
         {
             let mut path = syntax_expressions(syntax_trees)
-                .identifier_path_members(*receiver)
+                .identifier_path_members(receiver.to_owned())
                 .iter()
                 .map(|value| lower_name(syntax_trees, value))
                 .collect::<Vec<_>>();
@@ -1510,21 +1508,46 @@ pub(crate) mod expression {
                     },
                 )))
             }
-            syntax::expression::ExpressionNode::Name(path) => {
+            syntax::expression::ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } => {
                 let mut members = HandleSpan::empty();
-                for member in syntax_trees.expressions.identifier_path_members(*path) {
+                for member in syntax_trees
+                    .expressions
+                    .identifier_path_members(path.to_owned())
+                {
                     expression_table(lowerer)
                         .push_name_path_member(&mut members, lower_name(syntax_trees, member));
                 }
                 let member_symbols =
                     expression_table(lowerer).reserve_name_path_member_symbols(members.count());
+                let static_application = if path_application.is_some() {
+                    let selection = syntax::expression::StaticMachineArgument {
+                        path: syntax_trees
+                            .expressions
+                            .identifier_path_members(path.to_owned())
+                            .to_vec()
+                            .into_boxed_slice(),
+                        application: path_application.clone(),
+                        ..Default::default()
+                    };
+                    let selection =
+                        lower_static_machine_argument(lowerer, syntax_trees, &selection)?;
+                    expression_table(lowerer).insert_static_member(selection)
+                } else {
+                    arena::Handle::invalid()
+                };
                 Ok(
-                    expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath::new(
-                        members,
-                        member_symbols,
-                        SymbolHandle::invalid(),
-                        SymbolHandle::invalid(),
-                    ))),
+                    expression_table(lowerer).insert(ExpressionNode::Name(TableNamePath {
+                        static_application,
+                        ..TableNamePath::new(
+                            members,
+                            member_symbols,
+                            SymbolHandle::invalid(),
+                            SymbolHandle::invalid(),
+                        )
+                    })),
                 )
             }
             syntax::expression::ExpressionNode::Range(range) => {

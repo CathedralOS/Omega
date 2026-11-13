@@ -210,7 +210,10 @@ pub(crate) mod statements {
             let name = Identifier::generated(name.as_str(syntax_trees));
             let member = exprs(syntax_trees).append_identifier_path_member(name);
             let path = HandleSpan::from_parts(member, 1);
-            exprs(syntax_trees).insert(ExpressionNode::Name(path))
+            exprs(syntax_trees).insert(ExpressionNode::Name {
+                members: path,
+                application: None,
+            })
         }
 
         pub(crate) fn try_desugar_atomic_store(
@@ -333,7 +336,7 @@ pub(crate) mod statements {
                 .ok()?;
             fn is_place(syntax_trees: &SyntaxTrees, expression: ExpressionHandle) -> bool {
                 match exprs_of(syntax_trees).expression(expression) {
-                    ExpressionNode::Name(_) => true,
+                    ExpressionNode::Name { .. } => true,
                     ExpressionNode::Member(member) => is_place(syntax_trees, member.receiver),
                     _ => false,
                 }
@@ -541,7 +544,7 @@ pub(crate) mod statements {
             expression: ExpressionHandle,
         ) -> Option<ExpressionHandle> {
             let copy = match exprs_of(syntax_trees).expression(expression).clone() {
-                node @ (ExpressionNode::Name(_) | ExpressionNode::Member(_)) => {
+                node @ (ExpressionNode::Name { .. } | ExpressionNode::Member(_)) => {
                     copied_name_or_member(syntax_trees, node)?
                 }
                 ExpressionNode::Indexed(indexed) => {
@@ -561,9 +564,14 @@ pub(crate) mod statements {
             node: ExpressionNode,
         ) -> Option<ExpressionNode> {
             Some(match node {
-                ExpressionNode::Name(path) => ExpressionNode::Name(
-                    exprs(syntax_trees).copy_identifier_path_prefix(path, path.len()),
-                ),
+                ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } if path_application.is_none() => ExpressionNode::Name {
+                    members: exprs(syntax_trees)
+                        .copy_identifier_path_prefix(path.to_owned(), path.to_owned().len()),
+                    application: None,
+                },
                 ExpressionNode::Member(member) => ExpressionNode::Member(TableMemberExpression {
                     receiver: copy_compound_assignment_target(syntax_trees, member.receiver)?,
                     access_source_span: member.access_source_span,
@@ -581,7 +589,7 @@ pub(crate) mod statements {
             let copy = match exprs_of(syntax_trees).expression(expression).clone() {
                 ExpressionNode::Boolean(value) => ExpressionNode::Boolean(value),
                 ExpressionNode::Integer(value) => ExpressionNode::Integer(value),
-                node @ (ExpressionNode::Name(_) | ExpressionNode::Member(_)) => {
+                node @ (ExpressionNode::Name { .. } | ExpressionNode::Member(_)) => {
                     copied_name_or_member(syntax_trees, node)?
                 }
                 _ => return None,
@@ -652,9 +660,10 @@ pub(crate) mod statements {
                 let member = trees
                     .expressions
                     .append_identifier_path_member(Identifier::generated(value));
-                trees
-                    .expressions
-                    .insert(ExpressionNode::Name(HandleSpan::from_parts(member, 1)))
+                trees.expressions.insert(ExpressionNode::Name {
+                    members: HandleSpan::from_parts(member, 1),
+                    application: None,
+                })
             }
 
             pub(crate) fn unsigned_type(
@@ -771,10 +780,16 @@ pub(crate) mod statements {
                     .iter_expressions()
                     .skip(first)
                     .filter_map(|(handle, node)| {
-                        let ExpressionNode::Name(path) = node else {
+                        let ExpressionNode::Name {
+                            members: path,
+                            application: path_application,
+                        } = node
+                        else {
                             return None;
                         };
-                        let [identifier] = trees.expressions.identifier_path_members(*path) else {
+                        let members = path_application.is_none().then_some(path.to_owned())?;
+                        let [identifier] = trees.expressions.identifier_path_members(members)
+                        else {
                             return None;
                         };
                         NAMES
@@ -814,14 +829,20 @@ pub(crate) mod statements {
                             },
                         )));
                     }
-                    let ExpressionNode::Name(path) =
-                        trees.expressions.expression(registers[index]).clone()
+                    let ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } = trees.expressions.expression(registers[index]).clone()
                     else {
                         unreachable!()
                     };
-                    trees
-                        .expressions
-                        .replace_expression(handle, ExpressionNode::Name(path));
+                    trees.expressions.replace_expression(
+                        handle,
+                        ExpressionNode::Name {
+                            members: path,
+                            application: path_application,
+                        },
+                    );
                 }
                 (registers, bindings)
             }
@@ -1166,9 +1187,12 @@ pub(crate) mod statements {
                 );
                 if let StatementNode::Assignment(assignment) =
                     stmts_of(syntax_trees).statement(instruction.statement)
-                    && let ExpressionNode::Name(path) =
-                        exprs_of(syntax_trees).expression(assignment.target)
-                    && let [name] = exprs_of(syntax_trees).identifier_path_members(*path)
+                    && let ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } = exprs_of(syntax_trees).expression(assignment.target)
+                    && path_application.is_none()
+                    && let [name] = exprs_of(syntax_trees).identifier_path_members(path.to_owned())
                     && let Some((_, _, clobber)) = scratch_register(name.as_str(syntax_trees))
                 {
                     realized_clobbers.insert(clobber);
@@ -1252,10 +1276,17 @@ pub(crate) mod statements {
                 .iter_expressions()
                 .skip(expression_start)
             {
-                let ExpressionNode::Name(path) = node else {
+                let ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } = node
+                else {
                     continue;
                 };
-                let [name] = exprs_of(syntax_trees).identifier_path_members(*path) else {
+                if path_application.is_some() {
+                    continue;
+                }
+                let [name] = exprs_of(syntax_trees).identifier_path_members(path.to_owned()) else {
                     continue;
                 };
                 if is_unmodeled_aarch64_scratch_view(name.as_str(syntax_trees)) {
@@ -1269,7 +1300,7 @@ pub(crate) mod statements {
                 }
             }
             let uses_scratch = exprs_of(syntax_trees).iter_expressions().skip(expression_start).any(|(_, node)| {
-        matches!(node, ExpressionNode::Name(path) if matches!(exprs_of(syntax_trees).identifier_path_members(*path), [name] if scratch::NAMES.iter().any(|register| !register.is_empty() && *register == name.as_str(syntax_trees))))
+        matches!(node, ExpressionNode::Name { members: path, application: path_application } if path_application.is_none() && matches!(exprs_of(syntax_trees).identifier_path_members(path.to_owned()), [name] if scratch::NAMES.iter().any(|register| !register.is_empty() && *register == name.as_str(syntax_trees))))
     });
             if target_requirement == AsmTargetApplicability::Aarch64 && observes_hardware_flags {
                 return Err(input.error_here(
@@ -1751,14 +1782,18 @@ pub(crate) mod statements {
                             operand,
                         )?;
                     }
-                    if matches!(exprs_of(syntax_trees).expression(destination), ExpressionNode::Name(path) if matches!(exprs_of(syntax_trees).identifier_path_members(*path), [name] if name.as_str(syntax_trees) == "zf"))
+                    if matches!(exprs_of(syntax_trees).expression(destination), ExpressionNode::Name { members: path, application: path_application } if path_application.is_none() && matches!(exprs_of(syntax_trees).identifier_path_members(path.to_owned()), [name] if name.as_str(syntax_trees) == "zf"))
                     {
                         return Err(mnemonic_site.error_here("mov/sub/subs/add/cmp cannot directly write ZF; its version is established by the catalog arithmetic result"));
                     }
                     for operand in [destination, left, source] {
-                        if let ExpressionNode::Name(path) =
-                            exprs_of(syntax_trees).expression(operand)
-                            && let [name] = exprs_of(syntax_trees).identifier_path_members(*path)
+                        if let ExpressionNode::Name {
+                            members: path,
+                            application: path_application,
+                        } = exprs_of(syntax_trees).expression(operand)
+                            && path_application.is_none()
+                            && let [name] =
+                                exprs_of(syntax_trees).identifier_path_members(path.to_owned())
                             && let Some((_, target, _)) =
                                 scratch_register(name.as_str(syntax_trees))
                         {
@@ -1768,14 +1803,23 @@ pub(crate) mod statements {
                     let producer = arithmetic_flag_producer(contract.shape);
                     let value = if let Some(producer) = producer {
                         let spelling = mnemonic.as_str(syntax_trees);
-                        let ExpressionNode::Name(path) =
-                            exprs_of(syntax_trees).expression(destination)
+                        let ExpressionNode::Name {
+                            members: path,
+                            application: path_application,
+                        } = exprs_of(syntax_trees).expression(destination)
                         else {
                             return Err(mnemonic_site.error_here(format!(
                                 "{spelling} requires a modeled 32-bit register destination"
                             )));
                         };
-                        let [name] = exprs_of(syntax_trees).identifier_path_members(*path) else {
+                        if path_application.is_some() {
+                            return Err(mnemonic_site.error_here(format!(
+                                "{spelling} requires an unapplied modeled register destination"
+                            )));
+                        }
+                        let [name] =
+                            exprs_of(syntax_trees).identifier_path_members(path.to_owned())
+                        else {
                             return Err(mnemonic_site.error_here(format!(
                                 "{spelling} requires a modeled 32-bit register destination"
                             )));
@@ -1795,8 +1839,11 @@ pub(crate) mod statements {
                             })?;
                         if contract.shape == AsmInstructionShape::SubtractThreeOperand {
                             let modeled_left = match exprs_of(syntax_trees).expression(left) {
-                                ExpressionNode::Name(path) => {
-                                    matches!(exprs_of(syntax_trees).identifier_path_members(*path), [name] if scratch_register(name.as_str(syntax_trees)).is_some_and(|(_, target, _)| target == register_target))
+                                ExpressionNode::Name {
+                                    members: path,
+                                    application: path_application,
+                                } if path_application.is_none() => {
+                                    matches!(exprs_of(syntax_trees).identifier_path_members(path.to_owned()), [name] if scratch_register(name.as_str(syntax_trees)).is_some_and(|(_, target, _)| target == register_target))
                                 }
                                 _ => false,
                             };
@@ -1821,8 +1868,11 @@ pub(crate) mod statements {
                                             || (value & 4095 == 0 && value >> 12 <= 4095))
                                 })
                             }
-                            ExpressionNode::Name(path) => {
-                                matches!(exprs_of(syntax_trees).identifier_path_members(*path), [name] if scratch_register(name.as_str(syntax_trees)).is_some_and(|(_, target, _)| target == register_target))
+                            ExpressionNode::Name {
+                                members: path,
+                                application: path_application,
+                            } if path_application.is_none() => {
+                                matches!(exprs_of(syntax_trees).identifier_path_members(path.to_owned()), [name] if scratch_register(name.as_str(syntax_trees)).is_some_and(|(_, target, _)| target == register_target))
                             }
                             _ => false,
                         };
@@ -2428,11 +2478,17 @@ pub(crate) mod statements {
                         case_variant: m.case_variant.clone(),
                     })
                 }
-                ExpressionNode::Name(path) => {
+                ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } if path_application.is_none() => {
                     let new_path = syntax_trees
                         .expressions
-                        .copy_identifier_path_prefix(path, path.len());
-                    ExpressionNode::Name(new_path)
+                        .copy_identifier_path_prefix(path.to_owned(), path.to_owned().len());
+                    ExpressionNode::Name {
+                        members: new_path,
+                        application: None,
+                    }
                 }
                 ExpressionNode::Indexed(idx) => {
                     let coll = copy_expression_as_place(syntax_trees, idx.collection)?;
@@ -2476,11 +2532,17 @@ pub(crate) mod statements {
             {
                 return Ok(None);
             }
-            let ExpressionNode::Name(owner) = exprs_of(syntax_trees).expression(call.receiver)
+            let ExpressionNode::Name {
+                members: owner,
+                application: owner_application,
+            } = exprs_of(syntax_trees).expression(call.receiver)
             else {
                 return Ok(None);
             };
-            let owner = exprs_of(syntax_trees).identifier_path_members(*owner);
+            if owner_application.is_some() {
+                return Ok(None);
+            }
+            let owner = exprs_of(syntax_trees).identifier_path_members(owner.to_owned());
             if !matches!(owner, [name] if name.as_str(syntax_trees) == "Build") {
                 return Ok(None);
             }
@@ -2501,21 +2563,35 @@ pub(crate) mod statements {
                 return Err(invalid());
             }
             let operand = |handle| {
-                let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(handle) else {
+                let ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } = exprs_of(syntax_trees).expression(handle)
+                else {
                     return Err(invalid());
                 };
+                if path_application.is_some() {
+                    return Err(invalid());
+                }
                 Ok(syntax_trees
                     .expressions
-                    .identifier_path_members(*path)
+                    .identifier_path_members(path.to_owned())
                     .to_vec()
                     .into_boxed_slice())
             };
             let described_operand = |handle: ExpressionHandle| {
-                let ExpressionNode::Name(path) = exprs_of(syntax_trees).expression(handle) else {
+                let ExpressionNode::Name {
+                    members: path,
+                    application: path_application,
+                } = exprs_of(syntax_trees).expression(handle)
+                else {
                     return handle;
                 };
-                let members = exprs_of(syntax_trees).identifier_path_members(*path);
-                if members.len() == 1 && !members[0].is_self_receiver(syntax_trees) {
+                let members = exprs_of(syntax_trees).identifier_path_members(path.to_owned());
+                if path_application.is_none()
+                    && members.len() == 1
+                    && !members[0].is_self_receiver(syntax_trees)
+                {
                     handle
                 } else {
                     ExpressionHandle::invalid()
@@ -2526,7 +2602,7 @@ pub(crate) mod statements {
                 slot: operand(*slot)?,
                 implementation: if matches!(
                     exprs_of(syntax_trees).expression(*implementation),
-                    ExpressionNode::Name(_)
+                    ExpressionNode::Name { .. }
                 ) {
                     operand(*implementation)?
                 } else {
