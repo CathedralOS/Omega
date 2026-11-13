@@ -181,7 +181,14 @@ impl PreparedBuildMachineEntry {
                 .expression_table
                 .try_source_span(self.call_source),
         )?;
-        let source = Arc::new(typed_trees::FrozenTypedTrees::from(source));
+        // The call's source reaches the checker the way every program does,
+        // through typed preparation; there is no second way to freeze it.
+        let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .map_err(|errors| diagnostics::join_messages(&errors))?;
+        let source = Arc::new(source);
         let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
             source,
             psi_terminal_production::TerminalSourceCompilation {
@@ -1132,7 +1139,12 @@ mod tests {
                     "{error}"
                 );
             }
-            let source = Arc::new(typed_trees::FrozenTypedTrees::from(typed));
+            let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+                typed,
+                &typed_trees_to_typed_trees::PreparationRequest::settled(),
+            )
+            .expect("typed preparation refuses nothing in this source");
+            let source = Arc::new(source);
             let full_subject = |subject| {
                 psi_terminal_production::AcceptedTerminalSource::judge(
                     Arc::clone(&source),

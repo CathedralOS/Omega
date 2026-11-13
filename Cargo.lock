@@ -261,6 +261,7 @@ dependencies = [
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
+ "typed-trees-to-typed-trees",
 ]
 
 [[package]]

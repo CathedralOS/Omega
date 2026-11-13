@@ -492,13 +492,6 @@ own to defend. Say what you saw, not what you would build.
 - Cost: when `validation` is deleted the member-refines-requirement rule has no checker until `judge_compilation` judges each conformance row; 1,344 corpus programs declare a trait
 - Reported: 2026-11-13, Claude Code, while closing the generic self-application hole
 
-### Two ways to freeze typed source for the checker, one of which skips preparation
-- Category: one idea built twice
-- Where: `build-time-evaluation/src/source_jobs.rs` (`FrozenTypedTrees::from(source)` for compile-time calls) and `psi_compiler::SourcePreparationRequest::prepare` (Product source, and the Build program since the Build admission was rebuilt)
-- Saw: a compile-time call hands the checker a tree that never crossed the 04 preparation boundary, while Product and Build source must cross it; 04 today refuses every non-empty tree, so the call route works on programs the other two cannot reach
-- Cost: when 04 starts doing real work again, compile-time calls are judged on unprepared source unless that route is moved onto the shared preparation entrance
-- Reported: 2026-11-13, Claude Code, while handing the Build program to the lowered-form checker
-
 ### The bundled library cannot be loaded since constant evaluation was deleted
 - Category: a stage whose producer is gone
 - Where: `build-time-evaluation/src/source_frontier.rs` (`evaluate_pre_resolution` returns its input unchanged); Psi 02 `constant.rs` (`validate_scalar_initializer`); `04_typed-trees-to-typed-trees/src/preparation.rs` (`require_no_work`)
