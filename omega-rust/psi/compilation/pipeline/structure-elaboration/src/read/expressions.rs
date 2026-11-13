@@ -30,13 +30,17 @@ impl<'t> Program<'t> {
                 Unserved::Expression("reserved result outside a contract term"),
             ));
         }
-        if !path.symbol.is_valid() {
-            return Err(refuse(
+        let symbol = path.resolved_symbol().ok_or_else(|| {
+            refuse(
                 id,
                 Construct::Machine,
-                Unserved::Spelling("name without a symbol"),
-            ));
-        }
+                if path.static_application.is_valid() {
+                    Unserved::Expression("applied name used as a plain value binding")
+                } else {
+                    Unserved::Spelling("name without a symbol")
+                },
+            )
+        })?;
         if typed.expression_table.name_path_members(path.members).len() != 1 {
             return Err(refuse(
                 id,
@@ -48,9 +52,9 @@ impl<'t> Program<'t> {
         // handful of locals.
         slots
             .iter()
-            .rposition(|slot| slot.symbol == path.symbol)
+            .rposition(|slot| slot.symbol == symbol)
             .ok_or_else(|| {
-                let kind = typed.symbols.get(path.symbol).kind;
+                let kind = typed.symbols.get(symbol).kind;
                 refuse(
                     id,
                     Construct::Machine,

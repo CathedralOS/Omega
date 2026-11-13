@@ -222,13 +222,14 @@ impl Program<'_> {
         let table = &self.typed.expression_table;
         match table.expression(expression) {
             ExpressionNode::Name(path) => {
-                if !path.symbol.is_valid() || table.name_path_members(path.members).len() != 1 {
+                let resolved = path.resolved_symbol()?;
+                if table.name_path_members(path.members).len() != 1 {
                     return None;
                 }
                 self.static_truths
                     .iter()
                     .rev()
-                    .find(|(symbol, _)| *symbol == path.symbol)
+                    .find(|(symbol, _)| *symbol == resolved)
                     .map(|(_, truth)| *truth)
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {

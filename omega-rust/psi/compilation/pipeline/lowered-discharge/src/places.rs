@@ -1125,6 +1125,15 @@ impl<'a> Storage<'a> {
                         continue;
                     }
                     StructuralPathSegment::Field(_) => {}
+                    StructuralPathSegment::AllElements
+                    | StructuralPathSegment::FixedRange { .. }
+                    | StructuralPathSegment::RepresentationView { .. }
+                    | StructuralPathSegment::Referent => {
+                        return Err(self.unsupported(
+                            concerns,
+                            "storage projection outside plain records and fixed array elements",
+                        ));
+                    }
                 }
                 let field = terminal_semantics::runtime_structural_field(
                     self.types.iter(),

@@ -690,7 +690,7 @@ impl Program<'_> {
             return None;
         }
         let symbol = match self.typed.expression_table.expression(handle) {
-            ExpressionNode::Name(path) => path.symbol,
+            ExpressionNode::Name(path) => path.resolved_symbol()?,
             ExpressionNode::StructLiteral(literal) => {
                 if !literal.fields.is_empty() {
                     return None;
