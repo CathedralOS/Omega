@@ -2146,6 +2146,40 @@ mod tests {
                 assert_eq!(symbols.builtin_function_for_symbol(symbol), Some(function));
             }
         }
+
+        #[test]
+        fn a_fixed_core_declaration_is_its_installed_slot_and_never_a_same_named_one() {
+            let authored = (
+                SymbolKind::MathematicalDefinition,
+                SymbolNameRef::Static("core::Strict"),
+            );
+            let symbols = builtin_symbol_table(
+                builtin_function_symbols()
+                    .into_iter()
+                    .chain(crate::fixed_core_declaration_symbols())
+                    .chain([authored]),
+            );
+            for declaration in crate::FixedCoreDeclaration::ALL {
+                let symbol = symbols
+                    .fixed_core_declaration_symbol(declaration)
+                    .expect("fixed core declaration must occupy its root slot");
+                assert_eq!(
+                    symbols.fixed_core_declaration_for_symbol(symbol),
+                    Some(declaration)
+                );
+            }
+            let same_named = symbols
+                .child_handles(symbols.root())
+                .expect("root children")
+                .last()
+                .expect("authored declaration");
+            assert_eq!(symbols.name(same_named), "core::Strict");
+            assert_eq!(symbols.fixed_core_declaration_for_symbol(same_named), None);
+            let function = symbols
+                .builtin_function_symbol(BuiltinFunction::ALL[0].0)
+                .expect("builtin function");
+            assert_eq!(symbols.fixed_core_declaration_for_symbol(function), None);
+        }
     }
 
     #[cfg(test)]
@@ -3527,6 +3561,25 @@ impl SymbolTable {
         self.child_handles(self.root)?
             .nth(offset)
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::MathematicalDefinition)
+    }
+
+    /*
+        Classify only an exact compiler-installed fixed `core::*` slot. An
+        authored mathematical definition with the same spelling is not one.
+    */
+    pub fn fixed_core_declaration_for_symbol(
+        &self,
+        symbol: SymbolHandle,
+    ) -> Option<FixedCoreDeclaration> {
+        if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::MathematicalDefinition {
+            return None;
+        }
+        self.root_slot_ordinal(
+            symbol,
+            BUILTIN_TYPE_COUNT.checked_add(BuiltinFunction::COUNT)?,
+            FixedCoreDeclaration::COUNT,
+        )
+        .and_then(FixedCoreDeclaration::from_ordinal)
     }
 
     /*
