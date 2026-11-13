@@ -473,7 +473,7 @@ pub struct InvocationTarget<'target> {
 /// Psi under `meter`. Each condition selected for that root is checked as soon
 /// as its observations are ready, and a false one fails the invocation; none
 /// is skipped.
-pub(crate) fn complete_invocation_scalar_applications<'artifact>(
+pub fn complete_invocation_scalar_applications<'artifact>(
     artifact: terminal_codec::TerminalExecutionView<'artifact>,
     target: InvocationTarget<'_>,
     selected: &'artifact terminal_installation::AdmittedTargetMachineSelections,
