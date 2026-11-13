@@ -1,7 +1,8 @@
 # Source-to-Terminal pipeline
 
 The [pipeline map](../../../pipeline.md) connects source preparation to structural
-lowering, the lowered-form checker and Terminal publication. These stages own increasingly resolved source meaning;
+lowering, the lowered-form checker and Terminal publication. These stages own
+increasingly resolved source meaning;
 source acquisition and package closure remain compiler/package responsibilities.
 They do not select providers, physical storage, native ABI plans, or installed
 authority.
@@ -14,10 +15,17 @@ authority.
 | 01 — parsing | [parser.rs](01_tokens-to-syntax-trees/src/parser.rs) | [syntax trees](../representations/syntax-trees/) |
 | 02 — resolution | [resolution.rs](02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
 | 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
-| 04 — typed elaboration | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
+| 04 — preparation boundary (nonempty work unserved) | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
 | Structural lowering | [structure-elaboration](structure-elaboration/src/lib.rs) | unsealed Terminal Psi |
 | Lowered-form checking | [lowered-discharge](lowered-discharge/src/lib.rs) | accepted closure and evidence |
 | Publication | [accepted source factory](../psi-compiler/terminal-production/src/accepted.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
+
+The 04 interface currently passes through only a genuinely empty semantic program
+with no requested layout, representation-selection or wire work. That no-work
+result is frozen source data, not acceptance. Nonempty preparation and Product
+operands refuse with `no product route yet`. This owner map and the implementation
+notes below do not establish working default source, Build or native compilation;
+unfinished producers remain on [TASKS.md](../../../../TASKS.md).
 
 Structural elaboration reads typed structure without old checker facts. The
 lowered-form checker judges the resulting module; unsupported constructs refuse.
@@ -45,8 +53,9 @@ Structural/domain/payload patterns remain explicit limitations. Conditional join
 can select whole immutable plain-affine locals alongside fresh scalar-case or
 record constructors. Fresh record children can contain their own dispatch without
 consuming the outer candidates; exact edge transfers and residual disposal remain
-mandatory. The [record selection fixture](../../../../tests/omega/pass/expressions/owned_match_record_values/README.md)
-exercises independent Terminal replay and native payload observation.
+mandatory. The former `pass/expressions/owned_match_record_values` fixture
+recorded independent Terminal replay and native payload observations; recover its
+source through [the former corpus](../../../../tests/README.md#the-former-corpus).
 Source checking permits fresh
 plain-owned constructors, including nested records, sums and arrays, on selected
 result paths. Each child must be fresh or unrestricted; loans, linear contents,
@@ -166,10 +175,10 @@ Boolean/integer subjects and exact anonymous selection are supported here;
 floating subjects share the retained `IeeeFloatCompare` operation — the subject
 is evaluated once, each reached pattern once, and NaN and signed-zero behavior
 is preserved through Terminal, interpreter, and native replay. The
-[match_float_interpretation](../../../../tests/omega/pass/expressions/match_float_interpretation/main.omg)
-and [match_float_subjects](../../../../tests/omega/pass/expressions/match_float_subjects/main.omg)
-fixtures pin named, call, indexed, projected, and computed subject shapes in
-both formats. A floating result does not authorize integer equality on
+former `pass/expressions/match_float_interpretation` and
+`pass/expressions/match_float_subjects` fixtures recorded named, call, indexed,
+projected and computed subject shapes in both formats. Their source is recovered
+from [the former corpus](../../../../tests/README.md#the-former-corpus). A floating result does not authorize integer equality on
 a floating subject, and a domain-carried floating subject still needs a
 pattern vocabulary for its constraint surface.
 
@@ -185,7 +194,7 @@ protocol is required by the product lexer.
 [Parsing](01_tokens-to-syntax-trees/src/parser.rs) builds arena-backed syntax roots
 and tables, retaining grammar, spans and literal structure without choosing
 symbols, types, effects or proof evidence. The
-[expression parser](01_tokens-to-syntax-trees/src/grammar/expressions/parse_expression.rs) uses an
+[expression parser](01_tokens-to-syntax-trees/src/expressions.rs) uses an
 explicit binary-operator stack and reversed unary prefixes; membership is a
 separate grammar boundary, and postfix scratch is not retained across nested
 primary parsing. Groups, aggregates, arguments and types still recurse. This is
@@ -193,12 +202,12 @@ not a stackless-parser claim; ordinary accepted input must not rely on an
 enlarged host thread stack.
 
 The parser's sibling domains expose grammar ownership directly:
-[declarations](01_tokens-to-syntax-trees/src/grammar/declarations/parse_declaration.rs) dispatch root
-forms; [parameters](01_tokens-to-syntax-trees/src/grammar/parameters/parse_parameters.rs) own shared
-callable and generic binders; [contracts](01_tokens-to-syntax-trees/src/grammar/contracts/parse_contract_clauses.rs)
+[declarations](01_tokens-to-syntax-trees/src/declarations.rs) dispatch root
+forms; [parameters](01_tokens-to-syntax-trees/src/contracts_and_parameters.rs) own shared
+callable and generic binders; [contracts](01_tokens-to-syntax-trees/src/contracts_and_parameters.rs)
 own clauses, facts, and conformance applications;
-[bodies](01_tokens-to-syntax-trees/src/grammar/bodies/parse_body.rs) own entries and states;
-[type syntax](01_tokens-to-syntax-trees/src/grammar/type_syntax/parse_type.rs) owns type references
+[bodies](01_tokens-to-syntax-trees/src/bodies_and_transitions.rs) own entries and states;
+[type syntax](01_tokens-to-syntax-trees/src/type_syntax_and_patterns.rs) owns type references
 and property grammar. Shared grammar does not live under whichever declaration
 first needed it. Each named entry file performs its work, rather than forwarding
 to another hidden coordinator. Rust-only source registration stays in
@@ -438,14 +447,11 @@ retains the qualified carrier structurally. Constructor membership, private and
 file-local exposure, lexical shadowing and package collision checks remain
 independent. Runtime record locals still need structural lowering; non-Exact
 arithmetic-policy projections remain rejected until scalar production and source
-replay carry that policy together. These boundaries are covered by
-`module_machine_indices::indexed_domains` and validation's
-`qualified_record_projection_retains_type_but_does_not_erase_arithmetic_policy`.
-Scalar result annotations are established in the producing body: ordinary exits
-prove the machine and state result obligations from live exact membership or the
-arithmetic prover, closed indices retain their declaration binders, and routed
-qualifications require authorized provenance
-(`05_typed-trees-to-checked-trees/src/checks_contracts_exits.rs`).
+replay carry that policy together. Retired source-checker tests do not establish
+current coverage of these obligations. Scalar result annotations must be
+established in the producing body: ordinary exits owe machine and result
+obligations, closed indices retain their declaration binders, and routed
+qualifications require authorized provenance on the lowered form.
 Computed Boolean indices use the existing typed index probe. For remaining
 predicate-constrained and module-qualified applications, its family discovery
 must retain exact source selection, and a provisional `false` must not
@@ -811,12 +817,12 @@ drop schedule. Proof discharge, flow invalidation and concrete ABI placement
 remain outside this stage.
 
 The typing coordinator sequences declaration lowering and finalization.
-[Conformances](03_symbol-resolved-trees-to-typed-trees/src/declarations/conformance.rs)
+[Conformances](03_symbol-resolved-trees-to-typed-trees/src/declarations.rs)
 own header selection, lifetime arguments, realization parameter binding and
 publication; proposition definitions live with declarations, while proposition
 applications remain expressions. Shared
-[type parameters](03_symbol-resolved-trees-to-typed-trees/src/signatures/type_parameters.rs)
-and [callable signatures](03_symbol-resolved-trees-to-typed-trees/src/signatures/callable_signature.rs)
+[type parameters](03_symbol-resolved-trees-to-typed-trees/src/contracts_and_signatures.rs)
+and [callable signatures](03_symbol-resolved-trees-to-typed-trees/src/contracts_and_signatures.rs)
 are independent of data and state declaration lowering. Contract facts,
 invocations and parameter-domain obligations have shared owners; type-reference
 normalization owns domain-alias expansion and domain constraints. Both full
@@ -827,7 +833,7 @@ Missing measure-body field selectors bind through the exact measure parameter's
 declared nominal type. Existing nonzero selectors remain unchanged for checking;
 typing does not replace conflicting identities with a same-spelled field.
 
-[Call-result typing](03_symbol-resolved-trees-to-typed-trees/src/expressions/call_results.rs)
+[Call-result typing](03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs)
 selects computed-receiver methods from the producer's exact declared return type
 after receiver children lower, never from its body or a returned-place proof.
 Preserve already-resolved pattern-bound call targets and root/member identity.
@@ -840,20 +846,20 @@ that separation. Nested evidence applications retain every non-lifetime slot;
 an expected binder supplies a compatibility target, not omitted arguments.
 Erased arrival/bundle subjects do not acquire runtime storage.
 
-[Authored selections](05_typed-trees-to-checked-trees/authored_selections.md) owns
-the shared capture/finalization contract. Capture source statement calls before
-table rebuilding and recursively retain static declaration paths; unresolved
-paths remain explicit late obligations. Partition trait-default copies by exact
-conformance application for compiler joins, never canonical package identity.
-Use-site exposure survives generic normalization: generated fields/signatures
-must not invent public selections, and suppressing derived signatures requires
-the exact template/closed-owner association with unchanged visibility and supply.
-Original template contracts and body selections remain checked.
+Source-authored selections must preserve original lexical owners and exact
+conformance applications through any future copying or specialization. Generated
+fields and signatures cannot invent public exposure, visibility or supply. The
+old capture/finalization and checking owners are removed; the retained
+[preparation boundary](04_typed-trees-to-typed-trees/README.md) refuses nonempty
+work until a structural producer serves those obligations. Original template
+contracts and body selections remain obligations; package identity alone cannot
+replace the exact closed conformance owner.
 
-Resolution and typing preserve source-authored selections; checking settles late
-calls/operators and inferred evidence. Public declaration contracts remain
+Resolution and typing retain source-authored selections. The lowered-form route
+must settle late calls, operators and evidence before acceptance. Public declaration contracts remain
 interface exposure while executable bodies and internal states remain private.
 Lexical locals and source-free synthesis do not receive fictional package owners.
-See [generated continuation](03_symbol-resolved-trees-to-typed-trees/README.md)
-for append-only source execution and [checking](05_typed-trees-to-checked-trees/README.md)
-for the proof, flow and ownership boundary.
+See [typing](03_symbol-resolved-trees-to-typed-trees/README.md) for the source
+frontier and [lowered-form checking](lowered-discharge/README.md) for the served
+proof, flow and ownership boundary. Unserved source execution and late obligations
+remain explicit refusals.

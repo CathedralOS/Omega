@@ -117,16 +117,6 @@ fn product_provider_request_admission_belongs_to_psi() {
 }
 
 #[test]
-fn layout_queries_have_no_source_rewrite_api() {
-    let geometry = include_str!("../../realization/provider-planning/src/data_layout_queries.rs");
-    assert_absent(
-        &[geometry],
-        "geometry owns",
-        &["expression_mut(", "proof_only::", "PreCheckEvaluation"],
-    );
-}
-
-#[test]
 fn canonical_proof_completion_has_no_source_rewrite_api() {
     let coordinator =
         include_str!("../../../build-system/build-settings/src/activation/scalar_completion.rs");
@@ -588,7 +578,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
 }
 
 #[test]
-fn service_surface_projection_is_psi_owned_and_calling_is_an_omega_attachment() {
+fn service_surface_projection_is_owned_by_psi_declarations() {
     let surface =
         include_str!("../../../../psi/foundation/language-semantics/src/service_surface.rs");
     assert!(!surface.contains("BoundaryCallingPlanCommitment"));
@@ -599,12 +589,6 @@ fn service_surface_projection_is_psi_owned_and_calling_is_an_omega_attachment() 
     assert!(projection.contains("requirements.push(ServiceRequirementSource"));
     assert!(projection.contains("scope.type_identity("));
     assert!(!projection.contains("BoundaryCallingPlanRealization"));
-    let attachment = include_str!("../../realization/provider-planning/src/service_schema/mod.rs");
-    assert!(attachment.contains("application.argument_owner() == argument_owner"));
-    assert!(attachment.contains("application.boundary_arguments == boundary_arguments"));
-    assert!(attachment.contains("prepared.argument_owner,"));
-    assert!(attachment.contains("prepared.boundary_arguments,"));
-    assert!(!attachment.contains("ServiceMethod {"));
     let catalog = include_str!("../../realization/provider-planning/src/service_declarations.rs");
     assert!(catalog.contains("projected.exact_requirements()?"));
     assert!(!catalog.contains("trait_requirements("));
