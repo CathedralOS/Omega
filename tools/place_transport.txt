@@ -8,7 +8,6 @@
 1 omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations.rs
 3 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs
 1 omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs
-2 omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization.rs
 1 omega-rust/psi/compilation/pipeline/lowered-discharge/src/places.rs
 5 omega-rust/psi/compilation/representations/checked-trees/facts/src/contexts_and_places.rs
 1 omega-rust/psi/compilation/representations/checked-trees/facts/src/evidence.rs

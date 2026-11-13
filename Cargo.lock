@@ -2780,17 +2780,12 @@ name = "typed-trees-to-typed-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "checked-trees",
  "compiler-storage",
  "diagnostics",
- "facts",
  "language-core",
  "language-semantics",
- "numerics",
- "source",
  "symbols",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
