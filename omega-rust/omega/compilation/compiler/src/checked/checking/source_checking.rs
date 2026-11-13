@@ -240,12 +240,13 @@ pub(crate) fn check_product_source(
         bindings: &bindings,
     };
     let mut judged = None;
-    let mut route = None;
+    let mut accepted = false;
     let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
         let started = std::time::Instant::now();
-        // The checker on the lowered form judges the same trees Psi 05 is
-        // given, by reference, before Psi 05 takes them; its verdict may
-        // govern this compilation (`lowered_route`).
+        // The checker on the lowered form judges the trees by reference
+        // before Psi 05 would take them. Its verdict is this compilation's:
+        // unless it accepts, the check stops here with its diagnostics and
+        // Psi 05 never sees the program (`lowered_route`).
         let keep = frontier.is_some();
         let result = psi_compiler::CheckRequest {
             program: typed,
@@ -257,10 +258,12 @@ pub(crate) fn check_product_source(
             checked_slices: None,
         }
         .check_inspecting_typed_frontier(&mut |trees| {
-            route = Some(route_scope.judge(trees));
             if keep {
                 judged = Some(trees.clone());
             }
+            let verdict = route_scope.judge(trees).verdict();
+            accepted = verdict.is_ok();
+            verdict
         });
         if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
             artifacts::compile_timings::counters::record_product_source_check(started.elapsed());
@@ -275,7 +278,7 @@ pub(crate) fn check_product_source(
     });
     let outcome = super::lowered_route::govern(
         outcome,
-        route,
+        accepted,
         &super::lowered_route::CurrentScope {
             sources: symbol_sources.as_deref(),
             build_program,

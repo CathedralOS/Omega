@@ -1046,6 +1046,12 @@ pub struct SelectedCheckedSource {
     pub selection: Option<CheckedTreeProductSelection>,
 }
 
+/// What `CheckRequest::check_inspecting_typed_frontier` shows the frozen
+/// typed trees to. Returning diagnostics fails the check with them before
+/// Psi 05 runs.
+pub type TypedFrontierInspection<'a> =
+    dyn FnMut(&typed_trees::FrozenTypedTrees) -> Result<(), Vec<Diagnostic>> + 'a;
+
 impl CheckRequest<'_> {
     pub fn check(self) -> Result<CheckedSource, Vec<Diagnostic>> {
         self.check_keeping_typed_frontier(None)
@@ -1073,6 +1079,7 @@ impl CheckRequest<'_> {
             Some(frontier) => self.check_showing_typed_frontier(
                 Some(&mut |typed| {
                     *frontier = Some(typed.clone());
+                    Ok(())
                 }),
                 true,
             ),
@@ -1085,17 +1092,20 @@ impl CheckRequest<'_> {
         before Psi 05 takes them, under the same rule as the copy
         `check_keeping_typed_frontier` makes: exactly once when Psi 04
         completed or a retained judgment or stored slice supplied its trees,
-        whatever this function then returns, and not at all when the request
-        was refused earlier. A second checker judges the trees here by
-        reference (the checker on the lowered form, which may govern the
-        verdict), so nothing is cloned for it. One difference: when the
+        and not at all when the request was refused earlier. The checker on
+        the lowered form judges the trees here by reference, so nothing is
+        cloned for it, and its verdict is the compilation's: when `inspect`
+        returns diagnostics the check fails with exactly those and Psi 05 is
+        never given the trees (owner ruling, 2026-11-12:
+        wiki/drafts/designs/check_on_lowered_form.md, "The gate"). A reused
+        judgment or stored slice is refused the same way. One difference: when the
         lifecycle-plan step between Psi 04 and Psi 05 refuses, `inspect` is not
         called, because the compilation fails on that step's own diagnostic
         and keeping Psi 04's output for the case would clone it every time.
     */
     pub fn check_inspecting_typed_frontier(
         self,
-        inspect: &mut dyn FnMut(&typed_trees::FrozenTypedTrees),
+        inspect: &mut TypedFrontierInspection<'_>,
     ) -> Result<CheckedSource, Vec<Diagnostic>> {
         self.check_showing_typed_frontier(Some(inspect), false)
     }
@@ -1104,7 +1114,7 @@ impl CheckRequest<'_> {
     /// refuses, which costs a copy of the trees on every check.
     fn check_showing_typed_frontier(
         self,
-        mut inspect: Option<&mut dyn FnMut(&typed_trees::FrozenTypedTrees)>,
+        mut inspect: Option<&mut TypedFrontierInspection<'_>>,
         keep_prepared: bool,
     ) -> Result<CheckedSource, Vec<Diagnostic>> {
         let stored_slice = self
@@ -1120,7 +1130,7 @@ impl CheckRequest<'_> {
                 self.admission.declarations,
             )?;
             if let Some(inspect) = inspect.as_deref_mut() {
-                inspect(&checked.typed);
+                inspect(&checked.typed)?;
             }
             return Ok(CheckedSource {
                 program: Arc::new(checked),
@@ -1209,7 +1219,7 @@ impl CheckRequest<'_> {
             }
             record_whole_program_reuse();
             if let Some(inspect) = inspect.as_deref_mut() {
-                inspect(prior.judgment.judged_typed_trees());
+                inspect(prior.judgment.judged_typed_trees())?;
             }
             let outcome = typed_trees_to_checked_trees::reuse_retained_check(
                 &prior.judgment,
@@ -1239,8 +1249,8 @@ impl CheckRequest<'_> {
             );
             if let Some(inspect) = inspect {
                 match (&program, &prepared) {
-                    (Ok(program), _) => inspect(program),
-                    (Err(_), Some(prepared)) => inspect(prepared),
+                    (Ok(program), _) => inspect(program)?,
+                    (Err(_), Some(prepared)) => inspect(prepared)?,
                     (Err(_), None) => {}
                 }
             }
