@@ -230,10 +230,14 @@ fn static_namespace(program: &TypedTrees, symbol: SymbolHandle) -> bool {
         )
 }
 
-fn concrete_callable(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+fn declared_callable(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+    // A requirement has a declaration before it has a supplied body. Retain
+    // its exact signature for lowering; availability and call obligations do
+    // not become facts merely because preparation can identify the target.
     symbol.is_valid()
         && (program.machine_by_own_or_state_symbol(symbol).is_some()
-            || program.operator_definition_by_symbol(symbol).is_some())
+            || program.operator_definition_by_symbol(symbol).is_some()
+            || program.trait_machine_signature(symbol).is_some())
 }
 
 pub(crate) fn require_prebound_calls(program: &TypedTrees) -> Result<(), Diagnostic> {
@@ -244,7 +248,7 @@ pub(crate) fn require_prebound_calls(program: &TypedTrees) -> Result<(), Diagnos
         };
         let receiver_is_namespace = !call.receiver.is_valid()
             || matches!(program.expression_table.expression(call.receiver), ExpressionNode::Name(path) if static_namespace(program, path.symbol));
-        if !concrete_callable(program, call.target_symbol) || !receiver_is_namespace {
+        if !declared_callable(program, call.target_symbol) || !receiver_is_namespace {
             return Err(
                 crate::unavailable_judgment("static or dynamic callable target binding")
                     .with_source_span(program.expression_table.source_span(handle)),
@@ -262,7 +266,7 @@ pub(crate) fn require_prebound_calls(program: &TypedTrees) -> Result<(), Diagnos
                     .name_path_members(call.receiver)
                     .is_empty()
                     || static_namespace(program, call.receiver_symbol);
-                if !concrete_callable(program, call.target_symbol) || !receiver_is_namespace {
+                if !declared_callable(program, call.target_symbol) || !receiver_is_namespace {
                     return Err(crate::unavailable_judgment(
                         "projected or dynamic statement-call target binding",
                     )
@@ -300,7 +304,7 @@ pub(crate) fn require_prebound_transitions(
                     // binds the arguments/result and emits every callee
                     // requirement at this terminal call. Unbound or value-based
                     // dispatch still needs its real selected correspondence.
-                    if !concrete_callable(program, path.symbol)
+                    if !declared_callable(program, path.symbol)
                         || (path.receiver_symbol.is_valid()
                             && !static_namespace(program, path.receiver_symbol))
                     {
@@ -359,6 +363,110 @@ mod tests {
         assert!(error.message.starts_with("no product route yet:"));
         assert!(error.message.contains("callable target binding"));
         assert_eq!(program.expression_table.expression_count(), 1);
+    }
+
+    #[test]
+    fn a_retained_requirement_needs_its_exact_signature_and_a_namespace_receiver() {
+        use typed_trees::expression::{TableCallExpression, TableNamePath};
+        use typed_trees::signature::StateSignature;
+        use typed_trees::trait_definition::TraitDefinition;
+
+        let mut symbols = symbols::SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, symbols::SymbolNameRef::Static("root"));
+        let owners = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Trait, symbols::SymbolNameRef::Static("Api")),
+                (
+                    SymbolKind::Machine,
+                    symbols::SymbolNameRef::Static("caller"),
+                ),
+            ],
+        );
+        let owner = owners.handle_at(0);
+        let caller = owners.handle_at(1);
+        let members = symbols.insert_children(
+            owner,
+            [
+                (SymbolKind::State, symbols::SymbolNameRef::Static("call")),
+                (SymbolKind::State, symbols::SymbolNameRef::Static("missing")),
+            ],
+        );
+        let requirement = members.handle_at(0);
+        let missing = members.handle_at(1);
+        let receiver_value = symbols
+            .insert_children(
+                caller,
+                [(SymbolKind::Local, symbols::SymbolNameRef::Static("value"))],
+            )
+            .handle_at(0);
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let signatures = program
+            .trait_machine_signatures
+            .insert_many([StateSignature {
+                symbol: requirement,
+                ..Default::default()
+            }]);
+        program.push_trait_definition(TraitDefinition {
+            symbol: owner,
+            is_boundary: true,
+            machines: signatures,
+            ..Default::default()
+        });
+        let receiver = program
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath::new(
+                Default::default(),
+                Default::default(),
+                owner,
+                owner,
+            )));
+        let expression =
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_selection: None,
+                    authored_call_binding: None,
+                    build_selection: Default::default(),
+                    authored_machine_application: Default::default(),
+                    exact_coercion_target: Default::default(),
+                    requirement_application: Default::default(),
+                    receiver,
+                    target_symbol: requirement,
+                    static_machine_parameter: Default::default(),
+                    target: typed_trees::name::Identifier::generated("call"),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::new([]),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    installed_interrupt_operation: None,
+                    layout_query: None,
+                    native_code_layout: None,
+                    arguments: Default::default(),
+                    evidence_arguments: Box::new([]),
+                    operational_acknowledgement: Default::default(),
+                }));
+        let before = program.clone();
+        require_prebound_calls(&program).expect("the retained requirement is a declared target");
+        assert!(program == before);
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+            panic!("call expression")
+        };
+        call.target_symbol = missing;
+        assert!(require_prebound_calls(&program).is_err());
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
+            panic!("call expression")
+        };
+        call.target_symbol = requirement;
+        let ExpressionNode::Name(path) = program.expression_table.expression_mut(receiver) else {
+            panic!("receiver name")
+        };
+        path.symbol = receiver_value;
+        path.head_symbol = receiver_value;
+        assert!(require_prebound_calls(&program).is_err());
     }
     #[test]
     fn bound_terminal_calls_keep_their_target_and_unbound_receivers_refuse() {

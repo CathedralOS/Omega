@@ -1088,3 +1088,89 @@ impl PsiCompilationObserver for ParsingTimings<'_> {
             .record_result(StageMeta::new(name, input, output), operation)
     }
 }
+
+#[cfg(test)]
+mod requirement_preparation_tests {
+    use super::*;
+
+    #[test]
+    fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {
+        // Read the existing program and the production Build prelude through
+        // the normal source owner. Preparing their calls supplies no receiver,
+        // provider, invocation verdict or host activation ticket.
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../../../tests/fixtures/run/generics/implementation_parameter_contract/main.omg",
+        );
+        let mut catalogue = source::SourceCatalogue::default();
+        let mut timings = CompileTimings::default();
+        let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
+            &root,
+            None,
+            None,
+            &mut timings,
+            &mut catalogue,
+        )
+        .expect("the original program's source capture");
+        let (_, assembled) = checkpoint
+            .assemble(None, &mut timings, &mut catalogue)
+            .expect("the ordinary Build source and real toolchain prelude");
+        let sources = Arc::clone(&assembled.sources);
+        let request = psi_compiler::SourceCompilationRequest {
+            syntax: assembled.syntax_trees,
+            source_items: assembled.source_items,
+            root_sources: assembled.root_sources,
+            frontends: Default::default(),
+            build_helper_identity: "linux_x86_64",
+            sources: assembled.sources,
+            top_level_bindings: assembled.source_scoped_top_level_bindings,
+            selection_authority: None,
+        };
+        let mut prepared = request
+            .prepare(&mut psi_compiler::UnmeasuredProduction)
+            .expect("exact declared requirement calls reach typed preparation");
+        let typed = prepared.build_input().typed;
+        let mut occurrences = Vec::new();
+        for (_, expression) in typed.expression_table.expression_entries() {
+            let typed_trees::expression::ExpressionNode::Call(call) = expression else {
+                continue;
+            };
+            if !call.build_selection.is_valid() {
+                continue;
+            }
+            let request = typed
+                .expression_table
+                .build_selection_request(call.build_selection)
+                .expect("a captured Build call keeps its real selection request");
+            let language_semantics::declaration_selection::BuildSelectionRequest::Entry(binding) =
+                request
+            else {
+                continue;
+            };
+            let (owner, signature) = typed
+                .trait_machine_signature(call.target_symbol)
+                .expect("the protocol call retains its exact requirement declaration");
+            let owner_source = typed
+                .symbols
+                .symbol_source_span(owner.symbol)
+                .and_then(|span| sources.file_at(span))
+                .expect("the requirement retains its real toolchain source");
+            assert_eq!(owner_source.path, Path::new("<build-prelude>"));
+            assert_eq!(owner_source.origin, SourceOrigin::Toolchain);
+            assert_eq!(signature.symbol, call.target_symbol);
+            let authored = sources
+                .file_at(binding.source_span)
+                .expect("the Build request retains its authored source");
+            assert!(authored.path.ends_with(
+                "tests/fixtures/run/generics/implementation_parameter_contract/build.omg"
+            ));
+            occurrences.push(binding.source_span);
+        }
+        occurrences.sort_by_key(|span| (span.source_id.0, span.span.start, span.span.end));
+        occurrences.dedup();
+        assert_eq!(
+            occurrences.len(),
+            4,
+            "all four original target bindings survive"
+        );
+    }
+}
