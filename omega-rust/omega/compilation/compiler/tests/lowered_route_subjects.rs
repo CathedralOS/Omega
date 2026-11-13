@@ -288,6 +288,7 @@ fn route_verdict(
         Compilation {
             entries: &frontier.entries,
             subjects: &[frontier.subject],
+            purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -491,6 +492,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
         Compilation {
             entries: &frontier.entries,
             subjects: &[Some(another)],
+            purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -521,6 +523,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
             Compilation {
                 entries: &frontier.entries,
                 subjects: &[Some(another)],
+                purpose: source::DependencyScope::Product,
                 selected: &[selected],
                 bindings: &frontier.bindings,
             },
@@ -756,6 +759,7 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
         Compilation {
             entries: &frontier.entries,
             subjects: &[frontier.subject],
+            purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },

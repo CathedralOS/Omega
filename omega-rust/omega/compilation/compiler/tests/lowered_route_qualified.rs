@@ -50,6 +50,7 @@ fn route_verdict(fixture: &str) -> (RouteVerdict, bool) {
         Compilation {
             entries: &frontier.entries,
             subjects: &[frontier.subject],
+            purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },

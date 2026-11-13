@@ -26,6 +26,7 @@ mod applications;
 mod arithmetic_policies;
 mod arrays;
 mod boundary_calls;
+mod build_purpose;
 mod empty_records;
 mod entry_inputs;
 mod guard_contradiction;

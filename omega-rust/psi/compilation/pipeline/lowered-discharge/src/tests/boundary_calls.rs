@@ -43,6 +43,7 @@ fn invocation(typed: typed_trees::TypedTrees) -> Checked<structure_elaboration::
         structure_elaboration::Compilation {
             entries: &[entry],
             subjects: &[],
+            purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
         },

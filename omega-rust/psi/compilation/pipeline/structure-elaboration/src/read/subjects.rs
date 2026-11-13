@@ -20,8 +20,13 @@ its symbol was declared in, never from a path or a name:
 
 - A toolchain file, or a file of another admitted package, is a dependency.
   Its declarations are judged only when a subject declaration reaches them.
-- A file read under the Build's dependency scope belongs to the Build
-  program, which its own activation checks before it runs.
+- A package's Build sources and Product sources are two programs
+  (`wiki/spec/build/scoped_execution.md`, "Two checked contexts"). The
+  compilation states which one it judges (`Compilation::purpose`); a file
+  read under the other dependency scope is a dependency of this one. So a
+  Product compilation leaves the Build program to the Build activation,
+  which checks it before it runs, and that activation's compilation claims
+  the subject's Build declarations and none of its Product declarations.
 - A user file is a subject only when its package identity is requested.
   An explicit `None` subject selects standalone user source. An empty request
   selects no full-package or standalone subject.
@@ -50,6 +55,7 @@ impl Program<'_> {
         entry: MachineId,
         symbol: SymbolHandle,
         subjects: &[Option<PackageKeyIdentity>],
+        purpose: DependencyScope,
     ) -> Checked<Owner> {
         let symbols = &self.typed.symbols;
         let file = symbol
@@ -65,13 +71,49 @@ impl Program<'_> {
                 )
             })?;
         let dependency = file.origin.is_toolchain()
-            || file.dependency_scope == DependencyScope::Build
+            || file.dependency_scope != purpose
             || !subjects.contains(&file.package_identity);
         Ok(if dependency {
             Owner::Dependency
         } else {
             Owner::Subject
         })
+    }
+
+    /// Holds a Build activation's entries to the Build source context: a
+    /// toolchain file or a file read under the Build dependency scope. Name
+    /// resolution decides what Build code may name; this is the one fact it
+    /// cannot see, that the request roots the Build program at a declaration
+    /// of that program. A Product declaration given as a Build entry would
+    /// otherwise be judged and run with the Build's authority.
+    pub fn build_entry_context(
+        &self,
+        first: MachineId,
+        purpose: DependencyScope,
+        entries: &[SymbolHandle],
+    ) -> Checked<()> {
+        if purpose != DependencyScope::Build {
+            return Ok(());
+        }
+        let symbols = &self.typed.symbols;
+        for entry in entries {
+            let in_context = entry
+                .is_valid()
+                .then(|| symbols.symbol_provenance_source_span(*entry))
+                .flatten()
+                .and_then(|span| symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin.is_toolchain() || file.dependency_scope == DependencyScope::Build
+                });
+            if !in_context {
+                return Err(refuse(
+                    first,
+                    Construct::Machine,
+                    Unserved::Declaration("Build entry outside the Build source context"),
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// Makes every declaration the Build's selections name a root, whichever
@@ -109,6 +151,7 @@ impl Program<'_> {
         &mut self,
         entry: MachineId,
         subjects: &[Option<PackageKeyIdentity>],
+        purpose: DependencyScope,
     ) -> Checked<()> {
         // A concrete evaluation asks for its existing entry and call closure,
         // not a full check of the source files retained for name resolution.
@@ -117,7 +160,7 @@ impl Program<'_> {
         }
         let typed = self.typed;
         for machine in typed.machines() {
-            if self.owner(entry, machine.symbol, subjects)? != Owner::Subject {
+            if self.owner(entry, machine.symbol, subjects, purpose)? != Owner::Subject {
                 continue;
             }
             // A generic machine is checked once as written, as its own check
@@ -130,7 +173,9 @@ impl Program<'_> {
             }
         }
         for data in typed.data_definitions() {
-            if self.owner(entry, data.symbol, subjects)? == Owner::Subject && !names_only(data) {
+            if self.owner(entry, data.symbol, subjects, purpose)? == Owner::Subject
+                && !names_only(data)
+            {
                 self.record(entry, data.symbol)?;
             }
         }
@@ -176,7 +221,7 @@ impl Program<'_> {
         ];
         for (declared, kind) in unjudged {
             for symbol in declared {
-                if self.owner(entry, symbol, subjects)? == Owner::Subject {
+                if self.owner(entry, symbol, subjects, purpose)? == Owner::Subject {
                     return Err(refuse(
                         entry,
                         Construct::Machine,

@@ -177,6 +177,7 @@ impl PreparedBuildMachineEntry {
                 // Evaluating this call requests its dependency closure, not a
                 // full check of the requester's package or standalone source.
                 subjects: &[],
+                purpose: source::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
             },
@@ -922,6 +923,7 @@ mod tests {
                     psi_terminal_production::TerminalSourceCompilation {
                         entries: &[callee],
                         subjects: &[subject],
+                        purpose: source::DependencyScope::Product,
                         selected: &[],
                         bindings: &[],
                     },
