@@ -261,6 +261,9 @@ pub mod declarations {
             pub cleanup_selection: Option<crate::expression::StaticMachineArgument>,
             pub alias: Option<DomainAliasDefinition>,
             pub authored_routes: Vec<Vec<DiagnosticName>>,
+            /// The policy named after `access`. Its `symbol` is the named
+            /// implementation the path selects, once selection has run.
+            pub access_policy: Option<crate::expression::StaticMachineArgument>,
             pub classification: Option<language_semantics::DomainClassification>,
             pub predicate_presence: language_semantics::DomainPredicatePresence,
             pub facts: HandleSpan<ProofFact>,

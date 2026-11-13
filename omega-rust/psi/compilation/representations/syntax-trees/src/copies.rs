@@ -1493,6 +1493,10 @@ pub(crate) mod item_copies {
                         .as_ref()
                         .map(|selection| self.copy_static_machine_argument(other, selection)),
                     authored_routes: domain.authored_routes.clone(),
+                    access_policy: domain
+                        .access_policy
+                        .as_ref()
+                        .map(|policy| self.copy_static_machine_argument(other, policy)),
                     classification: domain.classification,
                     predicate_presence: domain.predicate_presence,
                     facts: self.copy_domain_fact_span(other, domain.facts),

@@ -1522,6 +1522,69 @@ pub(crate) mod definitions_and_contracts {
         );
     }
 
+    fn access_policy_path(source: &str) -> Option<String> {
+        let parsed = super::parse_source(source, "parse should succeed");
+        let domain = super::root_domain(&parsed, "domain");
+        assert!(domain.authored_routes.is_empty());
+        domain.access_policy.as_ref().map(|policy| {
+            policy
+                .path
+                .iter()
+                .map(|member| member.as_str(&parsed))
+                .collect::<Vec<_>>()
+                .join("::")
+        })
+    }
+
+    /// domains.md, "Domain-owned read and write authority": a domain states
+    /// its predicates and selects one named policy with `access`.
+    #[test]
+    fn parses_a_domain_access_policy_after_its_predicates() {
+        assert_eq!(
+            access_policy_path("domain Cell::Controlled access CellAccess;").as_deref(),
+            Some("CellAccess")
+        );
+        assert_eq!(
+            access_policy_path(
+                "domain Controller::Controlled requires self.configuration <= 100 \
+                 access policies::ControllerAccess;"
+            )
+            .as_deref(),
+            Some("policies::ControllerAccess")
+        );
+        assert_eq!(access_policy_path("domain i32::Km;"), None);
+    }
+
+    /// access.md: `access IssuedBy<reflect::callable(choose_folder)>` applies
+    /// the policy at static arguments.
+    #[test]
+    fn parses_an_access_policy_applied_at_static_arguments() {
+        let parsed = super::parse_source(
+            "domain Folder::Writable access IssuedBy<reflect::callable(choose_folder)>;",
+            "parse should succeed",
+        );
+        let domain = super::root_domain(&parsed, "domain");
+        let policy = domain.access_policy.as_ref().expect("the access policy");
+        assert_eq!(policy.path.len(), 1);
+        assert!(policy.application.is_some());
+    }
+
+    /// The retired `established by` list and a policy are two statements of
+    /// one thing, the issuance; a domain writes one.
+    #[test]
+    fn rejects_a_domain_that_writes_both_a_policy_and_a_route_list() {
+        for source in [
+            "domain u64::Issued access Issuers established by issue;",
+            "domain u64::Issued established by issue access Issuers;",
+        ] {
+            let error = super::parse_tokenized_error(source, "one issuance clause");
+            super::expect_error(&error, "states its issuers in that policy's plan");
+        }
+        let error =
+            super::parse_tokenized_error("domain u64::Issued access;", "a policy is required");
+        super::expect_error(&error, "identifier");
+    }
+
     #[test]
     fn rejects_legacy_domain_route_bodies_with_migration_guidance() {
         let source = r#"
