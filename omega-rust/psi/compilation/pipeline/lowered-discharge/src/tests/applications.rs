@@ -185,7 +185,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
         &typed,
         structure_elaboration::Compilation {
             entries: &[entry],
-            subject: None,
+            subjects: &[None],
             selected: &[],
             bindings: &[],
         },
@@ -228,7 +228,7 @@ fn source_application_cannot_change_its_payload_type() {
         &typed,
         structure_elaboration::Compilation {
             entries: &[entry],
-            subject: None,
+            subjects: &[None],
             selected: &[],
             bindings: &[],
         },
@@ -263,7 +263,7 @@ fn a_local_generic_data_template_remains_unserved() {
         &typed,
         structure_elaboration::Compilation {
             entries: &[entry],
-            subject: None,
+            subjects: &[None],
             selected: &[],
             bindings: &[],
         },

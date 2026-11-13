@@ -287,7 +287,7 @@ fn route_verdict(
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -490,7 +490,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: Some(another),
+            subjects: &[Some(another)],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -520,7 +520,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
             typed,
             Compilation {
                 entries: &frontier.entries,
-                subject: Some(another),
+                subjects: &[Some(another)],
                 selected: &[selected],
                 bindings: &frontier.bindings,
             },
@@ -755,7 +755,7 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },

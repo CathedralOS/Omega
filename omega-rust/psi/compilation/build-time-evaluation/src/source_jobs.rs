@@ -169,13 +169,14 @@ impl PreparedBuildMachineEntry {
             arguments,
             None,
         )?;
-        let subject = source.symbols.symbol_package_identity(self.requester);
         let source = Arc::new(typed_trees::FrozenTypedTrees::from(source));
         let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
             source,
             psi_terminal_production::TerminalSourceCompilation {
                 entries: &[caller],
-                subject,
+                // Evaluating this call requests its dependency closure, not a
+                // full check of the requester's package or standalone source.
+                subjects: &[],
                 selected: &[],
                 bindings: &[],
             },
@@ -839,6 +840,88 @@ mod tests {
             .expect_err("a work ceiling cannot substitute for progress admission");
         assert_eq!(error, intended);
         assert_eq!(meter.usage().total_units(), 0);
+    }
+
+    #[test]
+    fn source_jobs_check_only_the_requested_closure_and_keep_full_subjects_explicit() {
+        let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).unwrap();
+        for (owner, unused_owner) in [
+            (Some(package), Some(package)),
+            (None, None),
+            (Some(package), None),
+        ] {
+            let mut sources = source::SourceMap::default();
+            let policy = "machine answer() -> u64 { 17u64 } machine request() -> u64 { 0u64 }";
+            let unused = "data NotReady<T> { value: T; }";
+            let policy_id = sources
+                .add_with_metadata(
+                    "/policy-package/policy.omg".into(),
+                    policy.into(),
+                    "/policy-package".into(),
+                    owner,
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            let unused_id = sources
+                .add_with_metadata(
+                    "/policy-package/not_ready.omg".into(),
+                    unused.into(),
+                    "/policy-package".into(),
+                    unused_owner,
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            let mut syntax = syntax_trees::SyntaxTrees::new(policy_id);
+            for (id, text) in [(policy_id, policy), (unused_id, unused)] {
+                let tokens = source_files_to_tokens::Lexer::new(text)
+                    .tokenize()
+                    .expect("lex source");
+                tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).expect("parse source");
+            }
+            let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+            request.sources = Some(Arc::new(sources));
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request)
+                .expect("resolve actual source owners");
+            let typed =
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .expect("prepare declarations");
+            let requester = typed.realized_machine_named("request").unwrap().symbol;
+            let callee = typed.realized_machine_named("answer").unwrap().symbol;
+            assert_eq!(typed.symbols.symbol_package_identity(requester), owner);
+            let program =
+                PreparedBuildMachineProgram::prepare(&typed, None).expect("retain source");
+            assert_eq!(
+                program
+                    .entry(requester, callee)
+                    .unwrap()
+                    .invoke(target(), &[], &mut psi_work::WorkMeter::unbounded())
+                    .expect("one invocation does not claim the unused generic declaration"),
+                BuildTimeValue::Int(17)
+            );
+            let source = Arc::new(typed_trees::FrozenTypedTrees::from(typed));
+            let full_subject = |subject| {
+                psi_terminal_production::AcceptedTerminalSource::judge(
+                    Arc::clone(&source),
+                    psi_terminal_production::TerminalSourceCompilation {
+                        entries: &[callee],
+                        subjects: &[subject],
+                        selected: &[],
+                        bindings: &[],
+                    },
+                    terminal_codec::TerminalPublication::Portable,
+                )
+            };
+            if owner != unused_owner {
+                full_subject(owner)
+                    .expect("the package request excludes unrelated standalone source");
+            }
+            let full = full_subject(unused_owner)
+                .expect_err("the explicit subject still owes every declaration");
+            assert!(
+                diagnostics::join_messages(&full).contains("type generic data"),
+                "{full:?}"
+            );
+        }
     }
 
     #[test]

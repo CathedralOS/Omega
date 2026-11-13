@@ -71,7 +71,7 @@ fn verdicts(name: &str, source: &str) -> Vec<&'static str> {
         &frontier.typed,
         structure_elaboration::Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
