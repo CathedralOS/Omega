@@ -47,19 +47,6 @@ impl<'t> Program<'t> {
                 "boundary requirement needs its complete applied declaration",
             ));
         }
-        match requirement.service_reach_row {
-            language_semantics::ServiceReachRowTable::EMPTY_ROW => {}
-            language_semantics::ServiceReachRowId::NULL => {
-                return Err(unserved(
-                    "boundary requirement must declare its reach ceiling",
-                ));
-            }
-            _ => {
-                return Err(unserved(
-                    "boundary requirement needs its complete nonempty reach ceiling",
-                ));
-            }
-        }
         if owner.refines.is_some() || !owner.refinement_clauses.is_empty() {
             return Err(unserved(
                 "boundary contract needs its complete inherited refinement correspondence",
@@ -87,6 +74,13 @@ impl<'t> Program<'t> {
                 ));
             }
         };
+        // effects.md: "Every boundary-trait machine requirement must declare
+        // that ceiling, using `reaches none` when it permits no services".
+        if signature.reaches == crate::ReachCeiling::Inferred {
+            return Err(unserved(
+                "boundary requirement must declare its reach ceiling",
+            ));
+        }
         if matches!(signature.crashes, crate::CrashCeiling::Inferred) {
             return Err(unserved(
                 "boundary requirement needs its selected published crash contract",

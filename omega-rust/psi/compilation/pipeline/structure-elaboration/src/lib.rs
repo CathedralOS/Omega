@@ -56,9 +56,9 @@ mod proof_scope;
 mod read;
 
 pub use body::{
-    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, Policy, RecordField,
-    RecordType, Signature, Statement, StorageShape, Strict, Target, Termination, ValueType,
-    self_place,
+    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, Policy, ReachCeiling,
+    RecordField, RecordType, Signature, Statement, StorageShape, Strict, Target, Termination,
+    ValueType, self_place,
 };
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;
@@ -727,6 +727,11 @@ fn lower_generic_for(
     let components = components::components(bodies, signatures.machines)?;
     let outcomes = outcome::outcomes(bodies, signatures, requirements)?;
     let mut module = TerminalModule::for_entry(entry);
+    // What running the module's entry may reach is what the entry publishes.
+    module.root_service_reach.concrete =
+        terminal_check_tables::row(&outcomes, entry, entry, Construct::Machine)?
+            .service_reach
+            .clone();
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
@@ -902,6 +907,7 @@ mod publication_scope_tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
+            reaches: crate::ReachCeiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });

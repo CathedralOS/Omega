@@ -79,8 +79,9 @@ pub enum RouteVerdict {
     /// prover could not discharge, in machine and obligation order;
     /// `unestablished` one per use of storage that some path reaches with
     /// nothing established in it; `conflicts` one per loan that may not be
-    /// formed; `formations` one per invalid bound calling shape. At least one
-    /// list is not empty.
+    /// formed; `exceeded` one per call outside its caller's service reach;
+    /// `formations` one per invalid bound calling shape. At least one list
+    /// is not empty.
     Rejected {
         /// Calling-shape failures known before any body is elaborated.
         formations: Vec<crate::CallableFormationFailure>,
@@ -88,6 +89,8 @@ pub enum RouteVerdict {
         unestablished: Vec<UnestablishedUse>,
         /// One per loan that may not be formed where it is.
         conflicts: Vec<ConflictingUse>,
+        /// One per call that reaches a service outside its caller's reach.
+        exceeded: Vec<ExceededReach>,
     },
     /// No obligation is unproved for want of a derivation, but the prover has
     /// no rule for the form of at least one goal, so the route can judge the
@@ -447,6 +450,94 @@ impl UnestablishedUse {
             Some(SourceOrigin::Unpositioned(_)) | None => diagnostic,
         }
     }
+}
+
+/// One call that reaches a service outside its caller's service reach. A
+/// compile error of the program with no certificate: effects.md, "A derived
+/// reach that exceeds its ceiling rejects at the call that contributes the
+/// excess. The diagnostic names that call, the identities its requirement
+/// declares, and the ceiling."
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExceededReach {
+    pub machine: MachineId,
+    /// The call operation or edge.
+    pub at: Construct,
+    pub site: Option<SourceOrigin>,
+    /// Diagnostic text only.
+    pub statement: String,
+}
+
+impl ExceededReach {
+    pub fn message(&self) -> String {
+        format!("{} (service reach)", self.statement)
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site {
+            Some(SourceOrigin::Authored(span)) => diagnostic.with_source_span(span),
+            Some(SourceOrigin::Unpositioned(_)) | None => diagnostic,
+        }
+    }
+}
+
+fn exceeded_reach(
+    elaboration: &Elaboration,
+    excess: crate::service_reach::Excess,
+) -> Checked<ExceededReach> {
+    let module = &elaboration.module;
+    let services = |row: &[semantic_vocabulary::ServiceId]| {
+        if row.is_empty() {
+            return "none".to_owned();
+        }
+        row.iter()
+            .map(|service| {
+                module
+                    .services
+                    .iter()
+                    .find(|declaration| declaration.id == *service)
+                    .and_then(|declaration| module.identities.text(declaration.identity))
+                    .unwrap_or("an unnamed service")
+            })
+            .collect::<Vec<_>>()
+            .join(" + ")
+    };
+    let machine_name = |machine: MachineId| {
+        elaboration
+            .names
+            .get(machine)
+            .map(|names| names.machine.as_str())
+            .filter(|name| !name.is_empty())
+            .unwrap_or("a machine")
+    };
+    let callee = match excess.callee {
+        semantic_vocabulary::TargetMachineCallable::Machine(callee) => machine_name(callee),
+        semantic_vocabulary::TargetMachineCallable::Boundary(callee) => module
+            .boundary_machine(callee)
+            .and_then(|declaration| module.identities.text(declaration.identity))
+            .unwrap_or("a boundary requirement"),
+    };
+    let ceiling = module
+        .machine(excess.machine)
+        .map(|machine| machine.published_service_ceiling.as_slice())
+        .unwrap_or_default();
+    let site = match elaboration.sources.get(excess.machine) {
+        Some(sources) => Some(source_of(sources, excess.machine, excess.at)?),
+        None => None,
+    };
+    Ok(ExceededReach {
+        machine: excess.machine,
+        at: excess.at,
+        site,
+        statement: format!(
+            "machine `{}` reaches `{}` but its call of `{callee}` contributes `{}`, which adds `{}`",
+            machine_name(excess.machine),
+            services(ceiling),
+            services(&excess.contributes),
+            services(&excess.outside),
+        ),
+    })
 }
 
 /// One loan that may not be formed where it is: a call that lends storage
@@ -822,12 +913,20 @@ pub(crate) fn judge_owing(
             });
         }
     }
-    if !unestablished.is_empty() || !conflicts.is_empty() {
+    let exceeded = match crate::service_reach::judge(&elaboration.module, &elaboration.tables) {
+        Ok(found) => found
+            .into_iter()
+            .map(|excess| exceeded_reach(&elaboration, excess))
+            .collect::<Checked<Vec<_>>>()?,
+        Err(refused) => return fall_back_or_defect(refused),
+    };
+    if !unestablished.is_empty() || !conflicts.is_empty() || !exceeded.is_empty() {
         return Ok(RouteVerdict::Rejected {
             formations: Vec::new(),
             unproved: without_restated_clauses(unproved),
             unestablished,
             conflicts,
+            exceeded,
         });
     }
     if !unproved.is_empty() {
@@ -844,6 +943,7 @@ pub(crate) fn judge_owing(
                     unproved,
                     unestablished: Vec::new(),
                     conflicts: Vec::new(),
+                    exceeded: Vec::new(),
                 }
             },
         );
@@ -903,6 +1003,7 @@ pub fn judge_compilation_for(
                 unproved: Vec::new(),
                 unestablished: Vec::new(),
                 conflicts: Vec::new(),
+                exceeded: Vec::new(),
             })];
         }
         Ok(_) => {}
@@ -1079,6 +1180,7 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
                 declared: None,
             }],
             conflicts: Vec::new(),
+            exceeded: Vec::new(),
         }),
         RefusalReason::Unproved(_)
         | RefusalReason::NotConserved

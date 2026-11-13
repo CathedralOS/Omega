@@ -123,6 +123,7 @@ fn calls_with(argument: u128) -> (structure_elaboration::Elaboration, Discharge)
         result: Some(u32_type().into()),
         requires: Vec::new(),
         ensures: Vec::new(),
+        reaches: structure_elaboration::ReachCeiling::Inferred,
         crashes: CrashCeiling::Authored(crashes),
         termination: Termination::Silent,
     };

@@ -95,6 +95,7 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
         result: result.map(ValueType::Scalar),
         requires: Vec::new(),
         ensures: Vec::new(),
+        reaches: crate::ReachCeiling::Inferred,
         crashes: CrashCeiling::Authored(Vec::new()),
         termination: Termination::Silent,
     }
@@ -145,6 +146,7 @@ fn scalars(types: Vec<ScalarType>) -> Vec<ValueType> {
 fn returns_normally() -> Outcome {
     Outcome {
         completes_normally: true,
+        service_reach: Vec::new(),
         crash_routes: Vec::new(),
     }
 }
@@ -871,6 +873,7 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
             returns_normally(),
             Outcome {
                 completes_normally: false,
+                service_reach: Vec::new(),
                 crash_routes: callee_routes,
             },
         ],
@@ -989,10 +992,12 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
         vec![
             Outcome {
                 completes_normally: true,
+                service_reach: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap, CrashCause::Abort]),
             },
             Outcome {
                 completes_normally: true,
+                service_reach: Vec::new(),
                 crash_routes: callee_routes,
             },
         ],
@@ -1077,6 +1082,7 @@ fn a_no_normal_call_inside_an_expression_is_refused() {
             returns_normally(),
             Outcome {
                 completes_normally: false,
+                service_reach: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap]),
             },
         ],
@@ -1167,6 +1173,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
         for crashes in [first, second] {
             signatures.push(Signature {
+                reaches: crate::ReachCeiling::Inferred,
                 crashes,
                 ..signature(Vec::new(), None)
             });
@@ -1187,6 +1194,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         callee_outcome,
         Outcome {
             completes_normally: false,
+            service_reach: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
     );
@@ -1218,6 +1226,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
                 statements,
             });
             signatures.push(Signature {
+                reaches: crate::ReachCeiling::Inferred,
                 crashes,
                 ..signature(Vec::new(), None)
             });
@@ -1242,6 +1251,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
     // never completes normally and still publishes nothing.
     let never_returns = Outcome {
         completes_normally: false,
+        service_reach: Vec::new(),
         crash_routes: Vec::new(),
     };
     assert_eq!(run(crashing(), quiet()).unwrap(), never_returns);
@@ -1274,11 +1284,13 @@ fn a_skipped_operand_cannot_end_the_machine() {
     bodies.push(crashing);
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     signatures.push(Signature {
+        reaches: crate::ReachCeiling::Inferred,
         crashes: CrashCeiling::Inferred,
         termination: Termination::Silent,
         ..signature(vec![ScalarType::Boolean], Some(ScalarType::Boolean))
     });
     signatures.push(Signature {
+        reaches: crate::ReachCeiling::Inferred,
         crashes: CrashCeiling::Inferred,
         termination: Termination::Silent,
         ..signature(Vec::new(), Some(ScalarType::Boolean))
@@ -1296,6 +1308,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
         table.get(id(1)).unwrap(),
         &Outcome {
             completes_normally: true,
+            service_reach: Vec::new(),
             crash_routes: routes(&[CrashCause::Trap]),
         }
     );

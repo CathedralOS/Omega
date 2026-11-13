@@ -86,6 +86,7 @@ fn probe(main: &Path, entry: Option<&str>, target: &str) -> &'static str {
                 unproved,
                 unestablished,
                 conflicts,
+                exceeded,
             }) => {
                 println!("  part {part}: rejected");
                 for diagnostic in formations
@@ -94,6 +95,7 @@ fn probe(main: &Path, entry: Option<&str>, target: &str) -> &'static str {
                     .chain(unproved.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(unestablished.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(conflicts.iter().map(|entry| entry.reject_diagnostic()))
+                    .chain(exceeded.iter().map(|entry| entry.reject_diagnostic()))
                 {
                     println!("    {}", brief(&diagnostic.message));
                 }

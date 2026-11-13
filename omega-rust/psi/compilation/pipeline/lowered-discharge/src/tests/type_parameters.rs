@@ -56,6 +56,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> structure_elaboration::El
             result: Some(u32_value()),
             requires: machine.requires,
             ensures: machine.ensures,
+            reaches: structure_elaboration::ReachCeiling::Inferred,
             crashes: CrashCeiling::DeclaredNone,
             termination: structure_elaboration::Termination::Silent,
         });

@@ -65,6 +65,7 @@ mod prove;
 mod refinement;
 mod result_summaries;
 mod reuse;
+mod service_reach;
 mod verdict;
 
 pub use callable_formations::{
@@ -75,9 +76,9 @@ pub use places::{ConflictingLoan, LoanConflict};
 pub use refinement::prove_callable_refinement;
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use verdict::{
-    AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, PublicationError,
-    RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge, judge_compilation,
-    judge_compilation_for,
+    AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, ExceededReach,
+    PublicationError, RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge,
+    judge_compilation, judge_compilation_for,
 };
 
 #[cfg(test)]
@@ -1168,13 +1169,8 @@ pub(crate) fn callee(
                     "boundary call needs its result, reference and content custody proof",
                 ));
             }
-            if !declaration.fixed_service_reach.is_empty()
-                || !declaration.published_service_ceiling.is_empty()
-            {
-                return Err(unavailable(
-                    "boundary call needs its nonempty declared reach proof",
-                ));
-            }
+            // What the requirement may reach is charged to this caller
+            // where every call is (`service_reach`).
         }
     }
     Ok(callee)

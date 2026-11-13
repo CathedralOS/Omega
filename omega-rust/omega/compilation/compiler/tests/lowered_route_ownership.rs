@@ -250,6 +250,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
             result,
             requires: Vec::new(),
             ensures: Vec::new(),
+            reaches: structure_elaboration::ReachCeiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });

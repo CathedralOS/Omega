@@ -619,6 +619,7 @@ fn judge_elaboration(
             unproved,
             unestablished,
             conflicts,
+            exceeded,
         }) => {
             debug_assert!(
                 formations.is_empty(),
@@ -658,6 +659,7 @@ fn judge_elaboration(
                     .map(UnprovedObligation::message)
                     .chain(unestablished.iter().map(|entry| entry.message()))
                     .chain(conflicts.iter().map(|entry| entry.message()))
+                    .chain(exceeded.iter().map(|entry| entry.message()))
                     .collect();
                 let (fragment, expected) = pinned_fragments(main, &messages);
                 lines.push(format!(

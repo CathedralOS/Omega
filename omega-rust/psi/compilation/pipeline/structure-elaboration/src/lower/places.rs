@@ -2346,6 +2346,7 @@ mod tests {
             result: Some(plain),
             requires: Vec::new(),
             ensures: Vec::new(),
+            reaches: crate::ReachCeiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });

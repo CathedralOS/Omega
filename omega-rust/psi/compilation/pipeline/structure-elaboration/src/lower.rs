@@ -177,6 +177,14 @@ pub(crate) fn boundary(
         &signature.parameters,
     );
     let (formals, result) = lowering.formals()?;
+    // effects.md: a boundary requirement "publishes one stable interface
+    // across providers", so its written ceiling is both what it may reach
+    // and what a caller is charged.
+    let crate::ReachCeiling::Authored(reach) = &signature.reaches else {
+        return Err(unavailable(
+            "boundary declaration has no declared reach ceiling",
+        ));
+    };
     let result = match result {
         TerminalMachineResult::Unit => terminal_psi::BoundaryMachineResult::Unit,
         TerminalMachineResult::Scalar(result) => {
@@ -225,9 +233,9 @@ pub(crate) fn boundary(
         reference_outputs: Vec::new(),
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
-        fixed_service_reach: Vec::new(),
+        fixed_service_reach: reach.clone(),
         owning_service: Some(service),
-        published_service_ceiling: Vec::new(),
+        published_service_ceiling: reach.clone(),
     })
 }
 
@@ -806,10 +814,17 @@ impl<'a> Lowering<'a> {
             block.operations = operations;
             blocks.push(block);
         }
-        let crash_routes =
-            terminal_check_tables::row(self.outcomes, self.id, self.id, Construct::Machine)?
-                .crash_routes
-                .clone();
+        let outcome =
+            terminal_check_tables::row(self.outcomes, self.id, self.id, Construct::Machine)?;
+        let crash_routes = outcome.crash_routes.clone();
+        // The written ceiling beside the row callers rely on. They are the
+        // same row when a clause is written; an omitted clause declares
+        // nothing and publishes what the body's calls contribute.
+        let declared_service_reach = match &self.signature.reaches {
+            crate::ReachCeiling::Authored(ceiling) => ceiling.clone(),
+            crate::ReachCeiling::Inferred => Vec::new(),
+        };
+        let published_service_ceiling = outcome.service_reach.clone();
         let contract = MachineContract {
             crash_routes,
             erased_scalar_formals: formals.erased,
@@ -841,9 +856,9 @@ impl<'a> Lowering<'a> {
             entry_claims: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
-            declared_service_reach: Vec::new(),
+            declared_service_reach,
             closed_reach_application: None,
-            published_service_ceiling: Vec::new(),
+            published_service_ceiling,
             content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
