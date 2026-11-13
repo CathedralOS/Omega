@@ -313,6 +313,12 @@ refuses a second build or corpus run while one is active.
 - When a genuine specification ambiguity blocks progress, record the exact
   question in `OWNER_QUESTIONS.md` and cite it in the relevant README rather
   than inventing unratified language semantics.
+- When the code or tooling itself looks rotten (one idea built twice, a stage
+  reaching across a boundary, a verdict with nothing behind it, a test that
+  pins a bug), write five lines in
+  [OWNER_CODE_CONCERNS.md](OWNER_CODE_CONCERNS.md) and keep working. It never
+  blocks your change and never gets its own pull request. Your first hour in
+  an area is when you see it best; say what you saw.
 
 ## Sessions and subagents
 
