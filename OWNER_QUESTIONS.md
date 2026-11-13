@@ -64,62 +64,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - Who supplies TaskRuntime and interrupt masking once authored compiler intrinsics are refused?
-
-Decision name: `sealed-runtime-providers`.
-
-**Customer.** BUILD-OWNED-NATIVE-BINDINGS in `TASKS.md` retires `via`, and the
-[foreign binding](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
-contract says compiler intrinsics come only from the sealed intrinsic catalog
-with toolchain custody. Authored source still claims compiler custody with
-`via ForeignBinding::CompilerIntrinsic` at these sites:
-
-- `TaskRuntime::start`/`try_start` providers in
-  `tests/omega/pass/tasks/task_runtime_machine_selection_compile` and
-  `tests/omega/fail/tasks/task_runtime_provider_contract_narrowing`;
-- `InterruptMaskControl::save_and_mask` in
-  `tests/omega/pass/memory/interrupt_table_canary` (`cathedral/interrupt_roots.omg`);
-- a user `WorkerProvider::execute` in `tests/omega/pass/host/intrinsic_machine_param`;
-- user numeric members in `tests/omega/{pass,fail}/packages/rootless_numeric_provider_*`;
-- nine `DeviceLoanProvider` members in `samples/cli/probes/device_extent_access`.
-
-Refusing that spelling leaves the task and interrupt-mask sites with no
-provider at all.
-
-**Gap.** These contracts were checked:
-
-- [Task activation](wiki/spec/build/task_runtime.md): *"Root profiles may
-  select default providers and owners may override their slots, but
-  starting/controlling a task still requires a held runtime capability."* It
-  does not say whether a toolchain-sealed provider exists or which package
-  ships it. Core `task.omg` declares only the `TaskRuntime` trait, and nothing
-  in `source/library` provides it.
-- `source/library/core/interrupt.omg` declares `InterruptMaskControl` with no
-  provider. The compiler has no execution identity for `save_and_mask`, so the
-  canary's authored intrinsic only type-checks.
-- The sealed intrinsic catalog (`language_core::sealed_intrinsics`) covers core
-  float, static-interrupt, layout, hosted console/exit and UEFI declarations.
-  It has no runtime-provider rows because no bundled provider declaration
-  exists to point them at.
-
-**Question.**
-
-- **(a)** Does core (or std per target) ship sealed `TaskRuntime` and
-  `InterruptMaskControl` providers that the compiler realizes, recorded as
-  catalog rows and selected by the root profile by default?
-- **(b)** Or are these providers ordinary checked code, outside the compiler:
-  a runtime package for tasks, and target `asm` for interrupt masking, which
-  each program or root profile selects?
-- In either case: what replaces the user-authored compiler intrinsics in
-  `intrinsic_machine_param`, `rootless_numeric_provider_*` and
-  `device_extent_access`? Each could become a rejecting pin for the refused
-  spelling, a checked body, or a Build-bound foreign symbol.
-
-Until answered, `via ForeignBinding::CompilerIntrinsic` stays accepted at
-these sites, and BUILD-OWNED-NATIVE-BINDINGS keeps its `CompilerIntrinsic`
-retirement.
-
-### Q2 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
+### Q1 - Should the bundled `std` library be renamed `os` or `system`, and `alloc` renamed `allocation`?
 
 Decision name: `operating-system-library-name`. Raised by Jarod for Zac.
 
