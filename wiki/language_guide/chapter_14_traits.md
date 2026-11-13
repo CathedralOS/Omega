@@ -74,7 +74,10 @@ A row, `Trait::member = machine;`, uses a machine that already exists instead
 of wrapping it.
 
 Traits can also declare ordinary fields and `requires` constraints. You can
-construct, pass and return their records like other values.
+construct, pass and return their records like other values. An ordinary
+machine-typed field accepts a callable with a compatible contract, retaining
+any existing invocation route; unlike a named machine requirement, it does not
+require binding to a new route.
 
 Two names for the same typed record mean the same implementation. To keep
 policies distinct, put the difference in a schema argument or ordinary field.
@@ -84,32 +87,6 @@ its code looks the same.
 A `machine` member stores a selected machine; an evidence field stores a value
 of its declared mathematical type. See [record construction and identity](../spec/language/conformances.md#implementations-are-operation-records).
 Computed implementations can also be used as [Build providers](../spec/build/provider_selection.md#declaration-and-choice).
-
-### Named requirement or callable field?
-
-Use a named requirement when the interface needs that particular operation
-identity. Use an ordinary callable field when it needs only a checked callable
-contract. Both forms belong in a trait; you do not need to abandon traits to
-choose the latter.
-
-| Member form | What the field requires |
-| --- | --- |
-| `machine compare(...) ...;` | A selection explicitly bound to this trait's named `compare` requirement. |
-| `compare: machine(...) ...;` | A value satisfying the stated structural callable contract. |
-
-These are declaration patterns; the omitted arguments and clauses specify the
-full contract. Suppose library A exposes a named comparison requirement, while
-library B declares an ordinary comparison callable field. B's record can store
-A's projected callable when its contract fits, retaining A's invocation route.
-Packaging that value does not wrap its execution or bind it to a B requirement.
-Any separate laws or constraints on B's record still need evidence about those
-exact selected operations.
-
-If B instead declares its own named requirement, matching behavior alone does
-not satisfy it. The [explicit binding rules](#binding-a-machine-to-a-requirement)
-still apply; an already-bound selection cannot be rebound. Named requirements
-also serve operation identity and operator-token binding, not just authority.
-See the [precise distinction](../spec/language/conformances.md#implementations-are-operation-records).
 
 ## Default bodies
 
