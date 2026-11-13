@@ -1120,8 +1120,8 @@ pub(crate) mod access_lifecycles {
     }
 }
 pub(crate) mod access_plans {
+    use crate::evaluation_requests::BuildTimeOperationEvaluation;
     use build_time_values::BuildTimeValue;
-    use checked_interpreter::BuildTimeOperationEvaluation;
     use typed_trees::TypedTrees;
 
     use crate::BuildTimeAdmissionPlan;
@@ -1630,16 +1630,13 @@ pub(crate) mod access_plans {
             None,
         )?;
         accounting
-        .evaluate(
-            checked_interpreter::BuildMachineProgram::Typed(typed),
-            request,
-        )
-        .map(BuildTimeOperationEvaluation::into_value)
-        .map_err(|reason| {
-            format!(
-                "build-time evaluation of {policy_kind} policy `{policy_machine}` failed: {reason}"
+            .evaluate(
+                crate::evaluation_requests::BuildMachineProgram::Typed(typed),
+                request,
+                &format!("{policy_kind} policy `{policy_machine}`"),
             )
-        })
+            .map(BuildTimeOperationEvaluation::into_value)
+            .map_err(String::from)
     }
 }
 pub(crate) mod access_views {
@@ -4886,7 +4883,7 @@ pub(crate) mod layout_plans {
     pub(crate) fn normalize_private_callback_demands(
         typed: &TypedTrees,
         policy_machine: &typed_trees::machine::Machine,
-        receipts: &[checked_interpreter::PrivateLayoutPlacementReceipt],
+        receipts: &[crate::evaluation_requests::PrivateLayoutPlacementReceipt],
         policy_name: &str,
         selected_implementation: Option<(&StaticMachineArgument, symbols::SymbolHandle)>,
     ) -> Result<Vec<PrivateCallbackLayoutDemandReport>, String> {
@@ -5134,7 +5131,7 @@ pub(crate) mod plan_laid {
 
     mod layout_installation {
         use crate::build_time_evaluation::type_reference_table;
-        use checked_interpreter::BuildMachineEvaluationRequest;
+        use crate::evaluation_requests::BuildMachineEvaluationRequest;
         use diagnostics::Diagnostic;
         use layout_plans::LayoutPlacementReport;
         use typed_trees::references::collect_selected_program_type_occurrences;
@@ -5559,28 +5556,17 @@ pub(crate) mod plan_laid {
                         )
                         .map_err(fail)?;
                     let evaluation = match domain.accounting.evaluate(
-                checked_interpreter::BuildMachineProgram::Typed(&execution),
+                crate::evaluation_requests::BuildMachineProgram::Typed(&execution),
                 BuildMachineEvaluationRequest::symbol(machine.symbol, arguments),
+                &format!("layout policy `{}` under `{}`", machine.name, target.profile),
             ) {
                 Ok(evaluation) => evaluation,
-                Err(checked_interpreter::BuildMachineEvaluationError::StaticInputUnavailable(
+                Err(crate::evaluation_requests::BuildMachineEvaluationError::StaticInputUnavailable(
                     _,
                 )) if !policy_is_closed => {
                     continue 'application;
                 }
-                Err(reason) => {
-                    return Err(fail(if policy_is_closed {
-                        format!(
-                            "layout policy `{}` under `{}`: {reason}",
-                            machine.name, target.profile
-                        )
-                    } else {
-                        format!(
-                            "universal fixed representation `{}` under `{}` cannot establish its geometry without a bound static operand: {reason}",
-                            record.application_name, target.profile
-                        )
-                    }));
-                }
+                Err(reason) => return Err(fail(reason.to_string())),
             };
                     let layout = super::super::layout_plans::validate_plan(
                         evaluation.value(),
@@ -6135,15 +6121,14 @@ pub(crate) mod plan_laid {
 }
 mod policy_arguments {
     use crate::build_time_evaluation::type_reference_table;
+    use crate::evaluation_requests::BuildMachineEvaluationRequest;
     use build_time_values::BuildTimeValue;
-    use checked_interpreter::BuildMachineEvaluationRequest;
-    use checked_interpreter::materialize_zero_initialized_build_time_value;
     use typed_trees::{TypedTrees, machine::Machine, types::TypeReferenceNode};
 
     pub(super) fn policy_request<'a>(
         typed: &TypedTrees,
         machine: &Machine,
-        mut arguments: Vec<BuildTimeValue>,
+        arguments: Vec<BuildTimeValue>,
     ) -> Result<BuildMachineEvaluationRequest<'a>, String> {
         let entry = typed
             .machine_states(machine)
@@ -6191,8 +6176,15 @@ mod policy_arguments {
                     parameter.name.as_str()
                 ));
             }
-            let context = materialize_zero_initialized_build_time_value(typed, context_type)?;
-            arguments.insert(position, context);
+            // The context is a zero-initialized value of the policy's data type.
+            // Only the removed tree interpreter could build one, so a policy
+            // that takes its data context is refused here.
+            return Err(crate::evaluation_requests::no_typed_tree_engine(&format!(
+                "policy `{}`, which takes its data context `{}`,",
+                machine.name.as_str(),
+                parameter.name.as_str()
+            ))
+            .to_string());
         }
         Ok(BuildMachineEvaluationRequest::symbol(
             machine.symbol,

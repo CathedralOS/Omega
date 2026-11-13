@@ -1337,8 +1337,7 @@ projections consume compilation products, not compiler orchestration; the
 compiler uses their exact permission-consent comparison before production.
 Shared process and filesystem utilities remain under `omega/foundation/`.
 
-`psi/interpreter/` contains the `terminal-interpreter` engine and the
-`checked-interpreter` build-time evaluator that remains to migrate onto it. `psi/compilation/build-time-evaluation/` admits execution
+`psi/interpreter/` contains the `terminal-interpreter` engine. `psi/compilation/build-time-evaluation/` admits execution
 and elaborates results into source and typed trees. Checked fixed-array-length
 jobs use the Terminal program/instance lifecycle. Build activations use the
 Terminal Build host in `omega/build-system/build-settings/`; there is no

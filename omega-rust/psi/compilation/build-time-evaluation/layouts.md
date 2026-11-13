@@ -196,7 +196,7 @@ allocator contract.
 
 Reports retain distinct normalized `Encode` and `StrictDecode` requirements,
 the normalized plan and dynamic obligations, and generated origin independently
-of compiler-admitted trust. `checked_interpreter::verify_wire_schema_codec`
+of compiler-admitted trust. The codec verifier
 independently checks the generated bodies -- it byte-compares canonical
 emissions against a reference framing written from the contract alone,
 round-trips the strict decoder, and requires malformed frames to be rejected.

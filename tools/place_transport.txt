@@ -5,6 +5,7 @@
 # (wiki/drafts/designs/fact_transport.md).
 # Written by `python tools/check_rules.py --update-place-transport`.
 1 omega-rust/psi/compilation/build-time-evaluation/src/const_initializers.rs
+1 omega-rust/psi/compilation/build-time-evaluation/src/evaluation_requests.rs
 1 omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations.rs
 3 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs
 1 omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs

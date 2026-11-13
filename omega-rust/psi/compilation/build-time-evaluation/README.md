@@ -6,9 +6,11 @@ lengths, checked constant and `via` producer invocations) executes through the
 shared Terminal producer and interpreter: `build_machines::evaluate_checked_invocation`
 binds compiler-materialized arguments through [terminal_values](src/terminal_values.rs)
 and publishes engine-tagged `BuildEvaluationUsage` (usage schema 8). Jobs that
-still evaluate typed trees before checking use the
-[checked interpreter](../../interpreter/checked-interpreter/src/interpreter.rs)
-and publish usage schema 7.
+would evaluate typed trees before checking (a `FixedLayout` or access policy's
+plan, a machine used as a constant domain fact) have no engine: the tree
+interpreter that ran them is removed, so `EvaluationAccounting::evaluate`
+refuses each with "no product route yet" until it runs on Terminal Psi
+([request vocabulary](src/evaluation_requests.rs)).
 Build activation executes only through Omega's
 [Terminal Build host](../../../omega/build-system/build-settings/src/build_evaluation.rs).
 This service owns neither Build configuration nor package acquisition or target realization.
@@ -349,7 +351,7 @@ recursion in the language.
 The [result checker](src/machine_execution.rs) admits complete closed
 pure values and rejects escaping references/slices, Text, dynamic/opaque shapes,
 interior-mutable and non-copy results, and unresolved generic shapes.
-The [interpreter bridge](../../interpreter/checked-interpreter/src/build_time.rs) creates fresh
+The [Terminal value bridge](src/terminal_values.rs) creates fresh
 argument values and snapshots results; its broader transport enum alone does
 not establish `ConstEvaluable`. Temporary local mutation and borrows do not
 escape through that snapshot. The separate augmenting API returns argument

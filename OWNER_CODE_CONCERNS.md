@@ -277,13 +277,6 @@ own to defend. Say what you saw, not what you would build.
 - Cost: every table in the Psi half sits on these containers, so a dangling handle anywhere looks like an empty declaration, not an error, and the next reader of the dummy sees whatever was last written to it
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The checked interpreter answers thirteen host-sounding call names it could not resolve
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/interpreter/checked-interpreter/src/execution_expressions.rs:863-968`
-- Saw: when `resolve_static_call` fails and the call is unqualified, the names `tick_count`, `key_state`, `dc_create`, `get_dc`, `window_create`, `is_window`, `window_destroy`, `foreground_window`, `msg_peek`, `msg_translate`, `msg_dispatch`, `read_byte` and `blit` return made-up values (0, 1, a counter, the fifth argument); any other name returns the resolution error
-- Cost: a failed lookup becomes a successful call keyed on spelling alone, so a build-time program calling an undeclared machine with one of these names runs instead of stopping
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The Terminal interpreter reports a failed run-time check as a malformed artifact, with one error for 1,329 sites
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/psi/interpreter/terminal-interpreter/src/boundary_values.rs:696`; example at `engine_execution.rs:3691`
