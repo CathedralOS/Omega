@@ -1833,12 +1833,10 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
     };
     match statement {
         Statement::Bind { value, .. } => expression_slot_uses(value, uses),
-        Statement::Store { path, value, .. } => {
-            for projection in path {
-                if let crate::Projection::Index(index) = projection {
-                    expression_slot_uses(index, uses);
-                }
-            }
+        Statement::Store {
+            destination, value, ..
+        } => {
+            expression_slot_uses(destination, uses);
             expression_slot_uses(value, uses);
         }
         Statement::Evaluate(value) => expression_slot_uses(value, uses),

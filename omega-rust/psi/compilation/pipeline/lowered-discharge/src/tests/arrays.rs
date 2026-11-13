@@ -2,7 +2,7 @@
 //! The same storage operations handle array construction, copies and writes.
 
 use super::*;
-use structure_elaboration::{Projection, StorageShape};
+use structure_elaboration::StorageShape;
 use terminal_psi::ArrayExtent;
 
 fn array_types() -> IdTable<StructuralTypeId, RecordType> {
@@ -143,8 +143,7 @@ fn array_construction_copy_and_indexed_replacement_preserve_other_elements() {
             bind(0, literal),
             bind(1, place(0, array(2))),
             Statement::Store {
-                slot: 0,
-                path: vec![Projection::Index(unsigned(0))],
+                destination: index(place(0, array(2)), unsigned(0), u32_type().into()),
                 value: unsigned(9),
                 source: nowhere(),
             },

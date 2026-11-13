@@ -241,11 +241,10 @@ impl Lowering<'_> {
                 self.declare_local(*slot, home.as_deref(), *source)
             }
             Statement::Store {
-                slot,
-                path,
+                destination,
                 value,
                 source,
-            } => self.store(*slot, path, value, *source),
+            } => self.store(destination, value, *source),
             Statement::Dispatch {
                 subject,
                 arms,

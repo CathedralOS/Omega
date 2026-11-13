@@ -1846,9 +1846,23 @@ fn a_module_with_records_declares_them_and_encodes() {
 }
 
 fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
+    let mut destination = Expression {
+        kind: ExpressionKind::Slot(slot),
+        result: None,
+        source: nowhere(),
+    };
+    for field in path {
+        destination = Expression {
+            kind: ExpressionKind::Field {
+                base: Box::new(destination),
+                field: *field,
+            },
+            result: None,
+            source: nowhere(),
+        };
+    }
     Statement::Store {
-        slot,
-        path: path.iter().copied().map(crate::Projection::Field).collect(),
+        destination,
         value,
         source: nowhere(),
     }

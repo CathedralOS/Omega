@@ -17,7 +17,7 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::{TableAssignment, TableLocalData};
 
 use super::{Program, Slot};
-use crate::body::{ExpressionKind, Projection, Statement, ValueType};
+use crate::body::{ExpressionKind, Statement, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
@@ -55,8 +55,11 @@ impl Program<'_> {
                 }
                 Ok(if slots[slot].homed {
                     Statement::Store {
-                        slot,
-                        path: Vec::new(),
+                        destination: crate::Expression {
+                            kind: ExpressionKind::Slot(slot),
+                            result: Some(value_type),
+                            source,
+                        },
                         value,
                         source,
                     }
@@ -65,24 +68,20 @@ impl Program<'_> {
                 })
             }
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
-                // The destination is read as the member path it is, then
-                // taken apart into its slot and field positions: a store
-                // names storage, so its base must be a local, never a value
-                // an operation just produced.
+                // A destination names existing local storage. Retain its
+                // expression intact after checking the root's authority;
+                // lowering captures its selectors before the replacement.
                 let place = self.expression(id, slots, assignment.target, None)?;
                 let Some(stored) = place.result else {
                     return Err(typing());
                 };
-                let mut path = Vec::new();
                 let mut at = &place;
                 let slot = loop {
                     match &at.kind {
-                        ExpressionKind::Field { base, field } => {
-                            path.push(Projection::Field(*field));
+                        ExpressionKind::Field { base, .. } => {
                             at = base;
                         }
-                        ExpressionKind::Index { base, index } => {
-                            path.push(Projection::Index((**index).clone()));
+                        ExpressionKind::Index { base, .. } => {
                             at = base;
                         }
                         ExpressionKind::Slot(slot) => break *slot,
@@ -112,7 +111,6 @@ impl Program<'_> {
                         }
                     }
                 };
-                path.reverse();
                 if !slots[slot].assignable {
                     return Err(unserved("store into an immutable binding"));
                 }
@@ -121,8 +119,7 @@ impl Program<'_> {
                     return Err(typing());
                 }
                 Ok(Statement::Store {
-                    slot,
-                    path,
+                    destination: place,
                     value,
                     source,
                 })

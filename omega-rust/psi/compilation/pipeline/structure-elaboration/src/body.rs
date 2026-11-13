@@ -428,16 +428,14 @@ pub enum Statement {
         home: Option<String>,
         source: SourceOrigin,
     },
-    /// `slot.path = value;`: evaluate `value`, then store it into exactly the
-    /// place `path` selects beneath the slot's root, each step a field
-    /// position in the record type the previous step reached. The path is
-    /// empty only for a scalar slot that `Declare` homed.
+    /// Capture the existing destination expression as a place, then evaluate
+    /// `value` and store it there. Field and index expressions retain the
+    /// same meaning as in a read or loan; no second destination path exists.
     /// `wiki/spec/language/state_contracts.md`: "Assignments first capture
     /// their destination place ... They then evaluate the right-hand side".
     /// A destination made of a slot and fields has nothing to evaluate.
     Store {
-        slot: usize,
-        path: Vec<Projection>,
+        destination: Expression,
         value: Expression,
         source: SourceOrigin,
     },
@@ -467,15 +465,6 @@ pub enum Statement {
         target: Target,
         source: SourceOrigin,
     },
-}
-
-/// One step of the assignment's existing destination path. Index expressions
-/// are captured once, before the right-hand side; lowering then names their
-/// exact SSA values in the canonical indexed storage path.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Projection {
-    Field(usize),
-    Index(Expression),
 }
 
 /// What an arm completes the machine with.

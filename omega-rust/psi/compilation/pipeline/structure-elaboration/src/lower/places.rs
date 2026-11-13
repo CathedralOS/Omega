@@ -77,8 +77,8 @@ use terminal_psi::{
 
 use super::{Lowering, Value};
 use crate::body::{
-    Body, Expression, ExpressionKind, Projection, RecordField, RecordType, Signature, Statement,
-    StorageShape, Target, ValueType,
+    Body, Expression, ExpressionKind, RecordField, RecordType, Signature, Statement, StorageShape,
+    Target, ValueType,
 };
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -365,12 +365,10 @@ fn statement_homes<'b>(statement: &'b Statement, homes: &mut Vec<(ValueType, Opt
         Statement::Bind { value, .. } | Statement::Evaluate(value) => {
             expression_homes(value, homes)
         }
-        Statement::Store { path, value, .. } => {
-            for projection in path {
-                if let Projection::Index(index) = projection {
-                    expression_homes(index, homes);
-                }
-            }
+        Statement::Store {
+            destination, value, ..
+        } => {
+            expression_homes(destination, homes);
             expression_homes(value, homes);
         }
         Statement::Declare { .. } | Statement::Witness { .. } => {}
@@ -1251,62 +1249,10 @@ impl<'a> Lowering<'a> {
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
-        let (root, steps, exact) = match (&place.kind, value_type) {
-            (ExpressionKind::Slot(slot), ValueType::Scalar(_) | ValueType::Qualified(..)) => {
-                let bound = *self.slot_mut(*slot)?;
-                let home = match bound {
-                    Some(Bound::Home(home)) => home,
-                    Some(Bound::Scalar(_)) if home_identity.is_some() && self.joining > 0 => {
-                        return Err(refuse(
-                            self.id,
-                            self.current.map_or(Construct::Machine, Construct::Block),
-                            Unserved::Call("loan of a value local on some paths only"),
-                        ));
-                    }
-                    Some(Bound::Scalar(value)) if home_identity.is_some() => {
-                        let home =
-                            self.establish_home(value, value_type, home_identity, place.source)?;
-                        *self.slot_mut(*slot)? = Some(Bound::Home(home));
-                        home
-                    }
-                    _ => return Err(self.internal("a lent scalar slot holds no storage")),
-                };
-                (home, Vec::new(), self.exact_root(home)?)
-            }
-            (
-                ExpressionKind::Field { base, field },
-                ValueType::Scalar(_) | ValueType::Qualified(..),
-            ) => {
-                let at = self.located(base)?;
-                let step = Step::Field {
-                    owner: at.record,
-                    field: *field,
-                };
-                let leaf = self.step(at.place, step)?;
-                let mut steps = at.path;
-                steps.push(step);
-                (at.root, steps, leaf)
-            }
-            (
-                ExpressionKind::Index { base, index },
-                ValueType::Scalar(_) | ValueType::Qualified(..),
-            ) => {
-                let at = self.located(base)?;
-                let step = self.index_step(at.record, index)?;
-                let leaf = self.step(at.place, step)?;
-                let mut steps = at.path;
-                steps.push(step);
-                (at.root, steps, leaf)
-            }
-            (_, ValueType::Record(_)) => {
-                let at = self.located(place)?;
-                if at.fresh {
-                    return Err(self.internal("a loan of a value no slot names"));
-                }
-                (at.root, at.path, at.place)
-            }
-            _ => return Err(self.internal("a loan of something that is not a place")),
-        };
+        let (root, steps, exact, actual) = self.capture_place(place, home_identity)?;
+        if actual != value_type {
+            return Err(self.internal("a loan has another type than its captured place"));
+        }
         if steps
             .iter()
             .any(|step| matches!(step, Step::Payload { .. }))
@@ -1320,6 +1266,87 @@ impl<'a> Lowering<'a> {
             Lender::Owner
         };
         Ok(((root, steps, lent_access), exact, lender))
+    }
+
+    /// Capture an existing place using the same expression and declared
+    /// storage types for a loan or assignment. Only index operands evaluate;
+    /// a saved subject already holds its captured selectors.
+    fn capture_place(
+        &mut self,
+        expression: &Expression,
+        home_identity: Option<&str>,
+    ) -> Checked<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
+        let captured = match &expression.kind {
+            ExpressionKind::Slot(slot) => {
+                let value_type = self.slot_type(*slot)?;
+                let bound = *self.slot_mut(*slot)?;
+                let root = match bound {
+                    Some(Bound::Home(root) | Bound::Record(root)) => root,
+                    Some(Bound::Scalar(_)) if home_identity.is_some() && self.joining > 0 => {
+                        return Err(refuse(
+                            self.id,
+                            self.current.map_or(Construct::Machine, Construct::Block),
+                            Unserved::Call("loan of a value local on some paths only"),
+                        ));
+                    }
+                    Some(Bound::Scalar(value)) if home_identity.is_some() => {
+                        let root = self.establish_home(
+                            value,
+                            value_type,
+                            home_identity,
+                            expression.source,
+                        )?;
+                        *self.slot_mut(*slot)? = Some(Bound::Home(root));
+                        root
+                    }
+                    _ => return Err(self.internal("a captured slot holds no storage")),
+                };
+                (root, Vec::new(), self.exact_root(root)?, value_type)
+            }
+            ExpressionKind::Field { base, field } => {
+                let (root, mut steps, parent, ValueType::Record(owner)) =
+                    self.capture_place(base, None)?
+                else {
+                    return Err(self.internal("a field place crosses scalar storage"));
+                };
+                let step = Step::Field {
+                    owner,
+                    field: *field,
+                };
+                let value_type = self.declared(step)?.value_type;
+                let exact = self.step(parent, step)?;
+                steps.push(step);
+                (root, steps, exact, value_type)
+            }
+            ExpressionKind::Index { base, index } => {
+                let (root, mut steps, parent, ValueType::Record(owner)) =
+                    self.capture_place(base, None)?
+                else {
+                    return Err(self.internal("an indexed place crosses scalar storage"));
+                };
+                let (element, _) = self.array_element(owner)?;
+                let value_type = self.storage_value_type(element)?;
+                let step = self.index_step(owner, index)?;
+                let exact = self.step(parent, step)?;
+                steps.push(step);
+                (root, steps, exact, value_type)
+            }
+            ExpressionKind::SavedSubject(_) | ExpressionKind::Payload { .. } => {
+                let at = self.located(expression)?;
+                if at.fresh {
+                    return Err(self.internal("a capture names newly produced storage"));
+                }
+                (at.root, at.path, at.place, ValueType::Record(at.record))
+            }
+            _ => return Err(self.internal("a destination does not name existing storage")),
+        };
+        if expression
+            .result
+            .is_some_and(|declared| declared != captured.3)
+        {
+            return Err(self.internal("a captured place has another declared type"));
+        }
+        Ok(captured)
     }
 
     /// A home for an SSA scalar holding `value`: one `EstablishPrimitiveLocal`
@@ -1961,53 +1988,24 @@ impl<'a> Lowering<'a> {
     /// `WriteOnlyPrimitiveStore` with an empty path.
     pub(super) fn store(
         &mut self,
-        slot: usize,
-        path: &[Projection],
+        destination: &Expression,
         value: &Expression,
         source: SourceOrigin,
     ) -> Checked<()> {
-        let bound = *self.slot_mut(slot)?;
-        let root = match bound {
-            Some(Bound::Home(root)) if path.is_empty() => root,
-            Some(Bound::Record(root)) if !path.is_empty() => root,
-            Some(_) => {
-                return Err(self.internal("a store does not name storage of its declared kind"));
-            }
-            None => return Err(self.internal("a slot is stored to before it is bound")),
-        };
-        let (_, mut record) =
-            *terminal_check_tables::row(&self.roots, root, self.id, Construct::Machine)?;
-        let mut place = self.exact_root(root)?;
-        let mut steps = Vec::with_capacity(path.len());
-        let mut expected = self.storage_value_type(record)?;
+        // Capturing visits the destination before the right-hand side and
+        // retains each selector's exact SSA value in the existing Step roster.
+        let (root, steps, place, expected) = self.capture_place(destination, None)?;
+        if steps.is_empty() && matches!(expected, ValueType::Record(_)) {
+            return Err(self.internal("a whole record assignment must rebind its local"));
+        }
         let mut owed = 0;
-        // Capture every selector before the replacement expression. Subsequent
-        // writes to its source cannot retarget this exact destination.
-        for (position, projection) in path.iter().enumerate() {
-            owed += self.record_type(record)?.requires.len();
-            let step = match projection {
-                Projection::Field(field) => {
-                    let step = Step::Field {
-                        owner: record,
-                        field: *field,
-                    };
-                    expected = self.declared(step)?.value_type;
-                    step
-                }
-                Projection::Index(index) => {
-                    let (element, _) = self.array_element(record)?;
-                    expected = self.storage_value_type(element)?;
-                    self.index_step(record, index)?
-                }
+        for step in &steps {
+            let owner = match step {
+                Step::Field { owner, .. }
+                | Step::Payload { owner, .. }
+                | Step::Index { owner, .. } => *owner,
             };
-            place = self.step(place, step)?;
-            steps.push(step);
-            if position + 1 < path.len() {
-                record = match expected {
-                    ValueType::Record(record) => record,
-                    _ => return Err(self.internal("a store path crosses a scalar value")),
-                };
-            }
+            owed += self.record_type(owner)?.requires.len();
         }
         if value.result != Some(expected) {
             return Err(self.internal("a replacement has another type than its destination"));

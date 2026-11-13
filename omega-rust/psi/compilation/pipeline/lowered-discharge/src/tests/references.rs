@@ -137,12 +137,23 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
 }
 
 pub(super) fn store(slot: usize, path: Vec<usize>, value: Expression) -> Statement {
+    let mut destination = Expression {
+        kind: ExpressionKind::Slot(slot),
+        result: None,
+        source: nowhere(),
+    };
+    for field in path {
+        destination = Expression {
+            kind: ExpressionKind::Field {
+                base: Box::new(destination),
+                field,
+            },
+            result: None,
+            source: nowhere(),
+        };
+    }
     Statement::Store {
-        slot,
-        path: path
-            .into_iter()
-            .map(structure_elaboration::Projection::Field)
-            .collect(),
+        destination,
         value,
         source: nowhere(),
     }

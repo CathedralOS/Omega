@@ -158,13 +158,11 @@ impl Walk<'_> {
                         return Ok(normal);
                     }
                 }
-                Statement::Store { path, value, .. } => {
-                    for projection in path {
-                        if let crate::Projection::Index(index) = projection
-                            && !self.expression(machine, index)?
-                        {
-                            return Ok(normal);
-                        }
+                Statement::Store {
+                    destination, value, ..
+                } => {
+                    if !self.expression(machine, destination)? {
+                        return Ok(normal);
                     }
                     if !self.expression(machine, value)? {
                         return Ok(normal);

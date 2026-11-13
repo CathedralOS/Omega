@@ -157,12 +157,10 @@ fn statements(statements: &[Statement], sites: &mut Vec<CallSite>) {
     for statement in statements {
         match statement {
             Statement::Bind { value, .. } | Statement::Evaluate(value) => expression(value, sites),
-            Statement::Store { path, value, .. } => {
-                for projection in path {
-                    if let crate::Projection::Index(index) = projection {
-                        expression(index, sites);
-                    }
-                }
+            Statement::Store {
+                destination, value, ..
+            } => {
+                expression(destination, sites);
                 expression(value, sites);
             }
             // An erased term is a literal or a binding: it calls nothing.
