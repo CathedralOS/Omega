@@ -22,10 +22,70 @@ come from `git diff --numstat 0a2a19c05509855233747e06623ea535e9dad2fb cea9cdcde
 (568 files, 5,676 insertions, 861,818 deletions, net −856,142). The pull
 request text's "about 861,000 lines removed" is that deletion count.
 
-### Why the removed checker was unnecessary
+### The decision that let it grow
 
-The specification puts the checked meaning of a program on Terminal Psi, not
-on a side tree of source facts. [Terminal fact validity](wiki/spec/terminal-psi/fact_validity.md)
+The deleted tree is one structural choice, visible in the crate boundaries
+and in how the files inside Psi 05 were named.
+
+The compiler kept a second program representation, `checked-trees`, between
+typed trees and Terminal Psi, and it kept the verdict on that representation.
+Psi 05 both judged it and lowered it. At the parent of #2823, the Rust under
+`05_typed-trees-to-checked-trees/src` splits by filename prefix
+(`git cat-file --batch` over `git ls-tree -r --name-only 0a2a19c05509` of
+that directory; the four groups sum to the directory's 342,563 lines):
+
+| Prefix group | Lines | Filenames |
+| --- | ---: | --- |
+| `checks` | 147,327 | `checks*.rs`, the judgments |
+| `facts_and_flow` | 98,839 | `published*.rs`, `borrow*.rs`, `flow*.rs`, facts stored beside the tree |
+| `execution` | 73,221 | `execution*.rs`, a lowering inside the checking stage |
+| other | 23,176 | the stage driver and the remaining files |
+
+`validation` was not a representation-to-representation stage. Its README
+said it supplied judgments and did not construct the checked program; Psi 05
+did. `representation-planning` and `representation-selections` sat under that
+sidecar. `facts` was a second store of the same decisions, keyed beside the
+tree (`checked.facts.resolved_types` is the path Psi 06's README names).
+
+Psi 06, removed earlier by #2796, was a second lowering of that side
+representation. Its README at `ae891752fe8d296bf623b6d35680e1b066c2e715`
+(the parent of #2796) says the stage "selects the checked machine, lowers
+its source closure" and that "the checker's permission ledger is consumed
+as checked: lowering does not re-validate the checker's own fresh output."
+Psi 07 and Psi 08 then optimized and published the product of that second
+lowering. After Psi 06 was gone, `lowered-psi` had no producer and Psi 07
+still transformed it.
+
+Once the types and the verdict lived on `checked-trees`, other owners took
+a dependency on that representation. Those connection points are the 143,315
+deleted lines outside the wholly removed crate trees (the table below).
+
+Four patterns follow from that tree. Section 3 groups the live findings
+under them. A pattern with no live file and symbol under it is not a finding.
+
+1. **A parallel representation for the verdict.** `checked-trees` held a
+   second copy of the program so that checking could have its own types.
+   The product contract says execution, proof, evidence, diagnostics, work,
+   and lowering refer to one set of values, places, operations, and edges
+   ([semantic boundary](wiki/spec/terminal-psi/product.md#semantic-boundary)).
+2. **A sidecar that is not an `X-to-Y` stage.** `validation` and its
+   planning crates judged the program from beside the pipeline. The
+   crate-placement rule in [`pipeline.md`](omega-rust/pipeline.md)
+   admits shared vocabulary and evidence, and it does not admit a second
+   verdict owner.
+3. **Connection points in owners that needed the side representation.**
+   Build-time evaluation, typed preparation, proof elaboration, package
+   review, and provider planning imported checked-tree types. When the
+   representation went away, the connections went with it.
+4. **A second lowering that trusted the first.** Psi 05's `execution*.rs`
+   already built plans from checked facts, and Psi 06 lowered again without
+   re-checking. The specified order is one lowering, then selected
+   optimization of that same representation, then publication
+   ([optimization ordering](wiki/spec/terminal-psi/product.md#optimization-ordering)).
+
+### Why that shape is not the specified compiler
+
+The specification puts the checked meaning of a program on Terminal Psi. [Terminal fact validity](wiki/spec/terminal-psi/fact_validity.md)
 decides when a fact may justify a later obligation in Terminal Psi: premises
 dominate their uses, joins introduce merge tokens, and cycles need checked
 invariants. The [Psi product](wiki/spec/terminal-psi/product.md#semantic-boundary)
@@ -219,68 +279,28 @@ are `*.rs` under `06_checked-trees-to-lowered-psi/src`, from
 It is part of how the old checker came out. It is not the gap between 790k
 and 861k.
 
-### Patterns to look for in what remains
+### Questions the four patterns did not confirm
 
-Similar-looking code is not unnecessary. These are the shapes this deletion
-actually had. A hit still needs a spec passage, a caller, and a reason the
-behavior is not a distinct requirement.
+Two further shapes were searched and did not become findings.
 
-1. **A second verdict behind a live connection.** Psi 05 and `validation`
-   stayed reachable from Build evaluation, review, and provider planning
-   after `lowered-discharge` was the only accepted verdict. Look for an
-   entry that can still succeed by running, or inventing the result of, a
-   judgment the spec assigns to one stage. A function that refuses a missing
-   judgment is the end state #2823 left behind.
+- **A per-shape adapter beside one general operation.** The design record
+  describes validation's arithmetic engine surrounded by recognizers for
+  incidental source shapes. No live pair of that form was confirmed.
+  `proof/admission`'s `verify_obligation` is the kernel `lowered-discharge`
+  calls, which is the single verdict the design record asks for.
+- **A shim that still builds a checked tree or an empty proof.** The
+  surviving connection points refuse. `require_source_owner` and the
+  carrier rows return `no product route yet` when the judgment or the
+  input shape is absent.
 
-2. **Storage whose producer or consumer is gone.** `checked-trees`, `facts`,
-   `representation-planning`, `representation-selections`, and `lowered-psi`
-   existed to carry one retired chain. Look for a table, receipt, or sidecar
-   that no current stage constructs or reads. A comment or a forbidden-edge
-   string that names a deleted path is not itself a second implementation.
-
-3. **Two lowerings of one program.** Psi 05's `execution*.rs` files built
-   Terminal-facing plans, and Psi 06 lowered again. The product contract
-   wants one set of values, places, operations, and edges. Look for a later
-   stage that rebuilds a relation the producer already retained.
-
-4. **A per-shape adapter beside one general operation.** The design record
-   found validation's arithmetic engine surrounded by recognizers for
-   incidental source shapes. Look for a second procedure that exists only
-   to recognize an arrangement the general operation already covers. Keep a
-   branch the spec states as its own rule.
-
-5. **Default-path revalidation of a product this compile just produced.**
-   [Verification placement](omega-rust/pipeline.md#verification-placement)
-   keeps independent validators at trust boundaries, foreign packages, and
-   explicit validator requests. It does not ask the default path to carry a
-   second implementation of the same rules. A kernel that re-decides a
-   certificate is a stated requirement (`proof/admission`), not this pattern.
-
-6. **A compatibility shim that still performs the old algorithm.** Old
-   tree-check receipt encodings were deleted by making nonempty unsupported
-   requests refuse. Look for a shim that still builds a checked tree, an
-   empty proof, or a success flag. Do not treat an explicit refusal as
-   unused code.
-
-7. **Names of the deleted crates left in live controls and owner docs.**
-   `rg` over `*.rs` and `*.toml`, excluding `wiki/`, `samples/`, and
-   `.agents/`, finds 14 matching lines in six files: `tools/xtask/src/boundary.rs`
-   (5), `tools/xtask/src/stage_coverage.rs` (4), `tools/xtask/src/rules.rs`
-   (1), and comments in `typed-trees`, `terminal-psi`, and `terminal-psi/codec`.
-   In `boundary.rs` the names are mostly forbidden dependency edges
-   (`SOURCE_STAGES`, `TERMINAL_STAGES`, `REPRESENTATION_PLANNING`,
-   `checked-trees`). A forbidden path that no longer exists cannot match a
-   Cargo edge; whether the entry still guards a resurrection is a tools
-   question, not a reason to delete the firewall. Stale prose that points
-   at deleted files also remains in `omega-rust/psi/compilation/README.md`,
-   `omega-rust/optimization.md`, `omega-rust/omega/compilation/compiler/README.md`,
-   `omega-rust/omega/compilation/representations/README.md`,
-   `omega-rust/omega/compilation/realization/trust-model/README.md`,
-   `omega-rust/omega/build-system/build-settings/README.md`, and
-   `omega-rust/psi/foundation/language-core/{atomic_operations,inline_assembly}.md`.
-   Documentation drift is real and small. It is not counted as an
-   implementation finding until the owning pass shows the text still changes
-   a decision.
+Names of the deleted crates in live Rust and Cargo files, outside `wiki/`,
+`samples/`, and `.agents/`, are 14 lines in six files (`rg -n` for the crate
+path fragments): `tools/xtask/src/boundary.rs` (5),
+`tools/xtask/src/stage_coverage.rs` (4), `tools/xtask/src/rules.rs` (1), and
+comments in `typed-trees`, `terminal-psi`, and `terminal-psi/codec`. The
+`boundary.rs` lines are forbidden dependency edges. They are the guard
+against putting the parallel representation back (TL-3, dropped). Stale
+prose in owner READMEs is DOCS-1.
 
 ### Partition for the subsystem pass
 
@@ -299,32 +319,160 @@ finding rather than opening a second row for the same mechanism.
 Bootstrap competing variants are authorized by `bootstrap/MINIMIZATION.md`.
 They are not duplicates of the product compiler merely because both exist.
 
-## 2. Subsystem findings
+## 2. The spec's pipeline against the crates that exist
 
-The pass covered the six partitions in section 1 at
+The specification does not list crate names. It lists responsibilities and
+an order. [Semantic boundary](wiki/spec/terminal-psi/product.md#semantic-boundary)
+gives Psi parsing, resolution, typing, checking, proof construction,
+expression lowering, selected target-neutral optimization, and publication,
+and gives Omega provider selection, target realization, its own optimization,
+ABI lowering, native emission, and execution. [Optimization ordering](wiki/spec/terminal-psi/product.md#optimization-ordering)
+fixes the Psi order as lowering, then selected Psi optimization, then
+Terminal publication. [Exact selection](wiki/spec/build/optimizations.md#exact-selection)
+names the phase sets: checked trees, Psi, abstract operations, target
+operations and instruction selection, pre-allocation, allocation recovery,
+post-allocation, and resolved layout. An optimization consumes and produces
+the same representation. [`pipeline.md`](omega-rust/pipeline.md) is the
+architecture source for which directory is which `X-to-Y` stage.
+
+Marks mean: **matching** (the crate is the stage the spec describes),
+**duplicated** (a second live crate does the same stage), **extra** (a crate
+or a spec phase the required pipeline does not have), **missing** (the spec
+names the stage and no crate performs it). Directories were listed with
+`ls` of `omega-rust/psi/compilation/pipeline`,
+`omega-rust/omega/compilation/pipeline`, and both `representations/` trees
+at `a93022df945e`.
+
+| Spec responsibility | Current home | Mark |
+| --- | --- | --- |
+| Parsing | `00_source-files-to-tokens`, `01_tokens-to-syntax-trees` | matching |
+| Resolution | `02_syntax-trees-to-symbol-resolved-trees` | matching |
+| Typing | `03_symbol-resolved-trees-to-typed-trees` | matching |
+| Typed-to-typed preparation | `04_typed-trees-to-typed-trees` | matching. The spec does not make this a verdict. The crate-placement rule keeps it as an empty-work boundary that still runs specialization and record patterns. Its README still says the passes feed "the checker" (DOCS-1). |
+| Expression lowering onto Terminal Psi | `structure-elaboration` | matching. The crate README says it is not wired into the default compile. `compiler/src/checked/checking/lowered_route.rs` `RouteScope::judge` calls `AcceptedTerminalSource::judge`, which elaborates. |
+| Checking, the only verdict | `lowered-discharge` | matching. The same `judge` calls `lowered_discharge::judge_compilation_for`. |
+| Selected Psi optimization, before publication | no Psi `X-to-X` stage | **missing.** Publication refuses a nonempty Psi selection. See PL-1. |
+| Terminal publication | `psi-compiler/terminal-production` | matching. `ProductCodeSource::publish` publishes `accepted()?.produce(...)`. |
+| Proof construction | `proof/` surface, `proof/admission` `verify_obligation` | matching, and not a pipeline stage. The kernel is what the verdict calls. |
+| Abstract-operations optimization | `01_abstract-operations-to-abstract-operations` | the directory matches an `X-to-X` stage. `optimize_abstract_operations` refuses a nonempty `AbstractOperations` selection and runs the Psi projection instead (PL-1). |
+| Target realization | `02_abstract-operations-to-target-operations` | matching as the representation change. A nonempty `TargetOperations` selection is refused (PL-2). |
+| Instruction selection | `03_target-operations-to-selected-instructions` | matching. The README describes legalization and selection, not a second copy of stage 02. |
+| Pre-allocation and selected-lowering optimization | `04_selected-instructions-to-selected-instructions` | matching. `selected_optimization.rs` runs one of `SelectedLowering` or `PreAllocation` and returns `UnsupportedComposition` when both are selected. |
+| Allocation recovery | `05_selected-instructions-to-register-homes` | matching. `register_allocation.rs` projects `AllocationRecovery`. |
+| Post-allocation | `06_register-homes-to-post-allocation-machine` | matching. `optimization.rs` uses `PostAllocationMachine`. |
+| Encoding, then layout formation | `07_post-allocation-machine-to-selected-form-encoding`, `08_selected-form-encoding-to-resolved-layout` | matching as Omega realization (ABI, emission, layout). They are representation changes, not a second optimizer for an earlier phase. |
+| Resolved-layout optimization | `09_resolved-layout-to-resolved-layout` | matching. The phase enum value it executes is `FunctionRelativeLayout`. |
+| Checked-tree optimization | no stage | **extra** in [optimizations.md](wiki/spec/build/optimizations.md#phase-and-product-boundaries), which still says checked-tree pruning runs after source has been checked. `AGENTS.md` forbids that representation. The live leftover is OC-1. Do not add the stage back. |
+| `checked-trees`, `validation`, Psi 05, Psi 06, `lowered-psi`, Psi 07, Psi 08 | absent | correctly absent. These were the parallel representation, the sidecar, and the second lowering. |
+
+Representation directories match that table. Psi has `tokens`,
+`syntax-trees`, `symbol-resolved-trees`, `typed-trees`, and `terminal-psi`.
+Omega has `abstract-operations`, `target-operations`,
+`selected-instructions`, `register-homes`, `post-allocation-machine`, and
+`machine-code`. There is no `checked-trees` and no `lowered-psi`.
+
+No row is **duplicated**. The mismatches are the missing pre-publication
+Psi stage, the Psi catalog executing inside the abstract-operations stage,
+and the checked-tree phase the spec still names.
+
+## 3. Findings, grouped by the four patterns
+
+The pass covered the six partitions at
 `a93022df945edf9147d3e75332c7ee944594029a`. It did not find a second live
-implementation of a judgment the specification assigns to one stage. The
-large crates that look like a second checker were checked and kept:
+implementation of a judgment the specification assigns to one stage.
 
-- `optimize_abstract_operations` in
-  `01_abstract-operations-to-abstract-operations` is called from
-  `native-compiler/src/pipeline.rs` and runs the Psi optimization catalog on
-  abstract operations. That is the surviving executor of those passes after
-  Psi 07 was deleted, not a second copy of it.
-- `proof/admission` re-decides certificates, which
-  [verification placement](omega-rust/pipeline.md#verification-placement)
-  requires. `proof/src/lib.rs` is a syntax surface and says so.
 - No `Cargo.toml` still depends on `checked-trees`, `validation`,
   `typed-trees-to-checked-trees`, `lowered-psi`, or `representation-planning`
   (`rg` over `Cargo.toml`).
+- `proof/admission` re-decides certificates, which
+  [verification placement](omega-rust/pipeline.md#verification-placement)
+  requires. `proof/src/lib.rs` is a syntax surface and says so.
 - Explicit refusals in `psi-compiler` and `lowered-discharge` are the end
   state #2823 left. They are not shims that still succeed.
+
+| Pattern from section 1 | Findings |
+| --- | --- |
+| Parallel representation for the verdict | OC-1, FD-1 |
+| Sidecar that is not an `X-to-Y` stage | TL-1, TL-2, OC-2, DOCS-1 |
+| Connection points | TL-3, dropped: the firewall strings are the guard, not a second implementation |
+| Second lowering, or a phase running on the wrong representation | PL-1, PL-2 |
 
 The register is
 `wiki/drafts/audits/spec_to_code_audit_2026-11-13.tsv`. Line estimates use
 `wc -l` or a counted span, and the command is named on each finding.
 
+### PL-1. The Psi optimization phase has no stage before publication
+
+Pattern: a phase running on the wrong representation. Category: spec
+question. Confidence: high on the call sites, medium on what a repair
+should do. Owner: Psi publication and the abstract-operations stage.
+Estimated deletion: 0. The passes may be the implementation the missing
+stage needs.
+
+[Optimization ordering](wiki/spec/terminal-psi/product.md#optimization-ordering)
+says the order is lowering, selected Psi optimization, then Terminal
+publication. [Phase boundaries](wiki/spec/build/optimizations.md#phase-and-product-boundaries)
+say Terminal Psi is the immutable output of Psi optimization, and that a
+receiving native lowerer does not rerun Psi passes.
+
+Three call sites do something else:
+
+- `ProductTerminalPublication::accepted` in
+  `omega-rust/omega/compilation/products/src/terminal_publication.rs`
+  returns an error when `project_psi()` is nonempty: "no product route yet:
+  selected Psi optimizations have no accepted evidence transport".
+- `PostTerminalOptimizationSelections::new` in
+  `omega-rust/omega/foundation/optimization-core/src/optimization_core/post_terminal.rs`
+  rejects any optimization whose phase is not post-terminal, so a Psi-phase
+  selection never enters native lowering. The comment above the type says
+  sealed artifacts have already executed `CheckedTrees` and `Psi`
+  optimizations. The checked-tree half of that sentence describes the
+  deleted representation.
+- `optimize_abstract_operations` in
+  `01_abstract-operations-to-abstract-operations/src/lib.rs` calls
+  `run_psi_pipeline_for_projection` and returns
+  `UnconsumedOptimizationPhase(AbstractOperations)` when that phase's own
+  selection is nonempty. `lower_to_target` in
+  `native-compiler/src/pipeline.rs` passes `selections.project_psi()` of the
+  post-terminal subset, so the production native call carries an empty Psi
+  projection. A nonempty projection is reachable from `run_psi_pipeline`,
+  which is compiled for tests and `test-support`.
+
+The pre-publication Psi stage is missing. An executor for the Psi catalog
+lives in the abstract-operations stage and, on the production native path,
+runs as the empty identity. This is the smaller form of Psi 05 containing
+`execution*.rs` and Psi 07 optimizing a different representation than the
+one the spec names. It is not a second copy of a live Psi stage, because
+that stage is not there.
+
+Follow-up: decide where a nonempty Psi selection executes, on Terminal Psi
+before publication, or stay refused. Do not delete `run_psi_pipeline_for_projection`
+until that decision has a stage to put the passes in.
+
+### PL-2. The target-operations phase is refused by the stage named for it
+
+Pattern: a phase whose stage does not run it. Category: spec question.
+Confidence: high. Owner: `02_abstract-operations-to-target-operations`.
+Estimated deletion: 0.
+
+`lower_optimized_to_target_operations` in
+`02_abstract-operations-to-target-operations/src/lib.rs` returns
+`UnconsumedOptimizationPhase(TargetOperations)` when
+`optimized.selections().for_phase(TargetOperations)` is nonempty. The same
+shape is the `AbstractOperations` refusal inside
+`optimize_abstract_operations` (PL-1). [Exact selection](wiki/spec/build/optimizations.md#exact-selection)
+gives each phase one owner that executes its projection. These stages
+implement the nonempty selection as an error.
+
+The refusal is fail-closed, which is the right response to a phase the
+pipeline does not run. The finding is that the vocabulary still names the
+phase. Deleting the refusal would make a nonempty selection fall through.
+The question is whether `TargetOperations` and `AbstractOperations` remain
+selectable phases.
+
 ### TL-1. `stage-coverage` still measures the deleted checker
+
+Pattern: sidecar names. A tool walks stages that are not in the pipeline.
 
 Category: likely unnecessary. Confidence: high. Owner: tools.
 Authored lines: 495 in `tools/xtask/src/stage_coverage.rs` (`wc -l`), plus
@@ -349,6 +497,8 @@ on purpose.
 
 ### TL-2. The interior-state lint still names two missing roots
 
+Pattern: sidecar names.
+
 Category: likely unnecessary. Confidence: medium. Owner: tools.
 Authored lines: the two dead path strings in `CHECKING_STATE_ROOTS`
 (`tools/xtask/src/rules.rs`, lines 134–138). The function stays.
@@ -368,7 +518,10 @@ hold. Validation: `mbx xtask check-rules --base origin/main --title "tools: drop
 
 ### TL-3. Forbidden-edge strings still name the deleted crates
 
-Category: likely unnecessary, then dropped in section 3. Confidence before
+Pattern: connection points. These strings are the guard against recreating
+the dependency, so the review drops the finding.
+
+Category: likely unnecessary, then dropped in section 4. Confidence before
 review: low. Owner: tools.
 
 `tools/xtask/src/boundary.rs` puts
@@ -384,6 +537,9 @@ Section 3 drops the deletion: the strings are the guard that fires if the
 paths come back.
 
 ### OC-1. Checked-tree pruning is still a named optimization, and its only helper has no caller
+
+Pattern: parallel representation. The phase belongs to `checked-trees`,
+which has no crate.
 
 Category: spec question. Confidence: medium. Owner: Omega coordination.
 Authored lines of the dead helper: 10 (`evaluated_build.rs` lines 161–170).
@@ -412,6 +568,8 @@ Do not land that deletion in the same change as a codec edit.
 
 ### OC-2. Two timing labels for Psi 05 have no reader
 
+Pattern: sidecar names. The labels are a stage id for a stage that is gone.
+
 Category: likely unnecessary. Confidence: high. Owner: Omega foundation
 (`artifacts`). Authored lines: 4, the two unused constants.
 
@@ -429,6 +587,9 @@ Validation: `mbx test -p artifacts --lib` and
 `mbx clippy -p artifacts --all-targets -- -D warnings`.
 
 ### FD-1. The checked-tree measurement identity is still a current schema
+
+Pattern: parallel representation. Schema 7 still has an identity for the
+deleted program form.
 
 Category: spec question. Confidence: medium. Owner: Psi foundation.
 Authored lines are not estimated as a deletion. The codec arm has to stay
@@ -469,6 +630,8 @@ on both packages. The package names should be confirmed from their
 
 ### DOCS-1. Owner comments still point at deleted stages
 
+Pattern: sidecar names and connection-point comments.
+
 Category: likely unnecessary. Confidence: high that the text is stale, low
 that deleting it changes behavior. Owner: whichever crate the comment sits in.
 `rg -c` over `*.rs` and `*.toml`, excluding `wiki/`, `samples/`, and
@@ -481,12 +644,16 @@ same stale links includes `omega-rust/psi/compilation/README.md`,
 `omega-rust/optimization.md`, `compiler/README.md`,
 `representations/README.md`, `trust-model/README.md`,
 `build-settings/README.md`, and
-`language-core/{atomic_operations,inline_assembly}.md`.
+`language-core/{atomic_operations,inline_assembly}.md`. Two stage READMEs
+disagree with the call chain in section 2: `04_typed-trees-to-typed-trees`
+says the passes are "input the checker reads," and `structure-elaboration`
+and `lowered-discharge` say they are not wired into the default compile,
+while `RouteScope::judge` calls both.
 
 Simplification: correct the sentences while touching the file for another
 reason. No standalone documentation pull request.
 
-## 3. Independent review
+## 4. Independent review
 
 This pass re-read the callers of each finding above and tried to break the
 simplification. It did not re-open the directory census.
@@ -499,19 +666,22 @@ simplification. It did not re-open the directory census.
 | OC-1 | Stands as a spec question. The 10-line helper has no caller and can go. The tag-22 variant and the specification sentence cannot go in that same change: `OMGOPT` version 15 and `validate_optimization_rollback` still treat the phase as nameable. |
 | OC-2 | Stands for the two unread constants. `BUILD_AND_CHECKED_CONTINUATION` is passed from two live call sites, so the follow-up renames its text and does not delete the constant. |
 | FD-1 | Stands as a spec question. Tag 0 may already be stored in build records; this pass did not prove that no record uses it. The sponsor charge methods that refuse a `TerminalPsi` account are the fence `accounts.rs` tests. Do not delete that fence. |
-| DOCS-1 | Stands, and is not its own change. The comments do not affect compilation. |
+| DOCS-1 | Stands, and is not its own change. The comments do not affect compilation. The stage READMEs that say elaboration and discharge are unwired are stale relative to `RouteScope::judge`. |
+| PL-1 | Stands as a spec question. Publication refuses a nonempty Psi selection, native lowering excludes pre-terminal selections, and the catalog executor sits in the abstract-operations stage. Do not delete the passes to make the map look clean. |
+| PL-2 | Stands as a spec question. The `TargetOperations` and `AbstractOperations` refusals are fail-closed. The question is whether those phases stay selectable. |
 
 No finding was upgraded to confirmed duplication. Similar names
 (`CheckedCompilation`, `compiler/src/checked/`, `PsiOptimization`) are the
 current product coordinator and the abstract-operation optimizer, which have
 live callers.
 
-## 4. Ranking and follow-ups
+## 5. Ranking and follow-ups
 
 Rank is maintenance saved, then confidence, then how likely the change is to
 break a real reader. Confirmed duplication: 0. Likely unnecessary: 4
-(TL-1, TL-2, OC-2, DOCS-1). Unresolved spec questions: 2 (OC-1, FD-1).
-Dropped by review: 1 (TL-3).
+(TL-1, TL-2, OC-2, DOCS-1). Unresolved spec questions: 4 (OC-1, FD-1, PL-1,
+PL-2). Dropped by review: 1 (TL-3). PL-1 and PL-2 are placement questions.
+They do not add to the line count below.
 
 | Rank | Id | Why this order |
 | --- | --- | --- |
@@ -521,6 +691,8 @@ Dropped by review: 1 (TL-3).
 | 4 | TL-2 | The lint silently skips two roots on every rules run. The edit is small and the stage 04 scan stays. |
 | 5 | OC-2 | Four lines of unread constants, plus a stale label on a live timer. |
 | 6 | DOCS-1 | Stale sentences. No behavior. |
+| 7 | PL-1 | The Psi phase is missing before publication, and its catalog runs in the abstract-operations stage. A repair chooses a stage; it does not delete the passes. |
+| 8 | PL-2 | `TargetOperations` and `AbstractOperations` are selectable and then refused. Keep the refusal until the phase list changes. |
 
 Authored Rust that these follow-ups can remove, from the commands above:
 495 (`stage_coverage.rs`) plus the four `main.rs` lines, about 10 for
@@ -580,6 +752,10 @@ The helper deletion, if it lands alone:
   report zeros, and this pass did not build the instrumented compiler.
 - `mbx test` and clippy for the packages above. The audit is read-only and
   did not compile.
+- Which CLI entry points reach `RouteScope::judge`. The function calls
+  elaboration and discharge. This pass did not walk every command flag to
+  that function, so the stage READMEs' "not wired" claim is contradicted
+  for the product route and unverified for every other route.
 - A line-by-line reading of the largest live crates (`typed-trees` 71,141
   lines, instruction selection 68,336, the resolver 66,064, the interpreter
   56,772, terminal semantics 53,446, proof admission 48,667; all `wc -l` of
