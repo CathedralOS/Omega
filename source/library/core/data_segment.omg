@@ -14,9 +14,10 @@ public data DataSelectors { ds: u16; es: u16; ss: u16; fs: u16; gs: u16; }
 public boundary trait DataSegmentControl {
     machine reload<const Entries: u64>(gdt: &mut [u64; Entries], selector: u16) -> bool
     requires Entries >= 1 && Entries <= 8192
-    reaches MachineControl;
+    reaches MachineControl
+    crashes none;
 
-    machine selectors() -> DataSelectors reaches MachineControl;
+    machine selectors() -> DataSelectors reaches MachineControl crashes none;
 }
 
 // Build selects the implementation. This implementation requires x86-64.

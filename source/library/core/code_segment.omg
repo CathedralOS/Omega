@@ -12,9 +12,10 @@
 public boundary trait CodeSegmentControl {
     machine reload<const Entries: u64>(gdt: &mut [u64; Entries], selector: u16) -> bool
     requires Entries >= 1 && Entries <= 8192
-    reaches MachineControl;
+    reaches MachineControl
+    crashes none;
 
-    machine selector() -> u16 reaches MachineControl;
+    machine selector() -> u16 reaches MachineControl crashes none;
 }
 
 // Build selects the implementation. This implementation requires x86-64.

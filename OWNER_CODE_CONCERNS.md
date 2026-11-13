@@ -597,9 +597,9 @@ own to defend. Say what you saw, not what you would build.
 - Cost: provider settlement can decide a program's supply and still has nowhere to put the answer; rebuilding the producers field by field would restore the old shape, while the consumers only need the plans, the entry and the calling program of the accepted artifact
 - Reported: 2026-11-13, Claude Code, while rebuilding target preparation and provider settlement on the accepted Terminal module
 
-### Boundary requirements must write `crashes`, and 390 of the library's 401 do not
+### The parser still accepts a boundary requirement with no `crashes` clause
 - Category: a verdict with nothing behind it
-- Where: `source/library/{core,std,blocking-executor}` boundary traits; `01_tokens-to-syntax-trees` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `structure-elaboration/src/read/calls.rs` (`boundary`)
-- Saw: effects.md says a boundary requirement "must likewise write `crashes`" because it has no body to infer from and no selection to defer to. The parser enforces the `reaches` half only, so the library grew 394 requirements with no crash ceiling (core 68, std 316, blocking-executor 10), and the lowered-form checker refuses a call to each one. `Console`'s four were written as `crashes none` on 2026-11-13 because their default provider's public bodies promise that; the rest need the ceiling their providers actually have, which is not a mechanical edit
-- Cost: every program that calls a library service other than `Console`'s write and exit operations is refused as not supported, and nothing tells a library author at the declaration that the clause is missing
-- Reported: 2026-11-13, Claude Code, while taking the Console program through the route probe
+- Where: `01_tokens-to-syntax-trees/src/declarations.rs` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `structure-elaboration/src/read/calls.rs` (`boundary`); `samples/` and `tests/fixtures/`
+- Saw: effects.md says a boundary requirement "must likewise write `crashes`". Only the lowered-form checker enforces it, and only at a call. The bundled library now writes the clause on all 400 of its requirements, but 1,745 requirements in 1,062 files under `samples/` and 70 in 40 files under `tests/fixtures/` do not, so the parser cannot refuse the omission until those are migrated, each to the ceiling its providers really have
+- Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
+- Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings

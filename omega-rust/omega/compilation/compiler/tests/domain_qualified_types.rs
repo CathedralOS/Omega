@@ -48,6 +48,14 @@ data Sealed {
     seal: Seal in Issued;
     count: i32;
 }
+
+data Ticket {
+    number: i32;
+}
+domain Ticket::Stamped established by stamp;
+machine stamp(ticket: Ticket) -> Ticket in Stamped {
+    ticket as +Stamped
+}
 machine main() { }
 ";
 
@@ -65,6 +73,12 @@ machine removed(distance: i32 in Km) -> i32 {
 }
 machine compared(left: i32 in Km, right: i32 in Km) -> bool {
     (left as -Km) > (right as -Km)
+}
+machine added(distance: i32) -> i32 in Km {
+    distance as +Km
+}
+machine landed() -> i32 in Km {
+    5 as +Km
 }
 ";
 
@@ -166,14 +180,36 @@ fn a_builtin_comparison_of_qualified_operands_is_not_accepted() {
     );
 }
 
-/// Whether a machine may add a domain is the next judgment the checker
-/// makes; until it does, every addition is refused by name.
+/// Who may add a domain is on its declaration. Anyone may add `Km`, which
+/// restricts nothing (`added` and `landed` above), and `stamp` is the one
+/// route of `Stamped`: any other machine is outside it.
 #[test]
-fn adding_a_declared_domain_is_refused_by_name() {
+fn adding_a_routed_domain_outside_its_routes_is_refused_by_name() {
     refused_with(
-        "added",
-        "machine wrong(distance: i32) -> i32 in Km {\n    distance as +Km\n}\n",
-        "cast that adds a declared domain",
+        "outside_route",
+        "machine wrong(ticket: Ticket) -> Ticket in Stamped {\n    ticket as +Stamped\n}\n",
+        "cast that adds a domain outside its establishment routes",
+    );
+}
+
+/// A value its route issued travels on, and the domain is not cast off it.
+#[test]
+fn removing_a_routed_domain_is_refused_by_name() {
+    refused_with(
+        "routed_removal",
+        "machine wrong(ticket: Ticket in Stamped) -> Ticket {\n    ticket as -Stamped\n}\n",
+        "removal of a domain with restricted issuance",
+    );
+}
+
+/// Nothing states a domain's predicates as an obligation on a cast's
+/// operand yet, so a program that declares such a domain is not accepted.
+#[test]
+fn a_domain_with_predicates_is_refused_by_name() {
+    refused_with(
+        "predicates",
+        "domain i32::Positive\n    requires self > 0;\nmachine wrong(value: i32) -> i32 in Positive {\n    value as +Positive\n}\n",
+        "domain with predicates",
     );
 }
 
@@ -210,6 +246,12 @@ machine unsealed(sealed: Sealed) -> Seal in Issued {
 machine held(seal: &Seal in Issued) { }
 machine lent(sealed: &Sealed) {
     held(&sealed.seal)
+}
+machine checked(reading: Reading) -> Reading in Checked {
+    reading as +Checked
+}
+machine stamped(ticket: Ticket) -> Ticket in Stamped {
+    stamp(ticket)
 }
 ";
 
@@ -256,12 +298,15 @@ fn removing_a_governed_domain_is_refused_by_name() {
     );
 }
 
+/// A policy names its issuers in its plan, which nothing evaluates, so no
+/// machine is shown to be one. The zeroed plan `SealAccess` returns would
+/// admit nobody in any case.
 #[test]
 fn adding_a_governed_domain_is_refused_by_name() {
     refused_with(
         "governed_added",
         "machine wrong(seal: Seal) -> Seal in Issued {\n    seal as +Issued\n}\n",
-        "cast that adds a declared domain",
+        "cast that adds a domain whose issuers are in an access plan",
     );
 }
 
@@ -343,5 +388,26 @@ fn replacing_a_governed_field_is_refused_by_name() {
 }
 ",
         "replacement of a value governed by an access policy",
+    );
+}
+
+/// `Seal` is not `[copy]`, so the one way to hold a second governed value
+/// would be to take it out of a record that is only lent. Ownership refuses
+/// that: the lender still owns the field.
+#[test]
+fn moving_a_governed_field_out_of_an_exclusive_loan_is_not_accepted() {
+    refused_with(
+        "governed_moved_out",
+        "machine wrong(sealed: &mut Sealed) -> Seal in Issued {\n    sealed.seal\n}\n",
+        "owned extraction from borrowed storage",
+    );
+}
+
+#[test]
+fn rebuilding_a_record_from_a_lent_governed_field_is_not_accepted() {
+    refused_with(
+        "governed_rebuilt",
+        "machine wrong(sealed: &Sealed) -> Sealed {\n    Sealed { seal: sealed.seal, count: 1 }\n}\n",
+        "owned extraction from borrowed storage",
     );
 }

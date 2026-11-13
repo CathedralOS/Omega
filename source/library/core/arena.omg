@@ -20,9 +20,11 @@
 boundary trait Arena {
     machine allocate(size: u64, align: u64) -> Extent
     reaches
-        Arena;
+        Arena
+    crashes Trap crashes Abort;
 
     machine deallocate(extent: Extent)
     reaches
-        Arena;
+        Arena
+    crashes Trap crashes Abort;
 }

@@ -29,7 +29,8 @@ public boundary trait InterruptMaskControl {
     machine save_and_mask() -> InterruptMaskGuard in Active
     reaches MachineControl
     ensures
-        result in InterruptMaskGuard::Active;
+        result in InterruptMaskGuard::Active
+    crashes Trap crashes Abort;
 }
 
 // One stable semantic requirement owns inbound acknowledgement establishment.
@@ -44,19 +45,22 @@ established by InterruptEntry::enter;
 
 public boundary trait InterruptEntry {
     machine enter(acknowledgement: InterruptAcknowledgement in Pending)
-    reaches <= MachineControl + PortIo;
+    reaches <= MachineControl + PortIo
+    crashes Trap;
 }
 
 public boundary trait InterruptMaskRestore {
     machine restore(guard: InterruptMaskGuard)
     reaches MachineControl
     requires
-        guard in InterruptMaskGuard::Active;
+        guard in InterruptMaskGuard::Active
+    crashes Trap crashes Abort;
 }
 
 public boundary trait InterruptAcknowledgementCompletion {
     machine complete(acknowledgement: InterruptAcknowledgement)
     reaches <= MachineControl + PortIo
     requires
-        acknowledgement in InterruptAcknowledgement::Pending;
+        acknowledgement in InterruptAcknowledgement::Pending
+    crashes Trap;
 }

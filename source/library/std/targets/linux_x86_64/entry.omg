@@ -10,7 +10,7 @@ use omega::language::core::ProgramStorageEntry;
 // loader admission, receiver, or numeric stack guarantee. ProviderSelected
 // requires independent backing.
 boundary trait LinuxX86_64PhysicalEntry {
-    machine enter(initial_stack: addr) -> i32 reaches none;
+    machine enter(initial_stack: addr) -> i32 reaches none crashes Trap crashes Abort;
 }
 
 data LinuxX86_64 {}

@@ -20,11 +20,14 @@ boundary trait WindowsGuiIo {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine foreground_window() -> u64
-    reaches WindowManagement;
+    reaches WindowManagement
+    crashes none;
     machine is_window(window: u64) -> i32
-    reaches WindowManagement;
+    reaches WindowManagement
+    crashes none;
     machine destroy_window(window: u64) -> i32
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -32,7 +35,8 @@ boundary trait WindowsGuiIo {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine peek_message(message: &mut WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -40,9 +44,11 @@ boundary trait WindowsGuiIo {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine translate_message(message: &WindowsMessage) -> i32
-    reaches WindowEventDispatch;
+    reaches WindowEventDispatch
+    crashes none;
     machine dispatch_message(message: &WindowsMessage) -> i64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -50,11 +56,14 @@ boundary trait WindowsGuiIo {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine key_state(virtual_key: u32) -> i32
-    reaches GlobalInputObservation;
+    reaches GlobalInputObservation
+    crashes none;
     machine adjust_rectangle(rectangle: &mut WindowsRectangle, style: u32, menu: i32, extended_style: u32) -> i32
-    reaches WindowManagement;
+    reaches WindowManagement
+    crashes none;
 }
 public data WindowsGuiNativeProvider { }
 

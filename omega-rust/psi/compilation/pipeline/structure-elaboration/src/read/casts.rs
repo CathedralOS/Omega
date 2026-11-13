@@ -255,17 +255,54 @@ impl Program<'_> {
     /// Whether the machine being read may write `as +D` for the declared
     /// domain `domain`, by who the declaration says may issue it
     /// (`DomainDefinition::issuance`). This is the one place that judgment
-    /// is made.
+    /// is made. domains.md, "Domain-only casts":
     ///
-    /// Nothing is judged here yet: every addition of a declared domain is
-    /// refused by name. A parameter, a field and a result already carry
-    /// their domains, and a kept or removed domain needs no issuer.
-    fn issue(&mut self, id: MachineId, _domain: symbols::SymbolHandle) -> Checked<()> {
-        Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Expression("cast that adds a declared domain"),
-        ))
+    /// | Domain | Obligation of `+D` |
+    /// | Has predicates | Prove them for this value. |
+    /// | Has neither predicates nor establishment routes | None beyond carrier validity |
+    /// | Has establishment routes | Retain exact existing or authorized evidence; a cast cannot mint it. |
+    ///
+    /// A route names "an exact trait requirement or concrete machine as an
+    /// alternative authorized origin", and "An exact machine is authorized
+    /// during its invocation": the machine whose body holds the cast is one
+    /// of the routes, or the cast is refused. A requirement route
+    /// authorizes "the invocation through that requirement and its selected
+    /// implementation", which this reader does not follow, so it admits no
+    /// machine here. A policy states its issuers in its plan, which no pass
+    /// evaluates (`DomainIssuance::Planned`): nobody is shown to be one.
+    ///
+    /// Authorization proves no predicate ("Policy authorization cannot
+    /// prove those predicates"). Nothing here states a domain's predicates
+    /// as an obligation on the cast's operand yet, so a domain with
+    /// predicates is refused whoever asks.
+    fn issue(&mut self, id: MachineId, domain: symbols::SymbolHandle) -> Checked<()> {
+        use language_semantics::DomainEstablishmentRoute;
+        use typed_trees::domain::DomainIssuance;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        let Some(definition) = self.typed.domain_definition(domain) else {
+            return unserved("cast that adds a domain with no declaration");
+        };
+        match definition.issuance() {
+            DomainIssuance::Unrestricted => {}
+            DomainIssuance::Only(routes) => {
+                let machine =
+                    *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+                let routed = routes.iter().any(|route| {
+                    matches!(route, DomainEstablishmentRoute::ExactMachine { machine: origin }
+                        if *origin == machine)
+                });
+                if !routed {
+                    return unserved("cast that adds a domain outside its establishment routes");
+                }
+            }
+            DomainIssuance::Planned(_) => {
+                return unserved("cast that adds a domain whose issuers are in an access plan");
+            }
+        }
+        if super::authority::has_predicates(definition) {
+            return unserved("cast that adds a domain with predicates");
+        }
+        Ok(())
     }
 }
 

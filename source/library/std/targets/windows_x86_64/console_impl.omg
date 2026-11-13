@@ -21,12 +21,14 @@ use omega::language::core::widen_u8_to_i32;
 // portable `Console` requirements echo in their own ceilings.
 boundary trait WindowsConsoleIo {
     machine write(descriptor: i32, buffer: &mut i32, count: u32) -> i32
-    reaches Console;
+    reaches Console
+    crashes none;
 
     // A console read waits for host input, so the import publishes `blocks`.
     machine read(descriptor: i32, buffer: &mut i32, count: u32) -> i32
     reaches Console
-    blocks;
+    blocks
+    crashes none;
 
     // MSVCRT descriptors open in text mode, which translates CR LF pairs to a
     // single LF on reads, maps LF to CR LF on writes, and ends input at Ctrl+Z.
@@ -36,7 +38,8 @@ boundary trait WindowsConsoleIo {
     // guarantee local to this provider with no separate descriptor-init hook.
     //   `int _setmode(int fd, int mode)`
     machine set_mode(descriptor: i32, mode: i32) -> i32
-    reaches Console;
+    reaches Console
+    crashes none;
 }
 
 // Descriptor 0 is stdin. One byte is a Byte, zero bytes is end of input, and

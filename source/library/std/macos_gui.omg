@@ -43,7 +43,8 @@ public boundary trait AppKit {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
 }
 
 // The Objective-C runtime seam (libobjc). Human method names stay here;
@@ -58,11 +59,13 @@ public boundary trait ObjectiveC {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine register_selector<const Count: u64>(name: &[u8; Count]) -> u64
     requires Count > 0
     requires name[Count - 1] == 0
-    reaches none;
+    reaches none
+    crashes none;
     machine send(recv: u64, sel: u64) -> u64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -70,7 +73,8 @@ public boundary trait ObjectiveC {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -78,7 +82,8 @@ public boundary trait ObjectiveC {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine send_delayed(recv: u64, sel: u64, action: u64, object: u64, delay: f64)
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -86,7 +91,8 @@ public boundary trait ObjectiveC {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -94,7 +100,8 @@ public boundary trait ObjectiveC {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -102,7 +109,8 @@ public boundary trait ObjectiveC {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine send_string<const Count: u64>(recv: u64, sel: u64, text: &[u8; Count]) -> u64
     requires Count > 0
     requires text[Count - 1] == 0
@@ -112,7 +120,8 @@ public boundary trait ObjectiveC {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     // RUNTIME byte-buffer string arg (`initWithUTF8String:` over the samples'
     // title bytes). The complete borrowed extent includes its terminating NUL. Earlier NULs
     // remain legal: the foreign call observes the prefix before the first one.
@@ -125,7 +134,8 @@ public boundary trait ObjectiveC {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -133,12 +143,13 @@ public boundary trait ObjectiveC {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
     // Autorelease-pool scope (objc_autoreleasePoolPush/Pop). The event pump runs
     // outside any Cocoa-managed pool, so dequeued autoreleased NSEvents would
     // leak every frame without one. `pool_pop` is a void C call; the u64 result
     // is scratch.
-    machine pool_push() -> u64 reaches none;
+    machine pool_push() -> u64 reaches none crashes none;
     machine pool_pop(pool: u64) -> u64
     reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
@@ -146,17 +157,19 @@ public boundary trait ObjectiveC {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    crashes none;
 }
 
 // The Core Graphics seam (CoreGraphics framework) for the framebuffer blit.
 public boundary trait CoreGraphics {
-    machine color_space_rgb() -> u64 reaches none;
-    machine color_space_release(space: u64) reaches none;
+    machine color_space_rgb() -> u64 reaches none crashes none;
+    machine color_space_release(space: u64) reaches none crashes none;
     // `CGEventSourceKeyState(state_id, keycode) -> bool` — is a physical key down?
     // The macOS backing for `Input.key_state` (see macos_key_state below).
     machine event_source_key_state(state_id: u64, keycode: u64) -> u64
-    reaches GlobalInputObservation;
+    reaches GlobalInputObservation
+    crashes none;
 }
 
 // Affine owned handle set. Close consumes it; loans do not transfer ownership.
@@ -571,11 +584,12 @@ invokes CoreGraphics
 }
 
 public boundary trait DarwinClock {
-    machine clock_ns(clock_id: u32) -> u64 reaches ClockObservation;
-    machine mach_absolute_time() -> u64 reaches ClockObservation;
+    machine clock_ns(clock_id: u32) -> u64 reaches ClockObservation crashes none;
+    machine mach_absolute_time() -> u64 reaches ClockObservation crashes none;
     machine poll(fds: u64, nfds: u64, timeout_ms: i32) -> i32
     reaches ExecutionDelay
-    requires fds == 0 && nfds == 0;
+    requires fds == 0 && nfds == 0
+    crashes none;
 }
 
 // Millisecond pacing through poll(NULL, 0, timeout). The conversion retains
