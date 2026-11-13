@@ -470,9 +470,14 @@ fn native_locator(
             "native locator source type correspondence is ambiguous",
         ));
     }
+    let application = record.application.as_ref().ok_or_else(|| {
+        refused(
+            "native locator needs its concrete source type application to establish byte widths",
+        )
+    })?;
     let widths = typed_trees::native_locators::application_widths(
         source.source().as_ref(),
-        record.application.reference,
+        application.reference,
     )
     .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?;
     let shape = collect_shape(

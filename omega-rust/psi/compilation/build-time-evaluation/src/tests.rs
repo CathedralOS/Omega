@@ -202,7 +202,8 @@ fn callable_signatures_do_not_hide_pending_extent_work() {
     let before = typed.clone();
     let errors = pending
         .project(&typed, &typed)
-        .expect_err("unrecorded nested array-length work cannot leave the frontier");
+        .err()
+        .expect("unrecorded nested array-length work cannot leave the frontier");
     assert!(
         errors
             .iter()

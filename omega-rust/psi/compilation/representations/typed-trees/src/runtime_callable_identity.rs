@@ -1599,14 +1599,17 @@ mod tests {
             )
             .handles()
             .collect::<Vec<_>>();
-        let type_binder = symbols
-            .insert_children(
-                declarations[0],
-                [(SymbolKind::TypeParameter, SymbolNameRef::Static("T"))],
-            )
-            .handles()
-            .next()
-            .unwrap();
+        // A declaration owns one child range, including both its type
+        // binder and value parameters.
+        let base_children = symbols.insert_children(
+            declarations[0],
+            [
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("left")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("right")),
+            ],
+        );
+        let type_binder = base_children.handle_at(0);
         let witness_parameter = symbols
             .insert_children(
                 declarations[2],
@@ -1615,13 +1618,8 @@ mod tests {
             .handles()
             .next()
             .unwrap();
-        let mut parameters = Vec::new();
-        for owner in [
-            declarations[0],
-            declarations[1],
-            declarations[4],
-            declarations[5],
-        ] {
+        let mut parameters = vec![vec![base_children.handle_at(1), base_children.handle_at(2)]];
+        for owner in [declarations[1], declarations[4], declarations[5]] {
             parameters.push(
                 symbols
                     .insert_children(

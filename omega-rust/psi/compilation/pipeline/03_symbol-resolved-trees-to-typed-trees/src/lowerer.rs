@@ -1787,7 +1787,6 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
-    bind_dynamic_call_targets(&mut lowerer.typed_trees)?;
     callable_admission.extend(crate::runtime_callables::bind_calls(
         &mut lowerer.typed_trees,
         bound_expressions,

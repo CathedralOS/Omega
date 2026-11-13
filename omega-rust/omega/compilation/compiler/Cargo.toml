@@ -155,6 +155,11 @@ path = "tests/route_probe.rs"
 name = "lowered_route_subjects"
 path = "tests/lowered_route_subjects.rs"
 
+# A selected callable proves its public precondition for the actual input.
+[[test]]
+name = "runtime_callable_precondition"
+path = "tests/runtime_callable_precondition.rs"
+
 # The default compile reports the lowered route's verdict where the owner's
 # split gives it, and the current checker's everywhere else.
 [[test]]

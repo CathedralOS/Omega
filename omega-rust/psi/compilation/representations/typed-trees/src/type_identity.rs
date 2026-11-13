@@ -2709,6 +2709,31 @@ pub(crate) mod identity_context {
     ) -> String {
         match program.expression_table.expression(expression) {
             ExpressionNode::Name(path) => {
+                if context.structural_callable_identity
+                    && (path.reserved_result_of.is_valid()
+                        || program.expression_table.names_reserved_result(expression))
+                {
+                    if !program.expression_table.names_reserved_result(expression)
+                        || !program
+                            .symbols
+                            .symbols()
+                            .nodes()
+                            .is_valid(path.reserved_result_of)
+                    {
+                        return substitution::rejected(context);
+                    }
+                    // A signature's reserved result uses its active frame
+                    // coordinate. Authenticate its owner and shape before
+                    // alpha-normalizing that declaration-owned binder.
+                    let Some(depth) = context
+                        .active_callable_signatures
+                        .iter()
+                        .rposition(|signature| signature.symbol == path.reserved_result_of)
+                    else {
+                        return substitution::rejected(context);
+                    };
+                    return atom(IndexForm::ConstName, &format!("$C{depth}R"));
+                }
                 if path.static_application.is_valid() {
                     return match program
                         .expression_table
@@ -5467,6 +5492,63 @@ pub(crate) mod package_policy_reading_tests {
         }
         assert_eq!(read(&callable).0, Ok(()), "{callable}");
         assert_eq!(read(&selection).0, Ok(()), "{selection}");
+
+        let callback = fixture.symbol("Callback");
+        let callable_type = fixture.callable();
+        let result = fixture
+            .program
+            .expression_table
+            .expression_entries()
+            .find_map(|(expression, node)| match node {
+                crate::expression::ExpressionNode::Name(path)
+                    if path.reserved_result_of == callback =>
+                {
+                    Some(expression)
+                }
+                _ => None,
+            })
+            .expect("the callback retains its exact result occurrence");
+        let foreign_owner = fixture.symbol("Selected");
+        for owner in [foreign_owner, symbols::SymbolHandle::invalid()] {
+            let crate::expression::ExpressionNode::Name(path) =
+                fixture.program.expression_table.expression_mut(result)
+            else {
+                panic!("the result occurrence changed kind");
+            };
+            path.reserved_result_of = owner;
+            assert!(
+                fixture
+                    .program
+                    .runtime_callable_type_identity(super::TypeIdentityRequest::package_qualified(
+                        callable_type
+                    ))
+                    .is_err(),
+                "a valid foreign declaration or missing owner must not bind result"
+            );
+        }
+        let crate::expression::ExpressionNode::Name(path) =
+            fixture.program.expression_table.expression_mut(result)
+        else {
+            panic!("the result occurrence changed kind");
+        };
+        path.reserved_result_of = callback;
+        path.head_symbol = callback;
+        assert!(
+            fixture
+                .program
+                .runtime_callable_type_identity(super::TypeIdentityRequest::package_qualified(
+                    callable_type
+                ))
+                .is_err(),
+            "an owner marker cannot turn an ordinary resolved name into result"
+        );
+        let crate::expression::ExpressionNode::Name(path) =
+            fixture.program.expression_table.expression_mut(result)
+        else {
+            panic!("the result occurrence changed kind");
+        };
+        path.head_symbol = symbols::SymbolHandle::invalid();
+        assert_eq!(fixture.render(callable_type, &[], &[]), callable);
     }
 
     #[test]
