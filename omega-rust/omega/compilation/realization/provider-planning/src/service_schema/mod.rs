@@ -31,33 +31,6 @@ pub(crate) fn attach_calling(
     )
 }
 
-/*
-    Attach calling plans to the surface of a native Build plan bound at one
-    closed application of a generic boundary. That surface was found by the
-    application's portable identity, not through an implementation, so it has
-    no argument handles or owning declaration to compare; the plans evaluated
-    for that application are the ones whose owner application is that same
-    identity.
-*/
-pub(crate) fn attach_native_application_calling(
-    prepared: &PreparedServiceSurface<'_>,
-    application: &str,
-    calling_plans: &[BoundaryCallingPlanRealization],
-) -> ServiceSchema {
-    attach_requirement_calling(
-        prepared.declaration.clone(),
-        prepared.schema,
-        prepared.argument_owner,
-        prepared
-            .requirements
-            .iter()
-            .map(|requirement| requirement.source.symbol),
-        prepared.boundary_arguments,
-        Some(application),
-        calling_plans,
-    )
-}
-
 fn attach_requirement_calling(
     declaration: std::sync::Arc<language_semantics::service_surface::ServiceSurface>,
     source: ProviderSchemaDeclaration,

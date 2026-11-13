@@ -109,18 +109,6 @@ impl EvaluatedViaBindingTable {
     pub const fn identities(&self) -> &terminal_psi::TerminalIdentityTable {
         &self.identities
     }
-    pub(crate) fn retain_extended_identities(
-        &mut self,
-        identities: terminal_psi::TerminalIdentityTable,
-    ) -> Result<(), Vec<Diagnostic>> {
-        if !identities.entries().starts_with(self.identities.entries()) {
-            return Err(vec![Diagnostic::error(
-                "native Build producer identity extension changed retained evaluation coordinates",
-            )]);
-        }
-        self.identities = identities;
-        Ok(())
-    }
     pub const fn target(&self) -> Option<TargetProfile> {
         self.target
     }

@@ -176,33 +176,6 @@ impl BoundaryCallingPlanRealization {
     }
 }
 
-pub(crate) fn validate_retained_callback_binders(
-    realization: &BoundaryCallingPlanRealization,
-) -> Result<(), String> {
-    for (index, binder) in realization.callback_binders.iter().enumerate() {
-        if !binder.parameter_symbol.is_valid()
-            || !binder.requirement_trait.is_valid()
-            || !binder.requirement_machine.is_valid()
-        {
-            return Err(
-                "evaluated registrar plan retained an invalid nominal callback binder symbol"
-                    .to_owned(),
-            );
-        }
-        if realization.callback_binders[..index].iter().any(|prior| {
-            prior.binder == binder.binder
-                || prior.static_machine_ordinal == binder.static_machine_ordinal
-                || prior.parameter_symbol == binder.parameter_symbol
-        }) {
-            return Err(
-                "evaluated registrar plan retained a duplicate nominal callback binder identity"
-                    .to_owned(),
-            );
-        }
-    }
-    Ok(())
-}
-
 pub(crate) fn validate_callback_requirement_report_collision(
     exact_catalog: &[(CallbackRequirementId, String)],
     report: CallbackRequirementId,

@@ -43,7 +43,7 @@ impl PartialEq for CallingProgram {
 impl Eq for CallingProgram {}
 
 impl CallingProgram {
-    pub(crate) fn evaluate(
+    pub fn evaluate(
         &self,
         policy: &terminal_psi::CallingPolicyInstance,
         target: target::TargetProfile,
@@ -163,7 +163,7 @@ impl CallingProgram {
         })
     }
 
-    pub(crate) fn describe_borrowed_storage<Output>(
+    pub fn describe_borrowed_storage<Output>(
         &self,
         declaration: &semantic_vocabulary::CallingAbiIdentity,
         target: target::TargetProfile,

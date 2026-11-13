@@ -1,24 +1,12 @@
-/*
-We compute per-target boundary calling plans (`PreparedBoundaryCallingPlans`)
-and default calling applications (`evaluate_default_calling_applications`) from
-owned original correspondence and canonical Terminal storage.
+// Materialize default ABI applications from canonical Terminal declarations
+// and validate their actual physical plans. Source calling-request preparation
+// is unavailable; it cannot be replaced by an empty request roster.
 
-Target choice and helper selection need no Source owner, catalog, or signature
-traversal. Each policy activation runs in its own sponsor and invocation account
-over immutable code in parallel across worker threads, with results consumed in
-deterministic request order so the first refusal in request order is always the
-one reported. Both authored and default policies publish the complete source-free
-C shape together with its validated plan so opaque representation graphs survive
-into runtime host admission.
-*/
-
+use crate::calling_policy_plans::MaterializedBoundarySignature;
 use crate::calling_policy_plans::boundary_signatures::BoundaryOpaqueMovementGeometry;
-use crate::calling_policy_plans::callback_bindings::validate_retained_callback_binders;
-use crate::calling_policy_plans::{BoundaryCallingPlanRealization, MaterializedBoundarySignature};
 use calling_conventions::ValidatedBoundaryEntryPlan;
 use calling_conventions::callback_nominal_report_fingerprint;
 use calling_conventions::{CallingPolicy, evaluate_ordinary_boundary_entry_plan};
-use diagnostics::Diagnostic;
 
 pub(crate) fn evaluate_default_calling_applications(
     program: &super::CallingProgram,
@@ -139,58 +127,4 @@ fn publish_materialized_application(
         &[&application.commitment],
     );
     Ok(application)
-}
-
-fn activate_in_parallel<Item: Sync, Output: Send>(
-    items: &[Item],
-    activate: impl Fn(&Item) -> Output + Sync,
-) -> Vec<Output> {
-    let workers = std::thread::available_parallelism()
-        .map_or(1, std::num::NonZeroUsize::get)
-        .min(items.len());
-    if workers <= 1 {
-        return items.iter().map(&activate).collect();
-    }
-    let activate = &activate;
-    let mut slots: Vec<Option<Output>> =
-        std::iter::repeat_with(|| None).take(items.len()).collect();
-    std::thread::scope(|scope| {
-        let handles: Vec<_> = (1..workers)
-            .map(|worker| {
-                std::thread::Builder::new()
-                    .name(format!("omega-calling-{worker}"))
-                    .spawn_scoped(scope, move || {
-                        (worker..items.len())
-                            .step_by(workers)
-                            .map(|index| (index, activate(&items[index])))
-                            .collect::<Vec<_>>()
-                    })
-                    .map_err(|_| worker)
-            })
-            .collect();
-        for index in (0..items.len()).step_by(workers) {
-            slots[index] = Some(activate(&items[index]));
-        }
-        for handle in handles {
-            match handle {
-                Ok(handle) => {
-                    for (index, output) in handle
-                        .join()
-                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-                    {
-                        slots[index] = Some(output);
-                    }
-                }
-                Err(worker) => {
-                    for index in (worker..items.len()).step_by(workers) {
-                        slots[index] = Some(activate(&items[index]));
-                    }
-                }
-            }
-        }
-    });
-    slots
-        .into_iter()
-        .map(|slot| slot.expect("every policy slot is filled"))
-        .collect()
 }
