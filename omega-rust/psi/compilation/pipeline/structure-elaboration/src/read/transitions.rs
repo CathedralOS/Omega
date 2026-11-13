@@ -54,9 +54,18 @@ impl Program<'_> {
             // the copy must read to the same computation.
             (TransitionGuardNode::When(guard), [pattern]) => {
                 let condition = self.value_pattern(id, pattern)?;
-                let read_guard = self.expression(id, slots, guard, Some(ScalarType::Boolean))?;
-                let read_condition =
-                    self.expression(id, slots, condition, Some(ScalarType::Boolean))?;
+                let read_guard = self.expression(
+                    id,
+                    slots,
+                    guard,
+                    Some(ValueType::Scalar(ScalarType::Boolean)),
+                )?;
+                let read_condition = self.expression(
+                    id,
+                    slots,
+                    condition,
+                    Some(ValueType::Scalar(ScalarType::Boolean)),
+                )?;
                 if !same_computation(&read_guard, &read_condition) {
                     return Err(refuse(
                         id,
@@ -77,7 +86,12 @@ impl Program<'_> {
         let guard = match condition {
             None => None,
             Some(guard) => {
-                let guard = self.expression(id, slots, guard, Some(ScalarType::Boolean))?;
+                let guard = self.expression(
+                    id,
+                    slots,
+                    guard,
+                    Some(ValueType::Scalar(ScalarType::Boolean)),
+                )?;
                 if guard.result != Some(ValueType::Scalar(ScalarType::Boolean)) {
                     return Err(refuse(
                         id,
@@ -168,12 +182,17 @@ impl Program<'_> {
                     // The arm's test is stored twice, as the transition
                     // guard and as the pattern's condition `test && true`.
                     // Both must read to this arm's own case test.
-                    let guard = self.expression(id, slots, guard, Some(ScalarType::Boolean))?;
+                    let guard = self.expression(
+                        id,
+                        slots,
+                        guard,
+                        Some(ValueType::Scalar(ScalarType::Boolean)),
+                    )?;
                     let condition = self.expression(
                         id,
                         slots,
                         pattern.pattern.condition,
-                        Some(ScalarType::Boolean),
+                        Some(ValueType::Scalar(ScalarType::Boolean)),
                     )?;
                     if !same_computation(&guard, &case_test_of(&read, case))
                         || !same_computation(&condition, &case_condition(&read, case))
@@ -286,7 +305,7 @@ impl Program<'_> {
                 return Ok(Target::Unit);
             }
             TransitionTargetNode::Value(expression) => {
-                self.expression(id, slots, *expression, result.and_then(ValueType::scalar))?
+                self.expression(id, slots, *expression, result)?
             }
             TransitionTargetNode::Named {
                 operational_acknowledgement,

@@ -20,7 +20,7 @@ use semantic_vocabulary::{
     InvocationSite, MachineId, ObligationId, OperationId, PlaceId, ScalarTerm, ValueId,
 };
 use terminal_check_tables::edges::{Actual, Callee, InvocationRow};
-use terminal_check_tables::obligations::{CrashSite, Lender, ObligationKind};
+use terminal_check_tables::obligations::{CrashSite, ExecutionSite, Lender, ObligationKind};
 use terminal_check_tables::{
     Checked, Construct, ExactPlaceId, ProgramPoint, Refusal, RefusalReason,
 };
@@ -40,7 +40,7 @@ struct Arguments {
     scalars: Vec<ValueId>,
     /// The structural lane in formal order: each record argument's root,
     /// whole and owned, and each loan's place with the loan's access.
-    structural: Vec<StructuralArgument>,
+    structural: Vec<(PlaceId, Vec<super::places::Step>, StructuralAccess)>,
     /// The roots the call consumes, the record arguments' own: their homes
     /// are retired after it.
     consumed: Vec<PlaceId>,
@@ -85,7 +85,7 @@ impl Lowering<'_> {
                 if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
                     return Err(self.internal("a loan for a formal that is not borrowed alike"));
                 }
-                let (lent, exact, lender) = self.lend(place, *access, home.is_some())?;
+                let (lent, exact, lender) = self.lend(place, *access, home.as_deref())?;
                 evaluated.actuals.push(Actual::Place(exact));
                 evaluated.structural.push(lent);
                 evaluated.loans.push((exact, *access, lender));
@@ -99,7 +99,7 @@ impl Lowering<'_> {
                         .push(Actual::Place(self.exact_root(root)?));
                     evaluated
                         .structural
-                        .push(StructuralArgument::whole(root, StructuralAccess::Owned));
+                        .push((root, Vec::new(), StructuralAccess::Owned));
                     evaluated.consumed.push(root);
                 }
                 Some(ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_))
@@ -111,6 +111,24 @@ impl Lowering<'_> {
             }
         }
         Ok(evaluated)
+    }
+
+    fn structural_arguments(
+        &mut self,
+        captured: Vec<(PlaceId, Vec<super::places::Step>, StructuralAccess)>,
+        site: ExecutionSite,
+        source: SourceOrigin,
+    ) -> Checked<Vec<StructuralArgument>> {
+        captured
+            .into_iter()
+            .map(|(place, steps, access)| {
+                Ok(StructuralArgument {
+                    place,
+                    path: self.storage_path(&steps, site, source)?,
+                    access,
+                })
+            })
+            .collect()
     }
 
     /// Mints one `Loan` per loan of a call, at the point before it, in
@@ -170,9 +188,12 @@ impl Lowering<'_> {
                 Ok(Some((*callee, arguments)))
             }
             ExpressionKind::Call { .. }
+            | ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_)
+            | ExpressionKind::Array { .. }
+            | ExpressionKind::Index { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Case { .. }
             | ExpressionKind::Payload { .. }
@@ -235,11 +256,13 @@ impl Lowering<'_> {
                 source,
             );
         }
+        let structural_arguments =
+            self.structural_arguments(arguments.structural, ExecutionSite::Block(site), source)?;
         self.terminate(Terminator::InvokeNoNormal {
             edge,
             static_reach_binding: None,
             callee,
-            structural_arguments: arguments.structural,
+            structural_arguments,
             arguments: arguments.scalars,
             erased_arguments: arguments.erased,
             erased_proof_arguments: Vec::new(),
@@ -342,7 +365,11 @@ impl Lowering<'_> {
                 source,
             );
         }
-        let structural_arguments = arguments.structural;
+        let structural_arguments = self.structural_arguments(
+            arguments.structural,
+            ExecutionSite::Operation(operation),
+            source,
+        )?;
         let erased_arguments = arguments.erased;
         let scalars = arguments.scalars;
         // Terminal Psi has one call operation per result lane, and the

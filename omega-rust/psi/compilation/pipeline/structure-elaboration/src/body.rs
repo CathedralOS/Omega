@@ -107,19 +107,14 @@ impl ValueType {
 /// them (`check_on_lowered_form.md`, "Identity of a type on the lowered
 /// form").
 ///
-/// A sum is the same row with `cases` instead of `fields`
-/// (`wiki/spec/language/data_and_literals.md`: a sum holds "cases, one of
-/// which is active with its payload"). A type with both, common fields
-/// beside cases, is refused by the reader.
+/// The shape is explicit so an array cannot become a record with numbered
+/// fields. The row lowers into the corresponding existing Terminal storage
+/// shape; its identity remains the type the reader actually resolved.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordType {
     pub copyable: bool,
     pub identity: String,
-    pub fields: Vec<RecordField>,
-    /// The declared cases in declaration order; empty for a record. A case
-    /// is named by its position here and by its `StructuralCaseId`, fixed
-    /// once by the reader from the case's symbol.
-    pub cases: Vec<CaseType>,
+    pub shape: StorageShape,
     /// The clauses of the declaration's `requires`, in authored order: the
     /// type's default domain (`wiki/spec/language/dependent_values.md`: "A
     /// data declaration's field qualifications and `requires` clauses define
@@ -133,6 +128,36 @@ pub struct RecordType {
     /// whether the place is that case, before it states a goal
     /// (`lowered-discharge`).
     pub requires: Vec<Proposition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StorageShape {
+    Record(Vec<RecordField>),
+    Sum(Vec<CaseType>),
+    FixedArray {
+        element: StructuralTypeId,
+        length: terminal_psi::ArrayExtent,
+    },
+    PrimitiveScalar {
+        scalar_type: ScalarType,
+        policy: Option<Policy>,
+    },
+}
+
+impl RecordType {
+    pub fn fields(&self) -> &[RecordField] {
+        match &self.shape {
+            StorageShape::Record(fields) => fields,
+            _ => &[],
+        }
+    }
+
+    pub fn cases(&self) -> &[CaseType] {
+        match &self.shape {
+            StorageShape::Sum(cases) => cases,
+            _ => &[],
+        }
+    }
 }
 
 /// The root that stands for `self` in a data type's `requires` clauses
@@ -403,16 +428,14 @@ pub enum Statement {
         home: Option<String>,
         source: SourceOrigin,
     },
-    /// `slot.path = value;`: evaluate `value`, then store it into exactly the
-    /// place `path` selects beneath the slot's root, each step a field
-    /// position in the record type the previous step reached. The path is
-    /// empty only for a scalar slot that `Declare` homed.
+    /// Capture the existing destination expression as a place, then evaluate
+    /// `value` and store it there. Field and index expressions retain the
+    /// same meaning as in a read or loan; no second destination path exists.
     /// `wiki/spec/language/state_contracts.md`: "Assignments first capture
     /// their destination place ... They then evaluate the right-hand side".
     /// A destination made of a slot and fields has nothing to evaluate.
     Store {
-        slot: usize,
-        path: Vec<usize>,
+        destination: Expression,
         value: Expression,
         source: SourceOrigin,
     },
@@ -467,8 +490,17 @@ pub struct Expression {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionKind {
+    /// The enclosing match's already captured place, never its selector again.
+    SavedSubject(arena::Handle<typed_trees::expression::CompletedValueCapture>),
     Integer(IntegerValue),
     Boolean(bool),
+    Array {
+        elements: Vec<Expression>,
+    },
+    Index {
+        base: Box<Expression>,
+        index: Box<Expression>,
+    },
     /// A formal or local. A scalar slot is the value it holds, or for a
     /// local declared without an initializer a fresh read of its home; a
     /// record slot is the root place it holds.
@@ -522,6 +554,7 @@ pub enum ExpressionKind {
     /// slot or a path beneath one, so observing it evaluates nothing. Arms
     /// and `default` are as in `Statement::Dispatch`.
     Match {
+        capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
         subject: Box<Expression>,
         arms: Vec<(usize, Expression)>,
         default: Option<Box<Expression>>,

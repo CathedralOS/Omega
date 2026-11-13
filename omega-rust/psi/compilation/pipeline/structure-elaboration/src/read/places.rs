@@ -178,8 +178,11 @@ impl Program<'_> {
         let record: StructuralTypeId = self.records.push(RecordType {
             copyable,
             identity,
-            fields: declared,
-            cases: case_types,
+            shape: if case_types.is_empty() {
+                crate::StorageShape::Record(declared)
+            } else {
+                crate::StorageShape::Sum(case_types)
+            },
             requires: Vec::new(),
         });
         self.record_sources.push(RecordSource {
@@ -409,7 +412,7 @@ impl Program<'_> {
         field: usize,
     ) -> Checked<ValueType> {
         self.data_type(id, record)?
-            .fields
+            .fields()
             .get(field)
             .map(|field| field.value_type)
             .ok_or_else(|| {
@@ -429,7 +432,7 @@ impl Program<'_> {
         field: usize,
     ) -> Checked<ValueType> {
         self.data_type(id, record)?
-            .cases
+            .cases()
             .get(case)
             .and_then(|case| case.fields.get(field))
             .map(|field| field.value_type)
@@ -621,15 +624,15 @@ impl Program<'_> {
         let data = self.data_type(id, record)?;
         let declared: Vec<ValueType> = match case {
             Some(case) => data
-                .cases
+                .cases()
                 .get(case)
                 .ok_or_else(|| typing("case position past the sum's declaration"))?
                 .fields
                 .iter()
                 .map(|field| field.value_type)
                 .collect(),
-            None if data.cases.is_empty() => {
-                data.fields.iter().map(|field| field.value_type).collect()
+            None if data.cases().is_empty() => {
+                data.fields().iter().map(|field| field.value_type).collect()
             }
             None => return Err(typing("literal of a sum without a case")),
         };
@@ -658,7 +661,7 @@ impl Program<'_> {
                 return Err(typing("record literal names a field twice"));
             }
             let field_type = declared[position];
-            let operand = self.expression(id, slots, field.value, field_type.scalar())?;
+            let operand = self.expression(id, slots, field.value, Some(field_type))?;
             if operand.result != Some(field_type) {
                 return Err(typing("record literal field type"));
             }
@@ -687,7 +690,7 @@ impl Program<'_> {
             return None;
         }
         let symbol = match self.typed.expression_table.expression(handle) {
-            ExpressionNode::Name(path) => path.symbol,
+            ExpressionNode::Name(path) => path.resolved_symbol()?,
             ExpressionNode::StructLiteral(literal) => {
                 if !literal.fields.is_empty() {
                     return None;
@@ -1033,8 +1036,7 @@ mod tests {
         let owned = records.push(RecordType {
             copyable: false,
             identity: "Owned".into(),
-            fields: Vec::new(),
-            cases: Vec::new(),
+            shape: crate::StorageShape::Record(Vec::new()),
             requires: Vec::new(),
         });
         assert!(!copy_field_is_unrestricted(

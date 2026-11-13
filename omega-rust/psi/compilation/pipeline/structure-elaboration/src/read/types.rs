@@ -222,13 +222,14 @@ impl Program<'_> {
         let table = &self.typed.expression_table;
         match table.expression(expression) {
             ExpressionNode::Name(path) => {
-                if !path.symbol.is_valid() || table.name_path_members(path.members).len() != 1 {
+                let resolved = path.resolved_symbol()?;
+                if table.name_path_members(path.members).len() != 1 {
                     return None;
                 }
                 self.static_truths
                     .iter()
                     .rev()
-                    .find(|(symbol, _)| *symbol == path.symbol)
+                    .find(|(symbol, _)| *symbol == resolved)
                     .map(|(_, truth)| *truth)
             }
             ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
@@ -292,6 +293,14 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        if handle.is_valid()
+            && let TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } = self.typed.type_reference_table.type_reference(handle)
+        {
+            return self.array_type(id, handle, *element_type, length);
+        }
         // A type parameter in scope is what the scope says it stands for,
         // found by the binder's symbol.
         if handle.is_valid()

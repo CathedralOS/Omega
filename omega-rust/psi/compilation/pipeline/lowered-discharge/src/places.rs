@@ -162,7 +162,8 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
         // One path is a prefix of the other: the same place, or ancestor and
         // descendant.
         None => true,
-        Some((Segment::Field(_), Segment::Field(_))) => false,
+        Some((Segment::Field(_), Segment::Field(_)))
+        | Some((Segment::FixedIndex(_), Segment::FixedIndex(_))) => false,
         Some((
             Segment::Field(_)
             | Segment::Case(_)
@@ -453,6 +454,7 @@ impl<'a> Storage<'a> {
             self.operation(operation, Construct::Operation(operation))?
                 .kind,
             OperationKind::StructuralScalarFieldStore { .. }
+                | OperationKind::WriteOnlyPrimitiveStore { .. }
                 | OperationKind::StoreStructuralField { .. }
         ))
     }
@@ -527,6 +529,17 @@ impl<'a> Storage<'a> {
     ) -> Checked<()> {
         let fields = match &self.declaration(structural_type, concerns)?.shape {
             StructuralTypeShape::PrimitiveScalar(_) => return Ok(()),
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
+                for index in 0..*length {
+                    at.segments.push(Segment::FixedIndex(index));
+                    self.zero_typed(*element, at, found, concerns)?;
+                    at.segments.pop();
+                }
+                return Ok(());
+            }
             StructuralTypeShape::Record { fields, .. } => {
                 found.push((at.clone(), structural_type));
                 (None, fields)
@@ -609,7 +622,10 @@ impl<'a> Storage<'a> {
                 field: Some(_),
                 ..
             } => self.stored_at(*destination, path, concerns)?,
-            OperationKind::StoreStructuralField {
+            OperationKind::WriteOnlyPrimitiveStore {
+                destination, path, ..
+            }
+            | OperationKind::StoreStructuralField {
                 destination,
                 path,
                 field: None,
@@ -974,11 +990,27 @@ impl<'a> Storage<'a> {
                 (Shape::Payload(_), Segment::Case(_)) => {
                     return Err(self.foreign(concerns, "a case beneath a case"));
                 }
-                (
-                    Shape::Typed(_) | Shape::Payload(_),
-                    Segment::FixedIndex(_) | Segment::RuntimeIndex { .. },
-                ) => {
-                    return Err(self.unsupported(concerns, "a place through an index"));
+                (Shape::Typed(owner), Segment::FixedIndex(_) | Segment::RuntimeIndex { .. }) => {
+                    let StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(length),
+                    } = self.declaration(owner, concerns)?.shape
+                    else {
+                        return Err(self
+                            .foreign(concerns, "an index is not applied to a closed fixed array"));
+                    };
+                    if matches!(segment, Segment::FixedIndex(index) if *index >= length) {
+                        return Err(
+                            self.foreign(concerns, "a literal index exceeds its array extent")
+                        );
+                    }
+                    match self.declaration(element, concerns)?.shape {
+                        StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
+                        _ => Shape::Typed(element),
+                    }
+                }
+                (Shape::Payload(_), Segment::FixedIndex(_) | Segment::RuntimeIndex { .. }) => {
+                    return Err(self.foreign(concerns, "an index is applied to a case namespace"));
                 }
             };
         }
@@ -1032,6 +1064,16 @@ impl<'a> Storage<'a> {
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
             StructuralTypeShape::PrimitiveScalar(_) => found.push(at.clone()),
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(length),
+            } => {
+                for index in 0..*length {
+                    at.segments.push(Segment::FixedIndex(index));
+                    self.leaves_of(*element, at, found, concerns)?;
+                    at.segments.pop();
+                }
+            }
             StructuralTypeShape::Record { fields, .. } => {
                 self.field_leaves(fields, at, found, concerns)?;
             }
@@ -1069,9 +1111,29 @@ impl<'a> Storage<'a> {
                 // A case step carries its identity; a field step is resolved
                 // by the lowered form against the prefix before it, which
                 // may end in the case whose payload holds the field.
-                if let StructuralPathSegment::Case(case) = segment {
-                    segments.push(Segment::Case(*case));
-                    continue;
+                match segment {
+                    StructuralPathSegment::Case(case) => {
+                        segments.push(Segment::Case(*case));
+                        continue;
+                    }
+                    StructuralPathSegment::FixedIndex(index) => {
+                        segments.push(Segment::FixedIndex(*index));
+                        continue;
+                    }
+                    StructuralPathSegment::RuntimeIndex { index, .. } => {
+                        segments.push(Segment::RuntimeIndex { selector: *index });
+                        continue;
+                    }
+                    StructuralPathSegment::Field(_) => {}
+                    StructuralPathSegment::AllElements
+                    | StructuralPathSegment::FixedRange { .. }
+                    | StructuralPathSegment::RepresentationView { .. }
+                    | StructuralPathSegment::Referent => {
+                        return Err(self.unsupported(
+                            concerns,
+                            "storage projection outside plain records and fixed array elements",
+                        ));
+                    }
                 }
                 let field = terminal_semantics::runtime_structural_field(
                     self.types.iter(),
@@ -1182,6 +1244,91 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "an operation is not where the graph places it"))
     }
 
+    pub(crate) fn safety_goal(
+        &self,
+        site: terminal_check_tables::obligations::ExecutionSite,
+        obligation: ObligationId,
+        types: &IdTable<ValueId, ScalarType>,
+    ) -> Checked<Proposition> {
+        use terminal_check_tables::obligations::ExecutionSite;
+        let concerns = Construct::Obligation(obligation);
+        let projections = match site {
+            ExecutionSite::Operation(id) => {
+                let operation = self.operation(id, concerns)?;
+                if let Some(semantics) =
+                    terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
+                        .map_err(crate::semantics_refusal(self.machine, id))?
+                    && semantics.obligation() == obligation
+                {
+                    return semantics
+                        .canonical_goal()
+                        .kernel_proposition()
+                        .map_err(crate::semantics_refusal(self.machine, id));
+                }
+                operation.kind.structural_projections()
+            }
+            ExecutionSite::Block(id) => self.block(id)?.terminator.storage_uses(),
+        };
+        let mut found = None;
+        for projection in projections {
+            for (position, segment) in projection.path.iter().enumerate() {
+                let StructuralPathSegment::RuntimeIndex {
+                    index,
+                    obligation: owned,
+                } = segment
+                else {
+                    continue;
+                };
+                if *owned != obligation {
+                    continue;
+                }
+                if found.is_some() {
+                    return Err(
+                        self.foreign(concerns, "two array projections own one index obligation")
+                    );
+                }
+                let root = self.root_type(projection.root, concerns)?;
+                let array = terminal_semantics::runtime_structural_path_tip(
+                    self.types.iter(),
+                    root,
+                    &projection.path[..position],
+                )
+                .ok_or_else(|| {
+                    self.foreign(concerns, "an indexed path lost its actual array type")
+                })?;
+                let StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(extent),
+                    ..
+                } = array.shape
+                else {
+                    return Err(self.unsupported(
+                        concerns,
+                        "index into storage without a closed array extent",
+                    ));
+                };
+                let scalar = types.get(*index).copied().ok_or_else(|| {
+                    self.foreign(concerns, "an array selector has no scalar type")
+                })?;
+                found = Some(
+                    terminal_semantics::runtime_index_bound(*index, scalar, extent).ok_or_else(
+                        || {
+                            self.unsupported(
+                                concerns,
+                                "array selector without integer bound semantics",
+                            )
+                        },
+                    )?,
+                );
+            }
+        }
+        found.ok_or_else(|| {
+            self.foreign(
+                concerns,
+                "operation owns neither this scalar safety goal nor this index bound",
+            )
+        })
+    }
+
     fn block(&self, id: BlockId) -> Checked<&'a Block> {
         self.lowered
             .blocks
@@ -1212,7 +1359,16 @@ impl<'a> Storage<'a> {
         // Only a store into the place or above it replaces it whole; one
         // beneath it or beside it leaves contents this route cannot name.
         let Some(beneath) = place.segments.strip_prefix(row.lineage.segments.as_slice()) else {
-            return Ok(Reached::Unknown);
+            if matches!(row.stored, Stored::Vacated) {
+                return Ok(Reached::Unestablished);
+            }
+            let previous =
+                self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?;
+            return Ok(if previous == Reached::Unestablished {
+                previous
+            } else {
+                Reached::Unknown
+            });
         };
         Ok(match (&row.stored, asked) {
             (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
@@ -1233,10 +1389,10 @@ impl<'a> Storage<'a> {
                 .zero_case(row.lineage.root, beneath, concerns)?
                 .map_or(Reached::Unknown, Reached::Case),
             (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
-            (Stored::Returned, Asked::Contents(_)) => Reached::Returned,
-            (Stored::Returned, Asked::Case(_)) => Reached::Unknown,
+            (Stored::Established, Asked::Contents(_)) => Reached::Returned,
+            (Stored::Established, Asked::Case(_)) => Reached::Unknown,
             // A window is answered by the row alone, above.
-            (Stored::Zeroed | Stored::Returned, Asked::Window { .. }) => {
+            (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
                 return Err(self.foreign(concerns, "a window is followed into a store's contents"));
             }
             (Stored::Moved(source), _) => {

@@ -158,10 +158,17 @@ impl Walk<'_> {
                         return Ok(normal);
                     }
                 }
-                Statement::Evaluate(expression)
-                | Statement::Store {
-                    value: expression, ..
+                Statement::Store {
+                    destination, value, ..
                 } => {
+                    if !self.expression(machine, destination)? {
+                        return Ok(normal);
+                    }
+                    if !self.expression(machine, value)? {
+                        return Ok(normal);
+                    }
+                }
+                Statement::Evaluate(expression) => {
                     if !self.expression(machine, expression)? {
                         return Ok(normal);
                     }
@@ -220,9 +227,10 @@ impl Walk<'_> {
     /// call in it has no normal completion, so evaluation never finishes.
     fn expression(&mut self, machine: MachineId, expression: &Expression) -> Checked<bool> {
         match &expression.kind {
-            ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {
-                Ok(true)
-            }
+            ExpressionKind::SavedSubject(_)
+            | ExpressionKind::Integer(_)
+            | ExpressionKind::Boolean(_)
+            | ExpressionKind::Slot(_) => Ok(true),
             ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
@@ -237,6 +245,7 @@ impl Walk<'_> {
                 subject,
                 arms,
                 default,
+                ..
             } => {
                 if !self.expression(machine, subject)? {
                     return Ok(false);
@@ -252,6 +261,17 @@ impl Walk<'_> {
             }
             // Operands in authored order; the establishment itself cannot
             // crash or fail to complete.
+            ExpressionKind::Array { elements } => {
+                for element in elements {
+                    if !self.expression(machine, element)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            ExpressionKind::Index { base, index } => {
+                Ok(self.expression(machine, base)? && self.expression(machine, index)?)
+            }
             ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
                 for (_, operand) in fields {
                     if !self.expression(machine, operand)? {
