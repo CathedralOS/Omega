@@ -396,8 +396,36 @@ impl<'t> Program<'t> {
         {
             return unserved("assembly target");
         }
-        if machine.attached_data_symbol.is_valid() || machine.attached_data_application.is_valid() {
-            return unserved("attached data");
+        // A machine declared under a data type's name, `machine
+        // Counter::clear(counter: &mut Counter)`, is an ordinary static
+        // machine whose name has two parts. machines.md, "Static
+        // declarations and explicit state": "All machines are static
+        // declarations independent of data", and qualification "never binds
+        // code to a data type". So the data type gives the machine no
+        // parameter, no storage and no `self`: its formals and body are read
+        // like any other machine's, and a caller passes every argument
+        // (`calls`, `names_carrier`). That page also retires the spelling;
+        // the typed trees still hold it, and refusing it here would only
+        // send the same program to the current checker, which accepts it.
+        //
+        // What stays refused is a data type that could give the machine
+        // something after all: one applied at type arguments, or a generic
+        // one, whose parameters the body would be read under.
+        if machine.attached_data_application.is_valid() {
+            return unserved("attached data applied at type arguments");
+        }
+        if machine.attached_data_symbol.is_valid() {
+            let plain = self
+                .data_declaration(machine.attached_data_symbol)
+                .is_some_and(|data| {
+                    data.lifetime_parameters.is_empty()
+                        && data.type_parameters.is_empty()
+                        && data.generic_instance.is_none()
+                        && data.conformance_bounds.is_empty()
+                });
+            if !plain {
+                return unserved("attached generic data");
+            }
         }
         if machine.generic_data_template.is_valid() {
             return unserved("generic data template");
