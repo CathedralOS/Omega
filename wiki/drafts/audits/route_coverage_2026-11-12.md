@@ -20,19 +20,120 @@ Every `program_verdict` is **re-derived from `roots`** (uniform rule). Shard `ro
 
 Identity: agree + disagree = judged (724+153=877).
 
-### Non-construct buckets (excluded from construct rankings)
+### Non-construct definitions (mutually exclusive on OUTSIDE rows)
+
+Priority **checker-stopped → no-program-entry → no-entry → unreached → construct-blocked**. Each OUTSIDE fixture is assigned exactly one bucket.
+
+| bucket | rule (first match wins) |
+| --- | --- |
+| **checker-stopped** | `current_verdict=stopped`, or `first_refusal` prefix `bucket:current-checker-stopped` / `current_stopped_before_typed_trees` |
+| **no-program-entry** | `first_refusal` prefix `bucket:no-program-entry` or `meta:no-program-entry`, or exact legacy label `no_program_entry` (underscore spelling merged here) |
+| **no-entry** | `first_refusal` prefix `meta:no-entry` or `meta:no-bound-entry` (bound entry missing; distinct from no-program-entry) |
+| **unreached** | `first_refusal` prefix `meta:unreached` or root `compilation:unreached` (no unreached OUTSIDE rows remain after checker-stopped priority — all were `stopped`) |
+| **construct-blocked** | any other OUTSIDE row; construct refusal in `first_refusal` |
+
+### OUTSIDE identity
 
 | bucket | count |
 | --- | ---: |
-| no-program-entry | 1064 |
-| no-entry | 822 |
-| unreached | 524 |
-| checker-stopped | 405 |
-| no_program_entry | 36 |
+| construct-blocked | 12259 |
+| checker-stopped | 1061 |
+| no-program-entry | 878 |
+| no-entry | 793 |
+| unreached | 0 |
+| **sum** | **14991** (= outside total 14991) |
+
+### checker-stopped (single definition)
+
+**Definition:** `current_verdict=stopped` — harness never reached the typed-frontier checker; agreement is always `n-a` (never in agree/disagree).
+
+| metric | count |
+| --- | ---: |
+| checker-stopped fixtures (corpus-wide) | 1061 |
+| … `program_verdict=outside` | 1061 |
+| … `program_verdict=accepted` | 0 |
+| … `program_verdict=rejected` | 0 |
+| … `program_verdict=partial` | 0 |
+| subset: sole root `compilation:error` (shard 1: **128**, shard 4: **146**) | 274 |
+| agreement on stopped rows | {'n-a': 1061} |
+
+By shard (`current_verdict=stopped`):
+
+| shard | count |
+| ---: | ---: |
+| 0 | 119 |
+| 1 | 128 |
+| 2 | 131 |
+| 3 | 132 |
+| 4 | 146 |
+| 5 | 140 |
+| 6 | 140 |
+| 7 | 125 |
+
+### PARTIAL breakdown (construct vs non-construct primary)
+
+| kind | primary reason | count |
+| --- | --- | ---: |
+| construct | parameter mutable parameter | 265 |
+| non-construct | no-program-entry | 210 |
+| construct | machine generic parameters | 186 |
+| non-construct | bucket:partial-unjudged-defect | 123 |
+| construct | type reference | 121 |
+| construct | machine attached data | 77 |
+| construct | type constrained | 68 |
+| construct | type data with custody | 55 |
+| construct | contract contracts on a state | 42 |
+| construct | machine type equations, owned data or conformances | 38 |
+| construct | type float | 32 |
+| construct | machine service reach | 29 |
+| non-construct | no-entry | 29 |
+| non-construct | unspecified | 20 |
+| construct | contract term other than a formal or literal | 20 |
+| construct | type fixed array | 17 |
+| construct | machine target selection | 17 |
+| construct | contract clause that is not a comparison or conjunction | 16 |
+| construct | expression match on a scalar subject | 14 |
+| construct | machine operator spelling | 12 |
+| construct | contract domain membership | 12 |
+| construct | type generic data | 11 |
+| construct | machine supply mode other than a checked body | 9 |
+| construct | machine assembly target | 8 |
+| construct | expression match arm on a value pattern | 8 |
+| construct | contract disjunction | 8 |
+| construct | call receiver, requirement or coercion call | 8 |
+| construct | type generic application | 7 |
+| construct | type addr | 7 |
+| construct | contract ranking witness | 6 |
+| construct | partial-mixed | 5 |
+| construct | call compiler operation call | 4 |
+| construct | contract result binding | 4 |
+| construct | call late-bound selection | 4 |
+| construct | statement assembly | 4 |
+| construct | type nominal type | 3 |
+| construct | contract named proposition | 3 |
+| construct | contract ensures on a call cycle | 2 |
+| construct | expression cast into a non-exact arithmetic domain | 2 |
+| construct | contract clause that projects a formal or result | 2 |
+| construct | expression type parameter | 2 |
+| construct | expression anonymous value with a fractional intermediate | 1 |
+| construct | completion statement after an unconditional arm | 1 |
+| construct | typing literal landed type | 1 |
+| construct | typing arm value type | 1 |
+| construct | call requirement call with a static application feature | 1 |
+| construct | expression float literal | 1 |
+| construct | call receiver call | 1 |
+| construct | machine suspends or blocks | 1 |
+| construct | statement expression statement that discards its value | 1 |
+| construct | statement store into an immutable binding | 1 |
+| construct | incomplete | 1 |
+| construct | call mathematical definition | 1 |
+| construct | call builtin function | 1 |
+
+Partial subtotals: non-construct **382**, construct **1141**, sum **1523**.
 
 ## Top first-refusal constructs — OUTSIDE programs
 
-(Construct refusals only; `meta:*`, `bucket:*`, and checker-stopped rows excluded.)
+(Only `construct-blocked` OUTSIDE rows; non-construct buckets excluded.)
 
 | construct | programs blocked | example fixtures |
 | --- | ---: | --- |
@@ -48,6 +149,8 @@ Identity: agree + disagree = judged (724+153=877).
 | declaration const | 221 | `tests/omega/fail/facts/computed_constant_array_extent_through_other_state_rejected/main.omg`, `tests/omega/fail/facts/foreign_scalar_backing_through_const_name_rejected/main.omg`, `tests/omega/fail/facts/narrow_to_wide_signed_8to64_extension_through_const_name_rejected/main.omg` |
 
 ## Top first-refusal constructs — PARTIAL programs
+
+(Only PARTIAL rows whose primary reason is **construct**; see breakdown above.)
 
 | construct | programs blocked | example fixtures |
 | --- | ---: | --- |
@@ -271,8 +374,6 @@ Fixtures with vacuous accept annotation: **1527**.
 | 5 | `a9ea414124571aa03f21473ddc5f6287bccf9050` | 2174 | 41 | 73 | 232 | 1828 | 0 | 0 | — |
 | 6 | `6d5700730d329c42f3ae4ce936cb284f2c499003` | 2174 | 34 | 70 | 188 | 1882 | 0 | 0 | — |
 | 7 | `fb6c06dfaf9c9e00b14b2f82ad061079c2180809` | 2173 | 36 | 74 | 196 | 1867 | 0 | 0 | — |
-
-Checker-stopped overlap: **1061** rows tagged `checker-stopped` and/or `current_verdict=stopped` (shards 1 and 4 formerly counted **128** + **146** `error` program verdicts — all `stopped` + `compilation:error` roots, merged as `outside` + non-construct `checker-stopped`).
 
 ## Harness and hosts
 
