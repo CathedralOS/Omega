@@ -105,6 +105,12 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Lowering, checker, and data-flow
 
+- **WIDTH-INDEXED-INTEGERS.** Deliver `u<N>`/`i<N>` and concrete-width shorthand as one integer family ([contract and acceptance](wiki/spec/language/numeric_values.md#width-indexed-integers)). Extend shared carrier identity, literal/query/conversion handling, lowered-form proofs, versioned Psi encodings and multiword realization; no per-width source tables or hidden allocation. Run non-byte-width arithmetic and fixed multiword customers, not only constant folding.
+  Acceptance: width-one, modulo-13 shifts, 65/257-bit runtime arithmetic, generic widths, layouts/recasts, foreign/atomic refusal and resource controls satisfy the spec through Psi and native execution on hosted targets, with matching Omega-written compiler semantics. Raise genuine unspecified language decisions in `OWNER_QUESTIONS.md`; unsupported implementation is not a new semantic rule.
+
+- **INTEGER-CARRIER-FAMILY-CONSTRAINTS.** Supply the four [integer-family classifiers](wiki/spec/language/numeric_values.md#integer-carrier-families) through authoritative metadata and ordinary checked library contracts. Generalize type refinement and domain admission so carrier eligibility is checked before value predicates, without name magic, implicit implementation search or enumerating widths.
+  Acceptance: generic nonzero/signed/unsigned/fixed-width uses work for their admitted carriers; signed-to-unsigned-domain application, fake classifier, missing fixed-width premise and invalid value predicates reject for distinct obligations. Preserve exact domain carriers and authority; exercise arbitrary widths as WIDTH-INDEXED-INTEGERS lands. New semantic holes go to `OWNER_QUESTIONS.md`.
+
 - **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/drafts/designs/operation_arithmetic_policy.md).
   Acceptance: draft fixtures pass `--both`; `source/psi` has no `in Trapping`.
 
