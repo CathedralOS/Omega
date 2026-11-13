@@ -608,21 +608,22 @@ mod tests {
             };
             let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
             let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-            let builtins = SymbolTableBuilder::child_handles(builder.insert_children(
-                root,
-                BuiltinTypeAtom::ALL.iter().map(|atom| {
-                    (
-                        SymbolKind::BuiltinType,
-                        SymbolNameRef::Static(atom.symbol_name()),
-                    )
-                }),
-            ))
-            .collect::<Vec<_>>();
-            let owner = SymbolTableBuilder::child_handles(
-                builder.insert_children(root, [(SymbolKind::Data, token("Container"))]),
+            let mut builtins = SymbolTableBuilder::child_handles(
+                builder.insert_children(
+                    root,
+                    BuiltinTypeAtom::ALL
+                        .iter()
+                        .map(|atom| {
+                            (
+                                SymbolKind::BuiltinType,
+                                SymbolNameRef::Static(atom.symbol_name()),
+                            )
+                        })
+                        .chain([(SymbolKind::Data, token("Container"))]),
+                ),
             )
-            .next()
-            .unwrap();
+            .collect::<Vec<_>>();
+            let owner = builtins.pop().unwrap();
             let children = SymbolTableBuilder::child_handles(builder.insert_children(
                 owner,
                 [
