@@ -463,3 +463,10 @@ own to defend. Say what you saw, not what you would build.
 - Saw: the fixture pins "value call to `scan` violates required fact `value == 41`"; the lowered-form checker says "cannot prove requires contract for call scan from Main::main: 40 == 41 ...", so the row is red although the program is rejected for the right reason
 - Cost: these rows stay red after the old stages go until the new checker names the callee's clause, and they read as checker failures rather than a wording gap
 - Reported: 2026-11-12, Claude Code (two workers), while removing the old checker
+
+### Nothing live judges that an implementation refines its trait requirement
+- Category: a verdict with nothing behind it
+- Where: `lowered_discharge::prove_callable_refinement` and `structure_elaboration::elaborate_witness`; their only callers are `psi/compilation/validation/src/contract_entailment.rs` (frozen for deletion) and a test support file
+- Saw: the lowered-form checker refuses every program that declares a trait (`declaration trait` in `structure-elaboration/src/read/subjects.rs`), so the refinement proof it owns is never run by `judge_compilation`
+- Cost: when `validation` is deleted the member-refines-requirement rule has no checker until `judge_compilation` judges each conformance row; 1,344 corpus programs declare a trait
+- Reported: 2026-11-13, Claude Code, while closing the generic self-application hole

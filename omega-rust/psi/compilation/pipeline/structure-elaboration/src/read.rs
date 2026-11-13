@@ -98,6 +98,13 @@ pub(crate) struct Program<'t> {
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
     resolving: Vec<SymbolHandle>,
+    /// The data declaration whose members are being read, which is the
+    /// lexical owner of the lifetimes their types name. Invalid while a
+    /// machine is read: a machine that declares lifetime parameters is
+    /// refused before its formals are (`machine_shape`), so there a type
+    /// may name only lifetimes the typed trees retained an owner for
+    /// (`types`, `value_type`).
+    lifetime_owner: SymbolHandle,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,
     /// How many `StructuralCaseId`s the sums above hold.
@@ -172,6 +179,7 @@ impl<'t> Program<'t> {
             records: IdTable::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
+            lifetime_owner: SymbolHandle::invalid(),
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),

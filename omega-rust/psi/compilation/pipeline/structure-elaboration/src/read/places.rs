@@ -19,6 +19,11 @@ custody: fields and payloads are builtin integers, `bool` or other such data.
 Affine values transfer once and publish normal-edge disposal of their remaining
 regions. Nominal cleanup hooks, linear claims, reference-bearing data and
 extraction through borrowed storage remain outside this slice.
+A declaration may state lifetime parameters, `data Outer<'a>`, and a field
+may apply such data at them, `inner: Inner<'a>`: they are erased regions, so
+the declaration is one record type (`lifetime_binders`,
+`lifetime_application`). A field that stores a view, the one thing a lifetime
+relates, is still refused (`type reference`).
 A declaration's `requires` is read into `RecordType::requires` by the clause
 reader the machine contracts use (`contracts`), over `self` and its fields;
 a `requires` on a case is refused (`type data requires`). Everything else
@@ -38,6 +43,8 @@ use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchFieldAction, TableDestructurePattern,
     TableMemberExpression, TableStructLiteral,
 };
+use typed_trees::name::Identifier;
+use typed_trees::types::TypeReferenceNode;
 
 use super::contracts::{ClauseScope, DataSubject, ResultTerm};
 use super::{Program, Slot};
@@ -53,6 +60,15 @@ pub(super) struct RecordSource {
     pub(super) fields: Vec<SymbolHandle>,
     pub(super) cases: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
 }
+
+/// What `declared_members` reads: the fields and their symbols, then the cases
+/// (identity and payload fields) and their symbols with their payloads'.
+type Members = (
+    Vec<(String, ValueType)>,
+    Vec<SymbolHandle>,
+    Vec<(String, Vec<(String, ValueType)>)>,
+    Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+);
 
 /// What a member's field symbol names in its receiver's data type.
 pub(super) enum Member {
@@ -93,6 +109,7 @@ impl Program<'_> {
         record_shape(id, data, members, |variant| {
             typed.data_payload_fields(variant)
         })?;
+        lifetime_binders(id, &data.lifetime_parameters)?;
         // Terminal Psi's declaration needs a text identity; the typed trees
         // render it. Without one the declaration cannot be emitted.
         let identity = typed
@@ -107,47 +124,16 @@ impl Program<'_> {
                 )
             })?;
         self.resolving.push(symbol);
-        // Fields and cases are read first and identities minted after, so a
-        // nested data type resolves, and takes its identities, before its
-        // owner and each type's fields are consecutive.
-        let mut fields = Vec::new();
-        let mut field_symbols = Vec::new();
-        let mut cases = Vec::new();
-        let mut case_symbols = Vec::new();
-        for member in members {
-            match member {
-                DataMember::Field(field) => {
-                    fields.push(self.declared_field(id, field)?);
-                    field_symbols.push(field.symbol);
-                }
-                DataMember::Variant(variant) => {
-                    if !variant.symbol.is_valid() {
-                        return Err(refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Spelling("case without a symbol"),
-                        ));
-                    }
-                    let identity = variant.member_identity().spelling();
-                    if identity.is_empty() {
-                        return Err(refuse(
-                            id,
-                            Construct::Machine,
-                            Unserved::Spelling("case without a declaration identity"),
-                        ));
-                    }
-                    let mut payload = Vec::new();
-                    let mut payload_symbols = Vec::new();
-                    for field in typed.data_payload_fields(variant) {
-                        payload.push(self.declared_field(id, field)?);
-                        payload_symbols.push(field.symbol);
-                    }
-                    cases.push((identity, payload));
-                    case_symbols.push((variant.symbol, payload_symbols));
-                }
-            }
-        }
+        // Field types are read with this declaration as the owner of the
+        // lifetimes they name: lifetimes.md, a named data application must
+        // "use binders declared in the lexical owner". A nested declaration
+        // is read under its own, so the enclosing owner is put back whether
+        // or not the members were served.
+        let enclosing = std::mem::replace(&mut self.lifetime_owner, symbol);
+        let read = self.declared_members(id, members);
+        self.lifetime_owner = enclosing;
         self.resolving.pop();
+        let (fields, field_symbols, cases, case_symbols) = read?;
         let mut mint = |fields: Vec<(String, ValueType)>| {
             let mut declared = Vec::with_capacity(fields.len());
             for (identity, value_type) in fields {
@@ -234,6 +220,52 @@ impl Program<'_> {
         Ok(ValueType::Record(record))
     }
 
+    /// The fields and cases of a data declaration, each with its symbols,
+    /// in declaration order. Fields and cases are read first and identities
+    /// minted after, so a nested data type resolves, and takes its
+    /// identities, before its owner and each type's fields are consecutive.
+    fn declared_members(&mut self, id: MachineId, members: &[DataMember]) -> Checked<Members> {
+        let typed = self.typed;
+        let mut fields = Vec::new();
+        let mut field_symbols = Vec::new();
+        let mut cases = Vec::new();
+        let mut case_symbols = Vec::new();
+        for member in members {
+            match member {
+                DataMember::Field(field) => {
+                    fields.push(self.declared_field(id, field)?);
+                    field_symbols.push(field.symbol);
+                }
+                DataMember::Variant(variant) => {
+                    if !variant.symbol.is_valid() {
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Spelling("case without a symbol"),
+                        ));
+                    }
+                    let identity = variant.member_identity().spelling();
+                    if identity.is_empty() {
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Spelling("case without a declaration identity"),
+                        ));
+                    }
+                    let mut payload = Vec::new();
+                    let mut payload_symbols = Vec::new();
+                    for field in typed.data_payload_fields(variant) {
+                        payload.push(self.declared_field(id, field)?);
+                        payload_symbols.push(field.symbol);
+                    }
+                    cases.push((identity, payload));
+                    case_symbols.push((variant.symbol, payload_symbols));
+                }
+            }
+        }
+        Ok((fields, field_symbols, cases, case_symbols))
+    }
+
     /// One declared field or payload field: its text identity for Terminal
     /// Psi's declaration and its type.
     fn declared_field(&mut self, id: MachineId, field: &DataField) -> Checked<(String, ValueType)> {
@@ -244,7 +276,40 @@ impl Program<'_> {
                 Unserved::Spelling("field without a symbol"),
             ));
         }
+        // A field that names lifetime-parameterised data bare leaves out
+        // which of its owner's lifetimes the nested views live for.
+        // lifetimes.md gives elision to a signature ("For an elided output,
+        // one unambiguous reference input supplies the relation") and says
+        // of a named data application that it must "match the declaration's
+        // lifetime arity", so a field states its arguments.
+        if field.type_reference.is_valid()
+            && let TypeReferenceNode::Named { symbol, .. } = self
+                .typed
+                .type_reference_table
+                .type_reference(field.type_reference)
+            && self
+                .data_declaration(*symbol)
+                .is_some_and(|data| !data.lifetime_parameters.is_empty())
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("data field that elides a lifetime argument"),
+            ));
+        }
         let value_type = self.value_type(id, field.type_reference)?;
+        // What makes a lifetime parameter an erased region with nothing to
+        // account for: no field of a served data type stores a view.
+        // lifetimes.md: "A lifetime relates a borrowed result or stored view
+        // to storage that remains valid for its use." A slice that adds a
+        // field type that stores one adds its lifetime accounting with the
+        // arm it adds here.
+        match value_type {
+            ValueType::Scalar(_)
+            | ValueType::Qualified(..)
+            | ValueType::Record(_)
+            | ValueType::Rigid(_) => {}
+        }
         let identity = field.member_identity().spelling();
         if identity.is_empty() {
             return Err(refuse(
@@ -749,8 +814,9 @@ fn record_shape<'m>(
     if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
         return unserved("data without a checked shape");
     }
-    if !data.lifetime_parameters.is_empty()
-        || !data.type_parameters.is_empty()
+    // Lifetime parameters are not generic data: they are erased regions that
+    // select no type, field or layout (`lifetime_binders`).
+    if !data.type_parameters.is_empty()
         || data.generic_instance.is_some()
         || !data.conformance_bounds.is_empty()
     {
@@ -776,9 +842,9 @@ fn record_shape<'m>(
     if !data.retired_identities.is_empty() {
         return unserved("data with retired field identities");
     }
-    if members.is_empty() {
-        return unserved("data without fields");
-    }
+    // Data with no member is a record whose roster is empty (`data Token
+    // {}`): a value of it is established, copied or moved, passed and
+    // dropped like any other record, and holds nothing to read.
     let relevant = |field: &DataField| field.relevance == language_core::BindingRelevance::Relevant;
     let mut fields = false;
     let mut cases = false;
@@ -813,6 +879,105 @@ fn record_shape<'m>(
     Ok(())
 }
 
+/// The lifetime binders of a data declaration, `data Message<'buffer>`.
+///
+/// A lifetime parameter selects nothing a value is made of.
+/// `wiki/spec/language/lifetimes.md`: "Lifetime arguments are erased regions,
+/// separate from runtime generic arity, layout and monomorphization." So a
+/// declaration with lifetime parameters is one record type, whatever
+/// lifetimes a use applies it at, and is read like plain data. The same
+/// sentence goes on: "Erasure does not remove semantic lifetime relations or
+/// loan obligations." Those belong to the views a value stores, and no field
+/// type served here stores one (`declared_field`), so a served declaration
+/// has none to keep.
+///
+/// What is checked is the declaration itself: "Duplicate binders and
+/// undeclared tags reject." The typed trees name a lifetime parameter by its
+/// declaration and position, found from its tag
+/// (`typed_trees::type_identity::lifetime_parameter_identity`), so two
+/// binders with one tag would be one parameter to every lookup. A use that
+/// names an undeclared tag is refused where its type is read
+/// (`lifetime_application`).
+fn lifetime_binders(id: MachineId, binders: &[Identifier]) -> Checked<()> {
+    for (position, binder) in binders.iter().enumerate() {
+        if binder.as_str().is_empty() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("lifetime parameter without a tag"),
+            ));
+        }
+        if binders[..position]
+            .iter()
+            .any(|earlier| earlier.as_str() == binder.as_str())
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("data that declares a lifetime twice"),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// What the typed trees retained for one lifetime argument of a type
+/// occurrence (`TypeReferenceTable::operand_lifetimes`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum RetainedLifetime<'t> {
+    /// Nothing resolved: the argument is looked up in its owner.
+    Open,
+    /// The lifetime parameter this argument was resolved to, by the tag
+    /// that parameter is declared with; `None` when the declaration it
+    /// names no longer states such a parameter.
+    Resolved(Option<&'t str>),
+}
+
+/// `Inner<'a>` where a type is read: the lifetime arguments a named data
+/// application supplies, against the number of binders that data declares
+/// and the owner of the lifetimes the application names. lifetimes.md:
+/// "Named data applications supply lifetime arguments before
+/// type/const/machine arguments. They must match the declaration's lifetime
+/// arity and use binders declared in the lexical owner."
+///
+/// The owner is the typed trees' answer, not a scope rebuilt here:
+/// `retained` is what they resolved for each argument of this occurrence,
+/// empty when they resolved none, and `declares` is whether the occurrence's
+/// owner (the declaration the typed trees retained for it, else the data
+/// declaration whose member is being read) declares a tag. A literal's type
+/// is such a retained occurrence: stage 03 gives `Inner { .. }` inside
+/// `Outer { inner: .. }` the field's declared type `Inner<'a>` and retains
+/// `Outer` as the owner of `'a`. The judgment is the one the current
+/// checker makes in validation (`contains_operand_lifetime`), which is
+/// being removed, so it is made here.
+pub(super) fn lifetime_application(
+    id: MachineId,
+    declared: usize,
+    arguments: &[Identifier],
+    retained: &[RetainedLifetime<'_>],
+    declares: impl Fn(&str) -> bool,
+) -> Checked<()> {
+    let typing = |what| Err(refuse(id, Construct::Machine, Unserved::Typing(what)));
+    if arguments.len() != declared {
+        return typing("lifetime argument count differs from the data declaration's");
+    }
+    if !retained.is_empty() && retained.len() != arguments.len() {
+        return typing("lifetime argument its owner does not declare");
+    }
+    for (slot, argument) in arguments.iter().enumerate() {
+        let tag = argument.as_str();
+        let declared = !tag.is_empty()
+            && match retained.get(slot) {
+                Some(RetainedLifetime::Resolved(parameter)) => *parameter == Some(tag),
+                Some(RetainedLifetime::Open) | None => declares(tag),
+            };
+        if !declared {
+            return typing("lifetime argument its owner does not declare");
+        }
+    }
+    Ok(())
+}
+
 // Copy permission must reach every nested value. Scalar fields alone do not
 // grant it to their affine owner, and a missing record identity grants nothing.
 fn copy_field_is_unrestricted(
@@ -820,7 +985,8 @@ fn copy_field_is_unrestricted(
     records: &semantic_vocabulary::IdTable<StructuralTypeId, RecordType>,
 ) -> bool {
     match field {
-        ValueType::Scalar(_) => true,
+        // A policy changes no payload: the integer copies as its carrier does.
+        ValueType::Scalar(_) | ValueType::Qualified(..) => true,
         ValueType::Record(record) => records.get(record).is_some_and(|record| record.copyable),
         ValueType::Rigid(_) => false,
     }
@@ -891,17 +1057,24 @@ mod tests {
         let mut affine = data.clone();
         affine.properties.multiplicity = language_semantics::Multiplicity::Affine;
         assert_eq!(record_shape(machine(), &affine, &members, |_| &[]), Ok(()));
+        // Lifetime parameters select nothing a value is made of, so the
+        // shape is served with them; a type parameter beside them is not.
+        let mut borrowing = data.clone();
+        borrowing.lifetime_parameters = vec![Identifier::generated("buffer")];
+        assert_eq!(
+            record_shape(machine(), &borrowing, &members, |_| &[]),
+            Ok(())
+        );
+        borrowing.type_parameters = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
+        assert_eq!(detail(&borrowing, &members), "type generic data");
         // A declaration-level `requires` is no longer refused here: its
         // clauses are read by the clause reader. A case-level one still is.
-        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 9] = [
+        let cases: [(&str, fn(&mut DataDefinition, &mut Vec<DataMember>)); 7] = [
             ("type data with custody", |data, _| {
                 data.properties.multiplicity = language_semantics::Multiplicity::Linear;
             }),
             ("type generic data", |data, _| {
                 data.type_parameters = HandleSpan::from_parts(Handle::from_parts(1, 1), 1);
-            }),
-            ("type generic data", |data, _| {
-                data.lifetime_parameters = vec![Default::default()];
             }),
             // Cases beside a field: a sum alone is served, the mix is not.
             ("type mixed data", |_, members| {
@@ -925,7 +1098,6 @@ mod tests {
                     ..DataField::default()
                 }));
             }),
-            ("type data without fields", |_, members| members.clear()),
             ("type data without a checked shape", |data, _| {
                 data.supply_mode = language_semantics::DataSupplyMode::BoundaryOpaque;
             }),
@@ -935,8 +1107,10 @@ mod tests {
             change(&mut data, &mut members);
             assert_eq!(detail(&data, &members), expected);
         }
-        // A sum alone, with or without payload, is served.
+        // Data with no member at all is a record with an empty roster.
         let (data, _) = plain();
+        assert_eq!(record_shape(machine(), &data, &[], |_| &[]), Ok(()));
+        // A sum alone, with or without payload, is served.
         let sum = vec![
             DataMember::Variant(DataVariant::default()),
             DataMember::Variant(DataVariant::default()),
@@ -952,5 +1126,71 @@ mod tests {
                 .detail,
             "type data with an erased field"
         );
+    }
+
+    fn tags(tags: &[&str]) -> Vec<Identifier> {
+        tags.iter().copied().map(Identifier::generated).collect()
+    }
+
+    /// `data Pair<'a, 'b>` is served; a binder repeated, or one the typed
+    /// trees hold without a tag, is refused. lifetimes.md: "Duplicate
+    /// binders and undeclared tags reject."
+    #[test]
+    fn a_data_declaration_states_each_lifetime_binder_once() {
+        assert_eq!(lifetime_binders(machine(), &[]), Ok(()));
+        assert_eq!(lifetime_binders(machine(), &tags(&["a", "b"])), Ok(()));
+        assert_eq!(
+            lifetime_binders(machine(), &tags(&["a", "b", "a"]))
+                .unwrap_err()
+                .detail,
+            "typing data that declares a lifetime twice"
+        );
+        assert_eq!(
+            lifetime_binders(machine(), &[Identifier::default()])
+                .unwrap_err()
+                .detail,
+            "spelling lifetime parameter without a tag"
+        );
+    }
+
+    /// `Inner<'a>` is served where the owner of its occurrence declares
+    /// `'a` and `Inner` declares one lifetime. Too few or too many
+    /// arguments, and an argument the owner does not declare, are refused;
+    /// a machine is read under no owner, so there a lifetime the typed trees
+    /// did not resolve is undeclared. A lifetime they did resolve must be
+    /// the parameter the argument names, whatever the owner declares.
+    #[test]
+    fn a_lifetime_application_matches_its_declaration_and_its_owner() {
+        use RetainedLifetime::{Open, Resolved};
+        let detail = |declared: usize,
+                      arguments: &[&str],
+                      retained: &[RetainedLifetime<'_>],
+                      owner: &[&str]| {
+            lifetime_application(machine(), declared, &tags(arguments), retained, |tag| {
+                owner.contains(&tag)
+            })
+            .map_err(|refusal| refusal.detail)
+        };
+        assert_eq!(detail(1, &["a"], &[], &["a"]), Ok(()));
+        assert_eq!(detail(1, &["b"], &[], &["a", "b"]), Ok(()));
+        assert_eq!(detail(2, &["a", "a"], &[Open, Open], &["a"]), Ok(()));
+        assert_eq!(detail(0, &[], &[], &[]), Ok(()));
+        let arity =
+            Err("typing lifetime argument count differs from the data declaration's".into());
+        assert_eq!(detail(1, &[], &[], &["a"]), arity);
+        assert_eq!(detail(1, &["a", "a"], &[], &["a"]), arity);
+        assert_eq!(detail(0, &["a"], &[], &["a"]), arity);
+        let undeclared = Err("typing lifetime argument its owner does not declare".into());
+        assert_eq!(detail(1, &["b"], &[], &["a"]), undeclared);
+        assert_eq!(detail(1, &["a"], &[], &[]), undeclared);
+        assert_eq!(detail(1, &[""], &[], &[""]), undeclared);
+        // What the typed trees resolved decides, not the owner's tags.
+        assert_eq!(detail(1, &["a"], &[Resolved(Some("a"))], &[]), Ok(()));
+        assert_eq!(
+            detail(1, &["a"], &[Resolved(Some("b"))], &["a"]),
+            undeclared
+        );
+        assert_eq!(detail(1, &["a"], &[Resolved(None)], &["a"]), undeclared);
+        assert_eq!(detail(2, &["a", "a"], &[Open], &["a"]), undeclared);
     }
 }

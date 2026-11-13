@@ -434,7 +434,11 @@ impl Program<'_> {
                 }
                 // A record formal is a place, not a value: a clause can only
                 // project it, which the member arm below refuses.
-                let ValueType::Scalar(scalar_type) = scope.slots[slot].value_type else {
+                // A policy-qualified formal is named as its stored value: a
+                // comparison of it compares that value whatever the policy.
+                let (ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
+                    scope.slots[slot].value_type
+                else {
                     return unserved("record formal named whole in a clause");
                 };
                 // A `mut` formal names two things by the end of the body:
@@ -519,7 +523,8 @@ impl Program<'_> {
         };
         match value_type {
             ValueType::Rigid(_) => unserved("field of a rigid type in a clause"),
-            ValueType::Scalar(ScalarType::Integer(scalar_type)) => Ok((
+            ValueType::Scalar(ScalarType::Integer(scalar_type))
+            | ValueType::Qualified(ScalarType::Integer(scalar_type), _) => Ok((
                 ScalarTerm::IntegerField {
                     root,
                     path,
@@ -531,6 +536,10 @@ impl Program<'_> {
                 Ok((ScalarTerm::BooleanField { root, path }, ScalarType::Boolean))
             }
             ValueType::Scalar(ScalarType::IeeeFloat(_)) => unserved("float field in a clause"),
+            // A policy is carried by an integer only (`qualified_type`).
+            ValueType::Qualified(ScalarType::Boolean | ScalarType::IeeeFloat(_), _) => {
+                unserved("policy-qualified field that is not an integer")
+            }
             ValueType::Record(_) => unserved("data value compared whole in a clause"),
         }
     }

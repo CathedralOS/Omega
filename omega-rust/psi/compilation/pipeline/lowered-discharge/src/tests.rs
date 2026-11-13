@@ -22,6 +22,8 @@ use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
+mod arithmetic_policies;
+mod empty_records;
 mod entry_inputs;
 mod guard_contradiction;
 mod inferred_bounds;

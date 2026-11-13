@@ -1104,6 +1104,39 @@ No router calls `judge` in the default compile yet: the comparison harness
 below is its only caller outside tests, and prints each unproved
 obligation's message with its outcome.
 
+## Running the checker on a source program
+
+The probe shows this crate one source program and prints its verdict. It does
+not run the program's Build and it does not run the old checker (Psi 05,
+validation's judgments, Psi 06), so it keeps working while those stages are
+removed and while no Build program can run:
+
+```
+mbx run -p compiler --example route_probe -- tests/omega/run/calls/scalar_contract_route_exit/main.omg < /dev/null
+mbx run -p compiler --example route_probe -- <program>/main.omg [--entry NAME] [--target NAME] < /dev/null
+```
+
+It types the sources as a compilation does (Psi 00 through 03), binds the
+named machine to the target's `ProgramEntry` in the Build's place, prepares
+the product up to Psi 04's frozen typed trees, and runs
+`structure_elaboration` and `judge_compilation` on them. It prints one line
+per judged part (the entry closure, then each subject declaration's check
+form) and ends each source with `<path>\troute=<verdict>`: `accepted`,
+`rejected`, `incomplete`, `not-supported`, or `no-typed-trees` when Psi 00
+through 04 stopped first. The exit code is 0 only when every source was
+accepted. Without `--entry`, `main` is bound when the source declares it and a
+source without one is judged with no entry; `--target` defaults to
+`linux_x86_64`.
+
+Limits. No Build machine is checked or executed, so the program is judged
+without anything its Build would select: providers, representations, native
+bindings, generated sources, settings and dependencies. The source is its own
+validation subject, so its uncalled declarations are judged too. The harness
+is `CompilationSession::typed_frontier_without_build`
+(`omega-rust/omega/compilation/compiler/src/checked/checking/unbuilt_source.rs`),
+pinned by `compiler/tests/route_probe.rs`. It is a probe, not a way to
+compile, and the CLI never calls it.
+
 ## Measuring against the current checker
 
 `omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs` runs
@@ -1372,9 +1405,12 @@ judged form applies, whichever package declares it, and leaves the applied
 machine's rows in the caller's form to that judgment
 (`judge_generic_forms`, [verdict.rs](src/verdict.rs)). A form judged alone
 (`judge`) still refuses those rows, because nothing it knows of proves
-them, and so does a form whose machine applies itself, directly or through
-others: every form on such a cycle would take the next one's contract as
-given, and no form judges that the recursion ends. A requirement reached
+them. A generic machine that applies itself, directly or through others, is
+refused by name (`generic machine ... on a call cycle`) whether or not it
+states a contract: every form on such a cycle would take the next one's
+contract as given, and no form judges the cycle (tail position, a
+`terminates` promise) the way elaboration judges a cycle among bodies it
+read. A requirement reached
 through an implementation parameter is not covered: its rows stay refused
 until each conformance's refinement is judged in the same compilation.
 
