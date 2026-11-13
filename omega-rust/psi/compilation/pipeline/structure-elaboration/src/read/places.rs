@@ -22,8 +22,9 @@ extraction through borrowed storage remain outside this slice.
 A declaration may state lifetime parameters, `data Outer<'a>`, and a field
 may apply such data at them, `inner: Inner<'a>`: they are erased regions, so
 the declaration is one record type (`lifetime_binders`,
-`lifetime_application`). A field that stores a view, the one thing a lifetime
-relates, is still refused (`type reference`).
+`lifetime_application`). A field may store a byte view, `&'a [u8]`, whose
+type carries the region it names (`bytes`); a reference to anything else in a
+field is still refused (`type reference`).
 A declaration's `requires` is read into `RecordType::requires` by the clause
 reader the machine contracts use (`contracts`), over `self` and its fields;
 a `requires` on a case is refused (`type data requires`). Everything else
@@ -58,6 +59,10 @@ use crate::{SourceOrigin, Unserved, refuse};
 pub(super) struct RecordSource {
     pub(super) declaration: SymbolHandle,
     pub(super) application: Option<typed_trees::SourceTypeApplication>,
+    /// The declaration whose lifetime binders a byte view's region is one
+    /// of, when the typed trees retained no owner for that occurrence: the
+    /// data declaration the view is a field of. Invalid everywhere else.
+    pub(super) region_owner: SymbolHandle,
     pub(super) fields: Vec<SymbolHandle>,
     pub(super) cases: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
 }
@@ -251,6 +256,7 @@ impl Program<'_> {
         self.record_sources.push(RecordSource {
             declaration: symbol,
             application: application.clone(),
+            region_owner: SymbolHandle::invalid(),
             fields: field_symbols,
             cases: case_symbols,
         });
@@ -370,12 +376,13 @@ impl Program<'_> {
             ));
         }
         let value_type = self.value_type(id, field.type_reference)?;
-        // What makes a lifetime parameter an erased region with nothing to
-        // account for: no field of a served data type stores a view.
         // lifetimes.md: "A lifetime relates a borrowed result or stored view
-        // to storage that remains valid for its use." A slice that adds a
-        // field type that stores one adds its lifetime accounting with the
-        // arm it adds here.
+        // to storage that remains valid for its use." The one view a field
+        // may store is a byte view, a `Record` here, and its type is keyed
+        // by the region it names under this declaration (`byte_view_type`):
+        // a view of any other region is another type and is not a value of
+        // the field. A slice that adds a field type storing a view some
+        // other way adds its lifetime accounting with the arm it adds here.
         match value_type {
             ValueType::Scalar(_)
             | ValueType::Qualified(..)
@@ -998,9 +1005,9 @@ fn record_shape<'m>(
 /// declaration with lifetime parameters is one record type, whatever
 /// lifetimes a use applies it at, and is read like plain data. The same
 /// sentence goes on: "Erasure does not remove semantic lifetime relations or
-/// loan obligations." Those belong to the views a value stores, and no field
-/// type served here stores one (`declared_field`), so a served declaration
-/// has none to keep.
+/// loan obligations." Those belong to the views a value stores, and a
+/// stored view keeps its region in its own type (`declared_field`), so the
+/// declaration's record identity has none to keep.
 ///
 /// What is checked is the declaration itself: "Duplicate binders and
 /// undeclared tags reject." The typed trees name a lifetime parameter by its

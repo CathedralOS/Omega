@@ -23,11 +23,16 @@ fn package() -> semantic_vocabulary::PackageKeyIdentity {
 /// One package read under both dependency scopes, through the ordinary
 /// lexer, parser, resolver and typer.
 fn frontier() -> typed_trees::TypedTrees {
+    frontier_of(PRODUCT, BUILD)
+}
+
+/// The same, for any pair of Product and Build texts.
+pub(super) fn frontier_of(product: &str, build: &str) -> typed_trees::TypedTrees {
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
     for (path, text, scope) in [
-        ("package/main.omg", PRODUCT, DependencyScope::Product),
-        ("package/build.omg", BUILD, DependencyScope::Build),
+        ("package/main.omg", product, DependencyScope::Product),
+        ("package/build.omg", build, DependencyScope::Build),
     ] {
         let id = sources
             .add_checked_instance(
@@ -58,7 +63,7 @@ fn frontier() -> typed_trees::TypedTrees {
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
-fn symbol(typed: &typed_trees::TypedTrees, name: &str) -> symbols::SymbolHandle {
+pub(super) fn symbol(typed: &typed_trees::TypedTrees, name: &str) -> symbols::SymbolHandle {
     typed
         .machines()
         .iter()
@@ -116,6 +121,20 @@ fn a_compilation_claims_the_subject_declarations_of_its_own_purpose_only() {
         claimed(&typed, "product_entry", DependencyScope::Product),
         ["product_entry", "product_helper"]
     );
+}
+
+/// The checker's verdict on the Build program `build`, rooted at its
+/// `build_entry`, beside an empty Product.
+pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::CompilationRefusal> {
+    let typed = frontier_of("machine product_entry() { }", build);
+    let entry = symbol(&typed, "build_entry");
+    let mut verdicts = crate::judge_compilation_for(
+        &typed,
+        roster(&[entry], &[Some(package())], DependencyScope::Build),
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    assert_eq!(verdicts.len(), 1);
+    verdicts.remove(0)
 }
 
 #[test]

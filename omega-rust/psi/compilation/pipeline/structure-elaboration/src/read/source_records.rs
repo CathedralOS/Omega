@@ -34,9 +34,15 @@ pub(super) fn source_application(
     // Closure supplies a substituted declaration, not evidence that its
     // generic arguments satisfy additional requirements. Those premises must
     // remain expressible at this entrance; unsupported ones are refused.
-    if !data.lifetime_parameters.is_empty() || !data.type_parameters.is_empty() {
+    // A lifetime binder is not an unresolved binder of the record: lifetimes.md,
+    // "Lifetime arguments are erased regions, separate from runtime generic
+    // arity, layout and monomorphization", so every application of the
+    // declaration, elided or named, is this one record. Whether the lifetimes
+    // an occurrence names are declared is judged where its type is read
+    // (`lifetime_application`); the storage correspondence has nothing to keep.
+    if !data.type_parameters.is_empty() {
         return Err(unavailable(
-            "record application with unresolved type or lifetime binders",
+            "record application with unresolved type binders",
         ));
     }
     let selected = typed
@@ -174,6 +180,15 @@ pub(super) fn source_application(
     } else {
         match typed.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, .. } if *symbol == data.symbol => {}
+            // `Inner<'a>`: lifetime arguments only, one per declared binder.
+            TypeReferenceNode::Generic {
+                base_symbol,
+                lifetime_arguments,
+                arguments,
+                ..
+            } if *base_symbol == data.symbol
+                && arguments.is_empty()
+                && lifetime_arguments.len() == data.lifetime_parameters.len() => {}
             _ => {
                 return Err(malformed(
                     machine,
@@ -336,6 +351,7 @@ impl Program<'_> {
                         && super::bytes::source_byte_view(
                             self.typed,
                             application.reference,
+                            source.region_owner,
                             machine,
                         )?
                         .is_some_and(|(source_carrier, identity)| {
@@ -544,6 +560,7 @@ mod tests {
                 reference,
                 substitutions: Vec::new(),
             }),
+            region_owner: SymbolHandle::invalid(),
             fields: vec![symbol(4), symbol(9)],
             cases: Vec::new(),
         };

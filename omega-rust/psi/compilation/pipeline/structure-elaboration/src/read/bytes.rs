@@ -15,9 +15,17 @@ use crate::{
 
 // The reader and source export use the same reference/region owner. A shape
 // tag or an arbitrary valid type reference cannot establish byte provenance.
+//
+// The owner of the lifetime a view names is the typed trees' answer for that
+// occurrence when they retained one. They retain none for a type written in
+// a declaration, whose lexical owner is that declaration (lifetimes.md: a
+// field's lifetimes are "binders declared in the lexical owner"), so the
+// reader passes the data declaration whose field it is reading as
+// `lexical_owner`, the rule `value_type` applies to `Inner<'a>` in a field.
 pub(super) fn source_byte_view(
     typed: &typed_trees::TypedTrees,
     reference: TypeReferenceHandle,
+    lexical_owner: SymbolHandle,
     machine: MachineId,
 ) -> Checked<Option<(ByteSequenceCarrier, String)>> {
     let fail = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
@@ -67,7 +75,10 @@ pub(super) fn source_byte_view(
         ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
         ReferenceAccess::WriteOnly => return Err(fail("write-only byte view")),
     };
-    let owner = typed.type_reference_table.operand_lifetime_owner(reference);
+    let owner = match typed.type_reference_table.operand_lifetime_owner(reference) {
+        retained if retained.is_valid() => retained,
+        _ => lexical_owner,
+    };
     let identity = typed_trees::type_identity::applied_type_identity_in_region_scope(
         typed,
         reference,
@@ -93,7 +104,10 @@ impl Program<'_> {
         machine: MachineId,
         reference: TypeReferenceHandle,
     ) -> Checked<Option<ValueType>> {
-        let Some((carrier, identity)) = source_byte_view(self.typed, reference, machine)? else {
+        let lexical_owner = self.lifetime_owner;
+        let Some((carrier, identity)) =
+            source_byte_view(self.typed, reference, lexical_owner, machine)?
+        else {
             return Ok(None);
         };
         let row = self.records.iter().find_map(|(id, row)| {
@@ -115,6 +129,7 @@ impl Program<'_> {
                 reference,
                 substitutions: Vec::new(),
             }),
+            region_owner: lexical_owner,
             fields: Vec::new(),
             cases: Vec::new(),
         });
@@ -173,6 +188,7 @@ impl Program<'_> {
         self.record_sources.push(RecordSource {
             declaration: SymbolHandle::invalid(),
             application: None,
+            region_owner: SymbolHandle::invalid(),
             fields: Vec::new(),
             cases: Vec::new(),
         });
