@@ -869,3 +869,41 @@ pub enum Strict {
     Greater,
     GreaterOrEqual,
 }
+
+#[cfg(test)]
+mod qualification_tests {
+    use super::{DomainSet, Policy, Qualification};
+    use symbols::SymbolHandle;
+
+    /// Equal sets are equal values whatever order their members were added
+    /// in, a member is added once, and the policy is part of the same
+    /// qualification as the declared domains.
+    #[test]
+    fn a_domain_set_is_one_value_per_set() {
+        let [km, positive] = [7, 3].map(SymbolHandle::from_arena_index);
+        let forward = DomainSet::EMPTY.with(km).unwrap().with(positive).unwrap();
+        let backward = DomainSet::EMPTY.with(positive).unwrap().with(km).unwrap();
+        assert_eq!(forward, backward);
+        assert_eq!(forward.members().collect::<Vec<_>>(), [positive, km]);
+        assert!(forward.with(km).is_none());
+        assert!(DomainSet::EMPTY.with(km).unwrap().is_subset_of(&forward));
+        assert!(!forward.is_subset_of(&DomainSet::EMPTY.with(km).unwrap()));
+
+        let plain = Qualification::NONE;
+        assert!(plain.is_none());
+        let wrapping = Qualification::of_policy(Policy::Wrapping);
+        let qualified = Qualification {
+            domains: forward,
+            ..wrapping
+        };
+        assert!(!wrapping.is_none() && wrapping != qualified);
+        // Past the inline capacity the set refuses, never drops a member.
+        let mut full = DomainSet::EMPTY;
+        for index in 0..DomainSet::CAPACITY as u32 {
+            full = full
+                .with(SymbolHandle::from_arena_index(index + 20))
+                .unwrap();
+        }
+        assert!(full.with(km).is_none());
+    }
+}

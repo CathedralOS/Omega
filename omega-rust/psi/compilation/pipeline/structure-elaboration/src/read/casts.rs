@@ -51,9 +51,10 @@ impl Program<'_> {
             ArithmeticDomain::Trapping => return unserved("cast into Trapping"),
         };
         let target = match (self.value_type(id, cast.target_type)?, named) {
-            (ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE), Some(policy)) => {
-                ValueType::Scalar(carrier, Qualification::of_policy(policy))
-            }
+            (
+                ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE),
+                Some(policy),
+            ) => ValueType::Scalar(carrier, Qualification::of_policy(policy)),
             (target @ ValueType::Scalar(..), None) => target,
             (ValueType::Scalar(..), Some(_)) => {
                 return unserved("cast that names a policy for a type that cannot carry one");

@@ -93,7 +93,8 @@ impl Program<'_> {
                     guard,
                     Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                 )?;
-                if guard.result != Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)) {
+                if guard.result != Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE))
+                {
                     return Err(refuse(
                         id,
                         Construct::Machine,

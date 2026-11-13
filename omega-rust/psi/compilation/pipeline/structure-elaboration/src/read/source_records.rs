@@ -784,13 +784,16 @@ mod tests {
         let nested = fixture.apply(second, second);
         let alias = fixture.apply(fixture.u64_type, fixture.u64_type);
         let mut program = Program::new(&fixture.typed, false);
-        let ValueType::Record(first_record, _) = program.record_at(machine(), first).unwrap() else {
+        let ValueType::Record(first_record, _) = program.record_at(machine(), first).unwrap()
+        else {
             panic!("record");
         };
-        let ValueType::Record(second_record, _) = program.record_at(machine(), second).unwrap() else {
+        let ValueType::Record(second_record, _) = program.record_at(machine(), second).unwrap()
+        else {
             panic!("record");
         };
-        let ValueType::Record(nested_record, _) = program.record_at(machine(), nested).unwrap() else {
+        let ValueType::Record(nested_record, _) = program.record_at(machine(), nested).unwrap()
+        else {
             panic!("record");
         };
         assert_ne!(first_record, second_record);

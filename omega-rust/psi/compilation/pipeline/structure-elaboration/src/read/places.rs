@@ -386,9 +386,7 @@ impl Program<'_> {
         // the field. A slice that adds a field type storing a view some
         // other way adds its lifetime accounting with the arm it adds here.
         match value_type {
-            ValueType::Scalar(..)
-            | ValueType::Record(_, _)
-            | ValueType::Rigid(_) => {}
+            ValueType::Scalar(..) | ValueType::Record(_, _) | ValueType::Rigid(_) => {}
         }
         let identity = field.member_identity().spelling();
         if identity.is_empty() {

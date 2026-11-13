@@ -27,7 +27,7 @@ fn rigid() -> ValueType {
 }
 
 fn u32_value() -> ValueType {
-    ValueType::Scalar(u32_type())
+    ValueType::plain(u32_type())
 }
 
 /// One machine with a `u32` result: its formals, contract and statements.
@@ -153,10 +153,7 @@ fn a_body_over_a_type_parameter_is_checked_once_and_carried_to_two_types() {
     for (obligation, verdict) in proved {
         assert_kernel_checked(&form, 1, obligation, certificate(verdict));
     }
-    for item_type in [
-        ValueType::Scalar(i32_type()),
-        ValueType::Scalar(bool_type()),
-    ] {
+    for item_type in [ValueType::plain(i32_type()), ValueType::plain(bool_type())] {
         let mut consumer = specialized(item_type, 11);
         let before = searches();
         let verdicts =
@@ -181,7 +178,7 @@ fn a_bound_the_callee_does_not_give_is_refused_for_every_type() {
         refused.as_ref().unwrap_err().reason,
         RefusalReason::Unproved(_)
     ));
-    let mut consumer = specialized(ValueType::Scalar(i32_type()), 10);
+    let mut consumer = specialized(ValueType::plain(i32_type()), 10);
     let before = searches();
     let verdicts =
         reverify_specialization(&form, &found, id(1), &mut consumer, id(1), &[]).unwrap();
@@ -249,10 +246,7 @@ fn one_type_parameter_is_one_type_in_a_specialization() {
         let mut consumer = lowered(vec![both(left, right)], &[]);
         reverify_specialization(&form, &found, id(1), &mut consumer, id(1), &[])
     };
-    let (int, boolean) = (
-        ValueType::Scalar(i32_type()),
-        ValueType::Scalar(bool_type()),
-    );
+    let (int, boolean) = (ValueType::plain(i32_type()), ValueType::plain(bool_type()));
     assert_eq!(carry(int, int).unwrap().len(), 1);
     assert_eq!(
         carry(int, boolean).unwrap_err().reason,

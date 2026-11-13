@@ -156,7 +156,9 @@ impl Program<'_> {
                     if let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol)
                     {
                         return match bound {
-                            ValueType::Scalar(scalar_type, Qualification::NONE) => Some(Closed::Scalar(*scalar_type)),
+                            ValueType::Scalar(scalar_type, Qualification::NONE) => {
+                                Some(Closed::Scalar(*scalar_type))
+                            }
                             ValueType::Scalar(..)
                             | ValueType::Rigid(_)
                             | ValueType::Record(_, _) => None,

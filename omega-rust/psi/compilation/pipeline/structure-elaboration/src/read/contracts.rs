@@ -451,7 +451,9 @@ impl Program<'_> {
                     if !scope.formal_fields {
                         return unserved("clause that names a borrowed formal outside requires");
                     }
-                    let ValueType::Scalar(scalar_type, Qualification::NONE) = scope.slots[slot].value_type else {
+                    let ValueType::Scalar(scalar_type, Qualification::NONE) =
+                        scope.slots[slot].value_type
+                    else {
                         return unserved("record formal named whole in a clause");
                     };
                     let root = formal_place(id, scope.slots, slot)?;
@@ -793,18 +795,20 @@ impl Program<'_> {
                 if qualification.domains.is_empty() =>
             {
                 Ok((
-                ScalarTerm::IntegerField {
-                    root,
-                    path,
-                    scalar_type,
-                },
-                ScalarType::Integer(scalar_type),
+                    ScalarTerm::IntegerField {
+                        root,
+                        path,
+                        scalar_type,
+                    },
+                    ScalarType::Integer(scalar_type),
                 ))
             }
             ValueType::Scalar(ScalarType::Boolean, Qualification::NONE) => {
                 Ok((ScalarTerm::BooleanField { root, path }, ScalarType::Boolean))
             }
-            ValueType::Scalar(ScalarType::IeeeFloat(_), Qualification::NONE) => unserved("float field in a clause"),
+            ValueType::Scalar(ScalarType::IeeeFloat(_), Qualification::NONE) => {
+                unserved("float field in a clause")
+            }
             // domains.md, "Operands": a builtin comparison takes
             // unqualified operands, in `requires` and `ensures` too.
             ValueType::Scalar(..) => unserved("field that carries a declared domain in a clause"),
@@ -856,7 +860,11 @@ impl Program<'_> {
                         return Ok(None);
                     };
                     let root = formal_place(id, scope.slots, slot)?;
-                    return Ok(Some((root, Vec::new(), ValueType::Record(record, Qualification::NONE))));
+                    return Ok(Some((
+                        root,
+                        Vec::new(),
+                        ValueType::Record(record, Qualification::NONE),
+                    )));
                 };
                 if subject.symbol.is_valid() && path.symbol == subject.symbol {
                     return Ok(Some((

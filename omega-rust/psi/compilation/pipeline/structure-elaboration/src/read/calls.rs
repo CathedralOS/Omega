@@ -1248,7 +1248,9 @@ impl<'t> Program<'t> {
             return unserved("loan of a policy-qualified integer");
         }
         let home = match (&place.kind, lender.value_type) {
-            (ExpressionKind::Slot(_), ValueType::Scalar(_, Qualification::NONE)) if !lender.homed => {
+            (ExpressionKind::Slot(_), ValueType::Scalar(_, Qualification::NONE))
+                if !lender.homed =>
+            {
                 Some(formal.home.clone().ok_or_else(|| {
                     refuse(
                         id,

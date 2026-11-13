@@ -110,7 +110,9 @@ impl<'t> Program<'t> {
                     ValueType::Scalar(scalar_type, Qualification::NONE) if !bound.homed => {
                         (ExpressionKind::Slot(slot), scalar_type)
                     }
-                    ValueType::Scalar(_, Qualification::NONE) => return unserved("erased term that reads storage"),
+                    ValueType::Scalar(_, Qualification::NONE) => {
+                        return unserved("erased term that reads storage");
+                    }
                     ValueType::Scalar(..) => {
                         return unserved("erased term of a qualified type");
                     }
@@ -168,12 +170,16 @@ impl<'t> Program<'t> {
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
                 match (unary.operator, operand.result) {
-                    (UnaryOperator::LogicalNot, Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE))) => {
-                        (ExpressionKind::Not(Box::new(operand)), ScalarType::Boolean)
-                    }
+                    (
+                        UnaryOperator::LogicalNot,
+                        Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
+                    ) => (ExpressionKind::Not(Box::new(operand)), ScalarType::Boolean),
                     (
                         UnaryOperator::BitwiseNot,
-                        Some(ValueType::Scalar(integer @ ScalarType::Integer(_), Qualification::NONE)),
+                        Some(ValueType::Scalar(
+                            integer @ ScalarType::Integer(_),
+                            Qualification::NONE,
+                        )),
                     ) => (ExpressionKind::BitwiseNot(Box::new(operand)), integer),
                     _ => {
                         return Err(refuse(
@@ -586,7 +592,9 @@ fn binary_expression(
         return Err(refuse(
             id,
             Construct::Machine,
-            Unserved::Expression("operator on an operand that is not a plain or policy-qualified scalar"),
+            Unserved::Expression(
+                "operator on an operand that is not a plain or policy-qualified scalar",
+            ),
         ));
     };
     let policy = match (left_policy, right_policy) {

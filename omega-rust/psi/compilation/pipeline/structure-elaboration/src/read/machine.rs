@@ -375,7 +375,8 @@ impl<'t> Program<'t> {
         use typed_trees::signature::SignatureContractKind;
         use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
         let typed = self.typed;
-        let carries = |mut reference: typed_trees::types::TypeReferenceHandle, domain: SymbolHandle| {
+        let carries = |mut reference: typed_trees::types::TypeReferenceHandle,
+                       domain: SymbolHandle| {
             while reference.is_valid()
                 && let TypeReferenceNode::Constrained {
                     base_type,

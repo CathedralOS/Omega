@@ -88,7 +88,10 @@ impl Program<'_> {
             machine,
             slots,
             indexed.index,
-            Some(ValueType::Scalar(ScalarType::Integer(index_type), Qualification::NONE)),
+            Some(ValueType::Scalar(
+                ScalarType::Integer(index_type),
+                Qualification::NONE,
+            )),
         )?;
         if !matches!(index.result.and_then(ValueType::scalar), Some(ScalarType::Integer(integer)) if !integer.is_address())
         {

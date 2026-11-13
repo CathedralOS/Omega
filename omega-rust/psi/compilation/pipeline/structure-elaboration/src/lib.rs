@@ -56,9 +56,9 @@ mod proof_scope;
 mod read;
 
 pub use body::{
-    Axis, Body, Borrowed, CaseType, Ceiling, CrashCeiling, Expression, ExpressionKind, Policy,
-    RecordField, RecordType, Signature, Statement, StorageShape, Strict, Target, Termination,
-    ValueType, self_place,
+    Axis, Body, Borrowed, CaseType, Ceiling, CrashCeiling, DomainSet, Expression, ExpressionKind,
+    Policy, Qualification, RecordField, RecordType, Signature, Statement, StorageShape, Strict,
+    Target, Termination, ValueType, self_place,
 };
 pub use names::{Binder, ClauseText, MachineNames, Piece};
 pub use outcome::Outcome;

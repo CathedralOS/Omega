@@ -403,10 +403,7 @@ impl Lowering<'_> {
         // record result is the machine's result place, a root of its own.
         let result = match signature.result {
             None => TerminalMachineResult::Unit,
-            Some(
-                value_type
-                @ (ValueType::Scalar(..) | ValueType::Rigid(_)),
-            ) => {
+            Some(value_type @ (ValueType::Scalar(..) | ValueType::Rigid(_))) => {
                 let (scalar_type, rigid) = value_type
                     .declared()
                     .ok_or_else(|| self.internal("a value result has no declaration"))?;
@@ -598,9 +595,7 @@ impl<'a> Lowering<'a> {
             self.sources.heads.push((block, *member));
             let mut parameters = Vec::with_capacity(signature.parameters.len());
             for value_type in &signature.parameters {
-                let ValueType::Scalar(scalar_type, _) =
-                    *value_type
-                else {
+                let ValueType::Scalar(scalar_type, _) = *value_type else {
                     return Err(self.internal("a record formal on a call cycle"));
                 };
                 let position = self.position(parameters.len())?;

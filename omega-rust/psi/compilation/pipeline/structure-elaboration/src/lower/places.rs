@@ -153,9 +153,7 @@ pub(crate) fn declare<'a>(
                             Unserved::Type("generic data"),
                         ));
                     }
-                    ValueType::Scalar(scalar_type, _) => {
-                        StructuralFieldType::Scalar(scalar_type)
-                    }
+                    ValueType::Scalar(scalar_type, _) => StructuralFieldType::Scalar(scalar_type),
                     ValueType::Record(nested, _) => {
                         // A data type holds only types declared before it,
                         // so the table is acyclic and in dependency order.
@@ -307,9 +305,7 @@ pub(crate) fn declare<'a>(
             let Statement::Declare { slot, home, .. } = statement else {
                 continue;
             };
-            let Some(value_type @ ValueType::Scalar(..)) =
-                body.slots.get(*slot).copied()
-            else {
+            let Some(value_type @ ValueType::Scalar(..)) = body.slots.get(*slot).copied() else {
                 continue;
             };
             homes.push((value_type, home.as_ref()));
@@ -322,9 +318,10 @@ pub(crate) fn declare<'a>(
                 scalar_type,
                 policy,
             } => Some((
-                policy.map_or(ValueType::Scalar(scalar_type, Qualification::NONE), |policy| {
-                    ValueType::Scalar(scalar_type, Qualification::of_policy(policy))
-                }),
+                policy.map_or(
+                    ValueType::Scalar(scalar_type, Qualification::NONE),
+                    |policy| ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
+                ),
                 row.identity.clone(),
                 id,
             )),
@@ -488,11 +485,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Borrow { place, home, .. } => {
-            if let (
-                Some(home),
-                Some(value_type @ ValueType::Scalar(..)),
-            ) = (home, place.result)
-            {
+            if let (Some(home), Some(value_type @ ValueType::Scalar(..))) = (home, place.result) {
                 homes.push((value_type, Some(home)));
             }
             expression_homes(place, homes);
@@ -838,9 +831,7 @@ impl<'a> Lowering<'a> {
     fn entry_leaves(&mut self, place: ExactPlaceId, value_type: ValueType) -> Checked<()> {
         match value_type {
             ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
-            ValueType::Scalar(scalar_type, _) => {
-                self.entry_content(place, scalar_type).map(drop)
-            }
+            ValueType::Scalar(scalar_type, _) => self.entry_content(place, scalar_type).map(drop),
             ValueType::Record(record, _) => {
                 let data = self.record_type(record)?;
                 if matches!(data.shape, StorageShape::FixedArray { .. }) {
@@ -1268,7 +1259,11 @@ impl<'a> Lowering<'a> {
                 Unserved::Expression("owned extraction from borrowed storage"),
             ));
         }
-        self.name_entry(at.root, at.place, ValueType::Record(at.record, Qualification::NONE))?;
+        self.name_entry(
+            at.root,
+            at.place,
+            ValueType::Record(at.record, Qualification::NONE),
+        )?;
         let operation = self.operation_identity(expression.source);
         let path = self.storage_path(
             &at.path,
@@ -1383,7 +1378,12 @@ impl<'a> Lowering<'a> {
             && access == language_core::ReferenceAccess::Shared
         {
             let at = self.located(place)?;
-            (at.root, at.path, at.place, ValueType::Record(at.record, Qualification::NONE))
+            (
+                at.root,
+                at.path,
+                at.place,
+                ValueType::Record(at.record, Qualification::NONE),
+            )
         } else {
             self.capture_place(place, home_identity)?
         };
@@ -1473,7 +1473,12 @@ impl<'a> Lowering<'a> {
                 if at.fresh {
                     return Err(self.internal("a capture names newly produced storage"));
                 }
-                (at.root, at.path, at.place, ValueType::Record(at.record, Qualification::NONE))
+                (
+                    at.root,
+                    at.path,
+                    at.place,
+                    ValueType::Record(at.record, Qualification::NONE),
+                )
             }
             _ => return Err(self.internal("a destination does not name existing storage")),
         };
@@ -1531,9 +1536,7 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("a literal names a field past its record"))?;
             let evaluated = match field.value_type {
                 ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(..) => {
-                    Operand::Scalar(self.scalar(operand)?)
-                }
+                ValueType::Scalar(..) => Operand::Scalar(self.scalar(operand)?),
                 ValueType::Record(_, _) => Operand::Record(self.record(operand)?),
             };
             if operands[*position].replace(evaluated).is_some() {
@@ -1600,25 +1603,21 @@ impl<'a> Lowering<'a> {
                 return Err(self.internal("an array literal element has another type"));
             }
             operands.push(match value_type {
-                ValueType::Scalar(..) => {
-                    Operand::Scalar(self.scalar(element)?)
-                }
+                ValueType::Scalar(..) => Operand::Scalar(self.scalar(element)?),
                 ValueType::Record(_, _) => Operand::Record(self.record(element)?),
                 ValueType::Rigid(_) => return Err(self.internal("a rigid array element")),
             });
         }
         let kind = match value_type {
-            ValueType::Scalar(..) => {
-                OperationKind::EstablishScalarArray {
-                    elements: operands
-                        .iter()
-                        .map(|operand| match operand {
-                            Operand::Scalar(value) => Ok(*value),
-                            _ => Err(self.internal("a non-scalar array element")),
-                        })
-                        .collect::<Checked<_>>()?,
-                }
-            }
+            ValueType::Scalar(..) => OperationKind::EstablishScalarArray {
+                elements: operands
+                    .iter()
+                    .map(|operand| match operand {
+                        Operand::Scalar(value) => Ok(*value),
+                        _ => Err(self.internal("a non-scalar array element")),
+                    })
+                    .collect::<Checked<_>>()?,
+            },
             ValueType::Record(_, _) => OperationKind::EstablishStructuralArray {
                 elements: operands
                     .iter()
@@ -1681,9 +1680,7 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("a literal names a field past its case"))?;
             let evaluated = match field.value_type {
                 ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(..) => {
-                    Operand::Scalar(self.scalar(operand)?)
-                }
+                ValueType::Scalar(..) => Operand::Scalar(self.scalar(operand)?),
                 ValueType::Record(_, _) => Operand::Record(self.record(operand)?),
             };
             if operands[*position].replace(evaluated).is_some() {
@@ -1749,7 +1746,11 @@ impl<'a> Lowering<'a> {
     ) -> Checked<Value> {
         let at = self.located(subject)?;
         let case = self.case_of(at.record, case)?.id;
-        self.name_entry(at.root, at.place, ValueType::Record(at.record, Qualification::NONE))?;
+        self.name_entry(
+            at.root,
+            at.place,
+            ValueType::Record(at.record, Qualification::NONE),
+        )?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
         self.emit(
@@ -1794,7 +1795,11 @@ impl<'a> Lowering<'a> {
             return Err(self.internal("a dispatch on storage that is no sum"));
         }
         let path = self.storage_path(&at.path, ExecutionSite::Block(self.current()?), source)?;
-        self.name_entry(at.root, at.place, ValueType::Record(at.record, Qualification::NONE))?;
+        self.name_entry(
+            at.root,
+            at.place,
+            ValueType::Record(at.record, Qualification::NONE),
+        )?;
         let mut blocks = Vec::with_capacity(arms.len());
         let mut payloads = Vec::with_capacity(arms.len());
         for case in arms {
@@ -1946,7 +1951,11 @@ impl<'a> Lowering<'a> {
         scalar_type: ScalarType,
         source: SourceOrigin,
     ) -> Checked<Value> {
-        self.name_entry(root, leaf, ValueType::Scalar(scalar_type, Qualification::NONE))?;
+        self.name_entry(
+            root,
+            leaf,
+            ValueType::Scalar(scalar_type, Qualification::NONE),
+        )?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(steps, ExecutionSite::Operation(operation), source)?;
         self.emit(
@@ -2094,7 +2103,11 @@ impl<'a> Lowering<'a> {
     ) -> Checked<Value> {
         // A borrowed scalar formal's place holds the caller's value at entry.
         let place = self.exact_root(home)?;
-        self.name_entry(home, place, ValueType::Scalar(scalar_type, Qualification::NONE))?;
+        self.name_entry(
+            home,
+            place,
+            ValueType::Scalar(scalar_type, Qualification::NONE),
+        )?;
         let operation = self.operation_identity(source);
         self.emit(
             operation,

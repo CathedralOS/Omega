@@ -105,8 +105,7 @@ impl Lowering<'_> {
                         .push((root, Vec::new(), StructuralAccess::Owned));
                     evaluated.consumed.push(root);
                 }
-                Some(ValueType::Scalar(..) | ValueType::Rigid(_))
-                | None => {
+                Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
                     let value = self.scalar(argument)?;
                     evaluated.actuals.push(Actual::Value(value));
                     evaluated.scalars.push(value);
@@ -418,9 +417,7 @@ impl Lowering<'_> {
                 }
             }
             semantic_vocabulary::TargetMachineCallable::Machine(callee) => match result {
-                Some(ValueType::Scalar(..))
-                    if structural_arguments.is_empty() =>
-                {
+                Some(ValueType::Scalar(..)) if structural_arguments.is_empty() => {
                     OperationKind::Call {
                         callee,
                         arguments: scalars,
@@ -430,18 +427,16 @@ impl Lowering<'_> {
                         crash_continuations,
                     }
                 }
-                Some(ValueType::Scalar(..)) => {
-                    OperationKind::CallStructuralScalar {
-                        callee,
-                        arguments: scalars,
-                        erased_arguments,
-                        erased_proof_arguments: Vec::new(),
-                        structural_arguments,
-                        claim_transfers: Vec::new(),
-                        requirement_obligations: requirements,
-                        crash_continuations,
-                    }
-                }
+                Some(ValueType::Scalar(..)) => OperationKind::CallStructuralScalar {
+                    callee,
+                    arguments: scalars,
+                    erased_arguments,
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments,
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: requirements,
+                    crash_continuations,
+                },
                 None => OperationKind::CallUnit {
                     callee,
                     arguments: scalars,
@@ -471,9 +466,7 @@ impl Lowering<'_> {
         // The actual result keeps one constructor across both declaration
         // classes; storage, unknown writes and loan restoration are shared.
         let value = match result {
-            Some(ValueType::Scalar(scalar, _)) => {
-                self.emit(operation, Some(scalar), kind)?
-            }
+            Some(ValueType::Scalar(scalar, _)) => self.emit(operation, Some(scalar), kind)?,
             None => self.emit(operation, None, kind)?,
             Some(ValueType::Record(record, _)) => {
                 let (root, exact) = self.produce(operation, record, kind)?;

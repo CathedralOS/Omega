@@ -252,7 +252,8 @@ impl Program<'_> {
                 "callable description lost its toolchain result vocabulary",
             ));
         }
-        let Some(ValueType::Record(record, _)) = Some(self.value_type(machine, result_type)?) else {
+        let Some(ValueType::Record(record, _)) = Some(self.value_type(machine, result_type)?)
+        else {
             return Err(fail(
                 "callable description result is not structured storage",
             ));
