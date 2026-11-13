@@ -58,6 +58,10 @@ Good commits (fixed ledger): c1 `576c5c9433a95c1f4dcb4f18197f408afbfe92cd`; c2 `
 
 Listed in `part-22.tsv` as `fixed-on-main`.
 
+## First-bad verification (standard)
+
+Full witness 3×, member flip tables, quoted diff hunks, and split rows: `verification-part-22.md`. Non-flipping c1 members: `member-bisect-part22.txt`.
+
 ## Commands / host
 
 - Host: linux x86_64
