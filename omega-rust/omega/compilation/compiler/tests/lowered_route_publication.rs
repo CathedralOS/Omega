@@ -44,7 +44,13 @@ impl TerminalEffectHandler for NoEffects {
     }
 }
 
-fn accepted(fixture: &str) -> Box<lowered_discharge::AcceptedClosure> {
+fn accepted(
+    fixture: &str,
+) -> (
+    Box<lowered_discharge::AcceptedClosure>,
+    terminal_psi::PreparedNominalRoot,
+    [u8; 32],
+) {
     let main = repo_root().join(fixture).join("main.omg");
     let checked = std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
@@ -54,8 +60,8 @@ fn accepted(fixture: &str) -> Box<lowered_discharge::AcceptedClosure> {
         .join()
         .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
     });
-    let frontier = match checked {
-        FixtureFrontierCheck::Accepted { frontier, .. } => frontier,
+    let (frontier, checked) = match checked {
+        FixtureFrontierCheck::Accepted { frontier, checked } => (frontier, checked),
         _ => panic!("{fixture}: the program must check"),
     };
     match judge(elaborate(
@@ -66,7 +72,21 @@ fn accepted(fixture: &str) -> Box<lowered_discharge::AcceptedClosure> {
             selected: &frontier.selected,
         },
     )) {
-        Ok(RouteVerdict::Accepted(closure)) => closure,
+        Ok(RouteVerdict::Accepted(closure)) => {
+            let signature = checked
+                .execution()
+                .selected_program_entry
+                .as_ref()
+                .expect("selected entry")
+                .source_signature();
+            let root = terminal_psi::PreparedNominalRoot::new(
+                signature.declaration(),
+                signature.machine_name(),
+                None,
+            )
+            .expect("exact selected root");
+            (closure, root, signature.identity().bytes())
+        }
         other => panic!("{fixture}: the route must accept: {other:?}"),
     }
 }
@@ -74,13 +94,35 @@ fn accepted(fixture: &str) -> Box<lowered_discharge::AcceptedClosure> {
 #[test]
 fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let closure = accepted("tests/omega/run/calls/scalar_contract_route_exit");
+    let (closure, root, signature) = accepted("tests/omega/run/calls/scalar_contract_route_exit");
     let publication = closure.publish().expect("the accepted module publishes");
 
     // The artifact holds exactly the module the route checked.
     assert_eq!(
         publication.artifact.semantic_module(),
         &closure.elaboration.module
+    );
+
+    // The ordinary product receipt selects the route's module by exact owner,
+    // including its source signature and this artifact's semantic identity.
+    let receipt = publication
+        .entry_receipt(&root, signature)
+        .expect("ordinary entry receipt");
+    assert_eq!(
+        receipt.terminal_psi_identity(),
+        publication.artifact.manifest().semantic()
+    );
+    assert_eq!(
+        receipt.terminal_entry(),
+        root.resolve(publication.artifact.semantic_module())
+            .unwrap()
+            .id
+    );
+    let wrong_owner =
+        terminal_psi::PreparedNominalRoot::new("other-package::main", "main", None).unwrap();
+    assert!(
+        publication.entry_receipt(&wrong_owner, signature).is_err(),
+        "a same-leaf root from another owner cannot join"
     );
 
     // Omega 00 attaches the seals to that module, and each accepted
@@ -198,9 +240,8 @@ fn current_product(fixture: &str) -> terminal_codec::CanonicalTerminalArtifact {
 fn the_published_module_states_each_machines_declaration_identity() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let fixture = "tests/omega/run/calls/scalar_contract_route_exit";
-    let publication = accepted(fixture)
-        .publish()
-        .expect("the accepted module publishes");
+    let (closure, _, _) = accepted(fixture);
+    let publication = closure.publish().expect("the accepted module publishes");
     let published = publication.artifact.semantic_module();
     let current = current_product(fixture);
     let current = current.semantic_module();

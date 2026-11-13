@@ -111,6 +111,25 @@ pub struct RoutePublication {
     pub seals: terminal_codec::EvidenceSeals,
 }
 
+impl RoutePublication {
+    /// Uses the same nominal-entry receipt as every other Terminal producer.
+    /// A same-spelled machine from another owner cannot satisfy this root.
+    pub fn entry_receipt(
+        &self,
+        declaration: &terminal_psi::PreparedNominalRoot,
+        source_signature_identity: [u8; 32],
+    ) -> Result<
+        terminal_psi::CheckedProgramEntryTerminalReceipt,
+        terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError,
+    > {
+        terminal_codec::entry_receipt::prepare_program_entry_receipt(
+            declaration,
+            source_signature_identity,
+            &self.artifact,
+        )
+    }
+}
+
 /// Why an accepted closure could not be published.
 #[derive(Debug)]
 pub enum PublicationError {
