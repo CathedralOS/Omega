@@ -280,7 +280,7 @@ impl<'t> Program<'t> {
             ExpressionNode::Borrow(_) => return unserved("borrow"),
             ExpressionNode::Range(_) => return unserved("range"),
             ExpressionNode::StructLiteral(literal) => {
-                return self.record_literal(id, slots, literal, source);
+                return self.record_literal(id, slots, handle, literal, source);
             }
             ExpressionNode::String(_) => return unserved("string literal"),
             ExpressionNode::ZeroValue(_) => return unserved("zero value"),

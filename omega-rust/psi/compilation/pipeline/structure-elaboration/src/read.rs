@@ -29,6 +29,7 @@ mod contracts;
 mod expressions;
 mod machine;
 mod places;
+mod source_records;
 mod statements;
 mod subjects;
 mod transitions;
@@ -915,6 +916,7 @@ mod tests {
         let mut program = Program::new(&typed, false);
         program.record_sources.push(places::RecordSource {
             declaration: point,
+            application: None,
             fields: vec![a, b],
             cases: Vec::new(),
         });

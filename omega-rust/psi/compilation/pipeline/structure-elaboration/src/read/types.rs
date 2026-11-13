@@ -307,7 +307,11 @@ impl Program<'_> {
             && self.typed.symbols.builtin_type_atom(*symbol).is_none()
             && self.data_declaration(*symbol).is_some()
         {
-            return self.record(id, *symbol);
+            let value = self.record(id, *symbol)?;
+            if let ValueType::Record(record) = value {
+                self.record_application(id, record, handle)?;
+            }
+            return Ok(value);
         }
         self.scalar_type(id, handle).map(ValueType::Scalar)
     }
