@@ -145,7 +145,7 @@ pub mod const_integer {
     ) -> Option<Value> {
         match expressions.expression(expression) {
             ExpressionNode::Integer(literal) => leaf(IntegerLeaf::Literal(literal)),
-            ExpressionNode::Name(path) => {
+            ExpressionNode::Name(path) if !path.static_application.is_valid() => {
                 let [member] = expressions.name_path_members(path.members) else {
                     return None;
                 };
@@ -1695,6 +1695,18 @@ pub mod expression {
                         self.remap_symbols_in_inner(inner.target, symbols, visited)
                     }
                     ExpressionNode::Name(path) => {
+                        if let Some(mut application) =
+                            self.static_member(path.static_application).cloned()
+                        {
+                            self.remap_static_argument_symbols(
+                                &mut application,
+                                symbols.execution(),
+                            );
+                            *self
+                                .static_member_mut(path.static_application)
+                                .expect("declaration application remains in its owning table") =
+                                application;
+                        }
                         let ExpressionNode::Name(current) = self.expression_mut(root) else {
                             unreachable!();
                         };
@@ -2112,6 +2124,19 @@ pub mod expression {
                         }))
                     }
                     ExpressionNode::Name(path) => {
+                        let static_application = if path.static_application.is_valid() {
+                            let argument = source.table(self).static_member(path.static_application)
+                                .expect("declaration application belongs to its source expression table").clone();
+                            let copied = match source {
+                                CopySource::Own => self.copy_static_argument_from_self(&argument),
+                                CopySource::Table(table) => {
+                                    self.copy_static_argument_from(table, &argument)
+                                }
+                            };
+                            self.insert_static_member(copied)
+                        } else {
+                            arena::Handle::invalid()
+                        };
                         let members = self.copy_name_path_members(source, path.members);
                         let member_symbols =
                             self.copy_name_path_member_symbols(source, path.member_symbols);
@@ -2121,6 +2146,7 @@ pub mod expression {
                             head_symbol: path.head_symbol,
                             symbol: path.symbol,
                             reserved_result_of: path.reserved_result_of,
+                            static_application,
                         }))
                     }
                     ExpressionNode::Range(range) => {
@@ -2790,6 +2816,7 @@ pub mod expression {
                             member_symbols,
                             head_symbol: path.head_symbol(),
                             symbol: path.symbol(),
+                            static_application: arena::Handle::invalid(),
                             reserved_result_of: path.reserved_result_of(),
                         }))
                     }
@@ -4548,6 +4575,7 @@ pub mod expression {
         pub member_symbols: HandleSpan<SymbolHandle>,
         pub head_symbol: SymbolHandle,
         pub symbol: SymbolHandle,
+        pub static_application: arena::Handle<StaticMachineArgument>,
         /// The callable whose reserved `result` this name denotes, or invalid
         /// when it denotes no result. Stage 02 sets it once, where it decides a
         /// contract name is the reserved result occurrence
@@ -4571,6 +4599,7 @@ pub mod expression {
                 member_symbols,
                 head_symbol,
                 symbol,
+                static_application: arena::Handle::invalid(),
                 reserved_result_of: SymbolHandle::invalid(),
             }
         }

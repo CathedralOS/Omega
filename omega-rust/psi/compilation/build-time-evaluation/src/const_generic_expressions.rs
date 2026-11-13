@@ -2231,7 +2231,13 @@ pub(crate) mod lexical_selection {
         while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
             match syntax.expressions.expression(expression) {
                 ExpressionNode::Name(path) => {
-                    let members = syntax.expressions.identifier_path_members(*path);
+                    if path.application.is_some() {
+                        return Err(
+                            "machine index constant paths cannot discard static applications"
+                                .to_owned(),
+                        );
+                    }
+                    let members = syntax.expressions.identifier_path_members(path.members);
                     let (Some(first), Some(last)) = (members.first(), members.last()) else {
                         return Err("machine index operand lost its authored name path".to_owned());
                     };
@@ -2343,9 +2349,14 @@ pub(crate) mod lexical_selection {
     > {
         let reference = authored.target.source_span();
         let qualified_reference = match syntax.expressions.expression(authored.receiver) {
+            ExpressionNode::Name(path) if path.application.is_some() => {
+                return Err(
+                    "machine index call receiver requires an unapplied declaration path".to_owned(),
+                );
+            }
             ExpressionNode::Name(path) => syntax
                 .expressions
-                .identifier_path_members(*path)
+                .identifier_path_members(path.members)
                 .first()
                 .filter(|first| first.source_span().source_id == reference.source_id)
                 .map(|first| {
@@ -5785,7 +5796,9 @@ pub(crate) fn evaluate(
                         Identifier::new(member, reference),
                     );
             }
-            let expression = syntax.expressions.insert(ExpressionNode::Name(members));
+            let expression = syntax
+                .expressions
+                .insert(ExpressionNode::Name(members.into()));
             syntax.expressions.set_source_span(expression, reference);
             syntax
                 .type_references

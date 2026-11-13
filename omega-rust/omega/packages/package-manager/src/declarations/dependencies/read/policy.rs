@@ -212,7 +212,13 @@ fn expression_owner(syntax_trees: &SyntaxTrees, receiver: ExpressionHandle) -> O
     let ExpressionNode::Name(path) = syntax_trees.expressions.expression(receiver) else {
         return None;
     };
-    match syntax_trees.expressions.identifier_path_members(*path) {
+    if path.application.is_some() {
+        return None;
+    }
+    match syntax_trees
+        .expressions
+        .identifier_path_members(path.members)
+    {
         [owner] => Some(owner.as_str(syntax_trees)),
         _ => None,
     }

@@ -1124,7 +1124,9 @@ impl TypedReferences for ReferenceCollector {
         }
     }
     fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
-        self.descriptor_symbols.insert(symbol);
+        if symbol.is_valid() {
+            self.descriptor_symbols.insert(symbol);
+        }
     }
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
         if !self.classify_static_arguments.is_some_and(|classify| {
@@ -3803,5 +3805,86 @@ mod conformance_occurrence_tests {
                 .count(),
             2
         );
+    }
+}
+
+#[cfg(test)]
+mod declaration_description_tests {
+    use super::*;
+    use crate::expression::StaticSymbolApplication;
+    use crate::name::Identifier;
+    use crate::types::TypeReferenceNode;
+    use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn applied_description_retains_real_dependencies_without_executable_or_invalid_roots() {
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("select")),
+                (SymbolKind::Data, SymbolNameRef::Static("Word")),
+            ],
+        );
+        let declaration = children.handle_at(0);
+        let word = children.handle_at(1);
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let word_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: word,
+                name: Identifier::generated("Word"),
+            });
+        let selection = program
+            .expression_table
+            .insert_static_member(StaticMachineArgument {
+                symbol: declaration,
+                application: Some(Box::new(StaticSymbolApplication {
+                    member: Default::default(),
+                    lifetime_arguments: Box::default(),
+                    arguments: Box::new([
+                        StaticMachineArgument {
+                            const_literal: Some(numerics::literals::IntegerLiteral::from_value(7)),
+                            ..Default::default()
+                        },
+                        StaticMachineArgument {
+                            type_reference: word_type,
+                            ..Default::default()
+                        },
+                    ]),
+                })),
+                ..Default::default()
+            });
+        let expression = program
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                static_application: selection,
+                ..TableNamePath::new(
+                    Default::default(),
+                    Default::default(),
+                    declaration,
+                    declaration,
+                )
+            }));
+        let mut collector = ReferenceCollector::default();
+        visit_expression(&program, &mut collector, expression);
+        let references = finish_references(collector);
+        assert!(references.descriptor_symbols.contains(&declaration));
+        assert!(references.symbols.contains(&word));
+        assert!(references.type_references.contains(&word_type));
+        assert!(
+            references.callable_uses.is_empty(),
+            "describing a declaration does not invoke it"
+        );
+        assert!(
+            !references
+                .descriptor_symbols
+                .contains(&SymbolHandle::invalid())
+        );
+        assert!(!references.symbols.contains(&SymbolHandle::invalid()));
     }
 }

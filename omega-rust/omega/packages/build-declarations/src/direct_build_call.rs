@@ -35,7 +35,7 @@ pub(crate) fn direct_build_call_operands<'syntax>(
         return Err(DirectBuildCallError::WrongArguments);
     };
     if !matches!(syntax_trees.expressions.expression(*builder), ExpressionNode::Name(path)
-        if matches!(syntax_trees.expressions.identifier_path_members(*path), [name] if name.as_str(syntax_trees) == BUILDER_PARAMETER_NAME))
+        if path.application.is_none() && matches!(syntax_trees.expressions.identifier_path_members(path.members), [name] if name.as_str(syntax_trees) == BUILDER_PARAMETER_NAME))
     {
         return Err(DirectBuildCallError::WrongReceiver);
     }

@@ -1788,6 +1788,11 @@ pub(crate) mod statements {
                                 "{spelling} requires a modeled 32-bit register destination"
                             )));
                         };
+                        if path.application.is_some() {
+                            return Err(mnemonic_site.error_here(format!(
+                                "{spelling} requires an unapplied modeled register destination"
+                            )));
+                        }
                         let [name] = exprs_of(syntax_trees).identifier_path_members(path.members)
                         else {
                             return Err(mnemonic_site.error_here(format!(
