@@ -12,7 +12,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 use super::Program;
-use crate::body::ValueType;
+use crate::body::{Policy, ValueType};
 use crate::{Unserved, refuse};
 
 fn integer(sign: IntegerSign, bits: u16, machine: MachineId) -> Checked<ScalarType> {
@@ -156,7 +156,9 @@ impl Program<'_> {
                     {
                         return match bound {
                             ValueType::Scalar(scalar_type) => Some(Closed::Scalar(*scalar_type)),
-                            ValueType::Rigid(_) | ValueType::Record(_) => None,
+                            ValueType::Rigid(_)
+                            | ValueType::Record(_)
+                            | ValueType::Qualified(..) => None,
                         };
                     }
                     self.typed
@@ -309,7 +311,53 @@ impl Program<'_> {
         {
             return self.record(id, *symbol);
         }
+        if handle.is_valid()
+            && let TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } = self.typed.type_reference_table.type_reference(handle)
+        {
+            return self.qualified_type(id, *base_type, *constraints);
+        }
         self.scalar_type(id, handle).map(ValueType::Scalar)
+    }
+
+    /// `T in Wrapping` and `T in Saturating` over a builtin integer `T`: the
+    /// one constraint is an arithmetic policy, read from the constraint
+    /// node's kind and never from its spelling. numeric_values.md, "Overflow
+    /// policies": "A type may carry any number of value qualifications but
+    /// at most one arithmetic policy."
+    ///
+    /// Everything else a type can be constrained by stays refused by name:
+    /// `Trapping`, whose every operation is its own `Trap` site; a declared
+    /// domain, alone or beside a policy; and a policy on anything but a
+    /// builtin integer.
+    fn qualified_type(
+        &self,
+        id: MachineId,
+        base_type: TypeReferenceHandle,
+        constraints: arena::HandleSpan<typed_trees::types::TypeConstraintNode>,
+    ) -> Checked<ValueType> {
+        use numerics::arithmetic::ArithmeticDomain;
+        use typed_trees::types::TypeConstraintNode;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        let policy = match self.typed.type_reference_table.constraints(constraints) {
+            [TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Wrapping)] => Policy::Wrapping,
+            [TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Saturating)] => {
+                Policy::Saturating
+            }
+            [TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Trapping)] => {
+                return unserved("constrained by Trapping");
+            }
+            _ => return unserved("constrained by a domain that is not one arithmetic policy"),
+        };
+        match self.scalar_type(id, base_type) {
+            Ok(carrier @ ScalarType::Integer(_)) => Ok(ValueType::Qualified(carrier, policy)),
+            Ok(ScalarType::Boolean | ScalarType::IeeeFloat(_)) => {
+                unserved("arithmetic policy on a type that is not an integer")
+            }
+            Err(refusal) => Err(refusal),
+        }
     }
 
     /// A state's result: the invalid handle and `Unit` are both a Unit

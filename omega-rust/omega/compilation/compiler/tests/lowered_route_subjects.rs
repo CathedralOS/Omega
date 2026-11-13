@@ -1034,3 +1034,136 @@ fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+/// One program per thing the route decides about an integer whose type
+/// carries an arithmetic policy. Each is the declaration followed by
+/// `machine main() {}`.
+const POLICY_INTEGERS: &[(&str, &str)] = &[
+    // A Wrapping add is total: nothing is owed.
+    (
+        "wrapping_add",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping {\n    \
+         left + right\n}",
+    ),
+    // The literal lands in the carrier and the operator is still Wrapping's.
+    (
+        "wrapping_literal_operand",
+        "machine spare(left: u32 in Wrapping) -> u32 in Wrapping { left * 31 + 1 }",
+    ),
+    (
+        "saturating_add",
+        "machine spare(left: i32 in Saturating, right: i32 in Saturating) -> i32 in Saturating {\n    \
+         left + right\n}",
+    ),
+    // Stage 04 rewrites `+%` to the casts and the Wrapping add.
+    (
+        "suffixed_operator",
+        "machine spare(left: u32, right: u32) -> u32 { left +% right }",
+    ),
+    // A policy supplies no divisor.
+    (
+        "wrapping_divide_unproved",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping {\n    \
+         left / right\n}",
+    ),
+    (
+        "wrapping_divide_proved",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping\n\
+         requires right > 0\n{\n    left / right\n}",
+    ),
+    // Both operands are at least 2^31, so the mathematical sum is nonzero
+    // and the wrapped sum can be zero.
+    (
+        "wrapped_sum_as_divisor",
+        "machine spare(left: u32, right: u32) -> u32\n\
+         requires left >= 2147483648, right >= 2147483648\n{\n    1 / (left +% right)\n}",
+    ),
+    // A Wrapping operation beside it excuses no Exact one.
+    (
+        "exact_add_beside_a_wrapping_one",
+        "machine spare(left: u32, right: u32) -> u32 {\n    \
+         let wrapped: u32 = left +% right;\n    left + right\n}",
+    ),
+    (
+        "wrapping_field",
+        "data Counter [copy] { ticks: u32 in Wrapping; }\n\
+         machine spare(mut counter: Counter) -> u32 in Wrapping {\n    \
+         counter.ticks = counter.ticks + 1;\n    counter.ticks\n}",
+    ),
+    (
+        "wrapping_loop",
+        "machine spare(count: u32 in Wrapping, left: u32) -> u32 in Wrapping {\n    \
+         transition left > 0 {\n        true -> spare(count + 1, left - 1)\n        \
+         false -> count\n    }\n}",
+    ),
+    (
+        "wrapping_call",
+        "machine twice(value: u32 in Wrapping) -> u32 in Wrapping { value + value }\n\
+         machine spare(value: u32 in Wrapping) -> u32 in Wrapping { twice(twice(value)) }",
+    ),
+    (
+        "wrapping_and_plain_binding",
+        "machine spare(left: u32 in Wrapping, right: u32) -> u32 in Wrapping { left + right }",
+    ),
+    (
+        "two_policies",
+        "machine spare(left: u8 in Wrapping, right: u8 in Saturating) -> u8 in Wrapping {\n    \
+         left + right\n}",
+    ),
+    (
+        "wrapping_value_as_plain_result",
+        "machine spare(left: u32 in Wrapping) -> u32 { left }",
+    ),
+    (
+        "literal_into_wrapping_local",
+        "machine spare() -> u32 in Wrapping { let start: u32 in Wrapping = 5; start }",
+    ),
+    (
+        "trapping",
+        "machine spare(left: u32 in Trapping, right: u32 in Trapping) -> u32 in Trapping {\n    \
+         left + right\n}",
+    ),
+];
+
+/// An integer of type `T in Wrapping` or `T in Saturating` is judged with
+/// its policy's operations; the route used to refuse every machine that
+/// named such a type (`type constrained`) and every suffixed operator's
+/// rewrite. A policy operation owes what Terminal semantics says it owes: an
+/// add nothing, a divide its divisor. It is never read as the Exact
+/// operation: a wrapped sum is not known to be nonzero where the
+/// mathematical sum is, and an Exact add beside a Wrapping one still owes
+/// its range. What the route does not serve is refused by name.
+#[test]
+fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(3),
+        falls_back(
+            "expression operator between a policy-qualified operand and a plain operand that is not a literal",
+        ),
+        falls_back("typing operands under two arithmetic policies"),
+        falls_back("typing arm value type"),
+        falls_back("typing local initializer without the arithmetic policy of its local"),
+        falls_back("type constrained by Trapping"),
+    ];
+    assert_eq!(expected.len(), POLICY_INTEGERS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in POLICY_INTEGERS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}

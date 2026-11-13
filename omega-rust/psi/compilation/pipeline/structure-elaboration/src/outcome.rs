@@ -225,7 +225,8 @@ impl Walk<'_> {
             }
             ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)
-            | ExpressionKind::Cast(operand) => self.expression(machine, operand),
+            | ExpressionKind::Cast(operand)
+        | ExpressionKind::Requalify(operand) => self.expression(machine, operand),
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }
             | ExpressionKind::IsCase { subject: base, .. }

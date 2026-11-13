@@ -141,7 +141,7 @@ pub(crate) fn machine(
         if let Some(borrowed) = signature.borrowed(position) {
             let (referent, scalar) = match *value_type {
                 ValueType::Record(record) => (record, false),
-                ValueType::Scalar(scalar_type) => (records.primitive(scalar_type, id)?, true),
+                ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => (records.primitive(scalar_type, id)?, true),
                 ValueType::Rigid(_) => {
                     return Err(lowering.internal("a borrowed formal of a rigid type"));
                 }
@@ -175,7 +175,7 @@ pub(crate) fn machine(
         match *value_type {
             // A formal of a rigid type is a value like a scalar formal: it
             // has an identity, a call passes it, and nothing is known of it.
-            ValueType::Scalar(_) | ValueType::Rigid(_) => {
+            ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_) => {
                 let (scalar_type, rigid) = value_type
                     .declared()
                     .ok_or_else(|| lowering.internal("a value formal has no declaration"))?;
@@ -227,7 +227,7 @@ pub(crate) fn machine(
     // record result is the machine's result place, a root of its own.
     let result = match signature.result {
         None => TerminalMachineResult::Unit,
-        Some(value_type @ (ValueType::Scalar(_) | ValueType::Rigid(_))) => {
+        Some(value_type @ (ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_))) => {
             let (scalar_type, rigid) = value_type
                 .declared()
                 .ok_or_else(|| lowering.internal("a value result has no declaration"))?;
@@ -257,7 +257,7 @@ pub(crate) fn machine(
     // Terminal Psi declares it in the contract, not among the parameters
     // (`wiki/spec/terminal-psi/encoding.md`: "Erased formals occupy no tag").
     for position in &signature.erased {
-        let Some(ValueType::Scalar(scalar_type)) = signature.parameters.get(*position).copied()
+        let Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) = signature.parameters.get(*position).copied()
         else {
             return Err(refuse(
                 id,
@@ -454,7 +454,8 @@ impl<'a> Lowering<'a> {
             self.sources.heads.push((block, *member));
             let mut parameters = Vec::with_capacity(signature.parameters.len());
             for value_type in &signature.parameters {
-                let ValueType::Scalar(scalar_type) = *value_type else {
+                let (ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) = *value_type
+                else {
                     return Err(self.internal("a record formal on a call cycle"));
                 };
                 let position = self.position(parameters.len())?;

@@ -36,7 +36,7 @@ fn route_accepts(machines: Vec<Machine>) {
 
 /// How many obligations of a program the route must reject are unproved,
 /// each of which must be an operation's safety.
-fn unsafe_operations(verdict: RouteVerdict) -> usize {
+pub(super) fn unsafe_operations(verdict: RouteVerdict) -> usize {
     match verdict {
         RouteVerdict::Rejected {
             unproved,
