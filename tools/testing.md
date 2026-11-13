@@ -974,6 +974,14 @@ that host's golden `tests/omega/corpus_native_<target>.txt`; records gain
 `stderr:match|differs|unavailable` facts. Use it with `--filter` for
 backend-visible changes.
 
+Native mode, including `--both`, omits fail-tier rejection controls. The focused
+corpus plan names those omitted controls; its mode counts precede shard filtering
+when a shard is selected. A clean native/Psi result verifies only the observed rows.
+Run the same selection and shard in ordinary checking mode (without `--native`,
+`--native-target`, `--interpret` or `--both`) to check the selected negative
+diagnostic pins.
+`--interpret` alone retains those checking controls.
+
 `expected_source_locations.txt` can accompany a diagnostic fixture. Each
 nonempty line contains a relative path suffix, a one-based line, and a one-based
 column, separated by whitespace. Each row must match a compiler diagnostic's
