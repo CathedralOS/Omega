@@ -389,7 +389,6 @@ dependencies = [
  "build-output",
  "build-time-evaluation",
  "calling-conventions",
- "checked-trees",
  "compiler-storage",
  "component-description",
  "diagnostics",
@@ -897,7 +896,6 @@ dependencies = [
  "terminal-psi",
  "terminal-runtime",
  "tokens-to-syntax-trees",
- "typed-trees",
 ]
 
 [[package]]
