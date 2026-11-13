@@ -96,11 +96,16 @@ if [[ ! -f "$MARKER" ]]; then
     exit 125
   fi
   touch "$MARKER"
-  # Keep only this commit's target so fresh dirs do not fill the disk.
-  for d in /tmp/bisect-target-*; do
-    [[ "$d" == "$TARGET" ]] && continue
-    rm -rf "$d"
-  done
+  # Keep fresh per-sha targets so later witnesses reuse the build. Drop the
+  # oldest only when free space falls under 40G.
+  avail_kb="$(df -Pk /tmp | awk 'NR==2 {print $4}')"
+  if [[ "${avail_kb:-0}" -lt 41943040 ]]; then
+    while [[ "$(df -Pk /tmp | awk 'NR==2 {print $4}')" -lt 41943040 ]]; do
+      old="$(find /tmp -maxdepth 1 -type d -name 'bisect-target-*' ! -path "$TARGET" -printf '%T@ %p\n' 2>/dev/null | sort -n | awk 'NR==1 {print $2}')"
+      [[ -z "${old:-}" ]] && break
+      rm -rf "$old"
+    done
+  fi
 fi
 
 RUNNER="$(find "$TARGET/debug/build/compiler" -type f -name 'corpus_runner-*' ! -name '*.d' -printf '%T@ %p\n' 2>/dev/null | sort -nr | awk 'NR==1 {print $2}')"
