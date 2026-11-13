@@ -9,7 +9,7 @@ rejection on the lowered route could say "requires clause 1 of the called
 machine" but not "requires contract for call halve from run: count > 1". The
 reader has the typed trees, where every name is an `Identifier` and every
 expression renders through `ExpressionTable::display_name`, the same
-rendering the current checker's messages use. So the reader records the
+rendering the deleted checker's messages use. So the reader records the
 names here as it reads, and the checker renders its messages from this table
 and the lowered form together. Nothing here is read back from source text
 (`tools/source_text_reads.txt`), and nothing here decides anything: no
@@ -53,7 +53,7 @@ pub struct MachineNames {
     pub loans: Vec<(SourceSpan, usize, String)>,
     /// The span of each exit, an arm's transition or the final value
     /// expression, and the position of its statement in the state's body,
-    /// counted from 0 as the current checker counts "at statement N".
+    /// counted from 0 as the deleted checker counted "at statement N".
     pub exits: Vec<(SourceSpan, usize)>,
     /// The statement position of the exit that falls off the end of a unit
     /// body: the last statement when it is an expression, else one past it.

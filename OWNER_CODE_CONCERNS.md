@@ -81,6 +81,13 @@ own to defend. Say what you saw, not what you would build.
 - Cost: the elision rule has no owner at the declaration; a reader of the callee alone cannot tell which input the result is related to, and the diagnostic lands on a caller
 - Reported: 2026-11-13, Claude Code, while giving a call's lifetimes the regions of the views it passes
 
+### The reader and its README still justify decisions by what the deleted checker did
+- Category: zombie machinery
+- Where: `structure-elaboration/src/read/machine.rs` (the retired data-qualified machine spelling), `read/expressions.rs`, `read/calls.rs`, `declare.rs`, `names.rs`; `lowered-discharge/src/describe.rs`, `verdict.rs`; both crates' `README.md`; `lowered-discharge/src/lib.rs` (`Knowledge::WithoutBranchConditions`, `Knowledge::LiteralIntervals`)
+- Saw: about fifty comments said "the current checker" does this or that; they now say "the deleted checker" did, which is true but leaves the reasoning hollow where the old checker was the reason: a retired spelling is served because refusing it "would only send the same program" to a checker that accepted it, and message wording is pinned to that checker's sentences. The `Knowledge` knob is threaded through discharge only for the comparison example this change deleted
+- Cost: a reader cannot tell which behaviours are the specification's and which were kept for agreement with a checker that no longer exists, and the knob is dead weight in every discharge signature
+- Reported: 2026-11-13, Claude Code, while removing the two-checker names
+
 ### A clause the specification rejects can only be reported as not supported yet
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/psi/compilation/representations/terminal-psi/check-tables/src/lib.rs` (`RefusalReason`); `structure-elaboration/src/read/contracts.rs` (`term`, the `Trapping` arm)
@@ -101,20 +108,6 @@ own to defend. Say what you saw, not what you would build.
 - Saw: process_exit.md says "Any retained console-exit convenience adapter must obtain legitimate exit authority and publish its additional reach. Console must not inherit `ProcessExit` wholesale." The standard library's `Console::exit_process` declares `reaches Console` and nothing else, and the typed trees decide whether it completes externally from the trait being named `Console` plus a sealed intrinsic or a completion admission. Where neither is present, as in the route probe (`compiler/tests/route_probe.rs`, the `Console` program), the same source call is lowered as a call that returns
 - Cost: a ceiling of `reaches Console` does not mean "cannot end the process", so package review's `ProcessExit` row undercounts; and the checker models one source call as returning or as a terminal transfer depending on an admission the program text does not show, so a body judged in one mode says nothing about the other
 - Reported: 2026-11-13, Claude Code, while taking external completion (`ProcessExit::exit_process`) to the lowered-form checker
-
-### A sum's `requires` over each case's payload is refused, and it was judged before
-- Category: tests that pin the bug
-- Where: `structure-elaboration/src/read/contracts.rs` (`field_term`, `projected`); `tests/fixtures/fail/facts/four_variant_enum_payload_bound_through_local_rejected`
-- Saw: the fixture's data writes `requires ((self in Packet::Alpha) && (self.v >= 40u64 && self.v <= 80u64)) || ...` over four cases; `lowered_route_messages` pinned the route's rejection of its `main` with the fixture's whole sentence, and the route now refuses the closure as `contract data value compared whole in a clause`. The test could not run between the Build activation refusal and this change, so nothing showed which change lost it; the row was removed rather than re-pinned
-- Cost: a program whose sum states a bound per case is refused instead of judged, and no test says so
-- Reported: 2026-11-13, Claude Code, while moving the lowered-form checker's tests off the Build
-
-### The seam that kept typed trees "beside the current checker" still exists, and two examples still compare against it
-- Category: zombie machinery
-- Where: `omega-rust/omega/compilation/compiler/src/checked/checking/typed_frontier.rs` (`CurrentCheckerVerdict`, `TypedFrontierCheck`, `check_keeping_typed_frontier`); `compiler/examples/route_one_comparison.rs`, `compiler/examples/structure_elaboration_corpus.rs`; `compiler/tests/support/fixture_package_inputs.rs` (`FixtureFrontierCheck`)
-- Saw: the seam was built so a harness could run a second checker beside the old one; the old one is deleted, so "the current checker's verdict" it returns is the lowered-form checker's own, and the two examples compare that checker with itself over a corpus that no longer exists. The tests that only read what the checker concludes left the seam in this change; `lowered_route_governance`, `lowered_route_publication` and two tests of `lowered_route_ownership` still use it to read what the product compile reports
-- Cost: the names say there are two checkers; an agent reading `current=accepted route=rejected` output or `FixtureFrontierCheck::Rejected` will look for the one that is gone
-- Reported: 2026-11-13, Claude Code, while moving the lowered-form checker's tests off the Build
 
 ### Nothing makes a new reader site ask before it looks inside a qualified data value
 - Category: a verdict with nothing behind it

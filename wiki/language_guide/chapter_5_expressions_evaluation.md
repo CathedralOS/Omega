@@ -159,6 +159,13 @@ let plain: u32 = next as -Wrapping;
 ```
 
 `Wrapping`, `Saturating` and `Trapping` are [domains](chapter_8_domains.md).
+Core supplies operators accepting one policy-qualified value and one plain
+value of the same carrier, in either order. Thus `hash + byte` wraps when
+`hash` is `u32 in Wrapping` and `byte` is plain `u32`; `byte` stays plain.
+That is an overload with matching input types, not an automatic cast. In
+`hash + (byte + 1)`, the inner addition is still Exact and must fit. Use
+`byte +% 1` if that inner operation should wrap too. See
+[policy domains](../spec/language/numeric_values.md#policy-domains).
 
 ## Comparing integers
 

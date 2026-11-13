@@ -40,7 +40,7 @@ pub struct TypedFrontier {
 }
 
 /// What the product path concluded after receiving its typed source.
-pub enum CurrentCheckerVerdict {
+pub enum ProductCheckOutcome {
     /// The check the product path runs returned a checked compilation.
     Accepted(Box<CheckedCompilation>),
     /// Structural judgment or a later product step refused it.
@@ -52,7 +52,7 @@ pub enum TypedFrontierCheck {
     /// Psi 00 through 04 completed for the Product program.
     Reached {
         frontier: Box<TypedFrontier>,
-        verdict: CurrentCheckerVerdict,
+        verdict: ProductCheckOutcome,
     },
     /// The compilation stopped before Psi 04 produced the Product's frozen
     /// typed trees: a parse error or another refusal in Psi 00 through 03, a
@@ -72,11 +72,11 @@ impl TypedFrontierCheck {
         match (frontier, result) {
             (Some(frontier), Ok(checked)) => Self::Reached {
                 frontier: Box::new(frontier),
-                verdict: CurrentCheckerVerdict::Accepted(Box::new(checked)),
+                verdict: ProductCheckOutcome::Accepted(Box::new(checked)),
             },
             (Some(frontier), Err(failure)) => Self::Reached {
                 frontier: Box::new(frontier),
-                verdict: CurrentCheckerVerdict::Rejected(failure),
+                verdict: ProductCheckOutcome::Rejected(failure),
             },
             (None, Err(failure)) => Self::StoppedBeforeTypedFrontier(failure),
             (None, Ok(_)) => Self::StoppedBeforeTypedFrontier(

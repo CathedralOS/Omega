@@ -648,6 +648,50 @@ mod tests {
         );
     }
 
+    /// A case is named by the declaration its path ends at. `Packet::Alpha`
+    /// in value position, as a data `requires` writes `self in
+    /// Packet::Alpha`, carries the sum as its head and the case as its
+    /// symbol: it names the case. A path that ends at the sum itself, or at
+    /// a field, names none.
+    #[test]
+    fn a_case_is_named_by_the_last_segment_of_its_path() {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let packet = builder
+            .insert_children(root, [(SymbolKind::Data, SymbolNameRef::Static("Packet"))])
+            .handle_at(0);
+        let members = builder.insert_children(
+            packet,
+            [
+                (SymbolKind::Variant, SymbolNameRef::Static("Alpha")),
+                (SymbolKind::Field, SymbolNameRef::Static("tag")),
+            ],
+        );
+        let (alpha, tag) = (members.handle_at(0), members.handle_at(1));
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let mut path = |head_symbol, symbol| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    head_symbol,
+                    symbol,
+                    ..TableNamePath::default()
+                }))
+        };
+        let qualified = path(packet, alpha);
+        let by_head = path(alpha, SymbolHandle::invalid());
+        let the_sum = path(packet, packet);
+        let a_field = path(packet, tag);
+        let program = Program::new(&typed, false);
+        assert_eq!(program.named_case(qualified), Some(alpha));
+        assert_eq!(program.named_case(by_head), Some(alpha));
+        assert_eq!(program.named_case(the_sum), None);
+        assert_eq!(program.named_case(a_field), None);
+    }
+
     /// A `mut` formal that holds its own value may be named by an entry
     /// `requires`, where it can only mean the argument. A guarantee or a
     /// crash route guard that names it is refused: by then the name also

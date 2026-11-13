@@ -242,6 +242,46 @@ machine main() { }",
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
 
+/// A sum's `requires` may bound each case's payload: `(self in
+/// Packet::Alpha) && self.v >= 40 || (self in Packet::Beta) && self.v <= 5`
+/// (`wiki/spec/language/data_and_literals.md`: "Field and case-payload
+/// relationships belong to the data declaration's ordinary `requires`;
+/// case-dependent projections require established case knowledge"). Both
+/// cases name their payload `v`; under each case test `self.v` is that
+/// case's field.
+///
+/// Constructing `Beta` within `Beta`'s bound is accepted. The twins differ
+/// only in the constructed value: `Beta` at a value only `Alpha` admits, and
+/// `Alpha` at a value only `Beta` admits, are each rejected.
+#[test]
+fn a_sum_bounds_each_cases_payload_under_that_case() {
+    let program = |value: &str| {
+        format!(
+            "data Packet [copy]\n\
+             requires ((self in Packet::Alpha) && self.v >= 40u64 && self.v <= 80u64) \
+             || ((self in Packet::Beta) && self.v <= 5u64)\n\
+             {{\n    case Alpha(v: u64);\n    case Beta(v: u64);\n}}\n\
+             machine main() {{\n    let p: Packet = {value};\n}}\n"
+        )
+    };
+    for (name, value, expected) in [
+        ("beta_within", "Packet::Beta { v: 3u64 }", "accepted"),
+        ("alpha_within", "Packet::Alpha { v: 60u64 }", "accepted"),
+        (
+            "beta_at_alphas_value",
+            "Packet::Beta { v: 60u64 }",
+            "rejected",
+        ),
+        (
+            "alpha_at_betas_value",
+            "Packet::Alpha { v: 3u64 }",
+            "rejected",
+        ),
+    ] {
+        assert_eq!(verdicts(name, &program(value)), [expected], "{name}");
+    }
+}
+
 #[test]
 fn an_uncalled_defect_of_a_standalone_program_is_rejected() {
     assert_eq!(

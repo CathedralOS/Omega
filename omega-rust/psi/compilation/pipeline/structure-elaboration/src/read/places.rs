@@ -780,17 +780,24 @@ impl Program<'_> {
         if !handle.is_valid() {
             return None;
         }
+        let is_case = |symbol: SymbolHandle| {
+            symbol.is_valid() && self.typed.symbols.get(symbol).kind == SymbolKind::Variant
+        };
         let symbol = match self.typed.expression_table.expression(handle) {
-            // `S::C` written out resolves twice: its first member to the
-            // sum and the whole path to the case, which is the one meant.
-            ExpressionNode::Name(path)
-                if !path.static_application.is_valid()
-                    && path.symbol.is_valid()
-                    && self.typed.symbols.get(path.symbol).kind == SymbolKind::Variant =>
-            {
-                path.symbol
+            // A path names the declaration its last segment resolves to
+            // (`symbol`). `head_symbol` is its first segment's: the sum in
+            // `Packet::Alpha`, which is how a data `requires` holds the case
+            // of `self in Packet::Alpha`. The head is asked only when the
+            // last segment's symbol is no case, for a path resolved by its
+            // head alone.
+            ExpressionNode::Name(path) if !path.static_application.is_valid() => {
+                if is_case(path.symbol) {
+                    path.symbol
+                } else {
+                    path.head_symbol
+                }
             }
-            ExpressionNode::Name(path) => path.resolved_symbol()?,
+            ExpressionNode::Name(_) => return None,
             ExpressionNode::StructLiteral(literal) => {
                 if !literal.fields.is_empty() {
                     return None;
@@ -817,8 +824,7 @@ impl Program<'_> {
             | ExpressionNode::Unary(_)
             | ExpressionNode::ZeroValue(_) => return None,
         };
-        (symbol.is_valid() && self.typed.symbols.get(symbol).kind == SymbolKind::Variant)
-            .then_some(symbol)
+        is_case(symbol).then_some(symbol)
     }
 
     /// `subject in S::C`: the subject, read once, and the case's position in
@@ -857,7 +863,7 @@ impl Program<'_> {
     /// fallback or runtime assertion." A binding has no node of its own:
     /// stage 01 replaces each use of it by the payload member it names. The
     /// pattern must name every payload field unless it ends in `..`; the
-    /// current checker enforces that law in validation, after the typed
+    /// deleted checker enforced that law in validation, after the typed
     /// trees this route reads are frozen, so it is enforced here too.
     pub(super) fn case_pattern(
         &self,

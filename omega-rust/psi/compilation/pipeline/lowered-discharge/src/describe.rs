@@ -1,6 +1,6 @@
 /*
 What a rejection states: the condition that was not proved, in the words the
-current checker uses for the same obligation, so a programmer who knows one
+deleted checker used for the same obligation, so a programmer who knows one
 checker's messages can act on the other's. For example a call requirement
 reads "cannot prove requires contract for call halve from run: count > 1",
 where the lowered form alone could only say "requires clause 1 of the called
@@ -12,13 +12,13 @@ carrier, the machine of a guarantee. Elaboration's names table
 (`structure_elaboration::MachineNames`) gives what to call them: machine and
 state names, each clause's authored text, the binder an operation's value
 lands in, and a call's argument text, so a callee clause is stated over the
-caller's actuals as the current checker states it. Without that table (bodies
+caller's actuals as the deleted checker stated it. Without that table (bodies
 lowered without typed trees) a statement names the identities only.
 
 A statement says what was not proved, never that it is false
 (`wiki/spec/build/compiler_request.md`, "Outcomes": "Failure to find a proof
 is not proof of falsehood"). So it never says "provably zero" or
-"structurally false", which the current checker says when it has decided the
+"structurally false", which the deleted checker said when it has decided the
 operand; the route has not decided it.
 */
 
@@ -72,7 +72,7 @@ pub(crate) fn unproved(
                 Some((over_actuals, callee_names.authored(clause)))
             });
             match (names, callee_names, text) {
-                // The current checker follows the clause over the call's
+                // The deleted checker followed the clause over the call's
                 // actuals with what the callee asked for in its own words,
                 // and names the caller's state (Psi 05,
                 // `explain_missing_boolean_fact`).
@@ -153,7 +153,7 @@ pub(crate) fn unproved(
 /// head's invariant is that member's `requires`
 /// (`wiki/spec/language/state_contracts.md`: "Machine `requires` applies at
 /// every invocation, including terminal and recursive calls."). It is stated
-/// as the current checker states that call's requirement: the clauses over
+/// as the deleted checker stated that call's requirement: the clauses over
 /// the call's actuals, then as the member wrote them, and the calling
 /// machine's state. The calling machine is the one whose names record a
 /// call at the arrival's site. `None` for a join, whose predicate the
@@ -218,10 +218,10 @@ fn head_arrival(
     ))
 }
 
-/// The current checker's statement of an uncovered crash (Psi 05,
+/// The deleted checker's statement of an uncovered crash (Psi 05,
 /// `check_published_ceiling_coverage`): a call's surviving route names the
 /// caller and callee, a `crash` statement names its machine, and both say
-/// what to publish. The current checker also gives a statement and call
+/// what to publish. The deleted checker also gave a statement and call
 /// number, which count slots of its own statement layout; the lowered form
 /// has no such slots, and the statement is positioned at the site instead.
 fn crash_coverage(
@@ -271,7 +271,7 @@ fn crash_coverage(
     }
 }
 
-/// The current checker's statement of a partial operation's safety
+/// The deleted checker's statement of a partial operation's safety
 /// (`validation`'s arithmetic domains): overflow of an add, subtract or
 /// multiply, the count of a shift, the definedness of a division or
 /// remainder. Each names the operation's carrier.
@@ -334,7 +334,7 @@ fn operation_safety(
                 "shift count in {owner} is not provably below the operand width for `{carrier}`"
             )
         }
-        // In the current checker's words, so a pinned fragment of its
+        // In the deleted checker's words, so a pinned fragment of its
         // diagnostic matches; the operand's carrier is not named because
         // the operation row holds only the operand's value identity.
         OperationKind::IntegerExactCast { .. } => format!(
@@ -348,7 +348,7 @@ fn operation_safety(
     }
 }
 
-/// Where a value is computed, as the current checker names it:
+/// Where a value is computed, as the deleted checker named it:
 /// "machine `run` state `entry` local `quotient`", or "... return value".
 pub(crate) fn owner(names: Option<&MachineNames>, site: SourceOrigin) -> String {
     let Some(names) = names else {

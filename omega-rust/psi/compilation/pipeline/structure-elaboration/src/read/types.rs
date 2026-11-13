@@ -591,8 +591,7 @@ impl Program<'_> {
     /// intermediate is not. The tree is evaluated exactly, by the same
     /// typed-tree evaluator stage 05 lands it with, and only a value that is
     /// an integer of `expected`, with no fractional intermediate, becomes a
-    /// literal. Every other tree is refused, so the current checker decides
-    /// the compilation: one whose operator has no anonymous meaning
+    /// literal. Every other tree is refused: one whose operator has no anonymous meaning
     /// (remainder, bitwise, shift, comparison: "Builtin remainder requires
     /// integer operand meaning before folding"), one whose value or any
     /// intermediate is fractional, and one outside `expected`.

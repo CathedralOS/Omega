@@ -410,7 +410,7 @@ established as before.
 A scalar local declared without an initializer is zero-constructed by the
 same rule: elaboration logs the zero constant on its home at
 `EstablishPrimitiveLocal`, so `let mut x: u32; f(x)` reads a value that is
-provably zero, as the current checker accepts. Every scalar type this route
+provably zero, as the deleted checker accepted. Every scalar type this route
 serves (`i8`..`u64`, `bool`) admits zero, and a qualified or ranged scalar
 type is refused by the reader as `type constrained`, so a scalar home owes
 no domain clause and no gated scalar occurs in this subset.
@@ -510,7 +510,7 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
   conservatively." The tables hold no callee summary to prove that from
   (`CheckTables::summaries` stays empty), so no call is treated as
   unrelated: `s.low = 12; same(7); s.high = 20; width(s)` is rejected at
-  `same(7)`, as the current checker rejects it. Using the exception needs a
+  `same(7)`, as the deleted checker rejected it. Using the exception needs a
   summary term for a callee's access and effects.
 
   A window a zero establishment opened is consumed by every read under its
@@ -540,7 +540,7 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
 - **No second window.** A store that does not prove a clause while that
   clause's window on the same place is already open opens no window of its
   own: the window stays open and names the store that opened it, as the
-  current checker's "a prior write left ... FALSE" does. Into zeroed
+  deleted checker's "a prior write left ... FALSE" does. Into zeroed
   storage, a store that does not prove its clause keeps its own window,
   because the leaf it wrote no longer holds the zero.
 
@@ -1016,7 +1016,7 @@ subset needs, so the prover emits them directly.
     was not proved at the store or the zero establishment. The
     specification puts the refusal at the consumption, and an `Unproved`
     verdict at the write would reject `let mut g: Gated; g = Gated { .. };`
-    and `s.low = 12; s.high = 20;`, which the current checker accepts.
+    and `s.low = 12; s.high = 20;`, which the deleted checker accepted.
 12. **Invariant windows are judged, not handed back.** See
     [Invariant windows](#invariant-windows). The sentence "Terminal Psi
     opens no invariant window on a field" in structural_access.md is about
@@ -1043,7 +1043,7 @@ subset needs, so the prover emits them directly.
     hold one named value at the call.** `peek(make())` with
     `requires packet.first == 7` is unproved: what `make` returned has no
     value identity in the caller, and no `ensures` over `result` can supply
-    one yet. The current checker rejects the same call when `make` builds
+    one yet. The deleted checker rejected the same call when `make` builds
     `first = 8`, by evaluating the callee.
 16. **A clause over a field with no value identity is unproved even when it
     is true of every value.** After `let mut s = make(); s.low = 0;`, the
@@ -1097,7 +1097,7 @@ route's decision from. It discharges an elaborated closure and returns:
   (`UnprovedCause`). `reject_diagnostic()` turns it into the program error,
   `<statement> (<cause>: <detail>)`, an ordinary `Reject` with no artifact.
   The statement ([describe.rs](src/describe.rs)) says what was not proved in
-  the current checker's words for the same obligation, from the lowered form
+  the deleted checker's words for the same obligation, from the lowered form
   and elaboration's names table (`MachineNames`): `cannot prove requires
   contract for call bounded from probe: xored >= 1 && xored <= 2 (needs fact
   `value >= 1 && value <= 2` here; establish it before the call via a prior
@@ -1105,7 +1105,7 @@ route's decision from. It discharges an elaborated closure and returns:
   callee's clause over the caller's actuals, then the same clause as the
   callee wrote it, and the caller's state), `cannot prove ensures contract
   for exit from shifted at statement 0: result <= value` (the exit's
-  statement position, counted as the current checker counts it), `exact
+  statement position, counted as the deleted checker counted it), `exact
   arithmetic in machine `tally` state `entry` return value may overflow
   `u64`: ...`, `shift count in ... is not provably below the operand width
   for `u64`` (a left shift names both its conjuncts, the count and the
@@ -1279,33 +1279,6 @@ is `CompilationSession::typed_frontier_without_build`
 (`omega-rust/omega/compilation/compiler/src/checked/checking/unbuilt_source.rs`),
 pinned by `compiler/tests/route_probe.rs`. It is a probe, not a way to
 compile, and the CLI never calls it.
-
-## Measuring against the current checker
-
-`omega-rust/omega/compilation/compiler/examples/route_one_comparison.rs` runs
-both checkers on corpus programs and prints one line per program, one per
-obligation, one per unestablished use of storage and one per consumption
-point of an invariant window; a program with such a use is
-`route=rejected`. `discharge_with(_, Knowledge::WithoutBranchConditions)` exists only
-so that comparison can count what branch facts buy; the checker uses
-`discharge`.
-
-It also measures the route's diagnostics on programs the current checker
-rejects, so a lane can see whether its errors would lead a programmer to the
-defect. With `--every-machine` it also roots the route at each of the
-fixture's own machines, which reaches fixtures that bind no entry. For each
-program both checkers reject it prints a `quality` line: whether the route's
-messages contain the fixture's `expected.txt` fragments, and how the route's
-error sites compare with the current checker's. `--tally` reads the output
-back and prints the three counts:
-
-```
-target/debug/examples/route_one_comparison --every-machine <fixture>/main.omg ... > out.tsv < /dev/null
-target/debug/examples/route_one_comparison --tally < out.tsv
-```
-
-The measurement on `fail/` is in
-[route one diagnostics](../../../../../wiki/drafts/designs/route_one_diagnostics.md).
 
 ## Reusing a saved proof (experiment)
 
