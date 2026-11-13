@@ -29,10 +29,10 @@ use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
 use typed_trees::state::State;
-use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::statement::{
     StatementNode, TableCall, TableLocalData, TableTransition, TransitionTargetNode,
 };
+use typed_trees::static_applications::StaticMachineBindingValue;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 struct Generic {
@@ -53,7 +53,11 @@ struct Source {
     counted: SymbolHandle,
 }
 
-fn named(program: &mut TypedTrees, symbol: SymbolHandle, name: &'static str) -> TypeReferenceHandle {
+fn named(
+    program: &mut TypedTrees,
+    symbol: SymbolHandle,
+    name: &'static str,
+) -> TypeReferenceHandle {
     program
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -103,7 +107,9 @@ fn call(
         .expression_table
         .static_machine_application_mut(application)
         .lexical_owner = holder;
-    let arguments = program.expression_table.insert_expression_handles([operand]);
+    let arguments = program
+        .expression_table
+        .insert_expression_handles([operand]);
     program
         .expression_table
         .insert(ExpressionNode::Call(TableCallExpression {
@@ -161,10 +167,7 @@ fn push_machine(
 }
 
 /// A generic machine `spelled<T>(item: T) -> T`, without its body.
-fn generic(
-    builder: &mut SymbolTableBuilder,
-    machine: SymbolHandle,
-) -> Generic {
+fn generic(builder: &mut SymbolTableBuilder, machine: SymbolHandle) -> Generic {
     let children = builder.insert_children(
         machine,
         [
@@ -419,7 +422,7 @@ fn source() -> Source {
     }
 }
 
-fn only_state<'program>(program: &'program TypedTrees, machine: SymbolHandle) -> &'program State {
+fn only_state(program: &TypedTrees, machine: SymbolHandle) -> &State {
     let machine = program.machine_by_symbol(machine).expect("a machine");
     let [state] = program.machine_states(machine) else {
         panic!("one state");
@@ -559,7 +562,10 @@ fn an_application_inside_a_generated_body_is_served_in_turn() {
 
     // In `relay` at `u8` the same call is `forward<u8>` and enters the
     // machine generated for it.
-    let at_byte = program.symbols.get(calls(&program, main)[0].target_symbol).parent;
+    let at_byte = program
+        .symbols
+        .get(calls(&program, main)[0].target_symbol)
+        .parent;
     let [closed] = calls(&program, at_byte)[..] else {
         panic!("one call");
     };

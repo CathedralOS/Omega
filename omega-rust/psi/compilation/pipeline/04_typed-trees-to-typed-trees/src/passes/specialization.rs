@@ -38,10 +38,10 @@ use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::signature::SignatureContract;
 use typed_trees::state::State;
+use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::static_applications::{
     StaticMachineApplicationHandle, StaticMachineBinding, StaticMachineBindingValue,
 };
-use typed_trees::statement::{StatementHandle, StatementNode};
 
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use typed_trees::{
@@ -153,8 +153,7 @@ impl Site {
     fn enter(self, program: &mut TypedTrees, target: SymbolHandle) {
         match self {
             Self::Expression(handle) => {
-                if let ExpressionNode::Call(call) =
-                    program.expression_table.expression_mut(handle)
+                if let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle)
                 {
                     call.target_symbol = target;
                     call.machine_arguments = Box::new([]);
@@ -230,7 +229,12 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut Vec<Generated>) -
     let Some((callee, names_state)) = entered_machine(program, applied.target) else {
         return Ok(());
     };
-    if program.symbols.get(applied.target).generated_from.is_valid() {
+    if program
+        .symbols
+        .get(applied.target)
+        .generated_from
+        .is_valid()
+    {
         return Ok(());
     }
     let Some(machine) = program.machine_by_symbol(callee) else {
@@ -333,7 +337,10 @@ impl Operand {
 /// a type parameter in scope, or a data declaration with no parameters of
 /// its own. An applied type (`Pair<u8>`), a projection and a literal are
 /// unserved here.
-fn named_type(program: &mut TypedTrees, argument: &StaticMachineArgument) -> Served<TypeReferenceHandle> {
+fn named_type(
+    program: &mut TypedTrees,
+    argument: &StaticMachineArgument,
+) -> Served<TypeReferenceHandle> {
     let only_a_name = argument.application.is_none()
         && argument.const_literal.is_none()
         && argument.evidence_projection.is_none()
@@ -732,11 +739,10 @@ fn generate(
     state.parameters = HandleSpan::empty();
     state.contracts = HandleSpan::empty();
     state.return_type = copy_type(program, source_state.return_type, symbols)?;
-    state.statement_nodes = program.tables.copy_statement_nodes_with_type_expressions(
-        &staging,
-        staged,
-        &mut embedded,
-    );
+    state.statement_nodes =
+        program
+            .tables
+            .copy_statement_nodes_with_type_expressions(&staging, staged, &mut embedded);
     program
         .tables
         .remap_statement_symbols(state.statement_nodes, symbols);
@@ -777,10 +783,7 @@ fn generate(
     });
     Ok(Generated {
         template: template_symbol,
-        arguments: operands
-            .iter()
-            .map(|operand| operand.declaration)
-            .collect(),
+        arguments: operands.iter().map(|operand| operand.declaration).collect(),
         machine: machine_symbol,
         state: state_symbol,
     })
@@ -930,7 +933,9 @@ fn substitute_arguments(
         let table = &mut program.expression_table;
         replace(table.static_machine_application_arguments_mut(application));
         table.set_static_machine_application_bindings(application, &[]);
-        table.static_machine_application_mut(application).lexical_owner = holder;
+        table
+            .static_machine_application_mut(application)
+            .lexical_owner = holder;
     }
 }
 
