@@ -9695,6 +9695,12 @@ pub(crate) mod citations {
         runtime_invocation: bool,
     ) -> bool {
         let Some(owner) = selected_citation_contract(program, target.symbol) else {
+            if super::struct_trace_owner(program, machine.symbol) {
+                eprintln!(
+                    "CITE eligibility machine={} target={:?} owner=missing",
+                    machine.name, target.symbol
+                );
+            }
             return false;
         };
         let self_citation = citation_is_self(program, machine, target);
@@ -9704,10 +9710,21 @@ pub(crate) mod citations {
                 .type_reference(owner_return_type(&owner)),
             typed_trees::types::TypeReferenceNode::Unit
         );
+        let owner_is_proof = (!runtime_invocation && (!self_citation || resultless_entry))
+            .then(|| owner_is_proof(program, classification, &owner));
+        if super::struct_trace_owner(program, machine.symbol) {
+            eprintln!(
+                "CITE eligibility machine={} target={:?} invoked={:?} callee={} runtime={runtime_invocation} self={self_citation} static={} owner_proof={owner_is_proof:?} resultless={resultless_entry} arguments={arguments_len}",
+                machine.name,
+                target.symbol,
+                target.invoked_symbol,
+                owner_name(program, &owner),
+                target.has_static_selection
+            );
+        }
         if (runtime_invocation && (self_citation || target.has_static_selection))
             || (!runtime_invocation
-                && ((self_citation && !resultless_entry)
-                    || !owner_is_proof(program, classification, &owner)))
+                && ((self_citation && !resultless_entry) || owner_is_proof != Some(true)))
         {
             return false;
         }
@@ -9838,6 +9855,18 @@ pub(crate) mod citations {
         let Some(entry) = program.machine_states(machine).first() else {
             return predicates;
         };
+        let trace = super::struct_trace_owner(program, machine.symbol);
+        if trace {
+            eprintln!(
+                "CITE entry machine={} runtime={} parameters={:?} result={:?}",
+                machine.name,
+                site_judge
+                    .as_ref()
+                    .is_some_and(StructuralJudge::has_runtime_body_values),
+                program.state_parameters(entry),
+                entry.return_type
+            );
+        }
         let mut environment: Vec<(String, StructuralTerm)> = program
             .state_parameters(entry)
             .iter()
@@ -9848,21 +9877,38 @@ pub(crate) mod citations {
             .collect();
         for statement in program.statement_table.statements(entry.statement_nodes) {
             if let Some(local) = statement.as_local_data() {
-                if let Some(judge) = site_judge.as_ref()
-                    && let Some(term) = judge.callee_term_in_scope(
+                if let Some(judge) = site_judge.as_ref() {
+                    let term = judge.callee_term_in_scope(
                         Some((machine, entry, local.type_reference)),
                         local.initial_value,
                         &environment,
                         0,
-                    )
-                {
-                    environment.push((local.name.as_str().to_owned(), term));
+                    );
+                    if trace {
+                        eprintln!(
+                            "CITE local machine={} name={} type={:?} relevance={:?} initializer={:?} term={term:?}",
+                            machine.name,
+                            local.name,
+                            local.type_reference,
+                            local.relevance,
+                            program.expression_table.expression(local.initial_value)
+                        );
+                    }
+                    if let Some(term) = term {
+                        environment.push((local.name.as_str().to_owned(), term));
+                    }
                 }
                 continue;
             }
             let Some((target, argument_handles)) =
                 citation_call_in_statement(program, machine.symbol, statement)
             else {
+                if trace {
+                    eprintln!(
+                        "CITE statement machine={} no-call={statement:?}",
+                        machine.name
+                    );
+                }
                 continue;
             };
             if !can_establish_citation(
@@ -9896,6 +9942,14 @@ pub(crate) mod citations {
                         None,
                     ),
                 };
+                if trace {
+                    eprintln!(
+                        "CITE argument machine={} target={:?} expression={:?} term={term:?}",
+                        machine.name,
+                        target.symbol,
+                        program.expression_table.expression(*argument)
+                    );
+                }
                 let Some(term) = term else {
                     arguments_termify = false;
                     break;
@@ -9915,6 +9969,12 @@ pub(crate) mod citations {
                 site_judge.as_ref(),
                 false,
             );
+            if trace {
+                eprintln!(
+                    "CITE instantiated machine={} target={:?} arguments={argument_terms:?} predicates={:?}",
+                    machine.name, target.symbol, established.predicates
+                );
+            }
             if let Some(judge) = &mut site_judge {
                 established.intake(judge);
             }
@@ -10236,6 +10296,7 @@ pub(crate) mod citations {
             },
         ));
         for fact in &ensures_facts {
+            let predicate_start = established.predicates.len();
             collect_instantiated_predicates(
                 program,
                 scope,
@@ -10244,6 +10305,14 @@ pub(crate) mod citations {
                 &map,
                 &mut established.predicates,
             );
+            if super::struct_trace_owner(program, machine.symbol) {
+                eprintln!(
+                    "CITE predicate machine={} callee={callee_name} fact={} map={map:?} formed={:?}",
+                    machine.name,
+                    program.expression_table.display_name(*fact),
+                    &established.predicates[predicate_start..]
+                );
+            }
         }
         // Mathematical results keep the same selected application identity for
         // predicates and tags. A saved local's environment contains that value,
@@ -83970,10 +84039,27 @@ pub(crate) mod structural_judgment {
                 call,
             };
             let closed = |signature: &typed_trees::signature::StateSignature| {
-                crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
-                    self.program,
-                    signature,
-                )
+                let closed =
+                    crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
+                        self.program,
+                        signature,
+                    );
+                if self.trace_contract() {
+                    eprintln!(
+                        "STRUCT signature caller={:?} name={} closed={closed} termination={:?} deferred_reach={} services={:?} invokes={:?} suspends={} blocks={}",
+                        self.machine_symbol,
+                        signature.name,
+                        signature.termination_guarantee,
+                        signature.service_reach_is_installation_bound,
+                        self.program
+                            .service_reach_rows
+                            .services(signature.service_reach_row),
+                        self.program.state_signature_invokes(signature),
+                        signature.suspends,
+                        signature.blocks
+                    );
+                }
+                closed
             };
             // A proposition may use a call as a value term only when the call is
             // total and pure (domains.md, "eligible total, pure machine calls";
