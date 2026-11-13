@@ -1,8 +1,11 @@
 // Expected exit: 0.
 // The package boundary retains read capability for one method, an empty reach
 // for the other, and the separately declared synchronous interface for both.
-use reviewed_service::operations;
-use omega_language_std::console;
+use reviewed_service::Operations;
+use reviewed_service::ReadCapability;
+use reviewed_service::read_value;
+use reviewed_service::pure_value;
+use omega_language_std::Console;
 Reader satisfies Operations {
     machine read(value: i32) -> i32 reaches ReadCapability { read_value_provider(value) }
     machine identity(value: i32) -> i32 { identity_provider(value) }

@@ -1,4 +1,4 @@
-use reviewed_service::operations;
+use reviewed_service::Operations;
 // An invoked interface does not grant its read method's capability.
 public machine omitted(value: i32) -> i32
 reaches
