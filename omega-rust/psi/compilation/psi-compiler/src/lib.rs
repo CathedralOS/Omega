@@ -536,7 +536,6 @@ pub use source_checking::{
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
 };
-pub use validation::{dependency_body_read_totals, dependency_entailment_totals};
 
 pub use source_compilation::{
     AdmittedProductPolicy, BuildSourceInput, CompletedSource, PreparedSource, ProductPolicyRequest,

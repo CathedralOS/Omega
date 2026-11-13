@@ -30,7 +30,8 @@ mod activation {
         pub bindings: Vec<SourceScopedTopLevelBinding>,
         pub authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
         pub build_helper_identity: std::borrow::Cow<'static, str>,
-        pub recorded_authority: Option<validation::RecordedDeclarationAuthority>,
+        pub recorded_authority:
+            Option<typed_trees::declaration_authority::RecordedDeclarationAuthority>,
     }
 
     impl SourceContext {
@@ -94,7 +95,7 @@ mod activation {
                 }
                 let old_has_authority = self.recorded_authority.as_ref().map_or(
                     self.authority.is_some(),
-                    validation::RecordedDeclarationAuthority::has_authority,
+                    typed_trees::declaration_authority::RecordedDeclarationAuthority::has_authority,
                 );
                 if old_has_authority != current.authority.is_some() {
                     return Err(SourceReuseMiss::DeclarationAuthority);
@@ -664,7 +665,7 @@ mod storage {
                 let recorded = match &self.recorded_authority {
                     Some(recorded) => recorded,
                     None => {
-                        captured = validation::RecordedDeclarationAuthority::capture(
+                        captured = typed_trees::declaration_authority::RecordedDeclarationAuthority::capture(
                             self.authority.as_deref(),
                         )
                         .map_err(|reason| output.error(reason))?;
@@ -781,8 +782,13 @@ impl PreparedSource {
     pub fn admit_root_bindings(
         &self,
         executed: &[language_semantics::declaration_selection::ExecutedRootBinding],
-    ) -> Result<Vec<validation::product_entries::RootBinding>, Vec<Diagnostic>> {
-        validation::product_entries::collect_root_bindings(&self.typed, executed)
+    ) -> Result<Vec<language_semantics::declaration_selection::RootBinding>, Vec<Diagnostic>> {
+        if executed.is_empty() {
+            return Ok(Vec::new());
+        }
+        Err(vec![Diagnostic::error(
+            "no product route yet: product root binding admission",
+        )])
     }
 }
 
@@ -958,28 +964,28 @@ impl SourceContinuation {
 
     pub fn describe_schema(
         &self,
-        occurrence: source::SourceSpan,
-        path: &[u8],
+        _occurrence: source::SourceSpan,
+        _path: &[u8],
     ) -> Result<language_semantics::declaration_selection::DescribedProductSchema, String> {
-        validation::product_queries::describe_schema(self.typed(), occurrence, path)
+        Err("no product route yet: product declaration description".into())
     }
 
     pub fn describe_provider(
         &self,
-        occurrence: source::SourceSpan,
-        path: &[u8],
+        _occurrence: source::SourceSpan,
+        _path: &[u8],
     ) -> Result<language_semantics::declaration_selection::DescribedProductProvider, String> {
-        validation::product_queries::describe_provider(self.typed(), occurrence, path)
+        Err("no product route yet: product declaration description".into())
     }
 
     pub fn describe_entry(
         &self,
-        occurrence: source::SourceSpan,
-        path: &[u8],
-        slot: &[u8],
-        slots: &dyn semantic_vocabulary::ProgramEntrySourceCatalog,
+        _occurrence: source::SourceSpan,
+        _path: &[u8],
+        _slot: &[u8],
+        _slots: &dyn semantic_vocabulary::ProgramEntrySourceCatalog,
     ) -> Result<language_semantics::declaration_selection::DescribedProductEntry, String> {
-        validation::product_queries::describe_entry(self.typed(), occurrence, path, slot, slots)
+        Err("no product route yet: product declaration description".into())
     }
 
     pub fn same_completion_input(&self, other: &Self) -> bool {

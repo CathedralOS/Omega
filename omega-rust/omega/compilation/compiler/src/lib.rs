@@ -67,9 +67,7 @@ pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 pub use product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
 };
-pub use psi_compiler::{
-    ProducedTerminalProgram, dependency_body_read_totals, dependency_entailment_totals,
-};
+pub use psi_compiler::ProducedTerminalProgram;
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;
 
