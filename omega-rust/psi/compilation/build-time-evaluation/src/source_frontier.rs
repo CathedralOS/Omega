@@ -234,12 +234,16 @@ impl PreCheckEvaluation {
         require_no_source_jobs(projection)?;
         Ok(self.clone())
     }
-    pub fn activate_sources(
-        &self,
-        original: &TypedTrees,
-        activation: &TypedTrees,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        self.project(original, activation)
+    /// The evaluation continuation of the program `activation` narrowed out
+    /// of a retained base.
+    ///
+    /// Only the activated program's requests are this continuation's to
+    /// account for. The base also holds sources the program did not select,
+    /// and the requests of their declarations stay with the base's own
+    /// continuation; they do not stop a program that holds none of them.
+    pub fn activate_sources(&self, activation: &TypedTrees) -> Result<Self, Vec<Diagnostic>> {
+        require_no_source_jobs(activation)?;
+        Ok(self.clone())
     }
     pub fn exclude_completed_work(
         &self,

@@ -60,10 +60,17 @@ Declaration identities, written contracts, progress premises, domain constraints
 and concrete literal receiving types remain typed data. They establish no body
 verdict. Requests that still depended on the retired checker—closed const
 admission/replay, unresolved membership carriers, domain-entry accounting,
-legacy target-family contracts, source activation projection, projected/dynamic
-call binding and callable transition normalization—refuse with `no product route
-yet` until their surviving owner supplies the required judgment or correspondence.
+legacy target-family contracts, projected/dynamic call binding and callable
+transition normalization—refuse with `no product route yet` until their
+surviving owner supplies the required judgment or correspondence.
 Typing does not create empty facts or reuse an old checker verdict.
+
+Source activation (`SeededTypingBase::activate_sources`) narrows a retained
+typing to the program written in the selected sources. It reads no verdict: the
+typed representation's own
+[declaration projection](../../representations/typed-trees/src/declaration_projection.rs)
+keeps the selected files' declarations and the declarations the compiler derived
+for them, and the resolved roots follow what remains.
 
 The matching post-typing evaluator consumes the completed candidate; wire-plan
 publication starts at the extension wire-schema frontier. The structural prefix

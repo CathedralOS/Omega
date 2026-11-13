@@ -571,17 +571,87 @@ pub(crate) mod seeded_continuation {
             Ok((typed, frontier))
         }
 
+        /// Narrow this retained typing to the program written in `sources`'
+        /// selected files, then give its symbols `current_sources`.
+        ///
+        /// The retained base was typed once for every source it holds. The
+        /// program being compiled keeps the declarations of its selected
+        /// files and the declarations the compiler derived for them; the
+        /// resolved roots, service rows and evidence forwardings follow the
+        /// typed declarations that remain, so a later continuation extends
+        /// exactly this program. A selection that still names a declaration
+        /// of an unselected file is the caller's to reject.
         pub fn activate_sources(
-            self,
-            _sources: Arc<SourceMap>,
-            _current_sources: Arc<SourceMap>,
-            _bindings: Vec<SourceScopedTopLevelBinding>,
+            mut self,
+            sources: Arc<SourceMap>,
+            current_sources: Arc<SourceMap>,
+            bindings: Vec<SourceScopedTopLevelBinding>,
         ) -> Result<Self, Vec<Diagnostic>> {
-            // Activation needs a source-selected declaration projection. The
-            // retired checker's projection is not retained source authority.
-            Err(vec![crate::unavailable_judgment(
-                "source activation projection",
-            )])
+            let mut resolved = Arc::unwrap_or_clone(self.resolved_base_for_extension()?);
+            if resolved
+                .symbols
+                .source_map()
+                .is_none_or(|previous| !sources.retains_source_storage(&previous))
+            {
+                return Err(vec![Diagnostic::error(
+                    "source activation does not retain its paired source coordinates",
+                )]);
+            }
+            let mut typed = typed_trees::declaration_projection::project_source_declarations(
+                &self.typed,
+                &sources,
+            );
+            let selection = typed_trees::references::DeclarationSelection::from_program(&typed);
+            macro_rules! select_roots {
+                ($($field:ident),+ $(,)?) => {
+                    $(resolved.roots.$field.retain(|root| selection.contains(root.symbol));)+
+                };
+            }
+            select_roots!(
+                const_declarations,
+                data_definitions,
+                type_aliases,
+                domain_definitions,
+                machines,
+                measures,
+                operators,
+                propositions,
+                mathematical_definitions,
+                traits,
+                conformances,
+                wire_schemas,
+            );
+            let retained_owner = |mut owner: SymbolHandle| {
+                while owner.is_valid() {
+                    if selection.contains(owner) {
+                        return true;
+                    }
+                    owner = resolved.symbols.get(owner).parent;
+                }
+                false
+            };
+            resolved
+                .authored_service_reach_rows
+                .retain(|row| retained_owner(row.owner));
+            resolved
+                .evidence_forwardings
+                .retain(|row| selection.contains(row.machine_symbol));
+            let symbols = typed
+                .symbols
+                .clone()
+                .begin_source_activation(sources, bindings.clone())
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+                .finish()
+                .begin_source_activation(current_sources, bindings)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+                .finish();
+            resolved.symbols = symbols.clone();
+            typed.symbols = symbols;
+            resolved.resolution_indexes = Default::default();
+            Ok(Self {
+                resolved: Arc::new(resolved),
+                typed: Arc::new(typed),
+            })
         }
 
         pub fn join_prepared_allocations(

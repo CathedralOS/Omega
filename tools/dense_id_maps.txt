@@ -79,7 +79,6 @@
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural.rs
 9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs
-1 omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs
 2 omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs
 1 omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
 2 omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs
