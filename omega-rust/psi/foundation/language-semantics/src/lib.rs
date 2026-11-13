@@ -320,7 +320,19 @@ pub mod build_requests {
     // A Build request names the operation structural lowering actually emits.
     // These rows carry source meaning, not host authority; publication binds
     // them to one artifact before an activation may install its adapters.
-    use semantic_vocabulary::{BoundaryMachineId, OperationId};
+    use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+
+    /// Which emitted boundary call a host row describes. An operation
+    /// identity is unique within its machine only, so the machine is part of
+    /// the call's identity; the boundary says which requirement it calls.
+    /// Production writes one into every row and the Build host reads the
+    /// same three from the effect it is handed.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub struct BuildCallSite {
+        pub machine: MachineId,
+        pub operation: OperationId,
+        pub boundary: BoundaryMachineId,
+    }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub enum TerminalBuildRequestOperation {
@@ -335,8 +347,7 @@ pub mod build_requests {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct TerminalBuildRequestCall {
-        pub operation: OperationId,
-        pub boundary: BoundaryMachineId,
+        pub site: BuildCallSite,
         pub action: TerminalBuildRequestOperation,
     }
 

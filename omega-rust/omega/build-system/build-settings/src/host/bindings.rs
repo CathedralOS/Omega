@@ -242,7 +242,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         terminal_interpreter::TerminalCallStorageRequirements {
             original: false,
             arguments: if self.host.calls.iter().any(|call| {
-                call.boundary == boundary
+                call.site.boundary == boundary
                     && call.action == TerminalBuildBindingOperation::BindNative
             }) {
                 &[0]
@@ -258,8 +258,10 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         byte_buffers: &mut [terminal_interpreter::TerminalBoundaryByteBuffer],
         storage_buffers: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let native = matches!(effect, TerminalEffect::BoundaryCall { operation, boundary, .. }
-            if self.host.calls.iter().any(|call| call.operation == *operation && call.boundary == *boundary && call.action == TerminalBuildBindingOperation::BindNative));
+        let native = self.host.calls.iter().any(|call| {
+            crate::host::is_call_at(effect, call.site)
+                && call.action == TerminalBuildBindingOperation::BindNative
+        });
         if native {
             if !byte_buffers.is_empty() {
                 return Err(TerminalEffectRejection::new(
@@ -280,19 +282,14 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<bool, TerminalEffectRejection> {
-        let TerminalEffect::BoundaryCall {
-            operation,
-            boundary,
-            ..
-        } = effect
-        else {
+        let TerminalEffect::BoundaryCall { .. } = effect else {
             return Err(TerminalEffectRejection::new("not a Build binding effect"));
         };
         match self
             .host
             .queries
             .iter()
-            .find(|query| query.operation == *operation && query.boundary == *boundary)
+            .find(|query| crate::host::is_call_at(effect, query.site))
         {
             Some(query) => self.host.poll_query(query, effect),
             None => Ok(true),
@@ -305,8 +302,6 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
     ) -> Result<bool, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
-            operation,
-            boundary,
             arguments,
             structural_arguments,
             ..
@@ -318,7 +313,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .host
             .queries
             .iter()
-            .any(|query| query.operation == *operation && query.boundary == *boundary)
+            .any(|query| crate::host::is_call_at(effect, query.site))
         {
             return Ok(true);
         }
@@ -326,7 +321,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .host
             .calls
             .iter()
-            .find(|call| call.operation == *operation && call.boundary == *boundary)
+            .find(|call| crate::host::is_call_at(effect, call.site))
             .ok_or_else(|| refuse("Build binding call has no source-issued designated operands"))?;
         if call.action != TerminalBuildBindingOperation::AwaitProvider {
             return Ok(true);
@@ -372,8 +367,6 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
-            operation,
-            boundary,
             arguments,
             structural_arguments,
             ..
@@ -385,7 +378,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .host
             .queries
             .iter()
-            .find(|query| query.operation == *operation && query.boundary == *boundary)
+            .find(|query| crate::host::is_call_at(effect, query.site))
         {
             return self.host.complete_query(query, effect);
         }
@@ -393,7 +386,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
             .host
             .calls
             .iter()
-            .find(|call| call.operation == *operation && call.boundary == *boundary)
+            .find(|call| crate::host::is_call_at(effect, call.site))
             .ok_or_else(|| refuse("Build binding call has no source-issued designated operands"))?;
         let mut state = lock_state(&self.host.state).map_err(refuse)?;
         // Every selection is prepared on the original Build receiver; a test

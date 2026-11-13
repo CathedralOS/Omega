@@ -153,7 +153,7 @@ pub use build_filesystem::{
 pub use build_provider::ProducedBuildProvider;
 pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
-    TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
+    BuildCallSite, TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
 };
 pub use composition_roots::{
     TerminalAdmissionRoot, TerminalApplicationCustody, TerminalCompositionRoots,

@@ -5,7 +5,7 @@
 
 use language_semantics::declaration_selection::{BuildSelectionRequest, RootBindingOperand};
 use psi_terminal_production::{
-    AcceptedTerminalSource, ProducedTerminalProgram, TerminalBuildBindingOperation,
+    AcceptedTerminalSource, BuildCallSite, ProducedTerminalProgram, TerminalBuildBindingOperation,
     TerminalBuildRequestOperation, TerminalProductionCustody, UnmeasuredProduction,
 };
 use source::DependencyScope;
@@ -108,25 +108,22 @@ fn produced(build: &str) -> Result<ProducedTerminalProgram, Vec<diagnostics::Dia
         )
 }
 
-/// The boundary each `(operation, boundary)` row names, read back from the
-/// published artifact: the row is about a call the artifact really makes.
-fn published_boundary_calls(
-    program: &ProducedTerminalProgram,
-) -> Vec<(
-    semantic_vocabulary::OperationId,
-    semantic_vocabulary::BoundaryMachineId,
-)> {
-    program
-        .view()
-        .module()
-        .operations()
-        .filter_map(|operation| match &operation.kind {
-            terminal_psi::OperationKind::BoundaryCall { boundary, .. } => {
-                Some((operation.id, *boundary))
+/// Every boundary call the published artifact makes, as the site a host
+/// row names: a row is about a call the artifact really makes.
+fn published_boundary_calls(program: &ProducedTerminalProgram) -> Vec<BuildCallSite> {
+    let mut calls = Vec::new();
+    for machine in &program.view().module().machines {
+        for operation in machine.operations() {
+            if let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = &operation.kind {
+                calls.push(BuildCallSite {
+                    machine: machine.id,
+                    operation: operation.id,
+                    boundary: *boundary,
+                });
             }
-            _ => None,
-        })
-        .collect()
+        }
+    }
+    calls
 }
 
 const ONE_BINDING: &str = r#"
@@ -152,7 +149,7 @@ fn a_root_binding_is_published_with_the_entry_it_names() {
         ]
     );
     for call in calls.iter() {
-        assert!(emitted.contains(&(call.operation, call.boundary)));
+        assert!(emitted.contains(&call.site));
         let BuildSelectionRequest::Entry(binding) = &call.request else {
             panic!("{:?}", call.request)
         };
@@ -168,10 +165,7 @@ fn a_root_binding_is_published_with_the_entry_it_names() {
         assert!(call.native_locator.is_none());
     }
     // The two calls of one selection are different operations.
-    assert_ne!(
-        (calls[0].operation, calls[0].boundary),
-        (calls[1].operation, calls[1].boundary)
-    );
+    assert_ne!(calls[0].site, calls[1].site);
 
     let requests = program.build_requests().calls_for(view).unwrap();
     assert_eq!(requests.len(), 1);
@@ -179,7 +173,7 @@ fn a_root_binding_is_published_with_the_entry_it_names() {
         requests[0].action,
         TerminalBuildRequestOperation::ArtifactOnly
     );
-    assert!(emitted.contains(&(requests[0].operation, requests[0].boundary)));
+    assert!(emitted.contains(&requests[0].site));
     assert!(
         program
             .build_bindings()
@@ -248,15 +242,7 @@ machine build(builder: &mut Build) {
     assert_eq!(program.build_requests().calls_for(view).unwrap().len(), 1);
 }
 
-/// The Build host finds a call's row by operation and boundary, and this
-/// route numbers operations within each machine. Two helpers that each bind
-/// a different entry at the same operation number would give the host two
-/// rows it cannot tell apart, so production refuses instead of publishing
-/// either.
-#[test]
-fn two_machines_whose_bindings_share_an_operation_number_are_refused() {
-    let refused = produced(
-        r#"
+const TWO_HELPERS: &str = r#"
 machine build(builder: &mut Build) {
     first(builder);
     second(builder);
@@ -267,24 +253,62 @@ machine first(builder: &mut Build) {
 machine second(builder: &mut Build) {
     Build::bind(builder, windows_x86_64::ProgramEntry, two);
 }
-"#,
-    )
-    .unwrap_err();
-    assert_eq!(refused.len(), 1);
-    assert!(
-        refused[0]
-            .message
-            .starts_with("no product route yet: two Build calls in different machines"),
-        "{}",
-        refused[0].message
+"#;
+
+/// Operations are numbered within each machine, so two helpers that each
+/// bind an entry make their calls at the same operation numbers of the same
+/// boundaries. Each call still has its own row, told apart by its machine,
+/// and each row keeps the entry its own helper named.
+#[test]
+fn two_machines_that_bind_at_the_same_operation_number_keep_their_own_rows() {
+    let program = produced(TWO_HELPERS).unwrap();
+    let calls = program.build_bindings().calls_for(program.view()).unwrap();
+    let emitted = published_boundary_calls(&program);
+    let binds: Vec<_> = calls
+        .iter()
+        .filter(|call| call.action == TerminalBuildBindingOperation::Bind)
+        .map(|call| {
+            let BuildSelectionRequest::Entry(binding) = &call.request else {
+                panic!("{:?}", call.request)
+            };
+            assert!(emitted.contains(&call.site));
+            (call.site, binding.slot.as_str())
+        })
+        .collect();
+    let [(first, first_slot), (second, second_slot)] = binds.as_slice() else {
+        panic!("{binds:?}")
+    };
+    assert_eq!(
+        [*first_slot, *second_slot],
+        ["linux_x86_64::ProgramEntry", "windows_x86_64::ProgramEntry"]
     );
+    // The collision the machine resolves: without it the two rows would be
+    // one key with two different entries.
+    assert_eq!(
+        (first.operation, first.boundary),
+        (second.operation, second.boundary)
+    );
+    assert_ne!(first.machine, second.machine);
 }
 
-/// A request row says only which protocol operation a call is, so two
-/// machines that make the same request at the same operation number need one
-/// row: the host reads the same thing whichever call it meets.
+/// The failing twin: a row is for one machine's call. The other helper's
+/// call at the same operation number and boundary is not that row's call,
+/// so a host that looks a call up by its site cannot be handed the wrong
+/// entry.
 #[test]
-fn two_machines_that_make_the_same_request_share_its_row() {
+fn a_row_does_not_answer_for_the_same_operation_of_another_machine() {
+    let program = produced(TWO_HELPERS).unwrap();
+    let calls = program.build_bindings().calls_for(program.view()).unwrap();
+    for site in published_boundary_calls(&program) {
+        let rows: Vec<_> = calls.iter().filter(|call| call.site == site).collect();
+        assert_eq!(rows.len(), 1, "{site:?}");
+    }
+}
+
+/// A request row is per call too: two machines that make the same request
+/// at the same operation number publish two rows.
+#[test]
+fn two_machines_that_make_the_same_request_each_publish_its_row() {
     let program = produced(
         r#"
 machine build(builder: &mut Build) {
@@ -301,8 +325,10 @@ machine second(builder: &mut Build) {
     )
     .unwrap();
     let requests = program.build_requests().calls_for(program.view()).unwrap();
-    assert_eq!(published_boundary_calls(&program).len(), 2);
-    assert_eq!(requests.len(), 1);
+    let sites: Vec<_> = requests.iter().map(|request| request.site).collect();
+    assert_eq!(sites, published_boundary_calls(&program));
+    assert_eq!(sites.len(), 2);
+    assert_ne!(sites[0].machine, sites[1].machine);
 }
 
 /// Build admission bounds an activation's authority by what its accepted

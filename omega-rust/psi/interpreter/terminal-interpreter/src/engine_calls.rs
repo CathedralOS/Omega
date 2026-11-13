@@ -3427,6 +3427,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             }
         }
         let effect = TerminalEffect::BoundaryCall {
+            machine: self.current_machine,
             operation: operation.id,
             boundary,
             arguments: scalar_arguments,
