@@ -1406,6 +1406,7 @@ pub(crate) mod construction_destinations {
             }
         }
         let mut cast_destinations = Vec::new();
+        let mut completed_destinations = Vec::new();
         for (value, destination, lifetime_owner) in destinations {
             land_one(
                 program,
@@ -1413,12 +1414,20 @@ pub(crate) mod construction_destinations {
                 destination,
                 lifetime_owner,
                 &mut cast_destinations,
+                &mut completed_destinations,
             )?;
         }
         // A child constructor may get its complete application from an
         // enclosing field. Land explicit receiving contexts first; querying
         // every child before its parent would discard that application.
         for value in constructors {
+            let position = value.arena_index() as usize;
+            if completed_destinations
+                .get(position)
+                .is_some_and(|contexts| !contexts.is_empty())
+            {
+                continue;
+            }
             let ExpressionNode::StructLiteral(literal) =
                 program.expression_table.expression(value).clone()
             else {
@@ -1459,6 +1468,7 @@ pub(crate) mod construction_destinations {
                     field_type,
                     literal.type_symbol,
                     &mut cast_destinations,
+                    &mut completed_destinations,
                 )?;
             }
         }
@@ -1502,8 +1512,45 @@ pub(crate) mod construction_destinations {
         program: &mut TypedTrees,
         value: ExpressionHandle,
         destination: TypeReferenceHandle,
+        lifetime_owner: SymbolHandle,
+        cast_destinations: &mut Vec<TypeReferenceHandle>,
+        completed: &mut Vec<Vec<(TypeReferenceHandle, SymbolHandle)>>,
+    ) -> Result<(), Diagnostic> {
+        if !value.is_valid() || !destination.is_valid() {
+            return Ok(());
+        }
+        // A receiving occurrence includes its complete type handle and lexical
+        // region owner. Revisit a different context, but do not walk the same
+        // descendants again through another root or the constructor census.
+        let position = value.arena_index() as usize;
+        if completed
+            .get(position)
+            .is_some_and(|contexts| contexts.contains(&(destination, lifetime_owner)))
+        {
+            return Ok(());
+        }
+        land_destination(
+            program,
+            value,
+            destination,
+            lifetime_owner,
+            cast_destinations,
+            completed,
+        )?;
+        if completed.len() <= position {
+            completed.resize_with(position + 1, Vec::new);
+        }
+        completed[position].push((destination, lifetime_owner));
+        Ok(())
+    }
+
+    fn land_destination(
+        program: &mut TypedTrees,
+        value: ExpressionHandle,
+        destination: TypeReferenceHandle,
         mut lifetime_owner: SymbolHandle,
         cast_destinations: &mut Vec<TypeReferenceHandle>,
+        completed: &mut Vec<Vec<(TypeReferenceHandle, SymbolHandle)>>,
     ) -> Result<(), Diagnostic> {
         if !value.is_valid() || !destination.is_valid() {
             return Ok(());
@@ -1517,6 +1564,7 @@ pub(crate) mod construction_destinations {
                     destination,
                     lifetime_owner,
                     cast_destinations,
+                    completed,
                 )?;
             }
             return Ok(());
@@ -1546,6 +1594,7 @@ pub(crate) mod construction_destinations {
                 destination,
                 lifetime_owner,
                 cast_destinations,
+                completed,
             );
         }
         let mut carrier = destination;
@@ -1623,6 +1672,7 @@ pub(crate) mod construction_destinations {
                     field_type,
                     literal.type_symbol,
                     cast_destinations,
+                    completed,
                 )?;
             }
             return Ok(());
@@ -1645,6 +1695,7 @@ pub(crate) mod construction_destinations {
                     element_type,
                     lifetime_owner,
                     cast_destinations,
+                    completed,
                 )?;
             }
             return Ok(());
