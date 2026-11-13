@@ -189,6 +189,17 @@ pub mod provider_declarations {
         pub sources: Arc<source::SourceMap>,
         pub identity: String,
     }
+    impl RetainedProductApplication {
+        pub fn declaration_spans(&self) -> impl Iterator<Item = source::SourceSpan> + '_ {
+            self.graph
+                .names
+                .iter()
+                .filter(|(_, name)| {
+                    name.builtin_type.is_none() && name.builtin_function.is_none()
+                })
+                .filter_map(|(_, name)| name.declaration)
+        }
+    }
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct RetainedProviderSelection {
         pub subject: RetainedDeclaration,
