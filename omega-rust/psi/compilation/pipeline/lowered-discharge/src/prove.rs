@@ -66,33 +66,60 @@ const CASE_BRANCH_BUDGET: usize = 64;
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
 /// conjunctions and disjunctions of covered parts, an implication whose
-/// conclusion is covered, integer orders and equalities, and an arithmetic
-/// bound of an add, subtract, multiply, left shift or single value against a
-/// literal. Anything else the prover can only take from an equal
-/// hypothesis, so a failure on it says nothing about the program: it is
-/// `UnprovedCause::NoRuleForGoalForm`, published `Incomplete`, not
-/// `NoDerivation`.
-pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
+/// conclusion is covered, integer orders and equalities, a comparison of two
+/// closed mathematical terms, and an arithmetic bound of one add, subtract,
+/// multiply, left shift or single value against a literal. Anything else the
+/// prover can only take from an equal hypothesis, so a failure on it says
+/// nothing about the program: it is `UnprovedCause::NoRuleForGoalForm`,
+/// published `Incomplete`, not `NoDerivation`.
+///
+/// `fixed` says which values a result equation fixes to a literal. A
+/// mathematical term over such values and literals is closed once those
+/// equations are substituted, which is how the kernel reads it
+/// (`Prover::by_transport`), so a comparison of two such terms is evaluated,
+/// not searched for (`Prover::has_rules_for`).
+fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
-            parts.iter().all(has_rules_for)
+            parts.iter().all(|part| covered(part, fixed))
         }
         // The premise is only assumed; the conclusion is what is proved.
-        Proposition::Implication { conclusion, .. } => has_rules_for(conclusion),
+        Proposition::Implication { conclusion, .. } => covered(conclusion, fixed),
         Proposition::LessOrEqual(left, _)
         | Proposition::LessThan(left, _)
         | Proposition::Equal(left, _) => matches!(left.scalar_type(), ScalarType::Integer(_)),
+        // A comparison of two closed terms is the kernel's to evaluate
+        // (`Prover::closed`), whatever its relation.
+        Proposition::IntegerMathEqual(left, right)
+        | Proposition::IntegerMathLessThan(left, right) => {
+            closed_mathematical(left, fixed) && closed_mathematical(right, fixed)
+        }
         Proposition::IntegerMathLessOrEqual(left, right) => {
-            let bounded = |term: &IntegerMathTerm| {
-                matches!(
-                    term,
-                    IntegerMathTerm::Add(..)
-                        | IntegerMathTerm::Subtract(..)
-                        | IntegerMathTerm::Multiply(..)
-                        | IntegerMathTerm::ShiftLeft { .. }
-                        | IntegerMathTerm::MathValue { .. }
-                )
+            if closed_mathematical(left, fixed) && closed_mathematical(right, fixed) {
+                return true;
+            }
+            // `Prover::arithmetic_interval` bounds one operation over values
+            // of one carrier and literals, the shape an exact operation's
+            // representability goal has. A deeper term, or one over two
+            // carriers, is a clause's (`embed(a) + embed(b) * 10 <= 99`),
+            // and nothing here bounds it.
+            let leaf = |term: &IntegerMathTerm| match term {
+                IntegerMathTerm::MathValue { source_type, .. } => Some(Some(*source_type)),
+                IntegerMathTerm::IntegerLiteral(_) => Some(None),
+                _ => None,
+            };
+            let bounded = |term: &IntegerMathTerm| match term {
+                IntegerMathTerm::Add(first, second)
+                | IntegerMathTerm::Subtract(first, second)
+                | IntegerMathTerm::Multiply(first, second) => match (leaf(first), leaf(second)) {
+                    (Some(first), Some(second)) => {
+                        first.is_none() || second.is_none() || first == second
+                    }
+                    _ => false,
+                },
+                IntegerMathTerm::ShiftLeft { .. } | IntegerMathTerm::MathValue { .. } => true,
+                IntegerMathTerm::IntegerLiteral(_) | IntegerMathTerm::Embed(_) => false,
             };
             match (left, right) {
                 (term, IntegerMathTerm::IntegerLiteral(_))
@@ -101,6 +128,29 @@ pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
             }
         }
         _ => false,
+    }
+}
+
+/// `covered` with no value fixed: the goal's form as written.
+#[cfg(test)]
+pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
+    covered(goal, &|_| false)
+}
+
+/// Whether `term` is literals, values that `fixed` says are literals, and
+/// arithmetic over them.
+fn closed_mathematical(term: &IntegerMathTerm, fixed: &dyn Fn(ValueId) -> bool) -> bool {
+    match term {
+        IntegerMathTerm::IntegerLiteral(_) => true,
+        IntegerMathTerm::MathValue { value, .. } => fixed(*value),
+        IntegerMathTerm::Embed(_) => false,
+        IntegerMathTerm::Add(..)
+        | IntegerMathTerm::Subtract(..)
+        | IntegerMathTerm::Multiply(..)
+        | IntegerMathTerm::ShiftLeft { .. } => term
+            .operands()
+            .into_iter()
+            .all(|operand| closed_mathematical(operand, fixed)),
     }
 }
 
@@ -372,12 +422,16 @@ impl<'a> Prover<'a> {
         let target = denotation(goal)?;
         let premise = if target == Proposition::Truth {
             primitive(Proposition::Truth, PrimitiveJudgment::Truth)
+        } else if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == target) {
+            fact.proof.clone()
         } else {
-            self.facts
-                .iter()
-                .find(|fact| fact.proposition == target)?
-                .proof
-                .clone()
+            // The denotation leaves mathematical arithmetic as written
+            // (fact_validity.md: "Open integer relations, mathematical
+            // arithmetic, IEEE relations, and storage observations remain
+            // unchanged"), so a mathematical comparison whose values are
+            // all fixed to literals arrives here closed and not yet
+            // decided. The kernel evaluates it.
+            self.closed(target)?
         };
         Some(node(
             goal.clone(),
@@ -390,6 +444,21 @@ impl<'a> Prover<'a> {
                     .collect(),
             },
         ))
+    }
+
+    /// Whether the rules cover `goal`'s form (`covered`) at this prover's
+    /// program point: a value one of its equations fixes to a literal is that
+    /// literal.
+    pub(crate) fn has_rules_for(&self, goal: &Proposition) -> bool {
+        covered(goal, &|value| {
+            self.equations.iter().any(|(equation, _)| {
+                matches!(
+                    equation,
+                    Proposition::Equal(ScalarTerm::Value { id, .. }, ScalarTerm::Integer { .. })
+                        if *id == value
+                )
+            })
+        })
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
@@ -835,9 +904,14 @@ impl<'a> Prover<'a> {
                 }
                 self.arithmetic(left, right)
             }
+            // Between mathematical integers only the order `<=` has bound
+            // rules. An equality or a strict order holds here when its two
+            // sides are closed, which the kernel evaluates; over values
+            // fixed to literals `by_transport` reaches the same evaluation.
+            Proposition::IntegerMathEqual(..) | Proposition::IntegerMathLessThan(..) => self
+                .closed(goal.clone())
+                .ok_or("mathematical equality or strict order over open terms"),
             Proposition::Atom(_)
-            | Proposition::IntegerMathEqual(..)
-            | Proposition::IntegerMathLessThan(..)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ScalarIeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }

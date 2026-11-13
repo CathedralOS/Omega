@@ -15,7 +15,7 @@ use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
-use super::contracts::{ClauseScope, ResultTerm};
+use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
 use crate::body::{
     Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
@@ -837,10 +837,14 @@ impl<'t> Program<'t> {
             result: ResultTerm::Absent("result in an entry clause"),
             subject: None,
             formal_fields: false,
+            mathematical: MathematicalTerms::Refused(
+                "mathematical comparison in a crash route guard",
+            ),
         };
         // Only an entry `requires` may project a record formal.
         let required = ClauseScope {
             formal_fields: true,
+            mathematical: MathematicalTerms::Served,
             ..entry
         };
         let exit = ClauseScope {
@@ -856,6 +860,7 @@ impl<'t> Program<'t> {
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
+            mathematical: MathematicalTerms::Served,
             ..entry
         };
         let mut requires = Vec::new();
