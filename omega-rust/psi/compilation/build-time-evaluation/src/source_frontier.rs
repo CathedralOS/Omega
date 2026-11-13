@@ -86,22 +86,21 @@ fn require_no_source_jobs(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         if typed.layout_storage_arguments(reference).is_some() {
             return Err(unsupported("source layout-policy evaluation"));
         }
-        match typed.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::ConstExpression(_) => {
-                return Err(unsupported("source type-expression evaluation"));
-            }
+        // The reference owner already traversed every carrier, including a
+        // callable's complete signature and contracts. Classify only the
+        // evaluation work it found; a carrier is not a second leaf inventory.
+        let node = typed.type_reference_table.type_reference(reference);
+        if matches!(node, TypeReferenceNode::ConstExpression(_)) {
+            return Err(unsupported("source type-expression evaluation"));
+        }
+        if matches!(
+            node,
             TypeReferenceNode::FixedArray {
                 length: FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. },
                 ..
-            } => return Err(unsupported("source array-extent evaluation")),
-            TypeReferenceNode::Reference { .. }
-            | TypeReferenceNode::Constrained { .. }
-            | TypeReferenceNode::FixedArray { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::Unit => {}
+            }
+        ) {
+            return Err(unsupported("source array-extent evaluation"));
         }
     }
     Ok(())

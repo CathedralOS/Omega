@@ -1749,7 +1749,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     let TypedTrees {
         identity: _,
         product_declaration_frontier: _,
-        runtime_callable_lowering,
         excluded_authored_selection_occurrences,
         roots,
         tables,
@@ -1794,7 +1793,6 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     } = typed;
     let mut trees = TypedTrees::with_roots(roots, tables, symbols);
     trees.type_identities = type_identities;
-    trees.runtime_callable_lowering = runtime_callable_lowering;
     trees.access_borrow_factories = access_borrow_factories;
     trees.excluded_authored_selection_occurrences = excluded_authored_selection_occurrences;
     trees.service_reaches = service_reaches;

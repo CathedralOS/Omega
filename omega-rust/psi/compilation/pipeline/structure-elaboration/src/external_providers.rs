@@ -29,7 +29,7 @@ pub struct ExternalProviderCandidate {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ProviderOwnerSource {
-    pub nominal: String,
+    pub nominal: SymbolHandle,
     pub identity: String,
     pub package: Option<PackageKeyIdentity>,
 }
@@ -67,6 +67,7 @@ impl ExternalProviderNamespace {
         boundaries: &BoundaryNamespace,
         services: &crate::reach::ServiceMap,
         module: &mut TerminalModule,
+        typed_source: Option<&typed_trees::TypedTrees>,
     ) -> Checked<Vec<ExternalProviderCandidate>> {
         let refuse = |detail| crate::read::services::unavailable(context, detail);
         if !module.external_providers.is_empty() {
@@ -105,13 +106,29 @@ impl ExternalProviderNamespace {
                 &mut identities,
             )
             .map_err(refuse)?;
-            let provider = source.provider.as_ref().map(|owner| ExternalProviderOwner {
-                declaration: terminal_psi::NominalDeclarationIdentity::new(
-                    identities.intern(&owner.nominal),
-                ),
-                identity: identities.intern(&owner.identity),
-                package: owner.package,
-            });
+            let provider = source
+                .provider
+                .as_ref()
+                .map(|owner| -> Checked<ExternalProviderOwner> {
+                    let typed = typed_source.ok_or_else(|| {
+                        refuse("native provider owner lost its immutable source declaration table")
+                    })?;
+                    let sources = source::source_identity::toolchain_source_identities(
+                        typed.symbols.source_files(),
+                    )
+                    .map_err(|_| {
+                        refuse("native provider owner lost its exact toolchain source identities")
+                    })?;
+                    let declaration =
+                        crate::declare::nominal(typed, &sources, owner.nominal, &mut identities)
+                            .map_err(refuse)?;
+                    Ok(ExternalProviderOwner {
+                        declaration: terminal_psi::NominalDeclarationIdentity::new(declaration),
+                        identity: identities.intern(&owner.identity),
+                        package: owner.package,
+                    })
+                })
+                .transpose()?;
             candidates.push(ExternalProviderCandidate {
                 source: source.source,
                 state: source.state,

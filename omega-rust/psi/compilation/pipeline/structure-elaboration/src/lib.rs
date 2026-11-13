@@ -672,6 +672,7 @@ fn finish_logical_witness(
         &program.external_providers,
         &program.static_contracts,
         program.publication,
+        Some(program.typed),
     )?;
     witness.machines = program.symbols;
     witness.names = program.names;
@@ -728,6 +729,7 @@ fn finish_reading(
         &program.external_providers,
         &program.static_contracts,
         program.publication,
+        Some(program.typed),
     )?;
     elaboration.machines = program.symbols.clone();
     crate::reach::publish(program.typed, entry, &services, &mut elaboration)?;
@@ -821,6 +823,7 @@ fn lower_generic_for(
         &external_providers::ExternalProviderNamespace::default(),
         &static_contracts::StaticContracts::default(),
         publication,
+        None,
     )
 }
 
@@ -836,6 +839,7 @@ fn lower_program(
     external_providers: &external_providers::ExternalProviderNamespace,
     static_contracts: &static_contracts::StaticContracts,
     publication: terminal_codec::TerminalPublication,
+    typed_source: Option<&TypedTrees>,
 ) -> Checked<Elaboration> {
     for requirement in requirements {
         let body = terminal_check_tables::row(bodies, *requirement, entry, Construct::Machine)?;
@@ -1018,6 +1022,7 @@ fn lower_program(
         boundaries,
         services,
         &mut module,
+        typed_source,
     )?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
@@ -1035,7 +1040,8 @@ fn lower_program(
         callables,
         boundaries,
         services,
-        &module,
+        &mut module,
+        typed_source,
         &external_provider_candidates,
     )?;
     for (_, record) in records.iter() {

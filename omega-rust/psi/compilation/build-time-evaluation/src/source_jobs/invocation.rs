@@ -283,6 +283,8 @@ pub(crate) fn prepare_value_invocation(
         actuals.push(actual);
     }
     let call = TableCallExpression {
+        // This invocation names the selected source declaration directly.
+        runtime_call: None,
         authored_call_selection: None,
         authored_call_binding: None,
         authored_machine_application: Default::default(),

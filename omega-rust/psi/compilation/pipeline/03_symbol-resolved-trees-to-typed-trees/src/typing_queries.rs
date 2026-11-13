@@ -367,7 +367,9 @@ pub(crate) fn scoped_expression_type_reference(
         active.pop();
         if let Some(reference) = reference
             && reference.is_valid()
-            && !program.contains_type_reference(reference)
+            && !program
+                .type_reference_table
+                .contains_type_reference(reference)
         {
             return Err(crate::unavailable_judgment(
                 "value type with stale source custody",

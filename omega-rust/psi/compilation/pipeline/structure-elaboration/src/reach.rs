@@ -49,7 +49,6 @@ pub(crate) struct SourceEnvelope {
 #[derive(Debug, Clone)]
 struct ServiceSource {
     source: ServiceReachId,
-    declaration: symbols::SymbolHandle,
     identity: String,
     name: String,
     parents: Vec<ServiceReachId>,
@@ -85,7 +84,6 @@ impl ServiceMap {
             }
             sources.push(ServiceSource {
                 source,
-                declaration: definition.symbol,
                 identity,
                 name: definition.name.clone(),
                 parents: definition.parents.clone(),

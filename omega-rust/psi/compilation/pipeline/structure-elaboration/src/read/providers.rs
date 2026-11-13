@@ -133,14 +133,6 @@ impl Program<'_> {
         edge: &typed_trees::machine::TraitConformance,
     ) -> Checked<ExternalProviderSource> {
         let typed = self.typed;
-        let sources =
-            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
-                .map_err(|_| {
-                    services::unavailable(
-                        context,
-                        "native provider source has no exact toolchain identity",
-                    )
-                })?;
         if !edge.requirement_symbol.is_valid() || edge.via_expression.is_valid() {
             return Err(services::unavailable(
                 context,
@@ -289,8 +281,7 @@ impl Program<'_> {
         let provider = provider_symbol
             .map(|symbol| -> Checked<ProviderOwnerSource> {
                 Ok(ProviderOwnerSource {
-                    nominal: crate::declare::nominal(typed, &sources, symbol)
-                        .map_err(|reason| services::unavailable(context, reason))?,
+                    nominal: symbol,
                     identity: typed
                         .normalized_hermetic_symbol_identity(symbol)
                         .map_err(|_| {

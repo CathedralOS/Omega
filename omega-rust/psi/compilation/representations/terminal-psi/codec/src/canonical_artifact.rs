@@ -1,7 +1,7 @@
 /*
-Canonical artifacts retain portable code, optimization records and debug data.
-Execution views share that code while keeping each activation's private custody
-outside the portable bytes. Invocation-local declarations retain their owner too.
+Whole-artifact `CanonicalTerminalArtifact` container codec (`encode_canonical_artifact`,
+`decode_canonical_artifact`) and retained execution-code wrapper (`TerminalExecutionCode`,
+`encode_execution_code`, `decode_execution_code`).
 */
 
 use crate::cursor::Cursor;
@@ -300,14 +300,13 @@ pub(crate) mod execution_code {
     pub struct TerminalExecutionView<'code> {
         module: &'code TerminalModule,
         identity: TerminalPsiIdentity,
-        invocation: Option<&'code terminal_psi::InvocationCodeScope>,
     }
 
     impl<'code> TerminalExecutionView<'code> {
         pub fn custody_identity(self) -> TerminalExecutionIdentity {
             TerminalExecutionIdentity {
                 semantic: self.identity,
-                invocation: self.invocation.cloned(),
+                invocation: self.module.identities.invocation_scope().cloned(),
             }
         }
         pub const fn module(self) -> &'code TerminalModule {
@@ -342,7 +341,6 @@ pub(crate) mod execution_code {
             Self {
                 module: artifact.module(),
                 identity: artifact.identity(),
-                invocation: artifact.module().identities.invocation_scope(),
             }
         }
     }
@@ -351,24 +349,17 @@ pub(crate) mod execution_code {
     pub struct RetainedTerminalCode {
         module: Arc<TerminalModule>,
         identity: TerminalPsiIdentity,
-        invocation: Option<terminal_psi::InvocationCodeScope>,
     }
 
     impl RetainedTerminalCode {
         pub(crate) fn new(module: Arc<TerminalModule>, identity: TerminalPsiIdentity) -> Self {
-            let invocation = module.identities.invocation_scope().cloned();
-            Self {
-                module,
-                identity,
-                invocation,
-            }
+            Self { module, identity }
         }
 
         pub fn view(&self) -> TerminalExecutionView<'_> {
             TerminalExecutionView {
                 module: &self.module,
                 identity: self.identity,
-                invocation: self.invocation.as_ref(),
             }
         }
     }
@@ -377,49 +368,31 @@ pub(crate) mod execution_code {
     pub struct InvocationTerminalCode {
         module: Arc<TerminalModule>,
         identity: TerminalPsiIdentity,
-        invocation: terminal_psi::InvocationCodeScope,
     }
 
     impl InvocationTerminalCode {
         pub fn new(module: TerminalModule) -> Result<Self, crate::CodecError> {
-            let invocation = module.identities.invocation_scope().cloned().ok_or(
-                crate::CodecError::MalformedStructuralFoundation(
+            if module.identities.invocation_scope().is_none() {
+                return Err(crate::CodecError::MalformedStructuralFoundation(
                     "invocation code requires a retained local-code owner",
-                ),
-            )?;
+                ));
+            }
             let identity = crate::terminal_psi_identity(&module)?;
             Ok(Self {
                 module: Arc::new(module),
                 identity,
-                invocation,
             })
-        }
-
-        /// Give this activation its own custody while sharing the checked code.
-        /// The module and its proof identities stay unchanged, so code retained
-        /// across suspension keeps both its evidence and this activation owner.
-        pub fn from_artifact(artifact: &CanonicalTerminalArtifact) -> Self {
-            Self {
-                module: Arc::clone(&artifact.semantic_module),
-                identity: artifact.manifest.semantic(),
-                invocation: terminal_psi::InvocationCodeScope::default(),
-            }
         }
 
         pub fn view(&self) -> TerminalExecutionView<'_> {
             TerminalExecutionView {
                 module: &self.module,
                 identity: self.identity,
-                invocation: Some(&self.invocation),
             }
         }
 
         pub fn retain_code(&self) -> RetainedTerminalCode {
-            RetainedTerminalCode {
-                module: Arc::clone(&self.module),
-                identity: self.identity,
-                invocation: Some(self.invocation.clone()),
-            }
+            RetainedTerminalCode::new(Arc::clone(&self.module), self.identity)
         }
     }
 
@@ -467,87 +440,5 @@ pub(crate) mod execution_code {
         CanonicalTerminalArtifactError::Semantic(crate::CodecError::MalformedStructuralFoundation(
             "invocation code is not a portable Terminal artifact",
         ))
-    }
-
-    #[cfg(test)]
-    mod invocation_tests {
-        use super::*;
-        use crate::sections::semantic_module::target_family_tests::{identity_table, unit_machine};
-        use semantic_vocabulary::MachineId;
-
-        fn module() -> TerminalModule {
-            let entry = MachineId::new(1).unwrap();
-            let mut module = TerminalModule::for_entry(entry);
-            module.identities = identity_table(2);
-            module.machines.push(unit_machine(entry));
-            module
-        }
-
-        #[test]
-        fn separate_activations_share_checked_code_and_keep_distinct_custody() {
-            let module = module();
-            let record = crate::build_identity_optimization_execution_record(&module).unwrap();
-            let artifact = CanonicalTerminalArtifact::from_parts(module, record, None).unwrap();
-            let original_bytes = artifact.to_bytes();
-            let first = InvocationTerminalCode::from_artifact(&artifact);
-            let second = InvocationTerminalCode::from_artifact(&artifact);
-
-            assert!(std::ptr::eq(
-                first.view().module(),
-                artifact.semantic_module()
-            ));
-            assert_eq!(first.view().identity(), artifact.view().identity());
-            assert_eq!(second.view().identity(), artifact.view().identity());
-            assert_eq!(artifact.to_bytes(), original_bytes);
-            assert!(
-                artifact
-                    .semantic_module()
-                    .identities
-                    .invocation_scope()
-                    .is_none()
-            );
-            assert_ne!(
-                first.view().custody_identity(),
-                second.view().custody_identity()
-            );
-
-            let retained = first.retain_code();
-            let identity = first.view().custody_identity();
-            drop(first);
-            assert_eq!(retained.clone().view().custody_identity(), identity);
-            assert_ne!(
-                retained.view().custody_identity(),
-                second.view().custody_identity()
-            );
-            assert!(
-                TerminalProgramProduct::Invocation(second)
-                    .portable()
-                    .is_err()
-            );
-        }
-
-        #[test]
-        fn existing_local_code_keeps_its_owner_and_requires_that_owner() {
-            assert!(InvocationTerminalCode::new(module()).is_err());
-            let mut module = module();
-            let mut identities = terminal_psi::TerminalIdentityTableBuilder::for_invocation();
-            for text in module.identities.entries().iter().skip(1) {
-                identities.intern(text);
-            }
-            identities
-                .intern_invocation_local("local::continuation")
-                .unwrap();
-            module.identities = identities.build();
-            let original_scope = module.identities.invocation_scope().unwrap().clone();
-            let code = InvocationTerminalCode::new(module).unwrap();
-            assert_eq!(
-                code.view().custody_identity().invocation,
-                Some(original_scope)
-            );
-            assert_eq!(
-                code.retain_code().view().custody_identity(),
-                code.view().custody_identity()
-            );
-        }
     }
 }

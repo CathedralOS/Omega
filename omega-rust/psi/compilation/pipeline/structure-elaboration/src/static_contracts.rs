@@ -59,9 +59,9 @@ pub struct StaticConformanceQuestion {
 /// Source identities of one authored boundary implementation. Admission adds
 /// the realized signature only after the ordinary refinement proof succeeds.
 #[derive(Debug, Clone)]
-pub struct StaticProviderCandidate {
+pub struct StaticProviderCandidate<Declaration = terminal_psi::NominalDeclarationIdentity> {
     pub boundary: BoundaryMachineId,
-    pub declaration: String,
+    pub declaration: Declaration,
     pub source_requirement: String,
     pub source_candidate: String,
     pub package: Option<PackageKeyIdentity>,
@@ -153,7 +153,7 @@ pub(crate) struct SourceConformance {
     pub implementation: SourceImplementation,
     pub signature: Signature,
     pub envelope: StaticSourceEnvelope,
-    pub provider: Option<StaticProviderCandidate>,
+    pub provider: Option<StaticProviderCandidate<SymbolHandle>>,
 }
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StaticContracts {
@@ -181,9 +181,11 @@ impl StaticContracts {
         callables: &crate::callables::CallableNamespace,
         boundaries: &crate::boundaries::BoundaryNamespace,
         services: &ServiceMap,
-        module: &TerminalModule,
+        module: &mut TerminalModule,
+        typed_source: Option<&typed_trees::TypedTrees>,
         native: &[crate::ExternalProviderCandidate],
     ) -> Checked<(Vec<StaticSchemaQuestion>, Vec<StaticConformanceQuestion>)> {
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
         let schemas = self
             .schemas
             .iter()
@@ -250,9 +252,44 @@ impl StaticContracts {
                 implementation,
                 required,
                 envelope: source.envelope.publish(context, services)?,
-                provider: source.provider.clone(),
+                provider: source
+                    .provider
+                    .as_ref()
+                    .map(|provider| -> Checked<StaticProviderCandidate> {
+                        let typed = typed_source.ok_or_else(|| {
+                            crate::read::services::unavailable(
+                                context,
+                                "static provider lost its immutable source declaration table",
+                            )
+                        })?;
+                        let sources = source::source_identity::toolchain_source_identities(
+                            typed.symbols.source_files(),
+                        )
+                        .map_err(|_| {
+                            crate::read::services::unavailable(
+                                context,
+                                "static provider lost its exact toolchain source identities",
+                            )
+                        })?;
+                        let identity = crate::declare::nominal(
+                            typed,
+                            &sources,
+                            provider.declaration,
+                            &mut identities,
+                        )
+                        .map_err(|reason| crate::read::services::unavailable(context, reason))?;
+                        Ok(StaticProviderCandidate {
+                            boundary: provider.boundary,
+                            declaration: terminal_psi::NominalDeclarationIdentity::new(identity),
+                            source_requirement: provider.source_requirement.clone(),
+                            source_candidate: provider.source_candidate.clone(),
+                            package: provider.package,
+                        })
+                    })
+                    .transpose()?,
             });
         }
+        module.identities = identities.build();
         Ok((schemas, conformances))
     }
 }

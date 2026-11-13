@@ -529,7 +529,9 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
             .declaration
             .as_ref()
             .ok_or_else(|| fault(id, "static provider body lost its checked declaration"))?;
-        if source.declaration.is_empty()
+        if identities
+            .text(source.declaration.identity())
+            .is_none_or(|identity| identity.is_empty())
             || source.source_requirement.is_empty()
             || source.source_candidate.is_empty()
             || question.application.is_empty()
@@ -539,7 +541,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                 "static provider lost an exact source or application identity",
             ));
         }
-        let declaration = identities.intern(&source.declaration);
+        let declaration = source.declaration.identity();
         let application = identities.intern(&question.application);
         candidates.push(terminal_psi::ProviderCandidateConformance {
             boundary: source.boundary,

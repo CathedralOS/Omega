@@ -1080,6 +1080,7 @@ version = "0.1.0"
 dependencies = [
  "diagnostics",
  "language-core",
+ "language-semantics",
  "optimization",
  "proof-admission",
  "semantic-vocabulary",
@@ -2746,6 +2747,7 @@ dependencies = [
  "provider-selection",
  "semantic-vocabulary",
  "target",
+ "target-operations",
  "task-plans",
  "terminal-codec",
  "terminal-installation",

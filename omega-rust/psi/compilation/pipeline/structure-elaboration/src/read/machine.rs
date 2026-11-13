@@ -1096,7 +1096,6 @@ impl<'t> Program<'t> {
         // as `declares_no_crash_route`, so it is told from an omission by
         // that fact and never by the missing rows.
         let declares_none = match declared {
-            Declarer::Operator => false,
             Declarer::Machine {
                 declares_no_crash_route,
                 ..
@@ -1127,7 +1126,6 @@ impl<'t> Program<'t> {
                 ));
             }
             (_, true)
-            | (Declarer::Operator, false)
             | (
                 Declarer::Machine {
                     is_public: true, ..
@@ -2012,7 +2010,6 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
 /// none` leaves no row on either, so it is carried beside them.
 #[derive(Clone, Copy)]
 pub(super) enum Declarer {
-    Operator,
     Machine {
         declares_no_crash_route: bool,
         is_public: bool,

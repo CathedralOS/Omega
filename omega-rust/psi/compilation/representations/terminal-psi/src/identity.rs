@@ -293,12 +293,6 @@ pub(crate) mod table {
     #[derive(Debug, Clone)]
     pub struct InvocationCodeScope(std::sync::Arc<()>);
 
-    impl Default for InvocationCodeScope {
-        fn default() -> Self {
-            Self(std::sync::Arc::new(()))
-        }
-    }
-
     impl PartialEq for InvocationCodeScope {
         fn eq(&self, other: &Self) -> bool {
             std::sync::Arc::ptr_eq(&self.0, &other.0)
@@ -399,7 +393,7 @@ pub(crate) mod table {
         pub fn for_invocation() -> Self {
             Self {
                 table: TerminalIdentityTable {
-                    invocation: Some(InvocationCodeScope::default()),
+                    invocation: Some(InvocationCodeScope(std::sync::Arc::new(()))),
                     ..TerminalIdentityTable::default()
                 },
                 ..Self::default()

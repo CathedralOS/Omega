@@ -74,30 +74,67 @@ pub fn admit_build_machine(
             })?;
     let value_admission = BuildValueAdmission::admit(typed)?;
 
-    // Host authority is bounded by actual invocations of the accepted
-    // module. Every currently served Build boundary has a genuine request
-    // row emitted beside it. Other protocols (including filesystem) refuse
-    // in structural reading until their source companions exist.
-    let requests = elaboration
-        .build_requests
-        .iter()
-        .map(|request| {
-            (
-                semantic_vocabulary::InvocationSite::Operation(request.operation),
-                request.boundary,
-            )
+    // Only calls emitted from an authenticated Build protocol may open this
+    // host. Operation IDs belong to their physical machine, not the source
+    // owner of a call that lowering may have folded into a shared component.
+    let mut requests = std::collections::BTreeSet::new();
+    let mut filesystem_reachable = false;
+    for call in &elaboration.build_calls {
+        let refuse = || {
+            vec![Diagnostic::error(format!(
+                "`{machine_name}` has a Build protocol row without its actual declaration and emitted call"
+            ))]
+        };
+        let body = elaboration
+            .module
+            .machine(call.machine)
+            .ok_or_else(refuse)?;
+        let operation = body.operation(call.operation).ok_or_else(refuse)?;
+        if !matches!(&operation.kind, terminal_psi::OperationKind::BoundaryCall { boundary, .. } if *boundary == call.boundary)
+            || elaboration.boundary_declarations.get(call.boundary) != Some(&call.declaration)
+        {
+            return Err(refuse());
+        }
+        let declaration = typed
+            .closed_requirement_application(call.declaration)
+            .map_or(call.declaration, |application| application.template);
+        let (owner, _) = typed
+            .trait_machine_signature(declaration)
+            .ok_or_else(refuse)?;
+        let protocol = [
+            "BuildBindingOperations",
+            "BuildProductOperations",
+            "BuildRequestOperations",
+            "BuildFilesystemOperations",
+        ]
+        .into_iter()
+        .find(|protocol| {
+            owner.is_boundary
+                && language_semantics::build_requests::is_build_protocol(
+                    &typed.symbols,
+                    owner.symbol,
+                    protocol,
+                )
         })
-        .collect::<std::collections::BTreeSet<_>>();
+        .ok_or_else(refuse)?;
+        filesystem_reachable |= protocol == "BuildFilesystemOperations";
+        if !requests.insert((
+            call.machine,
+            semantic_vocabulary::InvocationSite::Operation(call.operation),
+            call.boundary,
+        )) {
+            return Err(refuse());
+        }
+    }
     for body in &elaboration.module.machines {
         for invocation in body.boundary_invocations() {
-            if !requests.contains(&(invocation.site, invocation.boundary)) {
+            if !requests.contains(&(body.id, invocation.site, invocation.boundary)) {
                 return Err(vec![Diagnostic::error(format!(
-                    "`{machine_name}` reaches a boundary outside admitted compiler-owned Build requests"
+                    "`{machine_name}` reaches a boundary outside admitted compiler-owned Build protocols"
                 ))]);
             }
         }
     }
-    let filesystem_reachable = false;
 
     let zero_build = value_admission.initial_value(typed, machine, filesystem_scope);
 

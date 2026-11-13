@@ -191,7 +191,7 @@ impl PartialEq<ScalarValueType> for crate::types::PrimitiveType {
 }
 
 impl crate::TypedTrees {
-    fn declared_callable_contract(
+    pub fn declared_callable_contract(
         &self,
         contract: RuntimeCallableContractHandle,
     ) -> Result<&RuntimeCallableContract, &'static str> {

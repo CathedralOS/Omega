@@ -348,15 +348,6 @@ impl Program<'_> {
                         "boundary implementation lost its genuine required header",
                     )
                 })?;
-                let sources = source::source_identity::toolchain_source_identities(
-                    typed.symbols.source_files(),
-                )
-                .map_err(|_| {
-                    services::unavailable(
-                        context,
-                        "provider has no exact toolchain source identity",
-                    )
-                })?;
                 let mut templates = typed
                     .machine_specializations
                     .iter()
@@ -375,8 +366,7 @@ impl Program<'_> {
                 })?;
                 Some(StaticProviderCandidate {
                     boundary,
-                    declaration: crate::declare::nominal(typed, &sources, symbol)
-                        .map_err(|reason| services::unavailable(context, reason))?,
+                    declaration: symbol,
                     source_requirement: typed.trait_requirement_callable_identity_text(
                         application.declaration,
                         required,

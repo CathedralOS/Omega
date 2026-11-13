@@ -963,7 +963,12 @@ impl<'t> Program<'t> {
                 Unserved::Typing("runtime call has no callable contract"),
             ));
         };
-        let callable = self.expression(id, slots, runtime.callee, Some(scalar_type))?;
+        let callable = self.expression(
+            id,
+            slots,
+            runtime.callee,
+            Some(ValueType::Scalar(scalar_type)),
+        )?;
         if callable.result != Some(ValueType::Scalar(scalar_type)) {
             return Err(refuse(
                 id,

@@ -716,6 +716,11 @@ impl BuildOutputIdentity<'_> {
         if !symbol.is_valid() {
             return Ok(());
         }
+        // A callable type has no declaration name. A symbol alone cannot
+        // retain its exact contract or the selected machine's application.
+        if self.program.symbols.get(symbol).kind == SymbolKind::CallableContract {
+            return Err("Build output needs an exact callable contract or selection, not an anonymous declaration symbol".into());
+        }
         let nominal = self.program.normalized_hermetic_symbol_identity(symbol)?;
         self.digest.string(&nominal);
         self.digest
@@ -770,5 +775,6 @@ fn symbol_kind_tag(kind: SymbolKind) -> u8 {
         SymbolKind::Section => 29,
         SymbolKind::Import => 30,
         SymbolKind::TypeAlias => 31,
+        SymbolKind::CallableContract => 32,
     }
 }

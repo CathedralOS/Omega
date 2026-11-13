@@ -82,6 +82,150 @@ fn a_real_constant_request_refuses_without_erasing_its_input() {
 }
 
 #[test]
+fn callable_signatures_do_not_hide_pending_extent_work() {
+    use symbols::{
+        BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+    };
+    use typed_trees::{
+        TypedTrees,
+        callable_values::RuntimeCallableContract,
+        data::{DataDefinition, DataField, DataMember},
+        expression::ExpressionNode,
+        signature::{StateParameter, StateSignature},
+        types::{FixedArrayLength, TypeReferenceNode},
+    };
+
+    let mut symbols = SymbolTableBuilder::default();
+    let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = symbols.insert_children(
+        root,
+        builtin_type_symbols().into_iter().chain([
+            (SymbolKind::Data, SymbolNameRef::Static("Holder")),
+            (SymbolKind::CallableContract, SymbolNameRef::Static("Outer")),
+            (SymbolKind::CallableContract, SymbolNameRef::Static("Inner")),
+        ]),
+    );
+    let owner = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+    let outer_owner = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1);
+    let inner_owner = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 2);
+    let field = symbols
+        .insert_children(
+            owner,
+            [(SymbolKind::Field, SymbolNameRef::Static("callback"))],
+        )
+        .start();
+    let parameter = symbols
+        .insert_children(
+            outer_owner,
+            [(SymbolKind::Parameter, SymbolNameRef::Static("callback"))],
+        )
+        .start();
+    let mut typed = TypedTrees {
+        symbols: symbols.finish(),
+        ..Default::default()
+    };
+    let byte = typed.type_reference_table.insert(TypeReferenceNode::Named {
+        symbol: declarations.handle_at(BuiltinTypeAtom::U8.ordinal() as u32),
+        name: "u8".into(),
+    });
+    let expression = typed.expression_table.insert(ExpressionNode::Integer(
+        numerics::literals::IntegerLiteral::from_value(2),
+    ));
+    let extent = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::ConstExpression(expression));
+    let array = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: byte,
+            length: FixedArrayLength::Expression(extent),
+        });
+    let inner = typed
+        .runtime_callable_contracts
+        .insert(RuntimeCallableContract {
+            signature: StateSignature {
+                symbol: inner_owner,
+                return_type: array,
+                ..Default::default()
+            },
+            lexical_owner: owner,
+            ..Default::default()
+        });
+    let inner_type = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::Callable { contract: inner });
+    let parameters = typed.state_parameters.insert_many([StateParameter {
+        symbol: parameter,
+        name: "callback".into(),
+        type_reference: inner_type,
+        ..Default::default()
+    }]);
+    let outer = typed
+        .runtime_callable_contracts
+        .insert(RuntimeCallableContract {
+            signature: StateSignature {
+                symbol: outer_owner,
+                parameters,
+                return_type: byte,
+                ..Default::default()
+            },
+            lexical_owner: owner,
+            ..Default::default()
+        });
+    let outer_type = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::Callable { contract: outer });
+    let members = typed
+        .data_members
+        .insert_many([DataMember::Field(DataField {
+            symbol: field,
+            name: "callback".into(),
+            type_reference: outer_type,
+            ..Default::default()
+        })]);
+    typed.push_data_definition(DataDefinition {
+        symbol: owner,
+        name: "Holder".into(),
+        members,
+        ..Default::default()
+    });
+    let (_, pending) = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+        syntax_trees: syntax_trees::SyntaxTrees::new(source::SourceId(17)),
+        source_context: BuildTimeSources::default(),
+    })
+    .unwrap()
+    .into_syntax_and_pre_check();
+    let before = typed.clone();
+    let errors = pending
+        .clone()
+        .evaluate(&mut typed)
+        .expect_err("the nested return type still owes its extent evaluation");
+    assert!(
+        errors.iter().any(
+            |error| error.message.contains("source array-extent evaluation")
+                || error.message.contains("source type-expression evaluation")
+        ),
+        "{errors:?}"
+    );
+    assert!(typed == before);
+
+    let closed_array = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::FixedArray {
+            element_type: byte,
+            length: FixedArrayLength::Literal(2),
+        });
+    typed
+        .runtime_callable_contracts
+        .get_mut(inner)
+        .signature
+        .return_type = closed_array;
+    pending
+        .evaluate(&mut typed)
+        .expect("a closed nested callable signature requests no evaluation");
+}
+
+#[test]
 fn orphan_result_rows_do_not_make_a_source_frontier_empty() {
     let mut closure = typed_trees::TypedTrees::default();
     closure

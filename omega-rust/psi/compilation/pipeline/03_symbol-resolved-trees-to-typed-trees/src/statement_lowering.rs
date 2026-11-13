@@ -456,8 +456,6 @@ pub(crate) mod statement {
                 return Ok(None);
             };
             let root_type = lower_type_reference_into_table(lowerer, &declared_root)?;
-            let mut projection =
-                typed::type_system::source_projections::SourceTypeCursor::new(root_type);
             let mut current = root_type;
             for step in steps.into_iter().rev() {
                 current = match step {

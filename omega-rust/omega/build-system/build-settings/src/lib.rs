@@ -52,10 +52,11 @@ and rejoins its normal return (`ReturnedBuild`) with `PreparedBuildEvaluation::c
 to produce `EvaluatedBuild`.
 
 The crate is organized along that lifecycle:
-- `admission/` prepares and judges Build source before effects (`checking.rs`).
-  Unsupported source constructs refuse before a host opens.
-  `provider_execution.rs` admits selected runtime supplies, while `program.rs`
-  binds the accepted source to its selected entry and filesystem scope.
+- `admission/checking.rs` currently refuses Build execution until its structural
+  source producer supplies source projection, declaration authority and settled
+  constant/provider work. The downstream `provider_execution.rs` admits selected
+  runtime supplies; `program.rs` binds accepted source to its entry and filesystem
+  scope. Those consumers do not replace the missing source producer.
 - `activation.rs` and `activation/` own the step-by-step `TerminalBuildActivation`
   that `orchestration` drives (`preparation.rs`, `project.rs`,
   `provider_installation.rs`, `scalar_completion.rs`, `source_join.rs`,

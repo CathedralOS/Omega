@@ -4001,7 +4001,10 @@ mod templates {
             inputs: &mut TypeExpressionInputs,
         ) {
             for &expression in &inputs.expressions {
-                if let ExpressionNode::Name(path) = self.syntax.expressions.expression(expression)
+                if let ExpressionNode::Name {
+                    members: path,
+                    application: _,
+                } = self.syntax.expressions.expression(expression)
                     && let Some(name) = self
                         .syntax
                         .expressions
