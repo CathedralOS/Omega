@@ -2968,9 +2968,9 @@ pub(crate) mod trait_defaults {
             let name =
                 Identifier::generated(syntax.items.state_parameter(parameter).name.as_str(syntax));
             let member = syntax.expressions.append_identifier_path_member(name);
-            syntax
-                .expressions
-                .insert(ExpressionNode::Name(HandleSpan::from_parts(member, 1)))
+            syntax.expressions.insert(ExpressionNode::Name(
+                HandleSpan::from_parts(member, 1).into(),
+            ))
         });
         let equality = syntax
             .expressions
@@ -4312,9 +4312,9 @@ pub(crate) mod declared_types {
                 let head = syntax
                     .expressions
                     .append_identifier_path_member(projection.term.clone());
-                let receiver = syntax
-                    .expressions
-                    .insert(ExpressionNode::Name(arena::HandleSpan::from_parts(head, 1)));
+                let receiver = syntax.expressions.insert(ExpressionNode::Name(
+                    arena::HandleSpan::from_parts(head, 1).into(),
+                ));
                 syntax.expressions.set_source_span(receiver, term_span);
                 let expression = syntax.expressions.insert(ExpressionNode::Member(
                     syntax_trees::expression::TableMemberExpression {
