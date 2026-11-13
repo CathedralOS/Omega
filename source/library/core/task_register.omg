@@ -11,9 +11,10 @@ public boundary trait TaskRegisterControl {
         gdt: &mut [u64; Entries], task_state: &[u8; 104], selector: u16
     ) -> bool
     requires Entries >= 2 && Entries <= 8192
-    reaches MachineControl;
+    reaches MachineControl
+    crashes none;
 
-    machine selector() -> u16 reaches MachineControl;
+    machine selector() -> u16 reaches MachineControl crashes none;
 }
 
 // Build selects the implementation. This native implementation requires x86-64.

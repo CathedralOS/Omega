@@ -100,22 +100,25 @@ public boundary trait DeviceLoanProvider {
     machine reserve(length: u64) -> Extent
     reaches none
     ensures
-        result in Extent::Granted;
+        result in Extent::Granted
+    crashes Trap crashes Abort;
 
     // Returns a restored range's `Granted` authority to the provider's pool,
     // ending the caller's claim. Every reserved extent terminates here or
     // beneath a frame that never exits.
-    machine release(range: Extent in Granted) reaches none;
+    machine release(range: Extent in Granted) reaches none crashes Trap crashes Abort;
 
     machine lend_for_read(range: Extent in Granted) -> DeviceLoan
     reaches none
     ensures
-        result in DeviceLoan::DeviceReads;
+        result in DeviceLoan::DeviceReads
+    crashes Trap crashes Abort;
 
     machine lend_for_write(range: Extent in Granted) -> DeviceLoan
     reaches none
     ensures
-        result in DeviceLoan::DeviceWrites;
+        result in DeviceLoan::DeviceWrites
+    crashes Trap crashes Abort;
 
     // Publication names the live loan's range and current write state. An
     // intersecting CPU write after this crossing invalidates the occurrence
@@ -123,7 +126,8 @@ public boundary trait DeviceLoanProvider {
     machine publish(loan: &DeviceLoan) -> DeviceOrderingEvent
     reaches none
     ensures
-        result in DeviceOrderingEvent::Publication;
+        result in DeviceOrderingEvent::Publication
+    crashes Trap crashes Abort;
 
     // Provider cache maintenance over the live loan's range: the target's
     // fence/cache facts admitted for this loan's space and direction, bound
@@ -133,7 +137,8 @@ public boundary trait DeviceLoanProvider {
     machine maintain_cache(loan: &DeviceLoan) -> DeviceOrderingEvent
     reaches none
     ensures
-        result in DeviceOrderingEvent::CacheMaintenance;
+        result in DeviceOrderingEvent::CacheMaintenance
+    crashes Trap crashes Abort;
 
     // Notification consumes a still-valid publication: the provider delivers
     // the recorded notification and requalifies the occurrence, or rejects a
@@ -141,22 +146,23 @@ public boundary trait DeviceLoanProvider {
     machine notify(publication: DeviceOrderingEvent in DeviceOrderingEvent::Publication) -> DeviceOrderingEvent
     reaches none
     ensures
-        result in DeviceOrderingEvent::Notification;
+        result in DeviceOrderingEvent::Notification
+    crashes Trap crashes Abort;
 
     // Retire one carried occurrence the protocol no longer needs. `settle`
     // consumes the event; it restores no custody and establishes no
     // completion, access, or ordering fact.
-    machine settle(event: DeviceOrderingEvent) reaches none;
+    machine settle(event: DeviceOrderingEvent) reaches none crashes Trap crashes Abort;
 
     // The completion obligation: consumes the live loan. On proven borrower
     // release the `Completed` case carries the `Completion` occurrence for
     // `acquire`; otherwise the `Pending` case returns the still-live loan so
     // the caller may retry — a failed start of the release never strands the
     // borrow.
-    machine complete(loan: DeviceLoan) -> DeviceCompletionAttempt reaches none;
+    machine complete(loan: DeviceLoan) -> DeviceCompletionAttempt reaches none crashes Trap crashes Abort;
 
     // Acquisition consumes a `Completion` occurrence tied to the same request,
     // loan, device, and scope: `Acquired` restores the range's Stable CPU
     // custody, `Pending` returns the retained completion candidate for retry.
-    machine acquire(completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) -> DeviceAcquisitionAttempt reaches none;
+    machine acquire(completion: DeviceOrderingEvent in DeviceOrderingEvent::Completion) -> DeviceAcquisitionAttempt reaches none crashes Trap crashes Abort;
 }

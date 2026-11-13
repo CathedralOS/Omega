@@ -7,7 +7,8 @@
 public boundary trait MacosImageData: Calling<DarwinArm64ByteViewCalling> {
     machine copy(allocator: u64, bytes: &[u8]) -> u64
     requires bytes.len <= 0x7fff_ffff_ffff_ffffu64
-    reaches none;
+    reaches none
+    crashes none;
 }
 
 // These ordinary C calls have no borrowed Omega storage. A provider preserves
@@ -16,20 +17,24 @@ public boundary trait MacosImageData: Calling<DarwinArm64ByteViewCalling> {
 public boundary trait MacosImageObjects: Calling<DarwinArm64ScalarCalling> {
     machine provider(data: u64) -> u64
     requires data != 0
-    reaches none;
+    reaches none
+    crashes none;
     machine release_data(data: u64)
     requires data != 0
-    reaches none;
+    reaches none
+    crashes none;
     machine release_provider(provider: u64)
     requires provider != 0
-    reaches none;
+    reaches none
+    crashes none;
     // CGImageRelease explicitly tolerates a null image.
-    machine release_image(image: u64) reaches none;
+    machine release_image(image: u64) reaches none crashes none;
     machine create(width: u64, height: u64, bits_per_component: u64,
         bits_per_pixel: u64, bytes_per_row: u64, space: u64,
         bitmap_info: u32, provider: u64, decode: u64,
         interpolate: bool, intent: u32) -> u64
-    reaches none;
+    reaches none
+    crashes none;
 }
 
 // Copy the entire live 32-bit pixel region into native-owned immutable storage.

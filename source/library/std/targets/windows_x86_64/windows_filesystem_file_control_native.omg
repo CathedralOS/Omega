@@ -12,12 +12,15 @@ data WindowsNativeFileEndOfFileInfo { length: i64; }
 boundary trait WindowsFilesystemFileControlIo {
     machine end_of_file(handle: i64, information_class: u32, input: &WindowsNativeFileEndOfFileInfo, size: u32) -> i32
     requires information_class == 6 && size == 8
-    reaches FilesystemContentWrite + FilesystemMetadataMutation blocks;
+    reaches FilesystemContentWrite + FilesystemMetadataMutation blocks
+    crashes none;
     machine basic(handle: i64, information_class: u32, input: &WindowsNativeFileBasicInfo, size: u32) -> i32
     requires information_class == 0 && size == 40
-    reaches FilesystemMetadataMutation blocks;
+    reaches FilesystemMetadataMutation blocks
+    crashes none;
     machine open_attributes(path: &[u16; 4096] in WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
     requires desired_access == 384 && sharing == 7 && security == 0 && disposition == 3
         && flags == 34603008 && template == 0
-    reaches FilesystemMetadataQuery + FilesystemMetadataMutation blocks;
+    reaches FilesystemMetadataQuery + FilesystemMetadataMutation blocks
+    crashes none;
 }

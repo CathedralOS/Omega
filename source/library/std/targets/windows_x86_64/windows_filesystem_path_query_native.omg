@@ -11,7 +11,8 @@ use omega::language::core::FilesystemMetadataQuery;
 boundary trait WindowsFilesystemPathIo {
     machine final_path(handle: i64, output: &mut [u16; 4096], capacity: u32, flags: u32) -> u32
     requires handle != 0 && handle != -1 && capacity == 4096 && flags == 0
-    reaches FilesystemMetadataQuery blocks;
+    reaches FilesystemMetadataQuery blocks
+    crashes none;
 }
 
 // This single generic requirement selects its exact bodyless satisfier through
@@ -22,5 +23,6 @@ boundary trait WindowsFilesystemUtf8Io {
         output: &mut [u8; Bytes], capacity: i32, default_character: u64, used_default: u64) -> i32
     reaches none
     requires code_page == 65001 && flags == 128 && characters > 0 && characters <= Units
-        && capacity > 0 && capacity <= Bytes && default_character == 0 && used_default == 0;
+        && capacity > 0 && capacity <= Bytes && default_character == 0 && used_default == 0
+    crashes none;
 }
