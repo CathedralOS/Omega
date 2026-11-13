@@ -289,7 +289,7 @@ mod assignment {
                 }
                 let declaration_symbol = data_definition.symbol;
                 if let Some(selection) = &mut data_definition.cleanup_selection {
-                    assign_cleanup_operand_types(
+                    assign_static_operand_types(
                         symbols,
                         child_type_references,
                         type_constraints,
@@ -418,8 +418,12 @@ mod assignment {
             let type_parameters = data_type_parameters
                 .span_or_empty(domain.type_parameters)
                 .to_vec();
-            if let Some(selection) = &mut domain.cleanup_selection {
-                assign_cleanup_operand_types(
+            for selection in domain
+                .cleanup_selection
+                .iter_mut()
+                .chain(domain.access_policy.iter_mut())
+            {
+                assign_static_operand_types(
                     symbols,
                     child_type_references,
                     type_constraints,
@@ -433,12 +437,13 @@ mod assignment {
                     selection,
                     false,
                 );
-                if let Some((_, machine)) = cleanup_entries
+            }
+            if let Some(selection) = &mut domain.cleanup_selection
+                && let Some((_, machine)) = cleanup_entries
                     .iter()
                     .find(|(entry, _)| *entry == selection.symbol)
-                {
-                    selection.symbol = *machine;
-                }
+            {
+                selection.symbol = *machine;
             }
             assign_type_parameter_constraint_symbols(
                 symbols,
@@ -1081,11 +1086,11 @@ mod assignment {
     }
 
     /*
-        Structural operands introduced by generic data substitution retain type
-        handles instead of declaration paths. Resolve their entire type graph in
-        the selecting declaration's telescope before static argument selection.
+        A selected declaration operand may retain type handles instead of
+        paths. Resolve its entire type graph in the selecting declaration's
+        scope before static argument selection.
     */
-    fn assign_cleanup_operand_types(
+    fn assign_static_operand_types(
         symbols: &SymbolTable,
         types: &mut Arena<TypeReference>,
         constraints: &Arena<TypeConstraint>,
@@ -1105,7 +1110,7 @@ mod assignment {
         }
         if let Some(application) = &mut argument.application {
             for nested in &mut application.arguments {
-                assign_cleanup_operand_types(symbols, types, constraints, parameters, nested);
+                assign_static_operand_types(symbols, types, constraints, parameters, nested);
             }
         }
     }
@@ -1225,14 +1230,18 @@ mod value_expressions {
                     .roots
                     .domain_definitions
                     .iter()
-                    .filter_map(|declaration| {
-                        declaration.cleanup_selection.as_ref().map(|selection| {
-                            (
-                                declaration.symbol,
-                                declaration.type_parameters,
-                                selection.clone(),
-                            )
-                        })
+                    .flat_map(|declaration| {
+                        declaration
+                            .cleanup_selection
+                            .iter()
+                            .chain(declaration.access_policy.iter())
+                            .map(move |selection| {
+                                (
+                                    declaration.symbol,
+                                    declaration.type_parameters,
+                                    selection.clone(),
+                                )
+                            })
                     }),
             )
             .collect::<Vec<_>>();

@@ -895,11 +895,19 @@ pub mod domain {
     /// (`wiki/spec/language/domains.md`, "Domain-owned read and write
     /// authority"): the named implementation whose `plan` states who may
     /// introduce the domain and who may read or write what it governs.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct DomainAccessPolicy {
-        pub implementation: SymbolHandle,
+        /// Evaluation must select the exact application, including each
+        /// owner's type, constant, lifetime and member arguments.
+        pub selection: crate::expression::StaticMachineArgument,
         /// Where the policy is named.
         pub source_span: source::SourceSpan,
+    }
+
+    impl DomainAccessPolicy {
+        pub fn implementation(&self) -> SymbolHandle {
+            self.selection.symbol
+        }
     }
 
     /// Who may introduce a domain, as far as its declaration decides it
@@ -916,7 +924,7 @@ pub mod domain {
         /// a plan yet, so no origin can be shown to be authorized: a reader
         /// treats this as admitting nobody it can name, never as
         /// unrestricted.
-        Planned(DomainAccessPolicy),
+        Planned(&'domain DomainAccessPolicy),
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -947,7 +955,7 @@ pub mod domain {
         /// an `as +D` asks; a declaration writes a policy or a route list,
         /// never both.
         pub fn issuance(&self) -> DomainIssuance<'_> {
-            match self.access_policy {
+            match &self.access_policy {
                 Some(policy) => DomainIssuance::Planned(policy),
                 None if self.establishment_routes.is_empty() => DomainIssuance::Unrestricted,
                 None => DomainIssuance::Only(&self.establishment_routes),
