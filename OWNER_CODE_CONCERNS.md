@@ -143,13 +143,6 @@ framework or a list of features that remain unimplemented.
 - Cost: proposal validation has two different retained-demand contracts. The Check-mode trial requires the 146 float-table rows while the earlier default scalar compile did not read them; treating the former as the default demand can force unrelated metadata into the product path. The all-catalog investigation is parked while the actual default consumer is reconciled.
 - Reported: 2026-11-13, Claude Code, while carrying the lowered-form checker's published module into Terminal production
 
-### The stage-coverage command still reports a column for the deleted Psi 06
-- Category: zombie machinery
-- Where: `tools/xtask/src/stage_coverage.rs` (`STAGES`), `tools/testing.md` stage-coverage section
-- Saw: `stage-coverage` counts lines under the deleted Psi 06 directory, so that column is always empty; the command exists to measure the old checker and has no reader once Psi 05 and `validation` are gone
-- Cost: the coverage table reads as if Psi 06 ran no lines, and the command outlives what it measures
-- Reported: 2026-11-12, Claude Code, while deleting Psi 06
-
 ### Constructing the source compiler repeats an hour of checking before its tests
 - Category: verifying costs more than writing
 - Where: [tests/product/gate.sh:42](tests/product/gate.sh#L42), [tests/product/gate.sh:70](tests/product/gate.sh#L70)
