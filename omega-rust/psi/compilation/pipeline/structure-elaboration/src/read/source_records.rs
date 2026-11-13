@@ -141,6 +141,11 @@ pub(super) fn source_application(
                     "record application with constrained or non-type parameters",
                 ));
             }
+            if !typed_trees::domain::index_argument_is_closed(typed, *argument) {
+                return Err(unavailable(
+                    "record application with an unresolved argument",
+                ));
+            }
             // Ordinary nominal identities erase regions. Do not let a new
             // byte/reference reader turn that storage key into lifetime
             // correspondence until this same application owner retains it.
@@ -868,6 +873,24 @@ mod tests {
                 .contains("reference regions are not retained"),
             "{refusal:?}"
         );
+        let formal = fixture
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: fixture.parameter,
+                name: "T".into(),
+            });
+        let open = fixture.apply(formal, formal);
+        let mut program = Program::new(&fixture.typed, false);
+        // An ambient interpretation of T cannot close the source tuple.
+        program.scope.push((
+            fixture.parameter,
+            ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(
+                semantic_vocabulary::IntegerType::U64,
+            )),
+        ));
+        let refusal = program.record_at(machine(), open).unwrap_err();
+        assert!(refusal.detail.contains("unresolved argument"), "{refusal:?}");
     }
 
     #[test]
