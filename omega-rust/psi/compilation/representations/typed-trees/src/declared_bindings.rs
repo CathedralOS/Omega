@@ -8,6 +8,7 @@ use crate::expression::{ExpressionHandle, ExpressionNode};
 use crate::state::State;
 use crate::statement::StatementNode;
 use crate::types::TypeReferenceHandle;
+use symbols::SymbolHandle;
 
 impl TypedTrees {
     /// The type on the declaration of the binding `name` denotes: a
@@ -23,7 +24,7 @@ impl TypedTrees {
         state: &State,
         name: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
-        if !name.is_valid() {
+        if !self.expression_table.expression_is_valid(name) {
             return None;
         }
         let ExpressionNode::Name(path) = self.expression_table.expression(name) else {
@@ -33,19 +34,35 @@ impl TypedTrees {
         if self.expression_table.name_path_members(path.members).len() != 1 {
             return None;
         }
-        let declared = self
+        self.declared_binding_type_by_symbol(state, symbol)
+    }
+
+    /// Read the unique parameter or local declaration with this exact binder
+    /// in the current state. This supplies metadata without authorizing access.
+    pub fn declared_binding_type_by_symbol(
+        &self,
+        state: &State,
+        symbol: SymbolHandle,
+    ) -> Option<TypeReferenceHandle> {
+        if !self.symbols.symbols().nodes().is_valid(symbol) {
+            return None;
+        }
+        let mut declarations = self
             .state_parameters(state)
             .iter()
-            .find(|parameter| parameter.symbol == symbol)
+            .filter(|parameter| parameter.symbol == symbol)
             .map(|parameter| parameter.type_reference)
-            .or_else(|| {
+            .chain(
                 self.statement_table
                     .statements(state.statement_nodes)
                     .iter()
                     .filter_map(StatementNode::as_local_data)
-                    .find(|binding| binding.symbol == symbol)
-                    .map(|binding| binding.type_reference)
-            })?;
-        declared.is_valid().then_some(declared)
+                    .filter(|binding| binding.symbol == symbol)
+                    .map(|binding| binding.type_reference),
+            );
+        let declared = declarations.next()?;
+        (declarations.next().is_none()
+            && self.type_reference_table.contains_type_reference(declared))
+        .then_some(declared)
     }
 }

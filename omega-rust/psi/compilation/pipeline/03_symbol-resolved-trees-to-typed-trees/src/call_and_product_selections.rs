@@ -1307,18 +1307,16 @@ pub(crate) mod construction_destinations {
                         }
                         StatementNode::Assignment(assignment) => {
                             if needs_destination(program, assignment.value) {
-                                // The literal is built at the declared type of
-                                // the binding it is assigned to. Any other
-                                // place (a field, an element, a binding with
-                                // no declared type, a binding of reference
-                                // type) has no type typing computes, so the
-                                // literal stays unlanded and its machine is
-                                // refused where it is demanded.
-                                match assigned_binding_type(program, state, assignment.target) {
+                                // A literal assigned to a field or array element
+                                // needs that destination's declared type. Bounds,
+                                // access and establishment are checked later. An
+                                // unavailable destination remains this machine's
+                                // deferred request rather than stopping its siblings.
+                                match assigned_place_type(program, state, assignment.target) {
                                     Some(receiving_type) => destinations.push((
                                         assignment.value,
                                         receiving_type,
-                                        SymbolHandle::invalid(),
+                                        machine.symbol,
                                     )),
                                     None => unlanded.push((
                                         machine.symbol,
@@ -1553,16 +1551,12 @@ pub(crate) mod construction_destinations {
         Ok(())
     }
 
-    /// The declared type of the parameter or local an assignment names, when
-    /// the assignment replaces that binding's own value. A binding of
-    /// reference type is not such a place: what a literal assigned to it
-    /// would be built at is not the binding's declared type.
-    fn assigned_binding_type(
+    fn assigned_place_type(
         program: &TypedTrees,
         state: &typed_trees::state::State,
         target: ExpressionHandle,
     ) -> Option<TypeReferenceHandle> {
-        let declared = program.declared_binding_type(state, target)?;
+        let declared = crate::typing_queries::declared_place_type(program, state, target).ok()?;
         let mut carrier = declared;
         while let TypeReferenceNode::Constrained { base_type, .. } =
             program.type_reference_table.type_reference(carrier)
