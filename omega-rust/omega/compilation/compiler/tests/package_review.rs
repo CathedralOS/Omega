@@ -110,6 +110,49 @@ reaches none crashes none REQUIREMENT_INVOKES;"#,
 
             // Export review revalidates this retained declaration independently
             // of the source pass that originally produced the checked custody.
+            let revalidate = |typed: &typed_trees::TypedTrees| {
+                let input = validation::CheckingContext::new(typed);
+                let provider = input
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "provider")
+                    .unwrap();
+                let requirement = input
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.name.as_str() == "InvocationApi::closed")
+                    .unwrap();
+                let conformance = &input.machine_trait_conformances(provider)[0];
+                validation::revalidate_top_level_requirement_realization(
+                    &input,
+                    provider,
+                    requirement,
+                    conformance,
+                )
+            };
+            revalidate(&program.typed).expect("unchanged standalone requirement realization");
+
+            let mut malformed = program.typed.clone().into_inner();
+            let requirement = malformed
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "InvocationApi::closed")
+                .unwrap();
+            let target = &malformed.machine_invokes(requirement)[0];
+            let handle = malformed.signature_invokes.handle_of(target).unwrap();
+            malformed.signature_invokes.get_mut(handle).target =
+                typed_trees::signature::AuthoredInvocationTarget::Service(provider.symbol);
+            let diagnostics = revalidate(&malformed)
+                .expect_err("a callable symbol is not a boundary entry identity");
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic
+                        .message
+                        .contains("invalid authored invokes ceiling")
+                }),
+                "{diagnostics:?}"
+            );
+
             let mut typed = program.typed.clone().into_inner();
             typed
                 .machines_mut()
@@ -117,25 +160,8 @@ reaches none crashes none REQUIREMENT_INVOKES;"#,
                 .find(|machine| machine.name.as_str() == "InvocationApi::closed")
                 .unwrap()
                 .invokes = arena::HandleSpan::empty();
-            let input = validation::CheckingContext::new(&typed);
-            let provider = input
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == "provider")
-                .unwrap();
-            let requirement = input
-                .machines()
-                .iter()
-                .find(|machine| machine.name.as_str() == "InvocationApi::closed")
-                .unwrap();
-            let conformance = &input.machine_trait_conformances(provider)[0];
-            let diagnostics = validation::revalidate_top_level_requirement_realization(
-                &input,
-                provider,
-                requirement,
-                conformance,
-            )
-            .expect_err("standalone revalidation must check the inferred entry ceiling");
+            let diagnostics = revalidate(&typed)
+                .expect_err("standalone revalidation must check the inferred entry ceiling");
             assert!(
                 diagnostics
                     .iter()
