@@ -999,18 +999,7 @@ pub mod calls {
         }
 
         fn primitive_integer_range(primitive: types::PrimitiveType) -> Option<(i128, i128)> {
-            use types::PrimitiveType::*;
-            match primitive {
-                Bool | F32 | F64 | Selector => None,
-                I8 => Some((i128::from(i8::MIN), i128::from(i8::MAX))),
-                I16 => Some((i128::from(i16::MIN), i128::from(i16::MAX))),
-                I32 => Some((i128::from(i32::MIN), i128::from(i32::MAX))),
-                I64 => Some((i128::from(i64::MIN), i128::from(i64::MAX))),
-                U8 => Some((0, i128::from(u8::MAX))),
-                U16 => Some((0, i128::from(u16::MAX))),
-                U32 => Some((0, i128::from(u32::MAX))),
-                U64 | Addr => Some((0, i128::from(u64::MAX))),
-            }
+            primitive.integer_bounds()
         }
     }
     pub(crate) mod operand_order {

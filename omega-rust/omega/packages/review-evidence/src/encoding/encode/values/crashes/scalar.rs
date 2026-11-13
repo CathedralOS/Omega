@@ -62,7 +62,7 @@ fn encode_scalar_node(
             encoder.field("landing", |encoder| {
                 encoder.option(literal.landing.as_ref(), |encoder, landing| {
                     encoder
-                        .string_field("landed_type", primitive_type_name(landing.landed_type))?;
+                        .string_field("landed_type", primitive_type_name(landing.landed_type)?)?;
                     encoder.string_field(
                         "arithmetic_domain",
                         arithmetic_domain_name(landing.arithmetic_domain),

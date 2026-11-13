@@ -5,6 +5,7 @@ use crate::record::PackageReviewIntegerBinaryKind;
 use crate::record::PackageReviewPrimitiveType;
 
 use super::Error;
+use numerics::integer_carrier::FixedInteger;
 pub(in crate::encoding::recovery) fn primitive_type(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewPrimitiveType, Error> {
@@ -13,14 +14,14 @@ pub(in crate::encoding::recovery) fn primitive_type(
         0 => Primitive::Bool,
         1 => Primitive::F32,
         2 => Primitive::F64,
-        3 => Primitive::I8,
-        4 => Primitive::I16,
-        5 => Primitive::I32,
-        6 => Primitive::I64,
-        7 => Primitive::U8,
-        8 => Primitive::U16,
-        9 => Primitive::U32,
-        10 => Primitive::U64,
+        3 => Primitive::Integer(FixedInteger::signed(8)),
+        4 => Primitive::Integer(FixedInteger::signed(16)),
+        5 => Primitive::Integer(FixedInteger::signed(32)),
+        6 => Primitive::Integer(FixedInteger::signed(64)),
+        7 => Primitive::Integer(FixedInteger::unsigned(8)),
+        8 => Primitive::Integer(FixedInteger::unsigned(16)),
+        9 => Primitive::Integer(FixedInteger::unsigned(32)),
+        10 => Primitive::Integer(FixedInteger::unsigned(64)),
         11 => Primitive::Addr,
     }))
 }
@@ -33,16 +34,11 @@ pub(in crate::encoding::recovery) fn primitive_type_name(
         "bool" => Primitive::Bool,
         "f32" => Primitive::F32,
         "f64" => Primitive::F64,
-        "i8" => Primitive::I8,
-        "i16" => Primitive::I16,
-        "i32" => Primitive::I32,
-        "i64" => Primitive::I64,
-        "u8" => Primitive::U8,
-        "u16" => Primitive::U16,
-        "u32" => Primitive::U32,
-        "u64" => Primitive::U64,
         "addr" => Primitive::Addr,
-        _ => return Err(Error::InvalidTag),
+        /* The published spellings are the eight conventional carriers. */
+        name => FixedInteger::from_builtin_name(name)
+            .map(Primitive::Integer)
+            .ok_or(Error::InvalidTag)?,
     })
 }
 

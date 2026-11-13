@@ -2086,12 +2086,7 @@ fn elaborate_single_subject_default(
         TypeReference::Named { symbol, .. }
             if matches!(
                 trees.symbols.builtin_type_atom(*symbol),
-                Some(
-                    symbols::BuiltinTypeAtom::U8
-                        | symbols::BuiltinTypeAtom::U16
-                        | symbols::BuiltinTypeAtom::U32
-                        | symbols::BuiltinTypeAtom::U64
-                )
+                Some(symbols::BuiltinTypeAtom::Integer(carrier)) if !carrier.is_signed()
             ) =>
         {
             canonical_view(RankingViewId::NAT_DESCENDING)

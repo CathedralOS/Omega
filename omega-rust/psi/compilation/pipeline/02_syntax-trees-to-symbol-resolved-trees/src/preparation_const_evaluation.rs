@@ -654,7 +654,7 @@ mod arguments {
                     )).with_source_span(syntax.expressions.source_span(expression))
                 })?;
                     if let Some(integer_type) = const_integer_type(syntax, parameter_type) {
-                        validate_syntax_integer_range(integer_type.name(), value)
+                        validate_syntax_integer_range(&integer_type.name(), value)
                             .map_err(Diagnostic::error)?;
                     }
                     syntax.tables.type_references.replace_type_reference(
@@ -771,8 +771,7 @@ mod arguments {
                 else {
                     return false;
                 };
-                let (minimum, maximum) = integer_type.bounds();
-                value >= minimum && value <= maximum
+                integer_type.admits_i128(value)
             })
     }
 
@@ -971,8 +970,7 @@ mod arguments {
         integer_type: LandedIntegerType,
         value: i128,
     ) -> Result<(), String> {
-        let (minimum, maximum) = integer_type.bounds();
-        if value < minimum || value > maximum {
+        if !integer_type.admits_i128(value) {
             return Err(format!(
                 "integer value `{value}` is outside the declared `{}` range",
                 integer_type.name()
@@ -1016,9 +1014,18 @@ mod arguments {
                 "shifts and bitwise operators require a declared integer const type".to_string(),
             );
         };
+        /*
+            These operators are folded in a host integer here, which holds
+            the word and its modulus only up to 64 bits.
+        */
+        if integer_type.bit_width() > 64 {
+            return Err(format!(
+                "const shifts and bitwise operators are not yet evaluated at the `{}` width",
+                integer_type.name()
+            ));
+        }
         let modulus = 1i128 << integer_type.bit_width();
-        let (minimum, maximum) = integer_type.bounds();
-        if left < minimum || left > maximum {
+        if !integer_type.admits_i128(left) {
             return Err(format!(
                 "left operand `{left}` is outside the declared `{}` range",
                 integer_type.name()
@@ -1029,7 +1036,7 @@ mod arguments {
             BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => {
                 let amount = u32::try_from(right)
                     .ok()
-                    .filter(|amount| *amount < integer_type.bit_width())
+                    .filter(|amount| u64::from(*amount) < integer_type.bit_width())
                     .ok_or_else(|| {
                         format!(
                             "shift count must be non-negative and below the declared `{}` width",
@@ -1045,7 +1052,7 @@ mod arguments {
                         integer_type.name()
                     )
                 })?;
-                if shifted < minimum || shifted > maximum {
+                if !integer_type.admits_i128(shifted) {
                     return Err(format!(
                         "left shift exceeds the declared `{}` range",
                         integer_type.name()
@@ -1054,7 +1061,7 @@ mod arguments {
                 Ok(shifted)
             }
             BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
-                if right < minimum || right > maximum {
+                if !integer_type.admits_i128(right) {
                     return Err(format!(
                         "right operand `{right}` is outside the declared `{}` range",
                         integer_type.name()
@@ -2610,6 +2617,7 @@ mod facts {
         else {
             return Ok(None);
         };
+        let nested_carrier = nested_carrier.as_ref();
         let members = syntax.items.identifier_path_members(membership.domain);
         let path = members.joined_path_in(syntax);
         let reference = members
@@ -2971,22 +2979,28 @@ mod facts {
         value: ConstFactValue,
         carrier: &'a str,
         warnings: &mut Vec<Diagnostic>,
-    ) -> Result<Option<(&'a str, ConstScalarValue)>, String> {
+    ) -> Result<Option<(std::borrow::Cow<'a, str>, ConstScalarValue)>, String> {
         match value {
-            ConstFactValue::Boolean(value) => Ok(Some(("bool", ConstScalarValue::Boolean(value)))),
+            ConstFactValue::Boolean(value) => Ok(Some((
+                std::borrow::Cow::Borrowed("bool"),
+                ConstScalarValue::Boolean(value),
+            ))),
             ConstFactValue::DeclaredInteger {
                 value,
                 integer_type,
             } => Ok(Some((
-                integer_type.name(),
+                std::borrow::Cow::Owned(integer_type.name()),
                 ConstScalarValue::DeclaredInteger {
                     value,
                     integer_type,
                 },
             ))),
-            value => Ok(value
-                .into_integer(syntax, warnings)?
-                .map(|value| (carrier, ConstScalarValue::Integer(value)))),
+            value => Ok(value.into_integer(syntax, warnings)?.map(|value| {
+                (
+                    std::borrow::Cow::Borrowed(carrier),
+                    ConstScalarValue::Integer(value),
+                )
+            })),
         }
     }
 
@@ -3624,6 +3638,7 @@ mod facts {
                 else {
                     return Ok(None);
                 };
+                let nested_carrier = nested_carrier.as_ref();
                 let members = syntax_expressions(syntax).identifier_path_members(membership.domain);
                 let path = members.joined_path_in(syntax);
                 evaluate_named_const_domain(
@@ -5622,7 +5637,7 @@ mod values {
                     carrier = *base_type;
                 }
                 if !matches!(syntax.type_references.type_reference(carrier), TypeReferenceNode::Named(name)
-                if matches!(selection.builtin_type(syntax, name), Some(symbols::BuiltinTypeAtom::I8 | symbols::BuiltinTypeAtom::I16 | symbols::BuiltinTypeAtom::I32 | symbols::BuiltinTypeAtom::I64 | symbols::BuiltinTypeAtom::U8 | symbols::BuiltinTypeAtom::U16 | symbols::BuiltinTypeAtom::U32 | symbols::BuiltinTypeAtom::U64)))
+                if matches!(selection.builtin_type(syntax, name), Some(symbols::BuiltinTypeAtom::Integer(_))))
                 {
                     return Err("array extent constant must have an integer carrier".to_owned());
                 }
@@ -6472,8 +6487,7 @@ mod values {
         let Some(integer_type) = LandedIntegerType::from_name(type_name) else {
             return Err(format!("`{type_name}` is not an integer const type"));
         };
-        let (minimum, maximum) = integer_type.bounds();
-        if value < minimum || value > maximum {
+        if !integer_type.admits_i128(value) {
             Err(format!("const value `{value}` does not fit `{type_name}`"))
         } else {
             Ok(())
