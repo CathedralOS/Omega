@@ -179,13 +179,31 @@ fn divided_by_a_sum(policy: Policy) -> Lending {
 fn a_wrapped_sum_is_not_the_mathematical_sum() {
     // With both operands at least 2^31 the mathematical sum is at least
     // 2^32 and so nonzero, but the wrapped sum is `a + b - 2^32`, which is
-    // zero for `a = b = 2^31`. The division by it must stay unproved: a
+    // zero for `a = b = 2^31`. The division by it must not be discharged: a
     // checker that read the Wrapping add as the Exact one would accept a
     // division by zero.
+    //
+    // The verdict is `Incomplete`, not `Rejected`. The goal is that the
+    // divisor is nonzero, and the divisor is defined only by a Wrapping
+    // add, an operation the integer rules have no bound for
+    // (`prove::has_rules_for`). A goal that depends on such a value is one
+    // the route cannot decide either way, so it reports a missing verdict
+    // and not a defect in the program.
     let wrapped = divided_by_a_sum(Policy::Wrapping);
-    assert_eq!(
-        unsafe_operations(judge(lower_lending(vec![wrapped])).unwrap()),
-        1
+    let undecided = match judge(lower_lending(vec![wrapped])).unwrap() {
+        RouteVerdict::Incomplete(undecided) => undecided,
+        verdict => panic!("the division must be left undecided: {verdict:?}"),
+    };
+    assert!(
+        matches!(
+            undecided.as_slice(),
+            [UnprovedObligation {
+                kind: ObligationKind::OperationSafety { .. },
+                cause: UnprovedCause::NoRuleForGoalForm,
+                ..
+            }]
+        ),
+        "{undecided:?}"
     );
     // The casts compute nothing: the operations are the literal, the add
     // and the divide.
