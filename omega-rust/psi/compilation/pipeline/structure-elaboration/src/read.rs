@@ -491,6 +491,66 @@ mod tests {
         );
     }
 
+    /// A `mut` formal that holds its own value may be named by an entry
+    /// `requires`, where it can only mean the argument. A guarantee or a
+    /// crash route guard that names it is refused: by then the name also
+    /// stands for whatever the body last assigned, and which of the two
+    /// the clause means is not settled. The same clause over a formal that
+    /// is not `mut` names its value.
+    #[test]
+    fn a_mut_formal_is_named_by_an_entry_requires_and_by_no_other_clause() {
+        use typed_trees::name::Identifier;
+        let mut typed = TypedTrees::default();
+        let formal = SymbolHandle::from_arena_index(3);
+        let mut members = arena::HandleSpan::empty();
+        typed
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated("x"));
+        let named = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                symbol: formal,
+                ..TableNamePath::default()
+            }));
+        let program = Program::new(&typed, false);
+        let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let value = ValueId::new(1).unwrap();
+        let slot = |assignable| Slot {
+            symbol: formal,
+            value_type: ValueType::Scalar(u32_type),
+            assignable,
+            homed: false,
+            erased: false,
+            borrowed: None,
+        };
+        let (mutable, immutable) = ([slot(true)], [slot(false)]);
+        let values = [Some(value)];
+        let scope = |slots, formal_fields| ClauseScope {
+            subject: None,
+            formal_fields,
+            slots,
+            values: &values,
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in an entry clause"),
+        };
+        let term = Ok((
+            ScalarTerm::Value {
+                id: value,
+                scalar_type: u32_type,
+            },
+            u32_type,
+        ));
+        let read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
+        assert_eq!(read(&scope(&mutable, true)), term);
+        assert_eq!(read(&scope(&immutable, false)), term);
+        assert_eq!(
+            read(&scope(&mutable, false)).unwrap_err().detail,
+            "contract clause that names a mutable parameter outside requires"
+        );
+    }
+
     /// Record constructs this slice does not serve are each refused under
     /// their own name, and a member or literal the typed trees hold only as a
     /// spelling is refused as a spelling, before anything is read from it.

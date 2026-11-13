@@ -179,6 +179,13 @@ pub struct Elaboration {
     /// Written `requires true` is complete even though it leaves no clause.
     /// Entries, selected providers and abstract requirements never appear here.
     pub private_inputs: Vec<MachineId>,
+    /// The private subject machines whose callers in this compilation may
+    /// use what the body returns beyond its written `ensures`
+    /// (`read::Program::local_result_bodies`; state_contracts.md, "Local
+    /// call summaries"). The checker derives each summary and proves it on
+    /// every normal return before any caller reads it. Empty outside
+    /// `elaborate`.
+    pub local_results: Vec<MachineId>,
     /// The `requires` clauses of each data type the module declares, by the
     /// type's identity and in authored order, as `RecordType::requires`
     /// states them: the checker's restatement of each type declaration's
@@ -577,6 +584,7 @@ fn finish_reading(
         bodies.push(body);
     }
     let private_inputs = program.private_input_contracts(entry)?;
+    let local_results = program.local_result_bodies(entry)?;
     let mut elaboration = lower_generic(
         entry,
         &bodies,
@@ -594,6 +602,7 @@ fn finish_reading(
     }
     elaboration.machines = program.symbols;
     elaboration.private_inputs = private_inputs;
+    elaboration.local_results = local_results;
     elaboration.names = program.names;
     elaboration.selections = program.selections;
     elaboration.applications = program.applications;
@@ -701,6 +710,7 @@ pub fn lower_generic(
         names: IdTable::default(),
         machines: IdTable::default(),
         private_inputs: Vec::new(),
+        local_results: Vec::new(),
         domains,
         requirements: requirements.to_vec(),
         selections: Vec::new(),

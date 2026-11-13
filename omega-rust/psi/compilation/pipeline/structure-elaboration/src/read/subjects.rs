@@ -126,7 +126,7 @@ impl Program<'_> {
             }
         }
         for data in typed.data_definitions() {
-            if self.owner(entry, data.symbol, subject)? == Owner::Subject {
+            if self.owner(entry, data.symbol, subject)? == Owner::Subject && !names_only(data) {
                 self.record(entry, data.symbol)?;
             }
         }
@@ -183,6 +183,30 @@ impl Program<'_> {
         }
         Ok(())
     }
+}
+
+/// Whether a data declaration declares a name and nothing else: no field or
+/// case, no parameter, no `requires`, no cleanup and no carry policy. Its
+/// multiplicity is not read: with no value of the type there is no custody.
+/// `data Counter {}` beside `machine Counter::clear()` is one: it completes
+/// machine names (`machine_shape`) and no value of it holds anything. Such a
+/// declaration has nothing to resolve or to prove, so as a subject it is
+/// passed over instead of refused as a record without fields. A binding,
+/// formal or field of the type is still refused where its type is read
+/// (`record`), because the lowered form has no row for a value with no
+/// storage.
+fn names_only(data: &typed_trees::data::DataDefinition) -> bool {
+    data.members.is_empty()
+        && data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
+        && data.lifetime_parameters.is_empty()
+        && data.type_parameters.is_empty()
+        && data.generic_instance.is_none()
+        && data.conformance_bounds.is_empty()
+        && data.properties.carry.is_none()
+        && data.cleanup_selection.is_none()
+        && data.quotient.is_none()
+        && data.requires_facts.is_empty()
+        && data.retired_identities.is_empty()
 }
 
 fn symbols_of<T>(rows: &[T], symbol: impl Fn(&T) -> SymbolHandle) -> Vec<SymbolHandle> {

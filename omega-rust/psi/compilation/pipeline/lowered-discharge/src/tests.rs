@@ -24,8 +24,10 @@ use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 mod entry_inputs;
 mod guard_contradiction;
+mod mutable_formals;
 mod ranges;
 mod references;
+mod result_summaries;
 mod type_parameters;
 mod value_parameters;
 

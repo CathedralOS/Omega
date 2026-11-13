@@ -4,10 +4,11 @@ an initializer, and assignment. An assignment to a name rebinds its slot (a
 scalar value, or the fresh root of a whole record value); an assignment to a
 member path is a store into that exact field of a mutable local's record; an
 assignment to a scalar local declared without an initializer is a store into
-its home. Formals are immutable here: a `mut` formal is refused where the
-signature is read. A formal passed by `&mut` is stored into in place: a
-scalar referent like a home, a field of a record referent like a field of a
-mutable local.
+its home. A `mut` formal that holds its own value is assigned and stored
+into as a `mut` local is; any other formal that holds its own value is
+immutable. A formal passed by `&mut` is stored into in place: a scalar
+referent like a home, a field of a record referent like a field of a mutable
+local.
 */
 
 use semantic_vocabulary::MachineId;

@@ -108,6 +108,17 @@ The spec is the answer key. Read the governing page in `wiki/spec/`, build
 what it says, and you will get it right the first time. Check what you
 changed, then land it; `main` is checked after every merge.
 
+**The old checker is frozen for deletion (owner ruling, 2026-11-12).** The
+lowered-form checker's verdict is the only verdict of a compilation. Psi 05
+(`typed-trees-to-checked-trees`), `validation`, Psi 06
+(`checked-trees-to-lowered-psi`), `checked-trees`, `checked-interpreter`,
+`facts` and `representation-{planning,selections}` are being removed now: no
+pull request edits them except to delete code or to move a still-needed item
+into the crate that survives. Build what a program needs in the lowered-form
+checker (`TASKS.md`, **LOWERED-FORM-CHECKER**). A program it cannot judge is
+refused; never route one back to the old stages or weaken the new checker so
+it compiles.
+
 An open PR is unfinished work sitting in the way of everyone else's. If you
 are the one looking at it, it is yours: finish it or close it.
 
@@ -132,9 +143,10 @@ are the one looking at it, it is yours: finish it or close it.
    obligations at the exact projected place (`root.field` or case variant
    payload), invalidating overlapping writes without discarding provably
    disjoint sibling storage.
-4. **Full pipeline carry-through (`Psi 05 -> 06 -> 08 -> Native`):** Carry every
-   semantic repair through Checked Psi (`05`), Lowered/Terminal Psi (`06–08`),
-   and native execution (`omega run --both`, exit 0).
+4. **Full pipeline carry-through (lowered-form checker `-> 08 -> Native`):**
+   Carry every semantic repair through the lowered-form checker, Terminal Psi
+   and native execution (`omega run --both`, exit 0). Psi 05 and 06 are being
+   deleted and take no repairs.
 5. **Board closure, and leave the ledger alone:** Delete completed bullets
    from `TASKS.md` outright (never rewrite into `"preserving / keeping / now
    passes"` history prose). Do not run `corpus --record` and do not edit
@@ -292,6 +304,11 @@ refuses a second build or corpus run while one is active.
   `HashMap`/`BTreeMap` (`tools/dense_id_maps.txt`). Derived data is computed
   once by its stage owner and passed forward, never re-parsed from source text
   (`tools/source_text_reads.txt`) or cached in ad-hoc mutable maps (`tools/cache_state.txt`).
+  This applies to membership sets too, including collections whose key type is
+  inferred. Validate arena ownership and handle generations before indexing by
+  slot. Size scratch storage to the operation's actual domain: a query over a
+  small selected family should use that family's prepared membership or a
+  sorted slice, rather than allocate a table spanning every symbol on each query.
 - **Verify at trust boundaries ([pipeline.md](omega-rust/pipeline.md#verification-placement)):**
   Default compilation does not re-verify its own stage output. Verifiers run
   in corpus/test harnesses, at foreign package boundaries, and on explicit
@@ -308,6 +325,12 @@ refuses a second build or corpus run while one is active.
 - When a genuine specification ambiguity blocks progress, record the exact
   question in `OWNER_QUESTIONS.md` and cite it in the relevant README rather
   than inventing unratified language semantics.
+- When the code or tooling itself looks rotten (one idea built twice, a stage
+  reaching across a boundary, a verdict with nothing behind it, a test that
+  pins a bug), write five lines in
+  [OWNER_CODE_CONCERNS.md](OWNER_CODE_CONCERNS.md) and keep working. It never
+  blocks your change and never gets its own pull request. Your first hour in
+  an area is when you see it best; say what you saw.
 
 ## Sessions and subagents
 

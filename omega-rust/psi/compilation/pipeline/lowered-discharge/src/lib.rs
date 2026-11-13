@@ -63,6 +63,7 @@ mod minted;
 mod places;
 mod prove;
 mod refinement;
+mod result_summaries;
 mod reuse;
 mod verdict;
 
@@ -335,6 +336,10 @@ pub enum Knowledge {
 
 /// `discharge`, with the knowledge set chosen.
 pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Checked<Discharge> {
+    // Results before inputs: what a helper returns is a fact its caller
+    // may pass on to the next private helper, whose inferred input
+    // condition is described from the caller's facts.
+    result_summaries::infer(elaboration, knowledge)?;
     entry_inputs::infer(elaboration, knowledge)?;
     let module = &elaboration.module;
     let mut machines = IdTable::default();

@@ -201,11 +201,23 @@ before optimized code generation. CLI-only requests do not prepare the harness.
 Relevant toolchain, host, jobs, flags and profile inputs are retained; credentials
 and the full process environment are never captured.
 
-Rust compiler preparation commands have a one-hour wall-clock limit. Checking
-and execution commands keep their 30-minute limit; fixture and Psi work limits are
-unchanged. Each command receipt records its limit and whether it timed out.
-A timed-out child is stopped and reaped, with cleanup errors and the original
-stdout and stderr retained for diagnosis.
+Rust compiler preparation has no wall-clock time cap: waiting for shared mbx
+capacity is not compiler failure. Receipts retain elapsed time and use a null
+`timeout_ms` for unlimited preparation and corpus observation. Other commands
+retain their explicit/default limits; fixture, native execution and Psi work
+budgets are unchanged.
+
+Every shared command reuses `bounded-process`'s native owner through its trusted
+tooling API, with a Unix process group or suspended-start Windows Job Object.
+Windows assignment/resume failure uses the same stop-and-reap path as bounded
+runtime launches; runtime resource-capped constructors remain unchanged.
+On timeout, wait failure, normal completion or unwinding,
+the owner terminates remaining descendants and reaps the command, preserving
+peer jobs. Receipts retain the actual command status, original stdout/stderr,
+container identity and cleanup errors; a cleanup failure cannot become a pass.
+`timeout_cleanup.reaped` records reaping the owned command, not a claim that
+every orphaned Unix descendant was adopted by this process. The same cleanup
+is recorded as `container_cleanup` for non-timeout completion.
 
 `--cli` and `--runner` cannot authenticate an arbitrary supplied executable and
 therefore refuse. Use the current-source builder. Cargo/mbx may reuse compatible
@@ -785,6 +797,17 @@ The following comparison internals explain historical measurements. Current
 author validation uses one focused selection against the fixed candidate;
 do not start paired main/head runs or dispatch the retired Compiler queue pilot.
 Use retained source-reader and dependency evidence to attribute a failure.
+
+The current authenticated `corpus-gate build --at <revision>` and automated
+`corpus-gate check` base attribution lease an isolated detached `worker-N` pool
+slot at the exact baseline commit. Builds use that slot's own `target/`, even
+with an inherited `CARGO_TARGET_DIR`; prebuilt base runners still read fixtures
+and library sources there and must match its clean revision, tree and bytes.
+The caller's HEAD and files stay in place on success and failure. The tool
+releases only its own topic/Git lock after verification and keeps the source
+and cache for normal safe pool reuse; an interrupted lease remains protected.
+See [the current CI implementation](ci/README.md#post-merge-check). The older
+comparison cache layout below is historical.
 
 The base is built from its commit in a separate worktree
 (`build/compare-bases/<sha>`) with its own build directory, so neither uncommitted edits nor artifacts from

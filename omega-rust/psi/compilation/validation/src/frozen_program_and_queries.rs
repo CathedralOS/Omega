@@ -1928,11 +1928,16 @@ pub mod queries {
             operator and token-bound machine (a primitive `==` on `f32` selects
             `Float::equal` by its token, not by a name the walker sees), so those
             stay as candidates too.
+
+            `when_reached` holds the declarations the caller keeps only for a
+            reached owner: each pair is (owner, declaration), and the
+            declaration stays once the owner is selected or referenced.
         */
         pub fn project_subject_program(
             original: &TypedTrees,
             is_subject: impl Fn(&source::SourceFile) -> bool,
             demanded: &[SymbolHandle],
+            when_reached: &[(SymbolHandle, SymbolHandle)],
         ) -> TypedTrees {
             let instances = instantiated_declarations(original);
             let mut demanded = demanded.iter().copied().collect::<HashSet<_>>();
@@ -2008,6 +2013,7 @@ pub mod queries {
                                 .map(move |domain| (domain.symbol, machine.symbol))
                         }),
                 )
+                .chain(when_reached.iter().copied())
                 .collect::<Vec<_>>();
             project_declarations(
                 original,

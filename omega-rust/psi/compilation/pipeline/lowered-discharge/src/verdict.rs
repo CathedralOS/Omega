@@ -12,9 +12,11 @@ partly proved closure. A closure is either accepted with every obligation
 discharged by the kernel and every use of storage established, rejected with
 one diagnostic per unproved obligation and per unestablished use, left
 incomplete because the prover has no rule for some goal's
-form, or handed back whole to Psi 05 and 06 because the route does not
-serve some construct in it (`RefusalReason::Unsupported`; the design: "falling
-back to Psi 05 and 06 on any `RefusalReason::Unsupported`").
+form, or refused whole because the route does not serve some construct in it
+(`RefusalReason::Unsupported`). The variant is still named `FallBack`, but
+nothing falls back since the owner's ruling of 2026-11-12: the router refuses
+the compilation with an error naming the construct, and no other checker
+judges it.
 
 The specification says the same: `wiki/spec/packages/review.md`, "Unproved
 source contracts reject in Psi checking"; `wiki/spec/build/configuration.md`,
@@ -38,11 +40,11 @@ no `Diagnostic` constructor here, because the closed `Incomplete` resource
 table has no provision for a proof goal form yet, and a plain error would
 publish it as `Reject`.
 
-`Unsupported` wins over `Unproved`: an unproved obligation in a closure the
-route cannot judge whole is the current checker's to decide. That is not a
-weaker check; Psi 05 and 06 still judge the closure. Any other refusal is a
-defect of the route itself (an identity that does not resolve) and is
-returned as `Err`; a router must not accept the program on it.
+`Unsupported` wins over `Unproved`: the route has not judged a closure it
+cannot lower whole, so it reports what it does not support rather than a
+partial list of failures. Either way the program is not accepted. Any other
+refusal is a defect of the route itself (an identity that does not resolve)
+and is returned as `Err`; a router must not accept the program on it.
 
 A use of storage that some path reaches with nothing established in it
 (`RefusalReason::Unestablished`) is a compile error of the same standing as an
@@ -93,7 +95,8 @@ pub enum RouteVerdict {
     /// `UnprovedCause::NoRuleForGoalForm`. Never empty.
     Incomplete(Vec<UnprovedObligation>),
     /// The route does not serve some construct or obligation of the closure,
-    /// so Psi 05 and 06 decide the whole closure. The first such refusal.
+    /// so the whole closure is refused as not supported yet. The first such
+    /// refusal.
     FallBack(Refusal),
 }
 
@@ -434,6 +437,30 @@ fn describe_kind(kind: ObligationKind) -> String {
 /// It takes elaboration's result as is, so an elaboration refused as
 /// `Unsupported` falls back like an undecided obligation does.
 pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
+    judge_owing(elaborated, AppliedContracts::Undecided)
+}
+
+/// Who decides the contract rows of the generic machines a generic check
+/// form applies (`Elaboration::applications`): `forward<T>` inside
+/// `relay<T>` is there as its contract with no body, so the form proves
+/// `forward`'s `requires` at the call and relies on its `ensures`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AppliedContracts {
+    /// Nobody this judgment knows of. Their rows keep the `Unsupported`
+    /// verdict the discharge gives every machine with no body, so the form
+    /// is undecided: a guarantee nothing proves is never read as held.
+    Undecided,
+    /// Each applied machine's own check form, judged in the same
+    /// compilation with its parameters rigid, so for every type the caller
+    /// can pass (`judge_generic_forms`). The rows are that form's
+    /// obligations and are not judged a second time here.
+    OwnCheckForms,
+}
+
+pub(crate) fn judge_owing(
+    elaborated: Checked<Elaboration>,
+    applied: AppliedContracts,
+) -> Checked<RouteVerdict> {
     let mut elaboration = match elaborated {
         Ok(elaboration) => elaboration,
         Err(refused) => return fall_back_or_defect(refused),
@@ -458,6 +485,10 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
     let mut unestablished = Vec::new();
     let mut conflicts = Vec::new();
     for (machine, result) in discharged.machines.iter() {
+        if applied == AppliedContracts::OwnCheckForms && elaboration.applications.contains(&machine)
+        {
+            continue;
+        }
         let tables = terminal_check_tables::row(
             &elaboration.tables.machines,
             machine,
@@ -687,19 +718,105 @@ pub fn judge_compilation(
         Err(refused) => (Err(refused), Vec::new()),
     };
     let mut verdicts = vec![judge(closure).map_err(CompilationRefusal::Elaboration)];
-    if !templates.is_empty() {
-        match structure_elaboration::elaborate_generic_forms(typed, &templates) {
-            Ok(forms) => verdicts.extend(
-                forms
-                    .into_iter()
-                    .map(|form| judge(Ok(form)).map_err(CompilationRefusal::Elaboration)),
-            ),
-            Err(refused) => {
-                verdicts.push(judge(Err(refused)).map_err(CompilationRefusal::Elaboration))
+    verdicts.extend(
+        judge_generic_forms(typed, templates)
+            .into_iter()
+            .map(|verdict| verdict.map_err(CompilationRefusal::Elaboration)),
+    );
+    verdicts
+}
+
+/// The verdicts on the check forms of `templates`, the subject's generic
+/// machines, and of every generic machine those forms apply, in the order
+/// they are met.
+///
+/// A generic body may call another generic machine at its own type
+/// parameters. That callee is in the caller's form as a contract with no
+/// body, and what makes its `ensures` true is the callee's own check form:
+/// generics.md, "Static type equality", "An unspecialized body checks every
+/// admitted alternative", so one form judged with the callee's parameters
+/// rigid proves the contract for every type a caller can name. The applied
+/// machine is therefore judged here whichever package declares it
+/// (validation_subjects.md: a passed check means "every declaration they
+/// depend on is valid"), and the caller's form leaves the callee's rows to
+/// it. When the callee's form is rejected or not served, that verdict is in
+/// the list and the compilation is rejected or undecided with it.
+///
+/// A machine that reaches itself through such calls is the exception. Each
+/// form on the cycle would take the next one's contract as given, and no
+/// form holds the cycle's bodies together, so nothing would judge that the
+/// recursion ends. Those forms keep the applied rows undecided.
+fn judge_generic_forms(
+    typed: &typed_trees::TypedTrees,
+    mut templates: Vec<symbols::SymbolHandle>,
+) -> Vec<Checked<RouteVerdict>> {
+    let mut forms = Vec::new();
+    // For each template, the positions in `templates` of what its forms
+    // apply; `None` when a form applies a machine with no symbol.
+    let mut applies: Vec<Option<Vec<usize>>> = Vec::new();
+    let mut next = 0;
+    while next < templates.len() {
+        let elaborated = structure_elaboration::elaborate_generic_forms(typed, &[templates[next]]);
+        let mut applied = Some(Vec::new());
+        for form in elaborated.iter().flatten() {
+            for application in &form.applications {
+                let Some(symbol) = form.machines.get(*application).copied() else {
+                    applied = None;
+                    continue;
+                };
+                let position = templates
+                    .iter()
+                    .position(|template| *template == symbol)
+                    .unwrap_or_else(|| {
+                        templates.push(symbol);
+                        templates.len() - 1
+                    });
+                if let Some(applied) = &mut applied {
+                    applied.push(position);
+                }
             }
+        }
+        applies.push(applied);
+        forms.push(elaborated);
+        next += 1;
+    }
+    let mut verdicts = Vec::new();
+    for (template, elaborated) in forms.into_iter().enumerate() {
+        let applied = if reaches_itself(&applies, template) {
+            AppliedContracts::Undecided
+        } else {
+            AppliedContracts::OwnCheckForms
+        };
+        match elaborated {
+            Ok(forms) => {
+                verdicts.extend(forms.into_iter().map(|form| judge_owing(Ok(form), applied)));
+            }
+            Err(refused) => verdicts.push(judge(Err(refused))),
         }
     }
     verdicts
+}
+
+/// Whether `template` applies itself, directly or through the machines it
+/// applies. A template whose applications could not all be named counts as
+/// doing so: what it reaches is then unknown.
+fn reaches_itself(applies: &[Option<Vec<usize>>], template: usize) -> bool {
+    let mut seen = vec![false; applies.len()];
+    let mut pending = vec![template];
+    while let Some(current) = pending.pop() {
+        let Some(applied) = applies.get(current).and_then(Option::as_ref) else {
+            return true;
+        };
+        for next in applied {
+            if *next == template {
+                return true;
+            }
+            if !std::mem::replace(&mut seen[*next], true) {
+                pending.push(*next);
+            }
+        }
+    }
+    false
 }
 
 /// Where an operation, edge or block arises in the source, from

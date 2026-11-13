@@ -24,7 +24,8 @@ use windows_sys::Win32::System::SystemServices::{
 use windows_sys::Win32::System::Threading::CREATE_SUSPENDED;
 
 use super::job::{
-    associate_completion_port, configure_job_limits, create_completion_port, create_job,
+    associate_completion_port, configure_job_limits, configure_tool_job, create_completion_port,
+    create_job,
 };
 use super::launch::assign_and_resume;
 use super::limits::WindowsJobLimits;
@@ -73,12 +74,36 @@ impl WindowsJobChild {
         let completion_port = create_completion_port()?;
 
         configure_job_limits(&job, limits)?;
+        Self::spawn_in_job(command, job, completion_port)
+    }
+
+    pub(crate) fn spawn_for_tool(command: &mut Command) -> io::Result<Self> {
+        let job = create_job()?;
+        let completion_port = create_completion_port()?;
+        configure_tool_job(&job)?;
+        Self::spawn_in_job(command, job, completion_port)
+    }
+
+    fn spawn_in_job(
+        command: &mut Command,
+        job: KernelHandle,
+        completion_port: KernelHandle,
+    ) -> io::Result<Self> {
+        Self::spawn_in_job_with(command, job, completion_port, assign_and_resume)
+    }
+
+    fn spawn_in_job_with(
+        command: &mut Command,
+        job: KernelHandle,
+        completion_port: KernelHandle,
+        assign: impl FnOnce(&mut Child, &KernelHandle) -> io::Result<()>,
+    ) -> io::Result<Self> {
         associate_completion_port(&job, &completion_port)?;
 
         command.creation_flags(CREATE_SUSPENDED);
         let mut child = command.spawn()?;
 
-        if let Err(setup_error) = assign_and_resume(&mut child, &job) {
+        if let Err(setup_error) = assign(&mut child, &job) {
             terminate_and_reap_child(&mut child, &job);
             return Err(setup_error);
         }
@@ -112,16 +137,20 @@ impl WindowsJobChild {
 
     pub(crate) fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
         self.drain_job_notifications()?;
-
-        if self.primary_status.is_none() {
-            self.primary_status = self.child.try_wait()?;
-        }
+        self.try_wait_primary()?;
 
         if self.active_processes_zero {
             Ok(self.primary_status)
         } else {
             Ok(None)
         }
+    }
+
+    pub(crate) fn try_wait_primary(&mut self) -> io::Result<Option<ExitStatus>> {
+        if self.primary_status.is_none() {
+            self.primary_status = self.child.try_wait()?;
+        }
+        Ok(self.primary_status)
     }
 
     fn drain_job_notifications(&mut self) -> io::Result<()> {
@@ -181,5 +210,46 @@ fn job_limit_event(message: u32) -> Option<JobLimitEvent> {
 impl Drop for WindowsJobChild {
     fn drop(&mut self) {
         terminate_and_reap_child(&mut self.child, &self.job);
+    }
+}
+
+#[cfg(test)]
+mod startup_tests {
+    use super::*;
+    use std::os::windows::io::{AsHandle, AsRawHandle};
+    use std::process::Stdio;
+    use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
+    use windows_sys::Win32::System::Threading::WaitForSingleObject;
+
+    #[test]
+    fn failed_tool_assignment_stops_and_reaps_suspended_child() {
+        let job = create_job().unwrap();
+        configure_tool_job(&job).unwrap();
+        let port = create_completion_port().unwrap();
+        let mut command = Command::new("cmd.exe");
+        command
+            .args(["/D", "/S", "/C", "exit /b 0"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut observed = None;
+        let result = WindowsJobChild::spawn_in_job_with(&mut command, job, port, |child, _| {
+            observed = Some(child.as_handle().try_clone_to_owned()?);
+            Err(io::Error::other("injected assignment failure"))
+        });
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("injected assignment failure")
+        );
+        let handle = observed.unwrap();
+        // SAFETY: this owned observation handle remains valid after the spawn
+        // error path closes its original child handle. A signalled process
+        // object proves the suspended child was stopped before returning.
+        assert_eq!(
+            unsafe { WaitForSingleObject(handle.as_raw_handle(), 0) },
+            WAIT_OBJECT_0
+        );
     }
 }

@@ -34,7 +34,7 @@ pub(crate) mod windows;
 use crate::BoundedProcessPrepared;
 pub use completion::{BoundedProcessCompletion, BoundedProcessExitStatus};
 use std::io;
-use std::process::{ChildStderr, ChildStdin, ChildStdout, ExitStatus};
+use std::process::{ChildStderr, ChildStdin, ChildStdout, Command, ExitStatus};
 
 #[cfg(unix)]
 use command_group::CommandGroup;
@@ -51,6 +51,73 @@ pub struct BoundedProcessChild {
     finished: bool,
     observe_resources: bool,
     resource_usage: Option<ProcessResourceUsage>,
+}
+
+/// Containment for trusted build tools with caller-configured streams and
+/// resource policy. A compiler build writes directly to retained files and may
+/// wait indefinitely for shared scheduler capacity; runtime executions still
+/// use the unchanged resource-capped `BoundedProcessPrepared` API.
+///
+/// The inner native owner is shared, including Windows suspended-start setup
+/// failure cleanup. Primary exit is observable separately so a finished tool
+/// wrapper cannot leave workers behind; completion still requires container
+/// termination and the ordinary whole-container wait.
+pub struct ToolCommandChild(BoundedProcessChild);
+
+impl ToolCommandChild {
+    pub fn spawn(command: &mut Command) -> io::Result<Self> {
+        #[cfg(unix)]
+        let child = command.group_spawn()?;
+        #[cfg(windows)]
+        let child = windows::WindowsJobChild::spawn_for_tool(command)?;
+        #[cfg(not(any(unix, windows)))]
+        let child = command.spawn()?;
+        Ok(Self(BoundedProcessChild {
+            child,
+            container_closed: false,
+            status: None,
+            finished: false,
+            observe_resources: false,
+            resource_usage: None,
+        }))
+    }
+
+    pub fn id(&mut self) -> u32 {
+        self.0.id()
+    }
+
+    /// Observe the tool wrapper's status, without waiting for its descendants.
+    /// The capped owner's `try_wait` keeps its complete-job semantics.
+    pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+        #[cfg(windows)]
+        {
+            let status = self.0.child.try_wait_primary()?;
+            if let Some(status) = status {
+                self.0.status = Some(status);
+            }
+            Ok(status)
+        }
+        #[cfg(not(windows))]
+        self.0.try_wait()
+    }
+
+    pub fn terminate(&mut self) -> io::Result<()> {
+        self.0.terminate()
+    }
+
+    /// Reap after termination, including Windows' active-process-zero receipt.
+    pub fn wait(&mut self) -> io::Result<ExitStatus> {
+        loop {
+            if let Some(status) = self.0.try_wait()? {
+                return Ok(status);
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+
+    pub fn finish(self) -> io::Result<BoundedProcessCompletion> {
+        self.0.finish()
+    }
 }
 
 impl BoundedProcessChild {

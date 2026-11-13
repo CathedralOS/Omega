@@ -33,6 +33,18 @@ newer push replaces it, so a burst of merges is judged once.
   producer's receipt. When a shard may need the base commit's runner, `build`
   takes the one the base's own run uploaded and compiles the base only if
   that artifact is gone or its receipt names another commit.
+  `corpus-gate build --at <revision> --out <dir>` leases a separate detached
+  `worker-N` pool slot at that exact revision and builds in its own `target/`,
+  including when the caller exports `CARGO_TARGET_DIR`. Base attribution in
+  `corpus-gate check` uses the same isolated source mechanism even with a
+  prebuilt base runner, since fixtures and library sources must also match.
+  Neither path switches the caller's checkout. The lease lasts through runner
+  verification, then releases its own topic and Git lock on success or error;
+  its source and cache stay in place for safe pool reuse. An interrupted process
+  can leave a locked baseline slot, which pool commands leave alone.
+  Runner receipt revision/tree/hash checks and caller-relative output paths
+  are unchanged. Run the xtask built for the intended caller checkout: its
+  repository root is embedded at compile time, independent of the shell's cwd.
 - Up to eight `shard` jobs at a time, one wave for a push run, download the runner and check their rows
   against the ledger (`corpus-gate check --runner <dir>`). A shard refuses a
   runner whose receipt names another commit or tree, or whose bytes differ,

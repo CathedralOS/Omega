@@ -10,6 +10,12 @@ amendments, and the records are in the
 Amended 2026-11-11 after an outside review: route one's stop rule could not be
 evaluated, so [a four-condition gate](#the-gate) replaces it. The owner lifted
 the pause on 2026-11-12: construct work proceeds alongside the four conditions.
+Later on 2026-11-12 the owner ruled that Psi 05, validation and Psi 06 are
+removed now rather than once every program is covered. That ruling supersedes
+the fall-back described in earlier revisions of [The decision](#the-decision),
+[The gate](#the-gate) and [Lane order](#lane-order); those sections state the
+current rule, and passages below that still describe two checkers shipping
+together record the state before it.
 
 The checker proves facts about source trees and then hands them to lowering,
 which turns the trees into explicit values, places, blocks and edges. Facts are
@@ -117,13 +123,23 @@ stale fact still rejects them.
 Psi 00 through 04 and the Omega stages keep their pipeline structure. Psi 05,
 validation and Psi 06 are replaced. Because real programs (and the 7,309
 `facts/` fixtures, `samples/` and `source/library/`) combine construct families
-inside one machine and call graph, the shipping path switches per whole
-compilation closure rather than per construct family: when every reachable
-construct elaborates, the lowered-form checker's verdict (`Evidence` or a
-non-`Unsupported` `Refusal`) governs; when any reachable construct returns
-`RefusalReason::Unsupported`, the whole compilation falls back to Psi 05 and
-06. Psi 05, validation and Psi 06 are deleted once `Unsupported` reaches zero
-across the language.
+inside one machine and call graph, the lowered-form checker judges a whole
+compilation closure, never one construct family of it, and its verdict is the
+compilation's only verdict (owner ruling, 2026-11-12). When every reachable
+construct elaborates, the result is `Evidence` or a non-`Unsupported`
+`Refusal`. When any reachable construct returns `RefusalReason::Unsupported`,
+the compilation is refused with an error that names the construct and says the
+checker does not support it yet. It is never handed to Psi 05 and 06 for a
+verdict.
+
+Psi 05, validation and Psi 06 are deleted now, not once `Unsupported` reaches
+zero. The owner's reason is the [census of evidence](#census-of-evidence):
+none of the obligations the old checker accepts is backed by evidence the
+proof kernel re-checked, so a program accepted by it and then built was never
+a checked program. The cost was stated and accepted: a program the route does
+not govern yet, and a program that needs the product hand-off from the
+route's own module, stops compiling until the route covers it. No pull request
+edits the old stages except to delete them.
 
 Two standing rules on the parts that stay, both from the full read:
 
@@ -263,6 +279,33 @@ before variants are added. Route one is:
   could not be evaluated.
 
 ### The gate
+
+**Superseding ruling, 2026-11-12 (later the same day).** The old checker is
+removed now. The router (`compiler/src/checked/checking/lowered_route.rs`)
+takes the route's verdict as the compilation's only verdict:
+
+- The route rejects: the compilation fails with the route's diagnostics. The
+  old checker's diagnostics no longer follow them.
+- The route cannot judge the program (`RefusalReason::Unsupported`, an
+  `Incomplete` verdict, or a defect of the route): the compilation fails with
+  an error that opens "not supported yet" and names the construct or goal. The
+  program is not given to Psi 05. A missing verdict is a refusal, never an
+  acceptance.
+- The route accepts: Psi 05 and 06 still run until they are deleted, only
+  because product selection, the provider inventory and target preparation
+  read their output. They also still judge the Build program and the bound
+  target's entry-contract source, which the route does not lower yet, and a
+  rejection placed there stands. A rejection placed anywhere else fails with
+  "no product route yet".
+
+Deleting Psi 05 and 06 removes that last use. From then on a product exists
+only through the route's own published module (`AcceptedClosure::publish`),
+so that hand-off is the critical path, and until the route lowers Build
+programs no compilation completes. The four conditions below no longer decide
+whether the old stages may be deleted. Conditions 1 to 3 remain as statements
+of what the route must get right; condition 4 is replaced by the deletion
+itself. The paragraphs below that describe the router while both checkers
+shipped are the record of that earlier state.
 
 The owner lifted the pause on 2026-11-12: the construct lanes resume now, and
 the four conditions below are pursued alongside them rather than before them.
@@ -691,8 +734,9 @@ a case where the route accepts an invalid program still goes first.
 
 The owner ruled on 2026-11-12 that this work outranks every other compiler
 item, including the `TASKS.md` priority migrations: a construct a lane needs
-is built in the lowered-form checker, not in the stages it replaces, and those
-stages are repaired only to unblock CI or close a soundness hole
+is built in the lowered-form checker, not in the stages it replaces. By the
+later ruling of the same day those stages are frozen: no pull request edits
+them except to delete them
 (`LOWERED-FORM-CHECKER` at the top of [the task board](../../../TASKS.md)).
 
 Since the owner lifted the pause on 2026-11-12, the remaining construct
@@ -716,11 +760,14 @@ places foundation have already landed
    atomics and assembly; alongside `layouts`, `modules`, `host`, `filesystem`
    and `capabilities`.
 
-Each lane proves agreement between both checkers across all corpus rows whose
-constructs lie within the union of landed families, and the whole-compilation
-router switches those programs automatically while falling back to Psi 05 and
-06 on any `RefusalReason::Unsupported`. Psi 05, validation and Psi 06 are
-deleted together once `Unsupported` reaches zero.
+There is no second checker to agree with. A lane is measured by the programs
+it moves from refused to judged: the router refuses a compilation on any
+`RefusalReason::Unsupported`, so the count of refused programs in the
+post-merge ledger is the progress number, and a lane is done when the corpus
+rows of its families are judged and their verdicts match the rows' expected
+outcomes. The first lane by programs unblocked is the product hand-off from
+the route's published module, then Build programs and the entry-contract
+source, which every compilation needs.
 
 ### Census of evidence
 

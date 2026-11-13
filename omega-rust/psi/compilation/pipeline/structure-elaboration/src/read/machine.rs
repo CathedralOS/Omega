@@ -114,6 +114,58 @@ impl<'t> Program<'t> {
         Ok(private)
     }
 
+    /// The machines whose callers in this compilation may rely on what the
+    /// body returns beyond its written `ensures`. state_contracts.md, "Local
+    /// call summaries": "An exact checked call inside the same fingerprinted
+    /// verification unit may use the callee's written contract plus checked
+    /// body-derived result and state facts", and across that boundary
+    /// "ordinary calls use the published contract".
+    ///
+    /// The unit here is the subject package. A private subject machine can
+    /// only be called from it (`visible_to`), so a fact derived from its body
+    /// reaches no other unit. A public machine is left out: the route states
+    /// a summary as a clause of the machine's contract, and a public
+    /// contract is what independent clients are given. A reached dependency
+    /// is another unit. An entry, a Build selection, a requirement and a
+    /// selected implementation are boundaries ("An abstract requirement,
+    /// unknown callable or replaceable boundary uses its interface
+    /// contract"), and a machine stage 04 generated keeps exactly the
+    /// contract its generic form was checked against.
+    pub(crate) fn local_result_bodies(&self, entry: MachineId) -> Checked<Vec<MachineId>> {
+        let mut boundary = self.symbols.map(|_, _| false);
+        for id in std::iter::once(&entry)
+            .chain(&self.fixed_inputs)
+            .chain(&self.requirements)
+            .chain(
+                self.selections
+                    .iter()
+                    .map(|selection| &selection.implementation),
+            )
+        {
+            *boundary.get_mut(*id).ok_or_else(|| {
+                refuse(
+                    *id,
+                    Construct::Machine,
+                    Unserved::Machine("result boundary without a machine"),
+                )
+            })? = true;
+        }
+        let mut local = Vec::new();
+        for &id in &self.subject_machines {
+            if boundary.get(id) == Some(&true) {
+                continue;
+            }
+            let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
+            let Some(machine) = self.typed.machine_by_symbol(symbol) else {
+                continue;
+            };
+            if !machine.is_public && crate::template_of(self.typed, symbol).is_none() {
+                local.push(id);
+            }
+        }
+        Ok(local)
+    }
+
     fn next_identity(&self) -> Checked<MachineId> {
         MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
             refuse(
@@ -344,8 +396,36 @@ impl<'t> Program<'t> {
         {
             return unserved("assembly target");
         }
-        if machine.attached_data_symbol.is_valid() || machine.attached_data_application.is_valid() {
-            return unserved("attached data");
+        // A machine declared under a data type's name, `machine
+        // Counter::clear(counter: &mut Counter)`, is an ordinary static
+        // machine whose name has two parts. machines.md, "Static
+        // declarations and explicit state": "All machines are static
+        // declarations independent of data", and qualification "never binds
+        // code to a data type". So the data type gives the machine no
+        // parameter, no storage and no `self`: its formals and body are read
+        // like any other machine's, and a caller passes every argument
+        // (`calls`, `names_carrier`). That page also retires the spelling;
+        // the typed trees still hold it, and refusing it here would only
+        // send the same program to the current checker, which accepts it.
+        //
+        // What stays refused is a data type that could give the machine
+        // something after all: one applied at type arguments, or a generic
+        // one, whose parameters the body would be read under.
+        if machine.attached_data_application.is_valid() {
+            return unserved("attached data applied at type arguments");
+        }
+        if machine.attached_data_symbol.is_valid() {
+            let plain = self
+                .data_declaration(machine.attached_data_symbol)
+                .is_some_and(|data| {
+                    data.lifetime_parameters.is_empty()
+                        && data.type_parameters.is_empty()
+                        && data.generic_instance.is_none()
+                        && data.conformance_bounds.is_empty()
+                });
+            if !plain {
+                return unserved("attached generic data");
+            }
         }
         if machine.generic_data_template.is_valid() {
             return unserved("generic data template");
@@ -702,7 +782,10 @@ impl<'t> Program<'t> {
             slots.push(Slot {
                 symbol: formal.symbol,
                 value_type,
-                assignable: false,
+                // What a clause reader needs to know of the binding mode: a
+                // guarantee or a crash route guard may not name a formal
+                // the body can replace (`ClauseScope::formal_fields`).
+                assignable: mutable_formal(formal, access),
                 homed: false,
                 erased: is_erased,
                 borrowed: access,
@@ -1001,9 +1084,15 @@ impl<'t> Program<'t> {
     /// with the reference beside it (`Borrowed`), for a builtin scalar or a
     /// plain record `T`. Stage 01 marks `x: &mut T` mutable for the
     /// reference's exclusivity; that is the reference's access, not a `mut`
-    /// binding. A `mut` formal that holds its own value, a `&write T`
-    /// formal, a reference with a named lifetime and a reference to
-    /// anything else stay refused.
+    /// binding. A `&write T` formal, a reference with a named lifetime and
+    /// a reference to anything else stay refused.
+    ///
+    /// A `mut` formal that holds its own value is read like any other: the
+    /// binding mode says only that the body may assign and store into its
+    /// own copy (`mutable_formal`), so it changes nothing a caller sees.
+    /// Two kinds stay refused by name: an `[erased]` one, which names a
+    /// term and has no storage to assign, and one of a type parameter,
+    /// whose replaced value no slice disposes of yet.
     fn formal(
         &mut self,
         id: MachineId,
@@ -1040,14 +1129,17 @@ impl<'t> Program<'t> {
             language_core::BindingRelevance::Erased => true,
         };
         let Some((referee, access, named_lifetime)) = reference else {
-            if formal.is_mutable {
-                return Err(refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Parameter("mutable parameter"),
-                ));
-            }
             let value_type = self.value_type(id, formal.type_reference)?;
+            if formal.is_mutable {
+                let unserved =
+                    |what| Err(refuse(id, Construct::Machine, Unserved::Parameter(what)));
+                if erased {
+                    return unserved("mutable erased parameter");
+                }
+                if matches!(value_type, ValueType::Rigid(_)) {
+                    return unserved("mutable parameter of a type parameter");
+                }
+            }
             if erased && value_type.scalar().is_none() {
                 return Err(refuse(
                     id,
@@ -1174,22 +1266,35 @@ impl<'t> Program<'t> {
             .collect();
         let mut slots: Vec<Slot> = formals
             .iter()
-            .map(|formal| formal.symbol)
-            .chain(binders.iter().map(|binder| binder.symbol))
+            .map(|formal| (formal.symbol, formal.is_mutable))
+            .chain(binders.iter().map(|binder| (binder.symbol, false)))
             .zip(&signature.parameters)
             .enumerate()
-            .map(|(position, (symbol, value_type))| {
+            .map(|(position, ((symbol, is_mutable), value_type))| {
                 // A borrowed formal names the caller's storage: a scalar
                 // referent is read and stored in place like a home, a record
                 // referent like a record formal's root; `&mut` lets the body
                 // store into it, `&` does not.
+                //
+                // A `mut` formal that holds its own value is the callee's
+                // own storage, initialised from the argument, and is
+                // assigned and stored into as a `mut` local is: a scalar is
+                // rebound to the assigned value, so the formal's entry
+                // value keeps its identity and every entry fact stays a
+                // fact about that value only (fact_validity.md: "Current
+                // body values are not entry snapshots"); a record is stored
+                // into by field in its own parameter place, which holds the
+                // copy the call passed.
                 let borrowed = signature
                     .borrowed(position)
                     .map(|reference| reference.access);
                 Slot {
                     symbol,
                     value_type: *value_type,
-                    assignable: borrowed == Some(language_core::ReferenceAccess::Mutable),
+                    assignable: match borrowed {
+                        Some(access) => access == language_core::ReferenceAccess::Mutable,
+                        None => is_mutable,
+                    },
                     homed: borrowed.is_some() && value_type.scalar().is_some(),
                     erased: signature.is_erased(position),
                     borrowed,
@@ -1520,6 +1625,16 @@ mod input_symbol_uses {
         outside.extend([helper]);
         assert!(outside.uses.get(helper).unwrap().outside);
     }
+}
+
+/// Whether a formal is a `mut` binding of its own value. Stage 01 also marks
+/// `x: &mut T` mutable, for the reference's exclusivity; that formal names
+/// the caller's storage and is not a binding the body may replace.
+fn mutable_formal(
+    formal: &StateParameter,
+    borrowed: Option<language_core::ReferenceAccess>,
+) -> bool {
+    formal.is_mutable && borrowed.is_none()
 }
 
 /// Every span of a value expression whose result a binder receives, with
