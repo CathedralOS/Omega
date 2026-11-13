@@ -1,11 +1,7 @@
-// Canonical type identities, static parameter kinds, machine parameter contracts, and alpha-normalized conformance bounds.
+// Canonical type identities, proposition/signature parameters and conformance bounds.
 
-use crate::record::PackageReviewCallableContract;
-use crate::record::PackageReviewCrashRoute;
-use crate::record::PackageReviewDataProperties;
 use crate::record::PackageReviewNominalIdentity;
-use crate::record::PackageReviewSynchronousInvocation;
-use crate::record::PackageReviewTermination;
+
 use crate::record::accessors::field_projection_accessors;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -17,16 +13,6 @@ impl PackageReviewTypeIdentity {
     pub fn canonical(&self) -> &str {
         &self.canonical
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewTypeParameterKind {
-    Type,
-    Implementation, // Positional implementation selection whose contract lives in declaration-ordered conformance bounds.
-    Const(PackageReviewTypeIdentity),
-    Value(PackageReviewTypeIdentity), // Runtime-capable value binder kept distinct from `const`.
-    Machine(PackageReviewMachineParameterContract),
-    Proposition(PackageReviewPropositionParameterSignature),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -46,34 +32,6 @@ pub(crate) struct PackageReviewPropositionParameterValue {
 impl PackageReviewPropositionParameterValue {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum PackageReviewMachineParameterContract {
-    Structural(PackageReviewMachineParameterSignature),
-    Nominal {
-        trait_identity: PackageReviewNominalIdentity,
-        requirement_identity: PackageReviewNominalIdentity,
-        trait_arguments: Vec<PackageReviewTypeIdentity>, // Binder's trait application, empty for a parameterless trait.
-    },
-    RequirementIdentity,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewMachineParameterSignature {
-    pub(crate) lifetime_parameter_count: usize,
-    pub(crate) type_parameters: Vec<PackageReviewTypeParameter>,
-    pub(crate) conformance_bounds: Vec<crate::record::PackageReviewConformanceBound>,
-    pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
-    pub(crate) return_type: PackageReviewTypeIdentity,
-    pub(crate) contracts: Vec<PackageReviewCallableContract>,
-    pub(crate) published_crash: Vec<PackageReviewCrashRoute>,
-    pub(crate) service_reach: Vec<PackageReviewNominalIdentity>,
-    pub(crate) service_reach_is_installation_bound: bool,
-    pub(crate) synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
-    pub(crate) suspends: bool,
-    pub(crate) blocks: bool,
-    pub(crate) termination: PackageReviewTermination,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewSignatureParameter {
     pub(crate) name: String,
     pub(crate) type_identity: PackageReviewTypeIdentity,
@@ -83,12 +41,6 @@ pub struct PackageReviewSignatureParameter {
 
 impl PackageReviewSignatureParameter {
     crate::record::accessors::signature_parameter_accessors!();
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct PackageReviewTypeParameter {
-    pub(crate) kind: PackageReviewTypeParameterKind,
-    pub(crate) bounds: PackageReviewDataProperties,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

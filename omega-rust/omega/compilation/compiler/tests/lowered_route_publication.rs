@@ -223,7 +223,7 @@ fn the_default_compile_builds_the_application_from_the_routes_module() {
     let evidence = product
         .evidence()
         .expect("the route's seals travel beside its artifact");
-    assert_eq!(evidence, &publication.seals);
+    assert_eq!(evidence.as_ref(), &publication.seals);
     assert!(!evidence.seals.is_empty());
     assert_eq!(
         evidence.module,

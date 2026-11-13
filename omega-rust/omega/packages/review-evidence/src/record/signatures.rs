@@ -17,22 +17,17 @@ pub(crate) use external_policy::{
 };
 
 pub(crate) use external_supply::{
-    PackageReviewEvaluatedImport, PackageReviewEvaluatedSyscall, PackageReviewExternalBinding,
     PackageReviewExternalCallableParameter, PackageReviewForeignLocator,
 };
 
 pub(crate) use signature_vocabulary::{
-    PackageReviewConformanceBound, PackageReviewMachineParameterContract,
-    PackageReviewMachineParameterSignature, PackageReviewPropositionParameterSignature,
+    PackageReviewConformanceBound, PackageReviewPropositionParameterSignature,
     PackageReviewPropositionParameterValue, PackageReviewSignatureParameter,
-    PackageReviewTypeIdentity, PackageReviewTypeParameter, PackageReviewTypeParameterKind,
+    PackageReviewTypeIdentity,
 };
 
 pub use traits::{
     PackageReviewBorrowOrigin, PackageReviewParameterQualification,
     PackageReviewReturnedBorrowOrigin,
 };
-pub(crate) use traits::{
-    PackageReviewConformanceShape, PackageReviewTraitCompositionKind, PackageReviewTraitParent,
-    PackageReviewTraitRequirement, PackageReviewTraitShape,
-};
+pub(crate) use traits::{PackageReviewTraitCompositionKind, PackageReviewTraitParent};
