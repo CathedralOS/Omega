@@ -1726,8 +1726,10 @@ bypassed` and stores nothing (`mbx explain build -p <crate>` names the flag).
 `mbx` still schedules builds and manages target directories.
 
 Managed setup (`tools/agent_setup.sh`, including `--mbx-only`) keeps the shared
-`.agents/worktree` pool in mbx's global `target.keep` list. Python 3.11 or newer
-is required for this managed-session policy. It resolves the primary Git root
+`.agents/worktree` pool in mbx's global `target.keep` list through
+`mbx xtask managed-cache-retention`. The managed path bootstraps this Rust helper
+with the repository toolchain; a command-local `MBX_GC_AUTO=false` protects that
+bootstrap without changing global GC policy. It resolves the primary Git root
 even when setup runs from a detached worker, appends only that pool's absolute
 path and preserves existing entries and GC settings for other targets and
 shared cache state. Local sessions do not change settings. An explicit
