@@ -156,11 +156,10 @@ impl Lowering<'_> {
     /// lies in this machine's call component: such a call is a jump back.
     fn loops<'e>(&self, expression: &'e Expression) -> Option<(MachineId, &'e [Expression])> {
         match &expression.kind {
-            ExpressionKind::Call { callee, arguments }
-                if self.heads.iter().any(|head| head.member == *callee) =>
-            {
-                Some((*callee, arguments))
-            }
+            ExpressionKind::Call {
+                callee: crate::body::CallTarget::Machine(callee),
+                arguments,
+            } if self.heads.iter().any(|head| head.member == *callee) => Some((*callee, arguments)),
             _ => None,
         }
     }
@@ -364,8 +363,9 @@ impl Lowering<'_> {
     /// than given a guessed fate; with none, the edge has no dispositions.
     ///
     /// A `Loan` is the one conserved kind the subset mints, and none is live
-    /// here: each is formed for one call that returns, and ends when it does
-    /// (`calls`; a call that never returns may not lend).
+    /// across an unrelated edge: a normal call ends its occurrence loans on
+    /// return. A terminal invocation records its own loans' exact transfer
+    /// or abandonment after this edge is created (`calls::terminal_loan_dispositions`).
     fn no_successor_dispositions(&self) -> Checked<Vec<Disposition>> {
         for raw in 1..=self.tables.obligations.len() as u64 {
             let obligation = ObligationId::new(raw).ok_or_else(|| self.internal("obligation"))?;

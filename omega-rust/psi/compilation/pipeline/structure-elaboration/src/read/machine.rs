@@ -680,6 +680,57 @@ impl<'t> Program<'t> {
         requirement: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
+        self.callable_signature(
+            id,
+            requirement,
+            arguments,
+            Declarer::Requirement {
+                declares_no_crash_route: requirement.declares_no_crash_route,
+            },
+        )
+    }
+
+    pub(super) fn runtime_callable_signature(
+        &mut self,
+        id: MachineId,
+        signature: &'t StateSignature,
+    ) -> Checked<(Signature, MachineNames)> {
+        self.callable_signature(
+            id,
+            signature,
+            &[],
+            Declarer::RuntimeCallable {
+                declares_no_crash_route: signature.declares_no_crash_route,
+            },
+        )
+    }
+
+    /// Boundary omission rules belong to its published interface. Its
+    /// operational header is authenticated by the boundary reader.
+    pub(super) fn boundary_signature(
+        &mut self,
+        id: MachineId,
+        signature: &'t StateSignature,
+    ) -> Checked<(Signature, MachineNames)> {
+        self.callable_signature(
+            id,
+            signature,
+            &[],
+            Declarer::Boundary {
+                declares_no_crash_route: signature.declares_no_crash_route,
+            },
+        )
+    }
+
+    /// Machine requirements and stored callable types share one signature
+    /// reader. Their different omission and borrowing rules stay explicit.
+    fn callable_signature(
+        &mut self,
+        id: MachineId,
+        requirement: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+        declared: Declarer,
+    ) -> Checked<(Signature, MachineNames)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
@@ -705,19 +756,23 @@ impl<'t> Program<'t> {
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
         }
-        if !requirement.invokes.is_empty() {
-            return unserved("invokes");
-        }
-        if !matches!(
-            requirement.service_reach_row,
-            language_semantics::ServiceReachRowId::NULL
-                | language_semantics::ServiceReachRowTable::EMPTY_ROW
-        ) || requirement.service_reach_is_installation_bound
-        {
-            return unserved("service reach");
-        }
-        if requirement.suspends || requirement.blocks {
-            return unserved("suspends or blocks");
+        if matches!(declared, Declarer::Requirement { .. }) {
+            // Boundary and runtime readers retain these axes through the
+            // same envelope owner. Abstract requirements do not yet do so.
+            if !requirement.invokes.is_empty() {
+                return unserved("invokes");
+            }
+            if !matches!(
+                requirement.service_reach_row,
+                language_semantics::ServiceReachRowId::NULL
+                    | language_semantics::ServiceReachRowTable::EMPTY_ROW
+            ) || requirement.service_reach_is_installation_bound
+            {
+                return unserved("service reach");
+            }
+            if requirement.suspends || requirement.blocks {
+                return unserved("suspends or blocks");
+            }
         }
         let (signature, mut names) = self.contract(
             id,
@@ -725,9 +780,7 @@ impl<'t> Program<'t> {
             requirement.parameters,
             requirement.return_type,
             requirement.contracts,
-            Declarer::Requirement {
-                declares_no_crash_route: requirement.declares_no_crash_route,
-            },
+            declared,
             &[],
             &bound,
         )?;
@@ -936,6 +989,12 @@ impl<'t> Program<'t> {
             }
             | Declarer::Requirement {
                 declares_no_crash_route,
+            }
+            | Declarer::RuntimeCallable {
+                declares_no_crash_route,
+            }
+            | Declarer::Boundary {
+                declares_no_crash_route,
             } => declares_no_crash_route,
         };
         let crashes = match (declared, crash_clauses) {
@@ -955,13 +1014,23 @@ impl<'t> Program<'t> {
                     is_public: true, ..
                 },
                 false,
-            ) => CrashCeiling::Authored(canonical::routes(routes)),
+            )
+            | (Declarer::Boundary { .. }, false) => {
+                CrashCeiling::Authored(canonical::routes(routes))
+            }
             (Declarer::Machine { .. }, false) => CrashCeiling::Inferred,
             // generics.md, "Requirements and conformance evidence": on a
             // bodyless requirement "omitted `crashes` defers to its published
             // routes", the selected member's, while `crashes none` admits
             // only crash-free members.
             (Declarer::Requirement { .. }, false) => CrashCeiling::Inferred,
+            (Declarer::RuntimeCallable { .. }, false) => {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Contract("runtime callable with an open crash ceiling"),
+                ));
+            }
         };
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
@@ -1675,7 +1744,10 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {}
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Slot(_) => {}
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, field) in fields {
                 spans(field, binder, out);
@@ -1709,7 +1781,10 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         | ExpressionKind::Cast(operand) => {
             spans(operand, binder, out);
         }
-        ExpressionKind::Call { arguments, .. } => {
+        ExpressionKind::Call { callee, arguments } => {
+            if let Some(operand) = callee.operand() {
+                spans(operand, binder, out);
+            }
             for argument in arguments {
                 spans(argument, binder, out);
             }
@@ -1728,6 +1803,12 @@ enum Declarer {
         is_public: bool,
     },
     Requirement {
+        declares_no_crash_route: bool,
+    },
+    RuntimeCallable {
+        declares_no_crash_route: bool,
+    },
+    Boundary {
         declares_no_crash_route: bool,
     },
 }
@@ -1798,7 +1879,9 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 *count += 1;
             }
         }
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) => {}
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::MachineValue { .. } => {}
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, field) in fields {
                 expression_slot_uses(field, uses);
@@ -1832,7 +1915,10 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         | ExpressionKind::Cast(operand) => {
             expression_slot_uses(operand, uses);
         }
-        ExpressionKind::Call { arguments, .. } => {
+        ExpressionKind::Call { callee, arguments } => {
+            if let Some(operand) = callee.operand() {
+                expression_slot_uses(operand, uses);
+            }
             for argument in arguments {
                 expression_slot_uses(argument, uses);
             }

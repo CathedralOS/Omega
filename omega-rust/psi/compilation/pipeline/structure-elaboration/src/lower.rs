@@ -45,6 +45,7 @@ return through ("A no-normal-result terminal transfer publishes no fictional
 result or normal-return guarantee"). Both edges go to `Destination::NoNormal`.
 */
 
+mod boundaries;
 mod calls;
 mod control;
 mod operations;
@@ -100,16 +101,99 @@ pub(crate) fn machine(
     signatures: &IdTable<MachineId, Signature>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
     requirement: bool,
 ) -> Checked<Lowered> {
     let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
     let signature = terminal_check_tables::row(signatures, id, id, Construct::Machine)?;
+    let (mut lowering, entry, formals, result) = begin(
+        id,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        callables,
+        boundaries,
+        &body.slots,
+    )?;
+    // A requirement is its formals, its result and its contract. It has no
+    // block: the entry block opened above for those identities is dropped.
+    if requirement {
+        lowering.blocks = IdTable::default();
+        lowering.sources.blocks = IdTable::default();
+        return lowering.finish(entry, formals, result);
+    }
+    if component.is_empty() {
+        lowering.body(body)?;
+    } else {
+        lowering.component(id, bodies, component, &formals)?;
+    }
+    lowering.finish(entry, formals, result)
+}
+
+/// A signature's declarations, shared by named bodies and stored callable
+/// contracts. This creates no named machine or implementation selection.
+pub(crate) struct SignatureHeader {
+    pub scalar_parameters: Vec<ValueDeclaration>,
+    pub parameter_order: Vec<BoundaryParameterKind>,
+    pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    pub result: TerminalMachineResult,
+    pub proof: MachineContract,
+}
+
+/// The same header preparation as an ordinary machine, without a body. The
+/// context names an existing machine for diagnostics; it is not published as
+/// the identity of the callable contract.
+pub(crate) fn signature_header(
+    context: MachineId,
+    signature: &Signature,
+    signatures: &IdTable<MachineId, Signature>,
+    outcomes: &IdTable<MachineId, Outcome>,
+    records: &Records<'_>,
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
+) -> Checked<SignatureHeader> {
+    let (lowering, _, formals, result) = begin(
+        context,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        callables,
+        boundaries,
+        &signature.parameters,
+    )?;
+    let routes = match &signature.crashes {
+        crate::body::CrashCeiling::DeclaredNone => Vec::new(),
+        crate::body::CrashCeiling::Authored(routes) => routes.clone(),
+        crate::body::CrashCeiling::Inferred => {
+            return Err(
+                lowering.internal("a runtime callable header has no published crash ceiling")
+            );
+        }
+    };
+    lowering.signature_header(formals, result, routes)
+}
+
+fn begin<'a>(
+    id: MachineId,
+    signature: &'a Signature,
+    signatures: &'a IdTable<MachineId, Signature>,
+    outcomes: &'a IdTable<MachineId, Outcome>,
+    records: &'a Records<'a>,
+    callables: &'a crate::callables::CallableNamespace,
+    boundaries: &'a crate::boundaries::BoundaryNamespace,
+    slots: &'a [ValueType],
+) -> Checked<(Lowering<'a>, BlockId, Formals, TerminalMachineResult)> {
     let mut lowering = Lowering {
         id,
         signature,
         signatures,
         outcomes,
         records,
+        callables,
+        boundaries,
         roots: IdTable::default(),
         entry_contents: Vec::new(),
         path: Vec::new(),
@@ -118,9 +202,9 @@ pub(crate) fn machine(
         blocks: IdTable::default(),
         current: None,
         point: None,
-        slots: vec![None; body.slots.len()],
+        slots: vec![None; slots.len()],
         selected: Vec::new(),
-        slot_types: &body.slots,
+        slot_types: slots,
         published: Vec::new(),
         heads: Vec::new(),
         invariants: Vec::new(),
@@ -289,19 +373,7 @@ pub(crate) fn machine(
         );
         lowering.published.push(published);
     }
-    // A requirement is its formals, its result and its contract. It has no
-    // block: the entry block opened above for those identities is dropped.
-    if requirement {
-        lowering.blocks = IdTable::default();
-        lowering.sources.blocks = IdTable::default();
-        return lowering.finish(entry, formals, result);
-    }
-    if component.is_empty() {
-        lowering.body(body)?;
-    } else {
-        lowering.component(id, bodies, component, &formals)?;
-    }
-    lowering.finish(entry, formals, result)
+    Ok((lowering, entry, formals, result))
 }
 
 /// A machine's formals in Terminal Psi's two lanes, and the authored order
@@ -322,6 +394,8 @@ struct Lowering<'a> {
     signatures: &'a IdTable<MachineId, Signature>,
     outcomes: &'a IdTable<MachineId, Outcome>,
     records: &'a Records<'a>,
+    callables: &'a crate::callables::CallableNamespace,
+    boundaries: &'a crate::boundaries::BoundaryNamespace,
     /// What each root place is and the record type it holds, indexed by its
     /// `PlaceId`: the machine's structural place declarations.
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
@@ -642,12 +716,12 @@ impl<'a> Lowering<'a> {
         Ok(())
     }
 
-    fn finish(
-        mut self,
-        entry: BlockId,
+    fn signature_header(
+        &self,
         formals: Formals,
         result: TerminalMachineResult,
-    ) -> Checked<Lowered> {
+        crash_routes: Vec<terminal_psi::CrashRouteBucket>,
+    ) -> Checked<SignatureHeader> {
         let ensures = self
             .signature
             .ensures
@@ -658,6 +732,30 @@ impl<'a> Lowering<'a> {
                 proposition: proposition.clone(),
             })
             .collect();
+        let contract = MachineContract {
+            crash_routes,
+            erased_scalar_formals: formals.erased,
+            requires: self.signature.requires.clone(),
+            ensures,
+            ..MachineContract::empty(
+                ContractId::new(self.id.get()).ok_or_else(|| self.internal("contract identity"))?,
+            )
+        };
+        Ok(SignatureHeader {
+            scalar_parameters: formals.scalars,
+            parameter_order: formals.order,
+            structural_parameters: formals.records,
+            result,
+            proof: contract,
+        })
+    }
+
+    fn finish(
+        mut self,
+        entry: BlockId,
+        formals: Formals,
+        result: TerminalMachineResult,
+    ) -> Checked<Lowered> {
         self.arrivals()?;
         let mut drafts = std::mem::take(&mut self.blocks);
         let mut blocks = Vec::with_capacity(drafts.len());
@@ -680,15 +778,7 @@ impl<'a> Lowering<'a> {
             terminal_check_tables::row(self.outcomes, self.id, self.id, Construct::Machine)?
                 .crash_routes
                 .clone();
-        let contract = MachineContract {
-            crash_routes,
-            erased_scalar_formals: formals.erased,
-            requires: self.signature.requires.clone(),
-            ensures,
-            ..MachineContract::empty(
-                ContractId::new(self.id.get()).ok_or_else(|| self.internal("contract identity"))?,
-            )
-        };
+        let header = self.signature_header(formals, result, crash_routes)?;
         let structural_places = self
             .roots
             .iter()
@@ -702,11 +792,11 @@ impl<'a> Lowering<'a> {
             declaration: None,
             attachment: None,
             nominal_cleanup_subject: None,
-            parameters: formals.scalars,
-            parameter_order: formals.order,
-            structural_parameters: formals.records,
+            parameters: header.scalar_parameters,
+            parameter_order: header.parameter_order,
+            structural_parameters: header.structural_parameters,
             ranked_scc: None,
-            result,
+            result: header.result,
             structural_places,
             entry_claims: Vec::new(),
             block_entry_claims: Vec::new(),
@@ -719,7 +809,7 @@ impl<'a> Lowering<'a> {
             content_partition_compositions: Vec::new(),
             entry,
             blocks,
-            contract,
+            contract: header.proof,
         };
         // A scalar machine has no structural place, so its place, root and
         // write tables are empty; `places` filled them for every record.

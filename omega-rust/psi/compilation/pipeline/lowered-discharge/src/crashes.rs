@@ -114,6 +114,22 @@ fn operation_site(
             | OperationKind::CallUnit {
                 crash_continuations,
                 ..
+            }
+            | OperationKind::CallMachine {
+                crash_continuations,
+                ..
+            }
+            | OperationKind::CallStructural {
+                crash_continuations,
+                ..
+            }
+            | OperationKind::CallStructuralScalar {
+                crash_continuations,
+                ..
+            }
+            | OperationKind::CallStructuralWithScalarArguments {
+                crash_continuations,
+                ..
             },
         ) => route(crash_continuations, cause)
             .map(Guard::Route)

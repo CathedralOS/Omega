@@ -91,7 +91,9 @@ impl<'t> Program<'t> {
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let (kind, result) = match node {
-            ExpressionNode::MachineValue(_) => return unserved("machine value"),
+            ExpressionNode::MachineValue(_) => {
+                return unserved("erased runtime machine construction");
+            }
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
@@ -136,7 +138,7 @@ impl<'t> Program<'t> {
         let source = SourceOrigin::of(typed.expression_table.source_span(handle));
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let (kind, result) = match node {
-            ExpressionNode::MachineValue(_) => return unserved("machine value"),
+            ExpressionNode::MachineValue(value) => return self.machine_value(id, value, source),
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
@@ -414,6 +416,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         ExpressionKind::Borrow { .. }
         | ExpressionKind::Integer(_)
         | ExpressionKind::Boolean(_)
+        | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Record { .. }
         | ExpressionKind::Case { .. }
         | ExpressionKind::IsCase { .. }
@@ -567,6 +570,10 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
         && match (&left.kind, &right.kind) {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
+            (
+                ExpressionKind::MachineValue { contract: a, descriptor: a_selected },
+                ExpressionKind::MachineValue { contract: b, descriptor: b_selected },
+            ) => a == b && a_selected == b_selected,
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
             (
                 ExpressionKind::Strict {
@@ -606,7 +613,12 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     arguments: b_arguments,
                 },
             ) => {
-                a == b
+                (match (a, b) {
+                    (crate::body::CallTarget::Machine(a), crate::body::CallTarget::Machine(b)) => a == b,
+                    (crate::body::CallTarget::Boundary(a), crate::body::CallTarget::Boundary(b)) => a == b,
+                    (crate::body::CallTarget::Selected { callable: a, contract: ac }, crate::body::CallTarget::Selected { callable: b, contract: bc }) => ac == bc && both(a, b),
+                    _ => false,
+                })
                     && a_arguments.len() == b_arguments.len()
                     && a_arguments.iter().zip(b_arguments).all(|(a, b)| both(a, b))
             }
@@ -691,6 +703,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (
                 ExpressionKind::Integer(_)
                 | ExpressionKind::Boolean(_)
+                | ExpressionKind::MachineValue { .. }
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Record { .. }
                 | ExpressionKind::Case { .. }

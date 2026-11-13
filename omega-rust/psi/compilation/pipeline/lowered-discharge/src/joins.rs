@@ -316,6 +316,9 @@ fn describe(
         .zip(join.parameters.iter().map(|parameter| parameter.id))
         .collect();
     for (parameter, argument) in join.parameters.iter().zip(arguments) {
+        if matches!(parameter.scalar_type, ScalarType::Callable(_)) {
+            continue;
+        }
         let defined = unfold(
             &ScalarTerm::value(*argument, parameter.scalar_type),
             &definitions,
@@ -472,7 +475,7 @@ pub(crate) fn rename(
 
 /// What `check` needs from the machine being discharged.
 pub(crate) struct Machine<'a> {
-    pub(crate) machines: &'a [TerminalMachine],
+    pub(crate) module: &'a terminal_psi::TerminalModule,
     pub(crate) lowered: &'a TerminalMachine,
     pub(crate) storage: &'a crate::places::Storage<'a>,
     pub(crate) id: MachineId,
@@ -514,7 +517,7 @@ pub(crate) fn check(
         for &(index, obligation, edge, point) in &arrivals {
             let kind = ObligationKind::ArrivalInvariant { edge };
             let verdict = goal(
-                machine.machines,
+                machine.module,
                 machine.lowered,
                 machine.storage,
                 machine.id,

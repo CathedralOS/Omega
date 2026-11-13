@@ -56,7 +56,7 @@ fn slot(slot: usize, scalar_type: ScalarType) -> Expression {
 fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> Expression {
     expression(
         ExpressionKind::Call {
-            callee: id(callee),
+            callee: id(callee).into(),
             arguments,
         },
         result,
@@ -1543,7 +1543,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                 5,
                 of_type(
                     ExpressionKind::Call {
-                        callee: id(2),
+                        callee: id(2).into(),
                         arguments: Vec::new(),
                     },
                     point(),

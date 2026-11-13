@@ -25,7 +25,9 @@ use semantic_vocabulary::{CrashCause, IdTable, MachineId};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard};
 
-use crate::body::{Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target};
+use crate::body::{
+    Body, CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target,
+};
 use crate::canonical;
 use crate::{Unserved, refuse};
 
@@ -56,9 +58,13 @@ pub(crate) fn outcomes(
     bodies: &IdTable<MachineId, Body>,
     signatures: &IdTable<MachineId, Signature>,
     requirements: &[MachineId],
+    callables: &crate::callables::CallableNamespace,
+    boundaries: &crate::boundaries::BoundaryNamespace,
 ) -> Checked<IdTable<MachineId, Outcome>> {
     let mut walk = Walk {
         signatures,
+        callables,
+        boundaries,
         requirements,
         reached: bodies.map(|_, _| Reached::default()),
         causes: BTreeSet::new(),
@@ -113,6 +119,8 @@ struct Reached {
 
 struct Walk<'b> {
     signatures: &'b IdTable<MachineId, Signature>,
+    callables: &'b crate::callables::CallableNamespace,
+    boundaries: &'b crate::boundaries::BoundaryNamespace,
     /// Machines that are a requirement's contract and have no body.
     requirements: &'b [MachineId],
     reached: IdTable<MachineId, Reached>,
@@ -220,9 +228,10 @@ impl Walk<'_> {
     /// call in it has no normal completion, so evaluation never finishes.
     fn expression(&mut self, machine: MachineId, expression: &Expression) -> Checked<bool> {
         match &expression.kind {
-            ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {
-                Ok(true)
-            }
+            ExpressionKind::Integer(_)
+            | ExpressionKind::Boolean(_)
+            | ExpressionKind::MachineValue { .. }
+            | ExpressionKind::Slot(_) => Ok(true),
             ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand) => self.expression(machine, operand),
@@ -273,11 +282,66 @@ impl Walk<'_> {
                 Ok(true)
             }
             ExpressionKind::Call { callee, arguments } => {
+                if let Some(operand) = callee.operand() {
+                    if !self.expression(machine, operand)? {
+                        return Ok(false);
+                    }
+                }
                 for argument in arguments {
                     if !self.expression(machine, argument)? {
                         return Ok(false);
                     }
                 }
+                match callee {
+                    CallTarget::Selected { contract, .. } => {
+                        let signature = &self
+                            .callables
+                            .contracts
+                            .get(*contract)
+                            .ok_or_else(|| {
+                                refuse(
+                                    machine,
+                                    Construct::Machine,
+                                    Unserved::Call("selected call has no public contract"),
+                                )
+                            })?
+                            .signature;
+                        match &signature.crashes {
+                            CrashCeiling::Authored(routes) => {
+                                self.causes.extend(routes.iter().map(|bucket| bucket.cause))
+                            }
+                            CrashCeiling::DeclaredNone => {}
+                            CrashCeiling::Inferred => {
+                                return Err(refuse(
+                                    machine,
+                                    Construct::Machine,
+                                    Unserved::Call("selected call has an open crash ceiling"),
+                                ));
+                            }
+                        }
+                        return Ok(true);
+                    }
+                    CallTarget::Boundary(boundary) => {
+                        let outcome = self.boundaries.outcome(*boundary).ok_or_else(|| {
+                            refuse(
+                                machine,
+                                Construct::Machine,
+                                Unserved::Call("boundary call has no published outcome"),
+                            )
+                        })?;
+                        self.causes
+                            .extend(outcome.crash_routes.iter().map(|bucket| bucket.cause));
+                        return Ok(outcome.completes_normally);
+                    }
+                    CallTarget::Machine(_) => {}
+                }
+                let CallTarget::Machine(callee) = callee else {
+                    return Err(refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Call("call outcome lost its target classification"),
+                    ));
+                };
                 // A caller sees the causes the callee publishes, as the
                 // table stands: its ceiling when it authors one, what its
                 // body reaches when the routes are inferred, none under

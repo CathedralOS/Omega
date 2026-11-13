@@ -23,12 +23,15 @@ subset is refused with `Unsupported` and its name. A field the subset does not
 serve is refused when it is set, never ignored.
 */
 
+mod boundaries;
+mod callables;
 mod calls;
 mod casts;
 mod contracts;
 mod expressions;
 mod machine;
 mod places;
+pub(crate) mod services;
 mod statements;
 mod subjects;
 mod transitions;
@@ -44,10 +47,14 @@ use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
 pub(crate) struct Program<'t> {
-    typed: &'t TypedTrees,
+    pub(super) typed: &'t TypedTrees,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// Contracts and exact code selections named by the read program. A
+    /// selection retains code without adding an invocation to its call graph.
+    pub callables: crate::callables::CallableNamespace,
+    pub boundaries: crate::boundaries::BoundaryNamespace,
     /// What diagnostics call each machine's constructs, pushed with its
     /// signature and completed as its body is read.
     pub names: IdTable<MachineId, crate::MachineNames>,
@@ -155,6 +162,8 @@ impl<'t> Program<'t> {
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            callables: crate::callables::CallableNamespace::default(),
+            boundaries: crate::boundaries::BoundaryNamespace::default(),
             names: IdTable::default(),
             rigid,
             requirements: Vec::new(),

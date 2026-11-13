@@ -124,7 +124,23 @@ impl Program<'_> {
             TypeReferenceNode::Generic { .. } => unserved("generic application"),
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),
             TypeReferenceNode::DynamicTrait { .. } => unserved("dynamic trait"),
-            TypeReferenceNode::Callable { .. } => unserved("runtime callable"),
+            TypeReferenceNode::Callable { contract } => self
+                .callables
+                .source_contract(*contract)
+                .map_err(|reason| terminal_check_tables::Refusal {
+                    reason: terminal_check_tables::RefusalReason::ForeignIdentity,
+                    machine: id,
+                    concerns: Construct::Machine,
+                    detail: reason.to_owned(),
+                })?
+                .map(ScalarType::Callable)
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Type("unprepared runtime callable"),
+                    )
+                }),
             TypeReferenceNode::Unit => unserved("unit as a value"),
         }
     }
@@ -291,6 +307,12 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        if handle.is_valid()
+            && let TypeReferenceNode::Callable { contract } =
+                self.typed.type_reference_table.type_reference(handle)
+        {
+            return self.callable_type(id, *contract).map(ValueType::Scalar);
+        }
         // A type parameter in scope is what the scope says it stands for,
         // found by the binder's symbol.
         if handle.is_valid()

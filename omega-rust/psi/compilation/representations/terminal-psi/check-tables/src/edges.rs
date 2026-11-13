@@ -93,6 +93,10 @@ pub struct InvocationRow {
 pub enum Callee {
     /// A direct call of one machine.
     Machine(MachineId),
+    /// A call of the exact retained bodyless requirement.
+    Boundary {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+    },
     /// A call through a callable selector value; its candidates are that
     /// value's `ValueRow::selects`. calls_and_outcomes.md: "Indirect calls
     /// through machine values retain these same argument, result, proof and

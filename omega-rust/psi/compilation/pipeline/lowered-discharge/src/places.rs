@@ -704,7 +704,7 @@ impl<'a> Storage<'a> {
         &'s self,
         tables: &'s MachineTables,
         actuals: &[Actual],
-        callee: &'s TerminalMachine,
+        parameters: &'s [terminal_psi::StructuralParameterDeclaration],
         site: OperationId,
         concerns: Construct,
     ) -> Checked<AtCall<'s, 'a>> {
@@ -723,7 +723,7 @@ impl<'a> Storage<'a> {
             tables,
             scalars: crate::scalar_actuals(actuals),
             places,
-            callee,
+            parameters,
             block,
             up_to: before,
             concerns,
@@ -1503,6 +1503,11 @@ impl<'a> Storage<'a> {
                 "a place holds a value of another type than its read",
             ));
         }
+        // Opaque code is transported by the typed storage operation, not
+        // by mathematical equality or a proof address literal.
+        if matches!(held_type, ScalarType::Callable(_)) {
+            return Ok(None);
+        }
         Ok(Some(Proposition::Equal(
             ScalarTerm::value(result.id, result.scalar_type),
             ScalarTerm::value(held, held_type),
@@ -1758,6 +1763,9 @@ impl<'a> Storage<'a> {
                     concerns,
                     "a payload holds a value of another type than its parameter",
                 ));
+            }
+            if matches!(held_type, ScalarType::Callable(_)) {
+                continue;
             }
             equations.push((
                 bound.edge,
@@ -2552,7 +2560,7 @@ pub(crate) struct AtCall<'s, 'a> {
     scalars: Vec<ValueId>,
     /// The record actuals, in the callee's structural lane order.
     places: Vec<Lineage>,
-    callee: &'s TerminalMachine,
+    parameters: &'s [terminal_psi::StructuralParameterDeclaration],
     block: BlockId,
     up_to: usize,
     concerns: Construct,
@@ -2576,8 +2584,7 @@ impl crate::Bindings for AtCall<'_, '_> {
         // The callee's root is one of its record formals; the actual is the
         // place at the same position of the structural lane.
         let actual = self
-            .callee
-            .structural_parameters
+            .parameters
             .iter()
             .find(|parameter| parameter.place == root)
             .and_then(|parameter| usize::try_from(parameter.position).ok())

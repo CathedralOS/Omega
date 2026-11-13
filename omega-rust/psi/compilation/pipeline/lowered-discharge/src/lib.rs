@@ -52,6 +52,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 */
 
 mod arrivals;
+mod call_contracts;
 mod callable_formations;
 mod crashes;
 mod describe;
@@ -72,7 +73,7 @@ pub use callable_formations::{
     check_bound_callable_shapes,
 };
 pub use places::{ConflictingLoan, LoanConflict};
-pub use refinement::prove_callable_refinement;
+pub use refinement::{finalize_callable_refinements, prove_callable_refinement};
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, PublicationError,
@@ -95,7 +96,7 @@ use semantic_vocabulary::{
     ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use structure_elaboration::Elaboration;
-use terminal_check_tables::edges::{Actual, Callee, Destination};
+use terminal_check_tables::edges::{Actual, Destination};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::{Justification, KnowledgeRow};
 use terminal_check_tables::{
@@ -341,6 +342,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
     // condition is described from the caller's facts.
     result_summaries::infer(elaboration, knowledge)?;
     entry_inputs::infer(elaboration, knowledge)?;
+    finalize_callable_refinements(&mut elaboration.module)?;
     let module = &elaboration.module;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
@@ -374,7 +376,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
             continue;
         }
         machines.push(machine(
-            &module.machines,
+            module,
             &module.structural_types,
             &elaboration.domains,
             &module.scalar_block_invariants,
@@ -420,7 +422,7 @@ fn terminal_machine(
 }
 
 fn machine(
-    machines: &[TerminalMachine],
+    module: &terminal_psi::TerminalModule,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     invariants: &[ScalarBlockInvariant],
@@ -428,6 +430,7 @@ fn machine(
     tables: &mut MachineTables,
     knowledge: Knowledge,
 ) -> Checked<MachineDischarge> {
+    let machines = &module.machines;
     let lowered = terminal_machine(machines, id, id)?;
     if !tables.knowledge.is_empty() {
         return Err(refusal(
@@ -441,7 +444,7 @@ fn machine(
         types,
         graph,
         context,
-    } = prepare(machines, structural_types, domains, id, tables, knowledge)?;
+    } = prepare(module, structural_types, domains, id, tables, knowledge)?;
     let storage = places::Storage::new(
         id,
         lowered,
@@ -454,7 +457,7 @@ fn machine(
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
-    let (lent, conflicts) = storage.loans(machines, tables)?;
+    let (lent, conflicts) = storage.loans(module, tables)?;
     for (obligation, verdict) in lent {
         let slot = decided
             .get_mut(usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX))
@@ -487,7 +490,7 @@ fn machine(
     )?;
     let weakened_joins = joins::check(
         &joins::Machine {
-            machines,
+            module,
             lowered,
             storage: &storage,
             id,
@@ -509,7 +512,7 @@ fn machine(
             continue;
         }
         let verdict = goal(
-            machines, lowered, &storage, id, obligation, &row.kind, tables, &types,
+            module, lowered, &storage, id, obligation, &row.kind, tables, &types,
         )
         .and_then(|goal| {
             decide(
@@ -693,7 +696,7 @@ fn machine(
 /// `requires`, result equations and field-read equations, branch
 /// conditions, dispatch bindings and callee guarantees.
 fn fill_knowledge(
-    machines: &[TerminalMachine],
+    module: &terminal_psi::TerminalModule,
     id: MachineId,
     lowered: &TerminalMachine,
     tables: &mut MachineTables,
@@ -805,7 +808,7 @@ fn fill_knowledge(
         // it has none, so it adds no knowledge.
         let operation = match row.site {
             InvocationSite::Operation(operation) => operation,
-            InvocationSite::InvokeNoNormal(_) => continue,
+            InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => continue,
             _ => {
                 return Err(refusal(
                     RefusalReason::Unsupported,
@@ -815,13 +818,13 @@ fn fill_knowledge(
                 ));
             }
         };
-        let callee = callee(id, invocation, &row.callee)?;
+        let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
         let actuals = scalar_actuals(&row.actuals);
-        let contract = &terminal_machine(machines, callee, id)?.contract;
-        let erased = erased_actuals(lowered, contract, id, invocation, row.site)?;
+        let contract = &call.contract;
+        let erased = erased_actuals(contract, call.inputs, id, invocation)?;
         for (clause, ensures) in contract.ensures.iter().enumerate() {
             let proposition = substitute(
-                &ensures.proposition,
+                ensures,
                 &mut ErasedTerms {
                     terms: &erased,
                     runtime: &mut ScalarActuals {
@@ -858,21 +861,21 @@ pub(crate) struct Prepared {
 /// Fills `tables.knowledge` from the lowered form and builds what deciding
 /// needs. Knowledge already present is kept: it is this machine's own.
 pub(crate) fn prepare(
-    machines: &[TerminalMachine],
+    module: &terminal_psi::TerminalModule,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
 ) -> Checked<Prepared> {
-    let lowered = terminal_machine(machines, id, id)?;
+    let lowered = terminal_machine(&module.machines, id, id)?;
     let fill = tables.knowledge.is_empty();
     let types = tables.values.map(|_, row| row.scalar_type);
     // Before anything is decided: the rows must be the ones the lowered form
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, machines, lowered, tables, &types)?;
+    minted::follow_the_lowered_form(id, module, lowered, tables, &types)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     if fill {
@@ -886,7 +889,7 @@ pub(crate) fn prepare(
             &types,
         )?;
         storage.owed_are_minted(tables)?;
-        fill_knowledge(machines, id, lowered, tables, knowledge, &types, &storage)?;
+        fill_knowledge(module, id, lowered, tables, knowledge, &types, &storage)?;
     }
     // A value of a type parameter has no type the kernel could hold it at,
     // so the context does not list it (`concrete`).
@@ -1029,22 +1032,6 @@ fn result_equation(
     )
 }
 
-fn callee(
-    machine: MachineId,
-    invocation: terminal_check_tables::InvocationId,
-    callee: &Callee,
-) -> Checked<MachineId> {
-    match callee {
-        Callee::Machine(callee) => Ok(*callee),
-        Callee::Selected { .. } => Err(refusal(
-            RefusalReason::Unsupported,
-            machine,
-            Construct::Invocation(invocation),
-            "call through a selector value",
-        )),
-    }
-}
-
 /// A call's scalar lane: the actuals a callee clause's formals stand for.
 /// Elaboration numbers a machine's scalar formals apart from its record
 /// formals (the `k`-th scalar formal is its value `k + 1`), so a clause term
@@ -1122,33 +1109,19 @@ pub(crate) trait Bindings {
 /// Terminal Psi keeps it (`erased_arguments`). A term names values of the
 /// caller or literals; any other form is refused, as in `substitute`.
 fn erased_actuals(
-    caller: &TerminalMachine,
-    contract: &terminal_psi::MachineContract,
+    contract: &call_contracts::PublicContract<'_>,
+    inputs: call_contracts::Inputs<'_>,
     id: MachineId,
     invocation: terminal_check_tables::InvocationId,
-    site: InvocationSite,
 ) -> Checked<Vec<(ValueId, ScalarTerm)>> {
     let refuse = |reason, detail| refusal(reason, id, Construct::Invocation(invocation), detail);
-    if contract.erased_scalar_formals.is_empty() {
-        return Ok(Vec::new());
-    }
-    if !contract.erased_proof_formals.is_empty() {
+    if !contract.erased_proof_formals.is_empty() || !inputs.erased_proof_arguments.is_empty() {
         return Err(refuse(
             RefusalReason::Unsupported,
-            "callee with an erased proof formal",
+            "callee with an erased proof formal or actual",
         ));
     }
-    let supplied = caller
-        .module_invocations()
-        .find(|candidate| candidate.site == site)
-        .ok_or_else(|| {
-            refuse(
-                RefusalReason::ForeignIdentity,
-                "invocation is not in this machine",
-            )
-        })?
-        .inputs
-        .erased_arguments;
+    let supplied = inputs.erased_arguments;
     if supplied.len() != contract.erased_scalar_formals.len() {
         return Err(refuse(
             RefusalReason::ForeignIdentity,
@@ -1405,7 +1378,7 @@ fn connective(
 /// The goal of one obligation, over this machine's values.
 #[allow(clippy::too_many_arguments)]
 fn goal(
-    machines: &[TerminalMachine],
+    module: &terminal_psi::TerminalModule,
     lowered: &TerminalMachine,
     storage: &places::Storage<'_>,
     id: MachineId,
@@ -1415,7 +1388,7 @@ fn goal(
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<Proposition> {
     let goal = stated_goal(
-        machines, lowered, storage, id, obligation, kind, tables, types,
+        module, lowered, storage, id, obligation, kind, tables, types,
     )?;
     concrete(tables, id, Construct::Obligation(obligation), &goal)?;
     Ok(goal)
@@ -1454,7 +1427,7 @@ fn concrete(
 
 #[allow(clippy::too_many_arguments)]
 fn stated_goal(
-    machines: &[TerminalMachine],
+    module: &terminal_psi::TerminalModule,
     lowered: &TerminalMachine,
     storage: &places::Storage<'_>,
     id: MachineId,
@@ -1503,11 +1476,11 @@ fn stated_goal(
                 id,
                 Construct::Invocation(invocation),
             )?;
-            let callee = terminal_machine(machines, callee(id, invocation, &row.callee)?, id)?;
-            let erased = erased_actuals(lowered, &callee.contract, id, invocation, row.site)?;
+            let call = call_contracts::invocation(module, lowered, tables, invocation, row)?;
+            let erased = erased_actuals(&call.contract, call.inputs, id, invocation)?;
             let clause = usize::try_from(clause)
                 .ok()
-                .and_then(|clause| callee.contract.requires.get(clause))
+                .and_then(|clause| call.contract.requires.get(clause))
                 .ok_or_else(|| {
                     refusal(
                         RefusalReason::ForeignIdentity,
@@ -1532,11 +1505,11 @@ fn stated_goal(
                 InvocationSite::Operation(site) => over_actuals(&mut storage.at_call(
                     tables,
                     &row.actuals,
-                    callee,
+                    call.contract.structural_parameters,
                     site,
                     concerns,
                 )?),
-                InvocationSite::InvokeNoNormal(_) => {
+                InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => {
                     let actuals = scalar_actuals(&row.actuals);
                     over_actuals(&mut ScalarActuals {
                         actuals: &actuals,

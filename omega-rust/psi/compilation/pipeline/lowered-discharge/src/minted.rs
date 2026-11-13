@@ -51,18 +51,18 @@ use semantic_vocabulary::{
     BlockId, EdgeId, IdTable, InvocationSite, MachineId, ObligationId, Proposition, PsiSemanticId,
     ScalarType, StructuralTypeId, ValueId,
 };
-use terminal_check_tables::edges::{Actual, Callee, Destination};
+use terminal_check_tables::edges::{Actual, Destination};
 use terminal_check_tables::obligations::{CrashSite, ObligationKind};
 use terminal_check_tables::values::ValueOrigin;
 use terminal_check_tables::{
     Checked, Construct, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
 use terminal_psi::{
-    BoundaryParameterKind, ModuleInvocationInputs, OperationKind, StructuralTypeDeclaration,
-    TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration,
+    BoundaryParameterKind, OperationKind, StructuralTypeDeclaration, TerminalMachine,
+    TerminalMachineResult, Terminator, ValueDeclaration,
 };
 
-use crate::{refusal, semantics_refusal, terminal_machine};
+use crate::{call_contracts, refusal, semantics_refusal};
 
 fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
@@ -95,7 +95,8 @@ fn successors(terminator: &Terminator) -> Vec<(EdgeId, Destination)> {
 
 struct Minted<'a> {
     machine: MachineId,
-    machines: &'a [TerminalMachine],
+    module: &'a terminal_psi::TerminalModule,
+    lowered: &'a TerminalMachine,
     tables: &'a MachineTables,
     /// Whether the lowered form has claimed each obligation row, by position.
     obligations: Vec<bool>,
@@ -198,7 +199,7 @@ impl Minted<'_> {
     fn call(
         &mut self,
         site: InvocationSite,
-        inputs: ModuleInvocationInputs<'_>,
+        inputs: call_contracts::Inputs<'_>,
         before: ProgramPoint,
         concerns: Construct,
     ) -> Checked<()> {
@@ -211,7 +212,7 @@ impl Minted<'_> {
             return Err(self.foreign(concerns, "a call does not have exactly one invocation row"));
         };
         let concerns = Construct::Invocation(invocation);
-        if row.callee != Callee::Machine(inputs.callee) {
+        if row.callee != inputs.callee {
             return Err(self.foreign(concerns, "an invocation row names another callee"));
         }
         // The scalar lane and the record lane, each in argument order.
@@ -245,19 +246,87 @@ impl Minted<'_> {
                 "an invocation row's actuals are not the call's arguments",
             ));
         }
-        let clauses = terminal_machine(self.machines, inputs.callee, self.machine)?
-            .contract
-            .requires
-            .len();
-        if inputs.requirement_obligations.len() != clauses
-            || row.requirements != inputs.requirement_obligations
+        let call =
+            call_contracts::invocation(self.module, self.lowered, self.tables, invocation, row)?;
+        crate::erased_actuals(&call.contract, inputs, self.machine, invocation)?;
+        if inputs.arguments.len() != call.contract.scalar_parameters.len()
+            || inputs.structural_arguments.len() != call.contract.structural_parameters.len()
+            || row.actuals.len() != call.contract.parameter_order.len()
         {
+            return Err(self.foreign(
+                concerns,
+                "call arguments do not cover the complete public signature",
+            ));
+        }
+        for (actual, kind) in row.actuals.iter().zip(call.contract.parameter_order) {
+            if !matches!(
+                (actual, kind),
+                (Actual::Value(_), BoundaryParameterKind::Scalar)
+                    | (Actual::Place(_), BoundaryParameterKind::Structural)
+            ) {
+                return Err(self.foreign(
+                    concerns,
+                    "invocation actual order differs from its public signature",
+                ));
+            }
+        }
+        for (position, actual) in inputs.arguments.iter().enumerate() {
+            if self
+                .tables
+                .values
+                .get(*actual)
+                .map(|value| value.scalar_type)
+                != call.contract.scalar_parameters.scalar_type(position)
+            {
+                return Err(self.foreign(
+                    concerns,
+                    "call argument type differs from its public formal",
+                ));
+            }
+        }
+        for (actual, formal) in inputs
+            .structural_arguments
+            .iter()
+            .zip(call.contract.structural_parameters)
+        {
+            if actual.access != formal.access {
+                return Err(self.foreign(
+                    concerns,
+                    "call structural access differs from its public formal",
+                ));
+            }
+        }
+        let crash_routes = structure_elaboration::substituted_call_routes(
+            call.contract.crash_routes,
+            inputs.arguments,
+            self.machine,
+        )?;
+        match inputs.crash_continuations {
+            Some(retained) if retained == crash_routes.as_slice() => {}
+            None if crash_routes.is_empty() => {}
+            None => {
+                return Err(crate::refusal(
+                    RefusalReason::Unsupported,
+                    self.machine,
+                    concerns,
+                    "boundary invocation has no retained crash continuation lane",
+                ));
+            }
+            Some(_) => {
+                return Err(self.foreign(
+                    concerns,
+                    "call crash continuations differ from its public contract",
+                ));
+            }
+        }
+        let clauses = call.contract.requires.len();
+        if inputs.requirements.len() != clauses || row.requirements != inputs.requirements {
             return Err(self.foreign(
                 concerns,
                 "a call does not owe one requirement per requires clause of its callee",
             ));
         }
-        for (clause, obligation) in inputs.requirement_obligations.iter().enumerate() {
+        for (clause, obligation) in inputs.requirements.iter().enumerate() {
             let clause = crate::position(clause, self.machine)?;
             self.claim(
                 *obligation,
@@ -276,7 +345,7 @@ impl Minted<'_> {
 /// rows are the ones `lowered` itself owes and states.
 pub(crate) fn follow_the_lowered_form(
     id: MachineId,
-    machines: &[TerminalMachine],
+    module: &terminal_psi::TerminalModule,
     lowered: &TerminalMachine,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
@@ -284,7 +353,8 @@ pub(crate) fn follow_the_lowered_form(
     values_are_declared(id, lowered, tables)?;
     let mut minted = Minted {
         machine: id,
-        machines,
+        module,
+        lowered,
         tables,
         obligations: vec![false; tables.obligations.len()],
         invocations: vec![false; tables.invocations.len()],
@@ -334,6 +404,33 @@ pub(crate) fn follow_the_lowered_form(
                 before_operation.resize(slot + 1, None);
             }
             before_operation[slot] = Some(before);
+            if let OperationKind::SelectMachine { descriptor } = operation.kind {
+                let descriptor = module.callables.descriptor(descriptor).ok_or_else(|| {
+                    minted.foreign(
+                        Construct::Operation(operation.id),
+                        "machine construction names no descriptor",
+                    )
+                })?;
+                if operation
+                    .result
+                    .as_scalar()
+                    .map(|result| result.scalar_type)
+                    != Some(ScalarType::Callable(descriptor.contract))
+                {
+                    return Err(minted.foreign(
+                        Construct::Operation(operation.id),
+                        "machine construction changes its retained callable type",
+                    ));
+                }
+                if module.callables.contract(descriptor.contract).is_none()
+                    || module.machine(descriptor.machine).is_none()
+                {
+                    return Err(minted.foreign(
+                        Construct::Operation(operation.id),
+                        "machine construction lost its contract or selected code",
+                    ));
+                }
+            }
             if let Some(semantics) =
                 terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
                     .map_err(semantics_refusal(id, operation.id))?
@@ -346,13 +443,9 @@ pub(crate) fn follow_the_lowered_form(
                     before,
                 )?;
             }
-            if let Some(inputs) = operation.kind.module_invocation() {
-                minted.call(
-                    InvocationSite::Operation(operation.id),
-                    inputs,
-                    before,
-                    Construct::Operation(operation.id),
-                )?;
+            let site = InvocationSite::Operation(operation.id);
+            if let Some(inputs) = call_contracts::inputs_at(lowered, site)? {
+                minted.call(site, inputs, before, Construct::Operation(operation.id))?;
             }
             // A call that may return and crash is a crash site of its own,
             // owing coverage per cause among its continuations.
@@ -361,6 +454,22 @@ pub(crate) fn follow_the_lowered_form(
                 ..
             }
             | OperationKind::CallUnit {
+                crash_continuations,
+                ..
+            }
+            | OperationKind::CallMachine {
+                crash_continuations,
+                ..
+            }
+            | OperationKind::CallStructural {
+                crash_continuations,
+                ..
+            }
+            | OperationKind::CallStructuralScalar {
+                crash_continuations,
+                ..
+            }
+            | OperationKind::CallStructuralWithScalarArguments {
                 crash_continuations,
                 ..
             } = &operation.kind
@@ -378,13 +487,12 @@ pub(crate) fn follow_the_lowered_form(
             }
             before = ProgramPoint::AfterOperation(operation.id);
         }
-        if let Some(inputs) = block.terminator.module_invocation() {
-            minted.call(
-                InvocationSite::InvokeNoNormal(block.terminator.edge()),
-                inputs,
-                before,
-                Construct::Block(block.id),
-            )?;
+        let site = match block.terminator {
+            Terminator::ExternalCompletion { edge, .. } => InvocationSite::ExternalCompletion(edge),
+            _ => InvocationSite::InvokeNoNormal(block.terminator.edge()),
+        };
+        if let Some(inputs) = call_contracts::inputs_at(lowered, site)? {
+            minted.call(site, inputs, before, Construct::Block(block.id))?;
         }
         // A crashing terminator owes coverage at the point before it: its one
         // cause, or each cause among a no-normal call's continuations. An
@@ -488,23 +596,15 @@ pub(crate) fn follow_the_lowered_form(
     // An invocation row is where a callee's `ensures` becomes knowledge
     // after a call, so one that restates no call would be a premise nothing
     // established.
-    for ((invocation, row), claimed) in tables.invocations.iter().zip(&minted.invocations) {
+    for ((invocation, _), claimed) in tables.invocations.iter().zip(&minted.invocations) {
         if *claimed {
             continue;
         }
         let concerns = Construct::Invocation(invocation);
-        return Err(match row.callee {
-            Callee::Selected { .. } => refusal(
-                RefusalReason::Unsupported,
-                id,
-                concerns,
-                "call through a selector value",
-            ),
-            Callee::Machine(_) => minted.foreign(
-                concerns,
-                "an invocation row restates no call of this machine",
-            ),
-        });
+        return Err(minted.foreign(
+            concerns,
+            "an invocation row restates no call of this machine",
+        ));
     }
     Ok(())
 }

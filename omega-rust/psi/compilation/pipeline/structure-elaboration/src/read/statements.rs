@@ -89,6 +89,7 @@ impl Program<'_> {
                         }
                         ExpressionKind::Integer(_)
                         | ExpressionKind::Boolean(_)
+                        | ExpressionKind::MachineValue { .. }
                         | ExpressionKind::Case { .. }
                         | ExpressionKind::IsCase { .. }
                         | ExpressionKind::Match { .. }

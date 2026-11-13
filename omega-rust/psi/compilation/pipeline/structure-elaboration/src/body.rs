@@ -436,6 +436,12 @@ pub struct Expression {
 pub enum ExpressionKind {
     Integer(IntegerValue),
     Boolean(bool),
+    /// A stored exact selection. Construction keeps code and its required
+    /// contract; it evaluates no arguments and invokes no body.
+    MachineValue {
+        contract: semantic_vocabulary::CallableContractId,
+        descriptor: semantic_vocabulary::MachineDescriptorId,
+    },
     /// A formal or local. A scalar slot is the value it holds, or for a
     /// local declared without an initializer a fresh read of its home; a
     /// record slot is the root place it holds.
@@ -532,11 +538,39 @@ pub enum ExpressionKind {
         place: Box<Expression>,
         home: Option<String>,
     },
-    /// A direct call: all arguments left to right, then the invocation.
+    /// Evaluate the selected callable first, then arguments in authored order.
     Call {
-        callee: MachineId,
+        callee: CallTarget,
         arguments: Vec<Expression>,
     },
+}
+
+/// The code operand remains separate from every explicit argument. A selected
+/// value is authenticated against its retained public contract, never replaced
+/// by one named body for checking or execution.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CallTarget {
+    Machine(MachineId),
+    Selected {
+        callable: Box<Expression>,
+        contract: semantic_vocabulary::CallableContractId,
+    },
+    Boundary(semantic_vocabulary::BoundaryMachineId),
+}
+
+impl CallTarget {
+    pub fn operand(&self) -> Option<&Expression> {
+        match self {
+            Self::Selected { callable, .. } => Some(callable),
+            Self::Machine(_) | Self::Boundary(_) => None,
+        }
+    }
+}
+
+impl From<MachineId> for CallTarget {
+    fn from(machine: MachineId) -> Self {
+        Self::Machine(machine)
+    }
 }
 
 /// Builtin strict binary operations on `Exact` integers and `bool`.

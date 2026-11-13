@@ -10,8 +10,9 @@ parent lifetime, and restoration obligation."). The occurrence is the call,
 the captured place is the argument's place, the access is the argument's,
 and the lineage is the root's: a borrowed formal's root reborrows the loan
 the invocation passed in (`Lender::Incoming`), any other root lends owned
-storage (`Lender::Owner`). Every loan here is formed for one call and ends
-when it returns, so none is live on an edge and no edge disposes of one.
+storage (`Lender::Owner`). Every loan here is formed for one call. A normal
+call ends its loans on return; a terminal transfer retains its exact loan
+dispositions on its outgoing edge.
 
 The rows are recomputed from the lowered form, as every other row is
 (`minted`): one `Loan` per borrowed argument of each call, created at the
@@ -41,12 +42,12 @@ certificate, as the initialization judgment has none. Two refusals, each
 use language_core::ReferenceAccess;
 use semantic_vocabulary::StructuralPlaceKind;
 use semantic_vocabulary::{InvocationSite, ObligationId};
-use terminal_check_tables::edges::Actual;
+use terminal_check_tables::edges::{Actual, Fate};
 use terminal_check_tables::obligations::{Lender, ObligationKind};
 use terminal_check_tables::{
     Checked, Construct, InvocationId, MachineTables, ProgramPoint, Refusal, RefusalReason,
 };
-use terminal_psi::{StructuralAccess, TerminalMachine};
+use terminal_psi::{StructuralAccess, TerminalModule};
 
 use super::{Storage, index, lineage, overlap};
 
@@ -108,139 +109,38 @@ impl Storage<'_> {
     /// Recomputes every loan from the lowered form and refuses `tables`
     /// unless its `Loan` rows are exactly those, each once. Returns them in
     /// block and operation order, each call's loans in argument order.
-    fn formed(&self, machines: &[TerminalMachine], tables: &MachineTables) -> Checked<Vec<Formed>> {
+    fn formed(&self, module: &TerminalModule, tables: &MachineTables) -> Checked<Vec<Formed>> {
         let mut claimed = vec![false; tables.obligations.len()];
         let mut formed = Vec::new();
         for block in &self.lowered.blocks {
             let mut before = ProgramPoint::BlockEntry(block.id);
             for operation in &block.operations {
-                let concerns = Construct::Operation(operation.id);
-                let arguments = operation.kind.structural_arguments();
-                let lends = arguments
-                    .iter()
-                    .any(|argument| argument.access != StructuralAccess::Owned);
-                if lends {
-                    let Some(inputs) = operation.kind.module_invocation() else {
-                        return Err(self.unsupported(concerns, "a loan to something not a call"));
-                    };
-                    let callee = crate::terminal_machine(machines, inputs.callee, self.machine)?;
-                    let site = InvocationSite::Operation(operation.id);
-                    let (invocation, row) = tables
-                        .invocations
-                        .iter()
-                        .find(|(_, row)| row.site == site)
-                        .ok_or_else(|| self.foreign(concerns, "a call has no invocation row"))?;
-                    // The structural lane's places, in argument order.
-                    let places: Vec<_> = row
-                        .actuals
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(position, actual)| match actual {
-                            Actual::Place(place) => Some((position, *place)),
-                            Actual::Value(_) => None,
-                        })
-                        .collect();
-                    if places.len() != arguments.len()
-                        || callee.structural_parameters.len() != arguments.len()
-                    {
-                        return Err(self.foreign(
-                            concerns,
-                            "an invocation row's places are not the call's structural arguments",
-                        ));
-                    }
-                    for ((argument, (position, place)), parameter) in arguments
-                        .iter()
-                        .zip(places)
-                        .zip(&callee.structural_parameters)
-                    {
-                        let Some(access) = reference_access(argument.access) else {
-                            continue;
-                        };
-                        if access == ReferenceAccess::WriteOnly {
-                            return Err(self.unsupported(concerns, "a write-only loan"));
-                        }
-                        // Terminal validation passes a borrowed argument only
-                        // to a formal declared with the same access.
-                        if parameter.access != argument.access {
-                            return Err(self.foreign(
-                                concerns,
-                                "a loan's access is not its formal's declared access",
-                            ));
-                        }
-                        let lent = self.argument(argument, concerns)?;
-                        if lineage(self.machine, &tables.places, place)? != lent {
-                            return Err(self.foreign(
-                                concerns,
-                                "an invocation row's place is not the place the call lends",
-                            ));
-                        }
-                        let parent = self.incoming(argument.place);
-                        let lender = if parent.is_some() {
-                            Lender::Incoming
-                        } else {
-                            match self.root_kind(argument.place, concerns)? {
-                                StructuralPlaceKind::Parameter { .. }
-                                | StructuralPlaceKind::OperationResult { .. } => Lender::Owner,
-                                _ => {
-                                    return Err(self.unsupported(
-                                        concerns,
-                                        "a loan of storage that is neither a formal nor a result",
-                                    ));
-                                }
-                            }
-                        };
-                        let kind = ObligationKind::Loan {
-                            captured: place,
-                            access,
-                            lender,
-                        };
-                        let (obligation, _) = tables
-                            .obligations
-                            .iter()
-                            .find(|(obligation, row)| {
-                                row.kind == kind && !claimed[index(obligation.get())]
-                            })
-                            .ok_or_else(|| {
-                                self.foreign(concerns, "a loan the call forms has no row")
-                            })?;
-                        let row = terminal_check_tables::row(
-                            &tables.obligations,
-                            obligation,
-                            self.machine,
-                            Construct::Obligation(obligation),
-                        )?;
-                        if row.created_at != before {
-                            return Err(self.foreign(
-                                Construct::Obligation(obligation),
-                                "a loan is not created at the point before its call",
-                            ));
-                        }
-                        claimed[index(obligation.get())] = true;
-                        formed.push(Formed {
-                            obligation,
-                            invocation,
-                            position,
-                            access,
-                            lineage: lent,
-                            parent: parent.and_then(reference_access),
-                        });
-                    }
-                }
+                self.form_call(
+                    module,
+                    tables,
+                    InvocationSite::Operation(operation.id),
+                    before,
+                    Construct::Operation(operation.id),
+                    &mut claimed,
+                    &mut formed,
+                )?;
                 before = ProgramPoint::AfterOperation(operation.id);
             }
-            // A terminator lends nothing in this route: a no-normal call
-            // that lends is refused where it is lowered.
-            if block.terminator.module_invocation().is_some_and(|inputs| {
-                inputs
-                    .structural_arguments
-                    .iter()
-                    .any(|argument| argument.access != StructuralAccess::Owned)
-            }) {
-                return Err(self.unsupported(
-                    Construct::Block(block.id),
-                    "a no-normal call that lends storage",
-                ));
-            }
+            let site = match block.terminator {
+                terminal_psi::Terminator::ExternalCompletion { edge, .. } => {
+                    InvocationSite::ExternalCompletion(edge)
+                }
+                _ => InvocationSite::InvokeNoNormal(block.terminator.edge()),
+            };
+            self.form_call(
+                module,
+                tables,
+                site,
+                before,
+                Construct::Block(block.id),
+                &mut claimed,
+                &mut formed,
+            )?;
         }
         for (obligation, row) in tables.obligations.iter() {
             if matches!(row.kind, ObligationKind::Loan { .. }) && !claimed[index(obligation.get())]
@@ -251,7 +151,190 @@ impl Storage<'_> {
                 ));
             }
         }
+        // Terminal transfers account for exactly the loans they carry.
+        // A normal call's temporary loan has no edge disposition.
+        let mut disposed = vec![false; tables.obligations.len()];
+        for (edge, row) in tables.edges.iter() {
+            for disposition in &row.dispositions {
+                let obligation =
+                    tables
+                        .obligations
+                        .get(disposition.obligation)
+                        .ok_or_else(|| {
+                            self.foreign(
+                                Construct::Edge(edge),
+                                "edge disposition names no obligation",
+                            )
+                        })?;
+                if !matches!(obligation.kind, ObligationKind::Loan { .. }) {
+                    continue;
+                }
+                let loan = formed
+                    .iter()
+                    .find(|loan| loan.obligation == disposition.obligation)
+                    .ok_or_else(|| {
+                        self.foreign(
+                            Construct::Edge(edge),
+                            "edge disposition names no formed loan",
+                        )
+                    })?;
+                let invocation = tables.invocations.get(loan.invocation).ok_or_else(|| {
+                    self.foreign(Construct::Edge(edge), "disposed loan has no invocation")
+                })?;
+                let expected = match invocation.site {
+                    InvocationSite::InvokeNoNormal(site) => (site, Fate::Consumed),
+                    InvocationSite::ExternalCompletion(site) => (site, Fate::Abandoned),
+                    _ => {
+                        return Err(self.foreign(
+                            Construct::Edge(edge),
+                            "normal call loan has an edge disposition",
+                        ));
+                    }
+                };
+                if expected != (edge, disposition.fate)
+                    || std::mem::replace(&mut disposed[index(disposition.obligation.get())], true)
+                {
+                    return Err(self.foreign(
+                        Construct::Edge(edge),
+                        "loan disposition repeats or differs from its terminal transfer",
+                    ));
+                }
+            }
+        }
+        for loan in &formed {
+            let invocation = tables.invocations.get(loan.invocation).ok_or_else(|| {
+                self.foreign(
+                    Construct::Obligation(loan.obligation),
+                    "formed loan has no invocation",
+                )
+            })?;
+            if matches!(
+                invocation.site,
+                InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_)
+            ) && !disposed[index(loan.obligation.get())]
+            {
+                return Err(self.foreign(
+                    Construct::Obligation(loan.obligation),
+                    "terminal call loan has no exact edge disposition",
+                ));
+            }
+        }
         Ok(formed)
+    }
+
+    /// Normal and terminal calls form the same loans before invocation. A
+    /// terminal call has no restoration successor; formation still checks
+    /// its exact captured storage, access and parent authority.
+    #[allow(clippy::too_many_arguments)]
+    fn form_call(
+        &self,
+        module: &TerminalModule,
+        tables: &MachineTables,
+        site: InvocationSite,
+        before: ProgramPoint,
+        concerns: Construct,
+        claimed: &mut [bool],
+        formed: &mut Vec<Formed>,
+    ) -> Checked<()> {
+        let Some(inputs) = crate::call_contracts::inputs_at(self.lowered, site)? else {
+            return Ok(());
+        };
+        let arguments = inputs.structural_arguments;
+        if !arguments
+            .iter()
+            .any(|argument| argument.access != StructuralAccess::Owned)
+        {
+            return Ok(());
+        }
+        let mut rows = tables
+            .invocations
+            .iter()
+            .filter(|(_, row)| row.site == site);
+        let (Some((invocation, row)), None) = (rows.next(), rows.next()) else {
+            return Err(self.foreign(concerns, "a call does not have exactly one invocation row"));
+        };
+        let call =
+            crate::call_contracts::invocation(module, self.lowered, tables, invocation, row)?;
+        let parameters = call.contract.structural_parameters;
+        let places = row
+            .actuals
+            .iter()
+            .enumerate()
+            .filter_map(|(position, actual)| match actual {
+                Actual::Place(place) => Some((position, *place)),
+                Actual::Value(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if places.len() != arguments.len() || parameters.len() != arguments.len() {
+            return Err(self.foreign(
+                concerns,
+                "an invocation row's places are not the call's structural arguments",
+            ));
+        }
+        for ((argument, (position, place)), parameter) in
+            arguments.iter().zip(places).zip(parameters)
+        {
+            let Some(access) = reference_access(argument.access) else {
+                continue;
+            };
+            if access == ReferenceAccess::WriteOnly {
+                return Err(self.unsupported(concerns, "a write-only loan"));
+            }
+            if parameter.access != argument.access {
+                return Err(self.foreign(
+                    concerns,
+                    "a loan's access is not its formal's declared access",
+                ));
+            }
+            let lent = self.argument(argument, concerns)?;
+            if lineage(self.machine, &tables.places, place)? != lent {
+                return Err(self.foreign(
+                    concerns,
+                    "an invocation row's place is not the place the call lends",
+                ));
+            }
+            let parent = self.incoming(argument.place);
+            let lender = if parent.is_some() {
+                Lender::Incoming
+            } else {
+                match self.root_kind(argument.place, concerns)? {
+                    StructuralPlaceKind::Parameter { .. }
+                    | StructuralPlaceKind::OperationResult { .. } => Lender::Owner,
+                    _ => {
+                        return Err(self.unsupported(
+                            concerns,
+                            "a loan of storage that is neither a formal nor a result",
+                        ));
+                    }
+                }
+            };
+            let kind = ObligationKind::Loan {
+                captured: place,
+                access,
+                lender,
+            };
+            let (obligation, row) = tables
+                .obligations
+                .iter()
+                .find(|(obligation, row)| row.kind == kind && !claimed[index(obligation.get())])
+                .ok_or_else(|| self.foreign(concerns, "a loan the call forms has no row"))?;
+            if row.created_at != before {
+                return Err(self.foreign(
+                    Construct::Obligation(obligation),
+                    "a loan is not created at the point before its call",
+                ));
+            }
+            claimed[index(obligation.get())] = true;
+            formed.push(Formed {
+                obligation,
+                invocation,
+                position,
+                access,
+                lineage: lent,
+                parent: parent.and_then(reference_access),
+            });
+        }
+        Ok(())
     }
 
     /// The verdict on every `Loan` row, and each conflict found. A loan
@@ -259,10 +342,10 @@ impl Storage<'_> {
     /// refusal, listed once in the conflicts with what it conflicts with.
     pub(crate) fn loans(
         &self,
-        machines: &[TerminalMachine],
+        module: &TerminalModule,
         tables: &MachineTables,
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
-        let formed = self.formed(machines, tables)?;
+        let formed = self.formed(module, tables)?;
         let mut verdicts = Vec::with_capacity(formed.len());
         let mut conflicts = Vec::new();
         for (at, loan) in formed.iter().enumerate() {

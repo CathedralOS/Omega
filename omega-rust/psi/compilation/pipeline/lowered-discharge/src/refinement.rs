@@ -74,3 +74,96 @@ pub fn prove_callable_refinement<'a>(
     }
     Ok(())
 }
+
+/// Complete the catalog's retained proof questions without any source-checker
+/// hypotheses. Existing certificates are replayed rather than replaced, so a
+/// malformed imported proof never becomes a freshly trusted construction.
+pub fn finalize_callable_refinements(module: &mut terminal_psi::TerminalModule) -> Checked<()> {
+    use terminal_semantics::calls::callable_refinement::{
+        callable_refinement_context, descriptor_refinement_goals,
+        validate_callable_evidence_contracts_in, validate_descriptor_refinement_evidence,
+    };
+    let mut prepared = Vec::with_capacity(module.callables.descriptors.len());
+    for descriptor in &module.callables.descriptors {
+        let refuse = |reason, detail: &str| {
+            crate::refusal(reason, descriptor.machine, Construct::Machine, detail)
+        };
+        let goals = descriptor_refinement_goals(module, descriptor.id)
+            .map_err(|detail| refuse(RefusalReason::ForeignIdentity, detail))?;
+        if !descriptor.refinement_evidence.is_empty() {
+            // Receiving admission below authenticates the exact retained
+            // questions and certificates, including their identity and count.
+            continue;
+        }
+        let context = callable_refinement_context(module, descriptor.contract)
+            .map_err(|detail| refuse(RefusalReason::ForeignIdentity, detail))?;
+        let contract = module
+            .callables
+            .contract(descriptor.contract)
+            .ok_or_else(|| {
+                refuse(
+                    RefusalReason::ForeignIdentity,
+                    "descriptor has no callable contract",
+                )
+            })?;
+        let declarations = contract
+            .scalar_parameters
+            .iter()
+            .chain(&contract.proof.erased_scalar_formals)
+            .chain(contract.proof_result.scalar_ref())
+            .map(|formal| (formal.id, formal.scalar_type))
+            .collect::<Vec<_>>();
+        let certificates = goals
+            .into_iter()
+            .map(|(id, goal)| {
+                crate::derive_contract_obligation(&context, id, &goal.proposition, &declarations)
+                    .map_err(|detail| {
+                        refuse(
+                            RefusalReason::Unproved(
+                                terminal_check_tables::UnprovedCause::NoDerivation,
+                            ),
+                            detail,
+                        )
+                    })
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        prepared.push((descriptor.id, certificates));
+    }
+    if let Some(descriptor) = module.callables.descriptors.first() {
+        validate_callable_evidence_contracts_in(
+            &module.callables,
+            &module.proposition_declarations,
+            &module.proposition_applications,
+            &module.evidence_terms,
+            &module.evidence_contract_lanes,
+        )
+        .map_err(|detail| {
+            crate::refusal(
+                RefusalReason::ForeignIdentity,
+                descriptor.machine,
+                Construct::Machine,
+                detail,
+            )
+        })?;
+    }
+    for (id, certificates) in prepared {
+        let descriptor = module
+            .callables
+            .descriptors
+            .iter_mut()
+            .find(|row| row.id == id)
+            .expect("prepared descriptors remain in the borrowed catalog");
+        descriptor.refinement_evidence = certificates;
+    }
+    if let Some(descriptor) = module.callables.descriptors.first() {
+        validate_descriptor_refinement_evidence(module).map_err(|detail| {
+            crate::refusal(
+                RefusalReason::ForeignIdentity,
+                descriptor.machine,
+                Construct::Machine,
+                detail,
+            )
+        })?;
+    }
+    Ok(())
+}

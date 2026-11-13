@@ -121,11 +121,11 @@ pub(crate) struct Declared<'a> {
 /// primitive structural type, so each scalar type such a local has is
 /// declared too, after the records, as the current pipeline declares it:
 /// copyable, with no cleanup and no claim.
-pub(crate) fn declare<'a>(
+pub(crate) fn declare<'a, 'b>(
     entry: MachineId,
     types: &'a IdTable<StructuralTypeId, RecordType>,
-    bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
+    bodies: &'b IdTable<MachineId, Body>,
+    signatures: impl Iterator<Item = &'b Signature>,
 ) -> Checked<Declared<'a>> {
     let mut identities = TerminalIdentityTableBuilder::default();
     let mut field_identities = IdTable::default();
@@ -241,7 +241,7 @@ pub(crate) fn declare<'a>(
     // the place of a borrowed scalar formal. Each needs its primitive type
     // declared once, with the text identity the typed trees gave it.
     let mut homes: Vec<(ScalarType, Option<&String>)> = Vec::new();
-    for (_, signature) in signatures.iter() {
+    for signature in signatures {
         for borrowed in &signature.borrowed {
             if let Some(ValueType::Scalar(scalar_type)) =
                 signature.parameters.get(borrowed.position).copied()
@@ -355,7 +355,10 @@ fn expression_homes<'b>(
     homes: &mut Vec<(ScalarType, Option<&'b String>)>,
 ) {
     match &expression.kind {
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {}
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Slot(_) => {}
         ExpressionKind::Borrow { place, home, .. } => {
             if let (Some(home), Some(ValueType::Scalar(scalar_type))) = (home, place.result) {
                 homes.push((scalar_type, Some(home)));
@@ -393,7 +396,10 @@ fn expression_homes<'b>(
             expression_homes(left, homes);
             expression_homes(right, homes);
         }
-        ExpressionKind::Call { arguments, .. } => {
+        ExpressionKind::Call { callee, arguments } => {
+            if let crate::body::CallTarget::Selected { callable, .. } = callee {
+                expression_homes(callable, homes);
+            }
             for argument in arguments {
                 expression_homes(argument, homes);
             }
@@ -836,7 +842,7 @@ impl<'a> Lowering<'a> {
                 })
             }
             ExpressionKind::Call { callee, arguments } => {
-                match self.call(*callee, arguments, expression.result, expression.source)? {
+                match self.call(callee, arguments, expression.result, expression.source)? {
                     Value::Record(root) => Ok(Located {
                         root,
                         place: self.exact_root(root)?,
@@ -851,6 +857,7 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
+            | ExpressionKind::MachineValue { .. }
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::Match { .. }
             | ExpressionKind::Strict { .. }

@@ -48,7 +48,7 @@ pub(crate) fn unproved(
                 .get(invocation)
                 .and_then(|row| match row.callee {
                     Callee::Machine(callee) => Some(callee),
-                    Callee::Selected { .. } => None,
+                    Callee::Selected { .. } | Callee::Boundary { .. } => None,
                 });
             let callee_names = callee.and_then(|callee| elaboration.names.get(callee));
             let text = callee_names.and_then(|callee_names| {
@@ -239,7 +239,7 @@ fn crash_coverage(
         })
         .and_then(|(_, row)| match row.callee {
             Callee::Machine(callee) => elaboration.names.get(callee),
-            Callee::Selected { .. } => None,
+            Callee::Selected { .. } | Callee::Boundary { .. } => None,
         });
     match callee {
         Some(callee) => format!(

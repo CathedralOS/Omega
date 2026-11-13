@@ -134,6 +134,28 @@ impl Lowering<'_> {
                     OperationKind::BooleanConstant { value: *value },
                 )
             }
+            ExpressionKind::MachineValue {
+                contract,
+                descriptor,
+            } => {
+                if result != Some(ScalarType::Callable(*contract))
+                    || self
+                        .callables
+                        .descriptors
+                        .get(*descriptor)
+                        .is_none_or(|selection| selection.contract != *contract)
+                {
+                    return Err(self.internal("machine construction changes its retained contract"));
+                }
+                let operation = self.operation_identity(source);
+                self.emit(
+                    operation,
+                    result,
+                    OperationKind::SelectMachine {
+                        descriptor: *descriptor,
+                    },
+                )
+            }
             ExpressionKind::Slot(slot) => {
                 let bound = *self.slot_mut(*slot)?;
                 match bound {
@@ -228,7 +250,7 @@ impl Lowering<'_> {
                 right,
             } => self.short_circuit(*conjunction, left, right),
             ExpressionKind::Call { callee, arguments } => {
-                self.call(*callee, arguments, expression.result, source)
+                self.call(callee, arguments, expression.result, source)
             }
         }
     }

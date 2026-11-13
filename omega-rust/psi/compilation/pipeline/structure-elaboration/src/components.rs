@@ -24,8 +24,8 @@ use terminal_check_tables::{Checked, Construct};
 use terminal_psi::CrashRouteGuard;
 
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
-    ValueType,
+    Body, CallTarget, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target,
+    Termination, ValueType,
 };
 use crate::{Unserved, refuse};
 
@@ -196,22 +196,37 @@ fn target(target: &Target, sites: &mut Vec<CallSite>) {
         Target::Unit | Target::Crash(_) => {}
         Target::Value(value) => match &value.kind {
             ExpressionKind::Call { callee, arguments } => {
-                for argument in arguments {
-                    expression(argument, sites);
-                }
-                sites.push(CallSite {
-                    callee: *callee,
-                    terminal: true,
-                });
+                call(callee, arguments, true, sites);
             }
             _ => expression(value, sites),
         },
     }
 }
 
+fn call(callee: &CallTarget, arguments: &[Expression], terminal: bool, sites: &mut Vec<CallSite>) {
+    if let Some(operand) = callee.operand() {
+        expression(operand, sites);
+    }
+    for argument in arguments {
+        expression(argument, sites);
+    }
+    // These components lower statically named tail transfers to local jumps.
+    // A value call stays an invocation with its retained contract; selecting
+    // code is not an edge, and no eligible-body list substitutes for it.
+    if let CallTarget::Machine(callee) = callee {
+        sites.push(CallSite {
+            callee: *callee,
+            terminal,
+        });
+    }
+}
+
 fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
     match &value.kind {
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {}
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::MachineValue { .. }
+        | ExpressionKind::Slot(_) => {}
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
@@ -245,13 +260,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
             expression(right, sites);
         }
         ExpressionKind::Call { callee, arguments } => {
-            for argument in arguments {
-                expression(argument, sites);
-            }
-            sites.push(CallSite {
-                callee: *callee,
-                terminal: false,
-            });
+            call(callee, arguments, false, sites);
         }
     }
 }
@@ -266,9 +275,10 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             return true;
         }
         match &value.kind {
-            ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) | ExpressionKind::Slot(_) => {
-                false
-            }
+            ExpressionKind::Integer(_)
+            | ExpressionKind::Boolean(_)
+            | ExpressionKind::MachineValue { .. }
+            | ExpressionKind::Slot(_) => false,
             ExpressionKind::Record { .. }
             | ExpressionKind::Field { .. }
             | ExpressionKind::Case { .. }
@@ -281,7 +291,9 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::Cast(operand) => stored(operand),
             ExpressionKind::Strict { left, right, .. }
             | ExpressionKind::ShortCircuit { left, right, .. } => stored(left) || stored(right),
-            ExpressionKind::Call { arguments, .. } => arguments.iter().any(stored),
+            ExpressionKind::Call { callee, arguments } => {
+                callee.operand().is_some_and(stored) || arguments.iter().any(stored)
+            }
         }
     }
     fn arm(target: &Target) -> bool {

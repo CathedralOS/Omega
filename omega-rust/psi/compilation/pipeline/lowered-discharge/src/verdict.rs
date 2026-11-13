@@ -369,7 +369,8 @@ fn conflict_statement(
         .get(conflict.invocation)
         .and_then(|row| match row.callee {
             terminal_check_tables::edges::Callee::Machine(callee) => Some(callee),
-            terminal_check_tables::edges::Callee::Selected { .. } => None,
+            terminal_check_tables::edges::Callee::Selected { .. }
+            | terminal_check_tables::edges::Callee::Boundary { .. } => None,
         })
         .and_then(|callee| elaboration.names.get(callee))
         .map(|names| names.machine.clone())

@@ -58,7 +58,7 @@ pub fn reverify(
             )
         })?;
     let prepared = crate::prepare(
-        &module.machines,
+        module,
         &module.structural_types,
         domains,
         machine,
@@ -82,7 +82,7 @@ pub fn reverify(
         &prepared.types,
     )?;
     let goal = crate::goal(
-        &module.machines,
+        module,
         lowered,
         &storage,
         machine,
@@ -134,7 +134,9 @@ pub fn reverify_at_call(
         Construct::Machine,
     )?;
     let row = terminal_check_tables::row(&tables.invocations, invocation, caller, concerns)?;
-    let callee = crate::callee(caller, invocation, &row.callee)?;
+    let lowered = crate::terminal_machine(&elaboration.module.machines, caller, caller)?;
+    let call =
+        crate::call_contracts::invocation(&elaboration.module, lowered, tables, invocation, row)?;
     let actuals = crate::scalar_actuals(&row.actuals);
     let verdicts =
         &terminal_check_tables::row(&discharge.machines, caller, caller, Construct::Machine)?
@@ -147,10 +149,10 @@ pub fn reverify_at_call(
             ));
         }
     }
-    let contract = &crate::terminal_machine(&elaboration.module.machines, callee, caller)?.contract;
+    let contract = &call.contract;
     let ensures = usize::try_from(clause)
         .ok()
-        .and_then(|clause| contract.ensures.get(clause))
+        .and_then(|clause| contract.ensures.clause(clause))
         .ok_or_else(|| {
             refuse(
                 RefusalReason::ForeignIdentity,
@@ -681,7 +683,7 @@ pub fn reverify_specialization(
             )
         })?;
     let prepared = crate::prepare(
-        &module.machines,
+        module,
         &module.structural_types,
         domains,
         specialization,
@@ -742,7 +744,7 @@ pub fn reverify_specialization(
         }
         let verdict = (|| {
             let goal = crate::goal(
-                &module.machines,
+                module,
                 lowered,
                 &storage,
                 specialization,

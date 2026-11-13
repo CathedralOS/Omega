@@ -390,8 +390,12 @@ impl Storage<'_> {
             OperationKind::PrimitiveScalarRead { .. }
             | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanStructuralField { .. }
-            | OperationKind::StructuralCaseMembership { .. } => {}
-            kind if kind.module_invocation().is_some() => {
+            | OperationKind::StructuralCaseMembership { .. }
+            | OperationKind::SelectMachine { .. } => {}
+            kind if kind.module_invocation().is_some()
+                || kind.callable_invocation().is_some()
+                || matches!(kind, OperationKind::BoundaryCall { .. }) =>
+            {
                 if produced.is_some() {
                     rows.push((fresh()?, Stored::Returned));
                 }

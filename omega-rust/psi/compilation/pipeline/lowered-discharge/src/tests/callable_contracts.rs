@@ -156,6 +156,27 @@ fn callable_refinement_proves_input_weakening_and_remaps_result_formals() {
 }
 
 #[test]
+fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
+    let mut module = refinement_module();
+    crate::finalize_callable_refinements(&mut module).unwrap();
+    assert!(
+        !module.callables.descriptors[0]
+            .refinement_evidence
+            .is_empty()
+    );
+    let retained = module.callables.descriptors[0].refinement_evidence.clone();
+    crate::finalize_callable_refinements(&mut module).unwrap();
+    assert_eq!(
+        module.callables.descriptors[0].refinement_evidence,
+        retained
+    );
+    module.callables.descriptors[0].refinement_evidence[0]
+        .proof
+        .conclusion = Proposition::Falsehood;
+    assert!(crate::finalize_callable_refinements(&mut module).is_err());
+}
+
+#[test]
 fn callable_refinement_refuses_weaker_outputs_and_unpermitted_crashes() {
     let mut module = refinement_module();
     module.callables.descriptors[0].refinement_evidence = derive_refinements(&module).unwrap();

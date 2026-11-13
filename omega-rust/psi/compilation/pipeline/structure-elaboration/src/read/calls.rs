@@ -13,7 +13,7 @@ use typed_trees::statement::TableCall;
 
 use super::expressions::names_storage;
 use super::{Program, Slot, symbol_kind};
-use crate::body::{Expression, ExpressionKind, ValueType};
+use crate::body::{CallTarget, Expression, ExpressionKind, Signature, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl<'t> Program<'t> {
@@ -21,7 +21,7 @@ impl<'t> Program<'t> {
     /// static or selected arguments, bindings, lifetimes, inputs, conformance
     /// or contract source. Stage 03 records one for every authored call; one
     /// that applies anything is a generic or static call and is refused.
-    fn applies_nothing(
+    pub(super) fn applies_nothing(
         &self,
         id: MachineId,
         target: SymbolHandle,
@@ -31,6 +31,12 @@ impl<'t> Program<'t> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if !machine_arguments.is_empty() {
             return unserved("static machine arguments");
+        }
+        if !target.is_valid() {
+            return unserved("callee without a declaration symbol");
+        }
+        if self.boundary_application_is_empty(id, target, application)? {
+            return Ok(());
         }
         if !application.is_valid() {
             return Ok(());
@@ -159,12 +165,13 @@ impl<'t> Program<'t> {
     /// value of the type, so no receiver is passed. Any other qualifier or
     /// receiver stays refused.
     pub(super) fn names_carrier(&self, target: SymbolHandle, qualifier: SymbolHandle) -> bool {
-        qualifier.is_valid()
-            && target.is_valid()
-            && self
-                .entered_machine(target)
-                .and_then(|machine| self.typed.machine_by_symbol(machine))
-                .is_some_and(|machine| machine.attached_data_symbol == qualifier)
+        self.names_boundary_carrier(target, qualifier)
+            || (qualifier.is_valid()
+                && target.is_valid()
+                && self
+                    .entered_machine(target)
+                    .and_then(|machine| self.typed.machine_by_symbol(machine))
+                    .is_some_and(|machine| machine.attached_data_symbol == qualifier))
     }
 
     /// A call is direct only when its authored selection, if recorded,
@@ -185,6 +192,9 @@ impl<'t> Program<'t> {
         // The author named a declaration; where stage 04 generated the
         // machine a static application of it selects, the call targets that
         // generated machine and the selection still names the declaration.
+        if !target.is_valid() {
+            return unserved("callee without a declaration symbol");
+        }
         let generated = self.typed.symbols.get(target).generated_from;
         let names_target = |symbol: SymbolHandle| {
             symbol == target || (generated.is_valid() && symbol == generated)
@@ -234,6 +244,31 @@ impl<'t> Program<'t> {
         call: &TableCall,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if let Some(runtime) = call.runtime_call {
+            if !call.machine_arguments.is_empty()
+                || !call.evidence_arguments.is_empty()
+                || call.installed_interrupt_operation.is_some()
+                || call.static_requirement_dispatch.is_some()
+                || call.static_machine_parameter.is_valid()
+                || call.operational_acknowledgement.acknowledges_suspend
+                || call.operational_acknowledgement.acknowledges_block
+            {
+                return unserved(
+                    "runtime call with static dispatch, evidence or operational acknowledgement",
+                );
+            }
+            let arguments = self
+                .typed
+                .statement_table
+                .expression_handles(call.arguments);
+            return self.runtime_call(
+                id,
+                slots,
+                runtime,
+                arguments,
+                SourceOrigin::of(call.source_span),
+            );
+        }
         if call.installed_interrupt_operation.is_some()
             || call.static_requirement_dispatch.is_some()
             || call.reflected_field_origin.is_some()
@@ -288,6 +323,25 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if let Some(runtime) = call.runtime_call {
+            if !call.machine_arguments.is_empty()
+                || !call.evidence_arguments.is_empty()
+                || call.installed_interrupt_operation.is_some()
+                || call.static_requirement_dispatch.is_some()
+                || call.static_machine_parameter.is_valid()
+                || call.operational_acknowledgement.acknowledges_suspend
+                || call.operational_acknowledgement.acknowledges_block
+            {
+                return unserved(
+                    "runtime call with static dispatch, evidence or operational acknowledgement",
+                );
+            }
+            let arguments = self
+                .typed
+                .expression_table
+                .expression_handles(call.arguments);
+            return self.runtime_call(id, slots, runtime, arguments, source);
+        }
         if call.installed_interrupt_operation.is_some() {
             return unserved("installed interrupt operation");
         }
@@ -456,7 +510,11 @@ impl<'t> Program<'t> {
             return unserved("requirement dispatch that targets another machine");
         };
         let read = self.call(id, slots, target, arguments, source)?;
-        if let ExpressionKind::Call { callee, .. } = &read.kind {
+        if let ExpressionKind::Call {
+            callee: CallTarget::Machine(callee),
+            ..
+        } = &read.kind
+        {
             self.selections.push(crate::Selected {
                 caller: id,
                 parameter: dispatch.evidence_parameter,
@@ -614,6 +672,9 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        if call.runtime_call.is_some() {
+            return unserved("runtime value in a static generic call adapter");
+        }
         if call.installed_interrupt_operation.is_some()
             || call.static_requirement_dispatch.is_some()
             || call.build_selection.is_valid()
@@ -719,6 +780,16 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("callee without a symbol"),
             ));
         }
+        if let Some((boundary, signature)) = self.boundary_call(id, target)? {
+            return self.call_with_signature(
+                id,
+                slots,
+                CallTarget::Boundary(boundary),
+                signature,
+                arguments,
+                source,
+            );
+        }
         // A call names its callee's entry state; the machine is that state's
         // symbol parent, and must have exactly that one state.
         let machine = match self.typed.symbols.get(target).kind {
@@ -795,7 +866,76 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let signature =
-            terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;
+            terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?.clone();
+        self.call_with_signature(
+            id,
+            slots,
+            CallTarget::Machine(callee),
+            signature,
+            arguments,
+            source,
+        )
+    }
+
+    fn runtime_call(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        runtime: typed_trees::callable_values::RuntimeCallBinding,
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let scalar_type = self.callable_type(id, runtime.contract)?;
+        let semantic_vocabulary::ScalarType::Callable(contract) = scalar_type else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("runtime call has no callable contract"),
+            ));
+        };
+        let callable = self.expression(id, slots, runtime.callee, Some(scalar_type))?;
+        if callable.result != Some(ValueType::Scalar(scalar_type)) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("runtime callee contract differs from the call"),
+            ));
+        }
+        let signature = self
+            .callables
+            .contracts
+            .get(contract)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("runtime callable contract is missing"),
+                )
+            })?
+            .signature
+            .clone();
+        self.call_with_signature(
+            id,
+            slots,
+            CallTarget::Selected {
+                callable: Box::new(callable),
+                contract,
+            },
+            signature,
+            arguments,
+            source,
+        )
+    }
+
+    pub(super) fn call_with_signature(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        callee: CallTarget,
+        signature: Signature,
+        arguments: &[ExpressionHandle],
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
         let formals: Vec<_> = signature
             .parameters
             .iter()
@@ -854,8 +994,6 @@ impl<'t> Program<'t> {
                 names.loans.push((span, position, lender));
             }
         }
-        let signature =
-            terminal_check_tables::row(&self.signatures, callee, id, Construct::Machine)?;
         if signature.parameters.len() != read.len()
             || signature
                 .parameters
@@ -1025,7 +1163,9 @@ fn lent_storage_is_untouched(id: MachineId, arguments: &[Expression]) -> Checked
 fn mentions(expression: &Expression, slots: &[usize]) -> bool {
     match &expression.kind {
         ExpressionKind::Slot(slot) => slots.contains(slot),
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) => false,
+        ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_)
+        | ExpressionKind::MachineValue { .. } => false,
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
@@ -1051,8 +1191,11 @@ fn mentions(expression: &Expression, slots: &[usize]) -> bool {
         | ExpressionKind::ShortCircuit { left, right, .. } => {
             mentions(left, slots) || mentions(right, slots)
         }
-        ExpressionKind::Call { arguments, .. } => {
-            arguments.iter().any(|argument| mentions(argument, slots))
+        ExpressionKind::Call { callee, arguments } => {
+            callee
+                .operand()
+                .is_some_and(|operand| mentions(operand, slots))
+                || arguments.iter().any(|argument| mentions(argument, slots))
         }
     }
 }

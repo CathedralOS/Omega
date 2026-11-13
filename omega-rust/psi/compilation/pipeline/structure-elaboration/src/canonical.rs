@@ -129,7 +129,7 @@ pub(crate) fn routes(
 /// derived from the pinned callee contract using exact actuals. ... Empty or
 /// untranslated continuation rows cannot erase a crash." No route is dropped
 /// here; disproving one is the checker's work.
-pub(crate) fn substituted_routes(
+pub fn substituted_routes(
     routes: &[CrashRouteBucket],
     actuals: &[ValueId],
     id: MachineId,

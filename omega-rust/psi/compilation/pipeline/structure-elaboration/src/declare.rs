@@ -199,3 +199,100 @@ fn nominal(
         .filter(|text| !text.is_empty())
         .ok_or("the declaration has no exact package or toolchain owner")
 }
+
+/// A bodyless requirement keeps the declaration identities and formal types the
+/// reader resolved. Publication only adds the lowered public contract digest.
+#[derive(Debug, Clone)]
+pub(crate) struct BoundaryDeclarationSource {
+    pub callable: String,
+    pub owner: String,
+    machine: String,
+    state: String,
+    semantic: String,
+    parameter_types: Vec<String>,
+    parameter_modes: Vec<(bool, bool, language_core::BindingRelevance)>,
+    result_type: String,
+    may_suspend: bool,
+    may_block: bool,
+}
+
+pub(crate) fn boundary_source(
+    typed: &TypedTrees,
+    source: SymbolHandle,
+    owner: SymbolHandle,
+    signature: &typed_trees::signature::StateSignature,
+    callable: String,
+) -> Result<BoundaryDeclarationSource, &'static str> {
+    let sources =
+        source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            .map_err(|_| "a boundary toolchain source has no exact identity")?;
+    if callable.is_empty() {
+        return Err("the boundary has no callable identity");
+    }
+    let formals = typed
+        .state_parameters
+        .span(signature.parameters)
+        .ok_or("the boundary parameter span does not resolve")?;
+    let type_text = |reference| {
+        typed
+            .type_identity_text(typed.package_qualified_type_identity(reference))
+            .filter(|text| !text.is_empty())
+            .ok_or("a boundary signature type has no exact identity")
+    };
+    Ok(BoundaryDeclarationSource {
+        callable,
+        owner: nominal(typed, &sources, owner)?,
+        machine: nominal(typed, &sources, source)?,
+        state: nominal(typed, &sources, signature.symbol)?,
+        semantic: typed
+            .normalized_hermetic_symbol_identity(source)
+            .map_err(|_| "the boundary has no hermetic declaration identity")?,
+        parameter_types: formals
+            .iter()
+            .map(|formal| type_text(formal.type_reference))
+            .collect::<Result<Vec<_>, _>>()?,
+        parameter_modes: formals
+            .iter()
+            .map(|formal| (formal.is_mutable, formal.is_const, formal.relevance))
+            .collect(),
+        result_type: type_text(signature.return_type)?,
+        may_suspend: signature.suspends,
+        may_block: signature.blocks,
+    })
+}
+
+pub(crate) fn boundary_declaration(
+    source: &BoundaryDeclarationSource,
+    signature: &Signature,
+    proof: &terminal_psi::MachineContract,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> CheckedMachineDeclaration {
+    let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
+    source.callable.hash(&mut commitment);
+    for (mode, type_text) in source.parameter_modes.iter().zip(&source.parameter_types) {
+        (mode.0, mode.1, mode.2, type_text).hash(&mut commitment);
+    }
+    source.result_type.hash(&mut commitment);
+    proof.requires.hash(&mut commitment);
+    for clause in &proof.ensures {
+        clause.proposition.hash(&mut commitment);
+    }
+    proof.crash_routes.hash(&mut commitment);
+    signature.termination.hash(&mut commitment);
+    CheckedMachineDeclaration {
+        machine: NominalDeclarationIdentity::new(identities.intern(&source.machine)),
+        state: NominalDeclarationIdentity::new(identities.intern(&source.state)),
+        semantic_declaration: identities.intern(&source.semantic),
+        parameter_types: source
+            .parameter_types
+            .iter()
+            .map(|identity| identities.intern(identity))
+            .collect(),
+        callable: identities.intern(&source.callable),
+        result_type: identities.intern(&source.result_type),
+        contract: commitment.0.finish(),
+        published_may_suspend: source.may_suspend,
+        published_may_block: source.may_block,
+        specialization: None,
+    }
+}

@@ -97,7 +97,7 @@ fn describe_calls(
     // untouched. No typed trees or completed proof products are copied.
     let mut tables = original.clone();
     let prepared = prepare(
-        &elaboration.module.machines,
+        &elaboration.module,
         &elaboration.module.structural_types,
         &elaboration.domains,
         id,
@@ -128,7 +128,7 @@ fn describe_calls(
         .collect::<Vec<_>>();
     joins::check(
         &joins::Machine {
-            machines: &elaboration.module.machines,
+            module: &elaboration.module,
             lowered,
             storage: &storage,
             id,
@@ -391,6 +391,11 @@ pub(crate) fn describe(
         .collect();
     let mut parts = Vec::new();
     for (name, here) in crossing {
+        // Callable identity and selection have no mathematical equality.
+        // Its declared type crosses independently of inferred predicates.
+        if matches!(name.scalar_type(), ScalarType::Callable(_)) {
+            continue;
+        }
         let definition = joins::unfold(
             &ScalarTerm::value(*here, name.scalar_type()),
             &definitions,

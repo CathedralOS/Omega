@@ -46,7 +46,10 @@ Gaps found against the contract are listed in the crate README, "Findings".
 */
 
 mod body;
+mod boundaries;
+mod callables;
 mod canonical;
+pub use canonical::substituted_routes as substituted_call_routes;
 mod components;
 mod declare;
 mod lower;
@@ -524,7 +527,7 @@ fn elaborate_witness_call(
     let source = SourceOrigin::Unpositioned(Unpositioned::ConformanceWitness);
     let call = Expression {
         kind: ExpressionKind::Call {
-            callee,
+            callee: callee.into(),
             arguments: required
                 .parameters
                 .iter()
@@ -585,13 +588,17 @@ fn finish_reading(
     }
     let private_inputs = program.private_input_contracts(entry)?;
     let local_results = program.local_result_bodies(entry)?;
-    let mut elaboration = lower_generic(
+    program.finish_operational_envelopes(&bodies)?;
+    let mut elaboration = lower_program(
         entry,
         &bodies,
         &program.signatures,
         &program.records,
         &program.requirements,
+        &program.callables,
+        &program.boundaries,
     )?;
+    read::services::publish_catalog(program.typed, entry, &mut elaboration.module)?;
     if let Some(typed) = declared {
         declare::declare(
             typed,
@@ -650,6 +657,26 @@ pub fn lower_generic(
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
 ) -> Checked<Elaboration> {
+    lower_program(
+        entry,
+        bodies,
+        signatures,
+        records,
+        requirements,
+        &callables::CallableNamespace::default(),
+        &boundaries::BoundaryNamespace::default(),
+    )
+}
+
+fn lower_program(
+    entry: MachineId,
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+    records: &IdTable<StructuralTypeId, RecordType>,
+    requirements: &[MachineId],
+    callables: &callables::CallableNamespace,
+    boundaries: &boundaries::BoundaryNamespace,
+) -> Checked<Elaboration> {
     for requirement in requirements {
         let body = terminal_check_tables::row(bodies, *requirement, entry, Construct::Machine)?;
         if !body.statements.is_empty() {
@@ -661,12 +688,22 @@ pub fn lower_generic(
         }
     }
     let components = components::components(bodies, signatures)?;
-    let outcomes = outcome::outcomes(bodies, signatures, requirements)?;
+    let outcomes = outcome::outcomes(bodies, signatures, requirements, callables, boundaries)?;
     let mut module = TerminalModule::for_entry(entry);
     // Terminal Psi declares each record type once for the module, with the
     // interned identity its declaration form requires. A module with no
     // record declares none and keeps the empty identity table.
-    let declared = lower::places::declare(entry, records, bodies, signatures)?;
+    let declared = lower::places::declare(
+        entry,
+        records,
+        bodies,
+        signatures.values().chain(
+            callables
+                .contracts
+                .values()
+                .map(|contract| &contract.signature),
+        ),
+    )?;
     if !declared.structural_types.is_empty() {
         module.identities = declared.identities;
         module.structural_types = declared.structural_types;
@@ -690,6 +727,8 @@ pub fn lower_generic(
             signatures,
             &outcomes,
             &declared.records,
+            callables,
+            boundaries,
             requirements.contains(&id),
         )?;
         module.machines.push(lowered.machine);
@@ -699,6 +738,23 @@ pub fn lower_generic(
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
     }
+    boundaries.publish(
+        entry,
+        signatures,
+        &outcomes,
+        &declared.records,
+        callables,
+        &mut module,
+    )?;
+    callables.publish(
+        entry,
+        signatures,
+        &outcomes,
+        &declared.records,
+        boundaries,
+        &tables,
+        &mut module,
+    )?;
     let mut domains = IdTable::default();
     for (_, record) in records.iter() {
         domains.push(record.requires.clone());
