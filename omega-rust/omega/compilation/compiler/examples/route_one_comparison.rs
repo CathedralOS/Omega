@@ -314,6 +314,7 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
         let compilation = structure_elaboration::Compilation {
             entries: &frontier.entries,
             subjects: &[frontier.subject],
+            purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         };
