@@ -2485,13 +2485,18 @@ mod direct {
             if !matches!(
                 binary.operator,
                 BinaryOperator::Equal | BinaryOperator::NotEqual
-            ) || !crate::shared::authored_selections::typed_operator_has_no_authored_selection(
-                program, expression,
             ) {
                 return None;
             }
             for (operand, literal) in [(binary.left, binary.right), (binary.right, binary.left)] {
                 if let Some(literal) = program.expression_table.boolean_node(literal) {
+                    // Only a Boolean literal can supply this premise. Resolve
+                    // operator authority after that necessary condition holds.
+                    if !crate::shared::authored_selections::typed_operator_has_no_authored_selection(
+                        program, expression,
+                    ) {
+                        return None;
+                    }
                     return Some((
                         operand,
                         (*literal == value) == (binary.operator == BinaryOperator::Equal),
