@@ -727,29 +727,16 @@ fn copy_type(
     }
     let mut staging = TypedTreeTables::default();
     let mut embedded = Vec::new();
-    let staged = staging.type_reference_table.copy_with_expressions(
-        &program.type_reference_table,
-        &program.expression_table,
-        &mut staging.expression_table,
-        reference,
-        &mut embedded,
-    );
+    let staged =
+        staging.copy_type_reference_with_expressions(&program.tables, reference, &mut embedded);
     if !embedded.is_empty() {
         return Err(Stop::Defect(
             "a type copied for a generated machine holds an expression",
         ));
     }
     let tables = &mut program.tables;
-    let copied = tables.type_reference_table.copy_with_expressions(
-        &staging.type_reference_table,
-        &staging.expression_table,
-        &mut tables.expression_table,
-        staged,
-        &mut embedded,
-    );
-    tables
-        .type_reference_table
-        .remap_symbols_in(copied, &mut tables.expression_table, symbols);
+    let copied = tables.copy_type_reference_with_expressions(&staging, staged, &mut embedded);
+    tables.remap_type_reference_symbols_in(copied, symbols);
     Ok(copied)
 }
 
@@ -783,13 +770,7 @@ fn holds_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) ->
     let mut staging = TypedTreeTables::default();
     let mut embedded = Vec::new();
     for reference in references.iter().filter(|reference| reference.is_valid()) {
-        staging.type_reference_table.copy_with_expressions(
-            &program.type_reference_table,
-            &program.expression_table,
-            &mut staging.expression_table,
-            *reference,
-            &mut embedded,
-        );
+        staging.copy_type_reference_with_expressions(&program.tables, *reference, &mut embedded);
     }
     !embedded.is_empty()
 }

@@ -357,6 +357,7 @@ impl Program<'_> {
                                     _ => {
                                         let Some(ValueType::Scalar(
                                             semantic_vocabulary::ScalarType::Callable(contract),
+                                            _,
                                         )) = actual.result
                                         else {
                                             return Err(unavailable(
