@@ -1,12 +1,10 @@
 /*
 Compiler-boundary assembly of `PackageReviewEvidence` (`project_package_review`).
 
-We verify that the build handoff's package identity, source consumption
-commitment, and selection observation match the checked compilation, project
-`PackagePolicyBaseline`, enforce `maximum_policy_canonical_bytes` before
-nominating semantic bindings (`candidate_service_bindings` and
-`candidate_hosted_exit_bindings`), and return the inert review capsule without
-granting consumer permissions.
+We retain the build handoff's exact package, source-consumption, observation,
+and target checks. Policy projection then refuses until the accepted route
+publishes its contract custody; these metadata checks do not manufacture a
+review capsule or grant consumer permissions.
 */
 
 use crate::SemanticBindingProjectionError;
