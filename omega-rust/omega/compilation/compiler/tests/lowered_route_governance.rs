@@ -20,8 +20,8 @@ mod fixture_package_inputs;
 use fixture_package_inputs::{
     FixtureFrontierCheck, check_fixture_keeping_typed_frontier, repo_root,
 };
-use lowered_discharge::{RouteVerdict, judge};
-use structure_elaboration::{Compilation, elaborate};
+use lowered_discharge::{RouteVerdict, judge_compilation};
+use structure_elaboration::Compilation;
 
 /// Kept in step with `compiler`'s `lowered_route::NO_PRODUCT_ROUTE`.
 const NO_PRODUCT_ROUTE: &str = "no product route yet";
@@ -50,7 +50,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
     else {
         panic!("{fixture}: the compilation must be rejected after Psi 04");
     };
-    let verdict = judge(elaborate(
+    let mut verdicts = judge_compilation(
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
@@ -58,8 +58,16 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
-    ))
-    .expect("the route reaches a verdict");
+    )
+    .into_iter();
+    let verdict = verdicts
+        .next()
+        .expect("the compilation has a primary judgment")
+        .expect("the route reaches a verdict");
+    assert!(
+        verdicts.next().is_none(),
+        "these fixtures have no generic check forms"
+    );
     (
         diagnostics
             .into_iter()
@@ -97,15 +105,24 @@ fn a_rejection_both_checkers_make_is_reported_as_the_route_reports_it() {
     );
 }
 
-/// The route accepts, but the current checker's rejection is the entry
-/// contract's (a bound entry that returns a value, placed at the binding in
-/// the Build program), which the current checker judges. Its verdict stands.
+/// A bound entry that returns a value fails both the current entry check and
+/// the route's source-owned calling shape. The current rejection stands and
+/// the route's independently established diagnostic remains visible.
 #[test]
-fn a_rejection_the_build_program_owns_keeps_the_current_verdict_even_when_the_route_accepts() {
+fn an_invalid_bound_entry_reports_both_checkers_rejections() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (messages, verdict) =
         rejected("tests/omega/fail/build/unrequested_target_entry_returns_value");
-    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let RouteVerdict::Rejected { formations, .. } = verdict else {
+        panic!("the entry calling shape must reject: {verdict:?}");
+    };
+    assert!(!formations.is_empty());
+    assert!(
+        formations
+            .iter()
+            .all(|failure| messages.contains(&failure.detail)),
+        "{messages:#?}"
+    );
     assert!(
         messages
             .iter()
