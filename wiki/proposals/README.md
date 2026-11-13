@@ -37,9 +37,5 @@ separate review system or historical decision ledger.
 - [0006: Initializer-based local type inference](0006_initializer_local_type_inference.md):
   infer a local's already-determined initializer type without numeric defaults,
   later-use inference or implicit mutable borrowing; draft, not accepted.
-- [0008: Arbitrary-width integer carriers](0008_arbitrary_width_integers.md):
-  explore width-indexed carriers and integer/signed/unsigned domain families;
-  retain exact domain-carrier identity and require a concrete customer before
-  accepting a new type surface or implementation campaign.
 
 Temporary working notes belong in [drafts/](../drafts/README.md).

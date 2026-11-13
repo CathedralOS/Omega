@@ -264,6 +264,18 @@ ordinary source projection or serialization cannot expose their contents.
 
 ## Derived consumers
 
+[Width-indexed integers](../language/numeric_values.md#width-indexed-integers)
+separate semantic width from selected storage geometry. Ordinary home storage
+for `u13` need not be a packed 13-bit field, and an array has its selected
+element stride rather than an implicit bit packing. Multiword values have fixed
+storage; their operations do not acquire hidden heap backing. Padding has no
+universal zero/sign-extension promise and cannot affect numerical operations
+or value-based hashing. Byte serialization and observation use explicit
+representation contracts. A packed field unable to support an ordinary loan
+uses the applicable accessor/codec path rather than inventing an aligned
+reference. Recasts still prove validity, access and handback, not merely equal
+stored sizes.
+
 One normalized geometry may feed codecs over owned byte buffers, direct
 plan-laid field projection, checked shared/mutable byte-region views, placed
 access over an authorized extent, ordinary value materialization, or symbolic

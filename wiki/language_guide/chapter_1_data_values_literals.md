@@ -191,6 +191,13 @@ player.health = next_health;
 A local is a temporary binding, not stored state. A nested machine that needs
 one receives it as an argument.
 
+Integer widths are explicit: `u13` and `i257` are unsigned and signed carriers
+with those numerical widths. Generic code can write `u<N>` or `i<N>`;
+`u32` and `u<32>` are the same type. N is a positive compile-time value.
+Bare `u` and `i` are unbounded instead. Arithmetic keeps the selected width
+and its normal overflow policy; physical storage is decided by layout.
+See [integer widths](../spec/language/numeric_values.md#width-indexed-integers).
+
 ## Constants
 
 ```omega
