@@ -27,6 +27,7 @@ mod arithmetic_policies;
 mod arrays;
 mod boundary_calls;
 mod build_purpose;
+mod case_payloads;
 mod ceilings;
 mod empty_records;
 mod entry_inputs;

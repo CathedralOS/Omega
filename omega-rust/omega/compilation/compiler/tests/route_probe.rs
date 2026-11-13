@@ -653,3 +653,41 @@ fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
         ["not-supported"]
     );
 }
+
+/// A case payload is a place that exists while its case is selected
+/// (`wiki/spec/language/patterns.md`: "The case fact belongs to the
+/// place"). A match arm lends the view its case holds, and a payload named
+/// directly is lent where the construction before it selected the case.
+/// The twin lends a payload of the other case and is rejected.
+#[test]
+fn a_case_payload_is_lent_only_where_its_case_is_selected() {
+    let program = |lent: &str| {
+        format!(
+            "data Source<'storage> {{\n\
+                 case Path(location: &'storage [u8]);\n\
+                 case Git(repository: &'storage [u8], revision: u32);\n\
+             }}\n\
+             machine measure(view: &[u8]) -> u32 {{ 1 }}\n\
+             machine route(source: Source) -> u32 {{\n\
+                 match source {{\n\
+                     Source::Path {{ location }} -> measure(location)\n\
+                     Source::Git {{ repository, revision }} -> measure(repository)\n\
+                 }}\n\
+             }}\n\
+             machine main() {{\n\
+                 let first: Source = Source::Path {{ location: \"here\" }};\n\
+                 let routed: u32 = route(first);\n\
+                 let held: Source = Source::Path {{ location: \"here\" }};\n\
+                 let direct: u32 = measure(held.{lent});\n\
+             }}\n"
+        )
+    };
+    assert_eq!(
+        verdicts("case_payload_lent", &program("location")),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts("case_payload_other_case", &program("repository")),
+        ["rejected"]
+    );
+}

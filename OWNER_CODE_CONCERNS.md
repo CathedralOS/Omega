@@ -73,6 +73,20 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
+- Category: one idea, several implementations
+- Where: `structure-elaboration/src/read/calls.rs` (`lent`, `lent_storage_is_untouched` with `holds_view`), `lower/calls.rs` (`arguments`, the `Borrow` arm), `lowered-discharge/src/places/loans.rs`
+- Saw: the reader says a place that holds a byte view "lends none of its binding's storage: the callee is given the view", and so allows `both(&mut session, session.name)`. Lowering then passes the view as a shared loan of the place `session.name`, and the checker rejects the call: "state `both` receives `session` as both mutable and read-only". The same holds for a view in a case payload. The reader and the lowered form disagree about what passing a view lends, and the checker's rejection of a program lifetimes.md allows ("not a borrow of the caller's private carrier storage") reads as the program's error
+- Cost: a correct program is rejected, not refused as unsupported, and the message blames the author. Passing a stored view needs a form that copies the descriptor out before the exclusive loan is formed
+- Reported: 2026-11-13, Claude Code, while lending case payloads
+
+### Four walks from a place to its root in the reader, each with its own list of steps
+- Category: one idea, several implementations
+- Where: `structure-elaboration/src/read/calls.rs` (`root_slot`), `read/statements.rs` (the assignment target loop), `read/authority.rs` (`written_through`), `read/expressions.rs` (`names_storage`)
+- Saw: `lent` had a fifth, which stopped at a case payload and at a saved match subject though `root_slot` beside it walked both; that was the whole of `call borrow of a case payload`. `written_through` stopped at a saved subject, so an exclusive loan of a payload of `match holder.field` authorized no write through `holder`
+- Cost: each new step kind (payload, saved subject) is taught to one walk at a time, and the ones that are missed either refuse a served program or skip an authority check
+- Reported: 2026-11-13, Claude Code, while lending case payloads
+
 ### Data applied at a lifetime is one record whose stored views name only the data's own binders
 - Category: a verdict with nothing behind it
 - Where: `structure-elaboration/src/read/types.rs` (`value_type`, the `Inner<'a>` arm), `read/places.rs` (`lifetime_binders`, `declared_field`), `read/bytes.rs` (`byte_view_type`)
@@ -375,14 +389,14 @@ framework or a list of features that remain unimplemented.
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
 
 ### A generated machine is identified three ways and copied by a hand-kept list
-- Category: one idea built twice
+- Category: one idea, several implementations
 - Where: `typed-trees` (`MachineSpecialization` rows, `Symbol::generated_from`, `executable_application_template`); `structure-elaboration/src/lib.rs` (`template_of`), `read/calls.rs` (`applies_nothing`), `declare.rs`; `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`template`, `held_types`)
 - Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
 - Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
 - Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
 
 ### An implementation's refinement witness is built twice, and its dispatch row keeps fields nobody fills
-- Category: one idea built twice
+- Category: one idea, several implementations
 - Where: `lowered-discharge/src/verdict.rs` (`witnesses`, and the witness parts of `judge_compilation_for`); `typed-trees` (`StaticRequirementDispatch`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
 - Saw: "this machine refines that requirement" is elaborated and discharged once to carry a generic form's proofs into a generated machine, where a failure is silently skipped, and a second time as the part that gives the verdict; the two share `elaborate_witness` and nothing else. Separately, the dispatch a generated call carries has an application fingerprint, a commitment, a selection application and a contract signature that only the deleted checker filled, so the pass writes four of nine fields
 - Cost: every selected implementation is proved twice per compilation, and a reader of the dispatch cannot tell an empty commitment from one that was never computed
