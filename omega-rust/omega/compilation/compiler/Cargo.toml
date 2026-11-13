@@ -166,6 +166,12 @@ path = "tests/anonymous_module_owner.rs"
 name = "typed_frontier"
 path = "tests/typed_frontier.rs"
 
+# The checker receives a dependency's default provider only for a boundary
+# trait the program reaches.
+[[test]]
+name = "checked_projection"
+path = "tests/checked_projection.rs"
+
 # The checker on the lowered form judges every declaration a check claims: a
 # defect in a machine the entry never calls is rejected or handed back, never
 # accepted.
