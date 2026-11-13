@@ -1,13 +1,7 @@
 /*
-    Target-neutral Psi source compilation facade: source-frontier parsing,
-    resolver and typing continuations across Build execution, whole-program and
-    library-slice checking, and invocation-shared portable Terminal production.
-
-    We load and parse admitted source frontiers into arena-backed syntax pages,
-    drive symbol resolution and seeded typing through `SourceContinuation` and
-    `CompletedSource`, admit post-join Product policies, check typed programs
-    against fresh invocation authority or matching retained judgments, and
-    re-export `psi-terminal-production` for checked-to-Terminal lowering.
+    Target-neutral source parsing, resolution, typing, and preparation. This
+    facade supplies frozen typed input to the lowered-form checker; it produces
+    no source-checker judgment, checked-tree cache, or selected checked product.
 */
 
 /*
@@ -22,214 +16,13 @@
     parsing, `source_compilation` (`SourceCompilationRequest`,
     `SourceContinuation`, and `CompletedSource`) for the resolver/typing
     continuation and Product policy admission, `source_checking`
-    (`CheckRequest` and `CheckedSource`) for whole-program and library-slice
-    checking, and `portable_productions` (`PortableProductions`) for sharing
-    identical portable Terminal productions within an invocation.
+    (`SourcePreparationRequest` and `FrozenSource`) before lowered-form
+    checking. Accepted source publication and artifact retention belong to
+    `psi-terminal-production`; no checked-tree cache remains in this facade.
 */
 
 #![forbid(unsafe_code)]
 
-pub(crate) mod portable_productions {
-    use checked_trees::CheckedTrees;
-    use diagnostics::Diagnostic;
-    use psi_terminal_production::{
-        PortableTerminalProgram, TerminalMachineSelection, TerminalProgramRoots,
-    };
-    use std::sync::{Arc, Mutex, OnceLock};
-    use symbols::SymbolHandle;
-
-    type Production = Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>;
-
-    pub struct PortableProductionInputs<'request> {
-        pub program: &'request Arc<CheckedTrees>,
-        pub machine: TerminalMachineSelection<'request>,
-        pub roots: TerminalProgramRoots<'request>,
-        pub exact_toolchain_sources: &'request [(source::SourceId, [u8; 32])],
-        pub optimizations: &'request optimization::PsiOptimizationSelections,
-    }
-
-    struct ProductionKey {
-        program: Arc<CheckedTrees>,
-        entry: Option<SymbolHandle>,
-        machines: Vec<SymbolHandle>,
-        boundaries: Vec<SymbolHandle>,
-        exact_toolchain_sources: Vec<(source::SourceId, [u8; 32])>,
-        optimizations: optimization::PsiOptimizationSelections,
-    }
-
-    impl ProductionKey {
-        fn new(inputs: &PortableProductionInputs<'_>) -> Option<Self> {
-            let entry = match inputs.machine {
-                TerminalMachineSelection::Symbol(symbol) => Some(symbol),
-                TerminalMachineSelection::Declarations => None,
-                _ => return None,
-            };
-            Some(Self {
-                program: Arc::clone(inputs.program),
-                entry,
-                machines: inputs.roots.machines.to_vec(),
-                boundaries: inputs.roots.boundaries.to_vec(),
-                exact_toolchain_sources: inputs.exact_toolchain_sources.to_vec(),
-                optimizations: inputs.optimizations.clone(),
-            })
-        }
-
-        fn matches(&self, other: &Self) -> bool {
-            Arc::ptr_eq(&self.program, &other.program)
-                && self.entry == other.entry
-                && self.machines == other.machines
-                && self.boundaries == other.boundaries
-                && self.exact_toolchain_sources == other.exact_toolchain_sources
-                && self.optimizations == other.optimizations
-        }
-    }
-
-    #[derive(Default)]
-    pub struct PortableProductions {
-        entries: Mutex<Vec<(ProductionKey, Arc<OnceLock<Production>>)>>,
-    }
-
-    impl std::fmt::Debug for PortableProductions {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let entries = self.entries.lock().map_or(0, |entries| entries.len());
-            formatter
-                .debug_struct("PortableProductions")
-                .field("entries", &entries)
-                .finish()
-        }
-    }
-
-    impl PortableProductions {
-        pub fn produce(
-            &self,
-            inputs: PortableProductionInputs<'_>,
-            produce: impl FnOnce() -> Result<PortableTerminalProgram, Vec<Diagnostic>>,
-        ) -> Production {
-            let Some(key) = ProductionKey::new(&inputs) else {
-                return produce().map(Arc::new);
-            };
-            let slot = {
-                let mut entries = self
-                    .entries
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                match entries.iter().find(|(known, _)| known.matches(&key)) {
-                    Some((_, slot)) => Arc::clone(slot),
-                    None => {
-                        let slot = Arc::new(OnceLock::new());
-                        entries.push((key, Arc::clone(&slot)));
-                        slot
-                    }
-                }
-            };
-            slot.get_or_init(|| produce().map(Arc::new)).clone()
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        fn inputs<'a>(
-            program: &'a Arc<CheckedTrees>,
-            machine: TerminalMachineSelection<'a>,
-            machines: &'a [SymbolHandle],
-            sources: &'a [(source::SourceId, [u8; 32])],
-            optimizations: &'a optimization::PsiOptimizationSelections,
-        ) -> PortableProductionInputs<'a> {
-            PortableProductionInputs {
-                program,
-                machine,
-                roots: TerminalProgramRoots {
-                    machines,
-                    boundaries: &[],
-                },
-                exact_toolchain_sources: sources,
-                optimizations,
-            }
-        }
-
-        fn run(
-            productions: &PortableProductions,
-            inputs: PortableProductionInputs<'_>,
-            runs: &mut usize,
-        ) {
-            let result = productions.produce(inputs, || {
-                *runs += 1;
-                Err(vec![Diagnostic::error("refused")])
-            });
-            assert_eq!(result.unwrap_err()[0].message, "refused");
-        }
-
-        #[test]
-        fn equal_inputs_produce_once_and_any_difference_produces_again() {
-            let productions = PortableProductions::default();
-            let program = Arc::new(CheckedTrees::default());
-            let other_program = Arc::new(CheckedTrees::default());
-            let optimizations = optimization::PsiOptimizationSelections::default();
-            let root = [SymbolHandle::default()];
-            let sources = [(source::SourceId(0), [0; 32])];
-            let other_sources = [(source::SourceId(1), [0; 32])];
-            let entry = TerminalMachineSelection::Declarations;
-            let mut runs = 0;
-
-            run(
-                &productions,
-                inputs(&program, entry, &[], &sources, &optimizations),
-                &mut runs,
-            );
-            run(
-                &productions,
-                inputs(&program, entry, &[], &sources, &optimizations),
-                &mut runs,
-            );
-            assert_eq!(runs, 1, "equal inputs share one production");
-
-            run(
-                &productions,
-                inputs(&other_program, entry, &[], &sources, &optimizations),
-                &mut runs,
-            );
-            run(
-                &productions,
-                inputs(&program, entry, &root, &sources, &optimizations),
-                &mut runs,
-            );
-            run(
-                &productions,
-                inputs(&program, entry, &[], &other_sources, &optimizations),
-                &mut runs,
-            );
-            let symbol = TerminalMachineSelection::Symbol(SymbolHandle::default());
-            run(
-                &productions,
-                inputs(&program, symbol, &[], &sources, &optimizations),
-                &mut runs,
-            );
-            assert_eq!(runs, 5, "each differing input produces its own code");
-        }
-
-        #[test]
-        fn named_inspection_is_never_shared() {
-            let productions = PortableProductions::default();
-            let program = Arc::new(CheckedTrees::default());
-            let optimizations = optimization::PsiOptimizationSelections::default();
-            let named = TerminalMachineSelection::Name("main");
-            let mut runs = 0;
-            run(
-                &productions,
-                inputs(&program, named, &[], &[], &optimizations),
-                &mut runs,
-            );
-            run(
-                &productions,
-                inputs(&program, named, &[], &[], &optimizations),
-                &mut runs,
-            );
-            assert_eq!(runs, 2);
-        }
-    }
-}
 mod source_checking;
 mod source_compilation;
 pub(crate) mod source_parsing {
@@ -535,19 +328,12 @@ pub(crate) mod source_parsing {
     }
 }
 
-pub use portable_productions::{PortableProductionInputs, PortableProductions};
 pub use source_checking::{
-    CheckRequest, CheckedSliceOwner, CheckedSliceReuse, CheckedSliceStore, CheckedSource,
-    CheckedTreeProductSelection, LibrarySliceKey, LibrarySliceRequest, LibrarySliceTotals,
-    ProductRepresentationInput, ProductSelections, RetainedCheck, SelectedCheckedSource,
-    SourceAdmission, checked_slice_totals, library_slice_totals, retained_layout_match_hits,
-    whole_program_reuse_hits,
+    FrozenSource, ProductRepresentationInput, SourceAdmission, SourcePreparationRequest,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
 };
-pub use typed_trees_to_checked_trees::declaration_page_fork_totals;
-pub use validation::{dependency_body_read_totals, dependency_entailment_totals};
 
 pub use source_compilation::{
     AdmittedProductPolicy, BuildSourceInput, CompletedSource, PreparedSource, ProductPolicyRequest,
@@ -555,10 +341,10 @@ pub use source_compilation::{
 };
 
 pub use psi_terminal_production::{
-    BuildProviderProductionRequest, PortableTerminalProgram, PreparedExternalProviderDeclarations,
-    PreparedProviderInventory, PreparedTerminalRoots, ProducedBuildProvider,
-    ProducedTerminalApplication, ProducedTerminalProgram, ProgramEntryTerminalReceiptError,
-    PsiCompilationObserver, PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
+    AcceptedTerminalSource, PortableTerminalProgram, PreparedExternalProviderDeclarations,
+    PreparedTerminalRoots, ProducedBuildProvider, ProducedTerminalApplication,
+    ProducedTerminalProgram, ProgramEntryTerminalReceiptError, PsiCompilationObserver,
+    PsiCompilationStage, TerminalAdmissionRoot, TerminalApplicationCustody,
     TerminalArtifactProductionError, TerminalBuildBindingCall, TerminalBuildBindingOperation,
     TerminalBuildBindings, TerminalBuildFilesystem, TerminalBuildFilesystemCall,
     TerminalBuildFilesystemOperation, TerminalBuildNativeLocator, TerminalBuildProviderRequirement,
@@ -566,5 +352,5 @@ pub use psi_terminal_production::{
     TerminalBuildRequestOperation, TerminalBuildRequests, TerminalBuildSelectionRequest,
     TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
     TerminalCompositionRoots, TerminalMachineSelection, TerminalProductionCustody,
-    TerminalProductionRequest, TerminalProgramRoots, UnmeasuredProduction,
+    TerminalProgramRoots, TerminalSourceCompilation, UnmeasuredProduction,
 };

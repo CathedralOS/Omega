@@ -49,7 +49,7 @@ pub enum PackageReviewIntegerComparisonKind {
 
 pub type PackageReviewIeeeFloatComparisonKind = semantic_vocabulary::IeeeFloatComparisonKind;
 
-pub type PackageReviewIntegerBinaryKind = facts::CheckedIntegerBinaryKind;
+pub type PackageReviewIntegerBinaryKind = semantic_vocabulary::IntegerBinaryKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageReviewIntegerLiteralLanding {

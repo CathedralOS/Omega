@@ -701,7 +701,7 @@ fn review_fixture_recording(
         let preliminary = check_package(session.compiler(), build, record.as_deref_mut())?;
         for (owner, _) in inputs.packages() {
             let required =
-                dangerous_service_acceptance::required_dangerous_services(&preliminary, owner);
+                dangerous_service_acceptance::required_dangerous_services(&preliminary, owner)?;
             bindings.extend(dangerous_service_bindings(&preliminary, owner, &required)?);
         }
         let Some(compiler::PackageSourceRequest::Product(root)) = request.occurrences.last_mut()

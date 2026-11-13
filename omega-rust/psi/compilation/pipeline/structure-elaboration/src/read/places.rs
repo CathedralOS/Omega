@@ -57,6 +57,7 @@ use crate::{SourceOrigin, Unserved, refuse};
 /// body holds positions.
 pub(super) struct RecordSource {
     pub(super) declaration: SymbolHandle,
+    pub(super) application: Option<typed_trees::SourceTypeApplication>,
     pub(super) fields: Vec<SymbolHandle>,
     pub(super) cases: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
 }
@@ -183,9 +184,13 @@ impl Program<'_> {
         });
         self.record_sources.push(RecordSource {
             declaration: symbol,
+            application: None,
             fields: field_symbols,
             cases: case_symbols,
         });
+        if data.predicate_subject_type.is_valid() {
+            self.record_application(id, record, data.predicate_subject_type)?;
+        }
         // The declaration's `requires`, read once the fields and cases it
         // names have their identities, by the clause reader the machine
         // contracts use.
@@ -558,6 +563,7 @@ impl Program<'_> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
+        expression: ExpressionHandle,
         literal: &TableStructLiteral,
         source: SourceOrigin,
     ) -> Checked<Expression> {
@@ -583,6 +589,24 @@ impl Program<'_> {
         let ValueType::Record(record) = result else {
             return Err(typing("record literal of a scalar type"));
         };
+        // Inlined constants can retain their source-issued type on the
+        // originating declaration or constructor rather than the literal.
+        for application in [
+            literal.application_type,
+            self.typed
+                .expression_table
+                .constructed_value_type_reference(expression),
+            self.typed
+                .expression_const_declaration(expression)
+                .map_or_else(
+                    typed_trees::types::TypeReferenceHandle::invalid,
+                    |constant| constant.declared_type,
+                ),
+        ] {
+            if application.is_valid() {
+                self.record_application(id, record, application)?;
+            }
+        }
         // Stage 03 also records the literal's type as a type reference; it
         // must be this same record, or the literal applies a generic.
         if literal.application_type.is_valid()

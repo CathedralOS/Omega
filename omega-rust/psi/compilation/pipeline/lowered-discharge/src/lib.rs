@@ -77,6 +77,7 @@ pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, PublicationError,
     RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge, judge_compilation,
+    judge_compilation_for,
 };
 
 #[cfg(test)]

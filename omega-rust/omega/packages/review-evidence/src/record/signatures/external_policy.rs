@@ -2,9 +2,7 @@
 
 mod signatures;
 mod validation;
-use super::{
-    PackageReviewExternalBinding, PackageReviewForeignLocator, PackageReviewNominalIdentity,
-};
+use super::{PackageReviewForeignLocator, PackageReviewNominalIdentity};
 use crate::record::accessors::field_projection_accessors;
 use semantic_vocabulary::PackageKeyIdentity;
 pub(crate) use signatures::{
@@ -52,42 +50,6 @@ pub enum PackagePolicyExternalBinding {
     TableFunction {
         field: String,
     },
-}
-
-impl From<&PackageReviewExternalBinding> for PackagePolicyExternalBinding {
-    fn from(binding: &PackageReviewExternalBinding) -> Self {
-        match binding {
-            PackageReviewExternalBinding::NormalizedImport(import) => Self::NormalizedImport {
-                target: import.target.clone(),
-                locator: import.locator.clone(),
-                producer: PackagePolicyEvaluatedBindingProducer {
-                    declaration: import.producer.clone(),
-                    package: import.producer_package,
-                    callable_identity: import.producer_callable_identity.clone(),
-                },
-            },
-            PackageReviewExternalBinding::NormalizedSyscall(syscall) => Self::NormalizedSyscall {
-                target: syscall.target.clone(),
-                number: syscall.number,
-                producer: PackagePolicyEvaluatedBindingProducer {
-                    declaration: syscall.producer.clone(),
-                    package: syscall.producer_package,
-                    callable_identity: syscall.producer_callable_identity.clone(),
-                },
-            },
-            PackageReviewExternalBinding::Syscall { number } => Self::Syscall { number: *number },
-            PackageReviewExternalBinding::CompilerIntrinsic => Self::CompilerIntrinsic,
-            PackageReviewExternalBinding::VtableSlot { index } => {
-                Self::VtableSlot { index: *index }
-            }
-            PackageReviewExternalBinding::VtableField { field } => Self::VtableField {
-                field: field.clone(),
-            },
-            PackageReviewExternalBinding::TableFunction { field } => Self::TableFunction {
-                field: field.clone(),
-            },
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

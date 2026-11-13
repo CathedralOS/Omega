@@ -8,25 +8,29 @@ is the published boundary, not these intermediate trees.
 
 ## Program forms along the pipeline
 
-These seven independent packages hold the successive program forms. The
-transformations live in the linked pipeline stages.
+These packages own source and published program forms. The transformations live
+in the linked pipeline stages. Source data and checker evidence have distinct owners.
 
 | Program form | Produced by | Next pipeline consumer |
 | --- | --- | --- |
 | [Tokens](tokens/src/lib.rs) | [00: source files → tokens](../pipeline/00_source-files-to-tokens/src/lib.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/src/lib.rs) |
 | [Syntax trees](syntax-trees/src/lib.rs) | [01: tokens → syntax trees](../pipeline/01_tokens-to-syntax-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | [Symbol-resolved trees](symbol-resolved-trees/src/lib.rs) | [02: syntax → symbol-resolved trees](../pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
-| [Typed trees](typed-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) | [04: typed → checked trees](../pipeline/05_typed-trees-to-checked-trees/README.md) |
-| [Checked trees](checked-trees/src/lib.rs) | [04: typed → checked trees](../pipeline/05_typed-trees-to-checked-trees/README.md) | none (its lowering stage is deleted) |
-| [Lowered Psi](lowered-psi/src/lib.rs) | none yet (the checked-tree lowering is deleted) | [06: lowered Psi → lowered Psi](../pipeline/07_lowered-psi-to-lowered-psi/README.md), then [07: lowered Psi → Terminal Psi](../pipeline/08_lowered-psi-to-terminal-psi/README.md) |
-| [Terminal Psi](terminal-psi/src/lib.rs) | [07: lowered Psi → Terminal Psi](../pipeline/08_lowered-psi-to-terminal-psi/README.md) | [Omega 00: Terminal Psi → abstract operations](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
+| [Typed trees](typed-trees/src/lib.rs) | [03: resolved → typed trees](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) | [04: explicit preparation boundary](../pipeline/04_typed-trees-to-typed-trees/README.md), then [structural lowering](../pipeline/structure-elaboration/src/lib.rs) |
+| [Terminal Psi](terminal-psi/src/lib.rs) | [structural lowering](../pipeline/structure-elaboration/src/lib.rs), [judgment](../pipeline/lowered-discharge/src/lib.rs) and [accepted-source publication](../psi-compiler/terminal-production/src/accepted.rs) | [Omega 00](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 
-Psi 07 optimizes lowered Psi in the same representation. The independent
+The 04 boundary currently refuses nonempty preparation. Its empty no-work result
+preserves typed source without proving it. Structural lowering, checking and
+publication name the required producer chain; default Build and native availability
+still depend on completing the unserved work on [TASKS.md](../../../../TASKS.md).
+
+The independent
 [Terminal interpreter](../../interpreter/terminal-interpreter/README.md) consumes
 Terminal Psi without creating another pipeline representation.
 
+The retired checked-tree and facts packages are removed. Checking facts now
+belong to the lowered-form checker tables, not a second source judgment.
 Constituent semantic records have separate package owners:
-[facts](checked-trees/facts/src/lib.rs) holds fact contexts, places and evidence;
 [flow-effects](../../foundation/flow-effects/src/lib.rs) holds operational,
 invocation, capability and reach summaries. The shared
 [optimization selections](../../foundation/optimization/src/lib.rs)

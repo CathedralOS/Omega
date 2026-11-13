@@ -1018,6 +1018,52 @@ pub enum AsmAuthorityRequirement {
     IdtControl,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct AsmAuthorityAdmission {
+    machine_owner: bool,
+    port_io: bool,
+    idt_control: bool,
+}
+
+impl AsmAuthorityAdmission {
+    pub const HOSTED: Self = Self {
+        machine_owner: false,
+        port_io: false,
+        idt_control: false,
+    };
+
+    pub const MACHINE_OWNER: Self = Self {
+        machine_owner: true,
+        port_io: true,
+        idt_control: true,
+    };
+
+    pub const fn from_freestanding(freestanding: bool) -> Self {
+        if freestanding {
+            Self::MACHINE_OWNER
+        } else {
+            Self::HOSTED
+        }
+    }
+
+    pub const fn with_grants(self, port_io: bool, interrupt_table: bool) -> Self {
+        Self {
+            machine_owner: self.machine_owner,
+            port_io: self.port_io || port_io,
+            idt_control: self.idt_control || interrupt_table,
+        }
+    }
+
+    pub const fn admits(&self, requirement: AsmAuthorityRequirement) -> bool {
+        match requirement {
+            AsmAuthorityRequirement::None => true,
+            AsmAuthorityRequirement::MachineOwner => self.machine_owner,
+            AsmAuthorityRequirement::PortIo => self.port_io,
+            AsmAuthorityRequirement::IdtControl => self.idt_control,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub enum AsmFenceKind {
     Load,

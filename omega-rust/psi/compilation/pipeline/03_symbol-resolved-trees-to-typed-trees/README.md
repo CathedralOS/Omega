@@ -55,11 +55,16 @@ authored base. Check its `kit/main.omg` directly to exercise retained typing;
 run the consumer with `--both` to execute the generated implementation.
 The invalid twin changes only a generated domain argument.
 
-Both this continuation and the fresh product route close their run through the
-same `close_typed_cohort`: satisfied declarations, progress premises, domain
-constraints, semantic qualification casts, fixed-byte literal landing, range
-argument validation, provider default finalization, legacy target-machine families
-and dynamic call target binding, each over the rows the run produced.
+Both the continuation and fresh typing close through `close_typed_cohort`.
+Declaration identities, written contracts, progress premises, domain constraints
+and concrete literal receiving types remain typed data. They establish no body
+verdict. Requests that still depended on the retired checker—closed const
+admission/replay, unresolved membership carriers, domain-entry accounting,
+legacy target-family contracts, source activation projection, projected/dynamic
+call binding and callable transition normalization—refuse with `no product route
+yet` until their surviving owner supplies the required judgment or correspondence.
+Typing does not create empty facts or reuse an old checker verdict.
+
 The matching post-typing evaluator consumes the completed candidate; wire-plan
 publication starts at the extension wire-schema frontier. The structural prefix
 gate returns the owned base unchanged on failure, and orchestration rejects.

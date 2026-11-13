@@ -1,259 +1,91 @@
 /*
-Read-only review inputs (`PackageReviewInput`, `SourceDeclarationInput`, and
-`ContractOwnerQueries`) separating untrusted semantic candidates from immutable
-compiler-issued custody.
-
-`PackageReviewInput::supplied` pairs a candidate `CheckedTrees` with a borrowed
-`CheckedCompilation` custody without merging their query namespaces:
-`checking_input` and `mathematical_calls` evaluate against the supplied
-candidate, whereas `original_checking_input` and `original_mathematical_calls`
-evaluate against the original checked program. `project_service_declarations`
-prepares an independent `PreparedServiceCatalog` for the supplied candidate so
-source handles never cross between candidate and custody namespaces.
-`ContractOwnerQueries` lazily builds a single `OwnerEnvironmentIndex` per
-callable-projection batch after verifying `expression_table.call_node(expression)`.
+A review request borrows genuine typed source and compilation metadata; it has no
+checking-input implementation or old fact namespace. Construction remains
+unavailable until the route publishes review contract custody. Every projection
+preserves that refusal rather than manufacturing an empty policy.
 */
 
-use checked_trees::CheckedTrees;
-use checked_trees::typed_trees::service_declarations::PreparedServiceCatalog;
 use compilation_products::CheckedCompilation;
-use language_semantics::declaration_selection::AuthoredDeclarationSelection;
-use provider_planning::ProviderPlanningContext;
-use provider_planning::service_declarations::ServiceDeclarations;
-use psi_terminal_production::ExternalProviderDeclarations;
-use typed_trees::machine::Machine;
-use validation::expression_owners::OwnerEnvironmentIndex;
+use diagnostics::Diagnostic;
+use typed_trees::TypedTrees;
 
 #[derive(Clone, Copy)]
 pub struct PackageReviewInput<'a> {
-    pub(crate) source: SourceDeclarationInput<'a>,
-    pub(crate) custody: &'a CheckedCompilation,
-    pub(crate) service_declarations: Option<&'a ServiceDeclarations>,
-    pub(crate) external_providers: Option<&'a ExternalProviderDeclarations>,
-}
-
-#[derive(Clone, Copy)]
-pub struct SourceDeclarationInput<'a> {
-    pub(crate) program: &'a CheckedTrees,
-    pub(crate) checking_input: &'a dyn validation::CheckingInput, // Supplied candidate query state.
-    pub(crate) original_checking_input: &'a dyn validation::CheckingInput, // Immutable custody query state.
-    pub(crate) contract_owner_queries: Option<&'a ContractOwnerQueries<'a>>, // Batch-local owner index scratch.
-    pub(crate) mathematical_calls:
-        Option<&'a super::contracts::mathematical_calls::MathematicalCallQueries<'a>>,
-    pub(crate) original_mathematical_calls:
-        Option<&'a super::contracts::mathematical_calls::MathematicalCallQueries<'a>>,
-    pub(crate) original_program: &'a CheckedTrees,
-    pub(crate) package: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub(crate) exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
-}
-
-impl<'a> SourceDeclarationInput<'a> {
-    pub(crate) fn checked(
-        program: &'a CheckedTrees,
-        sources: &'a package_compilation::CheckedSourceCustody,
-    ) -> Self {
-        Self {
-            program,
-            original_program: program,
-            checking_input: program,
-            original_checking_input: program,
-            contract_owner_queries: None,
-            mathematical_calls: None,
-            original_mathematical_calls: None,
-            package: sources.package_identity(),
-            exact_toolchain_sources: sources.exact_toolchain_sources(),
-        }
-    }
-
-    pub(crate) fn original(self) -> Self {
-        Self {
-            program: self.original_program,
-            checking_input: self.original_checking_input,
-            contract_owner_queries: None,
-            mathematical_calls: self.original_mathematical_calls,
-            ..self
-        }
-    }
+    candidate: &'a TypedTrees,
+    custody: &'a CheckedCompilation,
 }
 
 impl<'a> PackageReviewInput<'a> {
-    pub fn supplied(program: &'a CheckedTrees, custody: &'a CheckedCompilation) -> Self {
-        Self {
-            source: SourceDeclarationInput {
-                program,
-                original_program: custody,
-                checking_input: program,
-                original_checking_input: &**custody,
-                contract_owner_queries: None,
-                mathematical_calls: None,
-                original_mathematical_calls: None,
-                package: custody.sources().package_identity(),
-                exact_toolchain_sources: custody.sources().exact_toolchain_sources(),
-            },
-            custody,
-            external_providers: None,
-            service_declarations: None,
-        }
+    pub fn supplied(
+        _candidate: &'a TypedTrees,
+        _custody: &'a CheckedCompilation,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Err(super::unavailable_projection("package review"))
     }
 
-    pub(super) fn project_external_providers(
-        &self,
-    ) -> Result<ExternalProviderDeclarations, Vec<diagnostics::Diagnostic>> {
-        psi_terminal_production::project_external_provider_declarations(
-            self.program,
-            self.custody.sources().exact_toolchain_sources(),
-        )
-        .map_err(|error| {
-            vec![diagnostics::Diagnostic::error(format!(
-                "package external provider declarations: {error:?}"
-            ))]
-        })
+    pub fn candidate(&self) -> &'a TypedTrees {
+        self.candidate
     }
 
-    pub(super) fn project_service_declarations(
-        &self,
-    ) -> Result<ServiceDeclarations, Vec<diagnostics::Diagnostic>> {
-        let context =
-            ProviderPlanningContext::new(self.checking_input, source::DependencyScope::Product);
-        let catalog = std::sync::Arc::new(PreparedServiceCatalog::prepare(
-            context,
-            self.custody.sources().exact_toolchain_sources(),
-        ));
-        Ok(ServiceDeclarations::prepare(
-            catalog
-                .bind(context)
-                .map_err(|error| vec![error])?
-                .declared_traits(),
-            &self.custody.providers().boundary_calling_plan_realizations,
-        ))
+    pub fn compilation(&self) -> &'a CheckedCompilation {
+        self.custody
     }
 }
 
-impl<'a> SourceDeclarationInput<'a> {
-    pub(crate) fn derive_checked_nominal_call_target(
-        &self,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<symbols::SymbolHandle> {
-        match self.contract_owner_queries {
-            Some(queries) => queries.derive_checked_nominal_call_target(expression),
-            None => typed_trees_to_checked_trees::derive_checked_nominal_call_target(
-                self.checking_input,
-                &self.facts,
-                expression,
-                None,
-            ),
-        }
-    }
+pub trait IntoPackageReviewInput<'a> {
+    fn into_review_input(self) -> Result<PackageReviewInput<'a>, Vec<Diagnostic>>;
+}
 
-    pub(crate) fn exact_machine(&self, symbol: symbols::SymbolHandle) -> Option<&Machine> {
-        let mut machines = self
-            .machines()
-            .iter()
-            .filter(|machine| machine.symbol == symbol);
-        let only = machines.next()?;
-        machines.next().is_none().then_some(only)
-    }
-
-    pub(super) fn authored_machine_target(
-        &self,
-        symbol: symbols::SymbolHandle,
-    ) -> Result<Option<&str>, Vec<diagnostics::Diagnostic>> {
-        let rejected = |reason: &str| {
-            vec![diagnostics::Diagnostic::error(format!(
-                "package target context rejects {reason}"
-            ))]
-        };
-        let target = self
-            .program
-            .typed
-            .authored_machine_target(symbol)
-            .map_err(rejected)?;
-        let original = self
-            .original_program
-            .typed
-            .authored_machine_target(symbol)
-            .map_err(rejected)?;
-        if target != original {
-            return Err(rejected(
-                "authored target context differs from checked source custody",
-            ));
-        }
-        Ok(target)
+impl<'a> IntoPackageReviewInput<'a> for &'a CheckedCompilation {
+    fn into_review_input(self) -> Result<PackageReviewInput<'a>, Vec<Diagnostic>> {
+        PackageReviewInput::supplied(self, self)
     }
 }
 
-impl<'a> SourceDeclarationInput<'a> {
-    pub(crate) fn authored_selections(
-        &self,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> impl Iterator<Item = &AuthoredDeclarationSelection> + '_ {
-        self.authored_selection_occurrences(expression)
-            .filter_map(|occurrence| self.authored_declaration_selections().get(occurrence))
+impl<'a> IntoPackageReviewInput<'a> for PackageReviewInput<'a> {
+    fn into_review_input(self) -> Result<PackageReviewInput<'a>, Vec<Diagnostic>> {
+        Ok(self)
     }
 }
 
-impl<'a> From<&'a CheckedCompilation> for PackageReviewInput<'a> {
-    fn from(compilation: &'a CheckedCompilation) -> Self {
-        Self::supplied(compilation, compilation)
+impl<'a> IntoPackageReviewInput<'a> for &PackageReviewInput<'a> {
+    fn into_review_input(self) -> Result<PackageReviewInput<'a>, Vec<Diagnostic>> {
+        Ok(*self)
     }
 }
 
-impl<'a> From<&PackageReviewInput<'a>> for PackageReviewInput<'a> {
-    fn from(input: &PackageReviewInput<'a>) -> Self {
-        *input
-    }
-}
-
-impl<'a> std::ops::Deref for PackageReviewInput<'a> {
-    type Target = SourceDeclarationInput<'a>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.source
-    }
-}
-
-impl std::ops::Deref for SourceDeclarationInput<'_> {
-    type Target = CheckedTrees;
-
-    fn deref(&self) -> &Self::Target {
-        self.program
-    }
-}
-
-pub(crate) struct ContractOwnerQueries<'program> {
-    program: &'program dyn validation::CheckingInput,
-    facts: &'program checked_trees::CheckFacts,
-    owners: std::cell::OnceCell<OwnerEnvironmentIndex>,
-}
-
-impl<'program> ContractOwnerQueries<'program> {
-    pub(crate) fn new(
-        program: &'program dyn validation::CheckingInput,
-        facts: &'program checked_trees::CheckFacts,
-    ) -> Self {
-        Self {
-            program,
-            facts,
-            owners: std::cell::OnceCell::new(),
-        }
-    }
-
-    fn derive_checked_nominal_call_target(
-        &self,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<symbols::SymbolHandle> {
-        self.program.expression_table.call_node(expression)?;
-        let owners = self.owners.get_or_init(|| {
-            OwnerEnvironmentIndex::new(self.program, &self.facts.proof.contract_facts)
-        });
-        typed_trees_to_checked_trees::derive_checked_nominal_call_target(
-            self.program,
-            self.facts,
-            expression,
-            Some(owners),
-        )
+impl<'a> IntoPackageReviewInput<'a> for Result<PackageReviewInput<'a>, Vec<Diagnostic>> {
+    fn into_review_input(self) -> Result<PackageReviewInput<'a>, Vec<Diagnostic>> {
+        self
     }
 }
 
 #[cfg(test)]
-mod owner_query_tests;
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unavailable_review_input_preserves_the_full_projection_error() {
+        let input: Result<PackageReviewInput<'static>, Vec<Diagnostic>> =
+            Err(vec![Diagnostic::error("missing route contract custody")]);
+        let errors = match input.into_review_input() {
+            Ok(_) => panic!("an unavailable input cannot produce a review namespace"),
+            Err(errors) => errors,
+        };
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].message, "missing route contract custody");
+    }
+
+    #[test]
+    fn policy_projection_propagates_the_complete_input_refusal() {
+        let input: Result<PackageReviewInput<'static>, Vec<Diagnostic>> =
+            Err(vec![Diagnostic::error("exact missing-custody reason")]);
+        let error = super::super::project_checked_package_policy(
+            input,
+            target::TargetProfile::host(),
+            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
+        )
+        .unwrap_err();
+        assert_eq!(error[0].message, "exact missing-custody reason");
+    }
+}

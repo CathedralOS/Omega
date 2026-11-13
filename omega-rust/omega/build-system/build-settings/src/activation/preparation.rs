@@ -52,21 +52,8 @@ impl PreparedBuildExecution {
             default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
-        let checked = prepared
-            .checked_trees()
-            .ok_or_else(|| refuse("Build has no admitted source judgment".into()))?;
-        let toolchain =
-            source::source_identity::toolchain_source_identities(checked.symbols.source_files())
-                .map_err(&refuse)?;
-        let mut production = psi_compiler::TerminalProductionRequest::new(
-            checked,
-            psi_compiler::TerminalMachineSelection::Symbol(machine.symbol),
-            &toolchain,
-        );
-        production.publication = terminal_codec::TerminalPublication::Invocation;
-        let produced = production
-            .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
-            .map_err(|error| error.diagnostics())?;
+        let produced =
+            prepared.produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)?;
         let providers = providers.admit(produced.view())?;
 
         let measurement = crate::activation::measurement();

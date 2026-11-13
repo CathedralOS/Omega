@@ -1,22 +1,16 @@
-// Selection and admission of the authored `Build` entry machine
-// (`select_build_machine`, `admit_build_machine`). Rejects programs with more
-// than one build machine or build machines that reach runtime boundary services
-// outside compiler-owned `Build` protocols (`project_request` and
-// `BuildFilesystemOperations`), and selects `BuildMachineExecutionMode::Pure`
-// or `BuildMachineExecutionMode::Granted` based on transitive
-// `BuildFilesystemOperations` reach.
+// Admit the selected source-owned Build entry and its original Build value
+// against the actual accepted invocation module. Host effects remain bounded
+// by structurally emitted compiler-owned Build protocol companions.
 
 use super::BuildMachineFilesystemScope;
 use super::build_value::{BuildValueAdmission, is_build_machine};
 use build_time_evaluation::{
     BuildMachineExecutionMode, BuildMachineFilesystemMetadataLayout, BuildTimeValue,
-    PreparedBuildMachineEntry, PreparedBuildMachineProgram,
 };
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub struct SelectedBuildMachine {
-    pub entry: PreparedBuildMachineEntry,
     pub symbol: SymbolHandle,
     pub name: String,
     pub normalized_callable_identity: String,
@@ -48,23 +42,28 @@ pub fn select_build_machine(
 }
 
 pub fn admit_build_machine(
-    prepared: &PreparedBuildMachineProgram,
+    prepared: &psi_compiler::AcceptedTerminalSource,
     machine_symbol: SymbolHandle,
-    service_reach_plan: &flow_effects::ServiceReachInferencePlan,
     filesystem_scope: &mut BuildMachineFilesystemScope,
 ) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {
-    let typed = prepared.typed();
+    let typed = prepared.source();
+    let elaboration = &prepared.closure().elaboration;
+    if !prepared.is_invocation()
+        || prepared
+            .entry()
+            .and_then(|entry| elaboration.machines.get(entry))
+            != Some(&machine_symbol)
+    {
+        return Err(vec![Diagnostic::error(
+            "Build entry differs from its accepted invocation root",
+        )]);
+    }
     let machine = typed.machine(machine_symbol).ok_or_else(|| {
         vec![Diagnostic::error(
             "prepared Build program lost its selected entry",
         )]
     })?;
     let machine_name = machine.name.as_str().to_owned();
-    let machine_entry = prepared.entry(machine_symbol).map_err(|reason| {
-        vec![Diagnostic::error(format!(
-            "could not bind the selected build machine to its prepared program: {reason}"
-        ))]
-    })?;
     let normalized_callable_identity =
         typed
             .machine_callable_identity_text(machine)
@@ -75,62 +74,30 @@ pub fn admit_build_machine(
             })?;
     let value_admission = BuildValueAdmission::admit(typed)?;
 
-    let transitive = service_reach_plan
-        .for_machine(machine.symbol)
-        .map(|entry| service_reach_plan.services(entry.inferred_transitive))
-        .unwrap_or(&[]);
-    let transitive_names = transitive
+    // Host authority is bounded by actual invocations of the accepted
+    // module. Every currently served Build boundary has a genuine request
+    // row emitted beside it. Other protocols (including filesystem) refuse
+    // in structural reading until their source companions exist.
+    let requests = elaboration
+        .build_requests
         .iter()
-        .filter(|service| {
-            !typed
-                .service_reaches
-                .definition(**service)
-                .is_some_and(|definition| {
-                    language_semantics::build_requests::is_project_request_protocol(
-                        &typed.symbols,
-                        definition.symbol,
-                    ) || language_semantics::build_requests::is_build_protocol(
-                        &typed.symbols,
-                        definition.symbol,
-                        "BuildFilesystemOperations",
-                    )
-                })
+        .map(|request| {
+            (
+                semantic_vocabulary::InvocationSite::Operation(request.operation),
+                request.boundary,
+            )
         })
-        .map(|service| {
-            typed
-                .service_reaches
-                .definition(*service)
-                .map(|definition| definition.name.as_str())
-                .unwrap_or("<unknown canonical service>")
-        })
-        .collect::<Vec<_>>();
-    if std::env::var_os("OMEGA_DEBUG_BUILD_CONFIG").is_some() {
-        eprintln!(
-            "BUILDCFG: machine `{}` found, inferred transitive service reach [{}]",
-            machine.name.as_str(),
-            transitive_names.join(", "),
-        );
+        .collect::<std::collections::BTreeSet<_>>();
+    for body in &elaboration.module.machines {
+        for invocation in body.boundary_invocations() {
+            if !requests.contains(&(invocation.site, invocation.boundary)) {
+                return Err(vec![Diagnostic::error(format!(
+                    "`{machine_name}` reaches a boundary outside admitted compiler-owned Build requests"
+                ))]);
+            }
+        }
     }
-    if !transitive_names.is_empty() {
-        return Err(vec![Diagnostic::error(format!(
-            "`{machine_name}` reaches boundary service{} `{}` -- build.omg may not reach \
-             runtime boundary services; use the compiler-owned Build facets",
-            if transitive_names.len() == 1 { "" } else { "s" },
-            transitive_names.join(", "),
-        ))]);
-    }
-    let filesystem_reachable = transitive.iter().any(|service| {
-        typed
-            .service_reaches
-            .definition(*service)
-            .is_some_and(|definition| {
-                language_semantics::build_requests::is_build_protocol(
-                    &typed.symbols,
-                    definition.symbol,
-                    "BuildFilesystemOperations",
-                )
-            })
-    });
+    let filesystem_reachable = false;
 
     let zero_build = value_admission.initial_value(typed, machine, filesystem_scope);
 
@@ -144,7 +111,6 @@ pub fn admit_build_machine(
         }
     };
     Ok(SelectedBuildMachine {
-        entry: machine_entry,
         symbol: machine_symbol,
         name: machine_name,
         normalized_callable_identity,

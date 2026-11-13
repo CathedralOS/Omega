@@ -12,8 +12,8 @@ retains parsed and typed frontend checkpoints and selects reuse without
 invoking assembly, resolution, typing, or Build evaluation. `prepared_build`
 and `evaluated_build` retain completed typed Build continuations, normalized
 settings, and observation summaries without depending on the evaluator.
-`checked_compilation` seals whole checked stage products against package source
-custody, supplies their target projections, and reconstructs explicit trust
+`checked_compilation` associates accepted Terminal publication and settled execution
+with exact typed package source custody, supplies their target projections, and reconstructs explicit trust
 obligations through `trust_model`.
 */
 
@@ -43,8 +43,10 @@ mod evaluated_build;
 mod independent_component;
 mod package_build;
 mod prepared_build;
-pub use prepared_build::ProductSourceIdentity;
+pub use typed_trees::ProductSourceIdentity;
 mod prepared_source;
+mod provider_instances;
+pub use provider_instances::SelectedProviderSource;
 pub mod publication;
 mod terminal_publication;
 mod test_products;
@@ -55,7 +57,7 @@ pub use test_products::{
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
-    ProductReportPlan, ProductReportRequest, RetainedCompilationChecks,
+    ProductReportPlan, ProductReportRequest,
 };
 pub use compilation_products::{
     CompileOutputKind, CompileReport, PendingNativeProduct, RetainedNativeProgram,
@@ -67,7 +69,7 @@ pub use compile_outcomes::{
 };
 pub use compile_request::{
     CheckedCompileRequest, CheckedExecutionRequest, CompileOptions, CompileRequest,
-    NativeImageDemand, NativeProductRequest, RequestedCompileProduct, SettledCheckReuse,
+    NativeImageDemand, NativeProductRequest, RequestedCompileProduct,
 };
 pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, EvaluatedBuild,

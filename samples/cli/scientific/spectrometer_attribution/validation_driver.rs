@@ -1,6 +1,6 @@
 //! Private runtime validator, not an implementation of the spectrum algorithm.
-//! Uses the same reviewed fixture inputs and retained native/Terminal products
-//! as the repository corpus runner. No production acceptance is persisted.
+//! Uses retained native and Psi products with explicit runtime oracles.
+//! No production acceptance is persisted.
 use compiler::CompileReport;
 use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use std::{
@@ -16,29 +16,6 @@ use terminal_runtime::{
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
-
-#[path = "../../../../omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs"]
-mod fixture_package_inputs;
-
-/// The repository fixture policy's exact checked inputs for one control.
-fn checked_request(root: &Path, build_dir: &Path) -> compiler::CheckedCompileRequest {
-    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
-        root,
-        Some("linux_x86_64"),
-    )
-    .unwrap_or_else(|errors| panic!("fixture preparation: {errors:?}"));
-    let snapshot = fixture_package_inputs::fixture_build_snapshot(&prepared.root_path)
-        .unwrap_or_else(|errors| panic!("build snapshot: {errors:?}"));
-    let mut request =
-        compiler::CheckedCompileRequest::new(&prepared.root_path, Some("linux_x86_64"));
-    request.package_inputs = prepared.package_inputs;
-    request.build = package_compilation::BuildExecutionInputs {
-        directory: Some(build_dir.to_path_buf()),
-        snapshot,
-        ..Default::default()
-    };
-    request
-}
 
 /// Build one product of this sample through the public application Build.
 fn build(root: &Path, build_dir: &Path, product: ProjectProduct) -> CompileReport {
@@ -90,141 +67,23 @@ fn observe(
     std::io::stdout().flush().unwrap();
 }
 
-// Read-only inspection of a sealed Check product; grants no selection authority.
-fn verify_value_equality_selection(root: &Path, evidence: &Path) {
-    let mut session = compiler::CompilationSession::default();
-    let checked = orchestration::check_source(
-        &mut session,
-        checked_request(&root.join("main.omg"), &evidence.join("selection_check")),
+// Finalized selection occurrences belonged to the retired checker. Raw typed
+// nominations cannot certify the inspection this mode promises.
+fn verify_value_equality_selection(_root: &Path, _evidence: &Path) -> Result<(), &'static str> {
+    Err(
+        "no product route yet: equality selection inspection requires route-owned finalized occurrences",
     )
-    .result
-    .unwrap_or_else(|failure| panic!("identity checked product: {failure:?}"));
-    let program = &checked.typed;
-    let machines = program
-        .machines()
-        .iter()
-        .filter(|machine| {
-            program.symbols.display_path(machine.symbol, "::")
-                == "spectrometer_equality_control::same"
-        })
-        .collect::<Vec<_>>();
-    let [machine] = machines.as_slice() else {
-        panic!("one exact same declaration required");
-    };
-    let state = program
-        .machine_states(machine)
-        .first()
-        .expect("same entry state");
-    let body = typed_trees::statement::reachable_state_statements(
-        program.statement_table.statements(state.statement_nodes),
-    );
-    let [typed_trees::statement::StatementNode::Expression(body_expression)] = body else {
-        panic!("same must have one reachable expression body");
-    };
-    let parameters = program.state_parameters(state);
-    assert_eq!(parameters.len(), 2);
-    assert!(
-        parameters
-            .iter()
-            .all(|parameter| program.display_type_reference(parameter.type_reference) == "f64")
-    );
-    let operators = program
-        .all_operators()
-        .chain(program.machine_token_bindings())
-        .filter(|operator| {
-            program.operator_path_string(operator.name) == "Float::equal"
-                && program.operator_parameters(operator).len() == 2
-                && program
-                    .operator_parameters(operator)
-                    .iter()
-                    .all(|parameter| {
-                        program.display_type_reference(parameter.type_reference) == "f64"
-                    })
-                && program.display_type_reference(operator.return_type) == "bool"
-        })
-        .collect::<Vec<_>>();
-    let [expected] = operators.as_slice() else {
-        panic!("one exact Float::equal declaration required");
-    };
-    assert!(
-        expected.is_public,
-        "Float::equal is the independently nameable public declaration"
-    );
-    let target_machine = program
-        .machine(expected.symbol)
-        .expect("Float::equal boundary machine declaration");
-    assert!(target_machine.is_public);
-    let expected_span = program
-        .symbols
-        .symbol_source_span(expected.symbol)
-        .expect("authored Float::equal source");
-    let expected_file = program
-        .symbols
-        .source_file(expected_span)
-        .expect("retained Float::equal source file");
-    assert!(expected_file.path.ends_with("core/float_operations.omg"));
-    let expression = *body_expression;
-    let body_span = program.expression_table.source_span(expression);
-    let owner_span = program
-        .symbols
-        .symbol_source_span(machine.symbol)
-        .expect("authored same source identity");
-    assert_eq!(body_span.source_id, owner_span.source_id);
-    let mut observed = Vec::new();
-    let mut occurrences = std::collections::HashSet::new();
-    {
-        let binary = program
-            .expression_table
-            .binary_node(expression)
-            .expect("same exact binary body");
-        assert_eq!(
-            binary.operator,
-            typed_trees::expression::BinaryOperator::Equal
-        );
-        let left = program
-            .expression_table
-            .name_path_node(binary.left)
-            .expect("same left parameter");
-        let right = program
-            .expression_table
-            .name_path_node(binary.right)
-            .expect("same right parameter");
-        assert_eq!(left.symbol, parameters[0].symbol);
-        assert_eq!(right.symbol, parameters[1].symbol);
-        for occurrence in checked.authored_selection_occurrences(expression) {
-            let selection = checked
-                .authored_declaration_selections()
-                .get(occurrence)
-                .expect("retained exact authored occurrence");
-            assert_eq!(
-                selection.kind(),
-                typed_trees::AuthoredDeclarationSelectionKind::Operator
-            );
-            assert_eq!(selection.source_span(), body_span);
-            occurrences.insert(occurrence);
-            let target = selection.target();
-            let resolved = target
-                .as_resolved()
-                .expect("ordinary equality retains declaration identity");
-            assert_eq!(resolved.selected_symbol(), expected.symbol);
-            observed.push(format!("occurrence={occurrence:?} operator={:?} span={:?} target={:?} declaration=Float::equal", binary.operator, selection.source_span(), resolved.selected_symbol()));
-        }
-    }
-    assert_eq!(
-        occurrences.len(),
-        1,
-        "one distinct authored equality occurrence in exact same entry body"
-    );
-    let text = observed.join("\n") + "\n";
-    fs::create_dir_all(evidence).unwrap();
-    fs::write(evidence.join("selection-identity.txt"), &text).unwrap();
-    print!("{text}");
 }
 
 fn main() {
     let root = PathBuf::from(env::args_os().nth(1).expect("application directory"));
     if env::args_os().any(|argument| argument == "--selection-identity") {
-        verify_value_equality_selection(&root, &root.join("build/selection_identity"));
+        if let Err(error) =
+            verify_value_equality_selection(&root, &root.join("build/selection_identity"))
+        {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
         return;
     }
     let terminal_only = env::args_os().any(|argument| argument == "--terminal-only");

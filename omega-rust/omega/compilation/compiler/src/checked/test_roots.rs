@@ -45,7 +45,7 @@ fn group_filesystem(
     inputs: &package_compilation::PackageCompilationInputs,
     group: &build_time_evaluation::test_groups::TestGroupRegistration,
 ) -> Result<TestFilesystem, Vec<Diagnostic>> {
-    let symbols = &source.program.typed.symbols;
+    let symbols = &source.program.symbols;
     let mut filesystem = TestFilesystem::Unprovided;
     for service in &group.services {
         let std = symbols
@@ -74,7 +74,7 @@ pub(crate) fn select_test_roots(
     inputs: &package_compilation::PackageCompilationInputs,
 ) -> Result<TestRootSelection, Vec<Diagnostic>> {
     let config = &source.computed_build_config.config;
-    let typed = &source.program.typed;
+    let typed = source.program.as_ref();
     let note = |requirement, status| TestRosterEntry {
         group: typed.symbols.display_path(requirement, "::"),
         test: None,
@@ -96,13 +96,6 @@ pub(crate) fn select_test_roots(
             roots: Vec::new(),
             notes: Vec::new(),
         });
-    }
-    // Pruning keeps only application roots; running tests against that
-    // program would depend on optional dead-code elimination.
-    if source.product_selection.is_some() {
-        return Err(vec![Diagnostic::error(
-            "registered test groups cannot run against a checked program pruned to its application roots",
-        )]);
     }
     let mut roots = Vec::new();
     let mut notes = Vec::new();
@@ -175,8 +168,6 @@ pub(crate) fn select_test_roots(
             test_source.computed_build_config = Arc::new(computed);
             test_source.terminal_publication =
                 Arc::new(source.terminal_publication.for_other_roots());
-            test_source.calling_program = Default::default();
-            test_source.binding_declarations = Default::default();
             roots.push(TestRootSource {
                 identity: TestRootIdentity {
                     group: group_path.clone(),

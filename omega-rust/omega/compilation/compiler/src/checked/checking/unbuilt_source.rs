@@ -15,9 +15,9 @@
 // root source, or `main` when none is named and the source declares one, is
 // bound to the target's `ProgramEntry`), prepares the product exactly as the
 // product check does up to Psi 04's frozen typed trees, and stops there. Psi
-// 05, validation's judgments and Psi 06 never run: the preparation is asked to
-// stop when it shows the frozen trees, which is the point where the product
-// check calls the route. The caller judges the returned frontier with
+// 05, validation's judgments and Psi 06 never run: the shared source
+// preparation returns its frozen owner directly after Psi 04. The caller
+// judges the returned frontier with
 // `lowered_discharge::judge_compilation`.
 //
 // What a Build would decide is absent: no Build machine is checked or
@@ -81,7 +81,6 @@ pub(in crate::checked) fn typed_frontier_without_build(
         }),
         restricted_build_requests: Vec::new(),
         base_source_consumption_commitment: None,
-        retained_check: None,
         provider_folded_constants: false,
     };
     let (mut built, build_sources) = build_continuation::complete_build_source(
@@ -117,11 +116,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
         },
         None,
     )?;
-    Ok(frozen_frontier(
-        typed,
-        &computed_build_config.config,
-        target,
-    )?)
+    Ok(frozen_frontier(typed, &computed_build_config.config)?)
 }
 
 /// The product check's own preparation (`source_checking::check_product_source`)
@@ -130,26 +125,10 @@ pub(in crate::checked) fn typed_frontier_without_build(
 fn frozen_frontier(
     typed: typed_trees::TypedTrees,
     build: &compilation_products::BuildConfig,
-    target: target::TargetProfile,
 ) -> Result<TypedFrontier, Vec<Diagnostic>> {
     let layout_scopes = super::source_checking::layout_target_scopes(&typed, build)?;
     let entries = build.program_roots();
-    let bindings =
-        provider_planning::program_entry::bound_program_entry_shapes(&typed, &build.root_bindings)?;
-    let mut demanded = entries.clone();
-    demanded.extend(bindings.iter().flat_map(|binding| {
-        [
-            binding.semantic_schema_symbol,
-            binding.requirement_symbol,
-            binding.implementation,
-        ]
-    }));
-    demanded.extend(typed_trees::float_providers::catalog_realization_declarations(&typed));
-    // A bound entry takes its boundary schema from the target's entry-contract
-    // source, which nothing in the program names.
-    let entry_contract = (!build.root_bindings.is_empty())
-        .then(|| target.program_entry_slot().physical_contract_package)
-        .flatten();
+    let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
     // The standalone source is its own subject: the one package identity its
     // authored product files carry.
     let mut subject = None;
@@ -170,63 +149,36 @@ fn frozen_frontier(
             }
         }
     }
-    let typed = validation::execution_projection::project_subject_program(
-        &typed,
-        |file| {
-            file.origin == source::SourceOrigin::User
-                || entry_contract.is_some_and(|package| {
-                    file.path.strip_prefix(&file.package_root).ok()
-                        == Some(Path::new(package.package_relative_source()))
-                })
-        },
-        &demanded,
-        &[],
-    );
-    let mut judged = None;
-    // The preparation fails with whatever its inspection returns, before Psi
-    // 05 is given the trees, so returning an error here is what keeps the old
-    // stages from running. A failure in an earlier step leaves `judged` empty.
-    let stopped = psi_compiler::CheckRequest {
+    // `complete_product_frontend` finishes Psi 03's authored bodies; it has
+    // not specialized or frozen them. Run the shared Psi 04 preparation once,
+    // exactly as the product path does, and keep the real result. Entries and
+    // the subject belong to subsequent structural judgment, not a deleted
+    // checker projection or an interrupted source-checking request.
+    let prepared = psi_compiler::SourcePreparationRequest {
         program: typed,
         admission: psi_compiler::SourceAdmission {
-            external_roots: &entries,
+            external_roots: &[],
             layout_scopes: &layout_scopes,
             layout_selection_authority: None,
-            completion: validation::source_completion::SourceCompletionAdmission::None,
-            representations: psi_compiler::ProductRepresentationInput {
-                activation: None,
-                declared: &[],
-                executed: &[],
-                retained: &[],
-            },
-            asm_authority: Some(validation::AsmAuthorityAdmission::from_freestanding(
-                build.settings.freestanding,
-            )),
+            completion: typed_trees::boundary_completions::SourceCompletionAdmission::None,
+            representations: psi_compiler::ProductRepresentationInput::default(),
+            asm_authority: Some(
+                language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(
+                    build.settings.freestanding,
+                ),
+            ),
             wire_demands: &[],
             declarations: None,
         },
-        previous: &[],
-        retain: false,
-        library_slice: psi_compiler::LibrarySliceRequest { root_package: None },
-        checked_slices: None,
     }
-    .check_inspecting_typed_frontier(&mut |trees| {
-        judged = Some(trees.clone());
-        Err(Vec::new())
-    });
-    match (judged, stopped) {
-        (Some(typed), _) => Ok(TypedFrontier {
-            typed,
-            entries,
-            subject,
-            selected: Vec::new(),
-            bindings,
-        }),
-        (None, Err(diagnostics)) => Err(diagnostics),
-        (None, Ok(_)) => Err(vec![Diagnostic::error(
-            "the product preparation finished without showing its frozen typed trees",
-        )]),
-    }
+    .prepare()?;
+    Ok(TypedFrontier {
+        typed: prepared.program.as_ref().clone(),
+        entries,
+        subject,
+        selected: Vec::new(),
+        bindings,
+    })
 }
 
 /// The binding a Build would have executed as

@@ -32,4 +32,3 @@ image-emission = { path = "../../../../omega-rust/omega/compilation/backend/imag
 effects = { path = "../../../../omega-rust/omega/compilation/backend/plans/effects" }
 symbols = { path = "../../../../omega-rust/psi/foundation/symbols" }
 mimalloc = { version = "0.1", default-features = false }
-typed-trees = { path = "../../../../omega-rust/psi/compilation/representations/typed-trees" }

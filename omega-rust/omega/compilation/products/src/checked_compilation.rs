@@ -1,10 +1,10 @@
 /*
-Checked compilation and the source custody sealed against it.
+Accepted compilation and the immutable source custody sealed against it.
 
-The sealed `CheckedCompilation` record retains each stage product as the unit
-its producer returned: selected execution, the shared evaluated Build, this
-compilation's Build admission, provider settlement, checked-tree product
-selection, and source custody. Consumers borrow the unit they read; the methods
+The sealed `CheckedCompilation` record retains selected execution, the shared
+evaluated Build, this compilation's Build admission, provider settlement, and
+source custody. Its source inspection and accepted Terminal publication must
+name the same frozen source owner. Consumers borrow the unit they read; the methods
 here expose those units, reconstruct explicit root trust obligations, project
 package build handoffs, and assemble the `TerminalNativeProposalRequest` that
 Omega 00 joins against provider selection.
@@ -18,7 +18,6 @@ separate checked semantic identity: `PartialEq` compares only `execution` and
 
 use crate::{BuildAdmission, ComputedBuildConfig};
 use artifacts::compile_timings::CompileTimings;
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use package_compilation::CheckedSourceCustody;
 use provider_planning::ProviderSettlement;
@@ -27,6 +26,7 @@ use std::sync::Arc;
 use terminal_psi_to_abstract_operations::{
     BoundaryApplicationSettlement, TerminalNativeProposalRequest,
 };
+use typed_trees::FrozenTypedTrees;
 
 mod report;
 
@@ -34,25 +34,16 @@ pub use report::{
     CheckedProductReport, CompileReportSettlement, ProductReportPlan, ProductReportRequest,
 };
 
-#[derive(Debug, Clone, Default)]
-pub struct RetainedCompilationChecks {
-    pub build: Option<psi_compiler::RetainedCheck>,
-    pub product: Option<psi_compiler::RetainedCheck>,
-    pub sibling_build_checks: Vec<psi_compiler::RetainedCheck>, // invocation-local build judgments across sibling occurrences
-    pub sibling_product_checks: Vec<psi_compiler::RetainedCheck>, // invocation-local product judgments across earlier targets
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilationInputs {
     pub settled: SelectedExecution,
-    pub source_inspection: Arc<provider_planning::SelectedProviderSource>, // retained only for explicit inspection and reference interpretation
+    pub source_inspection: Arc<crate::SelectedProviderSource>, // retained only for explicit inspection and reference interpretation
     pub build: Arc<ComputedBuildConfig>,
     pub build_admission: BuildAdmission,
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub providers: ProviderSettlement,
     pub independent_components: Result<Vec<crate::SelectedIndependentComponent>, String>,
-    pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
 }
 
 /// ```compile_fail
@@ -66,7 +57,6 @@ pub struct CheckedCompilation {
     execution: CheckedCompilationInputs,
     sources: Arc<CheckedSourceCustody>,
     timings: CompileTimings,
-    settled_checks: RetainedCompilationChecks,
     terminal_publication: Arc<crate::ProductTerminalPublication>,
 }
 
@@ -84,18 +74,23 @@ impl CheckedCompilation {
         sources: Arc<CheckedSourceCustody>,
         timings: CompileTimings,
         terminal_publication: Arc<crate::ProductTerminalPublication>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, Vec<Diagnostic>> {
+        sources
+            .require_owner(execution.source_inspection.program())
+            .map_err(|error| vec![error])?;
+        terminal_publication
+            .require_source_owner(execution.source_inspection.program())
+            .map_err(|error| vec![error])?;
+        Ok(Self {
             source_completion_accounting: Default::default(),
             execution,
             sources,
             timings,
-            settled_checks: RetainedCompilationChecks::default(),
             terminal_publication,
-        }
+        })
     }
 
-    pub fn source_inspection(&self) -> &provider_planning::SelectedProviderSource {
+    pub fn source_inspection(&self) -> &crate::SelectedProviderSource {
         &self.execution.source_inspection
     }
 
@@ -115,15 +110,6 @@ impl CheckedCompilation {
         &self,
     ) -> &build_time_evaluation::SourceCompletionAccounting {
         &self.source_completion_accounting
-    }
-
-    pub fn with_settled_checks(mut self, settled_checks: RetainedCompilationChecks) -> Self {
-        self.settled_checks = settled_checks;
-        self
-    }
-
-    pub const fn settled_checks(&self) -> &RetainedCompilationChecks {
-        &self.settled_checks
     }
 
     pub const fn execution(&self) -> &SelectedExecution {
@@ -189,13 +175,13 @@ impl CheckedCompilation {
             )
             .map_err(str::to_owned)?
             .with_checked_provider_selections(
-                &self.typed,
+                self,
                 &self.build().config.provider_selections,
                 self.build().observation_summary.as_ref(),
             )?;
         let (declarations, intents) =
             build_time_evaluation::native_bindings::capture_package_intents(
-                &self.typed,
+                self,
                 handoff.package(),
                 &self.build().native_formations,
                 &self.build().native_binding_requests,
@@ -301,7 +287,7 @@ impl CheckedCompilation {
 }
 
 impl std::ops::Deref for CheckedCompilation {
-    type Target = CheckedTrees;
+    type Target = FrozenTypedTrees;
 
     fn deref(&self) -> &Self::Target {
         self.source_inspection().program()

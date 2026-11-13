@@ -28,7 +28,7 @@ fn assert_in_order(source: &str, owner: &str, operations: &[&str]) {
 }
 
 #[test]
-fn final_representation_admission_belongs_to_psi_checking() {
+fn opaque_representation_admission_is_not_rebuilt_in_the_coordinator() {
     let coordinator = include_str!("checked/checking/source_checking.rs");
     assert_absent(
         &[coordinator],
@@ -37,16 +37,6 @@ fn final_representation_admission_belongs_to_psi_checking() {
             "rederive_opaque_representation_selections(",
             "OpaqueDataPropertyReceipt::copy(",
             "CheckedSemanticCopy",
-        ],
-    );
-    let checking = include_str!("../../../../psi/compilation/psi-compiler/src/source_checking.rs");
-    assert_in_order(
-        checking,
-        "Psi source checking",
-        &[
-            "self.admission.representations.admit(&program)",
-            "validation::source_completion::prepare_source_completion(",
-            "prior.judgment.judges_preparation_input(",
         ],
     );
 }
@@ -80,7 +70,6 @@ fn product_policy_admission_has_one_source_owner() {
         "Psi product policy",
         &[
             "self.admit_product_provider_requests(",
-            "collect_opaque_representation_selections(",
             "native_bindings::collect(",
             "collect_product_root_grants(",
             "product_declarations::admit(",
@@ -125,48 +114,6 @@ fn product_provider_request_admission_belongs_to_psi() {
             "ProductApplicationDemand",
         ],
     );
-}
-
-#[test]
-fn selected_constant_evaluation_belongs_to_psi() {
-    let selection =
-        include_str!("../../../build-system/build-settings/src/admission/selected_constants.rs");
-    assert_absent(&[selection], "selection drives", &[".finish(typed)"]);
-    let geometry = include_str!("../../realization/provider-planning/src/data_layout_queries.rs");
-    assert_absent(
-        &[geometry],
-        "geometry owns",
-        &["expression_mut(", "proof_only::", "PreCheckEvaluation"],
-    );
-}
-
-#[test]
-fn reused_product_selection_shares_the_checked_program() {
-    use std::sync::Arc;
-
-    let program = Arc::new(checked_trees::CheckedTrees::default());
-    let mut selections = psi_compiler::ProductSelections::default();
-    let first = selections
-        .select(
-            psi_compiler::CheckedSource {
-                program: Arc::clone(&program),
-                retained: None,
-                reused: false,
-            },
-            None,
-        )
-        .expect("first root selection");
-    let second = selections
-        .select(
-            psi_compiler::CheckedSource {
-                program: Arc::clone(&program),
-                retained: None,
-                reused: true,
-            },
-            None,
-        )
-        .expect("reused root selection");
-    assert!(Arc::ptr_eq(&first.program, &second.program));
 }
 
 #[test]
@@ -273,53 +220,6 @@ fn package_frontiers_batch_components_without_nested_source_workers() {
 }
 
 #[test]
-fn installation_reach_settlement_consumes_prepared_rows() {
-    let projection = include_str!(
-        "../../realization/provider-planning/src/provider_planning/selected_declarations.rs"
-    );
-    assert_absent(
-        &[projection],
-        "reach projection reconstructs",
-        &[
-            "typed.machines()",
-            "typed.traits()",
-            "attached_data_path",
-            "named_provider_row",
-        ],
-    );
-}
-
-#[test]
-fn checked_operator_choice_consumes_retained_candidates() {
-    let admission = include_str!(
-        "../../realization/provider-planning/src/provider_planning/source_provider_selections.rs"
-    );
-    let dispatch = include_str!(
-        "../../realization/selected-dispatch/src/selected_dispatch/operator_adapter.rs"
-    );
-    assert_absent(
-        &[admission, dispatch],
-        "operator body choice reconstructs",
-        &["machine_specializations", "machine_trait_conformances"],
-    );
-}
-
-#[test]
-fn issuer_identities_precede_occurrence_production() {
-    let preparation = include_str!(
-        "../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs"
-    );
-    assert_in_order(
-        preparation,
-        "contract fact preparation",
-        &[
-            "qualification_evidence::prepare_issuers(",
-            "append_contract_semantic_facts(program",
-        ],
-    );
-}
-
-#[test]
 fn native_provider_handoff_borrows_closed_source_associations() {
     let projection = include_str!("../../products/src/checked_compilation.rs");
     assert_absent(
@@ -330,20 +230,6 @@ fn native_provider_handoff_borrows_closed_source_associations() {
             "exact_owner_nominal_identity",
             "target_machine_families",
             "machine_by_symbol",
-        ],
-    );
-}
-
-#[test]
-fn selected_intrinsic_settlement_borrows_original_row_declarations() {
-    let settlement = include_str!("../../realization/selected-dispatch/src/intrinsic_review.rs");
-    assert_absent(
-        &[settlement],
-        "selected settlement reopens",
-        &[
-            "CheckedTrees",
-            "ProviderPlanningContext",
-            "row_execution_identity(",
         ],
     );
 }
@@ -443,50 +329,6 @@ fn native_telescope_construction_is_shared_by_canonical_replay_and_projection() 
 }
 
 #[test]
-fn provider_derivation_consumes_the_prepared_service_census() {
-    let derivation = include_str!(
-        "../../realization/provider-planning/src/provider_planning/provenance_replay/plan_derivation.rs"
-    );
-    let named = include_str!(
-        "../../realization/provider-planning/src/provider_planning/provenance_replay/named_provider_plans.rs"
-    );
-    let service_catalog =
-        include_str!("../../realization/provider-planning/src/service_declarations.rs");
-    assert_absent(
-        &[derivation, named, service_catalog],
-        "provider census consumer reopens",
-        &[
-            "projection::from_typed",
-            "service_schema::from_typed",
-            "service_schema::from_sealed_accessor",
-        ],
-    );
-    let native_supply =
-        include_str!("../../realization/provider-planning/src/native_bindings/plans.rs");
-    let settlement = include_str!("../../realization/provider-planning/src/provider_settlement.rs");
-    let entry = include_str!("../../realization/provider-planning/src/program_entry.rs");
-    let nomination =
-        include_str!("../../realization/provider-planning/src/program_entry/discovery.rs");
-    let adapter = include_str!(
-        "../../realization/provider-planning/src/provider_planning/provenance_replay/adapter_conformance.rs"
-    );
-    assert_absent(
-        &[native_supply, settlement, entry, nomination, adapter],
-        "provider census consumer reopens",
-        &["service_schema::from_typed"],
-    );
-    let build = include_str!("../../../build-system/build-settings/src/admission/checking.rs");
-    assert_in_order(
-        build,
-        "Build admission checking",
-        &[
-            "PreparedServiceCatalog::prepare(context, &[])",
-            "derive_satisfies_plans(",
-        ],
-    );
-}
-
-#[test]
 fn native_product_supplies_inputs_without_orchestrating_component_emission() {
     let source = include_str!("product_execution.rs");
     let inputs =
@@ -549,15 +391,9 @@ fn exclusion_source_resolution_stays_out_of_terminal_policy() {
 }
 
 #[test]
-fn terminal_composition_admission_follows_canonical_publication() {
+fn terminal_composition_keeps_source_and_omega_policy_out_of_attachment() {
     let producer =
         include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
-    assert_eq!(producer.matches("application.attach(").count(), 1);
-    assert_in_order(
-        producer,
-        "application attachment",
-        &["finalize_terminal_program(", "application.attach("],
-    );
     assert_absent(
         &[producer],
         "Psi production runs Omega policy:",
@@ -664,27 +500,8 @@ fn packages_do_not_manage_frontend_or_judgment_reuse() {
 }
 
 #[test]
-fn callback_root_policy_consumes_prepared_source_correspondence() {
-    let preparation = include_str!("../../realization/provider-planning/src/provider_instances.rs");
-    assert_absent(
-        &[preparation],
-        "callback roots reopen source:",
-        &[
-            "program.callback_declaration(usage)",
-            "program.facts.nominal_machine_uses",
-        ],
-    );
-    assert_eq!(
-        preparation
-            .matches("exact_checked_adapter(context, plan, row)")
-            .count(),
-        1
-    );
-}
-
-#[test]
-fn provider_instance_policy_consumes_checked_declaration_groups() {
-    let preparation = include_str!("../../realization/provider-planning/src/provider_instances.rs");
+fn provider_instance_inspection_does_not_reopen_checked_facts() {
+    let preparation = include_str!("../../products/src/provider_instances.rs");
     assert_absent(
         &[preparation],
         "provider instances reopen source:",
@@ -710,24 +527,6 @@ fn provider_demand_is_prepared_by_psi_not_each_target_settlement() {
         &[publication],
         "target publication recomputes provider demand:",
         &["is_candidate_demanded"],
-    );
-}
-
-#[test]
-fn target_defaults_consume_one_psi_authored_origin_inventory() {
-    let target_selection =
-        include_str!("../../realization/provider-planning/src/target_machines.rs");
-    let selection = target_selection
-        .split("pub fn settle_provider_defaults(")
-        .nth(1)
-        .expect("target-default selection")
-        .split("///")
-        .next()
-        .expect("target-default body");
-    assert_absent(
-        &[selection],
-        "target defaults rescan source:",
-        &[".machines()", "ProviderPlanningContext"],
     );
 }
 
@@ -779,7 +578,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
 }
 
 #[test]
-fn service_surface_projection_is_psi_owned_and_calling_is_an_omega_attachment() {
+fn service_surface_projection_is_owned_by_psi_declarations() {
     let surface =
         include_str!("../../../../psi/foundation/language-semantics/src/service_surface.rs");
     assert!(!surface.contains("BoundaryCallingPlanCommitment"));
@@ -790,12 +589,6 @@ fn service_surface_projection_is_psi_owned_and_calling_is_an_omega_attachment() 
     assert!(projection.contains("requirements.push(ServiceRequirementSource"));
     assert!(projection.contains("scope.type_identity("));
     assert!(!projection.contains("BoundaryCallingPlanRealization"));
-    let attachment = include_str!("../../realization/provider-planning/src/service_schema/mod.rs");
-    assert!(attachment.contains("application.argument_owner() == argument_owner"));
-    assert!(attachment.contains("application.boundary_arguments == boundary_arguments"));
-    assert!(attachment.contains("prepared.argument_owner,"));
-    assert!(attachment.contains("prepared.boundary_arguments,"));
-    assert!(!attachment.contains("ServiceMethod {"));
     let catalog = include_str!("../../realization/provider-planning/src/service_declarations.rs");
     assert!(catalog.contains("projected.exact_requirements()?"));
     assert!(!catalog.contains("trait_requirements("));

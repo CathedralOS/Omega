@@ -21,15 +21,12 @@ use calling_conventions::{
     CallbackRequirementId, NativeCallbackDemand, ValidatedBoundaryEntryPlan,
     validate_boundary_entry_plan_with_callback_materializations,
 };
-use checked_trees::typed_trees::types::TypeReferenceHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BoundaryCallingPlanRealization {
     pub declaration: semantic_vocabulary::CallingSignatureId,
     pub(crate) calling_owner_application: String, // complete canonical application of the Calling relationship's root
     pub boundary_trait: symbols::SymbolHandle,
-    pub boundary_arguments: Vec<TypeReferenceHandle>,
-    pub(crate) argument_owner: symbols::SymbolHandle, // supplying declaration for lifetime-bearing type operands
     pub requirement_machine: symbols::SymbolHandle,
     pub report_fingerprint: u64, // compact compatibility/report coordinate; exact plan and signature remain authority
     pub commitment: effects::provider_plan::BoundaryCallingPlanCommitment,
@@ -47,10 +44,6 @@ pub struct BoundaryCallingPlanRealization {
 impl BoundaryCallingPlanRealization {
     pub fn calling_owner_application(&self) -> &str {
         &self.calling_owner_application
-    }
-
-    pub const fn argument_owner(&self) -> symbols::SymbolHandle {
-        self.argument_owner
     }
 
     pub const fn materialized_signature(&self) -> &MaterializedBoundarySignature {
@@ -174,33 +167,6 @@ impl BoundaryCallingPlanRealization {
             effects::provider_plan::BoundaryCallingPlanCommitment::from_digest(commitment),
         ))
     }
-}
-
-pub(crate) fn validate_retained_callback_binders(
-    realization: &BoundaryCallingPlanRealization,
-) -> Result<(), String> {
-    for (index, binder) in realization.callback_binders.iter().enumerate() {
-        if !binder.parameter_symbol.is_valid()
-            || !binder.requirement_trait.is_valid()
-            || !binder.requirement_machine.is_valid()
-        {
-            return Err(
-                "evaluated registrar plan retained an invalid nominal callback binder symbol"
-                    .to_owned(),
-            );
-        }
-        if realization.callback_binders[..index].iter().any(|prior| {
-            prior.binder == binder.binder
-                || prior.static_machine_ordinal == binder.static_machine_ordinal
-                || prior.parameter_symbol == binder.parameter_symbol
-        }) {
-            return Err(
-                "evaluated registrar plan retained a duplicate nominal callback binder identity"
-                    .to_owned(),
-            );
-        }
-    }
-    Ok(())
 }
 
 pub(crate) fn validate_callback_requirement_report_collision(

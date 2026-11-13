@@ -1,17 +1,18 @@
 /*
-    Terminal Psi production custody: the request and refusal for producing a
-    Terminal program, observation stages, retained program records, and
-    post-publication application attachment.
+Terminal production retains the new checker's actual accepted closure, its frozen
+typed owner and the exact artifact/evidence pair. AcceptedTerminalSource is the
+production entrance; invocation identity is fixed before lowering and judgment.
 
-    `TerminalProductionRequest::produce` refuses every request with
-    `no product route yet`: the stage that lowered checked trees is removed and
-    the hand-off from the lowered route's published module is not built. The
-    retained records (`custody`), Build companions (`build_bindings`),
-    external provider declaration data (`external_providers`) and application
-    roots (`composition_roots`) are the contracts that hand-off has to fill.
+Retained Build companions, external declaration records and application receipts
+describe the data a producer must provide; none manufactures checking authority.
+The obsolete checked-source production request interfaces have been removed.
 */
 
 #![forbid(unsafe_code)]
+
+mod accepted;
+pub use accepted::AcceptedTerminalSource;
+pub use structure_elaboration::Compilation as TerminalSourceCompilation;
 
 mod build_bindings;
 pub(crate) use build_bindings::{build_filesystem, build_provider, build_queries, build_requests};
@@ -102,67 +103,15 @@ pub(crate) mod observation {
         }
     }
 }
-pub use checked_trees::PreparedProviderInventory;
 pub(crate) mod terminal_production {
-    use checked_trees::CheckedTrees;
     use diagnostics::Diagnostic;
-    use lowered_psi_to_lowered_psi::PsiOptimizationStageError;
 
-    use crate::custody::{ProducedTerminalProgram, TerminalProductionCustody};
-    use crate::observation::PsiCompilationObserver;
-    use crate::{TerminalMachineSelection, TerminalProgramRoots};
-
-    pub use lowered_psi_to_terminal_psi::ProgramEntryTerminalReceiptError;
-
-    pub struct TerminalProductionRequest<'a> {
-        pub publication: terminal_codec::TerminalPublication,
-        pub checked: &'a CheckedTrees,
-        pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
-        pub external_declarations: Option<&'a crate::PreparedExternalProviderDeclarations>,
-        pub provider_inventory: Option<&'a checked_trees::PreparedProviderInventory>,
-        pub machine: TerminalMachineSelection<'a>,
-        pub roots: TerminalProgramRoots<'a>,
-        pub optimization_selections: optimization::PsiOptimizationSelections,
-    }
-
-    impl<'a> TerminalProductionRequest<'a> {
-        pub fn new(
-            checked: &'a CheckedTrees,
-            machine: TerminalMachineSelection<'a>,
-            exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
-        ) -> Self {
-            Self {
-                publication: terminal_codec::TerminalPublication::Portable,
-                checked,
-                exact_toolchain_sources,
-                external_declarations: None,
-                provider_inventory: None,
-                machine,
-                roots: TerminalProgramRoots::default(),
-                optimization_selections: optimization::PsiOptimizationSelections::default(),
-            }
-        }
-
-        /*
-            The stage that lowered checked trees into Lowered Psi is removed, and the
-            product hand-off from the lowered route's published module is not built
-            yet. Until it is, no request reaches Terminal Psi: every production is
-            refused here rather than routed back through the old checker's output.
-        */
-        pub fn produce(
-            self,
-            _custody: TerminalProductionCustody<'_>,
-            _observer: &mut impl PsiCompilationObserver,
-        ) -> Result<ProducedTerminalProgram, TerminalArtifactProductionError> {
-            Err(TerminalArtifactProductionError::NoProductRoute)
-        }
-    }
+    pub use terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError;
 
     #[derive(Debug)]
     pub enum TerminalArtifactProductionError {
         BuildContext(Diagnostic),
         NoProductRoute,
-        Optimization(PsiOptimizationStageError),
         Artifact(terminal_codec::CanonicalTerminalArtifactError),
         EntryReceipt(ProgramEntryTerminalReceiptError),
     }
@@ -176,7 +125,7 @@ pub(crate) mod terminal_production {
             match self {
                 Self::BuildContext(error) => Some(error.clone()),
                 Self::NoProductRoute => Some(Diagnostic::error(
-                    "no product route yet: the checked program has no Terminal program producer",
+                    "no product route yet: the source has no accepted Terminal program producer",
                 )),
                 _ => None,
             }
@@ -199,7 +148,7 @@ pub use build_bindings::{
 pub use build_filesystem::{
     TerminalBuildFilesystem, TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation,
 };
-pub use build_provider::{BuildProviderProductionRequest, ProducedBuildProvider};
+pub use build_provider::ProducedBuildProvider;
 pub use build_queries::{TerminalBuildQueryCall, TerminalBuildQueryOperation};
 pub use build_requests::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation, TerminalBuildRequests,
@@ -217,16 +166,14 @@ pub use external_providers::{
 };
 pub use observation::{PsiCompilationObserver, PsiCompilationStage, UnmeasuredProduction};
 pub use production_selection::{TerminalMachineSelection, TerminalProgramRoots};
-pub use terminal_production::{
-    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
-};
+pub use terminal_production::{ProgramEntryTerminalReceiptError, TerminalArtifactProductionError};
 pub use terminal_psi::PreparedTerminalRoots;
 
 pub(crate) mod composition_roots {
     use crate::observation::{PsiCompilationObserver, PsiCompilationStage};
     use crate::{ProducedTerminalApplication, TerminalArtifactProductionError};
     use diagnostics::Diagnostic;
-    use lowered_psi_to_terminal_psi::prepare_program_entry_receipt;
+    use terminal_codec::entry_receipt::prepare_program_entry_receipt;
     use terminal_psi::{PreparedNominalRoot, TerminalMachineProvenance};
 
     #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]

@@ -3927,16 +3927,6 @@ pub(crate) mod expression {
         )
     }
 
-    pub(crate) fn lower_expression_handle_from_table(
-        source: &resolved::expression::ExpressionTable,
-        target: &mut typed::TypedTrees,
-        expression: resolved::expression::ExpressionHandle,
-    ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
-        lower_expression_handle_from_table_with_symbol_substitution(
-            None, source, target, expression, None,
-        )
-    }
-
     pub(crate) fn lower_expression_handle_from_table_with_symbol_substitution(
         program: Option<&resolved::SymbolResolvedTrees>,
         source: &resolved::expression::ExpressionTable,

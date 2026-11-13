@@ -191,9 +191,6 @@ pub(crate) mod build_filesystem {
 }
 
 pub(crate) mod build_provider {
-    use checked_trees::CheckedTrees;
-    use diagnostics::Diagnostic;
-
     pub struct ProducedBuildProvider {
         code: Option<std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>>,
         path: String,
@@ -225,25 +222,6 @@ pub(crate) mod build_provider {
             &self.application
         }
     }
-
-    pub struct BuildProviderProductionRequest<'checked> {
-        pub checked: &'checked CheckedTrees,
-        pub exact_toolchain_sources: &'checked [(source::SourceId, [u8; 32])],
-        pub package: semantic_vocabulary::PackageKeyIdentity,
-        pub declaration_path: &'checked str,
-    }
-
-    impl BuildProviderProductionRequest<'_> {
-        pub fn produce(self) -> Result<ProducedBuildProvider, Vec<Diagnostic>> {
-            // The provider's Terminal program was lowered from checked trees by the
-            // removed checked-tree lowering stage. Nothing produces it from the
-            // lowered route's published module yet, so the Build backing is refused.
-            Err(vec![Diagnostic::error(format!(
-                "no product route yet: Build backing `{}` has no Terminal program producer",
-                self.declaration_path
-            ))])
-        }
-    }
 }
 
 pub(crate) mod build_queries {
@@ -266,25 +244,10 @@ pub(crate) mod build_queries {
 }
 
 pub(crate) mod build_requests {
-    use semantic_vocabulary::{BoundaryMachineId, OperationId};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-    pub enum TerminalBuildRequestOperation {
-        Package,
-        Application,
-        Member,
-        ArtifactOnly,
-        PathDependency,
-        GitDependency,
-        LogLine,
-    }
-
-    #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
-    pub struct TerminalBuildRequestCall {
-        pub operation: OperationId,
-        pub boundary: BoundaryMachineId,
-        pub action: TerminalBuildRequestOperation,
-    }
+    pub use language_semantics::build_requests::{
+        TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    };
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct TerminalBuildRequests {

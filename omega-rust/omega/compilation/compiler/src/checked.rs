@@ -16,7 +16,6 @@ and settles providers, dispatch, entry bindings, and task activations without
 reopening source checking.
 */
 
-pub(crate) mod checked_slice_store;
 pub(crate) mod checking;
 mod compilation_session;
 mod component_cache;
@@ -39,7 +38,7 @@ pub use checking::typed_frontier::{
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
-    PreparedPackageBuild, RestrictedBuildGrants, SettledCheckReuse, SourceCompilation,
+    PreparedPackageBuild, RestrictedBuildGrants, SourceCompilation,
 };
 pub use compilation_session::CompilationSession;
 pub use optimization_core::{
@@ -51,4 +50,4 @@ pub use package_compilation::{
     PackageSourceRequest, PreparedPackageProduct, SourceBuildDeclaration,
 };
 pub use package_review::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
-pub(crate) use target_preparation::{PreparedProductTarget, PreparedTargetDeclarations};
+pub(crate) use target_preparation::PreparedProductTarget;

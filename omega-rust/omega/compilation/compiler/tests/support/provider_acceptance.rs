@@ -44,7 +44,6 @@ pub fn schema_symbol_owner(
     owner: PackageKeyIdentity,
 ) -> bool {
     checked
-        .typed
         .symbols
         .symbol_package_identity(provenance.provider.schema.symbol())
         == Some(owner)
@@ -138,7 +137,6 @@ fn accept(
         binding_role,
         owner,
         checked
-            .typed
             .symbols
             .display_path(provenance.provider.schema.symbol(), "::"),
         plan.schema.identity_digest(),

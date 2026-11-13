@@ -14,8 +14,11 @@
 //! the way the program-entry receipt finds it on the current checker's
 //! program.
 //!
-//! The default compile does not take this path yet: a governed program is
-//! still built from the current checker's output.
+//! The default compile takes this path for the application: when the route
+//! accepts a compilation and its module publishes, the Terminal product is
+//! that artifact and its seals stay beside it for Omega 00. Everything else
+//! a product reads (provider selection, calling policies, the Build's
+//! companions) still comes from the current checker's program.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -50,6 +53,7 @@ fn accepted(
     Box<lowered_discharge::AcceptedClosure>,
     terminal_psi::PreparedNominalRoot,
     [u8; 32],
+    Box<compiler::CheckedCompilation>,
 ) {
     let main = repo_root().join(fixture).join("main.omg");
     let checked = std::thread::scope(|scope| {
@@ -92,7 +96,8 @@ fn accepted(
                 None,
             )
             .expect("exact selected root");
-            (closure, root, signature.identity().bytes())
+            let signature = signature.identity().bytes();
+            (closure, root, signature, checked)
         }
         other => panic!("{fixture}: the route must accept: {other:?}"),
     }
@@ -101,7 +106,7 @@ fn accepted(
 #[test]
 fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let (closure, root, signature) =
+    let (closure, root, signature, _) =
         accepted("tests/fixtures/run/calls/scalar_contract_route_exit");
     let publication = closure.publish().expect("the accepted module publishes");
 
@@ -193,9 +198,41 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     );
 }
 
-/// The Terminal product the default compile builds for `fixture`, which is
-/// the current checker's program.
-fn current_product(fixture: &str) -> terminal_codec::CanonicalTerminalArtifact {
+/// The default compile builds the application of a program the route accepts
+/// from the route's own module: the Terminal product holds exactly the
+/// artifact `AcceptedClosure::publish` produces, not the current checker's
+/// program, and the evidence seals bound to that artifact's identity are
+/// retained beside it, so native production hands Omega 00 the module the
+/// kernel judged with the certificates that judged it.
+#[test]
+fn the_default_compile_builds_the_application_from_the_routes_module() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
+    let (closure, _, _, _) = accepted(fixture);
+    let publication = closure.publish().expect("the accepted module publishes");
+    let product = default_product(fixture);
+
+    assert_eq!(
+        product.artifact().manifest().semantic(),
+        publication.artifact.manifest().semantic()
+    );
+    assert_eq!(
+        product.artifact().semantic_module(),
+        &closure.elaboration.module
+    );
+    let evidence = product
+        .evidence()
+        .expect("the route's seals travel beside its artifact");
+    assert_eq!(evidence.as_ref(), &publication.seals);
+    assert!(!evidence.seals.is_empty());
+    assert_eq!(
+        evidence.module,
+        terminal_codec::terminal_psi_identity(product.artifact().semantic_module()).unwrap()
+    );
+}
+
+/// The Terminal product the default compile builds for `fixture`.
+fn default_product(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTerminalArtifact {
     let target = "linux_x86_64";
     let main = repo_root().join(fixture).join("main.omg");
     std::thread::scope(|scope| {
@@ -216,7 +253,7 @@ fn current_product(fixture: &str) -> terminal_codec::CanonicalTerminalArtifact {
                     &[profile],
                     compiler::CompilationProduct::Terminal(Default::default()),
                 )?;
-                let retained = produce_fixture(&mut prepared, Some(target))?
+                produce_fixture(&mut prepared, Some(target))?
                     .into_report()
                     .map_err(compiler::CompilationProductError::into_diagnostics)?
                     .into_retained_terminal_artifact()
@@ -224,8 +261,7 @@ fn current_product(fixture: &str) -> terminal_codec::CanonicalTerminalArtifact {
                         vec![diagnostics::Diagnostic::error(
                             "the Terminal product retained no artifact",
                         )]
-                    })?;
-                Ok(retained.artifact().clone())
+                    })
             },
         )
         .expect("compiler worker")
@@ -248,10 +284,12 @@ fn current_product(fixture: &str) -> terminal_codec::CanonicalTerminalArtifact {
 fn the_published_module_states_each_machines_declaration_identity() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
-    let (closure, _, _) = accepted(fixture);
+    let (closure, _, _, checked) = accepted(fixture);
     let publication = closure.publish().expect("the accepted module publishes");
     let published = publication.artifact.semantic_module();
-    let current = current_product(fixture);
+    // The current checker's program is the code published for the
+    // compilation's other readers; the calling program shares its artifact.
+    let current = std::sync::Arc::clone(&checked.providers().calling_program.artifact);
     let current = current.semantic_module();
 
     let text = |module: &terminal_psi::TerminalModule, identity| {
