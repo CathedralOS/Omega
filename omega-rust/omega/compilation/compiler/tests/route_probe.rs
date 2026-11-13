@@ -282,6 +282,34 @@ fn a_sum_bounds_each_cases_payload_under_that_case() {
     }
 }
 
+/// A machine with a value parameter, `clamp<const Limit: u64>`, applied at a
+/// literal is judged as the machine typed preparation generates for that
+/// value (`wiki/spec/language/generics.md`, "Value binders and const
+/// requirements"): its contract and body with the literal where `Limit`
+/// stood. `clamp<7>` and `clamp<200>` are two machines, so `150` is within
+/// one and `5` within the other, and what `clamp<7>` guarantees keeps
+/// `7 - small` exact.
+///
+/// The twin differs only in one argument: `clamp<7>(9)` breaks `9 <= 7`.
+#[test]
+fn a_value_parameter_application_is_judged_at_its_value() {
+    let program = |small: &str| {
+        format!(
+            "machine clamp<const Limit: u64>(input: u64) -> u64\n\
+             requires input <= Limit\n\
+             ensures result <= Limit\n\
+             {{ input }}\n\
+             machine main() {{\n    \
+             let small: u64 = clamp<7>({small});\n    \
+             let room: u64 = 7u64 - small;\n    \
+             let large: u64 = clamp<200>(150);\n}}\n"
+        )
+    };
+    // The entry closure, then `clamp` checked once with `Limit` rigid.
+    assert_eq!(verdicts("within", &program("5")), ["accepted", "accepted"]);
+    assert_eq!(verdicts("beyond", &program("9")), ["rejected", "accepted"]);
+}
+
 #[test]
 fn an_uncalled_defect_of_a_standalone_program_is_rejected() {
     assert_eq!(
