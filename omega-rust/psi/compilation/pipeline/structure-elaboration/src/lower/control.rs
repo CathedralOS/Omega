@@ -156,11 +156,11 @@ impl Lowering<'_> {
     /// lies in this machine's call component: such a call is a jump back.
     fn loops<'e>(&self, expression: &'e Expression) -> Option<(MachineId, &'e [Expression])> {
         match &expression.kind {
-            ExpressionKind::Call { callee, arguments }
-                if self.heads.iter().any(|head| head.member == *callee) =>
-            {
-                Some((*callee, arguments))
-            }
+            ExpressionKind::Call {
+                callee: semantic_vocabulary::TargetMachineCallable::Machine(callee),
+                arguments,
+                ..
+            } if self.heads.iter().any(|head| head.member == *callee) => Some((*callee, arguments)),
             _ => None,
         }
     }

@@ -199,14 +199,18 @@ fn target(target: &Target, sites: &mut Vec<CallSite>) {
     match target {
         Target::Unit | Target::Crash(_) => {}
         Target::Value(value) => match &value.kind {
-            ExpressionKind::Call { callee, arguments } => {
+            ExpressionKind::Call {
+                callee, arguments, ..
+            } => {
                 for argument in arguments {
                     expression(argument, sites);
                 }
-                sites.push(CallSite {
-                    callee: *callee,
-                    terminal: true,
-                });
+                if let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callee {
+                    sites.push(CallSite {
+                        callee: *callee,
+                        terminal: true,
+                    });
+                }
             }
             _ => expression(value, sites),
         },
@@ -263,14 +267,18 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
             expression(left, sites);
             expression(right, sites);
         }
-        ExpressionKind::Call { callee, arguments } => {
+        ExpressionKind::Call {
+            callee, arguments, ..
+        } => {
             for argument in arguments {
                 expression(argument, sites);
             }
-            sites.push(CallSite {
-                callee: *callee,
-                terminal: false,
-            });
+            if let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callee {
+                sites.push(CallSite {
+                    callee: *callee,
+                    terminal: false,
+                });
+            }
         }
     }
 }

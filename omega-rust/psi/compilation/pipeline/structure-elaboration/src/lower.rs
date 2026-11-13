@@ -67,7 +67,7 @@ use terminal_psi::{
 };
 
 use self::places::{Bound, Records, Witness};
-use crate::body::{Body, Signature, ValueType};
+use crate::body::{Body, Signature, Signatures, ValueType};
 use crate::canonical;
 use crate::outcome::Outcome;
 use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse};
@@ -97,192 +97,16 @@ pub(crate) fn machine(
     id: MachineId,
     bodies: &IdTable<MachineId, Body>,
     component: &[MachineId],
-    signatures: &IdTable<MachineId, Signature>,
+    signatures: Signatures<'_>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
     requirement: bool,
 ) -> Checked<Lowered> {
     let body = terminal_check_tables::row(bodies, id, id, Construct::Machine)?;
-    let signature = terminal_check_tables::row(signatures, id, id, Construct::Machine)?;
-    let mut lowering = Lowering {
-        id,
-        signature,
-        signatures,
-        outcomes,
-        records,
-        roots: IdTable::default(),
-        entry_contents: Vec::new(),
-        path: Vec::new(),
-        tables: MachineTables::default(),
-        sources: MachineSources::default(),
-        blocks: IdTable::default(),
-        current: None,
-        point: None,
-        slots: vec![None; body.slots.len()],
-        selected: Vec::new(),
-        slot_types: &body.slots,
-        published: Vec::new(),
-        heads: Vec::new(),
-        invariants: Vec::new(),
-        borrowed_roots: Vec::new(),
-        joining: 0,
-    };
+    let signature = signatures.get(id.into(), id)?;
+    let mut lowering = Lowering::new(id, signature, signatures, outcomes, records, &body.slots);
     let entry = lowering.block(SourceOrigin::Unpositioned(Unpositioned::MachineEntry));
-    let mut formals = Formals::default();
-    let formal_values = signature.formal_values();
-    for (position, value_type) in signature.parameters.iter().enumerate() {
-        if signature.is_erased(position) {
-            continue;
-        }
-        // A borrowed formal is a root place holding the caller's storage for
-        // the activation, declared with the reference's access; what it
-        // holds at entry is entry content. A scalar referent is a place of
-        // its primitive type, read and stored like a home.
-        if let Some(borrowed) = signature.borrowed(position) {
-            let (referent, scalar) = match *value_type {
-                ValueType::Record(record) => (record, false),
-                ValueType::Scalar(_) | ValueType::Qualified(..) => (
-                    records.primitive(*value_type, borrowed.home.as_deref(), id)?,
-                    true,
-                ),
-                ValueType::Rigid(_) => {
-                    return Err(lowering.internal("a borrowed formal of a rigid type"));
-                }
-            };
-            let lane = lowering.position(formals.records.len())?;
-            let (place, _) =
-                lowering.root(StructuralPlaceKind::Parameter { position: lane }, referent)?;
-            if place.get() != formals.records.len() as u64 + 1 {
-                return Err(lowering.internal("place formals are not the first places"));
-            }
-            formals.records.push(StructuralParameterDeclaration {
-                place,
-                position: lane,
-                structural_type: referent,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                access: places::borrowed_access(borrowed.access)
-                    .ok_or_else(|| lowering.internal("a write-only borrowed formal"))?,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                additional_input_qualifications: Vec::new(),
-            });
-            formals.order.push(BoundaryParameterKind::Structural);
-            lowering.borrowed_roots.push(place);
-            *lowering.slot_mut(position)? = Some(if scalar {
-                Bound::Home(place)
-            } else {
-                Bound::Record(place)
-            });
-            continue;
-        }
-        match *value_type {
-            // A formal of a rigid type is a value like a scalar formal: it
-            // has an identity, a call passes it, and nothing is known of it.
-            ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_) => {
-                let (scalar_type, rigid) = value_type
-                    .declared()
-                    .ok_or_else(|| lowering.internal("a value formal has no declaration"))?;
-                let value = lowering.tables.values.push(ValueRow {
-                    scalar_type,
-                    origin: ValueOrigin::MachineParameter {
-                        position: lowering.position(position)?,
-                    },
-                    selects: None,
-                    rigid,
-                });
-                // Clause propositions name each value formal by the
-                // identity `body::formal_values` gives it.
-                if formal_values.get(position) != Some(&Some(value)) {
-                    return Err(lowering.internal("scalar formals are not the first values"));
-                }
-                formals.scalars.push(declaration(value, scalar_type));
-                formals.order.push(BoundaryParameterKind::Scalar);
-                *lowering.slot_mut(position)? = Some(Bound::Scalar(value));
-            }
-            // A record formal is a root place the machine owns for the
-            // activation; what it holds at entry is entry content.
-            ValueType::Record(record) => {
-                let lane = lowering.position(formals.records.len())?;
-                let (place, _) =
-                    lowering.root(StructuralPlaceKind::Parameter { position: lane }, record)?;
-                // Clause terms name the `k`-th record formal as place
-                // `k + 1` (`Signature::requires`).
-                if place.get() != formals.records.len() as u64 + 1 {
-                    return Err(lowering.internal("place formals are not the first places"));
-                }
-                formals.records.push(StructuralParameterDeclaration {
-                    place,
-                    position: lane,
-                    structural_type: record,
-                    multiplicity: records.multiplicity(record, id)?,
-                    access: StructuralAccess::Owned,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    additional_input_qualifications: Vec::new(),
-                });
-                formals.order.push(BoundaryParameterKind::Structural);
-                *lowering.slot_mut(position)? = Some(Bound::Record(place));
-            }
-        }
-    }
-    // The scalar result pseudo-value comes right after the scalar formals,
-    // which is how `ensures` clauses name `result` (`Signature::result`). A
-    // record result is the machine's result place, a root of its own.
-    let result = match signature.result {
-        None => TerminalMachineResult::Unit,
-        Some(
-            value_type @ (ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_)),
-        ) => {
-            let (scalar_type, rigid) = value_type
-                .declared()
-                .ok_or_else(|| lowering.internal("a value result has no declaration"))?;
-            let value = match rigid {
-                None => lowering.value(scalar_type, ValueOrigin::MachineResult),
-                Some(rigid) => lowering.rigid_value(rigid, ValueOrigin::MachineResult),
-            };
-            if value.get() != formals.scalars.len() as u64 + 1 {
-                return Err(lowering.internal("the result does not follow the scalar formals"));
-            }
-            TerminalMachineResult::Scalar(declaration(value, scalar_type))
-        }
-        Some(ValueType::Record(record)) => {
-            let (place, _) = lowering.root(StructuralPlaceKind::Result, record)?;
-            TerminalMachineResult::Structural(StructuralResultDeclaration {
-                place,
-                structural_type: record,
-                multiplicity: records.multiplicity(record, id)?,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                reference_sources: Vec::new(),
-            })
-        }
-    };
-    // The erased scalar formals come after the result pseudo-value. Each is
-    // an invocation formal with a value identity and no runtime lane:
-    // Terminal Psi declares it in the contract, not among the parameters
-    // (`wiki/spec/terminal-psi/encoding.md`: "Erased formals occupy no tag").
-    for position in &signature.erased {
-        let Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
-            signature.parameters.get(*position).copied()
-        else {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Parameter("erased parameter of a data type"),
-            ));
-        };
-        let value = lowering.value(
-            scalar_type,
-            ValueOrigin::MachineParameter {
-                position: lowering.position(*position)?,
-            },
-        );
-        if formal_values.get(*position) != Some(&Some(value)) {
-            return Err(lowering.internal("erased formals do not follow the result"));
-        }
-        formals.erased.push(declaration(value, scalar_type));
-        *lowering.slot_mut(*position)? = Some(Bound::Erased(Witness::Value(value, scalar_type)));
-    }
+    let (formals, result) = lowering.formals()?;
     lowering.enter(entry);
     // One published identity per `ensures` clause, the one `ContractClause`
     // carries; every normal exit's guarantee names it.
@@ -310,6 +134,103 @@ pub(crate) fn machine(
     lowering.finish(entry, formals, result)
 }
 
+/// Declare a bodyless interface using the same formal/storage construction
+/// as a body. The supplied header names real source declarations; this emits
+/// no executable block, checked-body marker or provider installation.
+pub(crate) fn boundary(
+    caller: MachineId,
+    id: semantic_vocabulary::BoundaryMachineId,
+    signatures: Signatures<'_>,
+    outcomes: &IdTable<MachineId, Outcome>,
+    records: &Records<'_>,
+    metadata: (
+        terminal_psi::NominalDeclarationIdentity,
+        terminal_psi::CheckedBoundaryCallable,
+    ),
+    service: semantic_vocabulary::ServiceId,
+) -> Checked<terminal_psi::BoundaryMachineDeclaration> {
+    let signature = signatures.get(
+        semantic_vocabulary::TargetMachineCallable::Boundary(id),
+        caller,
+    )?;
+    let unavailable = |detail| refuse(caller, Construct::Machine, Unserved::Declaration(detail));
+    if !signature.erased.is_empty()
+        || signature
+            .parameters
+            .iter()
+            .any(|parameter| matches!(parameter, ValueType::Rigid(_)))
+        || matches!(signature.result, Some(ValueType::Rigid(_)))
+    {
+        return Err(unavailable(
+            "boundary declaration needs its closed runtime telescope",
+        ));
+    }
+    let crash_routes = signature
+        .declared_crash_routes()
+        .ok_or_else(|| unavailable("boundary declaration has no published crash ceiling"))?;
+    let mut lowering = Lowering::new(
+        caller,
+        signature,
+        signatures,
+        outcomes,
+        records,
+        &signature.parameters,
+    );
+    let (formals, result) = lowering.formals()?;
+    let result = match result {
+        TerminalMachineResult::Unit => terminal_psi::BoundaryMachineResult::Unit,
+        TerminalMachineResult::Scalar(result) => {
+            terminal_psi::BoundaryMachineResult::Scalar(result.scalar_type.into())
+        }
+        TerminalMachineResult::Structural(result) => {
+            terminal_psi::BoundaryMachineResult::Structural(
+                terminal_psi::BoundaryStructuralResultDeclaration {
+                    structural_type: result.structural_type,
+                    multiplicity: result.multiplicity,
+                    qualifications: result.qualifications,
+                    projected_qualifications: result.projected_qualifications,
+                },
+            )
+        }
+    };
+    Ok(terminal_psi::BoundaryMachineDeclaration {
+        id,
+        identity: metadata.1.source.callable,
+        owner: metadata.0,
+        declaration: Some(metadata.1),
+        numeric_intrinsic: None,
+        role: terminal_psi::BoundaryDeclarationRole::Callable,
+        kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
+        completion: semantic_vocabulary::BoundaryCompletion::NormalReturn,
+        unconditional_termination: signature.termination != crate::Termination::Silent,
+        attachment: None,
+        parameter_order: formals.order,
+        scalar_parameters: formals
+            .scalars
+            .iter()
+            .map(|formal| formal.scalar_type)
+            .collect(),
+        structural_parameters: formals.records,
+        result,
+        result_reference_regions: Vec::new(),
+        crash_routes: crash_routes.to_vec(),
+        scalar_requires: signature.requires.clone(),
+        scalar_ensures: signature.ensures.clone(),
+        // The shared signature reader refuses declared domains, reference
+        // results, invokes, suspension and blocking before this point. Those
+        // actual unsupported dimensions cannot be replaced by empty claims.
+        requires: Vec::new(),
+        normal_qualifications: Vec::new(),
+        scalar_domain_requirements: Vec::new(),
+        reference_outputs: Vec::new(),
+        program_local_root_introductions: Vec::new(),
+        content_guarantees: Vec::new(),
+        fixed_service_reach: Vec::new(),
+        owning_service: Some(service),
+        published_service_ceiling: Vec::new(),
+    })
+}
+
 /// A machine's formals in Terminal Psi's two lanes, and the authored order
 /// that interleaves them.
 #[derive(Default)]
@@ -322,10 +243,212 @@ struct Formals {
     erased: Vec<ValueDeclaration>,
 }
 
+impl<'a> Lowering<'a> {
+    fn new(
+        id: MachineId,
+        signature: &'a Signature,
+        signatures: Signatures<'a>,
+        outcomes: &'a IdTable<MachineId, Outcome>,
+        records: &'a Records<'a>,
+        slot_types: &'a [ValueType],
+    ) -> Self {
+        Self {
+            id,
+            signature,
+            signatures,
+            outcomes,
+            records,
+            roots: IdTable::default(),
+            entry_contents: Vec::new(),
+            path: Vec::new(),
+            tables: MachineTables::default(),
+            sources: MachineSources::default(),
+            blocks: IdTable::default(),
+            current: None,
+            point: None,
+            slots: vec![None; slot_types.len()],
+            selected: Vec::new(),
+            slot_types,
+            published: Vec::new(),
+            heads: Vec::new(),
+            invariants: Vec::new(),
+            borrowed_roots: Vec::new(),
+            joining: 0,
+        }
+    }
+}
+
+impl Lowering<'_> {
+    /// A body and an interface declare the same scalar and storage formals.
+    /// Construct those identities once without inventing executable blocks
+    /// or guarantees for a bodyless declaration.
+    fn formals(&mut self) -> Checked<(Formals, TerminalMachineResult)> {
+        let signature = self.signature;
+        let mut formals = Formals::default();
+        let formal_values = signature.formal_values();
+        for (position, value_type) in signature.parameters.iter().enumerate() {
+            if signature.is_erased(position) {
+                continue;
+            }
+            // A borrowed formal is a root place holding the caller's storage for
+            // the activation, declared with the reference's access; what it
+            // holds at entry is entry content. A scalar referent is a place of
+            // its primitive type, read and stored like a home.
+            if let Some(borrowed) = signature.borrowed(position) {
+                let (referent, scalar) = match *value_type {
+                    ValueType::Record(record) => (record, false),
+                    ValueType::Scalar(_) | ValueType::Qualified(..) => (
+                        self.records
+                            .primitive(*value_type, borrowed.home.as_deref(), self.id)?,
+                        true,
+                    ),
+                    ValueType::Rigid(_) => {
+                        return Err(self.internal("a borrowed formal of a rigid type"));
+                    }
+                };
+                let lane = self.position(formals.records.len())?;
+                let (place, _) =
+                    self.root(StructuralPlaceKind::Parameter { position: lane }, referent)?;
+                if place.get() != formals.records.len() as u64 + 1 {
+                    return Err(self.internal("place formals are not the first places"));
+                }
+                formals.records.push(StructuralParameterDeclaration {
+                    place,
+                    position: lane,
+                    structural_type: referent,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: places::borrowed_access(borrowed.access)
+                        .ok_or_else(|| self.internal("a write-only borrowed formal"))?,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                });
+                formals.order.push(BoundaryParameterKind::Structural);
+                self.borrowed_roots.push(place);
+                *self.slot_mut(position)? = Some(if scalar {
+                    Bound::Home(place)
+                } else {
+                    Bound::Record(place)
+                });
+                continue;
+            }
+            match *value_type {
+                // A formal of a rigid type is a value like a scalar formal: it
+                // has an identity, a call passes it, and nothing is known of it.
+                ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_) => {
+                    let (scalar_type, rigid) = value_type
+                        .declared()
+                        .ok_or_else(|| self.internal("a value formal has no declaration"))?;
+                    let value = self.tables.values.push(ValueRow {
+                        scalar_type,
+                        origin: ValueOrigin::MachineParameter {
+                            position: self.position(position)?,
+                        },
+                        selects: None,
+                        rigid,
+                    });
+                    // Clause propositions name each value formal by the
+                    // identity `body::formal_values` gives it.
+                    if formal_values.get(position) != Some(&Some(value)) {
+                        return Err(self.internal("scalar formals are not the first values"));
+                    }
+                    formals.scalars.push(declaration(value, scalar_type));
+                    formals.order.push(BoundaryParameterKind::Scalar);
+                    *self.slot_mut(position)? = Some(Bound::Scalar(value));
+                }
+                // A record formal is a root place the machine owns for the
+                // activation; what it holds at entry is entry content.
+                ValueType::Record(record) => {
+                    let lane = self.position(formals.records.len())?;
+                    let (place, _) =
+                        self.root(StructuralPlaceKind::Parameter { position: lane }, record)?;
+                    // Clause terms name the `k`-th record formal as place
+                    // `k + 1` (`Signature::requires`).
+                    if place.get() != formals.records.len() as u64 + 1 {
+                        return Err(self.internal("place formals are not the first places"));
+                    }
+                    formals.records.push(StructuralParameterDeclaration {
+                        place,
+                        position: lane,
+                        structural_type: record,
+                        multiplicity: self.records.multiplicity(record, self.id)?,
+                        access: StructuralAccess::Owned,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    });
+                    formals.order.push(BoundaryParameterKind::Structural);
+                    *self.slot_mut(position)? = Some(Bound::Record(place));
+                }
+            }
+        }
+        // The scalar result pseudo-value comes right after the scalar formals,
+        // which is how `ensures` clauses name `result` (`Signature::result`). A
+        // record result is the machine's result place, a root of its own.
+        let result = match signature.result {
+            None => TerminalMachineResult::Unit,
+            Some(
+                value_type
+                @ (ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_)),
+            ) => {
+                let (scalar_type, rigid) = value_type
+                    .declared()
+                    .ok_or_else(|| self.internal("a value result has no declaration"))?;
+                let value = match rigid {
+                    None => self.value(scalar_type, ValueOrigin::MachineResult),
+                    Some(rigid) => self.rigid_value(rigid, ValueOrigin::MachineResult),
+                };
+                if value.get() != formals.scalars.len() as u64 + 1 {
+                    return Err(self.internal("the result does not follow the scalar formals"));
+                }
+                TerminalMachineResult::Scalar(declaration(value, scalar_type))
+            }
+            Some(ValueType::Record(record)) => {
+                let (place, _) = self.root(StructuralPlaceKind::Result, record)?;
+                TerminalMachineResult::Structural(StructuralResultDeclaration {
+                    place,
+                    structural_type: record,
+                    multiplicity: self.records.multiplicity(record, self.id)?,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    reference_sources: Vec::new(),
+                })
+            }
+        };
+        // The erased scalar formals come after the result pseudo-value. Each is
+        // an invocation formal with a value identity and no runtime lane:
+        // Terminal Psi declares it in the contract, not among the parameters
+        // (`wiki/spec/terminal-psi/encoding.md`: "Erased formals occupy no tag").
+        for position in &signature.erased {
+            let Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
+                signature.parameters.get(*position).copied()
+            else {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Parameter("erased parameter of a data type"),
+                ));
+            };
+            let value = self.value(
+                scalar_type,
+                ValueOrigin::MachineParameter {
+                    position: self.position(*position)?,
+                },
+            );
+            if formal_values.get(*position) != Some(&Some(value)) {
+                return Err(self.internal("erased formals do not follow the result"));
+            }
+            formals.erased.push(declaration(value, scalar_type));
+            *self.slot_mut(*position)? = Some(Bound::Erased(Witness::Value(value, scalar_type)));
+        }
+        Ok((formals, result))
+    }
+}
+
 struct Lowering<'a> {
     id: MachineId,
     signature: &'a Signature,
-    signatures: &'a IdTable<MachineId, Signature>,
+    signatures: Signatures<'a>,
     outcomes: &'a IdTable<MachineId, Outcome>,
     records: &'a Records<'a>,
     /// What each root place is and the record type it holds, indexed by its
@@ -454,8 +577,7 @@ impl<'a> Lowering<'a> {
         formals: &Formals,
     ) -> Checked<()> {
         for member in component {
-            let signature =
-                terminal_check_tables::row(self.signatures, *member, id, Construct::Machine)?;
+            let signature = self.signatures.get((*member).into(), id)?;
             let block = self.block(SourceOrigin::Unpositioned(Unpositioned::LoopHead));
             self.sources.heads.push((block, *member));
             let mut parameters = Vec::with_capacity(signature.parameters.len());

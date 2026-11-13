@@ -4041,6 +4041,46 @@ pub mod trait_definition {
                 self
             }
 
+            /// A retained service needs every declared parent application.
+            /// Return missing declarations or incomplete argument frames to
+            /// that producer instead of silently publishing a smaller graph.
+            pub fn parent_scopes(
+                &self,
+                program: &'program TypedTrees,
+            ) -> Result<Vec<Self>, &'static str> {
+                let parents = program.trait_requirements(self.declaration);
+                if parents.len() != self.declaration.requires.len() {
+                    return Err("applied trait lost its complete parent declaration span");
+                }
+                parents
+                    .iter()
+                    .chain(self.declaration.refines.iter())
+                    .map(|parent| self.parent_scope(program, parent))
+                    .collect()
+            }
+
+            fn parent_scope(
+                &self,
+                program: &'program TypedTrees,
+                parent: &super::TraitRequirement,
+            ) -> Result<Self, &'static str> {
+                let declaration = program
+                    .trait_definition_by_symbol(parent.symbol)
+                    .ok_or("applied trait parent has no exact declaration")?;
+                let scope = Self::new(
+                    program,
+                    declaration,
+                    TraitApplicationArguments {
+                        lexical_owner: self.argument_owner,
+                        enclosing_data_applications: &[],
+                        arguments: program.type_reference_handles(parent.arguments),
+                        lifetimes: &parent.lifetime_arguments,
+                    },
+                )
+                .ok_or("applied trait parent has no complete type and lifetime application")?;
+                Ok(scope.preceded_by(self))
+            }
+
             pub fn visit(&self, program: &'program TypedTrees, visit: &mut impl FnMut(&Self)) {
                 self.visit_inherited(program, &mut Vec::new(), visit, &mut |_| {});
             }
@@ -4070,23 +4110,9 @@ pub mod trait_definition {
                     .iter()
                     .chain(self.declaration.refines.iter())
                 {
-                    let Some(declaration) = program.trait_definition_by_symbol(parent.symbol)
-                    else {
+                    let Ok(scope) = self.parent_scope(program, parent) else {
                         continue;
                     };
-                    let Some(scope) = Self::new(
-                        program,
-                        declaration,
-                        TraitApplicationArguments {
-                            lexical_owner: self.argument_owner,
-                            enclosing_data_applications: &[],
-                            arguments: program.type_reference_handles(parent.arguments),
-                            lifetimes: &parent.lifetime_arguments,
-                        },
-                    ) else {
-                        continue;
-                    };
-                    let scope = scope.preceded_by(self);
                     scope.visit_inherited(program, active, visit, after);
                 }
                 after(self);

@@ -445,7 +445,7 @@ impl Storage<'_> {
             | OperationKind::ScalarStructuralField { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::StructuralCaseMembership { .. } => {}
-            kind if kind.module_invocation().is_some() => {
+            kind if kind.declared_invocation().is_some() => {
                 if produced.is_some() {
                     rows.push((fresh()?, Stored::Established));
                 }

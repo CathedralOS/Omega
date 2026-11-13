@@ -47,7 +47,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
         panic!("the original owned-data witness must check");
     };
     // Match the default router's complete scope, including every generic
-    // check form it claims; one undecided form would leave it on fallback.
+    // check form it claims; one undecided form refuses the whole compilation.
     let mut verdicts = judge_compilation(
         &frontier.typed,
         Compilation {
@@ -178,7 +178,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     let invoke = |callee, arguments, result| {
         expression(
             ExpressionKind::Call {
-                callee: id(callee),
+                callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
                 arguments,
             },
             result,

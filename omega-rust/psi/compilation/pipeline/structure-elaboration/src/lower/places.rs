@@ -77,8 +77,8 @@ use terminal_psi::{
 
 use super::{Lowering, Value};
 use crate::body::{
-    Body, Expression, ExpressionKind, RecordField, RecordType, Signature, Statement, StorageShape,
-    Target, ValueType,
+    Body, Expression, ExpressionKind, RecordField, RecordType, Statement, StorageShape, Target,
+    ValueType,
 };
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -128,7 +128,7 @@ pub(crate) fn declare<'a>(
     entry: MachineId,
     types: &'a IdTable<StructuralTypeId, RecordType>,
     bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
+    signatures: crate::body::Signatures<'_>,
     mut identities: TerminalIdentityTableBuilder,
 ) -> Checked<Declared<'a>> {
     let mut field_identities = IdTable::default();
@@ -260,7 +260,11 @@ pub(crate) fn declare<'a>(
     // the place of a borrowed scalar formal. Each needs its primitive type
     // declared once, with the text identity the typed trees gave it.
     let mut homes: Vec<(ValueType, Option<&String>)> = Vec::new();
-    for (_, signature) in signatures.iter() {
+    for signature in signatures
+        .machines
+        .values()
+        .chain(signatures.boundaries.values())
+    {
         for borrowed in &signature.borrowed {
             if let Some(value_type @ (ValueType::Scalar(_) | ValueType::Qualified(..))) =
                 signature.parameters.get(borrowed.position).copied()
@@ -327,25 +331,8 @@ pub(crate) fn declare<'a>(
             }
             continue;
         }
-        let id = StructuralTypeId::new(structural_types.len() as u64 + 1).ok_or_else(|| {
-            refuse(
-                entry,
-                Construct::Machine,
-                Unserved::Type("structural type identity overflow"),
-            )
-        })?;
-        structural_types.push(StructuralTypeDeclaration {
-            requires: Vec::new(),
-            quotient_carrier: None,
-            id,
-            identity: identities.intern(home),
-            owns_linear_claim: false,
-            copyable: true,
-            no_code_affine_cleanup: true,
-            descriptor_cleanup: true,
-            shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
-            scalar_restriction: None,
-        });
+        let id = declare_scalar_type(&mut structural_types, identities.intern(home), scalar_type)
+            .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Type(reason)))?;
         primitives.push((value_type, home.clone(), id));
     }
     Ok(Declared {
@@ -359,6 +346,56 @@ pub(crate) fn declare<'a>(
         structural_types,
         native_layouts,
     })
+}
+
+// Calling storage and scalar homes name the same primitive structural type.
+// Publish it here once; a matching identity with another shape is a broken
+// correspondence, never permission to relabel that existing declaration.
+pub(crate) fn declare_scalar_type(
+    types: &mut Vec<StructuralTypeDeclaration>,
+    identity: TerminalIdentityIndex,
+    scalar_type: ScalarType,
+) -> Result<StructuralTypeId, &'static str> {
+    if identity.is_absent() {
+        return Err("primitive structural type has no exact identity");
+    }
+    let mut matching = types
+        .iter()
+        .filter(|declared| declared.identity == identity);
+    if let Some(declared) = matching.next() {
+        if matching.next().is_some()
+            || declared.shape != StructuralTypeShape::PrimitiveScalar(scalar_type)
+        {
+            return Err("primitive structural type has ambiguous or different storage");
+        }
+        return Ok(declared.id);
+    }
+    append_scalar_type(types, identity, scalar_type)
+}
+
+fn append_scalar_type(
+    types: &mut Vec<StructuralTypeDeclaration>,
+    identity: TerminalIdentityIndex,
+    scalar_type: ScalarType,
+) -> Result<StructuralTypeId, &'static str> {
+    let ordinal = u64::try_from(types.len())
+        .ok()
+        .and_then(|length| length.checked_add(1))
+        .ok_or("structural type identity overflow")?;
+    let id = StructuralTypeId::new(ordinal).ok_or("structural type identity overflow")?;
+    types.push(StructuralTypeDeclaration {
+        requires: Vec::new(),
+        quotient_carrier: None,
+        id,
+        identity,
+        owns_linear_claim: false,
+        copyable: true,
+        no_code_affine_cleanup: true,
+        descriptor_cleanup: true,
+        shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+        scalar_restriction: None,
+    });
+    Ok(id)
 }
 
 /// The scalar homes the loans in `statement` give SSA locals, with the text
@@ -2268,7 +2305,7 @@ impl<'a> Lowering<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Borrowed, CrashCeiling, Policy, Termination};
+    use crate::{Borrowed, CrashCeiling, Policy, Signature, Termination};
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
     #[test]
@@ -2336,7 +2373,9 @@ mod tests {
                 },
                 Statement::Evaluate(Expression {
                     kind: ExpressionKind::Call {
-                        callee: MachineId::new(2).unwrap(),
+                        callee: semantic_vocabulary::TargetMachineCallable::Machine(
+                            MachineId::new(2).unwrap(),
+                        ),
                         arguments: vec![Expression {
                             kind: ExpressionKind::Borrow {
                                 access: language_core::ReferenceAccess::Shared,
@@ -2382,7 +2421,10 @@ mod tests {
             machine,
             &types,
             &bodies,
-            &signatures,
+            crate::body::Signatures {
+                machines: &signatures,
+                boundaries: &IdTable::default(),
+            },
             TerminalIdentityTableBuilder::default(),
         )
         .unwrap();

@@ -472,7 +472,7 @@ pub(crate) fn rename(
 
 /// What `check` needs from the machine being discharged.
 pub(crate) struct Machine<'a> {
-    pub(crate) machines: &'a [TerminalMachine],
+    pub(crate) module: &'a terminal_psi::TerminalModule,
     pub(crate) lowered: &'a TerminalMachine,
     pub(crate) storage: &'a crate::places::Storage<'a>,
     pub(crate) id: MachineId,
@@ -517,7 +517,7 @@ pub(crate) fn check(
         for &(index, obligation, edge, point) in &arrivals {
             let kind = ObligationKind::ArrivalInvariant { edge };
             let verdict = goal(
-                machine.machines,
+                machine.module,
                 machine.lowered,
                 machine.storage,
                 machine.id,

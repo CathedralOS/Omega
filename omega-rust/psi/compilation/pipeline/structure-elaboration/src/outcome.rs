@@ -25,7 +25,7 @@ use semantic_vocabulary::{CrashCause, IdTable, MachineId};
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{CrashRouteBucket, CrashRouteGuard};
 
-use crate::body::{Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target};
+use crate::body::{Body, CrashCeiling, Expression, ExpressionKind, Signatures, Statement, Target};
 use crate::canonical;
 use crate::{Unserved, refuse};
 
@@ -54,7 +54,7 @@ pub struct Outcome {
 /// its member may return, and it may crash only as its authored ceiling says.
 pub(crate) fn outcomes(
     bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
+    signatures: Signatures<'_>,
     requirements: &[MachineId],
 ) -> Checked<IdTable<MachineId, Outcome>> {
     let mut walk = Walk {
@@ -112,7 +112,7 @@ struct Reached {
 }
 
 struct Walk<'b> {
-    signatures: &'b IdTable<MachineId, Signature>,
+    signatures: Signatures<'b>,
     /// Machines that are a requirement's contract and have no body.
     requirements: &'b [MachineId],
     reached: IdTable<MachineId, Reached>,
@@ -127,8 +127,7 @@ impl Walk<'_> {
         machine: MachineId,
         causes: &BTreeSet<CrashCause>,
     ) -> Checked<Vec<CrashRouteBucket>> {
-        let signature =
-            terminal_check_tables::row(self.signatures, machine, machine, Construct::Machine)?;
+        let signature = self.signatures.get(machine.into(), machine)?;
         Ok(match &signature.crashes {
             CrashCeiling::Authored(routes) => routes.clone(),
             // A requirement that defers its crash routes to the selected
@@ -294,12 +293,29 @@ impl Walk<'_> {
                 self.expression(machine, right)?;
                 Ok(true)
             }
-            ExpressionKind::Call { callee, arguments } => {
+            ExpressionKind::Call {
+                callee, arguments, ..
+            } => {
                 for argument in arguments {
                     if !self.expression(machine, argument)? {
                         return Ok(false);
                     }
                 }
+                let semantic_vocabulary::TargetMachineCallable::Machine(callee) = callee else {
+                    let signature = self.signatures.get(*callee, machine)?;
+                    let routes = signature.declared_crash_routes().ok_or_else(|| {
+                        refuse(
+                            machine,
+                            Construct::Machine,
+                            Unserved::Call("boundary call has no published crash contract"),
+                        )
+                    })?;
+                    self.causes.extend(routes.iter().map(|route| route.cause));
+                    // The reader serves ordinary returning requirements only;
+                    // external completion and suspended requirements retain an
+                    // explicit unsupported route before this graph is built.
+                    return Ok(true);
+                };
                 // A caller sees the causes the callee publishes, as the
                 // table stands: its ceiling when it authors one, what its
                 // body reaches when the routes are inferred, none under
