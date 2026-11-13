@@ -43,6 +43,46 @@ Authorized invocations may delegate scoped access through checked helper calls;
 the grant cannot escape its authorizing scope. Ordinary transport or `as` cannot
 launder a restricted view into unrestricted read/write authority.
 
+## Initial-call authority
+
+Under `sealed-runtime-providers` (settled 2026-11-12), permission to start
+an activation, change an interrupt mask or invoke another dangerous control
+operation must exist before the call. A legitimate task claim or mask guard
+returned afterward cannot authorize the action retroactively.
+
+Protected issuance answers which operation may establish a qualification; it
+does not authorize every caller to invoke that operation. A public zero-input
+issuer can still expose a dangerous action to every caller unless its entry
+contract is gated. Task startup takes explicit runtime-authority data or a
+borrow, and mask saving takes explicit controller-authority data or a borrow.
+Their checked qualifications and provenance bind the particular instance and
+execution context. Restricted establishment and applicable access/call
+obligations must protect those inputs; an unrestricted domain's name or a
+linear carrier alone supplies no permission.
+
+Use the existing domain `AccessPlan`, exact `Issuance::Only` routes and ordinary
+checked preconditions for library authority. An admitted entry may establish
+initial authority under its contract and checked code may pass it onward.
+Reuse the appropriate runtime/controller handle; this introduces no endless
+chain of token types. Permission to start is separately checked from storage,
+reservation, backing, lifetime and custody sufficient for that execution.
+
+Provider selection chooses the implementing code. Ordinary boundary/foreign
+admission justifies exact external behavior, incoming resources and assumptions;
+qualified arguments establish the caller's authority over the particular
+subject. `reaches` records possible effects and grants none of these. An
+[assumed binding](../build/assumed_binding_contracts.md#runtime-only) is not
+the routine way to fill missing authority, incorrect contracts, failed proofs
+or compiler realization gaps in ordinary code.
+
+Enforce the corresponding obligation at the lowest callable dangerous
+primitive too, or make it inaccessible except through a genuinely checked
+restricted route. A guarded wrapper around an unrestricted primitive does not
+close the hole. Scoped delegation must preserve the same subject and authority;
+default provider status, core visibility and an implementation name do not
+bypass it. Reject unauthorized direct calls, fabricated qualification and
+claims reconstructed from equal fields under the existing provenance rules.
+
 ## Completion authority and implementation selection
 
 The settled decision `boundary-requirement-call-without-installation` uses

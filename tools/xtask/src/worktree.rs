@@ -383,6 +383,12 @@ fn is_ancestor(main_root: &Path, commit: &str, of: &str) -> bool {
         .is_ok_and(|s| s.success())
 }
 
+fn cloud_session(claude_remote: Option<&str>, codex_environment: Option<&str>) -> bool {
+    // A local Codex process also has session markers. Only its managed
+    // environment marker opts into preserving a restored cloud build's base.
+    claude_remote == Some("true") || codex_environment.is_some_and(|id| !id.is_empty())
+}
+
 /// The commit `acquire` starts a slot at, announced on stderr when it is not
 /// `origin/main`.
 ///
@@ -654,7 +660,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 
             let _pool = lock_pool(&main_root).map_err(report_error)?;
             let items = list_worktrees(&main_root).map_err(report_error)?;
-            let cloud_session = std::env::var("CLAUDE_CODE_REMOTE").is_ok_and(|v| v == "true");
+            let cloud_session = cloud_session(
+                std::env::var("CLAUDE_CODE_REMOTE").ok().as_deref(),
+                std::env::var("CODEX_ENVIRONMENT_ID").ok().as_deref(),
+            );
             let base = |slot: &WorktreeInfo, path: &Path| {
                 acquire_base(&main_root, path, &slot.head, cloud_session)
             };
@@ -684,12 +693,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             // `target/`). A slot with a topic is still claimed by another session.
             let mut idle_slots: Vec<&WorktreeInfo> = items
                 .iter()
-                .filter(|w| {
-                    w.slot_index.is_some()
-                        && w.topic.is_none()
-                        && !w.open_pr
-                        && w.name != current_name
-                })
+                .filter(|w| w.slot_index.is_some() && w.topic.is_none() && !w.open_pr)
                 .collect();
             idle_slots.sort_by_key(|w| (!w.has_warm_target, w.slot_index.unwrap_or(usize::MAX)));
 
@@ -1007,13 +1011,104 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ListedWorktree, acquire_base, lock_pool_at, parse_worktree_list, published_build_commit,
-        read_topic, reset_refusal, worktree_git_dir, write_topic,
+        ListedWorktree, acquire_base, cloud_session, lock_pool_at, parse_worktree_list,
+        published_build_commit, read_topic, reset_refusal, worktree_git_dir, write_topic,
     };
     use std::fs;
     use std::path::Path;
     use std::process::{Command, Stdio};
     use std::time::Duration;
+
+    #[test]
+    fn managed_cloud_markers_enable_warm_builds() {
+        for (claude, codex, expected) in [
+            (None, None, false),
+            (Some("false"), None, false),
+            (None, Some(""), false),
+            (Some("true"), None, true),
+            (None, Some("environment-id"), true),
+            (Some("false"), Some("environment-id"), true),
+        ] {
+            assert_eq!(cloud_session(claude, codex), expected);
+        }
+    }
+
+    // Run the real startup script with already-built slots: this exercises its
+    // host detection without downloading artifacts or changing a user's cache.
+    #[cfg(unix)]
+    #[test]
+    fn warm_startup_recognizes_managed_codex_and_keeps_local_sessions_idle() {
+        struct Scratch(std::path::PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let scratch = Scratch(
+            std::env::temp_dir().join(format!("omega-warm-start-{}-{unique}", std::process::id(),)),
+        );
+        let root = &scratch.0;
+        for slot in ["target", ".agents/worktree/worker-1/target"] {
+            fs::create_dir_all(root.join(slot)).unwrap();
+            fs::write(root.join(slot).join("keep"), "existing build").unwrap();
+        }
+        fs::create_dir(root.join("tools")).unwrap();
+        fs::write(
+            root.join("tools/warm_build.sh"),
+            include_str!("../../warm_build.sh"),
+        )
+        .unwrap();
+        let init = Command::new("git").arg("init").arg(root).output().unwrap();
+        assert!(init.status.success());
+        // Report an existing floor without accessing the user's mbx settings.
+        fs::create_dir(root.join("bin")).unwrap();
+        let mbx = root.join("bin/mbx");
+        fs::write(
+            &mbx,
+            "#!/bin/sh\n[ \"$*\" = 'settings get gc.min_free_size' ] || exit 1\necho 5GiB\n",
+        )
+        .unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(mbx, fs::Permissions::from_mode(0o755)).unwrap();
+        let paths = std::env::join_paths(
+            std::iter::once(root.join("bin"))
+                .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
+        )
+        .unwrap();
+        for (claude, codex, expected) in [
+            ("", "", false),
+            ("false", "", false),
+            ("true", "", true),
+            ("", "managed-environment", true),
+        ] {
+            let output = Command::new("bash")
+                .arg(root.join("tools/warm_build.sh"))
+                .arg("session-start")
+                .env("PATH", &paths)
+                .env("CLAUDE_CODE_REMOTE", claude)
+                .env("CODEX_ENVIRONMENT_ID", codex)
+                .env("CODEX_SESSION_ID", "also-present-locally")
+                .env("OMEGA_WARM_BUILD_SOURCE", "file:///nonexistent")
+                .output()
+                .unwrap();
+            assert!(output.status.success());
+            let stdout = String::from_utf8(output.stdout).unwrap();
+            assert_eq!(
+                stdout.contains("warm build: primary kept"),
+                expected,
+                "{stdout}"
+            );
+            assert_eq!(
+                stdout.contains("warm build: worker kept"),
+                expected,
+                "{stdout}"
+            );
+        }
+    }
 
     #[test]
     fn ownership_follows_a_moved_linked_worktree() {

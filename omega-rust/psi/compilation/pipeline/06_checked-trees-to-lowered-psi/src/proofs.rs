@@ -404,8 +404,8 @@ pub(crate) mod content_conservation {
 
         let algebra = content_algebra(&plan.algebra);
         let mut structural_places = BTreeMap::new();
-        let left = lower_content_term(plan.equation.left(), &mut structural_places, 0)?;
-        let right = lower_content_term(plan.equation.right(), &mut structural_places, 0)?;
+        let left = lower_content_term(plan.equation.left(), &mut structural_places)?;
+        let right = lower_content_term(plan.equation.right(), &mut structural_places)?;
         let proposition =
             Proposition::ContentConservation(ContentConservation::new(algebra, left, right));
         let context = PropositionContext::from_value_types_and_places(
@@ -711,45 +711,61 @@ pub(crate) mod content_conservation {
         left.segments[..shared] == right.segments[..shared]
     }
 
-    const MAX_CONTENT_TERM_DEPTH: usize = 256;
     pub(crate) const RESULT_STRUCTURAL_PLACE_ID: u64 = 4_294_967_297;
 
+    /// Lowers a content term children-first with an explicit stack, so a
+    /// separation's nesting depth is bounded only by memory.
     fn lower_content_term(
         term: &CheckedContentConservationTerm,
         structural_places: &mut BTreeMap<PlaceId, StructuralPlaceKind>,
-        depth: usize,
     ) -> Result<ContentTerm, LoweringError> {
-        if depth > MAX_CONTENT_TERM_DEPTH {
-            return Err(LoweringError::ContentTermNestingTooDeep);
+        enum Step<'term> {
+            Visit(&'term CheckedContentConservationTerm),
+            Separate(usize),
         }
-        match term {
-            CheckedContentConservationTerm::Projection {
-                semantic_domain,
-                projection_report_fingerprint,
-                subject,
-                ..
-            } => {
-                let domain = ContentDomainId::new(u64::from(semantic_domain.0))
-                    .ok_or(LoweringError::InvalidContentDomainIdentity)?;
-                if *projection_report_fingerprint == 0 {
-                    return Err(LoweringError::ZeroContentProjectionFingerprint);
+        let mut pending = vec![Step::Visit(term)];
+        let mut lowered: Vec<ContentTerm> = Vec::new();
+        while let Some(step) = pending.pop() {
+            let term = match step {
+                Step::Visit(term) => term,
+                Step::Separate(count) => {
+                    let members = lowered.split_off(lowered.len() - count);
+                    lowered.push(
+                        ContentTerm::separate(members)
+                            .map_err(LoweringError::InvalidContentProposition)?,
+                    );
+                    continue;
                 }
-                Ok(ContentTerm::Projection {
-                    projection: ContentProjectionIdentity {
-                        domain,
-                        projection_report_fingerprint: *projection_report_fingerprint,
-                    },
-                    subject: lower_content_place(subject, structural_places)?,
-                })
+            };
+            match term {
+                CheckedContentConservationTerm::Projection {
+                    semantic_domain,
+                    projection_report_fingerprint,
+                    subject,
+                    ..
+                } => {
+                    let domain = ContentDomainId::new(u64::from(semantic_domain.0))
+                        .ok_or(LoweringError::InvalidContentDomainIdentity)?;
+                    if *projection_report_fingerprint == 0 {
+                        return Err(LoweringError::ZeroContentProjectionFingerprint);
+                    }
+                    lowered.push(ContentTerm::Projection {
+                        projection: ContentProjectionIdentity {
+                            domain,
+                            projection_report_fingerprint: *projection_report_fingerprint,
+                        },
+                        subject: lower_content_place(subject, structural_places)?,
+                    });
+                }
+                CheckedContentConservationTerm::Separate(terms) => {
+                    pending.push(Step::Separate(terms.len()));
+                    pending.extend(terms.iter().rev().map(Step::Visit));
+                }
             }
-            CheckedContentConservationTerm::Separate(terms) => ContentTerm::separate(
-                terms
-                    .iter()
-                    .map(|term| lower_content_term(term, structural_places, depth + 1))
-                    .collect::<Result<Vec<_>, _>>()?,
-            )
-            .map_err(LoweringError::InvalidContentProposition),
         }
+        Ok(lowered
+            .pop()
+            .expect("a content term lowers to exactly one term"))
     }
 
     fn lower_content_place(

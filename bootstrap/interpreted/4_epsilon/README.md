@@ -162,9 +162,12 @@ canonical receipt, gated by
 | Runtime operations | [`execution/statements.delta`](execution/statements.delta) applies statements. `scalars/` and `control/` own scalar operations and block/state control. |
 | Shared representations | [`representations/`](representations) groups syntax, parsing outcomes, checked facts, diagnostics, and execution values by concept. |
 
-The 87 authoring members have at most 450 lines each; the root entrance has 26.
+The 96 authoring members have at most 450 lines each; the root entrance has 26.
 Files end at complete top-level Delta forms. They are not independent Delta
 modules: they share one translation unit and the language gains no imports.
+The binary-operator and scalar-outcome declarations have separate shared leaf
+owners so the independent compiler's pure target needs no Epsilon syntax tree
+or evaluator dispatch. The ordered packed translation unit remains byte-exact.
 
 ## Exact source closure
 
@@ -182,8 +185,8 @@ from the shared role registry rather than reading the entrance as the full sourc
 
 The packed evaluator is 12,097 lines / 617,354 bytes, SHA-256
 `4a8c97f9ad8f3ef5bae6c2f9a1c72f3433405e6e79610169b03b03a74217fd8e`.
-The manifest itself is 15,163 bytes, SHA-256
-`717e6bdc90850b9cacc0858279f3483d10c93f3289f43d9ff83ac27b4e862061`;
+The manifest itself is 16,779 bytes, SHA-256
+`915588f07a415b37c5106e4be8d790c40c1fa381ffb4d997dea6f20fdf8c4e6f`;
 `tools/bootstrap/epsilon/evaluator_env.sh` checks both identities against every
 materialization and `tests/bootstrap/epsilon-identity.sh` covers the refusals.
 A digest is an identity check on the bytes being evaluated, not a proof that

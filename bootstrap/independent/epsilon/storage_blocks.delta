@@ -1,0 +1,88 @@
+
+; A block's statements become ordinary named tail continuations. Captures are
+; home identifiers, never syntax or copied variable values. This bounds target
+; expression nesting without changing source scope, argument order or storage.
+(def epsilon_delta_stored_parameter_names_list ((parameters EpsilonParameterList)
+  (rest EpsilonNameList)) EpsilonNameList
+  (match parameters
+    (NoEpsilonParameters rest)
+    ((MoreEpsilonParameters parameter remaining)
+      (match parameter
+        ((EpsilonParameterSyntax start end name typeValue)
+          (MoreEpsilonNames name (epsilon_delta_stored_parameter_names_list remaining rest)))))))
+
+(def epsilon_delta_stored_capture_values ((source EpsilonSourceView)
+  (names EpsilonNameList)) Bytes
+  (match names
+    (NoEpsilonNames "")
+    ((MoreEpsilonNames name rest)
+      (epsilon_emit_spaced (epsilon_delta_home_name source name)
+        (epsilon_delta_stored_capture_values source rest)))))
+
+(def epsilon_delta_stored_capture_signature ((source EpsilonSourceView)
+  (names EpsilonNameList)) Bytes
+  (match names
+    (NoEpsilonNames "")
+    ((MoreEpsilonNames name rest)
+      (epsilon_emit_spaced (epsilon_emit_call (epsilon_delta_home_name source name) "Int")
+        (epsilon_delta_stored_capture_signature source rest)))))
+
+(def epsilon_delta_stored_block_name ((statements EpsilonStatementList)
+  (terminalIdentity Int)) Bytes
+  (match statements
+    (NoEpsilonStatements (epsilon_emit_generated "block_end" terminalIdentity))
+    ((MoreEpsilonStatements statement rest)
+      (match statement
+        ((EpsilonLetStatement start end name typeValue initializer) (epsilon_emit_generated "block" start))
+        ((EpsilonAssignmentStatement start end target value) (epsilon_emit_generated "block" start))
+        ((EpsilonPostfixStatement start end expression) (epsilon_emit_generated "block" start))
+        ((EpsilonAssertStatement start end expression) (epsilon_emit_generated "block" start))))))
+
+(def epsilon_delta_stored_block_call ((source EpsilonSourceView)
+  (names EpsilonNameList) (statements EpsilonStatementList) (terminalIdentity Int)
+  (store Bytes) (output Bytes)) Bytes
+  (epsilon_emit_call (epsilon_delta_stored_block_name statements terminalIdentity)
+    (epsilon_emit_spaced "ep_receiver ep_floor"
+      (epsilon_emit_spaced (epsilon_delta_stored_capture_values source names)
+        (epsilon_emit_spaced store output)))))
+
+(def epsilon_delta_stored_following_names ((names EpsilonNameList)
+  (statement EpsilonStatement)) EpsilonNameList
+  (match statement
+    ((EpsilonLetStatement start end name typeValue initializer) (MoreEpsilonNames name names))
+    ((EpsilonAssignmentStatement start end target value) names)
+    ((EpsilonPostfixStatement start end expression) names)
+    ((EpsilonAssertStatement start end expression) names)))
+
+(def epsilon_delta_stored_block_body ((context EpsilonDeltaContext)
+  (names EpsilonNameList) (statements EpsilonStatementList)
+  (terminal EpsilonOptionalTerminal) (terminalIdentity Int)) EpsilonDeltaCompilation
+  (match statements
+    (NoEpsilonStatements (epsilon_delta_stored_terminal context terminal "ep_store" "ep_output"))
+    ((MoreEpsilonStatements statement rest)
+      (let coordinate Int (epsilon_delta_stored_statement_coordinate statement)
+        (let successor Bytes (epsilon_delta_stored_block_call (epsilon_delta_context_source context)
+          (epsilon_delta_stored_following_names names statement) rest terminalIdentity
+          (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate))
+          (epsilon_delta_stored_statement context statement successor "ep_store" "ep_output"))))))
+
+(def epsilon_delta_stored_blocks ((context EpsilonDeltaContext)
+  (names EpsilonNameList) (statements EpsilonStatementList)
+  (terminal EpsilonOptionalTerminal) (terminalIdentity Int)) EpsilonDeltaCompilation
+  (match (epsilon_delta_stored_block_body context names statements terminal terminalIdentity)
+    ((EpsilonDeltaCompiled body)
+      (let signature Bytes (epsilon_emit_spaced "(ep_receiver EpsilonRuntimePlace) (ep_floor Int)"
+        (epsilon_emit_spaced
+          (epsilon_delta_stored_capture_signature (epsilon_delta_context_source context) names)
+          "(ep_store EpsilonRuntimeStore) (ep_output Bytes)"))
+        (let definition Bytes (epsilon_delta_stored_function
+          (epsilon_delta_stored_block_name statements terminalIdentity) signature body)
+          (match statements
+            (NoEpsilonStatements (EpsilonDeltaCompiled definition))
+            ((MoreEpsilonStatements statement rest)
+              (epsilon_delta_append (EpsilonDeltaCompiled definition)
+                (epsilon_delta_stored_blocks context (epsilon_delta_stored_following_names names statement)
+                  rest terminal terminalIdentity)))))))
+    ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+    ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+    ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))

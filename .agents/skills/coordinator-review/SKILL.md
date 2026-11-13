@@ -74,7 +74,7 @@ the five checks below fail:
   `--check`.
 - **Bounce a sound patch in the wrong place:** Correct is not sufficient. Return
   a PR that adds a carrier, case or per-place branch where a shared operation
-  could serve, even if every check passes. Accept a cluster report in its place.
+  could serve, even if every check passes; the general fix belongs in the same PR.
 - **Known affected rows shown:** Focused results name the rows they covered.
   The PR's `Gate:` line must describe the change's real purpose; a
   `red rows: 0` PR must unlock something this review can check.

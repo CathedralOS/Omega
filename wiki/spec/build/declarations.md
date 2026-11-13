@@ -43,6 +43,12 @@ requirement and implementation under
 Neither preparation nor an ordinary import chooses a default implementation,
 grants host access or fabricates declaration identity.
 
+The returned `DependencyRegistration` retains the exact activation-scoped
+registration and purpose, as a reusable immutable handle. Preparation and
+[validation](validation_subjects.md#buildvalidate) use that same identity;
+copying it does not mint another dependency or confer authority. Build/Product
+registrations remain distinct even when their aliases match.
+
 When `build` returns, package coordination joins every outstanding dependency
 request, rejects failed, cyclic, unresolved, or unadmitted dependency edges, and
 freezes the normalized Build intent. Product selections may retain inert exact
@@ -163,6 +169,46 @@ and audit. It does not enter the nominal key but does enter root-consuming
 commitments. Package-to-application loses dependency compatibility;
 application-to-package loses executable-activation compatibility. Report the
 directional broken contract, not a new package identity or a symmetric change.
+
+## Ordinary library packages
+
+Named decision: `ordinary-library-packages`, settled 2026-11-12. `std` and
+`alloc`, wherever no compiler privilege is required, use ordinary package
+ownership, dependencies, validation and immutable version selection. They may
+be distributed beside the compiler, fetched from Git or supplied by another
+accepted source without acquiring a new semantic package kind. Bundling is
+optional distribution convenience, not a source of compiler custody.
+
+Keep four identities and obligations distinct: the distribution digest verifies
+the release contents; the package owner identifies declarations; exact sealed
+bindings identify compiler-supplied behavior; and dependency resolution chooses
+the package instance used by a program. A whole-bundle digest alone does not
+merge nominal owners or prove that packages share primitive authority. Making
+`std` optional must preserve integrity verification for the components the
+distribution declares, not disable it to tolerate missing files.
+
+A request requiring only its selected core and target support must not require
+an installed `std` merely to make library discovery succeed. Default runtime
+and entry support follows the target's declared dependencies and contracts
+through normal selection. Do not silently import pieces of bundled `std` with
+toolchain-contract custody or mix them into an independently selected compatible
+`std` revision. Distribution defaults may select ordinary package revisions;
+they do not override the resolved dependency graph by filename or short name.
+
+Genuinely compiler-supplied primitives and unavoidable entry/ABI bridges retain
+explicit, tightly identified support under the existing sealed catalog and
+admission rules. Separate those minimal declarations from ordinary wrappers;
+do not make an entire surrounding library compiler-special or move all of
+`std` into core. A toolchain-owned core declaration is not automatically a
+compiler intrinsic merely because of its package owner. A package named `std`,
+matching paths or copied signatures/source bytes cannot confer compiler custody.
+Console formatting, collections, filesystem adapters and other ordinary library
+behavior retain normal checked implementations and package identities.
+
+The [validation delivery plan](../../drafts/designs/validation_subjects.md#ordinary-library-migration)
+tracks removal of mandatory/pinned `std` coupling independently of the
+registration-validation API and narrow core-check-root repair. This settlement
+does not choose the still-open runtime-provider policy or rename the libraries.
 
 ## Default builds and anonymous owner identity
 

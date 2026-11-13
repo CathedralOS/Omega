@@ -1,0 +1,98 @@
+(def epsilon_delta_return ((context EpsilonDeltaContext)
+  (expression EpsilonOptionalExpression)) EpsilonDeltaCompilation
+  (match expression
+    (NoEpsilonExpression (EpsilonDeltaCompiled "EpsilonCompiledResultless"))
+    ((SomeEpsilonExpression value) (epsilon_delta_expression context value))))
+
+(def epsilon_delta_continuation ((context EpsilonDeltaContext)
+  (continuation EpsilonContinuation)) EpsilonDeltaCompilation
+  (match continuation
+    ((EpsilonReturnContinuation start end expression)
+      (epsilon_delta_return context expression))
+    ((EpsilonExpressionContinuation start end expression)
+      (epsilon_delta_expression context expression))))
+
+(def epsilon_delta_arm_selector ((context EpsilonDeltaContext)
+  (pattern EpsilonPattern) (subject Bytes) (selected Bytes) (otherwise Bytes))
+  EpsilonDeltaCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match (epsilon_control_find_complete_transition_pattern pattern control)
+        (NoEpsilonTransitionPatternKind
+          (EpsilonDeltaInternal (epsilon_pattern_start pattern)))
+        ((OneEpsilonTransitionPatternKind kind)
+          (match kind
+            ((EpsilonScalarPatternSelector value)
+              (EpsilonDeltaCompiled (epsilon_emit_if
+                (epsilon_emit_call "eq"
+                  (epsilon_emit_spaced subject (epsilon_emit_decimal value)))
+                selected otherwise)))
+            (EpsilonTransitionWildcard (EpsilonDeltaCompiled selected))
+            ((EpsilonSumCasePattern owner caseValue)
+              (EpsilonDeltaUnsupported (epsilon_pattern_start pattern)))))))))
+
+; Compile every arm before choosing the runtime branch. Exhausting scalar
+; arms has the same authored trap9 behavior as the evaluator.
+(def epsilon_delta_arms ((context EpsilonDeltaContext) (arms EpsilonArmList)
+  (subject Bytes)) EpsilonDeltaCompilation
+  (match arms
+    (NoEpsilonArms (EpsilonDeltaCompiled "(EpsilonCompiledTrap 9)"))
+    ((MoreEpsilonArms arm rest)
+      (match arm
+        ((EpsilonArmSyntax start end pattern continuation)
+          (match (epsilon_delta_continuation context continuation)
+            ((EpsilonDeltaCompiled selected)
+              (match (epsilon_delta_arms context rest subject)
+                ((EpsilonDeltaCompiled otherwise)
+                  (epsilon_delta_arm_selector context pattern subject selected otherwise))
+                ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+                ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+                ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+            ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+            ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))))
+
+(def epsilon_delta_scalar_transition ((context EpsilonDeltaContext)
+  (subject EpsilonExpression) (arms EpsilonArmList)) EpsilonDeltaCompilation
+  (let coordinate Int (epsilon_expression_start subject)
+    (match (epsilon_delta_arms context arms (epsilon_emit_generated "scalar" coordinate))
+      ((EpsilonDeltaCompiled armText) (epsilon_delta_scalar_then context subject armText))
+      ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+      ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+      ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))
+
+(def epsilon_delta_transition ((context EpsilonDeltaContext)
+  (terminal EpsilonTerminal) (subject EpsilonExpression) (arms EpsilonArmList)) EpsilonDeltaCompilation
+  (match context
+    ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+      (match (epsilon_control_find_transition_subject terminal control)
+        (NoEpsilonTransitionSubjectReference
+          (EpsilonDeltaInternal (epsilon_expression_start subject)))
+        ((OneEpsilonTransitionSubjectReference kind)
+          (match kind
+            (EpsilonScalarTransitionSubject
+              (epsilon_delta_scalar_transition context subject arms))
+            ((EpsilonSumTransitionSubject owner)
+              (epsilon_delta_enum_transition context owner subject arms))))))))
+
+(def epsilon_delta_terminal ((context EpsilonDeltaContext)
+  (terminal EpsilonOptionalTerminal)) EpsilonDeltaCompilation
+  (match terminal
+    (NoEpsilonTerminal (EpsilonDeltaCompiled "EpsilonCompiledResultless"))
+    ((SomeEpsilonTerminal value)
+      (match value
+        ((EpsilonReturnTerminal start end expression)
+          (epsilon_delta_return context expression))
+        ((EpsilonTransitionTerminal start end subject arms)
+          (epsilon_delta_transition context value subject arms))))))
+
+(def epsilon_delta_block ((context EpsilonDeltaContext)
+  (statements EpsilonStatementList) (terminal EpsilonOptionalTerminal)) EpsilonDeltaCompilation
+  (match statements
+    (NoEpsilonStatements (epsilon_delta_terminal context terminal))
+    ((MoreEpsilonStatements statement rest)
+      (match statement
+        ((EpsilonLetStatement start end name typeValue initializer) (EpsilonDeltaUnsupported start))
+        ((EpsilonAssignmentStatement start end target value) (EpsilonDeltaUnsupported start))
+        ((EpsilonPostfixStatement start end expression) (EpsilonDeltaUnsupported start))
+        ((EpsilonAssertStatement start end expression) (EpsilonDeltaUnsupported start))))))

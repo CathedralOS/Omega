@@ -31,7 +31,7 @@ closure work are tracked in [`../../TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRA
 | Retained file | Canonical role | Deletion condition |
 | --- | --- | --- |
 | `omega_compiler.epsilon.sources` | Canonical ordered membership, byte lengths, and SHA-256 identities of Epsilon-written compiler closure `D`. | Delete only when an adjacent compiler input format carries and verifies the same source-member custody directly. |
-| `*.epsilon` | Eight members separated into representations, request/UTF-8 validation, lexical classification, lexing, parsing, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
+| `*.epsilon` | Ten members separate representations, request/UTF-8 validation, lexing/parsing, source-set ownership and resolution, Alpha tape construction, scalar compilation, and outcome encoding. | Replace a completed component only atomically with an equally complete final Epsilon implementation and synchronized manifest identity. |
 
 Target identity is an exact immutable compiler-invocation input. `build.omg`
 under [`../../source/omega/`](../../../source/omega) does not declare a support
@@ -42,11 +42,11 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `tools/bootstrap/source_closure.py` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The current eight-member
-manifest materializes 20,461 lines / 749,173 bytes with SHA-256
-`4b94fda7d672b3b27173077cdf57075824c0ecc6c56275338936a9c65b39a896`.
-The manifest itself is 1,339 bytes, SHA-256
-`0cf9a9b5b49beecd4ad6e309876651ee3fb4dd01609efa11148edf591d4f80e7`;
+The current ten-member
+manifest materializes 22,134 lines / 818,946 bytes with SHA-256
+`30f8b6de9e15312b4445c2194cbdb857bf5b2e27f08caa59281c5b0170fc088f`.
+The manifest itself is 1,674 bytes, SHA-256
+`65039f0df7cca55124ed7781ba57a49ed01913071914a9961ac0acb1e580c6ec`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization and `tests/bootstrap/omega-identity.sh` covers refusals.
 A digest binds source custody; it does not prove compiler correctness.
@@ -62,8 +62,38 @@ the complete OCREQ semantic admission phases remain unfinished as detailed below
 The direct `compile(source, entry)` boundary is an internal compilation customer,
 not a replacement public request protocol.
 
+The internal `compile_set(source, entry_unit, entry)` customer accepts a bounded
+source set: at most 64 package identities, 256 direct dependency aliases and 512
+source units. Each unit has invocation-owned package membership and an exact
+byte range. The parser checks that unit independently and reads its optional
+specified `module name::path;` header. Module-less files of one package share
+one logical module; physical paths supply no namespace. Types and calls retain
+their exact declaration identity across units. Source-order changes do not
+select a different imported declaration.
+
+Imports are file-local. Exact imports select declarations; namespace imports
+bind a namespace without importing its ordinary machines as bare names.
+Repeated imports of one identity are allowed, while competing imported names
+refuse. Qualified names require the requester's own package or a direct
+requester-local dependency alias, with public visibility across packages.
+Public field and call-interface types cannot expose private records. The
+current subset handles explicitly declared modules, free machines and named
+records; it does not add attached declarations, reexports, overload selection,
+or full build/request admission. The single-view API is the one-unit case.
+Every supplied declaration is checked, including unused units and bodies.
+
+The construction application is [construct_omega.epsilon](../construct_omega.epsilon).
+It reads exact package, direct-alias and unit rows followed by up to 4 MiB of
+source bytes. Package roles distinguish ordinary packages from the explicitly
+trusted core and standard library; spelling alone grants no such role. The
+selected entry is a source-unit ordinal and name span. This internal input
+context is separate from OCREQ package acquisition and admission. A successful
+invocation writes Alpha tape; a refusal writes its source coordinate and exits
+nonzero. The implementation remains under construction; Epsilon source
+acceptance alone does not establish compilation of the Omega compiler closure.
+
 The emitted subset retains a nullary `u8` program entry. Free and nested
-machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`, copy records,
+machines may use plain `u8`, `u32`, `u64`, `bool`, `u32 in Trapping`, copy records, nullary copy sums,
 and Unit results. Omitted results independently mean Unit; a nested declaration
 never inherits its enclosing machine's result. Initialized and zero-established
 locals retain their declared types, and mutable bindings permit checked stores.
@@ -74,11 +104,23 @@ Boolean transition subjects may depend on runtime values, with Boolean or
 wildcard guards and either a machine transfer or a direct Boolean result.
 Constant transition subjects retain their specialized code path.
 
+Nullary `[copy]` sums retain declaration identity through local, field, parameter,
+result and parallel-transfer copies. The private eight-byte tag is not a source
+integer; zero establishes the first declared case. Carrier-qualified case values
+and ordered exhaustive case/wildcard transitions share the existing aggregate
+storage and once-only subject capture. A bounded case-name hash census checks
+full spelling and owner identity after collisions and resets after failed requests.
+Mixed field/case bodies and duplicate cases reject. Payloads, non-copy sums,
+custom sum requirements, direct qualified-case terminal syntax, and other sum
+operations remain explicit coverage refusals; a typed local can carry a case
+through the ordinary result path. The actual `NumericBase` declaration and
+`lexer_digit_in_base` helper require no source changes.
+
 A signature census runs before bodies resolve calls or transfers. Unsupported
 overload families refuse; identical admitted signatures reject as duplicates
 regardless of binder spelling. Every body and arm is checked, including those
 unreachable from the selected entry. Machine clauses, receivers,
-other runtime carriers/policies, arithmetic beyond the bounded unsigned addition below, non-Boolean dynamic
+other runtime carriers/policies, arithmetic beyond the checked unsigned families below, other dynamic
 subjects, and ordinary calls to nested declarations remain explicit coverage
 boundaries. Nested declarations use canonical `machine`; the retired `state`
 alias is no longer accepted. The spelling `state` remains an ordinary identifier.
@@ -95,7 +137,7 @@ negative, and wider intermediates return `Incomplete`; division never silently
 truncates. Anonymous remainder and width-dependent bitwise/shift operations
 also return `Incomplete`. Typed operations need their own checked lowering.
 A direct out-of-range `u8` literal and division by zero reject. Full rational
-folding, explicit landing, and typed runtime operations remain work.
+folding, broader explicit landing, and other typed runtime operations remain work.
 
 Private static storage separates parameter, local, pending-argument and
 expression-scratch cells within a 16 MiB arena `[0x02000000, 0x03000000)`,
@@ -113,7 +155,15 @@ signed comparison, preserving unsigned order. Decimal literals currently cover
 `0..4294967295`; larger `u64` spellings remain explicitly
 unsupported. Plain `u64` addition by a nonnegative literal is admitted when
 checked upper bounds prove the complete result at most 2147483647. The emitted
-word addition is then exact; unproved or wider arithmetic remains unsupported. Comparisons retain carrier/policy identity rather
+word addition is then exact; unproved plain arithmetic remains unsupported.
+Qualified `u32 in Trapping` supports addition, subtraction and multiplication;
+qualified `u64 in Trapping` supports addition and subtraction. Each selected
+core operator checks overflow or underflow and realizes an abnormal Alpha Trap.
+The qualified operand selects the family; a same-carrier plain peer is allowed,
+and a receiving annotation never inserts qualification. `u64` multiplication
+and the remaining runtime operators decline explicitly. Named checked-value
+variants retain the selected realization; operands evaluate once, left to right,
+with private scratch preserving a captured left value across a right-hand call. Comparisons retain carrier/policy identity rather
 than treating every word as interchangeable. Ordinary arguments, locals and
 results never acquire or drop a domain implicitly: `as +Trapping` and
 `as -Trapping` express the supported domain changes. Core comparisons admit a
@@ -123,7 +173,7 @@ identity/anonymous landing and exact `u8` to `u32` widening. Other casts and
 context-dependent domain inference inside compound expressions refuse explicitly.
 
 This closed slice projects the primitive operators and the fixed core policy
-comparison family specified by [numeric values](../../../wiki/spec/language/numeric_values.md#policy-domains);
+comparison and arithmetic families specified by [numeric values](../../../wiki/spec/language/numeric_values.md#policy-domains);
 it does not claim general
 operator-declaration or package/core admission. Imports, custom operators and
 user domains remain unsupported. The core Trapping comparison family publishes
@@ -194,7 +244,8 @@ root cannot be rebound. Nested transfers may forward the enclosing invocation's
 original incoming reference as a bare matching parameter; its whole referent
 loan remains live while later arguments evaluate. A local-backed reference
 cannot enter this path, so repeated tail transfers cannot outlive reused local
-storage. Ordinary bare reference forwarding, escaping/stored references, implicit
+storage. Ordinary calls also accept a bare matching incoming reference and
+retain the same argument-order loan and mutation range. Escaping/stored references, implicit
 shared lending and lifetime syntax decline. Mutation through a shared reference rejects. All these checks finish before
 any executable bytes are published.
 
@@ -613,3 +664,45 @@ source unit and fixes public diagnostic/outcome framing at the outer compiler
 edge. A
 public validate/advance split would be false authority, while revalidating the
 whole view at every token would be quadratic; neither belongs in the compiler.
+
+### Executed nominal values and source-set construction
+
+The current 818,946-byte compiler closure above compiles the unchanged source
+`NumericBase` declaration and `lexer_digit_in_base` machine. A 2,143-byte Omega
+customer checks all 256 bytes against four independently written base predicates.
+The source-constructed native Epsilon evaluator `b1cc4441…fe2e0` compiled it to
+5,972 Alpha bytes (`2549c1a5…6077d7`); the executable exits 42. The same invocation
+checks the parsed payload refusal, rebuilds the default nullary sum, and compiles
+a namespace call across two supplied source units/packages. Removing the direct
+edge refuses without a partial tape; restoring it produces the same 32-byte
+Alpha tape (`9b296423…f3617d`), again exiting 42.
+
+That invocation took 397.410 seconds with 4,972,452 KiB child peak RSS on one
+shared CPU. Its 826,054-byte Epsilon source is
+`c0a97e83da77dcea839d206e22b6ed209bb0a2c7eeae5ea67ef8c218f813b48b`;
+request identity is
+`26797a045d9cef3f50bd17410a011a45c3c623b09fdb462d2041b9027735280b`.
+Its complete observation matches the independent model byte for byte:
+`0aea09be26dd2ad86b37885ce3220ba4957c72cc9a10909a90c57ff28be073d2`.
+This reuses the constructed evaluator; it is not a new cold construction.
+
+The existing control customer now covers 19 emitted executables and 37
+refusal/reset checks (57.610 seconds in the model). Ten additional construction
+entry observations cover source-order changes, duplicate package display names,
+private and competing imports, non-transitive file imports, namespace qualification
+and Unit call statements. The complete parser customer, including the distinction
+between `ns::call()` and `value.call()`, passes in the model. The storage customer
+also passes all 13 executables and 36 refusals with both the current qualified-byte
+`SourceUnit`/`ModulePath` and its ordinary-byte counterpart. Every tape and the complete
+observation are byte-identical. The ordinary-buffer fixture migration belongs with
+that source change; its canary and boundary checks are unchanged.
+
+The actual Omega compiler closure was also supplied to the production Epsilon
+construction entry: 265 units / 3,698,937 source bytes, request
+`d8217eeb57d3801b3a6413291013dd0bb0d6d8323ea0c77c59807202b7b8031b`.
+The independent model consumed it in 144.051 seconds (978,020 KiB peak RSS)
+and returned `Incomplete` at packed-source coordinate 841, unit zero relative
+711: the `crashes` clause of construction `main.omg`'s `malformed` machine.
+This is a measured whole-input frontier, not an Omega compiler artifact or a
+self-rebuild. The existing missing effects, broader source constructs and full
+public request admission remain separate compiler work.

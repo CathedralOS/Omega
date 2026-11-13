@@ -26,11 +26,47 @@ pub fn run(command: &mut Command, directory: &Path, name: &str) -> Result<ExitSt
     run_with_timeout(command, directory, name, Duration::from_secs(1800))
 }
 
+/// Runs with no time limit, and copies the command's stderr to this process's
+/// stderr while it runs, so a long command reports as it goes instead of
+/// only in the file read after it ends.
+pub fn run_echoing_stderr(
+    command: &mut Command,
+    directory: &Path,
+    name: &str,
+) -> Result<ExitStatus, String> {
+    run_bounded(command, directory, name, Duration::MAX, true)
+}
+
 pub fn run_with_timeout(
     command: &mut Command,
     directory: &Path,
     name: &str,
     timeout: Duration,
+) -> Result<ExitStatus, String> {
+    run_bounded(command, directory, name, timeout, false)
+}
+
+/// Copies what `path` gained since `offset` to this process's stderr.
+fn echo_growth(path: &Path, offset: &mut u64) {
+    use std::io::{Seek, SeekFrom, Write};
+    let Ok(mut file) = fs::File::open(path) else {
+        return;
+    };
+    let mut bytes = Vec::new();
+    if file.seek(SeekFrom::Start(*offset)).is_ok()
+        && let Ok(read) = file.read_to_end(&mut bytes)
+    {
+        *offset += read as u64;
+        let _ = std::io::stderr().write_all(&bytes);
+    }
+}
+
+fn run_bounded(
+    command: &mut Command,
+    directory: &Path,
+    name: &str,
+    timeout: Duration,
+    echo_stderr: bool,
 ) -> Result<ExitStatus, String> {
     if timeout.is_zero() {
         return Err(format!("{name} requires a positive command timeout"));
@@ -44,7 +80,7 @@ pub fn run_with_timeout(
         "directory": command.get_current_dir(),
         "environment_overrides": command.get_envs().map(|(key, value)| (key.to_string_lossy().into_owned(), value.map(|v| v.to_string_lossy().into_owned()))).collect::<std::collections::BTreeMap<_, _>>(),
         "stdout": stdout, "stderr": stderr,
-        "timeout_ms": timeout.as_millis(), "timed_out": false,
+        "timeout_ms": u64::try_from(timeout.as_millis()).ok(), "timed_out": false,
     });
     let receipt_path = directory.join(format!("{name}.json"));
     let receipt_file = fs::File::create_new(&receipt_path)
@@ -60,8 +96,13 @@ pub fn run_with_timeout(
     let result = (|| {
         let mut child = command.spawn().map_err(|e| format!("start {name}: {e}"))?;
         receipt["child_id"] = serde_json::json!(child.id());
+        let mut echoed = 0;
         loop {
-            if let Some(status) = child.try_wait().map_err(|e| format!("wait {name}: {e}"))? {
+            let finished = child.try_wait().map_err(|e| format!("wait {name}: {e}"))?;
+            if echo_stderr {
+                echo_growth(&stderr, &mut echoed);
+            }
+            if let Some(status) = finished {
                 return Ok(status);
             }
             // The workflow also bounds the whole job. Kill a stuck individual

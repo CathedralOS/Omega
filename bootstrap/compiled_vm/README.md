@@ -574,3 +574,123 @@ The 907.570-second native and 3,411.948-second VM observations ran on a shared
 host at different times; these are functional timings, not a controlled
 performance benchmark. Stronger assurance and the remaining native construction
 work stay explicit in [the independent peer](../independent/README.md).
+
+
+## Actual UTF-8 decoder through checked arithmetic
+
+The bootstrap compiler constructs the real `decode_scalar` declaration with its
+SourceUnit append/read dependencies. Its emitted Alpha program passes 28 UTF-8
+boundary cases, including malformed continuations, overlong sequences,
+surrogates, truncation and the Unicode ceiling. Checked Trapping arithmetic
+preserves operand order and realizes overflow/underflow as an abnormal Trap;
+ordinary incoming-reference forwarding retains argument loans. Named value
+variants replace the touched numeric realization tags.
+
+The final source-owned run uses the same already constructed native Epsilon
+runtime described above, with four fresh evaluator processes. All 13 emitted
+artifacts match the independent model byte-for-byte and execute independently:
+five terminate with Alpha's Linux SIGILL Trap, the other eight return their
+expected values. All 14 refusal controls and the final reset canary pass. Only
+batch zero compiles the full decoder customer; the other batches use small
+generic sources. Batch three retains a success, every refusal and the final
+successful reset in one compiler instance. Each invocation checks the complete
+Epsilon source before execution; previous-source tapes alone are not acceptance
+for this corrected compiler.
+
+| Batch | Emitted artifacts | Native Epsilon seconds | Maximum child RSS (KiB) |
+| --- | ---: | ---: | ---: |
+| 0 | 1 | 970.332 | 21,031,988 |
+| 1 | 7 | 165.265 | 3,502,628 |
+| 2 | 3 | 324.005 | 6,488,740 |
+| 3 | 2 | 153.049 | 3,270,436 |
+
+Native Epsilon time totals 1612.651 seconds. These are functional observations
+on a shared host, not a controlled benchmark or a fresh cold reconstruction.
+Inputs stayed unchanged and no final batch needed a resource interruption.
+The independent model passed in 46.762 seconds. The storage model regression
+passed in 15.500 seconds with all 13 prior tapes and the complete observation
+unchanged; that regression is a model result, not another native storage run.
+Compiler identity/corruption controls and four source-closure tests also passed.
+
+Frozen source checkpoint: `8f27a2b7f65f4f8554a2a96d3c4fe014cbfd1408`.
+The compiler is 764,081 bytes,
+`2d7602e4e1e63822be65b950ccb4170c9dfddcc6de8344f9ab0729209133a681`;
+the complete Epsilon customer is 775,834 bytes,
+`8107bea7fa2f8c6370d706037f1cb2418d99493c1239a0201452c957320a9434`.
+The extracted Omega source is 12,406 bytes,
+`7f89108d7c2191eb7a932159dcec418943b37d672beef81843342787e45e01f8`;
+its 31,279-byte decoder tape is
+`ea7052722e423ccd4f6133432482879dd725b6f878d896a649181028dcd92af8`.
+The validation driver retains the selector and request framing in
+[test.py](test.py); all batches use that same compiler and Epsilon customer.
+The existing native successor invocation now exposes this customer with
+`python3 bootstrap/independent/successor_test.py --omega-utf8 --seconds 14400`.
+Its default route reconstructs predecessors first; the measurements above reused
+the already constructed evaluator and do not claim a new cold invocation.
+
+- Batch 0 observation: `169b7abb2b2e44dddb65606f27b3568ed40a6e8116c69e79ee230ae3ba404e58`.
+- Batch 1 observation: `f9d78d1b0218c548e48a566feb882deba731ae6364c38a9516254f2d634cb1fb`.
+- Batch 2 observation: `209d389076b3fc9dd63512d1b941a512c319cc5caa6ac8b03ce4e0fdb6db962d`.
+- Batch 3 observation: `6cdc45313a524911f6d744ba70e0f2211811d3804cc72fa628cb935e79207c07`.
+
+An earlier monolithic driver invocation on the superseded 760,804-byte compiler
+`9b2ed3c5c7921e504f672324ca1b6510bf4be519d260d8506be369e1b79f8ece`
+was gracefully interrupted after 1,387.703 seconds near the shared 32 GiB host
+limit. Its child maximum RSS was 32,207,012 KiB, with no OOM event and no completed
+observation. This was a host-resource interruption, not a semantic rejection or
+completed bootstrap. That old compiler subsequently completed the isolated
+decoder batch in 933.007 seconds at 21,028,664 KiB maximum RSS. Those receipts
+remain historical, separate from the final four-batch acceptance above.
+Fresh processes bound cumulative validation allocation; they do not guarantee
+that any larger single compiler-source customer will fit this host.
+
+The corrected compiler adds 14,908 source bytes over the prior storage milestone.
+Unsupported indexed carriers remain coverage refusals rather than invented byte
+mismatches, and a coverage fallback cannot overwrite a diagnosed source error.
+The actual decoder uses canonical casts and explicit literal qualification.
+This is construction of an actual compiler-source component, not complete Omega
+compiler construction or reproducible self-rebuild. Full modules, sums and
+broader compiler-source facilities remain delivery work.
+
+Both Gamma realizations still carry reviewability debt in the shared numeric
+instruction protocol and deeply nested dispatch: see `i_size` and `i_emit` in
+[the Alpha realization](alpha_backend.gamma) and `i_size`/`i_emit` in
+[the native realization](../independent/native.gamma). Their compact size does
+not make the operation meanings and byte lengths easy to trace. The executable
+correspondence receipts justify retaining both while their representations are
+improved; they do not establish that either realization meets the whole-chain
+independent-reviewability goal. This debt belongs in the comparison alongside
+execution time, memory and trust assumptions.
+
+## Earlier nominal-case construction interruption
+
+The candidate bootstrap compiler at `501411f37fe18b55b4e068811c36258f318b002b`
+adds nullary copy sums for the unchanged source-Psi `NumericBase` declaration and
+`lexer_digit_in_base` helper. Its 6,797-byte lexer customer checks all 256 raw
+bytes against four independently authored base predicates, alongside identifier
+boundaries. The independent model produced and executed 17 Alpha tapes and
+passed 36 refusal/reset controls in 21.620 seconds. The storage model regression
+retained all 13 earlier tapes and the complete observation in 18.887 seconds.
+These are model results, not completed source-owned construction evidence.
+
+The reused native Epsilon evaluator `b1cc4441…fe2e0` began the same complete
+793,158-byte Epsilon customer, with compiler closure 778,742 bytes,
+`f250f98315032419393d2a297cf5ff892bcfddb95346cf62f2cc32a2019659c5`.
+Its request was `aacf5003762b373cad3cb5dc6c52a21cd834eb25be0a0c7fe586a0fb8d12c5c3`.
+The observation was interrupted after 1,009.487 seconds when estimated
+unreclaimable headroom on the shared 32 GiB host crossed the predeclared 1.5 GB
+guard. The child maximum RSS was 22,525,132 KiB; no observation was published
+and no OOM event occurred. This is a host-resource interruption, not a source
+rejection, completed native result, or evidence that the architecture is
+infeasible. No fresh cold construction was attempted.
+
+Review also corrected one negative from unsupported brace syntax to a parsed
+payload declaration. The corrected payload-layout refusal and subsequent default
+reset passed a separate 11.655-second model run, asserting one parsed payload
+field and the declaration-anchored refusal. The interrupted native request kept
+its original bytes and cannot establish that corrected layout boundary.
+The subsequent bounded native invocation completed on the actual classifier,
+corrected payload/default reset and two-package source-set construction. Its
+current source identities, execution results and measured whole-compiler refusal
+are recorded in [the bootstrap compiler](../interpreted/5_omega/README.md#executed-nominal-values-and-source-set-construction).
+The interrupted observation above remains tied to its original bytes.

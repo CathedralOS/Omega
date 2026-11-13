@@ -1,0 +1,152 @@
+// Construction application for the bootstrap compiler; separate from public OCREQ.
+// Integer rows frame exact bytes and invocation ownership. The compiler alone
+// parses modules/imports and chooses bindings; only the selected entry name is sent.
+// Exit 0 publishes Alpha bytes. Compiler refusals exit 1 (invalid), 2 (outside
+// the supported subset), or 3 (capacity), publishing the absolute source-byte
+// coordinate as four little-endian bytes. Malformed framing exits 3 without
+// a coordinate. This application does not claim public OCREQ admission.
+boundary trait Console {
+    machine exit_process(return_code: i32) -> never;
+    machine write_byte(value: i32);
+    machine read_byte() -> i32;
+    machine write_line(text: &[u8]);
+}
+
+data Main {
+    console: Console;
+    compiler: OmegaScalarCompiler;
+    source: [u8; 4194304];
+    length: i32;
+    entry_unit: i32;
+    entry_name: OmegaRelativeSpan;
+}
+
+machine Main::word(&mut self) -> i32 {
+    transition true { true -> byte(0, 1, 0) }
+    state byte(index: i32, scale: i32, value: i32) {
+        let next: i32 = self.console.read_byte();
+        transition (next >= 0) && ((index < 3) || (next < 128)) {
+            true -> retain(index, scale, value + next * scale)
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state retain(index: i32, scale: i32, value: i32) {
+        transition index {
+            3 -> return value
+            _ -> byte(index + 1, scale * 256, value)
+        }
+    }
+}
+
+machine Main::main(&mut self) {
+    self.compiler.parser.sources.package_count = self.word();
+    self.compiler.parser.sources.dependency_count = self.word();
+    self.compiler.parser.sources.unit_count = self.word();
+    self.entry_unit = self.word();
+    self.entry_name.start = self.word();
+    self.entry_name.end = self.word();
+    self.length = self.word();
+    transition (self.compiler.parser.sources.package_count <= 64) &&
+        (self.compiler.parser.sources.dependency_count <= 256) &&
+        (self.compiler.parser.sources.unit_count <= 512) && (self.length <= 4194304) {
+        true -> package(0)
+        _ -> self.console.exit_process(3)
+    }
+    state package(index: i32) {
+        transition index < self.compiler.parser.sources.package_count {
+            true -> package_row(index)
+            _ -> dependency(0)
+        }
+    }
+    state package_row(index: i32) {
+        self.compiler.parser.sources.packages[index].name.start = self.word();
+        self.compiler.parser.sources.packages[index].name.end = self.word();
+        self.compiler.parser.sources.packages[index].role = self.word();
+        transition true { true -> package(index + 1) }
+    }
+    state dependency(index: i32) {
+        transition index < self.compiler.parser.sources.dependency_count {
+            true -> dependency_row(index)
+            _ -> unit(0)
+        }
+    }
+    state dependency_row(index: i32) {
+        self.compiler.parser.sources.dependencies[index].requester = self.word();
+        self.compiler.parser.sources.dependencies[index].target = self.word();
+        self.compiler.parser.sources.dependencies[index].alias.start = self.word();
+        self.compiler.parser.sources.dependencies[index].alias.end = self.word();
+        transition true { true -> dependency(index + 1) }
+    }
+    state unit(index: i32) {
+        transition index < self.compiler.parser.sources.unit_count {
+            true -> unit_row(index)
+            _ -> source_byte(0)
+        }
+    }
+    state unit_row(index: i32) {
+        self.compiler.parser.sources.units[index].package = self.word();
+        self.compiler.parser.sources.units[index].start = self.word();
+        self.compiler.parser.sources.units[index].end = self.word();
+        transition true { true -> unit(index + 1) }
+    }
+    state source_byte(index: i32) {
+        transition index < self.length {
+            true -> read_source_byte(index, self.console.read_byte())
+            _ -> end()
+        }
+    }
+    state read_source_byte(index: i32, value: i32) {
+        transition value >= 0 {
+            true -> retain_source_byte(index, value)
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state retain_source_byte(index: i32, value: i32) {
+        self.source[index] = value;
+        transition true { true -> source_byte(index + 1) }
+    }
+    state end() {
+        transition self.console.read_byte() == -1 {
+            true -> entry()
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state entry() {
+        transition self.compiler.parser.sources.identifier(
+            self.source.as_slice[0..self.length], self.entry_name) {
+            1 -> compile()
+            _ -> self.console.exit_process(3)
+        }
+    }
+    state compile() {
+        self.compiler.compile_set(self.source.as_slice[0..self.length], self.entry_unit,
+            self.source.as_slice[self.entry_name.start..self.entry_name.end]);
+        transition self.compiler.status {
+            OmegaScalarCompilationStatus::Complete -> publish(0)
+            OmegaScalarCompilationStatus::Reject -> refusal(1, self.compiler.outcome_coordinate, 0)
+            OmegaScalarCompilationStatus::Incomplete -> refusal(2, self.compiler.outcome_coordinate, 0)
+            OmegaScalarCompilationStatus::ResourceFailure -> refusal(3, self.compiler.outcome_coordinate, 0)
+            _ -> self.console.exit_process(4)
+        }
+    }
+    state refusal(code: i32, coordinate: i32, index: i32) {
+        transition index < 4 {
+            true -> refusal_byte(code, coordinate, index)
+            _ -> self.console.exit_process(code)
+        }
+    }
+    state refusal_byte(code: i32, coordinate: i32, index: i32) {
+        self.console.write_byte(coordinate & 255);
+        transition true { true -> refusal(code, coordinate >> 8, index + 1) }
+    }
+    state publish(index: i32) {
+        transition index < self.compiler.tape.payload_length() {
+            true -> byte(index)
+            _ -> return
+        }
+    }
+    state byte(index: i32) {
+        self.console.write_byte(self.compiler.tape.bytes[index]);
+        transition true { true -> publish(index + 1) }
+    }
+}

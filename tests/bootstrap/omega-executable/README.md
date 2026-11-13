@@ -69,7 +69,7 @@ short-circuit Boolean control preserve those types. All bodies and arms are
 checked before emission; reentrant ordinary-call graphs and unsupported
 facilities refuse without publishing a partial tape. Copy records, zero-established
 affine locals, projected field writes, Unit completion and scoped record-reference
-parameters now support the actual SourceUnit clear helper. Runtime numeric arithmetic beyond proved unsigned addition, richer domains
+parameters now support the actual SourceUnit clear helper. Runtime numeric arithmetic beyond proved unsigned addition and checked Trapping `u32` add/subtract/multiply or `u64` add/subtract, richer domains
 and machine clauses beyond explicit entry requirements remain outside this slice. The compiler README specifies the precise storage and loan boundaries.
 
 The source-built compiled peer also exposes `--omega-control`. It takes exact
@@ -220,3 +220,20 @@ constructs its source-only semantic producer path. Each invocation stores the
 exact packed compiler, complete customer, request and observation; historical
 measurements remain bound to their original sources. This customer is separate
 from the public OCREQ admission checks.
+
+
+The source-built peer's `--omega-utf8` customer extracts `DecodedScalar` and
+`decode_scalar` verbatim from the real lexer, alongside the real SourceUnit
+append/read declarations. [utf8_controls.omg](utf8_controls.omg) checks 28
+valid/invalid UTF-8 boundaries and an absent large index. The companion
+[controls_arithmetic.epsilon](controls_arithmetic.epsilon) checks arithmetic
+limits, five abnormal overflow/underflow traps, left-value capture across a
+mutating right operand, short-circuit suppression, reference forwarding and
+fourteen explicit refusal controls. Unsupported indexed carriers return coverage
+refusals without inventing a byte type; diagnosed missing names remain source
+errors. Four fresh evaluator processes bound cumulative immutable allocation.
+Only the first receives the full decoder source; the others compile small
+generic programs. The final process retains a success, all refusal controls and
+a successful reset in one compiler instance. These are source-to-Alpha customers, not full
+Omega compiler construction or a self-rebuild. The host distinguishes Alpha's
+Linux SIGILL Trap from every normal process exit.
