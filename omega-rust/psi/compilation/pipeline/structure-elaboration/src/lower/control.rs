@@ -237,7 +237,9 @@ impl Lowering<'_> {
                 *self.slot_mut(*slot)? = Some(Bound::Erased(witness));
                 Ok(())
             }
-            Statement::Declare { slot, source, .. } => self.declare_local(*slot, *source),
+            Statement::Declare { slot, home, source } => {
+                self.declare_local(*slot, home.as_deref(), *source)
+            }
             Statement::Store {
                 slot,
                 path,

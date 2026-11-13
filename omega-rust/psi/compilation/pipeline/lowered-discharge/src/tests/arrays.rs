@@ -313,10 +313,24 @@ fn an_array_move_vacates_only_its_exact_element() {
         );
         program.locals.push(array(1));
         let verdict = judge(Ok(elaborate_over(vec![program], &types))).unwrap();
-        assert_eq!(
-            matches!(verdict, RouteVerdict::Accepted(_)),
-            accepted,
-            "{verdict:?}"
-        );
+        if accepted {
+            assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+        } else {
+            let RouteVerdict::Rejected {
+                formations,
+                unproved,
+                unestablished,
+                conflicts,
+            } = verdict
+            else {
+                panic!("the moved element must fail storage checking: {verdict:?}");
+            };
+            assert!(formations.is_empty() && unproved.is_empty() && conflicts.is_empty());
+            assert!(
+                unestablished.iter().any(|used| used.detail
+                    == "owned storage is used after its value was transferred or consumed"),
+                "{unestablished:?}"
+            );
+        }
     }
 }

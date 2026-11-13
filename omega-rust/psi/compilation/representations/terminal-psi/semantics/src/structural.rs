@@ -1598,7 +1598,13 @@ pub(crate) mod primitive_place {
             declarations,
             root,
             path,
-            plain_scalar_field,
+            |field| match field {
+                StructuralFieldType::Scalar(_)
+                | StructuralFieldType::IeeeFloat(_)
+                | StructuralFieldType::BoundedInteger(_)
+                | StructuralFieldType::RefinedScalar(_) => field.scalar_type(),
+                _ => None,
+            },
             |step| match (step, &mut canonical) {
                 (Some(segment), Some(canonical)) => canonical.push(segment),
                 (None, canonical) => *canonical = None,

@@ -87,10 +87,9 @@ use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 /// structural paths name each field by.
 pub(crate) struct Records<'a> {
     types: &'a IdTable<StructuralTypeId, RecordType>,
-    /// The primitive structural type of each scalar type some local is homed
-    /// in, declared after the record types. A handful at most, searched by
-    /// the scalar type itself.
-    primitives: Vec<(ScalarType, StructuralTypeId)>,
+    /// Scalar homes retain their exact type identity and qualification. An
+    /// array element of the same scalar width need not be the same home type.
+    primitives: Vec<(ValueType, String, StructuralTypeId)>,
     /// `field_identities[record][position]`: the field's index in the
     /// module's identity table. It is written into `StructuralLeafCopy`
     /// paths, which is the form Terminal Psi gives them; nothing compares it.
@@ -257,13 +256,13 @@ pub(crate) fn declare<'a>(
     // scalar local declared without an initializer or lent to a call, and
     // the place of a borrowed scalar formal. Each needs its primitive type
     // declared once, with the text identity the typed trees gave it.
-    let mut homes: Vec<(ScalarType, Option<&String>)> = Vec::new();
+    let mut homes: Vec<(ValueType, Option<&String>)> = Vec::new();
     for (_, signature) in signatures.iter() {
         for borrowed in &signature.borrowed {
-            if let Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
+            if let Some(value_type @ (ValueType::Scalar(_) | ValueType::Qualified(..))) =
                 signature.parameters.get(borrowed.position).copied()
             {
-                homes.push((scalar_type, borrowed.home.as_ref()));
+                homes.push((value_type, borrowed.home.as_ref()));
             }
         }
     }
@@ -273,54 +272,78 @@ pub(crate) fn declare<'a>(
             let Statement::Declare { slot, home, .. } = statement else {
                 continue;
             };
-            let Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
+            let Some(value_type @ (ValueType::Scalar(_) | ValueType::Qualified(..))) =
                 body.slots.get(*slot).copied()
             else {
                 continue;
             };
-            homes.push((scalar_type, home.as_ref()));
+            homes.push((value_type, home.as_ref()));
         }
     }
-    let mut primitives: Vec<(ScalarType, StructuralTypeId)> = types
+    let mut primitives: Vec<(ValueType, String, StructuralTypeId)> = types
         .iter()
         .filter_map(|(id, row)| match row.shape {
-            crate::StorageShape::PrimitiveScalar { scalar_type, .. } => Some((scalar_type, id)),
+            crate::StorageShape::PrimitiveScalar {
+                scalar_type,
+                policy,
+            } => Some((
+                policy.map_or(ValueType::Scalar(scalar_type), |policy| {
+                    ValueType::Qualified(scalar_type, policy)
+                }),
+                row.identity.clone(),
+                id,
+            )),
             _ => None,
         })
         .collect();
-    for (scalar_type, home) in homes {
-        {
-            if primitives.iter().any(|(known, _)| *known == scalar_type) {
-                continue;
-            }
-            let Some(home) = home else {
+    for (value_type, home) in homes {
+        let Some(home) = home else {
+            return Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Spelling("scalar home without a type identity"),
+            ));
+        };
+        let scalar_type = value_type.scalar().ok_or_else(|| {
+            refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Type("a primitive home without a scalar type"),
+            )
+        })?;
+        let mut matching = primitives
+            .iter()
+            .filter(|(_, identity, _)| identity == home);
+        if let Some((known, _, _)) = matching.next() {
+            if matching.next().is_some() || *known != value_type {
                 return Err(refuse(
                     entry,
                     Construct::Machine,
-                    Unserved::Spelling("scalar home without a type identity"),
+                    Unserved::Type("a scalar home identity has conflicting declarations"),
                 ));
-            };
-            let id = StructuralTypeId::new(structural_types.len() as u64 + 1).ok_or_else(|| {
-                refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Type("structural type identity overflow"),
-                )
-            })?;
-            structural_types.push(StructuralTypeDeclaration {
-                requires: Vec::new(),
-                quotient_carrier: None,
-                id,
-                identity: identities.intern(home),
-                owns_linear_claim: false,
-                copyable: true,
-                no_code_affine_cleanup: true,
-                descriptor_cleanup: true,
-                shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
-                scalar_restriction: None,
-            });
-            primitives.push((scalar_type, id));
+            }
+            continue;
         }
+        let id = StructuralTypeId::new(structural_types.len() as u64 + 1).ok_or_else(|| {
+            refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Type("structural type identity overflow"),
+            )
+        })?;
+        structural_types.push(StructuralTypeDeclaration {
+            requires: Vec::new(),
+            quotient_carrier: None,
+            id,
+            identity: identities.intern(home),
+            owns_linear_claim: false,
+            copyable: true,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: true,
+            shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+            scalar_restriction: None,
+        });
+        primitives.push((value_type, home.clone(), id));
     }
     Ok(Declared {
         records: Records {
@@ -337,10 +360,7 @@ pub(crate) fn declare<'a>(
 
 /// The scalar homes the loans in `statement` give SSA locals, with the text
 /// identity of each home's type (`ExpressionKind::Borrow::home`).
-fn statement_homes<'b>(
-    statement: &'b Statement,
-    homes: &mut Vec<(ScalarType, Option<&'b String>)>,
-) {
+fn statement_homes<'b>(statement: &'b Statement, homes: &mut Vec<(ValueType, Option<&'b String>)>) {
     match statement {
         Statement::Bind { value, .. } | Statement::Evaluate(value) => {
             expression_homes(value, homes)
@@ -377,7 +397,7 @@ fn statement_homes<'b>(
     }
 }
 
-fn target_homes<'b>(target: &'b Target, homes: &mut Vec<(ScalarType, Option<&'b String>)>) {
+fn target_homes<'b>(target: &'b Target, homes: &mut Vec<(ValueType, Option<&'b String>)>) {
     if let Target::Value(value) = target {
         expression_homes(value, homes);
     }
@@ -385,7 +405,7 @@ fn target_homes<'b>(target: &'b Target, homes: &mut Vec<(ScalarType, Option<&'b 
 
 fn expression_homes<'b>(
     expression: &'b Expression,
-    homes: &mut Vec<(ScalarType, Option<&'b String>)>,
+    homes: &mut Vec<(ValueType, Option<&'b String>)>,
 ) {
     match &expression.kind {
         ExpressionKind::SavedSubject(_)
@@ -395,10 +415,10 @@ fn expression_homes<'b>(
         ExpressionKind::Borrow { place, home, .. } => {
             if let (
                 Some(home),
-                Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)),
+                Some(value_type @ (ValueType::Scalar(_) | ValueType::Qualified(..))),
             ) = (home, place.result)
             {
-                homes.push((scalar_type, Some(home)));
+                homes.push((value_type, Some(home)));
             }
             expression_homes(place, homes);
         }
@@ -471,7 +491,7 @@ impl Records<'_> {
         if self
             .primitives
             .iter()
-            .any(|(_, primitive)| *primitive == record)
+            .any(|(_, _, primitive)| *primitive == record)
         {
             return Ok(StructuralMultiplicity::Unrestricted);
         }
@@ -482,22 +502,29 @@ impl Records<'_> {
             StructuralMultiplicity::Affine
         })
     }
-    /// The primitive structural type `declare` declared for `scalar_type`.
+    /// Resolve the exact scalar home already published for this source type.
     pub(super) fn primitive(
         &self,
-        scalar_type: ScalarType,
+        value_type: ValueType,
+        identity: Option<&str>,
         machine: MachineId,
     ) -> Checked<StructuralTypeId> {
-        self.primitives
+        let mut matching = self
+            .primitives
             .iter()
-            .find(|(known, _)| *known == scalar_type)
-            .map(|(_, home)| *home)
-            .ok_or_else(|| Refusal {
-                reason: RefusalReason::ForeignIdentity,
-                machine,
-                concerns: Construct::Machine,
-                detail: String::from("a scalar place's primitive type is not declared"),
-            })
+            .filter(|(known, home, _)| *known == value_type && Some(home.as_str()) == identity);
+        let found = matching.next();
+        if let Some((_, _, home)) = found
+            && matching.next().is_none()
+        {
+            return Ok(*home);
+        }
+        Err(Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            machine,
+            concerns: Construct::Machine,
+            detail: String::from("a scalar place's exact primitive type is not uniquely declared"),
+        })
     }
 }
 
@@ -1217,7 +1244,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         place: &Expression,
         access: language_core::ReferenceAccess,
-        needs_home: bool,
+        home_identity: Option<&str>,
     ) -> Checked<((PlaceId, Vec<Step>, StructuralAccess), ExactPlaceId, Lender)> {
         let lent_access =
             borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
@@ -1225,22 +1252,20 @@ impl<'a> Lowering<'a> {
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
         let (root, steps, exact) = match (&place.kind, value_type) {
-            (
-                ExpressionKind::Slot(slot),
-                ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _),
-            ) => {
+            (ExpressionKind::Slot(slot), ValueType::Scalar(_) | ValueType::Qualified(..)) => {
                 let bound = *self.slot_mut(*slot)?;
                 let home = match bound {
                     Some(Bound::Home(home)) => home,
-                    Some(Bound::Scalar(_)) if needs_home && self.joining > 0 => {
+                    Some(Bound::Scalar(_)) if home_identity.is_some() && self.joining > 0 => {
                         return Err(refuse(
                             self.id,
                             self.current.map_or(Construct::Machine, Construct::Block),
                             Unserved::Call("loan of a value local on some paths only"),
                         ));
                     }
-                    Some(Bound::Scalar(value)) if needs_home => {
-                        let home = self.establish_home(value, scalar_type, place.source)?;
+                    Some(Bound::Scalar(value)) if home_identity.is_some() => {
+                        let home =
+                            self.establish_home(value, value_type, home_identity, place.source)?;
                         *self.slot_mut(*slot)? = Some(Bound::Home(home));
                         home
                     }
@@ -1302,10 +1327,11 @@ impl<'a> Lowering<'a> {
     fn establish_home(
         &mut self,
         value: ValueId,
-        scalar_type: ScalarType,
+        value_type: ValueType,
+        identity: Option<&str>,
         source: SourceOrigin,
     ) -> Checked<PlaceId> {
-        let home = self.records.primitive(scalar_type, self.id)?;
+        let home = self.records.primitive(value_type, identity, self.id)?;
         let operation = self.operation_identity(source);
         let (root, exact) = self.produce(
             operation,
@@ -1827,7 +1853,12 @@ impl<'a> Lowering<'a> {
     /// this route reads (`i8`..`u64`, `bool`) admits zero and a constrained
     /// scalar type is refused by the reader, so a scalar home owes no
     /// domain clause and is never gated.
-    pub(super) fn declare_local(&mut self, slot: usize, source: SourceOrigin) -> Checked<()> {
+    pub(super) fn declare_local(
+        &mut self,
+        slot: usize,
+        identity: Option<&str>,
+        source: SourceOrigin,
+    ) -> Checked<()> {
         let bound = match self.slot_type(slot)? {
             ValueType::Rigid(_) => {
                 return Err(self.internal("a local of a rigid type is declared"));
@@ -1861,11 +1892,7 @@ impl<'a> Lowering<'a> {
             ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
                 let home = self
                     .records
-                    .primitives
-                    .iter()
-                    .find(|(known, _)| *known == scalar_type)
-                    .map(|(_, home)| *home)
-                    .ok_or_else(|| self.internal("a homed scalar type is not declared"))?;
+                    .primitive(self.slot_type(slot)?, identity, self.id)?;
                 let value = self.zero(scalar_type, source)?;
                 let operation = self.operation_identity(source);
                 let (root, exact) = self.produce(
@@ -2185,5 +2212,177 @@ impl<'a> Lowering<'a> {
         })?;
         self.enter(continuation);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Borrowed, CrashCeiling, Policy, Termination};
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PsiSemanticId};
+
+    #[test]
+    fn scalar_homes_keep_their_identity_beside_qualified_array_elements() {
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let plain = ValueType::Scalar(scalar);
+        let wrapping = ValueType::Qualified(scalar, Policy::Wrapping);
+        let machine = MachineId::new(1).unwrap();
+        let mut types = IdTable::default();
+        let wrapping_id = types.push(RecordType {
+            copyable: true,
+            identity: "wrapping-u32".into(),
+            shape: StorageShape::PrimitiveScalar {
+                scalar_type: scalar,
+                policy: Some(Policy::Wrapping),
+            },
+            requires: Vec::new(),
+        });
+        types.push(RecordType {
+            copyable: true,
+            identity: "wrapping-elements".into(),
+            shape: StorageShape::FixedArray {
+                element: wrapping_id,
+                length: terminal_psi::ArrayExtent::Literal(2),
+            },
+            requires: Vec::new(),
+        });
+        let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
+        let mut signatures = IdTable::default();
+        signatures.push(Signature {
+            parameters: vec![plain],
+            erased: Vec::new(),
+            borrowed: vec![Borrowed {
+                position: 0,
+                access: language_core::ReferenceAccess::Shared,
+                home: Some("plain-u32".into()),
+            }],
+            result: Some(plain),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            crashes: CrashCeiling::Authored(Vec::new()),
+            termination: Termination::Silent,
+        });
+        let mut bodies = IdTable::default();
+        bodies.push(Body {
+            slots: vec![plain, wrapping, plain, plain],
+            statements: vec![
+                Statement::Declare {
+                    slot: 1,
+                    home: Some("wrapping-u32".into()),
+                    source,
+                },
+                Statement::Declare {
+                    slot: 2,
+                    home: Some("plain-alias".into()),
+                    source,
+                },
+                Statement::Bind {
+                    slot: 3,
+                    value: Expression {
+                        kind: ExpressionKind::Integer(IntegerValue::Unsigned(0)),
+                        result: Some(plain),
+                        source,
+                    },
+                },
+                Statement::Evaluate(Expression {
+                    kind: ExpressionKind::Call {
+                        target: MachineId::new(2).unwrap(),
+                        arguments: vec![Expression {
+                            kind: ExpressionKind::Borrow {
+                                access: language_core::ReferenceAccess::Shared,
+                                place: Box::new(Expression {
+                                    kind: ExpressionKind::Slot(3),
+                                    result: Some(plain),
+                                    source,
+                                }),
+                                home: Some("plain-u32".into()),
+                            },
+                            result: Some(plain),
+                            source,
+                        }],
+                    },
+                    result: Some(plain),
+                    source,
+                }),
+                Statement::Arm {
+                    guard: None,
+                    target: Target::Value(Expression {
+                        kind: ExpressionKind::Slot(0),
+                        result: Some(plain),
+                        source,
+                    }),
+                    source,
+                },
+            ],
+        });
+        signatures.push(signatures.get(machine).unwrap().clone());
+        bodies.push(Body {
+            slots: vec![plain],
+            statements: vec![Statement::Arm {
+                guard: None,
+                target: Target::Value(Expression {
+                    kind: ExpressionKind::Slot(0),
+                    result: Some(plain),
+                    source,
+                }),
+                source,
+            }],
+        });
+        let declared = declare(
+            machine,
+            &types,
+            &bodies,
+            &signatures,
+            TerminalIdentityTableBuilder::default(),
+        )
+        .unwrap();
+        let records = &declared.records;
+        let plain_id = records
+            .primitive(plain, Some("plain-u32"), machine)
+            .unwrap();
+        let alias_id = records
+            .primitive(plain, Some("plain-alias"), machine)
+            .unwrap();
+        assert_ne!(plain_id, wrapping_id);
+        assert_ne!(plain_id, alias_id);
+        assert_eq!(
+            records
+                .primitive(wrapping, Some("wrapping-u32"), machine)
+                .unwrap(),
+            wrapping_id
+        );
+        assert!(
+            records
+                .primitive(plain, Some("wrapping-u32"), machine)
+                .is_err()
+        );
+        assert!(records.primitive(plain, None, machine).is_err());
+        for (id, identity) in [
+            (plain_id, "plain-u32"),
+            (alias_id, "plain-alias"),
+            (wrapping_id, "wrapping-u32"),
+        ] {
+            let row = declared
+                .structural_types
+                .iter()
+                .find(|row| row.id == id)
+                .unwrap();
+            assert_eq!(declared.identities.text(row.identity), Some(identity));
+            assert_eq!(row.shape, StructuralTypeShape::PrimitiveScalar(scalar));
+        }
+        let elaboration = crate::lower_bodies(machine, &bodies, &signatures, &types).unwrap();
+        let lowered = &elaboration.module.machines[0];
+        assert_eq!(lowered.structural_parameters[0].structural_type, plain_id);
+        let homes: Vec<_> = lowered
+            .operations()
+            .filter(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::EstablishPrimitiveLocal { .. }
+                )
+            })
+            .map(|operation| operation.result.as_structural().unwrap().structural_type)
+            .collect();
+        assert_eq!(homes, [wrapping_id, alias_id, plain_id]);
     }
 }

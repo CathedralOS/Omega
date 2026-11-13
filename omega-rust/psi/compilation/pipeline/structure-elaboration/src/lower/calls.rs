@@ -85,7 +85,7 @@ impl Lowering<'_> {
                 if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
                     return Err(self.internal("a loan for a formal that is not borrowed alike"));
                 }
-                let (lent, exact, lender) = self.lend(place, *access, home.is_some())?;
+                let (lent, exact, lender) = self.lend(place, *access, home.as_deref())?;
                 evaluated.actuals.push(Actual::Place(exact));
                 evaluated.structural.push(lent);
                 evaluated.loans.push((exact, *access, lender));
