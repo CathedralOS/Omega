@@ -46,6 +46,14 @@ Conventions:
 - Name cases by the behavior under test, not by the fix that motivated them.
 - If a case graduates into a clearer feature family, move the directory and
   update the suite path rather than duplicating it.
+- One fact's placements may share a program. `pass/facts/<fact>_placements[_exit]`
+  holds the code of several `pass/facts/<fact>_through_<place>[_exit]` fixtures:
+  each placement's former entry machine is renamed `<place>_placement`, and the
+  program's entry calls them in order, so the fact costs one compile instead of
+  one per placement. A name two placements both use is prefixed with its place,
+  and the header comment lists the placements carried and the ones kept apart.
+  Combine a placement only after it checks on its own: a combined program can
+  check while one of its placements, compiled alone, is rejected.
 - Cover each spec rule once. A pass case pins one feature or feature
   interaction the spec defines; a fail case pins one rejection rule. Before
   adding a case, look for one that already exercises the rule and extend it

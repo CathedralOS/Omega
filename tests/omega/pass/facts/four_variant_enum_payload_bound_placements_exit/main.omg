@@ -1,0 +1,214 @@
+// Fact: matching a 4-variant tagged enum payload Packet { Alpha(u64), Beta(u64), Gamma(u64), Delta(u64) } where every arm satisfies 40u64 <= v <= 80u64 preserves 40u64 <= res <= 80u64 across all nine places so exact subtractions 80u64 - res and res - 40u64 are safe.
+// Placements: field, call_result, match_join, const_name.
+// Each `<place>_placement` machine is the `main` of the former `four_variant_enum_payload_bound_through_<place>_exit` fixture; `main` runs them in that order.
+// Kept in its own fixture: target_body (`four_variant_enum_payload_bound_through_target_body_exit`), which has its own build.omg.
+// Kept in their own fixtures because they did not check on their own when this was written: local, parameter, other_state, other_machine.
+// Expected exit: 0
+
+// Placement: field.
+// Renamed, because another placement uses the name: Packet -> FieldPacket, verify_payload -> field_verify_payload, extract -> field_extract, probe -> field_probe.
+
+data FieldPacket [copy] 
+    requires ((self in FieldPacket::Alpha) && (self.v >= 40u64 && self.v <= 80u64)) || ((self in FieldPacket::Beta) && (self.v >= 40u64 && self.v <= 80u64)) || ((self in FieldPacket::Gamma) && (self.v >= 40u64 && self.v <= 80u64)) || ((self in FieldPacket::Delta) && (self.v >= 40u64 && self.v <= 80u64))
+{
+    case Alpha(v: u64);
+    case Beta(v: u64);
+    case Gamma(v: u64);
+    case Delta(v: u64);
+}
+
+data ResHolder {
+    res: u64;
+}
+
+machine field_verify_payload(value: u64) -> u64
+    requires value >= 40u64 && value <= 80u64
+{
+    let headroom: u64 = 80u64 - value;
+    let margin: u64 = value - 40u64;
+    headroom + margin
+}
+
+machine field_extract(packet: FieldPacket) -> u64 {
+    transition packet {
+        FieldPacket::Alpha { v } -> v
+        FieldPacket::Beta { v } -> v
+        FieldPacket::Gamma { v } -> v
+        FieldPacket::Delta { v } -> v
+    }
+}
+
+machine field_probe(packet: FieldPacket) -> u64 {
+    let res: u64 = field_extract(packet);
+    let holder: ResHolder = ResHolder { res: res };
+    field_verify_payload(holder.res)
+}
+
+machine field_placement() crashes Trap {
+    let p: FieldPacket = FieldPacket::Gamma { v: 60u64 };
+    let combined: u64 = field_probe(p);
+    transition combined == 40u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: call_result.
+// Renamed, because another placement uses the name: Packet -> CallResultPacket, verify_payload -> call_result_verify_payload, probe -> call_result_probe.
+
+data CallResultPacket [copy] 
+    requires ((self in CallResultPacket::Alpha) && (self.v >= 40u64 && self.v <= 80u64)) || ((self in CallResultPacket::Beta) && (self.v >= 40u64 && self.v <= 80u64)) || ((self in CallResultPacket::Gamma) && (self.v >= 40u64 && self.v <= 80u64)) || ((self in CallResultPacket::Delta) && (self.v >= 40u64 && self.v <= 80u64))
+{
+    case Alpha(v: u64);
+    case Beta(v: u64);
+    case Gamma(v: u64);
+    case Delta(v: u64);
+}
+
+machine call_result_verify_payload(value: u64) -> u64
+    requires value >= 40u64 && value <= 80u64
+{
+    let headroom: u64 = 80u64 - value;
+    let margin: u64 = value - 40u64;
+    headroom + margin
+}
+
+machine extract_payload(packet: CallResultPacket) -> u64
+    ensures result >= 40u64 && result <= 80u64
+{
+    transition packet {
+        CallResultPacket::Alpha { v } -> v
+        CallResultPacket::Beta { v } -> v
+        CallResultPacket::Gamma { v } -> v
+        CallResultPacket::Delta { v } -> v
+    }
+}
+
+machine call_result_probe(packet: CallResultPacket) -> u64 {
+    let res: u64 = extract_payload(packet);
+    call_result_verify_payload(res)
+}
+
+machine call_result_placement() crashes Trap {
+    let p: CallResultPacket = CallResultPacket::Gamma { v: 60u64 };
+    let combined: u64 = call_result_probe(p);
+    transition combined == 40u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: match_join.
+// Renamed, because another placement uses the name: Packet -> MatchJoinPacket, verify_payload -> match_join_verify_payload, extract -> match_join_extract, probe -> match_join_probe.
+
+data MatchJoinPacket [copy] 
+    requires ((self in MatchJoinPacket::Alpha) && (self.v >= 40u64 && self.v <= 80u64)) || ((self in MatchJoinPacket::Beta) && (self.v >= 40u64 && self.v <= 80u64)) || ((self in MatchJoinPacket::Gamma) && (self.v >= 40u64 && self.v <= 80u64)) || ((self in MatchJoinPacket::Delta) && (self.v >= 40u64 && self.v <= 80u64))
+{
+    case Alpha(v: u64);
+    case Beta(v: u64);
+    case Gamma(v: u64);
+    case Delta(v: u64);
+}
+
+machine match_join_verify_payload(value: u64) -> u64
+    requires value >= 40u64 && value <= 80u64
+{
+    let headroom: u64 = 80u64 - value;
+    let margin: u64 = value - 40u64;
+    headroom + margin
+}
+
+machine choose(flag: bool, first: u64, second: u64) -> u64
+    requires first >= 40u64 && first <= 80u64 && second >= 40u64 && second <= 80u64
+    ensures result >= 40u64 && result <= 80u64
+{
+    transition flag {
+        true -> first
+        false -> second
+    }
+}
+
+machine match_join_extract(packet: MatchJoinPacket) -> u64 {
+    transition packet {
+        MatchJoinPacket::Alpha { v } -> v
+        MatchJoinPacket::Beta { v } -> v
+        MatchJoinPacket::Gamma { v } -> v
+        MatchJoinPacket::Delta { v } -> v
+    }
+}
+
+machine match_join_probe(flag: bool, packet: MatchJoinPacket) -> u64 {
+    let res: u64 = match_join_extract(packet);
+    let joined: u64 = choose(flag, res, 60u64);
+    match_join_verify_payload(joined)
+}
+
+machine match_join_placement() crashes Trap {
+    let p: MatchJoinPacket = MatchJoinPacket::Gamma { v: 60u64 };
+    let combined: u64 = match_join_probe(true, p);
+    transition combined == 40u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: const_name.
+// Renamed, because another placement uses the name: Packet -> ConstNamePacket, verify_payload -> const_name_verify_payload, extract -> const_name_extract, probe -> const_name_probe.
+
+const MAX_RES: u64 = 80u64;
+const MIN_RES: u64 = 40u64;
+
+data ConstNamePacket [copy] 
+    requires ((self in ConstNamePacket::Alpha) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in ConstNamePacket::Beta) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in ConstNamePacket::Gamma) && (self.v >= MIN_RES && self.v <= MAX_RES)) || ((self in ConstNamePacket::Delta) && (self.v >= MIN_RES && self.v <= MAX_RES))
+{
+    case Alpha(v: u64);
+    case Beta(v: u64);
+    case Gamma(v: u64);
+    case Delta(v: u64);
+}
+
+machine const_name_verify_payload(value: u64) -> u64
+    requires value >= MIN_RES && value <= MAX_RES
+{
+    let headroom: u64 = MAX_RES - value;
+    let margin: u64 = value - MIN_RES;
+    headroom + margin
+}
+
+machine const_name_extract(packet: ConstNamePacket) -> u64 {
+    transition packet {
+        ConstNamePacket::Alpha { v } -> v
+        ConstNamePacket::Beta { v } -> v
+        ConstNamePacket::Gamma { v } -> v
+        ConstNamePacket::Delta { v } -> v
+    }
+}
+
+machine const_name_probe(packet: ConstNamePacket) -> u64 {
+    let res: u64 = const_name_extract(packet);
+    const_name_verify_payload(res)
+}
+
+machine const_name_placement() crashes Trap {
+    let p: ConstNamePacket = ConstNamePacket::Gamma { v: 60u64 };
+    let combined: u64 = const_name_probe(p);
+    transition combined == 40u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    field_placement();
+    call_result_placement();
+    match_join_placement();
+    const_name_placement();
+}

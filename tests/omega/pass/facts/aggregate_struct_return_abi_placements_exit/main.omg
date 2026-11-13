@@ -1,0 +1,248 @@
+// Fact: a four-word structural aggregate returned and passed by value preserves field refinement bounds summing to 100u64 across indirect return homes when subtracting 100u64.
+// Placements: local, parameter, call_result, match_join, const_name, other_machine.
+// Each `<place>_placement` machine is the `main` of the former `aggregate_struct_return_abi_through_<place>_exit` fixture; `main` runs them in that order.
+// Kept in its own fixture: target_body (`aggregate_struct_return_abi_through_target_body_exit`), which has its own build.omg.
+// Kept in their own fixtures because they did not check on their own when this was written: field, other_state.
+// Expected exit: 0
+
+// Shared: placements local, parameter, call_result, match_join, const_name, other_machine state this declaration identically; it is written once.
+data Quartet [copy] requires
+    first >= 10u64 && first <= 10u64,
+    second >= 20u64 && second <= 20u64,
+    third >= 30u64 && third <= 30u64,
+    fourth >= 40u64 && fourth <= 40u64
+{
+    first: u64;
+    second: u64;
+    third: u64;
+    fourth: u64;
+}
+
+// Placement: local.
+// Place: local. An aggregate returned by value is bound to a local before field projection and subtraction.
+// Renamed, because another placement uses the name: make_quartet -> local_make_quartet, probe -> local_probe.
+
+machine local_make_quartet() -> Quartet {
+    Quartet {
+        first: 10,
+        second: 20,
+        third: 30,
+        fourth: 40,
+    }
+}
+
+machine local_probe() -> u64
+ensures
+    result == 0u64
+{
+    let q: Quartet = local_make_quartet();
+    let local_q: Quartet = q;
+    let total: u64 = local_q.first + local_q.second + local_q.third + local_q.fourth;
+    total - 100
+}
+
+machine local_placement() crashes Trap {
+    transition local_probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: parameter.
+// Place: parameter. An aggregate returned by value is forwarded by value as an explicit parameter.
+// Renamed, because another placement uses the name: make_quartet -> parameter_make_quartet, probe -> parameter_probe.
+
+machine parameter_make_quartet() -> Quartet {
+    Quartet {
+        first: 10,
+        second: 20,
+        third: 30,
+        fourth: 40,
+    }
+}
+
+machine consume(q: Quartet) -> u64
+ensures
+    result == 0u64
+{
+    let total: u64 = q.first + q.second + q.third + q.fourth;
+    total - 100
+}
+
+machine parameter_probe(q: Quartet) -> u64
+ensures
+    result == 0u64
+{
+    consume(q)
+}
+
+machine parameter_placement() crashes Trap {
+    transition parameter_probe(parameter_make_quartet()) == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: call_result.
+// Place: call result. An aggregate returned by value is returned directly from an indirect helper call.
+// Renamed, because another placement uses the name: make_quartet -> call_result_make_quartet, forward -> call_result_forward, probe -> call_result_probe.
+
+machine call_result_make_quartet() -> Quartet {
+    Quartet {
+        first: 10,
+        second: 20,
+        third: 30,
+        fourth: 40,
+    }
+}
+
+machine call_result_forward() -> Quartet {
+    call_result_make_quartet()
+}
+
+machine call_result_probe() -> u64
+ensures
+    result == 0u64
+{
+    let q: Quartet = call_result_forward();
+    let total: u64 = q.first + q.second + q.third + q.fourth;
+    total - 100
+}
+
+machine call_result_placement() crashes Trap {
+    transition call_result_probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: match_join.
+// Place: match join. Branch arms execute indirect aggregate returns and join into an aggregate before subtracting.
+// Renamed, because another placement uses the name: probe -> match_join_probe.
+
+machine make_quartet_true() -> Quartet {
+    Quartet {
+        first: 10,
+        second: 20,
+        third: 30,
+        fourth: 40,
+    }
+}
+
+machine make_quartet_false() -> Quartet {
+    Quartet {
+        first: 10,
+        second: 20,
+        third: 30,
+        fourth: 40,
+    }
+}
+
+machine match_join_probe(flag: bool) -> u64
+ensures
+    result == 0u64
+{
+    let q: Quartet = match flag {
+        true -> make_quartet_true(),
+        false -> make_quartet_false(),
+    };
+    let total: u64 = q.first + q.second + q.third + q.fourth;
+    total - 100
+}
+
+machine match_join_placement() crashes Trap {
+    transition match_join_probe(true) == 0 && match_join_probe(false) == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: const_name.
+// Place: const name. Named constants define the field values returned in the four-word structural aggregate.
+// Renamed, because another placement uses the name: make_quartet -> const_name_make_quartet, probe -> const_name_probe.
+
+const V1: u64 = 10;
+const V2: u64 = 20;
+const V3: u64 = 30;
+const V4: u64 = 40;
+
+machine const_name_make_quartet() -> Quartet {
+    Quartet {
+        first: V1,
+        second: V2,
+        third: V3,
+        fourth: V4,
+    }
+}
+
+machine const_name_probe() -> u64
+ensures
+    result == 0u64
+{
+    let q: Quartet = const_name_make_quartet();
+    let total: u64 = q.first + q.second + q.third + q.fourth;
+    total - 100
+}
+
+machine const_name_placement() crashes Trap {
+    transition const_name_probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: other_machine.
+// Place: another machine. An intermediate forwarding machine transports the returned aggregate by value.
+// Renamed, because another placement uses the name: make_quartet -> other_machine_make_quartet, forward -> other_machine_forward, probe -> other_machine_probe.
+
+machine other_machine_make_quartet() -> Quartet {
+    Quartet {
+        first: 10,
+        second: 20,
+        third: 30,
+        fourth: 40,
+    }
+}
+
+machine other_machine_forward(q: Quartet) -> u64
+ensures
+    result == 0u64
+{
+    let total: u64 = q.first + q.second + q.third + q.fourth;
+    total - 100
+}
+
+machine other_machine_probe() -> u64
+ensures
+    result == 0u64
+{
+    other_machine_forward(other_machine_make_quartet())
+}
+
+machine other_machine_placement() crashes Trap {
+    transition other_machine_probe() == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    local_placement();
+    parameter_placement();
+    call_result_placement();
+    match_join_placement();
+    const_name_placement();
+    other_machine_placement();
+}

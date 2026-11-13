@@ -1,0 +1,414 @@
+// The live fact 0 <= b * 20 + a < 200 permits storing 7 at grid[b * 20 + a].
+// Placements: local, field, parameter, const_name, other_state, other_machine.
+// Each `<place>_placement` machine is the `entry_start` of the former `compound_index_guard_through_<place>_exit` fixture; `entry_start` runs them in that order.
+// Kept in its own fixture: target_body (`compound_index_guard_through_target_body_exit`), which has its own build.omg.
+// Kept in their own fixtures because a test or tool reads them by path: call_result, match_join.
+// Expected exit: 0
+
+// Shared: placements local, field, parameter, const_name, other_state, other_machine state this declaration identically; it is written once.
+data Main {
+    hits: i32 in Wrapping;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    grid: [i32; 200] in Wrapping;
+}
+
+// Placement: local.
+// Renamed, because another placement uses the name: run_main -> local_run_main, guarded_store -> local_guarded_store.
+
+// Preserve the original setup before code checked for unrestricted Main.
+machine local_run_main(main: &mut Main) crashes Trap {
+    main.hits = 0;
+    main.a = 15;
+    main.b = 3;
+    local_guarded_store(main);
+}
+
+machine local_guarded_store(main: &mut Main) crashes Trap {
+    let a: i32 in Wrapping = main.a;
+    let b: i32 in Wrapping = main.b;
+    transition b * 20 + a >= 0 && b * 20 + a < 200 {
+        true -> put(main, a, b)
+        _ -> done(main)
+    }
+    machine put(main: &mut Main, a: i32 in Wrapping, b: i32 in Wrapping) {
+        main.grid[b * 20 + a] = 7;
+        main.hits = 1;
+        transition main.hits == 1 && main.grid[75] == 7 {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine done(main: &mut Main) {
+        main.hits = -1;
+        transition false {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine pass(main: &mut Main) {}
+    machine fail(main: &mut Main) { crash Trap; }
+}
+
+// Caller-owned initialized storage makes original-address writeback observable.
+machine local_placement() crashes Trap {
+    let mut entry_storage: Main = Main {
+        hits: 0, a: 0, b: 0,
+        grid: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 101, 0x12345667, 107, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ]
+    };
+    local_run_main(&mut entry_storage);
+    transition entry_storage.hits == 1 && entry_storage.grid[75] == 7
+        && entry_storage.grid[74] == 101 && entry_storage.grid[76] == 107 {
+        true -> observed()
+        false -> writeback_mismatch()
+    }
+    machine observed() {}
+    machine writeback_mismatch() { crash Trap; }
+}
+
+// Placement: field.
+// Renamed, because another placement uses the name: run_main -> field_run_main, guarded_store -> field_guarded_store.
+
+// Preserve the original setup before code checked for unrestricted Main.
+machine field_run_main(main: &mut Main) crashes Trap {
+    main.hits = 0;
+    main.a = 15;
+    main.b = 3;
+    field_guarded_store(main);
+}
+
+machine field_guarded_store(main: &mut Main) crashes Trap {
+    transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {
+        true -> put(main)
+        _ -> done(main)
+    }
+    machine put(main: &mut Main) {
+        main.grid[main.b * 20 + main.a] = 7;
+        main.hits = 1;
+        transition main.hits == 1 && main.grid[75] == 7 {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine done(main: &mut Main) {
+        main.hits = -1;
+        transition false {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine pass(main: &mut Main) {}
+    machine fail(main: &mut Main) { crash Trap; }
+}
+
+// Caller-owned initialized storage makes original-address writeback observable.
+machine field_placement() crashes Trap {
+    let mut entry_storage: Main = Main {
+        hits: 0, a: 0, b: 0,
+        grid: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 101, 0x12345667, 107, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ]
+    };
+    field_run_main(&mut entry_storage);
+    transition entry_storage.hits == 1 && entry_storage.grid[75] == 7
+        && entry_storage.grid[74] == 101 && entry_storage.grid[76] == 107 {
+        true -> observed()
+        false -> writeback_mismatch()
+    }
+    machine observed() {}
+    machine writeback_mismatch() { crash Trap; }
+}
+
+// Placement: parameter.
+// Renamed, because another placement uses the name: store -> parameter_store, run_main -> parameter_run_main, guarded_store -> parameter_guarded_store.
+
+machine parameter_store(main: &mut Main, a: i32 in Wrapping, b: i32 in Wrapping)
+requires b * 20 + a >= 0 && b * 20 + a < 200
+{
+    main.grid[b * 20 + a] = 7;
+}
+
+// Preserve the original setup before code checked for unrestricted Main.
+machine parameter_run_main(main: &mut Main) crashes Trap {
+    main.hits = 0;
+    main.a = 15;
+    main.b = 3;
+    parameter_guarded_store(main);
+}
+
+machine parameter_guarded_store(main: &mut Main) crashes Trap {
+    transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {
+        true -> put(main)
+        _ -> done(main)
+    }
+    machine put(main: &mut Main) {
+        let a: i32 in Wrapping = main.a;
+        let b: i32 in Wrapping = main.b;
+        parameter_store(main, a, b);
+        main.hits = 1;
+        transition main.hits == 1 && main.grid[75] == 7 {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine done(main: &mut Main) {
+        main.hits = -1;
+        transition false {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine pass(main: &mut Main) {}
+    machine fail(main: &mut Main) { crash Trap; }
+}
+
+// Caller-owned initialized storage makes original-address writeback observable.
+machine parameter_placement() crashes Trap {
+    let mut entry_storage: Main = Main {
+        hits: 0, a: 0, b: 0,
+        grid: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 101, 0x12345667, 107, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ]
+    };
+    parameter_run_main(&mut entry_storage);
+    transition entry_storage.hits == 1 && entry_storage.grid[75] == 7
+        && entry_storage.grid[74] == 101 && entry_storage.grid[76] == 107 {
+        true -> observed()
+        false -> writeback_mismatch()
+    }
+    machine observed() {}
+    machine writeback_mismatch() { crash Trap; }
+}
+
+// Placement: const_name.
+// Renamed, because another placement uses the name: run_main -> const_name_run_main, guarded_store -> const_name_guarded_store.
+
+const STRIDE: i32 in Wrapping = 20;
+const LIMIT: i32 in Wrapping = 200;
+
+// Preserve the original setup before code checked for unrestricted Main.
+machine const_name_run_main(main: &mut Main) crashes Trap {
+    main.hits = 0;
+    main.a = 15;
+    main.b = 3;
+    const_name_guarded_store(main);
+}
+
+machine const_name_guarded_store(main: &mut Main) crashes Trap {
+    transition main.b * STRIDE + main.a >= 0 && main.b * STRIDE + main.a < LIMIT {
+        true -> put(main)
+        _ -> done(main)
+    }
+    machine put(main: &mut Main) {
+        main.grid[main.b * STRIDE + main.a] = 7;
+        main.hits = 1;
+        transition main.hits == 1 && main.grid[75] == 7 {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine done(main: &mut Main) {
+        main.hits = -1;
+        transition false {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine pass(main: &mut Main) {}
+    machine fail(main: &mut Main) { crash Trap; }
+}
+
+// Caller-owned initialized storage makes original-address writeback observable.
+machine const_name_placement() crashes Trap {
+    let mut entry_storage: Main = Main {
+        hits: 0, a: 0, b: 0,
+        grid: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 101, 0x12345667, 107, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ]
+    };
+    const_name_run_main(&mut entry_storage);
+    transition entry_storage.hits == 1 && entry_storage.grid[75] == 7
+        && entry_storage.grid[74] == 101 && entry_storage.grid[76] == 107 {
+        true -> observed()
+        false -> writeback_mismatch()
+    }
+    machine observed() {}
+    machine writeback_mismatch() { crash Trap; }
+}
+
+// Placement: other_state.
+// Renamed, because another placement uses the name: run_main -> other_state_run_main, guarded_store -> other_state_guarded_store.
+
+// Preserve the original setup before code checked for unrestricted Main.
+machine other_state_run_main(main: &mut Main) crashes Trap {
+    main.hits = 0;
+    main.a = 15;
+    main.b = 3;
+    other_state_guarded_store(main);
+}
+
+machine other_state_guarded_store(main: &mut Main) crashes Trap {
+    transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {
+        true -> put(main)
+        _ -> done(main)
+    }
+    machine put(main: &mut Main) {
+        main.grid[main.b * 20 + main.a] = 7;
+        main.hits = 1;
+        transition main.hits == 1 && main.grid[75] == 7 {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine done(main: &mut Main) {
+        main.hits = -1;
+        transition false {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine pass(main: &mut Main) {}
+    machine fail(main: &mut Main) { crash Trap; }
+}
+
+// Caller-owned initialized storage makes original-address writeback observable.
+machine other_state_placement() crashes Trap {
+    let mut entry_storage: Main = Main {
+        hits: 0, a: 0, b: 0,
+        grid: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 101, 0x12345667, 107, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ]
+    };
+    other_state_run_main(&mut entry_storage);
+    transition entry_storage.hits == 1 && entry_storage.grid[75] == 7
+        && entry_storage.grid[74] == 101 && entry_storage.grid[76] == 107 {
+        true -> observed()
+        false -> writeback_mismatch()
+    }
+    machine observed() {}
+    machine writeback_mismatch() { crash Trap; }
+}
+
+// Placement: other_machine.
+// Renamed, because another placement uses the name: store -> other_machine_store, run_main -> other_machine_run_main, guarded_store -> other_machine_guarded_store.
+
+machine other_machine_store(main: &mut Main)
+requires main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200
+{
+    main.grid[main.b * 20 + main.a] = 7;
+}
+
+// Preserve the original setup before code checked for unrestricted Main.
+machine other_machine_run_main(main: &mut Main) crashes Trap {
+    main.hits = 0;
+    main.a = 15;
+    main.b = 3;
+    other_machine_guarded_store(main);
+}
+
+machine other_machine_guarded_store(main: &mut Main) crashes Trap {
+    transition main.b * 20 + main.a >= 0 && main.b * 20 + main.a < 200 {
+        true -> put(main)
+        _ -> done(main)
+    }
+    machine put(main: &mut Main) {
+        other_machine_store(main);
+        main.hits = 1;
+        transition main.hits == 1 && main.grid[75] == 7 {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine done(main: &mut Main) {
+        main.hits = -1;
+        transition false {
+            true -> pass(main)
+            _ -> fail(main)
+        }
+    }
+    machine pass(main: &mut Main) {}
+    machine fail(main: &mut Main) { crash Trap; }
+}
+
+// Caller-owned initialized storage makes original-address writeback observable.
+machine other_machine_placement() crashes Trap {
+    let mut entry_storage: Main = Main {
+        hits: 0, a: 0, b: 0,
+        grid: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 101, 0x12345667, 107, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        ]
+    };
+    other_machine_run_main(&mut entry_storage);
+    transition entry_storage.hits == 1 && entry_storage.grid[75] == 7
+        && entry_storage.grid[74] == 101 && entry_storage.grid[76] == 107 {
+        true -> observed()
+        false -> writeback_mismatch()
+    }
+    machine observed() {}
+    machine writeback_mismatch() { crash Trap; }
+}
+
+machine entry_start() crashes Trap {
+    local_placement();
+    field_placement();
+    parameter_placement();
+    const_name_placement();
+    other_state_placement();
+    other_machine_placement();
+}

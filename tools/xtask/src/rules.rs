@@ -5,7 +5,8 @@
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
 //! - Discrete `TASKS.md` board shape
 //! - Historical corpus rows and runnable fixture reclassification
-//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, `facts/` freeze, raw measurements limit,
+//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, `facts/` freeze and its one exception for
+//!   a combined fixture that replaces placement fixtures, raw measurements limit,
 //!   existing `expected.txt` diagnostic pins)
 //! - Commit title lane (`AGENTS.md` table) and PR `Agent:` provenance
 //! - Compiler-lane PR release gate and intended red-row change
@@ -50,6 +51,19 @@ const RELEASE_GATES: &[&str] = &[
 ];
 const FIXTURE_TIERS: &[&str] = &["tests/omega/pass/", "tests/omega/fail/", "tests/omega/run/"];
 const FACTS_ROOT: &str = "samples/cli/facts/";
+const PASS_FACTS_ROOT: &str = "tests/omega/pass/facts/";
+/// The transport places whose fixtures one combined fixture may absorb.
+/// `target_body` is absent: it selects its body per target in its own build.
+const ABSORBABLE_PLACES: &[&str] = &[
+    "local",
+    "field",
+    "parameter",
+    "call_result",
+    "match_join",
+    "const_name",
+    "other_state",
+    "other_machine",
+];
 const MEASUREMENTS_ROOT: &str = "wiki/drafts/measurements/";
 const MEASUREMENT_LINE_LIMIT: usize = 300;
 const MAX_NEW_OMG_FILES: isize = 6;
@@ -1450,10 +1464,47 @@ pub fn golden_row_quality_violations(diff: &str, observations_only: bool) -> Vec
     violations
 }
 
+/// For `tests/omega/pass/facts/<fact>_through_<place>[_exit]/main.omg`, the
+/// directory of the combined fixture that may carry that placement
+/// (`.../<fact>_placements[_exit]`) and the place.
+fn absorbable_placement(path: &str) -> Option<(String, &'static str)> {
+    let name = path
+        .strip_prefix(PASS_FACTS_ROOT)?
+        .strip_suffix("/main.omg")?;
+    if name.contains('/') {
+        return None;
+    }
+    let (body, suffix) = match name.strip_suffix("_exit") {
+        Some(body) => (body, "_exit"),
+        None => (name, ""),
+    };
+    let (fact, place) = body.rsplit_once("_through_")?;
+    let place = ABSORBABLE_PLACES.iter().find(|known| **known == place)?;
+    Some((format!("{PASS_FACTS_ROOT}{fact}_placements{suffix}"), place))
+}
+
 pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
     let mut violations = Vec::new();
     let mut added_omg = 0isize;
     let mut deleted_omg = 0isize;
+    // The freeze exists to stop the fact corpus growing. One combined fixture
+    // that replaces two or more placement fixtures of the same fact shrinks it,
+    // so its files are the one kind of addition under `facts/` that is allowed.
+    let mut placements_deleted_for: BTreeMap<String, usize> = BTreeMap::new();
+    for (status, path) in changes {
+        if *status == 'D'
+            && let Some((combined, _)) = absorbable_placement(path)
+        {
+            *placements_deleted_for.entry(combined).or_default() += 1;
+        }
+    }
+    let consolidates = |path: &str| {
+        path.rsplit_once('/').is_some_and(|(directory, _)| {
+            placements_deleted_for
+                .get(directory)
+                .is_some_and(|deleted| *deleted >= 2)
+        })
+    };
     for (status, path) in changes {
         if *status == 'D' && path.ends_with(".omg") {
             deleted_omg += 1;
@@ -1464,13 +1515,14 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
         }
         if path.ends_with(".omg") {
             added_omg += 1;
-            if path.starts_with(FACTS_ROOT)
-                || path.starts_with("tests/omega/pass/facts/")
+            if (path.starts_with(FACTS_ROOT)
+                || path.starts_with(PASS_FACTS_ROOT)
                 || path.starts_with("tests/omega/fail/facts/")
-                || path.starts_with("tests/omega/run/facts/")
+                || path.starts_with("tests/omega/run/facts/"))
+                && !consolidates(path)
             {
                 violations.push(format!(
-                    "{path}: adding new .omg files under facts/ is frozen to prevent corpus bloat; pin the repair by flipping existing regressions in {GOLDEN} or adding a focused fixture pair under tests/omega/{{pass,fail,run}}/<behavior>/"
+                    "{path}: adding new .omg files under facts/ is frozen to prevent corpus bloat; pin the repair by flipping existing regressions in {GOLDEN} or adding a focused fixture pair under tests/omega/{{pass,fail,run}}/<behavior>/. The one exception is {PASS_FACTS_ROOT}<fact>_placements[_exit]/, added by a diff that deletes two or more of that fact's <fact>_through_<place>[_exit] fixtures"
                 ));
             }
         } else if path.starts_with("tests/omega/corpus_") && path.ends_with(".txt") {
@@ -1589,6 +1641,40 @@ fn runnable_fail_to_pass_reclassifications(
     Ok(reclassified)
 }
 
+// A deleted placement fixture stays covered when this diff adds the combined
+// fixture of its fact and that program declares the placement's entry,
+// `machine <place>_placement(`. Its ledger row is then stale, not orphaned:
+// pull requests no longer edit the ledger, and the post-merge check measures
+// the combined fixture. Every other deletion still needs its row removed.
+fn absorbed_placements(root: &Path, changes: &[(char, String)]) -> BTreeSet<String> {
+    let added: BTreeSet<&str> = changes
+        .iter()
+        .filter_map(|(status, path)| (*status == 'A').then_some(path.as_str()))
+        .collect();
+    let mut absorbed = BTreeSet::new();
+    for (status, path) in changes {
+        if *status != 'D' || root.join(path).exists() {
+            continue;
+        }
+        let Some((combined, place)) = absorbable_placement(path) else {
+            continue;
+        };
+        let combined_main = format!("{combined}/main.omg");
+        let entry = format!("machine {place}_placement(");
+        let carries_placement = added.contains(combined_main.as_str())
+            && fs::read_to_string(root.join(&combined_main))
+                .is_ok_and(|program| program.lines().any(|line| line.starts_with(&entry)));
+        if carries_placement
+            && let Some(fixture) = path
+                .strip_prefix("tests/omega/")
+                .and_then(|path| path.strip_suffix("/main.omg"))
+        {
+            absorbed.insert(fixture.to_owned());
+        }
+    }
+    absorbed
+}
+
 // Check authored outcomes with the execution owner's parser. Focused
 // qualification establishes the actual native and Psi observations separately.
 fn has_valid_runtime_exit_oracles(main: &Path) -> Result<bool, String> {
@@ -1641,7 +1727,7 @@ fn golden_violations(
     let _ = stale;
     if !orphaned.is_empty() {
         violations.push(format!(
-            "{} deleted fixture(s) keep a row in {GOLDEN} without a new runnable pass counterpart at the same group/name: {}",
+            "{} deleted fixture(s) keep a row in {GOLDEN} without a new runnable pass counterpart at the same group/name or a combined {PASS_FACTS_ROOT}<fact>_placements[_exit] fixture that declares the placement's entry: {}",
             orphaned.len(),
             orphaned.join(", ")
         ));
@@ -2098,13 +2184,17 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 BTreeSet::new()
             }
         };
+        let covered_elsewhere: BTreeSet<String> = reclassified
+            .union(&absorbed_placements(&root, &changes))
+            .cloned()
+            .collect();
         violations.extend(golden_violations(
             &freshness_changes,
             &golden_rows(&base_golden),
             &golden_rows(&head_golden),
             &rewritten,
             &fixture_directories(&root),
-            &reclassified,
+            &covered_elsewhere,
         ));
         violations.extend(golden_row_quality_violations(
             &golden_diff,
@@ -2594,6 +2684,103 @@ struct Ledger;
             show_git_file(&repo.root, &base, GOLDEN),
             show_git_file(&repo.root, "HEAD", GOLDEN)
         );
+    }
+
+    #[test]
+    fn a_combined_fixture_may_replace_the_placements_it_carries() {
+        let repo = DiagnosticPinRepository::new();
+        let local = "tests/omega/pass/facts/shift_bound_through_local_exit/main.omg";
+        let field = "tests/omega/pass/facts/shift_bound_through_field_exit/main.omg";
+        let combined = "tests/omega/pass/facts/shift_bound_placements_exit/main.omg";
+        let combined_build = "tests/omega/pass/facts/shift_bound_placements_exit/build.omg";
+        let ledger = "pass/facts/shift_bound_through_field_exit checked 1ms @aaaaaaaaaaaa\npass/facts/shift_bound_through_local_exit checked 1ms @aaaaaaaaaaaa\n";
+        repo.commit(&[
+            (local, Some("machine main() {}\n")),
+            (field, Some("machine main() {}\n")),
+            (GOLDEN, Some(ledger)),
+        ]);
+        // The combined program declares the local placement's entry only.
+        repo.commit(&[
+            (local, None),
+            (field, None),
+            (
+                combined,
+                Some("machine local_placement() {}\nmachine main() { local_placement(); }\n"),
+            ),
+            (
+                combined_build,
+                Some("machine build(builder: &mut Build) {}\n"),
+            ),
+        ]);
+        let changes = [
+            ('D', local.to_owned()),
+            ('D', field.to_owned()),
+            ('A', combined.to_owned()),
+            ('A', combined_build.to_owned()),
+        ];
+        // Two fixtures of the fact go and one arrives, so the freeze admits it.
+        assert!(diff_hygiene_violations(&changes).is_empty());
+
+        let absorbed = absorbed_placements(&repo.root, &changes);
+        assert_eq!(
+            absorbed,
+            BTreeSet::from(["pass/facts/shift_bound_through_local_exit".to_owned()])
+        );
+        // The placement the program does not carry is still a lost fixture.
+        let rows = golden_rows(ledger);
+        let violations = golden_violations(
+            &changes,
+            &rows,
+            &rows,
+            &BTreeSet::new(),
+            &fixture_directories(&repo.root),
+            &absorbed,
+        );
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(violations[0].contains("shift_bound_through_field_exit"));
+        assert!(!violations[0].contains("shift_bound_through_local_exit"));
+    }
+
+    #[test]
+    fn the_facts_freeze_opens_only_for_a_consolidation_that_shrinks_the_corpus() {
+        let deleted = |place: &str| {
+            (
+                'D',
+                format!("tests/omega/pass/facts/shift_bound_through_{place}_exit/main.omg"),
+            )
+        };
+        let added = |path: &str| ('A', path.to_owned());
+        let combined = "tests/omega/pass/facts/shift_bound_placements_exit/main.omg";
+        for refused in [
+            // One placement for one combined fixture removes nothing.
+            vec![deleted("local"), added(combined)],
+            // `target_body` keeps its own fixture, so it does not count.
+            vec![deleted("local"), deleted("target_body"), added(combined)],
+            // The combined fixture must be the deleted placements' own fact.
+            vec![
+                deleted("local"),
+                deleted("field"),
+                added("tests/omega/pass/facts/other_bound_placements_exit/main.omg"),
+            ],
+            // Only the fixture's own files, and only under pass/facts.
+            vec![
+                deleted("local"),
+                deleted("field"),
+                added("tests/omega/pass/facts/shift_bound_placements_exit/library/values.omg"),
+            ],
+            vec![
+                deleted("local"),
+                deleted("field"),
+                added("tests/omega/fail/facts/shift_bound_placements_exit/main.omg"),
+            ],
+            vec![added(
+                "tests/omega/pass/facts/shift_bound_through_local_exit/main.omg",
+            )],
+        ] {
+            let violations = diff_hygiene_violations(&refused);
+            assert_eq!(violations.len(), 1, "{refused:?}");
+            assert!(violations[0].contains("frozen"), "{refused:?}");
+        }
     }
 
     #[test]

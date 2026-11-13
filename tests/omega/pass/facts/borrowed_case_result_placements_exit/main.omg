@@ -1,0 +1,318 @@
+// Fact: an active case selected on an owned result retains the source place needed to borrow its payload without changing the returned slice's input provenance.
+// Placements: local, field, parameter, call_result, match_join, const_name, other_state, other_machine.
+// Each `<place>_placement` machine is the `main` of the former `borrowed_case_result_through_<place>_exit` fixture; `main` runs them in that order.
+// Kept in its own fixture: target_body (`borrowed_case_result_through_target_body_exit`), which has its own build.omg.
+// Expected exit: 0
+
+// Shared: placements local, field, parameter, call_result, match_join, const_name, other_state, other_machine state this declaration identically; it is written once.
+data BorrowedCase<'input> { case Missing; case Bytes(value: &'input [u8]); }
+
+// Shared: placements local, field, parameter, call_result, match_join, const_name, other_state, other_machine state this declaration identically; it is written once.
+machine produce<'input>(input: &'input [u8]) -> BorrowedCase<'input> {
+    transition input.len > 0u64 {
+        true -> header(input)
+        false -> BorrowedCase::Missing
+    }
+    machine header(input: &'input [u8]) -> BorrowedCase<'input>
+    requires input.len > 0u64
+    {
+        let length: u64 = input[0u64] as u64;
+        transition length < input.len {
+            true -> BorrowedCase::Bytes { value: &input[1u64..length + 1u64] }
+            false -> BorrowedCase::Missing
+        }
+    }
+}
+
+// Shared: placements local, field, parameter, call_result, match_join, const_name, other_state, other_machine state this declaration identically; it is written once.
+machine forward<'input>(input: &'input [u8]) -> BorrowedCase<'input> { produce(input) }
+
+// Placement: local.
+// Renamed, because another placement uses the name: inspect -> local_inspect.
+
+machine local_inspect(input: &[u8]) -> u64 {
+    transition forward(input) {
+        BorrowedCase::Bytes { value } -> length(value)
+        BorrowedCase::Missing -> 0u64
+    }
+    machine length(bytes: &[u8]) -> u64 {
+        transition bytes.len == 3u64 {
+            true -> content(bytes)
+            false -> 0u64
+        }
+    }
+    machine content(bytes: &[u8]) -> u64
+    requires bytes.len == 3u64
+    {
+        transition bytes[0u64] == 11u8 && bytes[1u64] == 29u8 && bytes[2u64] == 47u8 {
+            true -> 3u64
+            false -> 0u64
+        }
+    }
+}
+machine local_placement() crashes Trap {
+    let bytes: [u8; 4] = [3u8, 11u8, 29u8, 47u8];
+    transition local_inspect(&bytes[..]) == 3u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: field.
+// Renamed, because another placement uses the name: inspect -> field_inspect.
+
+data Holder<'input> { result: BorrowedCase<'input>; }
+machine field_inspect(input: &[u8]) -> u64 {
+    let holder: Holder = Holder { result: forward(input) };
+    transition holder.result {
+        BorrowedCase::Bytes { value } -> length(value)
+        BorrowedCase::Missing -> 0u64
+    }
+    machine length(bytes: &[u8]) -> u64 {
+        transition bytes.len == 3u64 {
+            true -> content(bytes)
+            false -> 0u64
+        }
+    }
+    machine content(bytes: &[u8]) -> u64
+    requires bytes.len == 3u64
+    {
+        transition bytes[0u64] == 11u8 && bytes[1u64] == 29u8 && bytes[2u64] == 47u8 {
+            true -> 3u64
+            false -> 0u64
+        }
+    }
+}
+machine field_placement() crashes Trap {
+    let bytes: [u8; 4] = [3u8, 11u8, 29u8, 47u8];
+    transition field_inspect(&bytes[..]) == 3u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: parameter.
+// Renamed, because another placement uses the name: inspect -> parameter_inspect.
+
+machine inspect_result<'input>(result: BorrowedCase<'input>) -> u64 {
+    transition result {
+        BorrowedCase::Bytes { value } -> length(value)
+        BorrowedCase::Missing -> 0u64
+    }
+    machine length(bytes: &[u8]) -> u64 {
+        transition bytes.len == 3u64 {
+            true -> content(bytes)
+            false -> 0u64
+        }
+    }
+    machine content(bytes: &[u8]) -> u64
+    requires bytes.len == 3u64
+    {
+        transition bytes[0u64] == 11u8 && bytes[1u64] == 29u8 && bytes[2u64] == 47u8 {
+            true -> 3u64
+            false -> 0u64
+        }
+    }
+}
+machine parameter_inspect(input: &[u8]) -> u64 { inspect_result(forward(input)) }
+machine parameter_placement() crashes Trap {
+    let bytes: [u8; 4] = [3u8, 11u8, 29u8, 47u8];
+    transition parameter_inspect(&bytes[..]) == 3u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: call_result.
+// Renamed, because another placement uses the name: inspect -> call_result_inspect.
+
+machine call_result_inspect(input: &[u8]) -> u64 {
+    transition forward(input) {
+        BorrowedCase::Bytes { value } -> length(value)
+        BorrowedCase::Missing -> 0u64
+    }
+    machine length(bytes: &[u8]) -> u64 {
+        transition bytes.len == 3u64 {
+            true -> content(bytes)
+            false -> 0u64
+        }
+    }
+    machine content(bytes: &[u8]) -> u64
+    requires bytes.len == 3u64
+    {
+        transition bytes[0u64] == 11u8 && bytes[1u64] == 29u8 && bytes[2u64] == 47u8 {
+            true -> 3u64
+            false -> 0u64
+        }
+    }
+}
+machine call_result_placement() crashes Trap {
+    let bytes: [u8; 4] = [3u8, 11u8, 29u8, 47u8];
+    transition call_result_inspect(&bytes[..]) == 3u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: match_join.
+// Renamed, because another placement uses the name: inspect -> match_join_inspect.
+
+machine match_join_inspect(input: &[u8]) -> u64 {
+    let result: BorrowedCase = match input.len > 0u64 {
+        true -> forward(input)
+        false -> BorrowedCase::Missing
+    };
+    transition result {
+        BorrowedCase::Bytes { value } -> length(value)
+        BorrowedCase::Missing -> 0u64
+    }
+    machine length(bytes: &[u8]) -> u64 {
+        transition bytes.len == 3u64 {
+            true -> content(bytes)
+            false -> 0u64
+        }
+    }
+    machine content(bytes: &[u8]) -> u64
+    requires bytes.len == 3u64
+    {
+        transition bytes[0u64] == 11u8 && bytes[1u64] == 29u8 && bytes[2u64] == 47u8 {
+            true -> 3u64
+            false -> 0u64
+        }
+    }
+}
+machine match_join_placement() crashes Trap {
+    let bytes: [u8; 4] = [3u8, 11u8, 29u8, 47u8];
+    transition match_join_inspect(&bytes[..]) == 3u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: const_name.
+// Renamed, because another placement uses the name: inspect -> const_name_inspect.
+
+machine const_name_inspect(input: &[u8]) -> u64 {
+    transition forward(input) {
+        BorrowedCase::Bytes { value } -> length(value)
+        BorrowedCase::Missing -> 0u64
+    }
+    machine length(bytes: &[u8]) -> u64 {
+        transition bytes.len == 3u64 {
+            true -> content(bytes)
+            false -> 0u64
+        }
+    }
+    machine content(bytes: &[u8]) -> u64
+    requires bytes.len == 3u64
+    {
+        transition bytes[0u64] == 11u8 && bytes[1u64] == 29u8 && bytes[2u64] == 47u8 {
+            true -> 3u64
+            false -> 0u64
+        }
+    }
+}
+machine observed() -> u64 {
+    let bytes: [u8; 4] = [3u8, 11u8, 29u8, 47u8];
+    const_name_inspect(&bytes[..])
+}
+const OBSERVED: u64 = observed();
+machine const_name_placement() crashes Trap {
+    transition OBSERVED == 3u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: other_state.
+// Renamed, because another placement uses the name: inspect -> other_state_inspect.
+
+machine other_state_inspect(input: &[u8]) -> u64 {
+    select(forward(input))
+    machine select<'input>(result: BorrowedCase<'input>) -> u64 {
+    transition result {
+        BorrowedCase::Bytes { value } -> length(value)
+        BorrowedCase::Missing -> 0u64
+    }
+    machine length(bytes: &[u8]) -> u64 {
+        transition bytes.len == 3u64 {
+            true -> content(bytes)
+            false -> 0u64
+        }
+    }
+    machine content(bytes: &[u8]) -> u64
+    requires bytes.len == 3u64
+    {
+        transition bytes[0u64] == 11u8 && bytes[1u64] == 29u8 && bytes[2u64] == 47u8 {
+            true -> 3u64
+            false -> 0u64
+        }
+    }
+}
+}
+machine other_state_placement() crashes Trap {
+    let bytes: [u8; 4] = [3u8, 11u8, 29u8, 47u8];
+    transition other_state_inspect(&bytes[..]) == 3u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+// Placement: other_machine.
+// Renamed, because another placement uses the name: inspect -> other_machine_inspect.
+
+machine selected<'input>(result: BorrowedCase<'input>) -> u64 {
+    transition result {
+        BorrowedCase::Bytes { value } -> length(value)
+        BorrowedCase::Missing -> 0u64
+    }
+    machine length(bytes: &[u8]) -> u64 {
+        transition bytes.len == 3u64 {
+            true -> content(bytes)
+            false -> 0u64
+        }
+    }
+    machine content(bytes: &[u8]) -> u64
+    requires bytes.len == 3u64
+    {
+        transition bytes[0u64] == 11u8 && bytes[1u64] == 29u8 && bytes[2u64] == 47u8 {
+            true -> 3u64
+            false -> 0u64
+        }
+    }
+}
+machine other_machine_inspect(input: &[u8]) -> u64 { selected(forward(input)) }
+machine other_machine_placement() crashes Trap {
+    let bytes: [u8; 4] = [3u8, 11u8, 29u8, 47u8];
+    transition other_machine_inspect(&bytes[..]) == 3u64 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    local_placement();
+    field_placement();
+    parameter_placement();
+    call_result_placement();
+    match_join_placement();
+    const_name_placement();
+    other_state_placement();
+    other_machine_placement();
+}

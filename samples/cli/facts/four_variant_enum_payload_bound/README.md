@@ -61,15 +61,12 @@ Both engines trapped consistently on the corrupted value, verifying bidirectiona
 
 ## Pinned Corpus Fixtures
 
-All 18 corpus fixtures are pinned under `tests/omega/`:
+All 15 corpus fixtures are pinned under `tests/omega/`:
 
 ### Pass Fixtures (`tests/omega/pass/facts/`)
 - `four_variant_enum_payload_bound_through_local_exit`
-- `four_variant_enum_payload_bound_through_field_exit`
 - `four_variant_enum_payload_bound_through_parameter_exit`
-- `four_variant_enum_payload_bound_through_call_result_exit`
-- `four_variant_enum_payload_bound_through_match_join_exit`
-- `four_variant_enum_payload_bound_through_const_name_exit`
+- `four_variant_enum_payload_bound_placements_exit` (one program holding the field, call result, match join and const name placements)
 - `four_variant_enum_payload_bound_through_other_state_exit`
 - `four_variant_enum_payload_bound_through_other_machine_exit`
 - `four_variant_enum_payload_bound_through_target_body_exit`

@@ -171,13 +171,22 @@ that photograph: a different object, and a green check on it does not count.
 
 ### No new `samples/cli/facts` folder bloat
 
-`samples/cli/facts/` and `tests/omega/{pass,fail,run}/facts/` are a **frozen
-finite set**. `cargo xtask check-rules` mechanically rejects adding any new `.omg`
-files under `facts/` and caps new `.omg` files anywhere in the repository at
-**at most 6 per PR** (`MAX_NEW_OMG_FILES = 6`). Pin repairs by flipping
-existing failing rows in `tests/omega/corpus_outcomes.txt` and `samples/`, or
-with at most a single focused positive/negative fixture pair under
+`samples/cli/facts/` and `tests/omega/{pass,fail,run}/facts/` are a **finite set
+that may shrink but not grow**. `cargo xtask check-rules` mechanically rejects
+adding any new `.omg` files under `facts/` and caps new `.omg` files anywhere in
+the repository at **at most 6 per PR** (`MAX_NEW_OMG_FILES = 6`, counted net of
+deleted `.omg` files). Pin repairs by flipping existing failing rows in
+`tests/omega/corpus_outcomes.txt` and `samples/`, or with at most a single
+focused positive/negative fixture pair under
 `tests/omega/{pass,fail,run}/<behavior>/`.
+
+The one addition allowed under `facts/` is a consolidation: a fixture
+`tests/omega/pass/facts/<fact>_placements[_exit]/` added by a pull request that
+deletes two or more of that fact's `<fact>_through_<place>[_exit]/` fixtures. It
+holds those placements as machines of one program, each entered through
+`machine <place>_placement()`, so the fact costs one compile instead of one per
+placement. A deleted placement whose entry the combined program does not declare
+is still a lost fixture, and `target_body` keeps its own fixture.
 
 ### Priority and continuous execution
 
@@ -360,8 +369,10 @@ reads the allowed lanes from this table:
   `cargo xtask worktree release` or `cargo xtask worktree clean`. Push via
   `git push origin HEAD:refs/heads/work/<lane>-<topic>`.
 - **No `facts/` bloat (`MAX_NEW_OMG_FILES = 6`):** Never add `.omg` files under
-  `samples/cli/facts/` or `tests/omega/{pass,fail,run}/facts/`, and never add
-  more than 6 `.omg` files in a PR.
+  `samples/cli/facts/` or `tests/omega/{pass,fail,run}/facts/`, except a
+  `pass/facts/<fact>_placements[_exit]/` fixture that replaces two or more of
+  that fact's placement fixtures, and never add more than 6 `.omg` files net in
+  a PR.
 - **No direct pushes to `main` and no chasing `main`:** Land only through
   squash-merged PRs. Rebase only on actual conflicts or
   needed prerequisites.
