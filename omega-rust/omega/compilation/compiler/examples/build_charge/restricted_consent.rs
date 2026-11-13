@@ -128,9 +128,6 @@ machine build(builder: &mut Build) crashes Trap {
                     dependency_activation: false,
                 },
                 artifact_only: false,
-                prior_checks: Vec::new(),
-                retain_check: false,
-                checked_slices: None,
             },
             &mut timings,
         );

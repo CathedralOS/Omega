@@ -63,7 +63,6 @@ pub struct BuiltTypedProgram {
     pub base_sources: Arc<source::SourceMap>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
     pub admission: BuildAdmission,
-    pub retained_build_check: Option<psi_compiler::RetainedCheck>,
 }
 
 #[derive(Clone)]
@@ -80,7 +79,6 @@ pub struct PreparedProductSource {
     pub admission: BuildAdmission,
     pub build_sources: BuildSourceCustody,
     pub timings: CompileTimings,
-    pub retained_build_check: Option<psi_compiler::RetainedCheck>,
 }
 
 #[derive(Clone)]

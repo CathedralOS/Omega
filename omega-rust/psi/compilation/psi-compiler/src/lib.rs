@@ -22,7 +22,7 @@
     parsing, `source_compilation` (`SourceCompilationRequest`,
     `SourceContinuation`, and `CompletedSource`) for the resolver/typing
     continuation and Product policy admission, `source_checking`
-    (`CheckRequest` and `CheckedSource`) for whole-program and library-slice
+    (`SourcePreparationRequest` and `PreparedSource`) before lowered-form
     checking, and `portable_productions` (`PortableProductions`) for sharing
     identical portable Terminal productions within an invocation.
 */
@@ -537,16 +537,11 @@ pub(crate) mod source_parsing {
 
 pub use portable_productions::{PortableProductionInputs, PortableProductions};
 pub use source_checking::{
-    CheckRequest, CheckedSliceOwner, CheckedSliceReuse, CheckedSliceStore, CheckedSource,
-    CheckedTreeProductSelection, LibrarySliceKey, LibrarySliceRequest, LibrarySliceTotals,
-    ProductRepresentationInput, ProductSelections, RetainedCheck, SelectedCheckedSource,
-    SourceAdmission, checked_slice_totals, library_slice_totals, retained_layout_match_hits,
-    whole_program_reuse_hits,
+    PreparedSource, ProductRepresentationInput, SourceAdmission, SourcePreparationRequest,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
 };
-pub use typed_trees_to_checked_trees::declaration_page_fork_totals;
 pub use validation::{dependency_body_read_totals, dependency_entailment_totals};
 
 pub use source_compilation::{

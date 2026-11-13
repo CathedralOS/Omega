@@ -70,86 +70,15 @@ mod invocations {
 
     impl CheckedInitializers {
         pub(crate) fn prepare(
-            prepared: &crate::PreparedBuildMachineProgram,
-            authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
-            probe_symbols: &[SymbolHandle],
-            domain: &crate::build_time_evaluation::EvaluationDomain,
-            operators: &[crate::SelectedBuildTimeBinaryOperator],
+            _prepared: &crate::PreparedBuildMachineProgram,
+            _authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
+            _probe_symbols: &[SymbolHandle],
+            _domain: &crate::build_time_evaluation::EvaluationDomain,
+            _operators: &[crate::SelectedBuildTimeBinaryOperator],
         ) -> Result<Self, Vec<Diagnostic>> {
-            let probes = prepared
-                .typed()
-                .machines()
-                .iter()
-                .filter(|machine| probe_symbols.contains(&machine.symbol))
-                .count();
-            if probes != probe_symbols.len() {
-                return Err(super::failure(
-                    SourceSpan::default(),
-                    "initializer preparation lost an exact probe owner",
-                ));
-            }
-            let references = typed_trees::references::collect_program_references(prepared.typed());
-            let operators = operators
-                .iter()
-                .filter(|row| {
-                    references.expressions.contains(&row.expression)
-                        && row
-                            .origin
-                            .machine_symbol()
-                            .is_some_and(|owner| prepared.typed().machine(owner).is_some())
-                })
-                .cloned()
-                .collect::<Vec<_>>();
-            let mut domain = domain.clone();
-            for &symbol in probe_symbols {
-                domain.include(symbol);
-            }
-            let domain = domain.demanded_roots(prepared.typed(), probe_symbols);
-            let settled = if crate::const_evaluation::const_lengths::pending_array_lengths(
-                prepared.typed(),
-                &domain,
-            )
-            .is_empty()
-            {
-                None
-            } else {
-                let mut execution = prepared.typed().clone();
-                crate::const_evaluation::const_lengths::evaluate_selected_array_lengths(
-                    &mut execution,
-                    authority.clone(),
-                    crate::SelectedBuildTimeOperators {
-                        operators: &operators,
-                        provider_bodies: &[],
-                    },
-                    &domain,
-                )?;
-                Some(execution)
-            };
-            let execution = settled.as_ref().unwrap_or_else(|| prepared.typed());
-            let projection =
-                super::probe_projection::ProbeProjection::new(execution, probe_symbols);
-            let bodies = projection.helper_bodies();
-            let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-            let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-            let (bodies, preparation) =
-                typed_trees_to_typed_trees::prepare_typed_trees(bodies, &preparation_request)?;
-            let checked =
-                typed_trees_to_checked_trees::lower_typed_trees(bodies, preparation, &checking)?;
-            let typed = projection.rejoin_unjudged(checked.typed.into_inner());
-            let typed = prepare_selected_execution(&typed, &[], &operators)
-                .map_err(|reason| super::failure(SourceSpan::default(), reason))?
-                .unwrap_or(typed);
-            let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone())
-                .with_accounting(domain.accounting.clone())
-                .with_selected_operators(&typed, &operators)
-                .map_err(|reason| super::failure(SourceSpan::default(), reason))?;
-            Ok(Self {
-                typed,
-                admission,
-                authority,
-                probe_symbols: probe_symbols.to_vec(),
-                operators,
-            })
+            Err(vec![diagnostics::Diagnostic::error(
+                "no product route yet: compile-time proof requires the lowered-form checker",
+            )])
         }
 
         pub(super) fn typed(&self) -> &TypedTrees {
@@ -226,33 +155,13 @@ mod invocations {
     impl Invocation<'_> {
         fn require_concrete_failure_discharge(
             &self,
-            program: &TypedTrees,
-            expression: ExpressionHandle,
-            callee: String,
-            return_type: TypeReferenceHandle,
-            snapshots: Vec<ArgumentSnapshot>,
+            _program: &TypedTrees,
+            _expression: ExpressionHandle,
+            _callee: String,
+            _return_type: TypeReferenceHandle,
+            _snapshots: Vec<ArgumentSnapshot>,
         ) -> Result<(), String> {
-            let retained: Vec<SymbolHandle> = self
-                .program
-                .typed()
-                .machines()
-                .iter()
-                .filter(|machine| !self.program.probe_symbols.contains(&machine.symbol))
-                .map(|machine| machine.symbol)
-                .collect();
-            crate::machine_execution::admission::snapshot_arguments_discharge(
-                &self.program.admission,
-                program,
-                &retained,
-                self.machine.symbol,
-                "@const-invocation",
-                &typed_trees_to_typed_trees::PreparationRequest::settled(),
-                &typed_trees_to_checked_trees::CheckingRequest::new(),
-                expression,
-                &callee,
-                return_type,
-                snapshots,
-            )
+            Err("no product route yet: compile-time proof requires the lowered-form checker".into())
         }
 
         pub(super) fn validate_custody(

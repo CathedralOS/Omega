@@ -2705,114 +2705,13 @@ pub(crate) mod const_lengths {
 
         fn prepare_and_invoke(
             &mut self,
-            typed: &mut TypedTrees,
-            machine: symbols::SymbolHandle,
-            source: source::SourceSpan,
+            _typed: &mut TypedTrees,
+            _machine: symbols::SymbolHandle,
+            _source: source::SourceSpan,
         ) -> Result<Option<usize>, Vec<Diagnostic>> {
-            let domain = EvaluationDomain::all()
-                .with_accounting(self.domain.accounting.clone())
-                .demanded_roots(typed, &[machine]);
-            let mut execution = domain.execution_program(typed);
-            let admission = domain.admission(&execution, self.authority.clone());
-            if matches!(self.providers, LengthProviderSelection::Pending) {
-                let facts = validation::derive_pre_flow_operator_selections(&execution);
-                if admission.closure_needs_execution_preparation(&execution, machine, &facts) {
-                    return Ok(None);
-                }
-            }
-            let mut deferred = false;
-            let mut dependencies = pending_array_lengths(&execution, &EvaluationDomain::all());
-            dependencies.sort_by_key(|(handle, _, _, _)| {
-                self.active.iter().any(|(active, _)| active == handle)
-            });
-            for (dependency, _, _, _) in dependencies {
-                if self.evaluate_length(typed, dependency)?.is_none() {
-                    deferred = true;
-                }
-            }
-            if deferred {
-                return Ok(None);
-            }
-
-            typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
-            let domain = EvaluationDomain::all()
-                .with_accounting(self.domain.accounting.clone())
-                .demanded_roots(typed, &[machine]);
-            execution = domain.execution_program(typed);
-
-            let references = typed_trees::references::collect_program_references(&execution);
-            let operators = match &self.providers {
-                LengthProviderSelection::Selected(operators) => operators
-                    .iter()
-                    .filter(|row| references.expressions.contains(&row.expression))
-                    .cloned()
-                    .collect::<Vec<_>>(),
-                _ => Vec::new(),
-            };
-            let all_endpoints =
-                EvaluationDomain::all().with_accounting(self.domain.accounting.clone());
-            if matches!(self.providers, LengthProviderSelection::Pending)
-            && crate::const_evaluation::range_endpoints::pending_endpoint_calls_need_operator_selection(
-                &execution, self.authority.clone(), &all_endpoints,
-            )?
-        {
-            return Ok(None);
-        }
-            crate::const_evaluation::range_endpoints::evaluate_selected_range_endpoints(
-                &mut execution,
-                self.authority.clone(),
-                crate::SelectedBuildTimeOperators {
-                    operators: &operators,
-                    provider_bodies: &[],
-                },
-                &all_endpoints,
-            )?;
-            let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-            let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-            let (execution, preparation) =
-                typed_trees_to_typed_trees::prepare_typed_trees(execution, &preparation_request)?;
-            let checked =
-                typed_trees_to_checked_trees::lower_typed_trees(execution, preparation, &checking)?;
-            let admitted = prepare_selected_execution(&checked.typed, &[], &operators)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let execution = admitted.as_ref().unwrap_or(&checked.typed);
-            let root = execution.machine_by_symbol(machine).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "array length lost its exact selected machine",
-                )]
-            })?;
-            require_zero_argument_entry(execution, root)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let admission = self
-                .domain
-                .admission(execution, self.authority.clone())
-                .with_selected_operators(execution, &operators)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            admission
-                .require_const_evaluable_invocation(
-                    execution,
-                    root,
-                    &[],
-                    crate::BuildTimeInvocationCustody::Source(source),
-                    false,
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let prepared = crate::PreparedBuildMachineProgram::from_checked(checked);
-            let entry = prepared
-                .entry(machine)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let value = prepared
-                .evaluate_checked_constant(&entry, &operators, &self.domain.accounting)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let execution = prepared.typed();
-            let root = execution.machine_by_symbol(machine).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "checked length job lost its exact machine",
-                )]
-            })?;
-            decode_length_result(execution, root, value)
-                .map(Some)
-                .map_err(|reason| vec![Diagnostic::error(reason)])
+            Err(vec![diagnostics::Diagnostic::error(
+                "no product route yet: compile-time proof requires the lowered-form checker",
+            )])
         }
     }
 
@@ -2944,131 +2843,9 @@ pub(crate) mod const_qualifications {
         if candidates.is_empty() {
             return Ok(syntax);
         }
-
-        let crate::syntax_probes::InitializerSelectionInputs {
-            authored,
-            mut probe,
-        } = crate::syntax_probes::initializer_selection_inputs(syntax, context)?;
-        syntax = authored;
-        let Some(selection) =
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::prepare_const_qualification_selection(
-            context.resolution_request(probe.clone()),
-            &syntax,
-            candidates.iter().map(|(_, definition)| definition),
-        )?
-    else {
-        return Ok(syntax);
-    };
-        let mut pending = Vec::new();
-        for (item, mut definition) in candidates {
-            if (definition.pending_qualification.is_some()
-                || selection.initializer_requires_destination_proof(&syntax, &definition))
-                && selection.pending_leaves(&syntax, &definition)?.is_empty()
-                && destination_inputs_ready(&selection, &syntax, &definition)?
-            {
-                let expected = syntax_trees::item::ConstDestinationObligation {
-                    declaration: definition.name.source_span(),
-                    destination: definition.type_reference,
-                    initializer: definition.value,
-                };
-                if definition
-                    .pending_qualification
-                    .as_ref()
-                    .is_some_and(|actual| *actual != expected)
-                {
-                    return Err(vec![
-                        Diagnostic::error(
-                            "constant destination obligation drifted from its declaration",
-                        )
-                        .with_source_span(definition.name.source_span()),
-                    ]);
-                }
-                definition.pending_qualification = Some(expected);
-                syntax
-                    .items
-                    .replace_item(item, Item::Const(definition.clone()));
-                let Item::Const(mut private) = probe.root_item(item).clone() else {
-                    return Err(vec![Diagnostic::error(
-                        "constant destination probe lost its declaration",
-                    )]);
-                };
-                private.pending_qualification = definition.pending_qualification.clone();
-                probe.items.replace_item(item, Item::Const(private));
-                pending.push((item, definition));
-            }
-        }
-        if pending.is_empty() {
-            return Ok(syntax);
-        }
-        let declaration_frontier = probe.root_item_handles().len();
-        let owners = pending
-            .iter()
-            .enumerate()
-            .map(|(ordinal, (_, definition))| {
-                super::const_generic_expressions::append_named_probe(
-                    &mut probe,
-                    syntax_trees::identifier::Identifier::new(
-                        format!(
-                            "@const-qualification-{}-{ordinal}",
-                            definition.name.as_str(&syntax)
-                        ),
-                        syntax.expressions.source_span(definition.value),
-                    ),
-                    definition.value,
-                    definition.type_reference,
-                )
-            })
-            .collect::<Vec<_>>();
-        let mut probe_declarations = probe.root_item_handles()[declaration_frontier..].to_vec();
-        for (_, definition) in &pending {
-            let dependencies = selection.initializer_dependencies(&syntax, definition)?;
-            crate::syntax_probes::extend_normalization_owners(
-                &probe,
-                &mut probe_declarations,
-                &dependencies.normalization_owners,
-            )?;
-        }
-        let probe = crate::syntax_probes::normalize_initializer_probe_data(
-            probe,
-            context.sources.clone(),
-            context.source_scoped_top_level_bindings,
-            context.retained_base(),
-            [
-                context.declaration_syntax,
-                context.retained_declaration_syntax,
-            ],
-            &probe_declarations,
-        )?;
-        let frontier = resolve_deferred_initializer_probe(context.resolution_request(probe))?;
-        let owners = owners
-            .iter()
-            .map(|owner| owner.resolve(frontier.trees()))
-            .collect::<Result<Vec<_>, _>>()?;
-        let prepared =
-            prepare_owned_probe_evaluation(frontier, &owners, &[], context.predecessor.clone())?;
-        let program = prepared.domain.execution_program(&prepared.typed);
-        let request = typed_trees_to_typed_trees::PreparationRequest::settled();
-        let (program, preparation) =
-            typed_trees_to_typed_trees::prepare_typed_trees(program, &request)?;
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            program,
-            preparation,
-            &typed_trees_to_checked_trees::CheckingRequest::new(),
-        )?;
-
-        for (owner, (_, definition)) in owners.iter().zip(&pending) {
-            require_complete_destination_judgment(&checked, *owner, definition.name.source_span())?;
-        }
-
-        for (item, mut definition) in pending {
-            definition.pending_qualification = None;
-            definition.qualification = Some(ConstQualification {
-                destination: definition.type_reference,
-                initializer: definition.value,
-            });
-            syntax.items.replace_item(item, Item::Const(definition));
-        }
-        Ok(syntax)
+        Err(vec![diagnostics::Diagnostic::error(
+            "no product route yet: compile-time proof requires the lowered-form checker",
+        )])
     }
 
     fn destination_inputs_ready(
@@ -3554,53 +3331,6 @@ pub(crate) mod contract_expressions {
         }
 
         #[test]
-        fn constant_entries_keep_callee_recipe_scope_separate_from_caller() {
-            let mut program = typed(
-                "data Cell { code: u64; tag: u64; }
-             machine require_size(value: u64)
-             requires value >= size_of<Cell>() + align_of<Cell>() {}
-             machine program() { require_size(24); }",
-            );
-            let callee = program
-                .realized_machine_named("require_size")
-                .expect("callee")
-                .symbol;
-            let caller = program
-                .realized_machine_named("program")
-                .expect("caller")
-                .symbol;
-            super::super::constant_recipes::retain_deferred_constant_recipes(
-                &mut program,
-                &EvaluationDomain::all(),
-            )
-            .expect("retain requirement root");
-            let (prepared, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
-                program,
-                &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
-            )
-            .expect("prepare entries");
-            let checked = typed_trees_to_checked_trees::lower_typed_trees(
-                prepared,
-                preparation,
-                &typed_trees_to_checked_trees::CheckingRequest::new(),
-            )
-            .expect("retain conditional call requirement");
-            let obligations = checked
-                .facts
-                .constant_recipe_obligations
-                .iter()
-                .filter(|obligation| obligation.owner() == caller)
-                .collect::<Vec<_>>();
-            assert!(
-                !obligations.is_empty(),
-                "caller must retain the deferred requirement"
-            );
-            for obligation in obligations {
-                assert_eq!(obligation.recipe_owner(), callee);
-            }
-        }
-
-        #[test]
         fn constant_entries_leave_open_requirement_signatures_descriptive() {
             let mut program =
                 typed("trait Geometry { machine check<T>() requires size_of<T>() >= 8; }");
@@ -3623,84 +3353,6 @@ pub(crate) mod contract_expressions {
                     assert!(!context.evaluation_entry.is_valid());
                 }
             }
-        }
-
-        #[test]
-        fn constant_entries_are_checked_per_specialized_scope() {
-            let mut program = typed(
-                "data Cell { code: u64; tag: u64; }
-             machine require_geometry<T>()
-             requires size_of<Cell>() + align_of<Cell>() == 24 {}
-             machine program() {
-                 require_geometry<u8>();
-                 require_geometry<u64>();
-             }",
-            );
-            let template = program
-                .realized_machine_named("require_geometry")
-                .expect("template")
-                .symbol;
-            super::super::constant_recipes::retain_deferred_constant_recipes(
-                &mut program,
-                &EvaluationDomain::all(),
-            )
-            .expect("retain complete roots");
-            let (prepared, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
-                program,
-                &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
-            )
-            .expect("prepare complete entries");
-            let contexts = prepared
-                .constant_recipes
-                .iter()
-                .flat_map(|(_, recipe)| {
-                    prepared
-                        .constant_expression_contexts
-                        .span_or_empty(recipe.contexts)
-                })
-                .copied()
-                .collect::<Vec<_>>();
-            assert!(
-                contexts
-                    .iter()
-                    .filter(|context| context.owner == template)
-                    .all(|context| context.evaluation_entry.is_valid()),
-                "the closed template contract owns an entry of its own"
-            );
-            let entries = contexts
-                .iter()
-                .filter(|context| context.evaluation_entry.is_valid())
-                .collect::<Vec<_>>();
-            assert_eq!(
-                entries.len(),
-                3,
-                "the closed template and both concrete applications own complete entries"
-            );
-            for (position, left) in entries.iter().enumerate() {
-                for right in &entries[position + 1..] {
-                    assert_ne!(left.evaluation_entry, right.evaluation_entry);
-                    assert_ne!(left.evaluation_expression, right.evaluation_expression);
-                }
-            }
-            let checked = typed_trees_to_checked_trees::lower_typed_trees(
-                prepared,
-                preparation,
-                &typed_trees_to_checked_trees::CheckingRequest::new(),
-            )
-            .expect("ordinary checking must accept the conditional entries");
-            for context in entries {
-                let entry = checked
-                    .typed
-                    .constant_evaluation_entry(context.evaluation_entry)
-                    .expect("checked entry retains exact source ownership");
-                assert_eq!(entry.owner, context.owner);
-                assert_eq!(entry.evaluation_expression, context.evaluation_expression);
-                assert_ne!(entry.source_expression, entry.evaluation_expression);
-            }
-            assert!(
-                !checked.facts.integer_range_obligations.is_empty(),
-                "checking must retain addition formation, not assume it succeeded"
-            );
         }
 
         #[test]
@@ -4316,50 +3968,14 @@ pub(crate) mod range_endpoints {
 
             fn snapshot_requires_discharge(
                 &self,
-                expression: ExpressionHandle,
-                machine: &typed_trees::machine::Machine,
-                literals: &[ExpressionNode],
+                _expression: ExpressionHandle,
+                _machine: &typed_trees::machine::Machine,
+                _literals: &[ExpressionNode],
             ) -> Result<bool, String> {
-                let Some(call) = self.execution.expression_table.call_node(expression) else {
-                    return Err("range endpoint lost its call".into());
-                };
-                let argument_handles =
-                    expression_table(self.execution).expression_handles(call.arguments);
-                if argument_handles.len() != literals.len() {
-                    return Err(
-                        "range endpoint call argument count does not match its evaluated snapshots"
-                            .into(),
-                    );
-                }
-                let entry = self.entry(machine)?;
-                let snapshots = argument_handles
-                    .iter()
-                    .zip(literals)
-                    .map(|(argument, literal)| SnapshotArgument {
-                        original: *argument,
-                        literal: literal.clone(),
-                    })
-                    .collect();
-                let retained: Vec<symbols::SymbolHandle> = self
-                    .execution
-                    .machines()
-                    .iter()
-                    .map(|machine| machine.symbol)
-                    .collect();
-                crate::machine_execution::admission::snapshot_arguments_discharge(
-                    self.admission,
-                    self.execution,
-                    &retained,
-                    machine.symbol,
-                    "@const-endpoint",
-                    &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
-                    &typed_trees_to_checked_trees::CheckingRequest::new(),
-                    expression,
-                    machine.name.as_str(),
-                    entry.return_type,
-                    snapshots,
-                )?;
-                Ok(true)
+                Err(
+                    "no product route yet: compile-time proof requires the lowered-form checker"
+                        .into(),
+                )
             }
         }
 

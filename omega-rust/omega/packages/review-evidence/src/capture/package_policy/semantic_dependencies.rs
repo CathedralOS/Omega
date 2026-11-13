@@ -21,105 +21,15 @@ use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-use typed_trees_to_checked_trees::derive_checked_semantic_dependencies;
 
 pub(super) fn project(
-    compilation: &PackageReviewInput<'_>,
-    package: PackageKeyIdentity,
-    callables: &PackagePolicyCallables,
+    _compilation: &PackageReviewInput<'_>,
+    _package: PackageKeyIdentity,
+    _callables: &PackagePolicyCallables,
 ) -> Result<Vec<PackagePolicySemanticDependency>, Vec<Diagnostic>> {
-    let derived =
-        derive_checked_semantic_dependencies(compilation.checking_input, &compilation.facts);
-    if derived != compilation.facts.flow.semantic_dependencies {
-        return Err(super::rejected(
-            "semantic dependencies differ from exact checked rederivation",
-        ));
-    }
-    let mut rows = Vec::new();
-    for fact in &derived.rows {
-        if !is_checked_source_instance(compilation, fact.consumer_machine)? {
-            continue;
-        }
-        let owner = nominal_identity(compilation, fact.consumer_machine)?;
-        if !reviewed_package_owns(&owner, package)? {
-            continue;
-        }
-        let machine = exactly_one(
-            compilation
-                .machines()
-                .iter()
-                .filter(|machine| machine.symbol == fact.consumer_machine),
-            "policy semantic dependency",
-            "consumer machine",
-        )?;
-        let consumer = if machine.is_public
-            || machine.supply_mode.is_boundary_declaration()
-            || matches!(
-                machine.supply_mode,
-                language_semantics::MachineSupplyMode::ExternalRealization { .. }
-            )
-            || compilation.custody.build().selected_build_machine_symbol == Some(machine.symbol)
-        {
-            let identity = policy_callable_identity(compilation, machine.symbol)?;
-            if !callables
-                .callables()
-                .iter()
-                .any(|callable| *callable.identity() == identity)
-            {
-                return Err(super::rejected(
-                    "public semantic dependency has no normalized callable owner",
-                ));
-            }
-            PackagePolicySemanticDependencyConsumer::Callable(identity)
-        } else {
-            if fact.exposure != CheckedSemanticDependencyExposure::PrivateImplementation {
-                return Err(super::rejected(
-                    "private semantic consumer has public interface exposure",
-                ));
-            }
-            PackagePolicySemanticDependencyConsumer::PackageImplementation
-        };
-        let dependencies =
-            if fact.kind == checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine {
-                vec![policy_callable_identity(compilation, fact.dependency)?]
-            } else {
-                nominal_declarations(compilation, fact.dependency)?
-            };
-        for dependency in dependencies {
-            rows.push(PackagePolicySemanticDependency {
-                consumer: consumer.clone(),
-                dependency,
-                exposure: match fact.exposure {
-                    CheckedSemanticDependencyExposure::PrivateImplementation => {
-                        PackageReviewSemanticDependencyExposure::PrivateImplementation
-                    }
-                    CheckedSemanticDependencyExposure::PublicInterface => {
-                        PackageReviewSemanticDependencyExposure::PublicInterface
-                    }
-                },
-                kind: match fact.kind {
-                    checked_trees::CheckedSemanticDependencyKind::NominalIdentity => {
-                        PackageReviewSemanticDependencyKind::NominalIdentity
-                    }
-                    checked_trees::CheckedSemanticDependencyKind::Layout => {
-                        PackageReviewSemanticDependencyKind::Layout
-                    }
-                    checked_trees::CheckedSemanticDependencyKind::OwnershipBehavior => {
-                        PackageReviewSemanticDependencyKind::OwnershipBehavior
-                    }
-                    checked_trees::CheckedSemanticDependencyKind::AutomaticCleanup => {
-                        PackageReviewSemanticDependencyKind::AutomaticCleanup
-                    }
-                    checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine => {
-                        PackageReviewSemanticDependencyKind::AutomaticCleanupMachine
-                    }
-                },
-            });
-        }
-    }
-    rows.sort();
-    rows.dedup();
-    Ok(rows)
+    Err(vec![diagnostics::Diagnostic::error(
+        "no product route yet: package review requires lowered-form evidence",
+    )])
 }
 
 fn nominal_declarations(
