@@ -249,33 +249,10 @@ pub(crate) fn require_prebound_calls(program: &TypedTrees) -> Result<(), Diagnos
         let receiver_is_namespace = !call.receiver.is_valid()
             || matches!(program.expression_table.expression(call.receiver), ExpressionNode::Name(path) if static_namespace(program, path.symbol));
         if !declared_callable(program, call.target_symbol) || !receiver_is_namespace {
-            let target_kind = call
-                .target_symbol
-                .is_valid()
-                .then(|| program.symbols.get(call.target_symbol).kind);
-            let receiver_kind = match call
-                .receiver
-                .is_valid()
-                .then(|| program.expression_table.expression(call.receiver))
-            {
-                Some(ExpressionNode::Name(path)) => path
-                    .symbol
-                    .is_valid()
-                    .then(|| program.symbols.get(path.symbol).kind),
-                _ => None,
-            };
-            let mut error =
+            return Err(
                 crate::unavailable_judgment("static or dynamic callable target binding")
-                    .with_source_span(program.expression_table.source_span(handle));
-            error.message.push_str(&format!("; selected target {:?} ({target_kind:?}), receiver {:?} ({receiver_kind:?}), namespace={receiver_is_namespace}", call.target_symbol, call.receiver));
-            if call.receiver.is_valid() {
-                error.message.push_str(&format!(
-                    "; receiver node {:?}; target {}",
-                    program.expression_table.expression(call.receiver),
-                    call.target
-                ));
-            }
-            return Err(error);
+                    .with_source_span(program.expression_table.source_span(handle)),
+            );
         }
     }
     for machine in program.machines() {

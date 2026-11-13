@@ -192,17 +192,30 @@ mod tests {
         // Equal carrier geometry cannot substitute for the declared region.
         let mut symbols = SymbolTableBuilder::default();
         let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-        let builtins = symbols.insert_children(root, symbols::builtin_type_symbols());
-        let byte = builtins
+        let children = symbols.insert_children(
+            root,
+            symbols::builtin_type_symbols().into_iter().chain([
+                (SymbolKind::Machine, SymbolNameRef::Static("first")),
+                (SymbolKind::Machine, SymbolNameRef::Static("second")),
+            ]),
+        );
+        let byte = children
             .handles()
             .nth(symbols::BuiltinTypeAtom::U8.ordinal())
             .unwrap();
-        let first = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("first"));
-        let second = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("second"));
+        let first = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+        let second = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 1)
+            .unwrap();
         let mut typed = TypedTrees {
             symbols: symbols.finish(),
             ..Default::default()
         };
+        assert_eq!(
+            typed.symbols.builtin_type_atom(byte),
+            Some(symbols::BuiltinTypeAtom::U8)
+        );
         for (symbol, name) in [(first, "first"), (second, "second")] {
             typed.push_machine(Machine {
                 symbol,

@@ -40,21 +40,11 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                 .iter()
                 .find_map(|(owner, reason)| (*owner == machine.id).then_some(*reason))
                 .unwrap_or("proof scope without an exact machine declaration");
-            let mut error = refuse(
+            refuse(
                 machine.id,
                 Construct::Machine,
                 Unserved::Declaration(reason),
-            );
-            if let Some(symbol) = elaboration.machines.get(machine.id) {
-                let row = typed.symbols.get(*symbol);
-                error.detail.push_str(&format!(
-                    "; source declaration {symbol:?}, origin {:?}, parent {:?}, span {:?}",
-                    row.generated_from,
-                    row.parent,
-                    typed.symbols.symbol_source_span(*symbol),
-                ));
-            }
-            error
+            )
         })?;
         scope
             .declarations

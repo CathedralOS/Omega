@@ -2117,10 +2117,7 @@ impl<'a> Storage<'a> {
                         RefusalReason::Unestablished,
                         self.machine,
                         concerns,
-                        &format!(
-                            "storage is used on a path on which nothing was stored into it; machine {:?}, {concerns:?}, root {:?}, path {:?}, block {block:?}, position {up_to}",
-                            self.machine, leaf.root, leaf.segments
-                        ),
+                        "storage is used on a path on which nothing was stored into it",
                     )));
                 }
             }
