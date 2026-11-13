@@ -45,7 +45,6 @@
 10 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_mutation.rs
 2 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published_facts.rs
 3 omega-rust/psi/compilation/proof/admission/src/bounded_denotation.rs
-3 omega-rust/psi/compilation/proof/src/checker.rs
 2 omega-rust/psi/compilation/representations/checked-trees/facts/src/evidence.rs
 3 omega-rust/psi/compilation/representations/checked-trees/src/admissibility_and_borrow.rs
 7 omega-rust/psi/compilation/representations/checked-trees/src/flow.rs

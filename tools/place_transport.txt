@@ -48,7 +48,6 @@
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared.rs
 3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit_structural_values.rs
 1 omega-rust/psi/compilation/pipeline/lowered-discharge/src/places.rs
-1 omega-rust/psi/compilation/proof/src/checker.rs
 5 omega-rust/psi/compilation/representations/checked-trees/facts/src/contexts_and_places.rs
 1 omega-rust/psi/compilation/representations/checked-trees/facts/src/evidence.rs
 2 omega-rust/psi/compilation/representations/checked-trees/facts/src/predicates.rs
