@@ -76,6 +76,18 @@ fn declaration(artifact: &CanonicalTerminalArtifact) -> &terminal_psi::CheckedMa
         .expect("published source declaration")
 }
 
+fn captured_package_source(
+    identity: PackageKeyIdentity,
+    name: &str,
+    root: &Path,
+) -> PackageSourceBinding {
+    let capture = package_compilation::capture_anonymous_compilation_source(root)
+        .unwrap_or_else(|diagnostics| panic!("capture {name}: {diagnostics:?}"));
+    PackageSourceBinding::new(identity, name, capture.canonical_live_root().to_path_buf())
+        .with_captured_source(std::sync::Arc::clone(capture.tree()))
+        .unwrap_or_else(|reason| panic!("bind captured {name}: {reason}"))
+}
+
 fn inputs(
     consumer: &Path,
     library: &Path,
@@ -86,22 +98,16 @@ fn inputs(
     let standard = PackageKeyIdentity::from_digest([2; 32]).unwrap();
     let standard_root = fixture_package_inputs::bundled_standard_library_root();
     let mut packages = vec![
-        PackageSourceBinding::new(root_owner, "consumer", consumer.to_path_buf())
-            .with_canonical_source_metadata()
-            .expect("sealed consumer Source metadata"),
-        PackageSourceBinding::new(standard, "omega_language_std", standard_root.clone()),
-        PackageSourceBinding::new(owner, "owner_identity_library", library.to_path_buf()),
+        captured_package_source(root_owner, "consumer", consumer),
+        captured_package_source(standard, "omega_language_std", &standard_root),
+        captured_package_source(owner, "owner_identity_library", library),
     ];
     let mut edges = vec![
         PackageDependencyBinding::new(root_owner, "omega_language_std", standard),
         PackageDependencyBinding::new(root_owner, "shared", owner),
     ];
     if let Some((path, identity)) = copied {
-        packages.push(PackageSourceBinding::new(
-            identity,
-            "copied_library",
-            path.to_path_buf(),
-        ));
+        packages.push(captured_package_source(identity, "copied_library", path));
         edges.push(PackageDependencyBinding::new(
             root_owner,
             "foreign_copy",
@@ -147,10 +153,8 @@ fn registered_inputs(
         root_owner,
         BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(root_owner, declared, consumer.to_path_buf())
-                .with_canonical_source_metadata()
-                .expect("sealed consumer Source metadata"),
-            PackageSourceBinding::new(owner, "owner_identity_library", library.to_path_buf()),
+            captured_package_source(root_owner, declared, consumer),
+            captured_package_source(owner, "owner_identity_library", library),
         ],
         vec![PackageDependencyBinding::new(root_owner, "shared", owner)],
     )
