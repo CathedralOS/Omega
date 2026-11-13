@@ -1,3 +1,27 @@
+module vec;
+
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::VacantExtentParts;
+use omega::language::core::split_vacant_extent;
+use omega::language::core::merge_vacant_extents;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::FieldAccess;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::ResourceProfileSupply;
+use omega::language::core::Access;
+use omega::language::core::Access::view_extent;
+use omega::language::core::Access::view_extent_mut;
+use omega::language::core::AccessOutcome;
+use omega::language::core::read;
+use omega::language::core::write;
 // Runtime-sized u32 vector over caller-supplied, qualified backing.
 // The owner supplies storage; growth returns the old extent for release by
 // that same allocator. No capacity ladder, ambient allocator or hidden free.
@@ -9,8 +33,6 @@
 //
 // Role selects the already-admitted backing profile, never creates authority.
 // All access operations retain the original extent loan and checked geometry.
-use omega::language::core::extent;
-use omega::language::core::layout;
 
 public data VecCell { value: u32; }
 public data VecCellPolicy {}
