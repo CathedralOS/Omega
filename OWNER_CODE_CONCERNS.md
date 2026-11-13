@@ -150,13 +150,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the next site that projects, compares or constructs a record with `_` silently ignores a domain's reader, writer or issuer rule, and no test fails until someone writes the twin for that exact site
 - Reported: 2026-11-13, Claude Code, while reading declared domains on data carriers
 
-### Constant operands are still read from a table keyed by spelling
-- Category: a verdict with nothing behind it
-- Where: `02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs` (`module_constants::lexical_integer_const_values`), built at five call sites in `preparation_const_evaluation.rs`, `preparation_generic_data.rs` and `preparation_machine_equations.rs` and handed to `evaluate_const_argument_expression` and the fact evaluators
-- Saw: the table maps every non-module constant's spelled name to its literal value over all root items of the forest, with no source scope; two packages that each keep a private `const LIMIT` leave one entry, so a const-generic argument, range fact or machine equation naming `LIMIT` can read the other package's value. The table also only holds constants written as integer literals, so a constant resolution now folds (`const B: u64 = A;`) is absent from it
-- Cost: the new closed-initializer fold selects operands through `ConstantSelection` and never reads this table, but the older evaluators beside it still do; a wrong value there is silent, and the fix is to give those evaluators the same source-scoped selection rather than to repair the table
-- Reported: 2026-11-13, Claude Code, while folding closed scalar constant initializers in resolution
-
 ### Interface ownership still changes some imported-service checks
 - Category: one idea, several implementations
 - Where: `omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/service_reach.rs:39`; `src/execution/host_imports/filesystem.rs:513`; `omega-rust/psi/compilation/terminal-installation/src/provider_and_target_installation.rs:451`
