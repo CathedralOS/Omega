@@ -1237,6 +1237,7 @@ pub(crate) mod construction_destinations {
         let mut destinations = Vec::<(ExpressionHandle, TypeReferenceHandle, SymbolHandle)>::new();
         let mut calls = Vec::new();
         let mut constructors = Vec::new();
+        let mut unlanded = Vec::new();
 
         for (handle, expression) in program.expression_table.expression_entries() {
             if usize::try_from(handle.arena_index()).is_ok_and(|index| index <= expression_frontier)
@@ -1306,16 +1307,24 @@ pub(crate) mod construction_destinations {
                         }
                         StatementNode::Assignment(assignment) => {
                             if needs_destination(program, assignment.value) {
-                                if !assignment.receiving_type.is_valid() {
-                                    return Err(crate::unavailable_judgment(
-                                        "assignment literal receiving type",
-                                    ));
+                                // The literal is built at the declared type of
+                                // the binding it is assigned to. Any other
+                                // place (a field, an element, a binding with
+                                // no declared type, a binding of reference
+                                // type) has no type typing computes, so the
+                                // literal stays unlanded and its machine is
+                                // refused where it is demanded.
+                                match assigned_binding_type(program, state, assignment.target) {
+                                    Some(receiving_type) => destinations.push((
+                                        assignment.value,
+                                        receiving_type,
+                                        SymbolHandle::invalid(),
+                                    )),
+                                    None => unlanded.push((
+                                        machine.symbol,
+                                        program.expression_table.source_span(assignment.value),
+                                    )),
                                 }
-                                destinations.push((
-                                    assignment.value,
-                                    assignment.receiving_type,
-                                    SymbolHandle::invalid(),
-                                ));
                             }
                         }
                         StatementNode::Call(call) => collect_call_destinations(
@@ -1367,6 +1376,13 @@ pub(crate) mod construction_destinations {
             }
         }
 
+        for (machine, source_span) in unlanded {
+            program.record_deferred_refusal(
+                machine,
+                typed_trees::deferred_refusals::DeferredRequest::AssignmentLiteralDestination,
+                source_span,
+            );
+        }
         for call in calls {
             let binders = program.declaration_type_parameters(call.target).to_vec();
             if binders.len() != call.static_arguments.len() {
@@ -1473,6 +1489,29 @@ pub(crate) mod construction_destinations {
             }
         }
         Ok(cast_destinations)
+    }
+
+    /// The declared type of the parameter or local an assignment names, when
+    /// the assignment replaces that binding's own value. A binding of
+    /// reference type is not such a place: what a literal assigned to it
+    /// would be built at is not the binding's declared type.
+    fn assigned_binding_type(
+        program: &TypedTrees,
+        state: &typed_trees::state::State,
+        target: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let declared = program.declared_binding_type(state, target)?;
+        let mut carrier = declared;
+        while let TypeReferenceNode::Constrained { base_type, .. } =
+            program.type_reference_table.type_reference(carrier)
+        {
+            carrier = *base_type;
+        }
+        (!matches!(
+            program.type_reference_table.type_reference(carrier),
+            TypeReferenceNode::Reference { .. }
+        ))
+        .then_some(declared)
     }
 
     fn collect_call_destinations(
@@ -1751,6 +1790,153 @@ pub(crate) mod construction_destinations {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::deferred_refusals::DeferredRequest;
+            use typed_trees::expression::{TableNamePath, TableStructLiteral};
+            use typed_trees::machine::{Machine, MachineBodyStatus};
+            use typed_trees::statement::{TableAssignment, TableLocalData};
+            use typed_trees::{data::DataDefinition, state::State};
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = symbols.insert_children(
+                root,
+                [
+                    (SymbolKind::Data, SymbolNameRef::Static("Record")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("writer")),
+                ],
+            );
+            let (data, writer) = (declarations.handle_at(0), declarations.handle_at(1));
+            let inner = symbols.insert_children(
+                writer,
+                [
+                    (SymbolKind::State, SymbolNameRef::Static("run")),
+                    (SymbolKind::Local, SymbolNameRef::Static("owned")),
+                    (SymbolKind::Local, SymbolNameRef::Static("borrowed")),
+                ],
+            );
+            let [state, owned, borrowed] = [0, 1, 2].map(|position| inner.handle_at(position));
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            program.push_data_definition(DataDefinition {
+                symbol: data,
+                name: "Record".into(),
+                ..Default::default()
+            });
+            let record = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: data,
+                    name: "Record".into(),
+                });
+            let reference = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Reference {
+                    referee: record,
+                    access: language_core::ReferenceAccess::Mutable,
+                    lifetime: None,
+                });
+            let name = |program: &mut TypedTrees, symbol, spelled: &[&'static str]| {
+                let mut members = Default::default();
+                for member in spelled {
+                    program.expression_table.push_name_path_member(
+                        &mut members,
+                        typed_trees::name::Identifier::generated(*member),
+                    );
+                }
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Name(TableNamePath {
+                        members,
+                        symbol,
+                        head_symbol: symbol,
+                        ..Default::default()
+                    }))
+            };
+            let literal = |program: &mut TypedTrees| {
+                program
+                    .expression_table
+                    .insert(ExpressionNode::StructLiteral(TableStructLiteral {
+                        type_symbol: data,
+                        type_name: "Record".into(),
+                        ..Default::default()
+                    }))
+            };
+            let local = |symbol, type_reference| {
+                StatementNode::LocalData(TableLocalData {
+                    symbol,
+                    type_reference,
+                    ..Default::default()
+                })
+            };
+            let target = name(&mut program, owned, &["owned"]);
+            let value = literal(&mut program);
+            let statement_nodes = program.statement_table.insert_statements([
+                local(owned, record),
+                local(borrowed, reference),
+                StatementNode::Assignment(TableAssignment { target, value }),
+            ]);
+            let states = program.machine_states.insert_many([State {
+                symbol: state,
+                statement_nodes,
+                ..Default::default()
+            }]);
+            program.push_machine(Machine {
+                symbol: writer,
+                states,
+                body_is_present: true,
+                body_status: MachineBodyStatus::Complete,
+                ..Default::default()
+            });
+
+            // `owned = Record {}` is built at the type written on `owned`.
+            let mut landed = program.clone();
+            prepare(&mut landed, 0, 0, &[]).unwrap();
+            assert!(landed.deferred_refusals.is_empty());
+            assert_eq!(
+                landed
+                    .expression_table
+                    .construction_required_type_reference(value),
+                record
+            );
+
+            // The twins differ only in the place assigned: a field of the
+            // binding, and a binding of reference type. Neither has a type
+            // typing computes, so the literal stays as written and the
+            // machine, not the program, is refused.
+            for place in [
+                name(&mut program, owned, &["owned", "field"]),
+                name(&mut program, borrowed, &["borrowed"]),
+            ] {
+                let mut unlanded = program.clone();
+                let assignment = unlanded.statement_table.statements(statement_nodes).len() - 1;
+                let handle = statement_nodes.handles().nth(assignment).unwrap();
+                let StatementNode::Assignment(assignment) =
+                    unlanded.statement_table.statement_mut(handle)
+                else {
+                    panic!("assignment")
+                };
+                assignment.target = place;
+                prepare(&mut unlanded, 0, 0, &[]).unwrap();
+                assert_eq!(
+                    unlanded
+                        .deferred_refusal(writer)
+                        .map(|refusal| refusal.request),
+                    Some(DeferredRequest::AssignmentLiteralDestination)
+                );
+                assert!(
+                    !unlanded
+                        .expression_table
+                        .construction_required_type_reference(value)
+                        .is_valid()
+                );
+            }
+        }
 
         #[test]
         fn deferred_destinations_do_not_complete_or_hide_expression_identity() {
