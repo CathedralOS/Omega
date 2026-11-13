@@ -3659,7 +3659,7 @@ pub(crate) mod reference_storage_geometry {
             };
             let field = StructuralFieldDeclaration {
                 inline_carrier: None,
-                id: terminal_psi::StructuralFieldId::new(1).expect("field"),
+                id: StructuralFieldId::new(1).expect("field"),
                 identity: TerminalIdentityIndex(1),
                 relevance: terminal_psi::BindingRelevance::Relevant,
                 field_type: StructuralFieldType::Structural(identity(1)),
