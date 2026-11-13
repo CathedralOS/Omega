@@ -319,6 +319,59 @@ impl Program<'_> {
         {
             return self.qualified_type(id, *base_type, *constraints);
         }
+        // `Inner<'a>`: data applied at lifetime arguments and nothing else
+        // is the declaration's one record type, because a lifetime argument
+        // is an erased region (`places`, `lifetime_binders`). The
+        // application itself is checked against the declaration and the
+        // owner of the lifetimes it names (`lifetime_application`). An
+        // application with a type, const or machine argument, or of data
+        // that declares one, stays with the scalar route's refusal (`type
+        // generic application`).
+        if handle.is_valid()
+            && let TypeReferenceNode::Generic {
+                base_symbol,
+                lifetime_arguments,
+                arguments,
+                ..
+            } = self.typed.type_reference_table.type_reference(handle)
+            && arguments.is_empty()
+            && base_symbol.is_valid()
+            && self.typed.symbols.builtin_type_atom(*base_symbol).is_none()
+            && let Some(data) = self.data_declaration(*base_symbol)
+            && data.type_parameters.is_empty()
+        {
+            use super::places::RetainedLifetime;
+            use typed_trees::type_identity::{
+                lifetime_parameter_identity, lifetime_parameter_name,
+            };
+            let typed = self.typed;
+            let table = &typed.type_reference_table;
+            let retained: Vec<RetainedLifetime<'_>> = table
+                .operand_lifetimes(handle)
+                .iter()
+                .map(|region| {
+                    if region.declaration.is_valid() {
+                        RetainedLifetime::Resolved(
+                            lifetime_parameter_name(typed, *region).map(|name| name.as_str()),
+                        )
+                    } else {
+                        RetainedLifetime::Open
+                    }
+                })
+                .collect();
+            let owner = match table.operand_lifetime_owner(handle) {
+                retained if retained.is_valid() => retained,
+                _ => self.lifetime_owner,
+            };
+            super::places::lifetime_application(
+                id,
+                data.lifetime_parameters.len(),
+                lifetime_arguments,
+                &retained,
+                |tag| owner.is_valid() && lifetime_parameter_identity(typed, owner, tag).is_some(),
+            )?;
+            return self.record(id, *base_symbol);
+        }
         self.scalar_type(id, handle).map(ValueType::Scalar)
     }
 

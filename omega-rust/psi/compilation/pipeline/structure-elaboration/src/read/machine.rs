@@ -410,7 +410,10 @@ impl<'t> Program<'t> {
         //
         // What stays refused is a data type that could give the machine
         // something after all: one applied at type arguments, or a generic
-        // one, whose parameters the body would be read under.
+        // one, whose parameters the body would be read under. Lifetime
+        // parameters of the data type give it nothing either: the machine
+        // is read under no lifetime binder, so a formal that names one of
+        // them is refused where its type is read (`lifetime_application`).
         if machine.attached_data_application.is_valid() {
             return unserved("attached data applied at type arguments");
         }
@@ -418,8 +421,7 @@ impl<'t> Program<'t> {
             let plain = self
                 .data_declaration(machine.attached_data_symbol)
                 .is_some_and(|data| {
-                    data.lifetime_parameters.is_empty()
-                        && data.type_parameters.is_empty()
+                    data.type_parameters.is_empty()
                         && data.generic_instance.is_none()
                         && data.conformance_bounds.is_empty()
                 });

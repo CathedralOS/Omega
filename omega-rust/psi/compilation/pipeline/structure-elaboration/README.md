@@ -435,6 +435,28 @@ result. This first ownership slice requires no-code cleanup and no conserved
 claim: nominal cleanup hooks, linear data, reference-bearing fields, borrowed
 extraction and incompatible affine frontiers at joins are refused.
 
+A declaration may state lifetime parameters, `data Outer<'a>`, and a field
+may apply such data at them, `inner: Inner<'a>`. A lifetime argument selects
+nothing a value is made of
+([lifetimes](../../../../../wiki/spec/language/lifetimes.md#binders-and-source-applications):
+"Lifetime arguments are erased regions, separate from runtime generic arity,
+layout and monomorphization."), so the declaration is one record type
+whatever lifetimes a use applies it at, and a formal, local or result may
+name it bare. What a lifetime relates is a stored view ("A lifetime relates a
+borrowed result or stored view to storage that remains valid for its use"),
+and no field type served here stores one, so a served declaration carries no
+lifetime relation or loan: a reference field is refused as `type reference`
+until the slice that stores views and accounts for them. The reader checks
+the declaration and each application itself, because the stage that did is
+being removed ("They must match the declaration's lifetime arity and use
+binders declared in the lexical owner. Duplicate binders and undeclared tags
+reject."). The owner of the lifetimes an application names is the typed
+trees' answer: the declaration they retained for that occurrence of the type,
+as stage 03 does for the type of a literal nested in another literal, and
+otherwise the data declaration whose member is being read. A machine is read
+under no owner, since one that declares lifetime parameters is refused
+(`machine generic parameters`).
+
 A `mut` formal that holds its own value (`mut x: u32`, `mut p: R`) is the
 callee's own storage, initialised from the argument, and is written as a
 `mut` local is ([ownership](../../../../../wiki/spec/language/ownership.md#owned-local-mutability):
@@ -565,7 +587,8 @@ the slice that serves it:
 | a field type constrained by a declared domain or by `Trapping` | `type constrained by a domain that is not one arithmetic policy`, `type constrained by Trapping` |
 | linear data, or data with a cleanup selection | `type data with custody` |
 | data with common fields beside its cases | `type mixed data` |
-| generic, quotient or opaque data, data with a carry policy, an erased field, retired field identities or no field | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities`, `type data without fields` |
+| a lifetime binder stated twice, a lifetime application with another count of arguments than its declaration's binders or with a tag its owner does not declare, a field that names lifetime-parameterised data without its arguments | `typing data that declares a lifetime twice`, `typing lifetime argument count differs from the data declaration's`, `typing lifetime argument its owner does not declare`, `typing data field that elides a lifetime argument` |
+| data with type, const or machine parameters, an instance of such data, quotient or opaque data, data with a carry policy, an erased field, retired field identities or no field | `type generic data`, `type quotient data`, `type data without a checked shape`, `type data with a carry policy`, `type data with an erased field`, `type data with retired field identities`, `type data without fields` |
 | a store into, or assignment to, a binding that is not `mut` | `statement store into an immutable binding`, `statement assignment to an immutable binding` |
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
