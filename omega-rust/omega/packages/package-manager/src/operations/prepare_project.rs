@@ -30,9 +30,7 @@ use crate::resolution::graph::{
     CanonicalRootSourceRequest, GitDependencyPins, GitResolutionOptions, PackageRootSourceRequest,
     ResolvedPackageSourceClosure,
 };
-use crate::resolution::source::{
-    AcquiredBuildSource, BuildSourceAcquisitionError, BuildSourceAcquisitions,
-};
+use crate::resolution::source::{AcquiredBuildSource, BuildSourceAcquisitions};
 use package_compilation::PackageCompilationInputError;
 use package_source::PrimaryGitChoices;
 use package_source::git::resolution::GitExactRevisionAcquisition;
@@ -61,6 +59,7 @@ pub struct LocalProjectPreparation {
     targets: Vec<PreparedProjectTarget>,
     canonical_root: PathBuf,
     entry_relative: PathBuf,
+    authored_build_present: bool, // Preflight source observation, independent of acceptance state.
     storage: SourceResolver,
     offline: bool,
 }
@@ -234,7 +233,8 @@ fn begin_local_project_preparation_in_storage(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
         Err(error) => return Err(PrepareLocalProjectError::Locked(error.to_string())),
     };
-    if !project_root.join("build.omg").is_file() && !lock_present {
+    let authored_build_present = project_root.join("build.omg").is_file();
+    if !authored_build_present && !lock_present {
         return Ok(None);
     }
     let baseline = transaction
@@ -302,6 +302,7 @@ fn begin_local_project_preparation_in_storage(
         targets: prepared_targets,
         canonical_root: canonical_project_root,
         entry_relative,
+        authored_build_present,
         storage,
         offline,
     }))
@@ -330,7 +331,7 @@ impl LocalProjectPreparation {
         acquired
             .require_compilation_source(&self.entry_relative)
             .map_err(PrepareLocalProjectError::Acquisition)?;
-        if self.baseline.is_some() {
+        if self.authored_build_present {
             acquired
                 .require_compilation_source(Path::new("build.omg"))
                 .map_err(PrepareLocalProjectError::Acquisition)?;
