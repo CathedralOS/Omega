@@ -625,8 +625,10 @@ mod v6 {
                 232 => SelectedInstructionKind::ImageAddress {
                     reference: match cursor.byte()? {
                         5 => crate::SelectedImageAddressReference::MachineDescriptor {
-                            descriptor: semantic_vocabulary::MachineDescriptorId::new(cursor.u64()?)
-                                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+                            descriptor: semantic_vocabulary::MachineDescriptorId::new(
+                                cursor.u64()?,
+                            )
+                            .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                         },
                         4 => crate::SelectedImageAddressReference::PrivateFunction {
                             identity: function_identity::MachineFunctionIdentity::from_bytes(

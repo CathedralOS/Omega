@@ -19398,7 +19398,9 @@ mod scalar_call {
         if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
             return Err(X86_64ScalarCallTemplateError::NonCanonicalPhysicalModel);
         }
-        let Some(offset) = kind.call_target().and_then(|target| target.indirect_code_offset())
+        let Some(offset) = kind
+            .call_target()
+            .and_then(|target| target.indirect_code_offset())
         else {
             return Err(X86_64ScalarCallTemplateError::InstructionKindMismatch);
         };

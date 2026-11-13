@@ -26,7 +26,6 @@ calling conventions, or instruction encodings appear here, and every projection
 helper fails closed on duplicate or unverified declarations.
 */
 
-pub(crate) use optimization_core::codec_bytes;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, StructuralTypeId};
 use terminal_psi::{
     BoundaryMachineDeclaration, ProviderCandidateConformance, StructuralTypeDeclaration,

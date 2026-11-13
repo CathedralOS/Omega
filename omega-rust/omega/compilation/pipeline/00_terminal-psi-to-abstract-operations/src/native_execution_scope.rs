@@ -121,7 +121,10 @@ pub(crate) enum NativeExecutionScopeError {
     TargetFamily(String),
     InstalledInterrupt(String),
     MissingMachine(MachineId),
-    InvalidMachineDescriptor { descriptor: semantic_vocabulary::MachineDescriptorId, reason: &'static str },
+    InvalidMachineDescriptor {
+        descriptor: semantic_vocabulary::MachineDescriptorId,
+        reason: &'static str,
+    },
     MissingBoundary(BoundaryMachineId),
     MissingSelectedCheckedProvider(BoundaryMachineId),
     CompetingSelectedCheckedProviders(BoundaryMachineId),
@@ -133,7 +136,10 @@ impl std::fmt::Display for NativeExecutionScopeError {
             Self::TargetFamily(error) | Self::InstalledInterrupt(error) => {
                 formatter.write_str(error)
             }
-            Self::InvalidMachineDescriptor { descriptor, reason } => write!(formatter, "native machine selection {descriptor:?}: {reason}"),
+            Self::InvalidMachineDescriptor { descriptor, reason } => write!(
+                formatter,
+                "native machine selection {descriptor:?}: {reason}"
+            ),
             Self::MissingMachine(machine) => write!(
                 formatter,
                 "native execution scope reaches absent machine {machine:?}"
@@ -274,12 +280,24 @@ impl NativeExecutionScope {
                     }
                     match &operation.kind {
                         OperationKind::SelectMachine { descriptor } => {
-                            let invalid = |reason| NativeExecutionScopeError::InvalidMachineDescriptor { descriptor: *descriptor, reason };
-                            let selected = module.callables.descriptor(*descriptor)
+                            let invalid =
+                                |reason| NativeExecutionScopeError::InvalidMachineDescriptor {
+                                    descriptor: *descriptor,
+                                    reason,
+                                };
+                            let selected = module
+                                .callables
+                                .descriptor(*descriptor)
                                 .ok_or_else(|| invalid("selected descriptor is absent"))?;
-                            if operation.result.scalar().map(|value| value.scalar_type) != Some(semantic_vocabulary::ScalarType::Callable(selected.contract))
-                                || module.callables.contract(selected.contract).is_none() {
-                                return Err(invalid("selected descriptor changes its callable contract"));
+                            if operation.result.scalar().map(|value| value.scalar_type)
+                                != Some(semantic_vocabulary::ScalarType::Callable(
+                                    selected.contract,
+                                ))
+                                || module.callables.contract(selected.contract).is_none()
+                            {
+                                return Err(invalid(
+                                    "selected descriptor changes its callable contract",
+                                ));
                             }
                             pending.push(selected.machine);
                         }

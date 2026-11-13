@@ -7934,8 +7934,10 @@ impl Builder<'_> {
                 )
             } else if matches!(
                 kind.call_target(),
-                Some(selected_instructions::SelectedCallTarget::Dynamic { .. }
-                    | selected_instructions::SelectedCallTarget::Callable { .. })
+                Some(
+                    selected_instructions::SelectedCallTarget::Dynamic { .. }
+                        | selected_instructions::SelectedCallTarget::Callable { .. }
+                )
             ) {
                 std::borrow::Cow::Owned(
                     selected_instructions::calls::dynamic::instantiate_constraint(

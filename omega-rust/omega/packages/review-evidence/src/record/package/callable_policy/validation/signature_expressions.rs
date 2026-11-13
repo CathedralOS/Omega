@@ -16,7 +16,10 @@ fn runtime_callee(
 ) -> Result {
     depth(nesting)?;
     match value {
-        PackageReviewContractExpression::MachineSelection { contract, selection } => {
+        PackageReviewContractExpression::MachineSelection {
+            contract,
+            selection,
+        } => {
             value_type(contract)?;
             text(selection)
         }
@@ -32,7 +35,9 @@ pub(in crate::record) fn expression(
     depth(nesting)?;
     use PackageReviewContractExpression as Expression;
     match value {
-        Expression::MachineSelection { .. } => return Err("machine selection is an opaque callable operand, not a mathematical value"),
+        Expression::MachineSelection { .. } => {
+            return Err("machine selection is an opaque callable operand, not a mathematical value");
+        }
         Expression::Boolean(_)
         | Expression::Float(_)
         | Expression::ByteSequence(_)
@@ -154,7 +159,9 @@ pub(in crate::record) fn expression(
                     value_type(contract)?;
                     runtime_callee(callee, scope, nesting + 1)?;
                     if receiver.is_some() || !static_arguments.is_empty() {
-                        return Err("runtime callable contract call retains a receiver or static arguments");
+                        return Err(
+                            "runtime callable contract call retains a receiver or static arguments",
+                        );
                     }
                 }
                 _ => {}
@@ -168,8 +175,12 @@ pub(in crate::record) fn expression(
             for evidence in evidence_arguments {
                 for owner in [&evidence.source.owner, &evidence.parameter.owner] {
                     match owner {
-                        crate::record::PackageReviewContractEvidenceOwner::Nominal(owner) => owner.validate_resolved()?,
-                        crate::record::PackageReviewContractEvidenceOwner::Runtime { contract } => value_type(contract)?,
+                        crate::record::PackageReviewContractEvidenceOwner::Nominal(owner) => {
+                            owner.validate_resolved()?
+                        }
+                        crate::record::PackageReviewContractEvidenceOwner::Runtime { contract } => {
+                            value_type(contract)?
+                        }
                     }
                 }
             }

@@ -9,14 +9,13 @@
   scalar and mixed structural-scalar calling conventions.
 */
 use super::control_flow::aggregate_results::result_home_layout;
-use super::scalar_abi::fixed_native_integer_shape;
 use super::structural_signature::{StructuralCallPlan, StructuralCallSignature};
 use super::unit::known_integers::KnownUnitInteger;
 use crate::LoweringError;
 use crate::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractFunctionResult};
 use calling_conventions::ValueShape;
-use semantic_vocabulary::{IeeeFloatFormat, MachineId, PlaceId, ScalarType, ValueId};
+use semantic_vocabulary::{MachineId, PlaceId, ScalarType, ValueId};
 use std::collections::BTreeMap;
 use target::NativeTarget;
 use target_operations::{ScalarAbiValue, TargetStructuralParameter};
@@ -78,8 +77,11 @@ pub(crate) fn prepare_function_signature(
     let scalar_parameter_shapes = function
         .parameters
         .iter()
-        .map(|parameter| ValueShape::for_scalar(parameter.scalar_type)
-            .ok_or(LoweringError::UnitFunctionHasScalarParameters(function.machine)))
+        .map(|parameter| {
+            ValueShape::for_scalar(parameter.scalar_type).ok_or(
+                LoweringError::UnitFunctionHasScalarParameters(function.machine),
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let signature = StructuralCallSignature::derive(
         &scalar_parameter_shapes,

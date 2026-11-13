@@ -2848,7 +2848,7 @@ pub(crate) mod attached_unit {
                     };
                     use super::super::super::super::{
                         Block, CheckedScalarExpressionRole, Terminator, ValueDeclaration,
-                        allocate_dense, edge_id, terminal_scalar_type, unsupported,
+                        allocate_dense, edge_id, unsupported,
                     };
                     use super::super::super::LoweringError;
                     use super::StateGraphEmission;
@@ -8528,8 +8528,8 @@ pub(crate) mod attached_unit {
                         OperationKind, OperationResult, StructuralMultiplicity,
                         StructuralPlaceDeclaration, StructuralPlaceKind, Terminator,
                         ValueDeclaration, allocate_dense, direct_expression_contains_short_circuit,
-                        edge_id, emit_direct_expression, place_id, terminal_scalar_type,
-                        unsupported, validate_direct_parameter_types,
+                        edge_id, emit_direct_expression, place_id, unsupported,
+                        validate_direct_parameter_types,
                     };
                     use super::super::super::LoweringError;
                     use super::super::{
@@ -12132,9 +12132,7 @@ pub(crate) mod attached_unit {
                     CheckedComposedUnitControlTerminatorPlan, StructuralCaseId, StructuralFieldId,
                     StructuralParameterDeclaration,
                 };
-                use super::super::super::{
-                    PlaceId, ValueDeclaration, terminal_scalar_type, unsupported,
-                };
+                use super::super::super::{PlaceId, ValueDeclaration, unsupported};
                 use super::super::{LoweringError, catalogs};
                 use super::CheckedComposedUnitControlStatePlan;
                 use crate::emission::operation_emission::buffer::{
@@ -12301,7 +12299,7 @@ pub(crate) mod attached_unit {
                                 .ok_or(LoweringError::Unsupported(
                                     "Unit graph payload field is missing",
                                 ))?;
-                                let scalar_type = crate::emission::scalar_types::terminal_checked_scalar_type(checked, payload.scalar_type)?;
+                                let scalar_type = crate::emission::scalar_types::terminal_checked_scalar_type(context.checked, payload.scalar_type)?;
                                 fields.push(field.id);
                                 values.push((
                                     payload.target_scalar_parameter_index,
@@ -13529,8 +13527,7 @@ pub(crate) mod attached_unit {
                 use super::super::super::super::StructuralResultDeclaration;
                 use super::super::super::{
                     StructuralPlaceDeclaration, StructuralPlaceKind, TerminalMachineResult,
-                    ValueDeclaration, allocate_dense, lookup_type_id, place_id,
-                    terminal_scalar_type, value_id,
+                    ValueDeclaration, allocate_dense, lookup_type_id, place_id, value_id,
                 };
                 use super::super::{CheckedTrees, LoweringError, catalogs};
                 use crate::emission::borrowed_window::terminal_multiplicity;

@@ -465,7 +465,8 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralScalar { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
-                    | OperationKind::CallDynamic { .. } => {}
+                    | OperationKind::CallDynamic { .. }
+                    | OperationKind::CallMachine { .. } => {}
                     OperationKind::EstablishAccessReference { .. }
                     | OperationKind::EstablishReference { .. }
                     | OperationKind::ReleaseReference { .. }

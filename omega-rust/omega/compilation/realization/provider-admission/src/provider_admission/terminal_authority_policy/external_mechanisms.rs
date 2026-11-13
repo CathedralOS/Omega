@@ -190,7 +190,7 @@ pub(crate) fn conservative_syscall_terminal_mechanism(
     }
     push_count(&mut digest, declaration.scalar_parameters.len())?;
     for scalar in &declaration.scalar_parameters {
-        encode_scalar(&mut digest, *scalar);
+        encode_scalar(&mut digest, *scalar)?;
     }
     push_count(&mut digest, declaration.structural_parameters.len())?;
     for (ordinal, parameter) in declaration.structural_parameters.iter().enumerate() {
@@ -245,8 +245,13 @@ fn push_count(digest: &mut DomainDigestEncoder, count: usize) -> Result<(), Stri
     Ok(())
 }
 
-fn encode_scalar(digest: &mut DomainDigestEncoder, scalar: ScalarType) {
+fn encode_scalar(digest: &mut DomainDigestEncoder, scalar: ScalarType) -> Result<(), String> {
     match scalar {
+        ScalarType::Callable(_) => {
+            return Err(
+                "direct syscall arguments cannot contain local callable descriptors".to_owned(),
+            );
+        }
         ScalarType::Boolean => digest.byte(0),
         ScalarType::Integer(integer) => {
             digest.byte(1);
@@ -268,6 +273,7 @@ fn encode_scalar(digest: &mut DomainDigestEncoder, scalar: ScalarType) {
             });
         }
     }
+    Ok(())
 }
 
 const fn multiplicity_tag(multiplicity: StructuralMultiplicity) -> u8 {

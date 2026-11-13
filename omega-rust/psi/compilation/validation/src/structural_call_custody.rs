@@ -2046,7 +2046,7 @@ pub(crate) mod declaration_predicates {
                     CheckedStructuralPredicatePathSegment::Field(identity(10, "pair")),
                     CheckedStructuralPredicatePathSegment::Field(identity(ordinal, name)),
                 ],
-                primitive_type: PrimitiveType::U64,
+                scalar_type: PrimitiveType::U64.into(),
             };
             assert_eq!(
                 rows[0].predicate,

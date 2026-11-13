@@ -498,18 +498,28 @@ pub(crate) mod outputs {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum EvidenceCallableTarget {
         Machine(MachineId),
-        Runtime { contract: semantic_vocabulary::CallableContractId, callee: semantic_vocabulary::ValueId },
+        Runtime {
+            contract: semantic_vocabulary::CallableContractId,
+            callee: semantic_vocabulary::ValueId,
+        },
     }
 
     impl EvidenceCallableTarget {
         pub const fn owner(self) -> super::declarations::EvidenceCallableOwner {
             match self {
-                Self::Machine(machine) => super::declarations::EvidenceCallableOwner::Machine(machine),
-                Self::Runtime { contract, .. } => super::declarations::EvidenceCallableOwner::Runtime(contract),
+                Self::Machine(machine) => {
+                    super::declarations::EvidenceCallableOwner::Machine(machine)
+                }
+                Self::Runtime { contract, .. } => {
+                    super::declarations::EvidenceCallableOwner::Runtime(contract)
+                }
             }
         }
         pub const fn machine(self) -> Option<MachineId> {
-            match self { Self::Machine(machine) => Some(machine), Self::Runtime { .. } => None }
+            match self {
+                Self::Machine(machine) => Some(machine),
+                Self::Runtime { .. } => None,
+            }
         }
     }
 
@@ -813,8 +823,8 @@ pub use declarations::{
 };
 pub use operation_crash_contracts::TerminalOperationCrashContract;
 pub use outputs::{
-    EvidenceCallableTarget, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall,
-    ProofOutputRuntimeResult, StaticRequirementDispatch,
+    EvidenceCallableTarget, ProofOutput, ProofOutputCall, ProofOutputEvidenceArgument,
+    ProofOutputRuntimeCall, ProofOutputRuntimeResult, StaticRequirementDispatch,
 };
 pub use recursion::{
     TerminalProofRankingRelation, TerminalProofRecursiveCallSite, TerminalProofRecursiveComponent,

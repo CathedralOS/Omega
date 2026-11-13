@@ -91,6 +91,7 @@ impl<'t> Program<'t> {
         let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let (kind, result) = match node {
+            ExpressionNode::MachineValue(_) => return unserved("machine value"),
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
@@ -135,6 +136,7 @@ impl<'t> Program<'t> {
         let source = SourceOrigin::of(typed.expression_table.source_span(handle));
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let (kind, result) = match node {
+            ExpressionNode::MachineValue(_) => return unserved("machine value"),
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))

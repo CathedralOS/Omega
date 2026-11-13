@@ -427,6 +427,7 @@ impl Program<'_> {
                             scalar_type,
                         )),
                         ScalarType::IeeeFloat(_) => unserved("float field in a clause"),
+                        ScalarType::Callable(_) => unserved("callable field in a clause"),
                     };
                 }
                 // A record formal is a place, not a value: a clause can only
@@ -434,6 +435,9 @@ impl Program<'_> {
                 let ValueType::Scalar(scalar_type) = scope.slots[slot].value_type else {
                     return unserved("record formal named whole in a clause");
                 };
+                if matches!(scalar_type, ScalarType::Callable(_)) {
+                    return unserved("callable value in a clause");
+                }
                 let value = scope.values.get(slot).copied().flatten().ok_or_else(|| {
                     refuse(
                         id,
@@ -517,6 +521,7 @@ impl Program<'_> {
                 Ok((ScalarTerm::BooleanField { root, path }, ScalarType::Boolean))
             }
             ValueType::Scalar(ScalarType::IeeeFloat(_)) => unserved("float field in a clause"),
+            ValueType::Scalar(ScalarType::Callable(_)) => unserved("callable field in a clause"),
             ValueType::Record(_) => unserved("data value compared whole in a clause"),
         }
     }
@@ -598,6 +603,7 @@ impl Program<'_> {
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
+            | ExpressionNode::MachineValue(_)
             | ExpressionNode::Borrow(_)
             | ExpressionNode::Range(_)
             | ExpressionNode::String(_)

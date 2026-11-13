@@ -1215,7 +1215,8 @@ pub(crate) fn integer_value_type(
                 .and_then(|scalar_type| match scalar_type {
                     semantic_vocabulary::ScalarType::Integer(integer) => Some(integer),
                     semantic_vocabulary::ScalarType::Boolean
-                    | semantic_vocabulary::ScalarType::IeeeFloat(_) => None,
+                    | semantic_vocabulary::ScalarType::IeeeFloat(_)
+                    | semantic_vocabulary::ScalarType::Callable(_) => None,
                 })
         })
 }

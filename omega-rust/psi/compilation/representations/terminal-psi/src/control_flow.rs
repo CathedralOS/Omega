@@ -392,19 +392,45 @@ pub(crate) mod invocations {
 
     impl OperationKind {
         pub fn callable_invocation(&self) -> Option<CallableInvocationInputs<'_>> {
-            let Self::CallMachine { callee, contract, arguments, erased_arguments,
-                erased_proof_arguments, structural_arguments, claim_transfers,
-                requirement_obligations, crash_continuations } = self else { return None };
-            Some(CallableInvocationInputs { callee: *callee, contract: *contract, arguments,
-                erased_arguments, erased_proof_arguments, structural_arguments, claim_transfers,
-                requirement_obligations, crash_continuations })
+            let Self::CallMachine {
+                callee,
+                contract,
+                arguments,
+                erased_arguments,
+                erased_proof_arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            } = self
+            else {
+                return None;
+            };
+            Some(CallableInvocationInputs {
+                callee: *callee,
+                contract: *contract,
+                arguments,
+                erased_arguments,
+                erased_proof_arguments,
+                structural_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            })
         }
     }
 
     impl super::TerminalMachine {
         pub fn callable_invocations(&self) -> impl Iterator<Item = CallableInvocation<'_>> {
-            self.operations().filter_map(|operation| operation.kind.callable_invocation().map(|inputs|
-                CallableInvocation { site: semantic_vocabulary::InvocationSite::Operation(operation.id), inputs }))
+            self.operations().filter_map(|operation| {
+                operation
+                    .kind
+                    .callable_invocation()
+                    .map(|inputs| CallableInvocation {
+                        site: semantic_vocabulary::InvocationSite::Operation(operation.id),
+                        inputs,
+                    })
+            })
         }
     }
 
@@ -1839,7 +1865,9 @@ pub(crate) mod operations {
                         *argument = map(*argument);
                     }
                 }
-                Self::CallMachine { callee, arguments, .. } => {
+                Self::CallMachine {
+                    callee, arguments, ..
+                } => {
                     *callee = map(*callee);
                     for argument in arguments {
                         *argument = map(*argument);

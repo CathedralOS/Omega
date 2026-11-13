@@ -360,6 +360,7 @@ fn primitive(scalar_type: ScalarType) -> String {
     match scalar_type {
         ScalarType::Boolean => String::from("bool"),
         ScalarType::IeeeFloat(_) => String::from("float"),
+        ScalarType::Callable(contract) => format!("machine contract {}", contract.get()),
         ScalarType::Integer(integer) => {
             let sign = match integer.sign() {
                 IntegerSign::Signed => 'i',

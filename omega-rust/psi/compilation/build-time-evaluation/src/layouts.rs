@@ -1753,6 +1753,7 @@ pub(crate) mod access_views {
                         &substitutions,
                         call.target.source_span(),
                         &mut selections,
+                        &mut Vec::new(),
                     )?;
                 }
             }
@@ -1788,6 +1789,9 @@ pub(crate) mod access_views {
             substitutions: &[(SymbolHandle, SymbolHandle, source::SourceSpan)],
             invocation: source::SourceSpan,
             selections: &mut Vec<SelectedArgument>,
+            visited_callables: &mut Vec<
+                symbol_resolved_trees::callable_values::RuntimeCallableContractHandle,
+            >,
         ) -> Result<(), Vec<Diagnostic>> {
             macro_rules! retain_child {
                 ($result:expr $(,)?) => {
@@ -1798,6 +1802,7 @@ pub(crate) mod access_views {
                         substitutions,
                         invocation,
                         selections,
+                        visited_callables,
                     )
                 };
             }
@@ -1879,6 +1884,35 @@ pub(crate) mod access_views {
                     }
                     for argument in arguments {
                         retain_child!(argument)?;
+                    }
+                }
+                TypeReference::Callable { contract, .. } => {
+                    if !resolved
+                        .tables
+                        .declarations
+                        .runtime_callable_contracts
+                        .is_valid(*contract)
+                    {
+                        return Err(vec![
+                            Diagnostic::error("placed result contains a stale callable contract")
+                                .with_source_span(invocation),
+                        ]);
+                    }
+                    if !visited_callables.contains(contract) {
+                        visited_callables.push(*contract);
+                        let signature = &resolved
+                            .tables
+                            .declarations
+                            .runtime_callable_contracts
+                            .get(*contract)
+                            .signature;
+                        let inputs =
+                            symbol_resolved_trees::callable_values::ResolvedSignatureInputs::of(
+                                resolved, signature,
+                            );
+                        for (_, reference) in inputs.types {
+                            retain_child!(reference)?;
+                        }
                     }
                 }
                 TypeReference::DynamicTrait { arguments, .. } => {
@@ -2772,6 +2806,34 @@ pub(crate) mod access_views {
         };
         use syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+        // Clauses can depend on template arguments even when their parameter
+        // and result types are closed. Keep those observations in the same
+        // walk, masking each callable's own value formals.
+        #[derive(Default)]
+        struct TemplateDependencies {
+            applications: Vec<TypeReferenceHandle>,
+            depends_on_template: bool,
+            bound_values: Vec<syntax_trees::identifier::Identifier>,
+        }
+
+        impl TemplateDependencies {
+            fn observe_value_name(
+                &mut self,
+                syntax: &SyntaxTrees,
+                binders: &[&str],
+                name: &syntax_trees::identifier::Identifier,
+            ) {
+                if binders.contains(&name.as_str(syntax))
+                    && !self
+                        .bound_values
+                        .iter()
+                        .any(|bound| bound.as_str(syntax) == name.as_str(syntax))
+                {
+                    self.depends_on_template = true;
+                }
+            }
+        }
+
         macro_rules! binders {
             ($syntax:expr => $parameters:expr => $outer:expr) => {
                 telescope($syntax, $syntax.items.type_parameters($parameters), $outer)
@@ -2782,7 +2844,7 @@ pub(crate) mod access_views {
             syntax: &SyntaxTrees,
             selected_owners: &[(source::SourceSpan, Result<source::SourceSpan, String>)],
         ) -> Vec<TypeReferenceHandle> {
-            let mut deferred = Vec::new();
+            let mut deferred = TemplateDependencies::default();
             for item in syntax.root_items() {
                 match item {
                     Item::Machine(machine) => {
@@ -2939,7 +3001,7 @@ pub(crate) mod access_views {
                     _ => {}
                 }
             }
-            deferred
+            deferred.applications
         }
 
         fn telescope<'a>(
@@ -2960,7 +3022,7 @@ pub(crate) mod access_views {
             syntax: &SyntaxTrees,
             parameters: &[TypeParameter],
             binders: &[&str],
-            deferred: &mut Vec<TypeReferenceHandle>,
+            deferred: &mut TemplateDependencies,
         ) {
             for parameter in parameters {
                 match &parameter.kind {
@@ -2972,13 +3034,29 @@ pub(crate) mod access_views {
                         contract:
                             Some(syntax_trees::item::MachineParameterContract::Structural(signature)),
                     } => {
-                        let binders = binders!(syntax => signature.type_parameters => binders);
-                        visit_type(syntax, signature.return_type, &binders, deferred);
+                        visit_signature(syntax, signature, binders, deferred);
+                    }
+                    TypeParameterKind::Machine {
+                        contract:
+                            Some(syntax_trees::item::MachineParameterContract::Nominal {
+                                trait_arguments,
+                                ..
+                            }),
+                    } => {
+                        for argument in
+                            type_references(syntax).type_reference_handles(*trait_arguments)
+                        {
+                            visit_type(syntax, *argument, binders, deferred);
+                        }
+                    }
+                    TypeParameterKind::Proposition {
+                        contract: Some(signature),
+                    } => {
                         for parameter in syntax.items.state_parameters(signature.parameters) {
                             visit_type(
                                 syntax,
                                 syntax.items.state_parameter(*parameter).type_reference,
-                                &binders,
+                                binders,
                                 deferred,
                             );
                         }
@@ -2988,12 +3066,69 @@ pub(crate) mod access_views {
             }
         }
 
+        fn visit_signature(
+            syntax: &SyntaxTrees,
+            signature: &syntax_trees::item::StateSignature,
+            outer: &[&str],
+            deferred: &mut TemplateDependencies,
+        ) -> bool {
+            let binders = binders!(syntax => signature.type_parameters => outer);
+            let previously_dependent = deferred.depends_on_template;
+            deferred.depends_on_template = false;
+            let values_start = deferred.bound_values.len();
+            deferred.bound_values.extend(
+                syntax
+                    .items
+                    .state_parameters(signature.parameters)
+                    .iter()
+                    .map(|parameter| syntax.items.state_parameter(*parameter).name.clone()),
+            );
+            visit_parameters(
+                syntax,
+                syntax.items.type_parameters(signature.type_parameters),
+                &binders,
+                deferred,
+            );
+            visit_type(syntax, signature.return_type, &binders, deferred);
+            for parameter in syntax.items.state_parameters(signature.parameters) {
+                visit_type(
+                    syntax,
+                    syntax.items.state_parameter(*parameter).type_reference,
+                    &binders,
+                    deferred,
+                );
+            }
+            for bound in &signature.conformance_bounds {
+                for argument in type_references(syntax).type_reference_handles(bound.arguments) {
+                    visit_type(syntax, *argument, &binders, deferred);
+                }
+            }
+            visit_contracts(
+                syntax,
+                syntax.items.capability_contracts(signature.contracts),
+                &binders,
+                deferred,
+            );
+            for name in syntax
+                .items
+                .identifier_path_members(signature.service_reaches)
+                .iter()
+                .chain(syntax.items.identifier_path_members(signature.invokes))
+            {
+                deferred.observe_value_name(syntax, &binders, name);
+            }
+            let depends = deferred.depends_on_template;
+            deferred.depends_on_template |= previously_dependent;
+            deferred.bound_values.truncate(values_start);
+            depends
+        }
+
         fn visit_machine(
             syntax: &SyntaxTrees,
             machine: &Machine,
             outer: &[&str],
             selected_owners: &[(source::SourceSpan, Result<source::SourceSpan, String>)],
-            deferred: &mut Vec<TypeReferenceHandle>,
+            deferred: &mut TemplateDependencies,
         ) {
             let mut ambient = outer.to_vec();
             if let Some(selected) = selected_owners
@@ -3082,13 +3217,25 @@ pub(crate) mod access_views {
             syntax: &SyntaxTrees,
             reference: TypeReferenceHandle,
             binders: &[&str],
-            deferred: &mut Vec<TypeReferenceHandle>,
+            deferred: &mut TemplateDependencies,
         ) -> bool {
             if !reference.is_valid() {
                 return false;
             }
-            match syntax.type_references.type_reference(reference) {
-                TypeReferenceNode::Named(name) => binders.contains(&name.as_str(syntax)),
+            let previously_dependent = deferred.depends_on_template;
+            deferred.depends_on_template = false;
+            let direct_dependency = match syntax.type_references.type_reference(reference) {
+                TypeReferenceNode::Named(name) => {
+                    let depends = binders.contains(&name.as_str(syntax));
+                    deferred.depends_on_template |= depends;
+                    depends
+                }
+                TypeReferenceNode::Callable { signature } => visit_signature(
+                    syntax,
+                    syntax.items.state_signature(*signature),
+                    binders,
+                    deferred,
+                ),
                 TypeReferenceNode::Reference { referee, .. } => {
                     visit_type(syntax, *referee, binders, deferred)
                 }
@@ -3099,6 +3246,7 @@ pub(crate) mod access_views {
                     let mut depends = visit_type(syntax, *base_type, binders, deferred);
                     for constraint in syntax.type_references.constraints(*constraints) {
                         if let TypeConstraintNode::Domain(domain) = constraint {
+                            deferred.observe_value_name(syntax, binders, &domain.name);
                             for argument in
                                 type_references(syntax).type_reference_handles(domain.arguments)
                             {
@@ -3108,8 +3256,24 @@ pub(crate) mod access_views {
                     }
                     depends
                 }
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => {
+                TypeReferenceNode::FixedArray {
+                    element_type,
+                    length,
+                } => {
+                    let depends = visit_type(syntax, *element_type, binders, deferred);
+                    match length {
+                        syntax_trees::types::FixedArrayLength::Literal(_) => {}
+                        syntax_trees::types::FixedArrayLength::ConstParameter(name)
+                        | syntax_trees::types::FixedArrayLength::ConstCall(name) => {
+                            deferred.observe_value_name(syntax, binders, name);
+                        }
+                        syntax_trees::types::FixedArrayLength::Expression(reference) => {
+                            visit_type(syntax, *reference, binders, deferred);
+                        }
+                    }
+                    depends
+                }
+                TypeReferenceNode::Slice { element_type } => {
                     visit_type(syntax, *element_type, binders, deferred)
                 }
                 TypeReferenceNode::Generic { arguments, .. } => {
@@ -3117,8 +3281,8 @@ pub(crate) mod access_views {
                     for argument in syntax.type_references.type_reference_handles(*arguments) {
                         depends |= visit_type(syntax, *argument, binders, deferred);
                     }
-                    if depends && !deferred.contains(&reference) {
-                        deferred.push(reference);
+                    if depends && !deferred.applications.contains(&reference) {
+                        deferred.applications.push(reference);
                     }
                     depends
                 }
@@ -3143,17 +3307,26 @@ pub(crate) mod access_views {
                     deferred,
                 ),
                 TypeReferenceNode::Unit => false,
-            }
+            };
+            let depends = direct_dependency || deferred.depends_on_template;
+            deferred.depends_on_template = previously_dependent || depends;
+            depends
         }
 
         fn visit_static_arguments(
             syntax: &SyntaxTrees,
             arguments: &[StaticMachineArgument],
             binders: &[&str],
-            deferred: &mut Vec<TypeReferenceHandle>,
+            deferred: &mut TemplateDependencies,
         ) -> bool {
             let mut depends = false;
             for argument in arguments {
+                if let Some(name) = argument.path.first() {
+                    deferred.observe_value_name(syntax, binders, name);
+                }
+                if let Some(projection) = &argument.evidence_projection {
+                    deferred.observe_value_name(syntax, binders, &projection.term);
+                }
                 depends |= visit_type(syntax, argument.type_reference, binders, deferred);
                 if let Some(application) = &argument.application {
                     depends |=
@@ -3175,7 +3348,7 @@ pub(crate) mod access_views {
             syntax: &SyntaxTrees,
             statement: StatementHandle,
             binders: &[&str],
-            deferred: &mut Vec<TypeReferenceHandle>,
+            deferred: &mut TemplateDependencies,
         ) {
             match syntax.statements.statement(statement) {
                 StatementNode::Assembly(handle) => {
@@ -3208,6 +3381,8 @@ pub(crate) mod access_views {
                     visit_expression(syntax, assignment.value, binders, deferred);
                 }
                 StatementNode::Call(call) => {
+                    deferred.observe_value_name(syntax, binders, &call.target);
+                    visit_expression(syntax, call.callee, binders, deferred);
                     visit_static_arguments(syntax, &call.machine_arguments, binders, deferred);
                     for argument in syntax.statements.expression_handles(call.arguments) {
                         visit_expression(syntax, *argument, binders, deferred);
@@ -3248,7 +3423,7 @@ pub(crate) mod access_views {
             syntax: &SyntaxTrees,
             expression: ExpressionHandle,
             binders: &[&str],
-            deferred: &mut Vec<TypeReferenceHandle>,
+            deferred: &mut TemplateDependencies,
         ) {
             if !expression.is_valid() {
                 return;
@@ -3288,6 +3463,8 @@ pub(crate) mod access_views {
                     visit_expression(syntax, cast.value, binders, deferred);
                 }
                 ExpressionNode::Call(call) => {
+                    deferred.observe_value_name(syntax, binders, &call.target);
+                    visit_expression(syntax, call.callee, binders, deferred);
                     visit_static_arguments(syntax, &call.machine_arguments, binders, deferred);
                     visit_expression(syntax, call.receiver, binders, deferred);
                     for argument in syntax.expressions.expression_handles(call.arguments) {
@@ -3299,6 +3476,13 @@ pub(crate) mod access_views {
                     visit_expression(syntax, indexed.index, binders, deferred);
                 }
                 ExpressionNode::Membership(membership) => {
+                    if let Some(name) = syntax
+                        .items
+                        .identifier_path_members(membership.domain)
+                        .first()
+                    {
+                        deferred.observe_value_name(syntax, binders, name);
+                    }
                     visit_expression(syntax, membership.value, binders, deferred)
                 }
                 ExpressionNode::Member(member) => {
@@ -3312,6 +3496,8 @@ pub(crate) mod access_views {
                     visit_expression(syntax, range.end, binders, deferred);
                 }
                 ExpressionNode::StructLiteral(literal) => {
+                    visit_type(syntax, literal.application_type, binders, deferred);
+                    deferred.observe_value_name(syntax, binders, &literal.constructor_name);
                     for field in syntax.expressions.struct_fields(literal.fields) {
                         visit_expression(syntax, field.value, binders, deferred);
                     }
@@ -3323,11 +3509,15 @@ pub(crate) mod access_views {
                 | ExpressionNode::ZeroValue(reference) => {
                     visit_type(syntax, *reference, binders, deferred);
                 }
+                ExpressionNode::Name(path) => {
+                    if let Some(name) = syntax.items.identifier_path_members(*path).first() {
+                        deferred.observe_value_name(syntax, binders, name);
+                    }
+                }
                 ExpressionNode::Boolean(_)
                 | ExpressionNode::Float(_)
                 | ExpressionNode::UndeterminedNaN(_)
                 | ExpressionNode::Integer(_)
-                | ExpressionNode::Name(_)
                 | ExpressionNode::String(_) => {}
             }
         }
@@ -3336,7 +3526,7 @@ pub(crate) mod access_views {
             syntax: &SyntaxTrees,
             facts: &[syntax_trees::item::ProofFact],
             binders: &[&str],
-            deferred: &mut Vec<TypeReferenceHandle>,
+            deferred: &mut TemplateDependencies,
         ) {
             for fact in facts {
                 match fact {
@@ -3359,7 +3549,7 @@ pub(crate) mod access_views {
             syntax: &SyntaxTrees,
             contracts: &[syntax_trees::item::CapabilityContract],
             binders: &[&str],
-            deferred: &mut Vec<TypeReferenceHandle>,
+            deferred: &mut TemplateDependencies,
         ) {
             for contract in contracts {
                 visit_facts(

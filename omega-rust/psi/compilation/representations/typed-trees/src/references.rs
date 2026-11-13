@@ -3891,6 +3891,7 @@ mod conformance_occurrence_tests {
             program
                 .expression_table
                 .insert(ExpressionNode::Call(TableCallExpression {
+                    runtime_call: None,
                     authored_call_selection: None,
                     authored_call_binding: None,
                     authored_machine_application: application,

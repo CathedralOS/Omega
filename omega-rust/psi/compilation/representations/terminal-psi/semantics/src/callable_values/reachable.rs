@@ -49,6 +49,38 @@ impl ReachableCallableInvocations {
         self.invocations.get(&(caller, site))
     }
 
+    /// A missing summary row is allowed only for an authenticated source
+    /// occurrence whose control-flow position cannot be reached from entry.
+    pub fn checked_operation(
+        &self,
+        program: &CallableValueProgram<'_>,
+        caller: MachineId,
+        operation: OperationId,
+    ) -> CallableValueResult<Option<&ReachableCallableInvocation>> {
+        let site = CallableInvocationSite::Invocation(InvocationSite::Operation(operation));
+        let source = program.body(caller)?.invocation(site)?;
+        program.validate_occurrence(caller, source)?;
+        if !self.reached_machines.contains(&caller) {
+            return Err("callable summary has no established caller entry");
+        }
+        if let Some(reached) = self.site(caller, site) {
+            if &reached.invocation != source {
+                return Err("callable summary changed its exact source occurrence");
+            }
+            return Ok(Some(reached));
+        }
+        let flow = program.flow(caller)?;
+        let reach = crate::descriptors::descriptor_results::payload_reachability::predecessors(
+            flow,
+            source.position,
+        )
+        .ok_or("callable source occurrence has unresolved control flow")?;
+        if reach.contains(flow.entry) {
+            return Err("callable summary lost a reached source occurrence");
+        }
+        Ok(None)
+    }
+
     pub fn operation(
         &self,
         caller: MachineId,

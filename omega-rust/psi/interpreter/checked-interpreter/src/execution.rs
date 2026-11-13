@@ -1839,6 +1839,11 @@ pub(crate) mod statements_and_calls {
             call: &TableCall,
             frame: &mut Frame,
         ) -> EvalResult<Value> {
+            if call.runtime_call.is_some() {
+                return Err(Halt::Unsupported(
+                    "runtime callable invocation requires Psi execution".to_owned(),
+                ));
+            }
             if call.static_requirement_dispatch.is_some() {
                 return self.run_selected_realization(
                     call.target_symbol,

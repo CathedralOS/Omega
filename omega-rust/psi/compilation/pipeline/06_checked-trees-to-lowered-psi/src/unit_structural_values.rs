@@ -8222,7 +8222,7 @@ pub(crate) mod attached_unit {
                         return unsupported("nested constructor operand has a scalar destination");
                     }
                     let zero = emit_scalar_leaf(
-                        zero_constant(scalar_type),
+                        zero_constant(scalar_type)?,
                         scalar_type,
                         self.next_value,
                         self.operations,
@@ -8241,19 +8241,26 @@ pub(crate) mod attached_unit {
                 }
             }
 
-            pub(crate) fn zero_constant(scalar_type: ScalarType) -> OperationKind {
-                match scalar_type {
+            pub(crate) fn zero_constant(
+                scalar_type: ScalarType,
+            ) -> Result<OperationKind, LoweringError> {
+                Ok(match scalar_type {
                     ScalarType::Integer(integer) => OperationKind::IntegerConstant {
                         value: integer.zero(),
                     },
                     ScalarType::Boolean => OperationKind::BooleanConstant { value: false },
+                    ScalarType::Callable(_) => {
+                        return unsupported(
+                            "machine values require a selected code descriptor and cannot be zero initialized",
+                        );
+                    }
                     ScalarType::IeeeFloat(format) => OperationKind::IeeeFloatConstant {
                         value: match format {
                             IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
                             IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
                         },
                     },
-                }
+                })
             }
         }
         pub(crate) mod structural_case {

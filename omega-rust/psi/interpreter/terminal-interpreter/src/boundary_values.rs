@@ -2211,9 +2211,15 @@ pub(crate) mod values {
     ) -> Option<terminal_semantics::ScalarViewValue> {
         Some(match value {
             TerminalScalarValue::Callable { .. } => return None,
-            TerminalScalarValue::Boolean(value) => terminal_semantics::ScalarViewValue::Boolean(*value),
-            TerminalScalarValue::Integer { value, .. } => terminal_semantics::ScalarViewValue::Integer(*value),
-            TerminalScalarValue::IeeeFloat(value) => terminal_semantics::ScalarViewValue::IeeeFloat(*value),
+            TerminalScalarValue::Boolean(value) => {
+                terminal_semantics::ScalarViewValue::Boolean(*value)
+            }
+            TerminalScalarValue::Integer { value, .. } => {
+                terminal_semantics::ScalarViewValue::Integer(*value)
+            }
+            TerminalScalarValue::IeeeFloat(value) => {
+                terminal_semantics::ScalarViewValue::IeeeFloat(*value)
+            }
         })
     }
 

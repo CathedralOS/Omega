@@ -21,7 +21,7 @@ use terminal_psi::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LoweredRuntimeCallBinding {
     pub source_coordinate: SourceCallCoordinate,
-    pub binding: typed_trees::RuntimeCallBinding,
+    pub binding: typed_trees::callable_values::RuntimeCallBinding,
     pub caller_types: PublishedStructuralTypes,
     pub loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
     pub result_type: QualifiedScalarType,

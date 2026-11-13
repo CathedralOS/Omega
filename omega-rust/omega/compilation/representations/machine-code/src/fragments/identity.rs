@@ -1,6 +1,6 @@
 /*
 Canonical SHA-256 identity encoding for `FunctionFragmentEmissionPlan`
-(`FunctionFragmentEmissionIdentity`, schema `omega.terminal.function-fragment-emission.v24`).
+(`FunctionFragmentEmissionIdentity`, schema `omega.terminal.function-fragment-emission.v25`).
 
 Every function fragment, block span, instruction span (including zero-byte elided/fused rows),
 branch displacement, internal/foreign/image fixup, and semantic provenance roster is hashed in
@@ -26,7 +26,7 @@ use selected_instructions::SelectedInstructionProvenance;
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use target_operations::TerminalPsiProvenance;
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v24";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v25";
 
 pub(crate) fn function_fragment_emission_identity(
     plan: &FunctionFragmentEmissionPlan,
@@ -245,17 +245,10 @@ fn encode_control(
         }
         FunctionFragmentControlProvenance::None => hasher.byte(0),
         FunctionFragmentControlProvenance::InternalCall { target, owner } => {
-            match target {
-                selected_instructions::SelectedCallTarget::Machine(machine) => {
-                    hasher.byte(3);
-                    hasher.raw(&machine.get().to_le_bytes());
-                }
-                selected_instructions::SelectedCallTarget::Dynamic { interface, slot } => {
-                    hasher.byte(9);
-                    hasher.raw(&interface.to_le_bytes());
-                    hasher.raw(&slot.to_le_bytes());
-                }
-            }
+            hasher.byte(10);
+            let mut target_identity = Vec::new();
+            target.encode_identity(&mut target_identity);
+            hasher.raw(&target_identity);
             encode_call_owner(hasher, *owner);
         }
         FunctionFragmentControlProvenance::NormalizedForeignCall {

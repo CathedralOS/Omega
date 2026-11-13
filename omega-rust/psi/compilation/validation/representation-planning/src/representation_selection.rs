@@ -206,6 +206,10 @@ pub(crate) mod carrier_closure {
                 TypeReferenceNode::DynamicTrait { .. } => {
                     Err(self.reject(path, "contains dynamic external provider state"))
                 }
+                TypeReferenceNode::Callable { .. } => Err(self.reject(
+                    path,
+                    "contains a callable whose code lifetime this representation cannot preserve",
+                )),
                 TypeReferenceNode::ConstExpression(_) => Err(self.reject(
                     path,
                     "contains a proof-static expression as runtime storage",

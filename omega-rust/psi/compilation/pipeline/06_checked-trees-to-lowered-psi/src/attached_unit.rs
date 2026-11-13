@@ -131,8 +131,8 @@ pub(crate) mod inner {
             boundary_machine_id, checked_unit_boundary_identity, dense_identity, lookup_type_id,
             lower_boundary_content_guarantees, lower_boundary_crash_routes,
             lower_fixed_boundary_service_reach, lower_published_service_ceiling,
-            lower_runtime_parameter_order, lower_unit_parameters, terminal_scalar_type,
-            unique_unit_boundary, unsupported,
+            lower_runtime_parameter_order, lower_unit_parameters, unique_unit_boundary,
+            unsupported,
         };
         use crate::emission::borrowed_window::terminal_multiplicity;
         use crate::expression_preparation::qualifications::signature_value_type;
@@ -330,6 +330,7 @@ pub(crate) mod inner {
                 };
                 let scalar_ensures = lower_scalar_ensures(
                     identities,
+                    checked,
                     plan,
                     &scalar_parameters,
                     &crate::scalar_lowering::contracts::ContractViewNamespace { result, ..views },
@@ -490,7 +491,7 @@ pub(crate) mod inner {
                     source: plan.machine,
                     id,
                     structural: parameters,
-                    scalar: scalar_qualifications.boundary_signature_types(plan)?,
+                    scalar: scalar_qualifications.boundary_signature_types(checked, plan)?,
                     result,
                     requirement_count,
                 });
@@ -512,13 +513,16 @@ pub(crate) mod inner {
 
         fn lower_scalar_ensures(
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            checked: &CheckedTrees,
             plan: &CheckedBoundaryMachinePlan,
             scalar_types: &[ScalarType],
             views: &crate::scalar_lowering::contracts::ContractViewNamespace<'_>,
         ) -> Result<Vec<Proposition>, LoweringError> {
             let mut namespace = scalar_types.to_vec();
             if let Some(result) = plan.result.scalar() {
-                namespace.push(terminal_scalar_type(result)?);
+                namespace.push(crate::emission::scalar_types::terminal_checked_scalar_type(
+                    checked, result,
+                )?);
             }
             let formals = scalar_contract_formals(&namespace)?;
             let mut predicate = |value| proposition(identities, value, &formals, &[], views);
@@ -715,7 +719,7 @@ pub(crate) mod inner {
             scalar_result: Option<semantic_vocabulary::QualifiedScalarType>,
             result: &CheckedBoundaryMachineResultPlan,
             type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
-            structural_types: &[StructuralTypeDeclaration],
+            structural_types: &[terminal_psi::StructuralTypeDeclaration],
             domain_ids: &[StructuralDomainBinding],
         ) -> Result<BoundaryMachineResult, LoweringError> {
             Ok(match result {
@@ -1605,7 +1609,9 @@ pub(crate) mod inner {
                 ) {
                     Some(scalar) => scalar
                         .same_type(&checked.typed, retained.scalar_type)
-                        .map_err(LoweringError::InvalidDeclarationIdentity)?,
+                        .map_err(|reason| {
+                            LoweringError::InvalidDeclarationIdentity(reason.to_string())
+                        })?,
                     None => false,
                 };
                 if authored.relevance.is_erased()
@@ -1769,7 +1775,7 @@ pub(crate) mod inner {
                     declaration.map(|(machine, _)| machine),
                 )
             } else {
-                let (machine, state) = declaration.ok_or(LoweringError::Unsupported(
+                let (_, state) = declaration.ok_or(LoweringError::Unsupported(
                     "module result lost its declaration",
                 ))?;
                 let (_, state) = crate::shared::declarations::state_declaration(checked, state)?;
@@ -4043,7 +4049,7 @@ pub(crate) mod inner {
                     selected.extend(projected_qualifications.iter().map(|row| row.domain));
                 }
             }
-            selected.sort();
+            selected.sort_by_key(|domain| domain.0);
             selected.dedup();
             let sources = plans.source_machines(checked, closure)?;
             for (_, region) in checked.facts.flow.ownership.loan_completions.iter() {
@@ -4383,11 +4389,16 @@ pub(crate) mod inner {
                                 projected_qualifications: Vec::new(),
                                 additional_input_qualifications: Vec::new(),
                             };
+                            // Callable storage remains a structural subject; it
+                            // supplies no mathematical scalar formal.
                             let scalar = terminal_semantics::primitive_place_type(
                                 structural_types.iter(),
                                 carrier,
                                 &[],
                             )
+                            .filter(|scalar_type| {
+                                !matches!(scalar_type, semantic_vocabulary::ScalarType::Callable(_))
+                            })
                             .map(|scalar_type| {
                                 Ok(terminal_psi::ValueDeclaration {
                                     id: semantic_vocabulary::ValueId::new(1).ok_or(
@@ -4429,6 +4440,11 @@ pub(crate) mod inner {
                             }
                             if let Some(scalar) = scalar {
                                 let observed = match scalar.scalar_type {
+                                    semantic_vocabulary::ScalarType::Callable(_) => {
+                                        return unsupported(
+                                            "domain predicate cannot observe a machine value as mathematics",
+                                        );
+                                    }
                                     semantic_vocabulary::ScalarType::Boolean => {
                                         semantic_vocabulary::ScalarTerm::boolean_field_path(
                                             subject,
@@ -4710,7 +4726,7 @@ pub(crate) mod inner {
                         .services(signature.service_reach_row),
                 );
             }
-            selected.sort();
+            selected.sort_by_key(|service| service.0);
             selected.dedup();
             for symbol in closure {
                 let body = UnitBody::find(plans, *symbol)?;
@@ -10457,8 +10473,7 @@ pub(crate) mod inner {
             StructuralPlaceKind, StructuralTypeId, TerminalMachine, TerminalMachineResult,
             Terminator, ValueDeclaration, allocate_dense, content_conservation, contract_id,
             dense_identity, edge_id, lookup_type_id, lower_checked_crash_route_buckets,
-            lower_structural_crash_route_buckets, place_id, terminal_scalar_type, unsupported,
-            value_id,
+            lower_structural_crash_route_buckets, place_id, unsupported, value_id,
         };
         use crate::unit::{
             MachineId, ServiceId, ServiceReachId, StructuralParameterDeclaration,

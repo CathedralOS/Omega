@@ -4625,6 +4625,7 @@ pub mod expression_owners {
             program
                 .expression_table
                 .insert_tree(&Expression::Call(Box::new(CallExpression {
+                    runtime_call: None,
                     authored_call_selection: None,
                     authored_call_binding: None,
                     exact_coercion_target: Default::default(),

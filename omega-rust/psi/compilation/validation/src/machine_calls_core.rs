@@ -2740,6 +2740,626 @@ pub mod compiler_operations {
 
 pub mod contract_dependencies {
     use symbols::SymbolHandle;
+    use typed_trees::callable_values::{RuntimeCallBinding, RuntimeCallableContractHandle};
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Dependency {
+        Declaration(SymbolHandle),
+        Runtime {
+            contract: RuntimeCallableContractHandle,
+            lexical_owner: SymbolHandle,
+        },
+    }
+
+    /// This asks whether a public contract depends on the caller. It says
+    /// nothing about the unknown code's effects, recursion or body facts.
+    pub(crate) fn runtime_contract_declaration_independent(
+        program: &dyn crate::CheckingInput,
+        caller: SymbolHandle,
+        binding: RuntimeCallBinding,
+        lexical_owner: SymbolHandle,
+    ) -> Result<bool, &'static str> {
+        if !program.expression_table.expression_is_valid(binding.callee) {
+            return Err("runtime contract dependency lost its evaluated callee");
+        }
+        let initial = Dependency::Runtime {
+            contract: binding.contract,
+            lexical_owner,
+        };
+        // Evaluating the callee still owes its ordinary formation dependencies.
+        // A local name contributes no selected body; actual calls and checked
+        // code selections retain their own declaration dependencies.
+        struct EvaluationInputs<'a> {
+            program: &'a dyn crate::CheckingInput,
+            dependencies: Vec<Dependency>,
+            expressions: Vec<typed_trees::expression::ExpressionHandle>,
+            error: Option<&'static str>,
+        }
+        impl Extend<SymbolHandle> for EvaluationInputs<'_> {
+            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+        }
+        impl typed_trees::references::TypedReferences for EvaluationInputs<'_> {
+            fn derived_declaration_references(&self) -> bool {
+                false
+            }
+            fn callable_use(&mut self, symbol: SymbolHandle) {
+                if symbol.is_valid() {
+                    self.dependencies.push(Dependency::Declaration(symbol));
+                }
+            }
+            fn code_selection(&mut self, symbol: SymbolHandle) {
+                self.callable_use(symbol);
+            }
+            fn type_reference(&mut self, _: typed_trees::types::TypeReferenceHandle) -> bool {
+                false
+            }
+            fn callable_contract(&mut self, contract: RuntimeCallableContractHandle) -> bool {
+                if !self.program.runtime_callable_contracts.is_valid(contract) {
+                    self.error = Some("callee evaluation names a stale callable contract");
+                    return false;
+                }
+                self.dependencies.push(Dependency::Runtime {
+                    contract,
+                    lexical_owner: self
+                        .program
+                        .runtime_callable_contract(contract)
+                        .lexical_owner,
+                });
+                false
+            }
+            fn expression(
+                &mut self,
+                expression: typed_trees::expression::ExpressionHandle,
+            ) -> bool {
+                if !self
+                    .program
+                    .expression_table
+                    .expression_is_valid(expression)
+                {
+                    self.error = Some("callee evaluation names a stale expression");
+                    return false;
+                }
+                if self.expressions.contains(&expression) {
+                    return false;
+                }
+                self.expressions.push(expression);
+                if let typed_trees::expression::ExpressionNode::Call(call) =
+                    self.program.expression_table.expression(expression)
+                {
+                    if let Err(reason) =
+                        crate::CallContractSource::runtime_expression(self.program, call)
+                    {
+                        self.error = Some(reason);
+                        return false;
+                    }
+                    if call.runtime_call.is_none()
+                        && !call.target_symbol.is_valid()
+                        && !call.static_machine_parameter.is_valid()
+                    {
+                        self.error = Some("callee evaluation contains an unresolved invocation");
+                        return false;
+                    }
+                }
+                true
+            }
+        }
+        let mut evaluated = EvaluationInputs {
+            program,
+            dependencies: Vec::new(),
+            expressions: Vec::new(),
+            error: None,
+        };
+        typed_trees::references::visit_expression(
+            program.typed_program(),
+            &mut evaluated,
+            binding.callee,
+        );
+        if let Some(reason) = evaluated.error {
+            return Err(reason);
+        }
+        let mut pending = vec![(initial, false)];
+        pending.extend(
+            evaluated
+                .dependencies
+                .into_iter()
+                .map(|dependency| (dependency, false)),
+        );
+        let mut active = Vec::new();
+        let mut complete = Vec::new();
+        while let Some((dependency, leaving)) = pending.pop() {
+            if leaving {
+                let previous = active.pop();
+                if previous != Some(dependency) {
+                    return Err("runtime contract dependency scope is inconsistent");
+                }
+                complete.push(dependency);
+                continue;
+            }
+            if complete.contains(&dependency) {
+                continue;
+            }
+            if active.contains(&dependency) {
+                return Ok(false);
+            }
+            let dependencies = match dependency {
+                Dependency::Declaration(declaration) => {
+                    // Preserve the ordinary declaration proof, including its
+                    // caller formation and selected-application dependencies.
+                    if !independent_declarations(program, caller, vec![declaration]) {
+                        return Ok(false);
+                    }
+                    Vec::new()
+                }
+                Dependency::Runtime {
+                    contract,
+                    lexical_owner,
+                } => runtime_public_dependencies(program, contract, lexical_owner)?,
+            };
+            active.push(dependency);
+            pending.push((dependency, true));
+            pending.extend(
+                dependencies
+                    .into_iter()
+                    .rev()
+                    .map(|dependency| (dependency, false)),
+            );
+        }
+        // Even a contract with no declaration dependencies must authenticate
+        // its caller. Empty roots are not permission to assume an owner.
+        Ok(independent_declarations(program, caller, Vec::new()))
+    }
+
+    fn runtime_public_dependencies(
+        program: &dyn crate::CheckingInput,
+        contract: RuntimeCallableContractHandle,
+        lexical_owner: SymbolHandle,
+    ) -> Result<Vec<Dependency>, &'static str> {
+        use typed_trees::references::{TypedReferences, visit_signature};
+        if !program.runtime_callable_contracts.is_valid(contract) {
+            return Err("runtime dependency names no current contract row");
+        }
+        let row = program.runtime_callable_contract(contract);
+        if row.lexical_owner != lexical_owner
+            || !program.symbols.symbols().nodes().is_valid(lexical_owner)
+        {
+            return Err("runtime contract dependency changed its exact lexical owner");
+        }
+        program
+            .runtime_callable_contract_identity(contract, &[])
+            .map_err(|reason| reason.reason())?;
+        struct PublicInputs<'a> {
+            program: &'a dyn crate::CheckingInput,
+            dependencies: Vec<Dependency>,
+            scopes: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+            next_binders: Vec<SymbolHandle>,
+            types: Vec<typed_trees::types::TypeReferenceHandle>,
+            expressions: Vec<typed_trees::expression::ExpressionHandle>,
+            error: Option<&'static str>,
+        }
+        impl PublicInputs<'_> {
+            fn bound(&self, symbol: SymbolHandle) -> bool {
+                self.scopes
+                    .iter()
+                    .any(|(_, binders)| binders.contains(&symbol))
+            }
+            fn retain(&mut self, dependency: Dependency) {
+                if !self.dependencies.contains(&dependency) {
+                    self.dependencies.push(dependency);
+                }
+            }
+        }
+        impl Extend<SymbolHandle> for PublicInputs<'_> {
+            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+                use symbols::SymbolKind;
+                for symbol in symbols {
+                    // The visitor also reports absent optional call fields.
+                    if !symbol.is_valid() || self.bound(symbol) {
+                        continue;
+                    }
+                    if !self.program.symbols.symbols().nodes().is_valid(symbol) {
+                        self.error = Some("runtime public contract contains a stale declaration");
+                        continue;
+                    }
+                    match self.program.symbols.get(symbol).kind {
+                        SymbolKind::Machine
+                        | SymbolKind::State
+                        | SymbolKind::Operator
+                        | SymbolKind::MathematicalDefinition
+                        | SymbolKind::Proposition
+                        | SymbolKind::Const
+                        | SymbolKind::BuiltinFunction => {
+                            self.retain(Dependency::Declaration(symbol));
+                        }
+                        SymbolKind::MachineParameter
+                        | SymbolKind::ConformanceParameter
+                        | SymbolKind::PropositionParameter
+                        | SymbolKind::PropositionMachineParameter
+                        | SymbolKind::Parameter
+                        | SymbolKind::TypeParameter
+                        | SymbolKind::Local
+                        | SymbolKind::CallableContract
+                        | SymbolKind::Unknown => {
+                            self.error = Some(
+                                "runtime public contract retains an unbound declaration dependency",
+                            );
+                        }
+                        // These are type or storage identities, whose formation
+                        // remains checked separately. Their executable methods
+                        // are reported as callable uses by the shared walk.
+                        SymbolKind::Root
+                        | SymbolKind::Module
+                        | SymbolKind::BuiltinType
+                        | SymbolKind::Data
+                        | SymbolKind::Domain
+                        | SymbolKind::Field
+                        | SymbolKind::Variant
+                        | SymbolKind::Trait
+                        | SymbolKind::Conformance
+                        | SymbolKind::WireSchema
+                        | SymbolKind::TypeAlias => {}
+                        SymbolKind::Measure
+                        | SymbolKind::HostCapability
+                        | SymbolKind::Object
+                        | SymbolKind::Function
+                        | SymbolKind::Section
+                        | SymbolKind::Import => {
+                            self.error = Some(
+                                "runtime public contract contains an unsupported declaration dependency",
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        impl TypedReferences for PublicInputs<'_> {
+            fn derived_declaration_references(&self) -> bool {
+                false
+            }
+            fn callable_signature(&mut self, signature: &typed_trees::signature::StateSignature) {
+                let parameters = self.program.state_signature_parameters(signature);
+                let generics = self.program.state_signature_type_parameters(signature);
+                let contracts = self.program.state_signature_contracts(signature);
+                if parameters.len() != signature.parameters.len()
+                    || generics.len() != signature.type_parameters.len()
+                    || contracts.len() != signature.contracts.len()
+                    || contracts.iter().any(|contract| {
+                        self.program.proof_facts.span_or_empty(contract.facts).len()
+                            != contract.facts.len()
+                    })
+                {
+                    self.error = Some("runtime public contract lost its complete signature inputs");
+                }
+                self.next_binders = parameters
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .chain(generics.iter().map(|parameter| parameter.symbol))
+                    .chain(
+                        signature
+                            .conformance_bounds
+                            .iter()
+                            .map(|bound| bound.binder),
+                    )
+                    .collect();
+            }
+            fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
+                self.scopes
+                    .push((owner, std::mem::take(&mut self.next_binders)));
+            }
+            fn leave_lexical_scope(&mut self) {
+                self.scopes.pop();
+            }
+            fn callable_contract(&mut self, contract: RuntimeCallableContractHandle) -> bool {
+                if !self.program.runtime_callable_contracts.is_valid(contract) {
+                    self.error = Some("runtime public contract names a stale nested callable row");
+                    return false;
+                }
+                let lexical_owner = self
+                    .program
+                    .runtime_callable_contract(contract)
+                    .lexical_owner;
+                self.retain(Dependency::Runtime {
+                    contract,
+                    lexical_owner,
+                });
+                false
+            }
+            fn type_reference(
+                &mut self,
+                reference: typed_trees::types::TypeReferenceHandle,
+            ) -> bool {
+                if !self
+                    .program
+                    .type_reference_table
+                    .contains_type_reference(reference)
+                {
+                    self.error = Some("runtime public contract names an unresolved type");
+                    return false;
+                }
+                if self.types.contains(&reference) {
+                    return false;
+                }
+                self.types.push(reference);
+                true
+            }
+            fn expression(
+                &mut self,
+                expression: typed_trees::expression::ExpressionHandle,
+            ) -> bool {
+                use typed_trees::expression::ExpressionNode;
+                if !self
+                    .program
+                    .expression_table
+                    .expression_is_valid(expression)
+                {
+                    self.error = Some("runtime public contract names a stale expression");
+                    return false;
+                }
+                if self.expressions.contains(&expression) {
+                    return false;
+                }
+                self.expressions.push(expression);
+                if let ExpressionNode::Call(call) =
+                    self.program.expression_table.expression(expression)
+                {
+                    if call.runtime_call.is_some() {
+                        let caller = self.scopes.last().map(|(owner, _)| *owner);
+                        let Some(caller) = caller else {
+                            self.error = Some("runtime proof call has no exact signature scope");
+                            return false;
+                        };
+                        match crate::call_contract_source(
+                            self.program,
+                            caller,
+                            &crate::CallSite::Expression { expression, call },
+                        ) {
+                            Ok(Some(crate::CallContractSource::Runtime { binding, contract })) => {
+                                self.retain(Dependency::Runtime {
+                                    contract: binding.contract,
+                                    lexical_owner: contract.lexical_owner,
+                                });
+                            }
+                            Err(reason) => self.error = Some(reason),
+                            _ => {
+                                self.error =
+                                    Some("runtime proof call lost its exact contract source")
+                            }
+                        }
+                    } else if !call.target_symbol.is_valid()
+                        && !call.static_machine_parameter.is_valid()
+                    {
+                        self.error =
+                            Some("runtime public contract contains an unresolved proof invocation");
+                    }
+                }
+                true
+            }
+        }
+        let mut inputs = PublicInputs {
+            program,
+            dependencies: Vec::new(),
+            scopes: Vec::new(),
+            next_binders: Vec::new(),
+            types: Vec::new(),
+            expressions: Vec::new(),
+            error: None,
+        };
+        visit_signature(program.typed_program(), &mut inputs, &row.signature);
+        match inputs.error {
+            Some(reason) => Err(reason),
+            None => Ok(inputs.dependencies),
+        }
+    }
+
+    #[cfg(test)]
+    mod runtime_tests {
+        use super::*;
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+        use typed_trees::expression::{ExpressionNode, NamePath, TableCallExpression};
+        use typed_trees::name::Identifier;
+        use typed_trees::signature::{SignatureContract, StateParameter, StateSignature};
+        use typed_trees::types::TypeReferenceNode;
+        use typed_trees::{TypedTrees, callable_values::RuntimeCallableContract};
+
+        fn fixture() -> (TypedTrees, SymbolHandle, SymbolHandle, RuntimeCallBinding) {
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("test"));
+            let caller = symbols
+                .insert_children(
+                    root,
+                    [(SymbolKind::Machine, SymbolNameRef::Static("caller"))],
+                )
+                .handles()
+                .next()
+                .unwrap();
+            let children = symbols
+                .insert_children(
+                    caller,
+                    [
+                        (
+                            SymbolKind::CallableContract,
+                            SymbolNameRef::Static("contract"),
+                        ),
+                        (SymbolKind::Parameter, SymbolNameRef::Static("operation")),
+                    ],
+                )
+                .handles()
+                .collect::<Vec<_>>();
+            let boolean =
+                symbols.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("bool"));
+            let formal = symbols
+                .insert_children(
+                    children[0],
+                    [(SymbolKind::Parameter, SymbolNameRef::Static("subject"))],
+                )
+                .handles()
+                .next()
+                .unwrap();
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            program.roots.machines =
+                program
+                    .tables
+                    .machines
+                    .insert_many([typed_trees::machine::Machine {
+                        symbol: caller,
+                        name: Identifier::generated("caller"),
+                        ..Default::default()
+                    }]);
+            let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            let boolean = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: boolean,
+                    name: Identifier::generated("bool"),
+                });
+            let subject =
+                program
+                    .expression_table
+                    .insert_tree(&typed_trees::expression::Expression::Name(
+                        NamePath::resolved(vec![Identifier::generated("subject")], formal, formal),
+                    ));
+            let parameters = program.state_parameters.insert_many([StateParameter {
+                symbol: formal,
+                name: Identifier::generated("subject"),
+                type_reference: boolean,
+                ..Default::default()
+            }]);
+            let facts = program
+                .proof_facts
+                .insert_many([typed_trees::domain::ProofFact::Expression(subject)]);
+            let contracts = program.signature_contracts.insert_many([SignatureContract {
+                facts,
+                ..Default::default()
+            }]);
+            let contract = program
+                .runtime_callable_contracts
+                .insert(RuntimeCallableContract {
+                    signature: StateSignature {
+                        symbol: children[0],
+                        parameters,
+                        return_type: unit,
+                        contracts,
+                        service_reach_row: language_semantics::ServiceReachRowTable::EMPTY_ROW,
+                        ..Default::default()
+                    },
+                    lexical_owner: caller,
+                    resolved_source: None,
+                });
+            let callee =
+                program
+                    .expression_table
+                    .insert_tree(&typed_trees::expression::Expression::Name(
+                        NamePath::resolved(
+                            vec![Identifier::generated("operation")],
+                            children[1],
+                            children[1],
+                        ),
+                    ));
+            (
+                program,
+                caller,
+                root,
+                RuntimeCallBinding { callee, contract },
+            )
+        }
+
+        #[test]
+        fn public_signature_masks_own_formals_and_authenticates_binding_and_owner() {
+            let (mut program, caller, root, binding) = fixture();
+            assert_eq!(
+                runtime_contract_declaration_independent(&program, caller, binding, caller),
+                Ok(true)
+            );
+            assert!(
+                runtime_contract_declaration_independent(&program, caller, binding, root).is_err()
+            );
+            let mut call = TableCallExpression {
+                runtime_call: Some(binding),
+                ..Default::default()
+            };
+            let symbol = program
+                .runtime_callable_contract(binding.contract)
+                .signature
+                .symbol;
+            assert!(independent_call_application(
+                &program,
+                caller,
+                symbol,
+                typed_trees::references::StaticArgumentCall::Expression(Default::default(), &call)
+            ));
+            call.target_symbol = caller;
+            assert!(!independent_call_application(
+                &program,
+                caller,
+                symbol,
+                typed_trees::references::StaticArgumentCall::Expression(Default::default(), &call)
+            ));
+            let copy = program.runtime_callable_contract(binding.contract).clone();
+            let copied = program.runtime_callable_contracts.insert(copy);
+            let invocation =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        target_symbol: caller,
+                        ..Default::default()
+                    }));
+            let facts = program
+                .proof_facts
+                .insert_many([typed_trees::domain::ProofFact::Expression(invocation)]);
+            let contracts = program.signature_contracts.insert_many([SignatureContract {
+                facts,
+                ..Default::default()
+            }]);
+            program
+                .runtime_callable_contracts
+                .get_mut(copied)
+                .signature
+                .contracts = contracts;
+            assert_eq!(
+                runtime_contract_declaration_independent(
+                    &program,
+                    caller,
+                    RuntimeCallBinding {
+                        contract: copied,
+                        ..binding
+                    },
+                    caller
+                ),
+                Ok(false)
+            );
+            // Equal signature symbols do not merge independent contract rows.
+            assert_eq!(
+                runtime_contract_declaration_independent(&program, caller, binding, caller),
+                Ok(true)
+            );
+            assert_eq!(
+                runtime_contract_declaration_independent(
+                    &program,
+                    caller,
+                    RuntimeCallBinding {
+                        callee: invocation,
+                        ..binding
+                    },
+                    caller
+                ),
+                Ok(false)
+            );
+            assert!(
+                runtime_contract_declaration_independent(
+                    &program,
+                    caller,
+                    RuntimeCallBinding {
+                        contract: RuntimeCallableContractHandle::invalid(),
+                        ..binding
+                    },
+                    caller
+                )
+                .is_err()
+            );
+        }
+    }
 
     pub(crate) fn independent_callee(
         program: &dyn crate::CheckingInput,
@@ -2770,6 +3390,40 @@ pub mod contract_dependencies {
         callee: SymbolHandle,
         call: typed_trees::references::StaticArgumentCall<'_>,
     ) -> bool {
+        let site = match call {
+            typed_trees::references::StaticArgumentCall::Expression(expression, call) => {
+                crate::CallSite::Expression { expression, call }
+            }
+            typed_trees::references::StaticArgumentCall::Statement(call) => {
+                crate::CallSite::Statement(call)
+            }
+        };
+        if let Some(expected) = site.runtime_call() {
+            let Ok(Some(crate::CallContractSource::Runtime { binding, contract })) =
+                crate::call_contract_source(program, caller, &site)
+            else {
+                return false;
+            };
+            if binding != expected || contract.signature.symbol != callee {
+                return false;
+            }
+            if !matches!(
+                runtime_contract_declaration_independent(
+                    program,
+                    caller,
+                    binding,
+                    contract.lexical_owner
+                ),
+                Ok(true)
+            ) {
+                return false;
+            }
+            let selections =
+                crate::machine_calls::machine_parameters::call_selection_dependency_symbols(
+                    program, call,
+                );
+            return independent_declarations(program, caller, selections);
+        }
         let mut pending = vec![callee];
         pending.extend(
             crate::machine_calls::machine_parameters::call_selection_dependency_symbols(

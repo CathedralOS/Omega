@@ -288,6 +288,13 @@ impl Lowering<'_> {
                 ScalarType::IeeeFloat(_) => {
                     return Err(self.internal("a float equality reached lowering"));
                 }
+                ScalarType::Callable(_) => {
+                    return Err(refuse(
+                        self.id,
+                        Construct::Operation(operation),
+                        Unserved::Expression("callable equality"),
+                    ));
+                }
             },
             Strict::Less => OperationKind::IntegerLessThan { left, right },
             Strict::LessOrEqual => OperationKind::IntegerLessOrEqual { left, right },

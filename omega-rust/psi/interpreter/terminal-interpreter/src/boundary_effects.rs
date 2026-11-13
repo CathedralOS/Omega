@@ -27,9 +27,11 @@ pub(crate) mod boundary_predicates {
     }
 
     fn scalar_literal(argument: TerminalScalarValue) -> Result<ScalarTerm, TerminalInterpretError> {
-        argument.literal().ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-            "machine values have no mathematical literal",
-        ))
+        argument
+            .literal()
+            .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                "machine values have no mathematical literal",
+            ))
     }
 
     pub(crate) fn validate_input_requirements(

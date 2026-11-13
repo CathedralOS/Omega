@@ -43,11 +43,15 @@ impl RuntimeEvidenceCatalog {
     pub fn psi(&self) -> TerminalPsiIdentity {
         self.psi
     }
-    pub fn callables(&self) -> &terminal_psi::TerminalCallableCatalog { &self.callables }
+    pub fn callables(&self) -> &terminal_psi::TerminalCallableCatalog {
+        &self.callables
+    }
     pub fn declarations(&self) -> &[(MachineId, Option<CheckedMachineDeclaration>)] {
         &self.declarations
     }
-    pub fn proposition_declarations(&self) -> &[terminal_psi::PropositionDeclaration] { &self.proposition_declarations }
+    pub fn proposition_declarations(&self) -> &[terminal_psi::PropositionDeclaration] {
+        &self.proposition_declarations
+    }
     pub fn applications(&self) -> &[PropositionApplicationIdentity] {
         &self.applications
     }
@@ -67,14 +71,18 @@ pub fn validate_runtime_evidence_context(
     expected: TerminalPsiIdentity,
     module: &TerminalModule,
 ) -> Result<(), &'static str> {
-    if unit.psi != expected || unit.identities != module.identities || unit.callables != module.callables {
+    if unit.psi != expected
+        || unit.identities != module.identities
+        || unit.callables != module.callables
+    {
         return Err("optimizer runtime evidence context belongs to another verified input");
     }
     let catalog = unit
         .runtime_evidence
         .as_ref()
         .ok_or("verified optimizer runtime evidence catalog is absent")?;
-    if catalog.psi != expected || catalog.callables != module.callables
+    if catalog.psi != expected
+        || catalog.callables != module.callables
         || !catalog
             .declarations
             .iter()
@@ -99,7 +107,9 @@ pub fn validate_runtime_evidence_context(
             || !function.evidence_contract_lanes.iter().eq(module
                 .evidence_contract_lanes
                 .iter()
-                .filter(|lane| lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)))
+                .filter(|lane| {
+                    lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)
+                }))
         {
             return Err("optimizer changed verified evidence contract custody");
         }
@@ -501,7 +511,9 @@ pub fn attach_verified_module_context(
         function.evidence_contract_lanes = module
             .evidence_contract_lanes
             .iter()
-            .filter(|lane| lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine))
+            .filter(|lane| {
+                lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)
+            })
             .cloned()
             .collect();
         function.declared_service_reach = source.declared_service_reach.clone();

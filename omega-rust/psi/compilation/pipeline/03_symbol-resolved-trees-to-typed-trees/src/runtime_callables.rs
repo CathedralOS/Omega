@@ -571,7 +571,11 @@ impl typed::references::TypedReferences for CallInventory<'_> {
         false
     }
     fn type_reference(&mut self, reference: typed::types::TypeReferenceHandle) -> bool {
-        if !self.program.contains_type_reference(reference) {
+        if !self
+            .program
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
             self.error.get_or_insert_with(|| {
                 Diagnostic::error("runtime callable inventory encountered a stale type reference")
             });
@@ -728,7 +732,11 @@ pub(crate) fn bind_calls(
         let mut carrier = type_reference;
         let mut seen = Vec::new();
         let contract = loop {
-            if !program.contains_type_reference(carrier) || seen.contains(&carrier) {
+            if !program
+                .type_reference_table
+                .contains_type_reference(carrier)
+                || seen.contains(&carrier)
+            {
                 return Err(Diagnostic::error(
                     "runtime call callee has an unresolved or cyclic value type",
                 ));

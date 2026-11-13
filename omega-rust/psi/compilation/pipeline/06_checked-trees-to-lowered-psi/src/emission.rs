@@ -255,7 +255,7 @@ pub(crate) mod call_qualifications {
             constraint,
             checked_trees::CheckedScalarExpression::Parameter {
                 position: 0,
-                primitive_type: primitive,
+                scalar_type: primitive.into(),
             },
         ) else {
             return Ok(RequiresPublication(Refusal::NoScalarDomainPredicate));
@@ -4248,10 +4248,7 @@ pub(crate) mod primitive_store {
                 return unsupported("indexed element path requires its byte carrier");
             }
         };
-        match scalar_type {
-            ScalarType::Boolean | ScalarType::IeeeFloat(_) => Ok(scalar_type),
-            ScalarType::Integer(_) => Ok(scalar_type),
-        }
+        Ok(scalar_type)
     }
 
     type Walked = terminal_semantics::Position;

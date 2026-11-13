@@ -58,6 +58,14 @@ impl<'program> LayoutBuilder<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
+            TypeReferenceNode::Callable { contract } => {
+                if !self.program.runtime_callable_contracts.is_valid(*contract) {
+                    return Err(Diagnostic::error(
+                        "machine value layout has no current callable contract",
+                    ));
+                }
+                Ok(pointer_layout(self.target))
+            }
             TypeReferenceNode::Reference { referee, .. } => {
                 let mut referee_node = self.program.type_reference_table.type_reference(*referee);
                 while let TypeReferenceNode::Constrained { base_type, .. } = referee_node {

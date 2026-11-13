@@ -248,6 +248,26 @@ fn nominal_declarations(
                 active_types.push(reference);
                 pending.push(Visit::EndType(reference));
                 match compilation.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::Callable { contract } => {
+                        compilation
+                            .runtime_callable_contract_identity(*contract, &[])
+                            .map_err(|reason| invalid(reason.reason()))?;
+                        let inputs = typed_trees::references::type_reference_inputs(
+                            &compilation.typed,
+                            reference,
+                        );
+                        for symbol in inputs.symbols {
+                            if compilation
+                                .typed
+                                .type_reference_mentions_any(reference, &[symbol])
+                            {
+                                // The shared inventory retains code selection
+                                // separately from invocation; this is a nominal
+                                // semantic dependency, never a call roster.
+                                pending.push(Visit::Symbol(symbol));
+                            }
+                        }
+                    }
                     TypeReferenceNode::Reference { referee, .. }
                     | TypeReferenceNode::Constrained {
                         base_type: referee, ..

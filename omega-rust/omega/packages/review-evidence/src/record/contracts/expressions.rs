@@ -147,8 +147,13 @@ pub enum PackageReviewContractCallTarget {
     Nominal(PackageReviewNominalIdentity),
     BuiltinFunction(BuiltinFunction),
     ByteSequencePredicate(PackageReviewByteSequencePredicate),
-    ProofView { name: String },
-    Runtime { contract: PackageReviewTypeIdentity, callee: Box<PackageReviewContractExpression> },
+    ProofView {
+        name: String,
+    },
+    Runtime {
+        contract: PackageReviewTypeIdentity,
+        callee: Box<PackageReviewContractExpression>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -220,7 +225,10 @@ impl PackageReviewContractCallTarget {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractExpression {
-    MachineSelection { contract: PackageReviewTypeIdentity, selection: String },
+    MachineSelection {
+        contract: PackageReviewTypeIdentity,
+        selection: String,
+    },
     LayoutQuery {
         kind: PackageReviewLayoutQueryKind,
         operand: PackageReviewTypeIdentity,

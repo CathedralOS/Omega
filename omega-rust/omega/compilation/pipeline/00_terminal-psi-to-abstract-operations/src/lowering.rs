@@ -19,6 +19,10 @@ mod error {
         UnclosedScalarConditions,
         UnclosedScalarApplication(semantic_vocabulary::ScalarApplicationId),
         ScalarApplicationCarrierMismatch(semantic_vocabulary::OperationId),
+        UnadmittedCallableScalarApplication {
+            operation: semantic_vocabulary::OperationId,
+            application: semantic_vocabulary::ScalarApplicationId,
+        },
         InvalidActivationStorage(semantic_vocabulary::OperationId),
         UnsupportedReferenceCustody(semantic_vocabulary::OperationId),
         UnsupportedDynamicDispatch(semantic_vocabulary::OperationId),
@@ -144,8 +148,15 @@ mod machine {
             ) -> Result<AbstractOperation, LoweringError> {
                 Ok(match operation.kind.clone() {
                     OperationKind::SelectMachine { descriptor } => {
-                        let result = operation.result.scalar()
-                            .filter(|result| matches!(result.scalar_type, semantic_vocabulary::ScalarType::Callable(_)))
+                        let result = operation
+                            .result
+                            .scalar()
+                            .filter(|result| {
+                                matches!(
+                                    result.scalar_type,
+                                    semantic_vocabulary::ScalarType::Callable(_)
+                                )
+                            })
                             .ok_or(LoweringError::UnsupportedDynamicDispatch(operation.id))?;
                         AbstractOperation::SelectMachine {
                             psi_operation: operation.id,
@@ -165,8 +176,14 @@ mod machine {
                         }
                     }
                     OperationKind::CallMachine {
-                        callee, contract, arguments, structural_arguments, claim_transfers,
-                        requirement_obligations, crash_continuations, ..
+                        callee,
+                        contract,
+                        arguments,
+                        structural_arguments,
+                        claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                        ..
                     } => AbstractOperation::CallStructural {
                         psi_operation: operation.id,
                         callee: AbstractCallTarget::Callable { callee, contract },
@@ -176,11 +193,18 @@ mod machine {
                         requirement_obligations,
                         crash_continuations,
                         result: match &operation.result {
-                            terminal_psi::OperationResult::Unit => AbstractStructuralCallResult::Unit,
-                            terminal_psi::OperationResult::Scalar(result) => AbstractStructuralCallResult::Scalar((*result).into()),
-                            terminal_psi::OperationResult::Structural(result) => AbstractStructuralCallResult::Structural {
-                                result: result.clone(), selected_evidence: Vec::new(),
-                            },
+                            terminal_psi::OperationResult::Unit => {
+                                AbstractStructuralCallResult::Unit
+                            }
+                            terminal_psi::OperationResult::Scalar(result) => {
+                                AbstractStructuralCallResult::Scalar((*result).into())
+                            }
+                            terminal_psi::OperationResult::Structural(result) => {
+                                AbstractStructuralCallResult::Structural {
+                                    result: result.clone(),
+                                    selected_evidence: Vec::new(),
+                                }
+                            }
                         },
                     },
                     OperationKind::CallDynamic {

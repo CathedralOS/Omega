@@ -591,7 +591,7 @@ pub(crate) mod bindings {
                             field,
                         }),
                     },
-                    ScalarType::Integer(_) => Direct::StructuralField {
+                    ScalarType::Integer(_) | ScalarType::Callable(_) => Direct::StructuralField {
                         qualifications: Default::default(),
                         source: source.into(),
                         path: observation.path.clone(),

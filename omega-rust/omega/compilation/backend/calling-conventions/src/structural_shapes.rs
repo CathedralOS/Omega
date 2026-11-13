@@ -10,6 +10,7 @@ carrier shapes.
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::terminal_layout::scalar_shape;
 use crate::{CallingPolicy, ConventionalSumLayout, SystemVEightbyteClass, ValueClass, ValueShape};
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType, StructuralTypeId};
 use terminal_psi::{
@@ -468,6 +469,8 @@ fn field_shape(
             cache,
             active,
         ),
+        StructuralFieldType::Scalar(scalar @ ScalarType::Callable(_)) => Ok(scalar_shape(*scalar)),
+        StructuralFieldType::Atomic(ScalarType::Callable(_)) => Err(InvalidStructuralShape),
         StructuralFieldType::Scalar(ScalarType::Boolean)
         | StructuralFieldType::Atomic(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
         StructuralFieldType::Scalar(ScalarType::Integer(integer))
@@ -524,16 +527,4 @@ fn align(value: u32, alignment: u32) -> Result<u32, InvalidStructuralShape> {
         .checked_add(alignment - 1)
         .map(|value| value / alignment * alignment)
         .ok_or(InvalidStructuralShape)
-}
-
-fn scalar_shape(scalar: ScalarType) -> ValueShape {
-    match scalar {
-        ScalarType::Boolean => ValueShape::integer(1, 1),
-        ScalarType::Integer(integer) => {
-            let bytes = integer.bits().div_ceil(8);
-            ValueShape::integer(u32::from(bytes), bytes.next_power_of_two().min(8))
-        }
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
-    }
 }

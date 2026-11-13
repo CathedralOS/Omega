@@ -769,11 +769,11 @@ pub mod scalar_conditions {
     }
 }
 pub use control_flow::{
-    CallableInvocation, CallableInvocationInputs,
-    AtomicAccessEvent, AtomicReadModifyWrite, Block, CrashCause, ElementViewRegion, FenceOrdering,
-    FloatResultPolicy, MemoryOrdering, ModuleInvocation, ModuleInvocationInputs, Operation,
-    OperationKind, OperationResult, RecordFieldInitializer, RecordFieldValue, ReferenceStorageView,
-    RegisterAccessEvent, ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
+    AtomicAccessEvent, AtomicReadModifyWrite, Block, CallableInvocation, CallableInvocationInputs,
+    CrashCause, ElementViewRegion, FenceOrdering, FloatResultPolicy, MemoryOrdering,
+    ModuleInvocation, ModuleInvocationInputs, Operation, OperationKind, OperationResult,
+    RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, RegisterAccessEvent,
+    ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
     StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
     TargetMachineFamily, TargetMachineFamilyMember, TargetMachineSupply, TerminalBlockNaturalRank,
     TerminalIntegerRankValue, TerminalMachine, TerminalNaturalCycle, TerminalNaturalRankComparison,

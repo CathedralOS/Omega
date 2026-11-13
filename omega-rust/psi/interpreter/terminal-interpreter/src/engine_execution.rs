@@ -288,7 +288,8 @@ pub(crate) mod capabilities {
         let mut storage_roots = BTreeSet::new();
         let callable_values = terminal_semantics::callable_values::terminal_callable_values(
             program.catalogs.as_ref().as_ref(),
-        ).map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?;
+        )
+        .map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?;
         let mut callable_roots = BTreeSet::from([entry]);
         let mut callable_invocations = None;
         let mut pending = vec![entry];
@@ -445,11 +446,18 @@ pub(crate) mod capabilities {
                                     ).map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?,
                                 );
                             }
-                            let invocation = callable_invocations.as_ref()
+                            let Some(invocation) = callable_invocations
+                                .as_ref()
                                 .ok_or_else(malformed)?
-                                .operation(machine_id, operation.id)
-                                .map_err(|reason| TerminalInterpretError::ScalarApplicationEvaluation(reason.into()))?
-                                .ok_or_else(malformed)?;
+                                .checked_operation(&callable_values, machine_id, operation.id)
+                                .map_err(|reason| {
+                                    TerminalInterpretError::ScalarApplicationEvaluation(
+                                        reason.into(),
+                                    )
+                                })?
+                            else {
+                                continue;
+                            };
                             let terminal_semantics::callable_values::ReachedCallableTarget::Callable(values) = &invocation.target else {
                                 return Err(malformed());
                             };
@@ -459,7 +467,10 @@ pub(crate) mod capabilities {
                                 ));
                             }
                             for descriptor in &values.descriptors {
-                                let selected = program.catalogs.callables.descriptor(*descriptor)
+                                let selected = program
+                                    .catalogs
+                                    .callables
+                                    .descriptor(*descriptor)
                                     .ok_or_else(malformed)?;
                                 pending.push(selected.machine);
                             }
@@ -2484,11 +2495,24 @@ pub(crate) mod execution {
             &self,
             value: ValueId,
         ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-            let scalar = self.values.get(&value).copied()
+            let scalar = self
+                .values
+                .get(&value)
+                .copied()
                 .ok_or(TerminalInterpretError::VerifiedValueMissing(value))?;
-            if let TerminalScalarValue::Callable { contract, descriptor } = scalar {
+            if let TerminalScalarValue::Callable {
+                contract,
+                descriptor,
+            } = scalar
+            {
                 if self.program.catalogs.callables.contract(contract).is_none()
-                    || self.program.catalogs.callables.descriptor(descriptor).is_none_or(|selected| selected.contract != contract) {
+                    || self
+                        .program
+                        .catalogs
+                        .callables
+                        .descriptor(descriptor)
+                        .is_none_or(|selected| selected.contract != contract)
+                {
                     return Err(malformed());
                 }
             }

@@ -124,6 +124,7 @@ impl Program<'_> {
             TypeReferenceNode::Generic { .. } => unserved("generic application"),
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),
             TypeReferenceNode::DynamicTrait { .. } => unserved("dynamic trait"),
+            TypeReferenceNode::Callable { .. } => unserved("runtime callable"),
             TypeReferenceNode::Unit => unserved("unit as a value"),
         }
     }

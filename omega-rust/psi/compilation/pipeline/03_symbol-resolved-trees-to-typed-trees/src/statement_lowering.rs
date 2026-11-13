@@ -374,9 +374,11 @@ pub(crate) mod statement {
                 })
                 .collect::<Vec<_>>();
             substitute_call_type_arguments(
-                &mut lowerer.typed_trees.type_reference_table,
+                &mut lowerer.typed_trees,
                 declared_return,
                 &machine_substitutions,
+                target_symbol,
+                state.symbol,
             )?;
             instantiate_declared_call_result(
                 lowerer,
@@ -650,9 +652,11 @@ pub(crate) mod statement {
                 );
             }
             substitute_call_type_arguments(
-                &mut lowerer.typed_trees.type_reference_table,
+                &mut lowerer.typed_trees,
                 result,
                 &substitutions,
+                target,
+                state.symbol,
             )
         }
 
@@ -750,46 +754,28 @@ pub(crate) mod statement {
         }
 
         fn substitute_call_type_arguments(
-            table: &mut typed::types::TypeReferenceTable,
+            program: &mut typed::TypedTrees,
             reference: typed::types::TypeReferenceHandle,
             substitutions: &[(symbols::SymbolHandle, typed::types::TypeReferenceHandle)],
+            declaration: symbols::SymbolHandle,
+            supplier: symbols::SymbolHandle,
         ) -> Result<(), Diagnostic> {
-            use typed::types::TypeReferenceNode as Node;
-            let applications = table
-                .type_alias_applications(reference)
-                .map(|application| application.application)
-                .collect::<Vec<_>>();
-            for application in applications {
-                substitute_call_type_arguments(table, application, substitutions)?;
-            }
-            match table.type_reference(reference).clone() {
-                Node::Named { symbol, .. } => {
-                    if let Some((_, concrete)) = substitutions
-                        .iter()
-                        .find(|(parameter, _)| *parameter == symbol)
-                    {
-                        table
-                            .substitute_from(reference, *concrete)
-                            .map_err(Diagnostic::error)?;
-                    }
-                }
-                Node::Reference { referee, .. } => {
-                    substitute_call_type_arguments(table, referee, substitutions)?
-                }
-                Node::Constrained { base_type, .. } => {
-                    substitute_call_type_arguments(table, base_type, substitutions)?
-                }
-                Node::FixedArray { element_type, .. } | Node::Slice { element_type } => {
-                    substitute_call_type_arguments(table, element_type, substitutions)?
-                }
-                Node::Generic { arguments, .. } | Node::DynamicTrait { arguments, .. } => {
-                    for argument in table.type_reference_handles(arguments).to_vec() {
-                        substitute_call_type_arguments(table, argument, substitutions)?;
-                    }
-                }
-                Node::ConstExpression(_) | Node::Unit => {}
-            }
-            Ok(())
+            // Apply the whole declared type once, including callable contracts
+            // and alias obligations, without mutating shared child rows.
+            let applied = program
+                .apply_callable_type_in_scope(
+                    reference,
+                    substitutions,
+                    &[],
+                    declaration,
+                    supplier,
+                    &[],
+                )
+                .map_err(Diagnostic::error)?;
+            program
+                .type_reference_table
+                .substitute_applied_from(reference, applied)
+                .map_err(Diagnostic::error)
         }
 
         fn collection_type_reference(

@@ -271,7 +271,7 @@ pub(crate) mod call_sites {
         coordinate: crate::emission::operation_emission::buffer::SourceCallCoordinate,
     ) -> Result<
         (
-            typed_trees::RuntimeCallBinding,
+            typed_trees::callable_values::RuntimeCallBinding,
             Option<checked_trees::NominalMachineUseSite>,
         ),
         LoweringError,
@@ -549,7 +549,7 @@ pub(crate) mod declarations {
                     .contract_for_source(binding.contract)
                     .map_err(LoweringError::Unsupported)?;
                 Ok(TargetSignature {
-                    parameters: &signature.parameters,
+                    parameters: checked.typed.state_signature_parameters(signature),
                     return_type: signature.return_type,
                     boundary: false,
                     parameter_coordinates: ParameterCoordinates::Authored,
@@ -1672,8 +1672,17 @@ pub(crate) mod structural_types {
                     match expression {
                         CheckedScalarExpression::Parameter {
                             position: 0,
-                            primitive_type,
-                        } if terminal_scalar_type(*primitive_type)? == self.carrier => {
+                            scalar_type,
+                        } => {
+                            let primitive =
+                                scalar_type.primitive().ok_or(LoweringError::Unsupported(
+                                    "opaque machine values cannot be mathematical field subjects",
+                                ))?;
+                            if terminal_scalar_type(primitive)? != self.carrier {
+                                return unsupported(
+                                    "scalar field predicate changed its subject carrier",
+                                );
+                            }
                             Ok(ScalarTerm::value(ScalarRefinement::SUBJECT, self.carrier))
                         }
                         CheckedScalarExpression::IntegerLiteral { literal } => {
@@ -1992,7 +2001,7 @@ pub(crate) mod terminal_identities {
             .find(|plan| {
                 matches!(
                     plan.shape,
-                    checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(candidate)
+                    checked_trees::CheckedUnitStructuralTypeShape::Scalar(checked_trees::CheckedScalarType::Primitive(candidate))
                         if candidate == primitive
                 )
             })

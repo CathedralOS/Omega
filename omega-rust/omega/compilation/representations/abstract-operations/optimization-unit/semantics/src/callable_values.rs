@@ -314,3 +314,6 @@ fn invocation(
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests;

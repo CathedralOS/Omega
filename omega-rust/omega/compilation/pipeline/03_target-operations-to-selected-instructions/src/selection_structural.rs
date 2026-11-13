@@ -3846,7 +3846,10 @@ pub(crate) mod encoded_scalar {
         let definition = row.result.ok_or(invalid())?;
         if !matches!(
             definition.scalar_type,
-            ScalarType::Callable(_) | ScalarType::Integer(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_)
+            ScalarType::Callable(_)
+                | ScalarType::Integer(_)
+                | ScalarType::Boolean
+                | ScalarType::IeeeFloat(_)
         ) {
             return Err(invalid());
         }
@@ -3883,7 +3886,10 @@ pub(crate) mod encoded_scalar {
         if scalar != value.scalar_type
             || !matches!(
                 scalar,
-                ScalarType::Callable(_) | ScalarType::Integer(_) | ScalarType::Boolean | ScalarType::IeeeFloat(_)
+                ScalarType::Callable(_)
+                    | ScalarType::Integer(_)
+                    | ScalarType::Boolean
+                    | ScalarType::IeeeFloat(_)
             )
         {
             return Err(invalid());

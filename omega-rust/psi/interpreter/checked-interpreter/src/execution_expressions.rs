@@ -189,6 +189,9 @@ impl<'program> Evaluator<'program> {
             );
         }
         match node {
+            ExpressionNode::MachineValue(_) => {
+                unsupported("machine value construction requires Psi descriptor execution")
+            }
             ExpressionNode::Match(dispatch) => {
                 self.with_selected_match(handle, &dispatch, frame, |evaluator, selected, frame| {
                     evaluator.eval_expression(selected, frame)
@@ -608,6 +611,9 @@ pub(crate) mod call_evaluation {
             call: &typed_trees::expression::TableCallExpression,
             frame: &mut Frame,
         ) -> EvalResult<Value> {
+            if call.runtime_call.is_some() {
+                return unsupported("runtime callable invocation requires Psi execution");
+            }
             if let Some(value) = self.try_source_selection_call(call, frame)? {
                 return Ok(value);
             }

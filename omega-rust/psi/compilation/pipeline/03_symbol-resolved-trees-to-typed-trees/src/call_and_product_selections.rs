@@ -161,6 +161,7 @@ pub(crate) mod build_selections {
                         operational_acknowledgement| {
             let arguments = table.insert_expression_handles(arguments);
             let expression = table.insert(ExpressionNode::Call(TableCallExpression {
+                runtime_call: None,
                 authored_call_selection: None,
                 authored_call_binding: None,
                 authored_machine_application: Default::default(),
@@ -834,6 +835,9 @@ pub(crate) mod capture_product_operands {
             },
             Source::ConstExpression(value) => {
                 ProductOperandType::ConstExpression(self.expression(value.expression)?)
+            }
+            Source::Callable { .. } => {
+                return Err(Diagnostic::error("captured Product static type cannot yet retain a complete scoped callable contract"));
             }
             Source::AliasUse { .. } => {
                 return Err(Diagnostic::error("captured Product static type cannot yet retain transparent alias application obligations"));
@@ -1917,6 +1921,7 @@ pub(crate) mod product_queries {
         )));
         let arguments = table.insert_expression_handles(arguments);
         let expression = table.insert(ExpressionNode::Call(TableCallExpression {
+            runtime_call: None,
             authored_call_selection: None,
             authored_call_binding: None,
             authored_machine_application: Default::default(),

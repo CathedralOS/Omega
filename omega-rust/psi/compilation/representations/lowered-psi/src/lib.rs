@@ -196,7 +196,7 @@ pub(crate) mod source_custody {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum LoweredSourceCallTarget {
         Declaration(symbols::SymbolHandle),
-        Runtime(checked_trees::typed_trees::RuntimeCallBinding),
+        Runtime(checked_trees::typed_trees::callable_values::RuntimeCallBinding),
     }
 
     impl LoweredSourceCallTarget {
@@ -207,7 +207,9 @@ pub(crate) mod source_custody {
             }
         }
 
-        pub const fn runtime(self) -> Option<checked_trees::typed_trees::RuntimeCallBinding> {
+        pub const fn runtime(
+            self,
+        ) -> Option<checked_trees::typed_trees::callable_values::RuntimeCallBinding> {
             match self {
                 Self::Declaration(_) => None,
                 Self::Runtime(binding) => Some(binding),
@@ -218,7 +220,9 @@ pub(crate) mod source_custody {
     impl LoweredSourceCallTarget {
         pub fn matches_flow_call(self, call: &checked_trees::FlowCallFact) -> bool {
             match self {
-                Self::Declaration(symbol) => call.runtime_call.is_none() && symbol == call.target_symbol,
+                Self::Declaration(symbol) => {
+                    call.runtime_call.is_none() && symbol == call.target_symbol
+                }
                 Self::Runtime(binding) => call.runtime_call == Some(binding),
             }
         }
@@ -242,8 +246,10 @@ pub(crate) mod source_custody {
         }
     }
 
-    impl From<checked_trees::typed_trees::RuntimeCallBinding> for LoweredSourceCallTarget {
-        fn from(binding: checked_trees::typed_trees::RuntimeCallBinding) -> Self {
+    impl From<checked_trees::typed_trees::callable_values::RuntimeCallBinding>
+        for LoweredSourceCallTarget
+    {
+        fn from(binding: checked_trees::typed_trees::callable_values::RuntimeCallBinding) -> Self {
             Self::Runtime(binding)
         }
     }
@@ -267,9 +273,9 @@ pub(crate) mod source_custody {
 pub use source_custody::{
     LoweredSelectedComparisonOccurrence, LoweredSelectedComparisonOperandOrder,
     LoweredSourceCallOccurrence, LoweredSourceCallOrigin, LoweredSourceCallSite,
-    LoweredSourceCallTarget,
-    LoweredSourceFrontierBindings, LoweredSourceLoanCapture, LoweredSourceScalarBinding,
-    LoweredSourceStructuralBinding, LoweredStateBlock, LoweredStatementCallCoordinate,
+    LoweredSourceCallTarget, LoweredSourceFrontierBindings, LoweredSourceLoanCapture,
+    LoweredSourceScalarBinding, LoweredSourceStructuralBinding, LoweredStateBlock,
+    LoweredStatementCallCoordinate,
 };
 use terminal_psi::{TerminalDebugMap, TerminalModule};
 

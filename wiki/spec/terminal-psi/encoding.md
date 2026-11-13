@@ -42,8 +42,9 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduces term tables. Marker 254, which nested these terms inline,
-and older modules reject at the header.
+Marker 255 introduced term tables. Current marker 256 adds runtime callable
+contracts and descriptors while retaining those flat term tables. Marker 255,
+marker 254 (which nested terms inline), and older modules reject at the header.
 
 Content terms do not nest: a separation's members are projections, so a
 separated member that is itself a separation rejects, and content terms keep
@@ -90,7 +91,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 255 even when every table
+order below. This layout uses semantic format marker 256 even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -373,7 +374,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | Field form | Encoding |
 | --- | --- |
 | optional identity | `u8`: 0 absent; 1 + `id` |
-| scalar type | `u8`: 1 Boolean; 2 + integer type; 3 + IEEE float format |
+| scalar type | `u8`: 1 Boolean; 2 + integer type; 3 + IEEE float format; 4 + callable contract id |
 | integer type | `u8` kind (1 signed, 2 unsigned, 3 address-unsigned) + `u16` bit width |
 | integer value | `u8`: 1 + `i128`; 2 + `u128` |
 | IEEE float value | `u8`: 1 + `u32` bits; 2 + `u64` bits |
@@ -427,6 +428,7 @@ The closed `u8` spaces behind the scalar field forms:
 | 1 | Boolean | — |
 | 2 | Integer | integer type |
 | 3 | IeeeFloat | IEEE float format |
+| 4 | Callable | nonzero callable contract id |
 
 <!-- integer-type-tags -->
 | Tag | Integer type | Fields after the tag |
@@ -811,6 +813,8 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 130 | MergeActivationClaim | lower structural argument + upper structural argument + lower claim id + upper claim id + covered case id + rejected case id |
 | 131 | AtomicAccess | resident obligation id, then tag 93's fields; restricted-resident form |
 | 132 | ReadScalarApplication | scalar application id |
+| 138 | SelectMachine | descriptor id; the scalar result has the descriptor's callable contract type |
+| 139 | CallMachine | callee value id + callable contract id + counted scalar argument value ids + erased scalar terms + erased proof terms + structural arguments + claim transfers + requirement obligation ids + crash continuations |
 
 Catalog ordering events use the existing authority-free `RegisterObservation`
 carrier, with no scalar operands or result. Their `u16` identities are 0x500
@@ -935,8 +939,8 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 255 + `u16` vocabulary
-marker 133 + a Boolean default-entry presence flag, followed by the entry
+Module bytes are `PSITERM\0` + `u16` format marker 256 + `u16` vocabulary
+marker 135 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
 encoding. An absent default entry requires empty root-service reach; it does
@@ -2056,6 +2060,47 @@ canonical strictly increasing scalar requires propositions (the machine
 contract `requires` rule) and strictly ordered service ceilings. Provider candidates are strictly ordered
 by boundary machine id, then provider identity, then selecting declaration, then candidate identity, then
 candidate machine id.
+
+### Runtime callable contracts and selections
+
+A stored machine value names an exact code selection under a complete callable
+contract. Scalar tag 4 retains that contract independently of the chosen body.
+Operation 138 constructs the descriptor value; operation 139 invokes the value
+it receives. Neither operation uses the legacy implementation-table roster to
+choose a signature or replace the current value with a named body.
+
+The callable catalog immediately follows the legacy dynamic-dispatch catalog.
+It contains three counted tables, in order: contracts, descriptors, and optional
+named-machine envelopes. The envelope table is indexed by machine id minus one;
+a present row repeats that exact machine id. These rows retain checked named
+body ceilings independently of a descriptor's refinement assertion.
+
+| Row | Fields, in wire order |
+| --- | --- |
+| callable contract | contract id + normalized contract identity-table index + scalar parameter declarations + runtime parameter-order tags + structural parameter declarations + boundary result shape + machine proof-result declaration + entry claim paths + result claim paths + result reference regions + machine proof contract + evidence lanes + operational envelope |
+| callable evidence lane | evidence-lane kind + `u32` position + proof declaration + proof application + evidence term + argument subjects |
+| machine descriptor | descriptor id + contract id + machine id + origin + refinement obligation ids + ordinary obligation certificates |
+| descriptor origin | application identity-table index + optional conformance identity-table index + optional requirement identity-table index |
+| named-machine envelope | machine id + operational envelope |
+| operational envelope | service ids + invocation dependencies + suspension Boolean + blocking Boolean + termination guarantee |
+| termination premise | `u32` parameter position + structural path + domain id |
+
+Lists use ordinary counted-table encoding. Optional identity-table indices use a
+presence Boolean followed by a `u32` index; the named-envelope table likewise
+uses a presence Boolean before each present row. The existing declaration,
+result, claim, proof and certificate encodings apply to the corresponding fields.
+Runtime parameter-order tags are `0` scalar and `1` structural; erased formals
+have no runtime position. An invocation dependency is tag `1` plus a `u32`
+callable parameter position, or tag `2` plus a service id. Termination tag `0`
+provides no guarantee; tag `1` is followed by counted termination premises.
+Other tags reject.
+
+Receiving checks each opaque scalar's contract association and each descriptor's
+exact selected machine, origin and refinement evidence. The complete evidence
+lane roster belongs to the contract; a missing or substituted lane cannot be
+recovered by choosing a representative implementation. Callable values have no
+integer, equality or proof-term interpretation. The catalog supplies no package
+opening or independently replaceable component authority.
 
 ### Float-meaning rows
 

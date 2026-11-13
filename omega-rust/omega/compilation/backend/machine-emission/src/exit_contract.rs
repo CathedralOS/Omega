@@ -1421,7 +1421,10 @@ fn validate_internal_call(
                 && layout.internal_machine_fixup() == Some(**fixup)
                 && footprint.encoded.control == MachineEncodedControlEffect::DirectRelativeCallV1
         }
-        (SelectedCallTarget::Dynamic { .. } | SelectedCallTarget::Callable { .. }, SelectedFormEncodingState::Encoded) => {
+        (
+            SelectedCallTarget::Dynamic { .. } | SelectedCallTarget::Callable { .. },
+            SelectedFormEncodingState::Encoded,
+        ) => {
             layout.internal_machine_fixup.is_none()
                 && footprint.encoded.control
                     == MachineEncodedControlEffect::IndirectTableCallOrTrapV1

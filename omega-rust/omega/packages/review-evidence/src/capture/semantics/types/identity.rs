@@ -132,6 +132,7 @@ pub(crate) fn signature_type_identity(
         program,
         exact_toolchain_sources,
         type_reference,
+        binders,
         lifetime_binders,
         substitutions,
         lifetime_substitutions,

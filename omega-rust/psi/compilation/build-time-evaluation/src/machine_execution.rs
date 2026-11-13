@@ -610,6 +610,7 @@ pub(crate) mod admission {
                 actuals.push(actual);
             }
             let call = TableCallExpression {
+                runtime_call: None,
                 authored_call_selection: None,
                 authored_call_binding: None,
                 authored_machine_application: Default::default(),
@@ -2068,6 +2069,9 @@ pub(crate) mod admission {
                 TypeReferenceNode::ConstExpression(_) => Err(format!(
                     "{path} has a proof-static expression type, not a runtime const value type"
                 )),
+                TypeReferenceNode::Callable { .. } => Err(format!(
+                    "{path} has callable type; semantic const snapshots cannot yet retain its exact machine selection, application and contract evidence"
+                )),
                 TypeReferenceNode::DynamicTrait { .. } => Err(format!(
                     "{path} has a dynamic trait type and is not a closed const type"
                 )),
@@ -2379,6 +2383,9 @@ pub(crate) mod admission {
 
                 TypeReferenceNode::ConstExpression(_) => Err(format!(
                     "{path} has a proof-static expression type, not a runtime const value type"
+                )),
+                TypeReferenceNode::Callable { .. } => Err(format!(
+                    "{path} has callable type; the closed const data carrier cannot yet retain callable contract and code dependencies"
                 )),
                 TypeReferenceNode::DynamicTrait { .. } => {
                     Err(format!("{path} has a dynamic trait type"))

@@ -4203,6 +4203,10 @@ pub(crate) mod continuation_identities {
                     requirement_obligations,
                     ..
                 }
+                | OperationKind::CallMachine {
+                    requirement_obligations,
+                    ..
+                }
                 | OperationKind::BoundaryCall {
                     requirement_obligations,
                     ..
@@ -4235,6 +4239,7 @@ pub(crate) mod continuation_identities {
                 | OperationKind::ElementViewLength { .. }
                 | OperationKind::EstablishTrivialAffineLocal { .. }
                 | OperationKind::SelectImplementation { .. }
+                | OperationKind::SelectMachine { .. }
                 | OperationKind::PortWrite { .. }
                 | OperationKind::RegisterAccess { .. }
                 | OperationKind::ActivateTaskRegister { .. }

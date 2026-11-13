@@ -1396,11 +1396,9 @@ pub mod closed_conformances {
                     "static requirement dispatch has no exact executable method application",
                 );
             }
-            if invocation
-                .runtime_call
-                .as_ref()
-                .is_none_or(|call| call.target != terminal_psi::EvidenceCallableTarget::Machine(dispatch.realization))
-            {
+            if invocation.runtime_call.as_ref().is_none_or(|call| {
+                call.target != terminal_psi::EvidenceCallableTarget::Machine(dispatch.realization)
+            }) {
                 return Err("static requirement dispatch differs from its ordinary runtime call");
             }
         }

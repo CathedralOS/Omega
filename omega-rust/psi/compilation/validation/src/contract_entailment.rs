@@ -15363,16 +15363,14 @@ pub(crate) mod contract_refinement {
             if !program.declaration_type_parameters(owner).is_empty()
                 || typed_trees::type_identity::declaration_lifetime_parameters(program, owner)
                     .is_some_and(|parameters| !parameters.is_empty())
-                || children.any(|child| {
-                    match program.symbols.get(child).kind {
-                        SymbolKind::TypeParameter
-                        | SymbolKind::MachineParameter
-                        | SymbolKind::ConformanceParameter
-                        | SymbolKind::PropositionParameter
-                        | SymbolKind::PropositionMachineParameter => true,
-                        SymbolKind::Parameter => owner != callable,
-                        _ => false,
-                    }
+                || children.any(|child| match program.symbols.get(child).kind {
+                    SymbolKind::TypeParameter
+                    | SymbolKind::MachineParameter
+                    | SymbolKind::ConformanceParameter
+                    | SymbolKind::PropositionParameter
+                    | SymbolKind::PropositionMachineParameter => true,
+                    SymbolKind::Parameter => owner != callable,
+                    _ => false,
                 })
             {
                 return false;
@@ -15395,7 +15393,9 @@ pub(crate) mod contract_refinement {
             // closed declarations enter it; open owners keep the scoped source
             // correspondence below, including its real type/value actuals.
             let actual_owner = match actual {
-                structure_elaboration::CallableDeclaration::Signature(signature) => signature.symbol,
+                structure_elaboration::CallableDeclaration::Signature(signature) => {
+                    signature.symbol
+                }
                 structure_elaboration::CallableDeclaration::Machine(symbol) => symbol,
             };
             if !closed_callable_ambient_scope(program, required_lexical_owner, required.symbol)
@@ -37665,6 +37665,30 @@ pub(crate) mod scoped_arithmetic {
                 complete: &mut Vec<SymbolHandle>,
             ) -> Option<bool> {
                 self.step()?;
+                if let SelectedCallContract::Runtime {
+                    binding,
+                    lexical_owner,
+                    signature,
+                } = owner
+                {
+                    if !self
+                        .program
+                        .runtime_callable_contracts
+                        .is_valid(binding.contract)
+                        || !std::ptr::eq(
+                            &self
+                                .program
+                                .runtime_callable_contract(binding.contract)
+                                .signature,
+                            signature,
+                        )
+                    {
+                        return None;
+                    }
+                    return crate::machine_calls::contract_dependencies::runtime_contract_declaration_independent(
+                        self.program, self.context, binding, lexical_owner,
+                    ).ok();
+                }
                 if active.len() >= 64 {
                     return Some(false);
                 }

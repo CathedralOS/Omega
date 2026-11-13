@@ -71,10 +71,12 @@ pub(crate) fn review_domain_lifetime_label(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn review_lifetime_topology_with_substitutions(
     program: &dyn ::validation::CheckingInput,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     type_reference: typed_trees::types::TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
     lifetime_binders: &[typed_trees::name::Identifier],
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     lifetime_substitutions: &[(typed_trees::name::Identifier, typed_trees::name::Identifier)],
@@ -88,6 +90,7 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
                 program,
                 exact_toolchain_sources,
                 $child,
+                binders,
                 lifetime_binders,
                 substitutions,
                 lifetime_substitutions,
@@ -97,6 +100,71 @@ pub(crate) fn review_lifetime_topology_with_substitutions(
     }
 
     let topology = match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Callable { contract } => {
+            use typed_trees::type_identity::{TypeIdentityRequest, lifetime_parameter_identity};
+            if !program.runtime_callable_contracts.is_valid(*contract) {
+                return Err(vec![Diagnostic::error(
+                    "package review callable has no current lifetime owner",
+                )]);
+            }
+            let row = program.runtime_callable_contract(*contract);
+            let lexical_owner = if lifetime_binders.is_empty() && lifetime_substitutions.is_empty()
+            {
+                row.lexical_owner
+            } else {
+                let supplier = program
+                    .type_reference_table
+                    .operand_lifetime_owner(type_reference);
+                if !supplier.is_valid() {
+                    return Err(vec![Diagnostic::error(
+                        "package review callable outer regions lost their exact supplying declaration",
+                    )]);
+                }
+                supplier
+            };
+            let outer = lifetime_binders
+                .iter()
+                .enumerate()
+                .map(|(ordinal, binder)| {
+                    lifetime_parameter_identity(
+                        program.typed_program(),
+                        lexical_owner,
+                        binder.as_str(),
+                    )
+                    .map(|region| (region, ordinal))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "package review callable outer region has no declaration ordinal",
+                        )]
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let resolved = lifetime_substitutions.iter().map(|(formal, actual)| {
+                let formal = lifetime_parameter_identity(program.typed_program(), row.lexical_owner, formal.as_str())
+                    .ok_or_else(|| vec![Diagnostic::error("package review callable formal region has no declaration ordinal")])?;
+                let actual = lifetime_parameter_identity(program.typed_program(), lexical_owner, actual.as_str())
+                    .ok_or_else(|| vec![Diagnostic::error("package review callable actual region has no supplying declaration ordinal")])?;
+                Ok((formal, actual))
+            }).collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+            let canonical = program
+                .runtime_callable_type_identity_in_region_scope(
+                    TypeIdentityRequest {
+                        binders,
+                        substitutions,
+                        ..TypeIdentityRequest::package_qualified(type_reference)
+                    },
+                    lexical_owner,
+                    &outer,
+                    &resolved,
+                    exact_toolchain_sources,
+                )
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "package review callable lifetime topology is unresolved: {reason}"
+                    ))]
+                })?;
+            framed_identity("callable-contract", &[canonical])
+        }
         TypeReferenceNode::Reference {
             referee, lifetime, ..
         } => {

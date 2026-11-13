@@ -262,7 +262,6 @@ pub(crate) mod crash_interface {
 pub(crate) mod dynamic_dispatch {
 
     use crate::LoweringError;
-    use crate::emission::scalar_types::terminal_scalar_type;
     use crate::expression_preparation::bindings::structural_paths::ProjectionRoot;
     use crate::expression_preparation::bindings::structural_paths::terminal_access;
     use crate::shared::checked_facts::flow_facts;
@@ -728,7 +727,12 @@ pub(crate) mod dynamic_dispatch {
         }
         let scalar_parameters = scalars
             .iter()
-            .map(|parameter| terminal_scalar_type(parameter.primitive_type))
+            .map(|parameter| {
+                crate::emission::scalar_types::terminal_checked_scalar_type(
+                    checked,
+                    parameter.scalar_type,
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?;
         let structural_parameters =
             plan.structural_parameters
@@ -1202,17 +1206,25 @@ pub(crate) mod runtime_requirements {
     fn validate_float_namespace(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         match expression {
             CheckedScalarExpression::StructuralParameterIndexedRead {
-                primitive_type: PrimitiveType::F32 | PrimitiveType::F64,
+                scalar_type:
+                    checked_trees::CheckedScalarType::Primitive(PrimitiveType::F32 | PrimitiveType::F64),
                 ..
             } => validate_indexed_operands(expression, &validate_integer_namespace),
 
-            CheckedScalarExpression::Parameter { primitive_type, .. }
-            | CheckedScalarExpression::ErasedParameter { primitive_type, .. }
-            | CheckedScalarExpression::StructuralParameterField { primitive_type, .. }
-                if matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) =>
-            {
-                Ok(())
+            CheckedScalarExpression::Parameter {
+                scalar_type:
+                    checked_trees::CheckedScalarType::Primitive(PrimitiveType::F32 | PrimitiveType::F64),
+                ..
             }
+            | CheckedScalarExpression::StructuralParameterField {
+                scalar_type:
+                    checked_trees::CheckedScalarType::Primitive(PrimitiveType::F32 | PrimitiveType::F64),
+                ..
+            }
+            | CheckedScalarExpression::ErasedParameter {
+                primitive_type: PrimitiveType::F32 | PrimitiveType::F64,
+                ..
+            } => Ok(()),
             CheckedScalarExpression::IeeeFloatLiteral { .. } => Ok(()),
             _ => unsupported(
                 "runtime IEEE requirement needs exact float entry parameters or literals",
@@ -1224,13 +1236,21 @@ pub(crate) mod runtime_requirements {
         expression: &CheckedScalarExpression,
     ) -> Result<(), LoweringError> {
         match expression {
-            CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
+            CheckedScalarExpression::StructuralParameterIndexedRead { scalar_type, .. } => {
+                scalar_type.primitive().ok_or(LoweringError::Unsupported(
+                    "runtime requirement cannot interpret a callable as mathematics",
+                ))?;
                 validate_indexed_operands(expression, &validate_integer_namespace)
             }
 
-            CheckedScalarExpression::Parameter { primitive_type, .. }
-            | CheckedScalarExpression::ErasedParameter { primitive_type, .. }
-            | CheckedScalarExpression::StructuralParameterField { primitive_type, .. } => {
+            CheckedScalarExpression::Parameter { scalar_type, .. }
+            | CheckedScalarExpression::StructuralParameterField { scalar_type, .. } => {
+                let primitive = scalar_type.primitive().ok_or(LoweringError::Unsupported(
+                    "runtime requirement cannot interpret a callable as mathematics",
+                ))?;
+                integer_scalar_type(primitive).map(|_| ())
+            }
+            CheckedScalarExpression::ErasedParameter { primitive_type, .. } => {
                 integer_scalar_type(*primitive_type).map(|_| ())
             }
             CheckedScalarExpression::IntegerLiteral { .. }
@@ -1303,6 +1323,21 @@ pub(crate) mod runtime_requirements {
     }
 
     impl RuntimeRequirementTerms<'_> {
+        fn scalar_formal(
+            &self,
+            identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+            expression: &CheckedScalarExpression,
+            scalar_type: checked_trees::CheckedScalarType,
+        ) -> Result<ScalarTerm, LoweringError> {
+            let primitive = scalar_type.primitive().ok_or(LoweringError::Unsupported(
+                "runtime requirement cannot interpret a callable as mathematics",
+            ))?;
+            if !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64) {
+                integer_scalar_type(primitive)?;
+            }
+            checked_scalar_term(identities, expression, self.scalar_parameters, self.erased)
+        }
+
         fn scalar_leaf(
             &self,
             identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -1319,16 +1354,11 @@ pub(crate) mod runtime_requirements {
                     )
                 }
 
-                CheckedScalarExpression::Parameter { primitive_type, .. }
-                | CheckedScalarExpression::ErasedParameter { primitive_type, .. } => {
-                    if !matches!(
-                        primitive_type,
-                        typed_trees::types::PrimitiveType::F32
-                            | typed_trees::types::PrimitiveType::F64
-                    ) {
-                        integer_scalar_type(*primitive_type)?;
-                    }
-                    checked_scalar_term(identities, expression, self.scalar_parameters, self.erased)
+                CheckedScalarExpression::Parameter { scalar_type, .. } => {
+                    self.scalar_formal(identities, expression, *scalar_type)
+                }
+                CheckedScalarExpression::ErasedParameter { primitive_type, .. } => {
+                    self.scalar_formal(identities, expression, (*primitive_type).into())
                 }
                 CheckedScalarExpression::IeeeFloatLiteral { value } => {
                     Ok(ScalarTerm::IeeeFloatLiteral(*value))
@@ -1339,13 +1369,17 @@ pub(crate) mod runtime_requirements {
                             index: parameter_position,
                         },
                     path,
-                    primitive_type,
+                    scalar_type,
                     ..
                 } => lower_structural_member_term(
                     identities,
                     *parameter_position,
                     path,
-                    terminal_scalar_type(*primitive_type)?,
+                    terminal_scalar_type(scalar_type.primitive().ok_or(
+                        LoweringError::Unsupported(
+                            "runtime requirement cannot interpret a callable as mathematics",
+                        ),
+                    )?)?,
                     self.parameters,
                     self.structural_types,
                 ),
@@ -1496,10 +1530,6 @@ pub(crate) mod runtime_requirements {
                         rebind(right, substitutions)
                     }
                     ScalarTerm::Value { id, scalar_type } => {
-                        match scalar_type {
-                            ScalarType::Boolean | ScalarType::IeeeFloat(_) => {}
-                            ScalarType::Integer(_) => {}
-                        }
                         let actual = substitutions.get(id).ok_or(LoweringError::Unsupported(
                             "runtime requirement scalar formal has no exact actual argument",
                         ))?;

@@ -629,6 +629,7 @@ fn fragment_scalar_result_normalization_kind(
         return Some(Kind::CopyI64);
     }
     match scalar_type {
+        ScalarType::Callable(_) => None,
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(Kind::Float32ToBits),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(Kind::Float64ToBits),
         ScalarType::Boolean => Some(Kind::ZeroExtendU8),

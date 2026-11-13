@@ -591,6 +591,7 @@ impl Program<'_> {
                 literal.case_symbol?
             }
             ExpressionNode::Indexed(_)
+            | ExpressionNode::MachineValue(_)
             | ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::SavedSubject(_)

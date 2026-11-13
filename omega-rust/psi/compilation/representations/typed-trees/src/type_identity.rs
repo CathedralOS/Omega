@@ -3896,6 +3896,7 @@ pub(crate) mod package_policy_reading_tests {
 
         const DECLARATIONS: &[(u8, SymbolKind, &str)] = &[
             (1, SymbolKind::Data, "Payload"),
+            (1, SymbolKind::CallableContract, "Callback"),
             (1, SymbolKind::Data, "Container"),
             (2, SymbolKind::Data, "Record"),
             (2, SymbolKind::Data, "Count"),
@@ -3920,6 +3921,7 @@ pub(crate) mod package_policy_reading_tests {
         ];
 
         const PARAMETERS: [&str; 3] = ["T", "N", "V"];
+        const CALLABLE_NAMES: [&str; 3] = ["subject", "amount", "entry"];
 
         const TOOLCHAIN_DIGEST: [u8; 32] = [9; 32];
 
@@ -3928,6 +3930,8 @@ pub(crate) mod package_policy_reading_tests {
             toolchain: [(SourceId, [u8; 32]); 1],
             symbols: Vec<(&'static str, SymbolHandle)>,
             pub(crate) u64_type: TypeReferenceHandle,
+            callable_type: Option<TypeReferenceHandle>,
+            machine_selection: Option<crate::callable_values::MachineValue>,
         }
 
         impl Fixture {
@@ -3936,6 +3940,7 @@ pub(crate) mod package_policy_reading_tests {
                     .iter()
                     .map(|(_, _, name)| *name)
                     .chain(PARAMETERS)
+                    .chain(CALLABLE_NAMES)
                     .collect::<Vec<_>>();
                 let mut text = String::new();
                 let mut spans = Vec::new();
@@ -4026,6 +4031,42 @@ pub(crate) mod package_policy_reading_tests {
                 )
                 .collect::<Vec<_>>();
                 symbols.extend(PARAMETERS.iter().copied().zip(parameters));
+                let callback = symbols
+                    .iter()
+                    .find(|(name, _)| *name == "Callback")
+                    .unwrap()
+                    .1;
+                let selected = symbols
+                    .iter()
+                    .find(|(name, _)| *name == "Selected")
+                    .unwrap()
+                    .1;
+                let callback_parameters = builder.insert_children(
+                    callback,
+                    [
+                        (SymbolKind::Parameter, span_of("subject", 1)),
+                        (SymbolKind::Parameter, span_of("amount", 1)),
+                    ],
+                );
+                symbols.extend([
+                    ("callback_subject", callback_parameters.handle_at(0)),
+                    ("callback_amount", callback_parameters.handle_at(1)),
+                ]);
+                let selected_entry = builder
+                    .insert_children(selected, [(SymbolKind::State, span_of("entry", 4))])
+                    .handle_at(0);
+                symbols.push(("selected_entry", selected_entry));
+                let selected_parameters = builder.insert_children(
+                    selected_entry,
+                    [
+                        (SymbolKind::Parameter, span_of("subject", 4)),
+                        (SymbolKind::Parameter, span_of("amount", 4)),
+                    ],
+                );
+                symbols.extend([
+                    ("selected_subject", selected_parameters.handle_at(0)),
+                    ("selected_amount", selected_parameters.handle_at(1)),
+                ]);
 
                 let mut program = TypedTrees {
                     symbols: builder.finish(),
@@ -4073,9 +4114,194 @@ pub(crate) mod package_policy_reading_tests {
                     toolchain,
                     symbols,
                     u64_type,
+                    callable_type: None,
+                    machine_selection: None,
                 };
                 fixture.install_placed_view();
+                fixture.install_callable();
                 fixture
+            }
+
+            fn install_callable(&mut self) {
+                use crate::callable_values::{MachineValue, RuntimeCallableContract};
+                use crate::domain::ProofFact;
+                use crate::machine::{Machine, MachineBodyStatus};
+                use crate::signature::{
+                    SignatureContract, SignatureContractKind, StateParameter, StateSignature,
+                };
+                use crate::state::State;
+                use crate::statement::{StatementNode, TableTransition, TransitionTargetNode};
+
+                let payload = self.named("Payload");
+                let subject_type = self.type_node(TypeReferenceNode::Reference {
+                    referee: payload,
+                    access: language_core::ReferenceAccess::Shared,
+                    lifetime: None,
+                });
+                let parameters = |fixture: &mut Self, subject, amount| {
+                    fixture.program.state_parameters.insert_many([
+                        StateParameter {
+                            symbol: subject,
+                            name: Identifier::generated("subject"),
+                            type_reference: subject_type,
+                            ..Default::default()
+                        },
+                        StateParameter {
+                            symbol: amount,
+                            name: Identifier::generated("amount"),
+                            type_reference: fixture.u64_type,
+                            ..Default::default()
+                        },
+                    ])
+                };
+                let contracts = |fixture: &mut Self, owner, amount| {
+                    let amount = fixture.program.expression_table.insert_tree(
+                        &crate::expression::Expression::Name(NamePath::resolved(
+                            vec![Identifier::generated("amount")],
+                            amount,
+                            amount,
+                        )),
+                    );
+                    let result = fixture.program.expression_table.insert_tree(
+                        &crate::expression::Expression::Name(
+                            NamePath::unresolved(vec![Identifier::generated("result")])
+                                .denoting_reserved_result_of(owner),
+                        ),
+                    );
+                    let low = fixture.integer(3);
+                    let high = fixture.integer(100);
+                    let low = fixture.binary(amount, BinaryOperator::GreaterOrEqual, low);
+                    let high = fixture.binary(amount, BinaryOperator::LessOrEqual, high);
+                    let requires = fixture.binary(low, BinaryOperator::And, high);
+                    let ensures = fixture.binary(result, BinaryOperator::LessOrEqual, amount);
+                    let requires = fixture
+                        .program
+                        .proof_facts
+                        .insert_many([ProofFact::Expression(requires)]);
+                    let ensures = fixture
+                        .program
+                        .proof_facts
+                        .insert_many([ProofFact::Expression(ensures)]);
+                    fixture.program.signature_contracts.insert_many([
+                        SignatureContract {
+                            kind: SignatureContractKind::Requires,
+                            facts: requires,
+                            ..Default::default()
+                        },
+                        SignatureContract {
+                            kind: SignatureContractKind::Ensures,
+                            facts: ensures,
+                            ..Default::default()
+                        },
+                    ])
+                };
+                let callback = self.symbol("Callback");
+                let lexical_owner = self.program.symbols.get(callback).parent;
+                let callback_subject = self.symbol("callback_subject");
+                let callback_amount = self.symbol("callback_amount");
+                let callback_parameters = parameters(self, callback_subject, callback_amount);
+                let callback_contracts = contracts(self, callback, callback_amount);
+                let contract =
+                    self.program
+                        .runtime_callable_contracts
+                        .insert(RuntimeCallableContract {
+                            signature: StateSignature {
+                                symbol: callback,
+                                name: Identifier::generated("Callback"),
+                                parameters: callback_parameters,
+                                return_type: self.u64_type,
+                                contracts: callback_contracts,
+                                service_reach_row:
+                                    language_semantics::ServiceReachRowTable::EMPTY_ROW,
+                                declares_no_crash_route: true,
+                                ..Default::default()
+                            },
+                            lexical_owner,
+                            resolved_source: None,
+                        });
+                let callable_type = self.type_node(TypeReferenceNode::Callable { contract });
+                let selected = self.symbol("Selected");
+                let entry = self.symbol("selected_entry");
+                let selected_subject = self.symbol("selected_subject");
+                let selected_amount = self.symbol("selected_amount");
+                let selected_parameters = parameters(self, selected_subject, selected_amount);
+                let selected_contracts = contracts(self, selected, selected_amount);
+                let amount = self.program.expression_table.insert_tree(
+                    &crate::expression::Expression::Name(NamePath::resolved(
+                        vec![Identifier::generated("amount")],
+                        selected_amount,
+                        selected_amount,
+                    )),
+                );
+                let target = self
+                    .program
+                    .statement_table
+                    .insert_transition_target(TransitionTargetNode::Value(amount));
+                let body =
+                    self.program
+                        .statement_table
+                        .insert_statements([StatementNode::Transition(TableTransition {
+                            target,
+                            ..Default::default()
+                        })]);
+                let states = self.program.machine_states.insert_many([State {
+                    symbol: entry,
+                    name: Identifier::generated("entry"),
+                    parameters: selected_parameters,
+                    return_type: self.u64_type,
+                    statement_nodes: body,
+                    ..Default::default()
+                }]);
+                self.program.push_machine(Machine {
+                    symbol: selected,
+                    name: Identifier::generated("Selected"),
+                    states,
+                    contracts: selected_contracts,
+                    body_is_present: true,
+                    body_status: MachineBodyStatus::Complete,
+                    service_reach_row: language_semantics::ServiceReachRowTable::EMPTY_ROW,
+                    declares_no_crash_route: true,
+                    ..Default::default()
+                });
+                let application = self
+                    .program
+                    .expression_table
+                    .retain_static_machine_application(
+                        entry,
+                        Identifier::generated("Selected"),
+                        &[],
+                    );
+                let source = self
+                    .program
+                    .expression_table
+                    .static_machine_application_mut(application);
+                source.binding_declaration = selected;
+                source.lexical_owner = lexical_owner;
+                self.callable_type = Some(callable_type);
+                self.machine_selection = Some(MachineValue {
+                    type_reference: callable_type,
+                    selected: StaticMachineArgument {
+                        symbol: selected,
+                        path: Box::new([Identifier::generated("Selected")]),
+                        ..Default::default()
+                    },
+                    application,
+                    conformance: SymbolHandle::invalid(),
+                    requirement: SymbolHandle::invalid(),
+                });
+            }
+
+            pub(crate) fn callable(&self) -> TypeReferenceHandle {
+                self.callable_type
+                    .expect("fixture publishes its complete callable header")
+            }
+
+            pub(crate) fn machine_value(&mut self) -> ExpressionHandle {
+                let value = self
+                    .machine_selection
+                    .clone()
+                    .expect("fixture publishes its exact selected machine application");
+                self.expression(ExpressionNode::MachineValue(value))
             }
 
             fn install_placed_view(&mut self) {
@@ -4277,6 +4503,7 @@ pub(crate) mod package_policy_reading_tests {
                     .expression_table
                     .insert_expression_handles(arguments);
                 self.expression(ExpressionNode::Call(TableCallExpression {
+                    runtime_call: None,
                     authored_call_selection: None,
                     authored_call_binding: None,
                     build_selection: Default::default(),
@@ -4380,6 +4607,7 @@ pub(crate) mod package_policy_reading_tests {
         });
 
         node_kinds!(ExpressionKind, expression_kind for ExpressionNode {
+            MachineValue => ExpressionNode::MachineValue(_),
             TypeExpression => ExpressionNode::TypeExpression(_),
             Match => ExpressionNode::Match(_),
             SavedSubject => ExpressionNode::SavedSubject(_),
@@ -4497,6 +4725,11 @@ pub(crate) mod package_policy_reading_tests {
                 &[],
             ));
             witnesses.push(witness("builtin", fixture.u64_type, &[]));
+            witnesses.push(witness(
+                "complete callable contract",
+                fixture.callable(),
+                &[1],
+            ));
             let payload = fixture.named("Payload");
             witnesses.push(witness("nominal", payload, &[1]));
             let source = fixture.named("Source");
@@ -4744,6 +4977,8 @@ pub(crate) mod package_policy_reading_tests {
                 witnesses.push(witness(form, reference, owners));
             };
 
+            let machine_value = fixture.machine_value();
+            add(fixture, "exact machine selection", machine_value, &[1, 4]);
             let name = fixture.name("LIMIT");
             add(fixture, "declared name", name, &[2]);
             let value = fixture.integer(7);
@@ -5180,6 +5415,36 @@ pub(crate) mod package_policy_reading_tests {
         let mut fixture = Fixture::new();
         let witnesses = expression_witnesses(&mut fixture);
         check(&fixture, &witnesses);
+    }
+
+    #[test]
+    fn callable_selection_keeps_its_contract_and_exact_declaration_names() {
+        use super::constraint_identity::atom;
+        use super::identity_context::{TypeIdentityContext, TypeIdentityQualification};
+        use language_semantics::type_identity::vocabulary::Label;
+
+        let mut fixture = Fixture::new();
+        let callable = fixture.render(fixture.callable(), &[], &[]);
+        let selection = fixture.machine_value();
+        let selection = fixture.index(selection);
+        let selection = fixture.render(selection, &[], &[]);
+        let context = TypeIdentityContext {
+            qualification: TypeIdentityQualification::PackageQualified,
+            ..Default::default()
+        };
+        let declaration_name = |name| context.name(&fixture.program, fixture.symbol(name), "");
+        assert!(callable.contains(&atom(Label::Name, &declaration_name("Payload"))));
+        for clause in ["requires", "ensures"] {
+            assert!(callable.contains(&atom(Label::Kind, clause)), "{callable}");
+        }
+        for declaration in ["Selected", "selected_entry"] {
+            assert!(
+                selection.contains(&atom(Label::Symbol, &declaration_name(declaration))),
+                "selection lost {declaration}: {selection}",
+            );
+        }
+        assert_eq!(read(&callable).0, Ok(()), "{callable}");
+        assert_eq!(read(&selection).0, Ok(()), "{selection}");
     }
 
     #[test]

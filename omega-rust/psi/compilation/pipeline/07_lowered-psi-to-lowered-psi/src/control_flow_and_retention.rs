@@ -468,8 +468,10 @@ pub(crate) mod control_flow_cleanup {
             }
             for call in &module.proof_output_calls {
                 roots.insert(call.caller);
-                if let Some(runtime) = &call.runtime_call {
-                    roots.insert(runtime.callee);
+                if let Some(runtime) = &call.runtime_call
+                    && let terminal_psi::EvidenceCallableTarget::Machine(machine) = runtime.target
+                {
+                    roots.insert(machine);
                 }
                 if let Some(dispatch) = &call.static_requirement_dispatch {
                     roots.insert(dispatch.realization);
@@ -492,7 +494,9 @@ pub(crate) mod control_flow_cleanup {
                 roots.insert(input.machine);
             }
             for lane in &module.evidence_contract_lanes {
-                if let terminal_psi::EvidenceCallableOwner::Machine(machine) = lane.owner { roots.insert(machine); }
+                if let terminal_psi::EvidenceCallableOwner::Machine(machine) = lane.owner {
+                    roots.insert(machine);
+                }
             }
             for candidate in &module.provider_candidates {
                 roots.insert(candidate.candidate);

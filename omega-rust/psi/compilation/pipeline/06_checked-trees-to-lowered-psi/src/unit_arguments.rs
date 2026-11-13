@@ -2244,8 +2244,7 @@ pub(crate) mod attached_unit {
             use super::{
                 CheckedScalarExpressionRole, CheckedTrees, Evaluation,
                 LoweredBooleanReturnExpression, LoweredDirectExpression, LoweringError,
-                QualifiedScalarType, ValueDeclaration, scalar_source_types, terminal_scalar_type,
-                unsupported,
+                QualifiedScalarType, ValueDeclaration, scalar_source_types, unsupported,
             };
             use crate::emission::operation_emission::buffer::OperationBuffer;
             use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -2947,8 +2946,7 @@ pub(crate) mod attached_unit {
                 CheckedCallScalarArgument, CheckedScalarExpressionRole, CheckedTrees, Evaluation,
                 LoweringError, ScalarType, ValueDeclaration,
                 direct_expression_contains_short_circuit, emit_direct_expression, scalar_carriers,
-                scalar_source_types, terminal_scalar_type, unsupported,
-                validate_direct_parameter_types,
+                scalar_source_types, unsupported, validate_direct_parameter_types,
             };
             use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
             use crate::emission::operation_emission::buffer::OperationBuffer;

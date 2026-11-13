@@ -371,6 +371,10 @@ fn hash_scalar_type(
     scalar_type: ScalarType,
 ) {
     match scalar_type {
+        ScalarType::Callable(contract) => {
+            digest.byte(4);
+            digest.raw(&contract.get().to_le_bytes());
+        }
         ScalarType::Boolean => digest.byte(1),
         ScalarType::Integer(integer) => {
             digest.byte(2);

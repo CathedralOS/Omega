@@ -6562,13 +6562,19 @@ pub(crate) fn apply(
                     )
                 }
                 abstract_operations::AbstractCallTarget::Callable { contract, .. } => {
-                    let contract = plan.callables.contract(*contract).ok_or_else(|| invalid())?;
+                    let contract = plan
+                        .callables
+                        .contract(*contract)
+                        .ok_or_else(|| invalid())?;
                     if !contract.result.matches_operation_result(
                         &terminal_psi::OperationResult::Structural(result.clone()),
                     ) {
                         return Err(invalid());
                     }
-                    (None, terminal_semantics::ReferenceCallContract::Callable(contract))
+                    (
+                        None,
+                        terminal_semantics::ReferenceCallContract::Callable(contract),
+                    )
                 }
                 abstract_operations::AbstractCallTarget::Dynamic { .. } => {
                     let abstract_operations::AbstractCallSignature::Requirement(requirement) =

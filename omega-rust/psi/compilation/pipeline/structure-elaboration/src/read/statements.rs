@@ -120,6 +120,7 @@ impl Program<'_> {
                 })
             }
             ExpressionNode::Indexed(_)
+            | ExpressionNode::MachineValue(_)
             | ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::SavedSubject(_)

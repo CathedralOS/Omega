@@ -3827,19 +3827,7 @@ pub(crate) mod operation_encoding {
             bytes: &mut CanonicalBytes,
             target: abstract_operations::AbstractCallTarget,
         ) {
-            match target {
-                abstract_operations::AbstractCallTarget::Machine(machine) => bytes.id(machine),
-                abstract_operations::AbstractCallTarget::Dynamic {
-                    selector,
-                    interface,
-                    slot,
-                } => {
-                    bytes.u64(0);
-                    bytes.id(selector);
-                    bytes.u32(interface);
-                    bytes.u32(slot);
-                }
-            }
+            target.visit_canonical_bytes(|part| bytes.bytes(part));
         }
     }
 

@@ -80,11 +80,22 @@ pub(crate) fn lower_runtime_callable_contract(
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let crash_parameters = namespace
+        .views
+        .parameters
+        .iter()
+        .map(
+            |(position, parameter)| terminal_psi::StructuralParameterDeclaration {
+                position: *position,
+                ..parameter.clone()
+            },
+        )
+        .collect::<Vec<_>>();
     let crash_routes = crate::proofs::crash_routes::lower_structural_crash_route_buckets(
         identities,
         capsule.published_buckets(),
         namespace.scalar,
-        namespace.views.parameters,
+        &crash_parameters,
         namespace.views.structural_types,
         &requires,
     )?;

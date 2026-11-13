@@ -1830,22 +1830,28 @@ pub(crate) mod state {
                 call_occurrences.push(occurrence);
             }
         }
-        let authored_call_selection = match call.operational_acknowledgement.origin {
-            CallOperationalAcknowledgementOrigin::Source => {
-                let [occurrence] = call_occurrences.as_slice() else {
-                    return Err(Diagnostic::error(format!(
-                        "proof-output call retains {} authored call selections; expected one",
-                        call_occurrences.len(),
-                    )));
-                };
-                Some(*occurrence)
-            }
-            CallOperationalAcknowledgementOrigin::CompilerSynthesized => None,
-        };
+        let authored_call_selection =
+            match (call.runtime_call, call.operational_acknowledgement.origin) {
+                (Some(_), _) => None,
+                (None, CallOperationalAcknowledgementOrigin::Source) => {
+                    let [occurrence] = call_occurrences.as_slice() else {
+                        return Err(Diagnostic::error(format!(
+                            "proof-output call retains {} authored call selections; expected one",
+                            call_occurrences.len(),
+                        )));
+                    };
+                    Some(*occurrence)
+                }
+                (None, CallOperationalAcknowledgementOrigin::CompilerSynthesized) => None,
+            };
         let (receiver_root_symbol, receiver_symbol, receiver_members) =
-            proof_output_receiver_parts(&lowerer.typed_trees, call.receiver).ok_or_else(|| {
-                Diagnostic::error("proof-output call receiver must be a name path")
-            })?;
+            if call.runtime_call.is_some() {
+                (SymbolHandle::invalid(), SymbolHandle::invalid(), Vec::new())
+            } else {
+                proof_output_receiver_parts(&lowerer.typed_trees, call.receiver).ok_or_else(
+                    || Diagnostic::error("proof-output call receiver must be a name path"),
+                )?
+            };
         let mut receiver = arena::HandleSpan::empty();
         for member in receiver_members {
             statement_table_mut(&mut lowerer.typed_trees)
@@ -1865,15 +1871,16 @@ pub(crate) mod state {
                     .copied(),
             );
         Ok(typed::statement::TableCall {
-            installed_interrupt_operation: None,
-            authored_machine_application: Default::default(),
+            runtime_call: call.runtime_call,
+            installed_interrupt_operation: call.installed_interrupt_operation,
+            authored_machine_application: call.authored_machine_application,
             receiver_root_symbol,
             receiver_symbol,
             target_symbol: call.target_symbol,
             receiver,
             target: call.target,
             static_machine_parameter: call.static_machine_parameter,
-            static_requirement_dispatch: None,
+            static_requirement_dispatch: call.static_requirement_dispatch,
             machine_arguments: call.machine_arguments,
             arguments,
             evidence_arguments: call.evidence_arguments,

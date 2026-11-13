@@ -98,6 +98,7 @@ impl WorkSchedule {
             | OperationKind::SelectImplementation { .. }
             | OperationKind::SelectMachine { .. }
             | OperationKind::CallDynamic { .. }
+            | OperationKind::CallMachine { .. }
             | OperationKind::WriteOnlyPrimitiveStore { .. }
             | OperationKind::EstablishPrimitiveLocal { .. }
             | OperationKind::PrimitiveScalarRead { .. }

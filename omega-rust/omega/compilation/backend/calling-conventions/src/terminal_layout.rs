@@ -388,6 +388,10 @@ fn scalar_field_shape(
         StructuralFieldType::RefinedScalar(refinement) => {
             scalar_field_shape(&StructuralFieldType::Scalar(refinement.carrier()), owner)
         }
+        StructuralFieldType::Scalar(scalar @ ScalarType::Callable(_)) => Ok(scalar_shape(*scalar)),
+        StructuralFieldType::Atomic(ScalarType::Callable(_)) => {
+            Err(TerminalLayoutError::UnknownStructuralType(owner))
+        }
         StructuralFieldType::Scalar(ScalarType::Boolean)
         | StructuralFieldType::Atomic(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
         StructuralFieldType::Scalar(ScalarType::Integer(integer))
@@ -452,6 +456,7 @@ pub fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
 
 pub fn scalar_shape(scalar: ScalarType) -> ValueShape {
     match scalar {
+        ScalarType::Callable(_) => ValueShape::integer(8, 8),
         ScalarType::Boolean => ValueShape::integer(1, 1),
         ScalarType::Integer(integer) => {
             let size = integer.bits().div_ceil(8);

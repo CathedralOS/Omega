@@ -286,6 +286,24 @@ impl TypedReferences for TypeResolution<'_> {
         self.visited[slot] = true;
         let node = self.typed.type_reference_table.type_reference(reference);
         match node {
+            TypeReferenceNode::Callable { contract } => {
+                if !self.typed.runtime_callable_contracts.is_valid(*contract) {
+                    self.error = Some("callable type has no current signature contract");
+                    return false;
+                }
+                let retained = self.typed.runtime_callable_contract(*contract);
+                self.extend([retained.lexical_owner, retained.signature.symbol]);
+                if let Err(reason) = self
+                    .typed
+                    .runtime_callable_contract_identity(*contract, &[])
+                {
+                    self.error = Some(reason.reason());
+                    return false;
+                }
+                // The shared type visitor descends through the complete
+                // signature in its formal scope, including contract operands,
+                // static arguments, progress and invocation declarations.
+            }
             TypeReferenceNode::Named { symbol, .. } => self.extend([*symbol]),
             TypeReferenceNode::DynamicTrait {
                 symbol, arguments, ..

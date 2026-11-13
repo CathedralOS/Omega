@@ -7,8 +7,8 @@ use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::{
-    PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceOwner, PackageReviewContractEvidenceTerm,
-    PackageReviewContractKind, PackageReviewTypeIdentity,
+    PackageReviewContractEvidenceArgument, PackageReviewContractEvidenceOwner,
+    PackageReviewContractEvidenceTerm, PackageReviewContractKind, PackageReviewTypeIdentity,
 };
 use checked_trees::ContractProofFactOwner;
 use diagnostics::Diagnostic;
@@ -45,27 +45,45 @@ pub(crate) fn project_contract_call_evidence_arguments(
             matching.len()
         )));
     };
-    let call = compilation.expression_table.call_node(expression)
+    let call = compilation
+        .expression_table
+        .call_node(expression)
         .ok_or_else(|| context.rejected("evidence-bearing expression is not a call"))?;
-    let runtime = super::calls::exact_checked_runtime_contract_call(compilation, context, expression, call)?;
+    let runtime =
+        super::calls::exact_checked_runtime_contract_call(compilation, context, expression, call)?;
     enum Endpoint {
-        Nominal { machine: SymbolHandle, state: SymbolHandle },
-        Runtime { contract: typed_trees::callable_values::RuntimeCallableContractHandle },
+        Nominal {
+            machine: SymbolHandle,
+            state: SymbolHandle,
+        },
+        Runtime {
+            contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+        },
     }
     let endpoint = if let Some((binding, _)) = runtime {
         if checked.runtime_contract != Some(binding.contract)
-            || checked.target_machine_symbol.is_valid() || checked.target_state_symbol.is_valid() {
-            return Err(context.rejected("evidence-bearing runtime call changed its exact checked source"));
+            || checked.target_machine_symbol.is_valid()
+            || checked.target_state_symbol.is_valid()
+        {
+            return Err(
+                context.rejected("evidence-bearing runtime call changed its exact checked source")
+            );
         }
-        Endpoint::Runtime { contract: binding.contract }
+        Endpoint::Runtime {
+            contract: binding.contract,
+        }
     } else {
         let target = super::calls::resolved_contract_call_symbol(compilation, call)
             .or_else(|| compilation.derive_checked_nominal_call_target(expression))
-            .ok_or_else(|| context.rejected("evidence-bearing call has no exact resolved target"))?;
+            .ok_or_else(|| {
+                context.rejected("evidence-bearing call has no exact resolved target")
+            })?;
         let (machine, state) = exact_contract_target(compilation.checking_input, target)
             .ok_or_else(|| context.rejected("evidence-bearing call has no exact target owner"))?;
-        if checked.runtime_contract.is_some() || checked.target_machine_symbol != machine
-            || checked.target_state_symbol != state {
+        if checked.runtime_contract.is_some()
+            || checked.target_machine_symbol != machine
+            || checked.target_state_symbol != state
+        {
             return Err(context.rejected("evidence-bearing call changed its exact nominal source"));
         }
         Endpoint::Nominal { machine, state }
@@ -79,7 +97,9 @@ pub(crate) fn project_contract_call_evidence_arguments(
         ),
     };
     if checked.evidence_arguments.len() != authored_count || parameters.len() != authored_count {
-        return Err(context.rejected("evidence-bearing call disagrees with its exact checked lane arity"));
+        return Err(
+            context.rejected("evidence-bearing call disagrees with its exact checked lane arity")
+        );
     }
 
     checked
@@ -120,8 +140,13 @@ pub(crate) fn project_contract_call_evidence_arguments(
                 || current_instantiation.as_ref() != Some(&binding.instantiated_proposition)
                 || parameter.kind != checked_trees::ContractProofFactKind::Requires
                 || !match endpoint {
-                    Endpoint::Nominal { machine, state } => evidence_owner_belongs_to_target(parameter.owner, machine, state),
-                    Endpoint::Runtime { contract } => parameter.owner == ContractProofFactOwner::RuntimeCallableContract { contract },
+                    Endpoint::Nominal { machine, state } => {
+                        evidence_owner_belongs_to_target(parameter.owner, machine, state)
+                    }
+                    Endpoint::Runtime { contract } => {
+                        parameter.owner
+                            == ContractProofFactOwner::RuntimeCallableContract { contract }
+                    }
                 }
             {
                 return Err(context.rejected(format!(
@@ -206,12 +231,25 @@ fn project_term(
 ) -> Result<PackageReviewContractEvidenceTerm, Vec<Diagnostic>> {
     let nominal_owner = match term.owner {
         ContractProofFactOwner::RuntimeCallableContract { contract } => {
-            let canonical = compilation.runtime_callable_contract_identity(contract, binders)
-                .map_err(|reason| vec![Diagnostic::error(format!("checked runtime evidence owner has no complete identity: {reason}"))])?;
+            let canonical = compilation
+                .runtime_callable_contract_identity(contract, binders)
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "checked runtime evidence owner has no complete identity: {reason}"
+                    ))]
+                })?;
             return Ok(PackageReviewContractEvidenceTerm {
-                owner: PackageReviewContractEvidenceOwner::Runtime { contract: PackageReviewTypeIdentity { canonical } },
-                kind: match term.kind { checked_trees::ContractProofFactKind::Requires => PackageReviewContractKind::Requires,
-                    checked_trees::ContractProofFactKind::Ensures => PackageReviewContractKind::Ensures },
+                owner: PackageReviewContractEvidenceOwner::Runtime {
+                    contract: PackageReviewTypeIdentity { canonical },
+                },
+                kind: match term.kind {
+                    checked_trees::ContractProofFactKind::Requires => {
+                        PackageReviewContractKind::Requires
+                    }
+                    checked_trees::ContractProofFactKind::Ensures => {
+                        PackageReviewContractKind::Ensures
+                    }
+                },
                 lane_position: portable_ordinal(term.lane_position)?,
             });
         }
@@ -234,7 +272,10 @@ fn project_term(
         }
     };
     Ok(PackageReviewContractEvidenceTerm {
-        owner: PackageReviewContractEvidenceOwner::Nominal(nominal_identity(compilation, nominal_owner)?),
+        owner: PackageReviewContractEvidenceOwner::Nominal(nominal_identity(
+            compilation,
+            nominal_owner,
+        )?),
         kind: match term.kind {
             checked_trees::ContractProofFactKind::Requires => PackageReviewContractKind::Requires,
             checked_trees::ContractProofFactKind::Ensures => PackageReviewContractKind::Ensures,

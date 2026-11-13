@@ -66,6 +66,14 @@ pub(crate) fn validate_package_type_identity_input_inner(
     };
 
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Callable { contract } => program
+            .runtime_callable_contract_identity(*contract, binders)
+            .map(|_| ())
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "package review callable type has no complete scoped contract: {reason}"
+                ))]
+            }),
         TypeReferenceNode::Reference { referee, .. } => {
             validate_child!(*referee, false)
         }
@@ -281,6 +289,32 @@ fn validate_package_index_expression(
         )]);
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::MachineValue(value) => {
+            let original = &compilation.original_program.typed;
+            if !original.expression_table.expression_is_valid(expression)
+                || !matches!(original.expression_table.expression(expression),
+                    ExpressionNode::MachineValue(retained) if retained == value)
+            {
+                return Err(vec![Diagnostic::error(
+                    "package review machine index lost its exact original code selection",
+                )]);
+            }
+            let current = program
+                .runtime_machine_value_identity(value, binders)
+                .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+            let retained = original
+                .runtime_machine_value_identity(value, binders)
+                .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+            if current != retained {
+                return Err(vec![Diagnostic::error(
+                    "package review machine index changed its complete contract or selected declaration",
+                )]);
+            }
+            // The typed index identity retains MachineValue as an opaque code
+            // selection, including its static application; it is no invocation
+            // and supplies no mathematical address or numeric literal.
+            Ok(())
+        }
         ExpressionNode::Name(path) => {
             let members = program.expression_table.name_path_members(path.members);
             let spelling = members.joined_path();

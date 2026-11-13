@@ -2517,7 +2517,7 @@ pub(crate) mod write_only_primitive_store {
     use abstract_operations::{AbstractFunction, AbstractOperation};
     use calling_conventions::ValueShape;
     use semantic_vocabulary::IeeeFloatValue;
-    use semantic_vocabulary::{IeeeFloatFormat, OperationId, PlaceId, ScalarType, ValueId};
+    use semantic_vocabulary::{OperationId, PlaceId, ScalarType, ValueId};
     use std::collections::BTreeMap;
     use target_operations::TargetStructuralArgumentSource;
     use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
@@ -2733,85 +2733,64 @@ pub(crate) mod write_only_primitive_store {
                         source,
                     )
                 }
-                ScalarType::Boolean => {
+                scalar_type => {
+                    let shape = super::super::scalar_abi::fixed_native_scalar_shape(scalar_type)
+                        .ok_or_else(invalid)?;
                     let source = if let Some((parameter_index, _)) = function
                         .parameters
                         .iter()
                         .enumerate()
                         .find(|(_, parameter)| {
-                            parameter.value == value.value
-                                && parameter.scalar_type == ScalarType::Boolean
+                            parameter.value == value.value && parameter.scalar_type == scalar_type
                         }) {
                         TargetUnitWriteOnlyPrimitiveStoreSource::Parameter {
                             parameter_index: u32::try_from(parameter_index)
                                 .map_err(|_| invalid())?,
                             source_value: value.value,
-                            scalar_type: ScalarType::Boolean,
+                            scalar_type,
                         }
                     } else if let Some(home) = scalar_homes.get(&value.value) {
                         if home.source_value != value.value
-                            || home.scalar_type != ScalarType::Boolean
-                            || home.shape != ValueShape::integer(1, 1)
+                            || home.scalar_type != scalar_type
+                            || home.shape != shape
                         {
                             return Err(invalid());
                         }
                         TargetUnitWriteOnlyPrimitiveStoreSource::Home(*home)
                     } else {
-                        let (defining_operation, immediate) = boolean_constants
-                            .get(&value.value)
-                            .copied()
-                            .ok_or_else(invalid)?;
-                        TargetUnitWriteOnlyPrimitiveStoreSource::BooleanImmediate {
-                            defining_operation,
-                            source_value: value.value,
-                            value: immediate,
-                        }
-                    };
-                    (ValueShape::borrowed_reference(1, 1), source)
-                }
-                ScalarType::IeeeFloat(format) => {
-                    let byte_size = match format {
-                        IeeeFloatFormat::Binary32 => 4,
-                        IeeeFloatFormat::Binary64 => 8,
-                    };
-                    let source = if let Some((parameter_index, _)) = function
-                        .parameters
-                        .iter()
-                        .enumerate()
-                        .find(|(_, parameter)| {
-                            parameter.value == value.value
-                                && parameter.scalar_type == value.scalar_type
-                        }) {
-                        TargetUnitWriteOnlyPrimitiveStoreSource::Parameter {
-                            parameter_index: u32::try_from(parameter_index)
-                                .map_err(|_| invalid())?,
-                            source_value: value.value,
-                            scalar_type: value.scalar_type,
-                        }
-                    } else if let Some(home) = scalar_homes.get(&value.value) {
-                        if home.source_value != value.value
-                            || home.scalar_type != value.scalar_type
-                            || home.shape != ValueShape::float(byte_size)
-                        {
-                            return Err(invalid());
-                        }
-                        TargetUnitWriteOnlyPrimitiveStoreSource::Home(*home)
-                    } else {
-                        let (defining_operation, immediate) = ieee_float_constants
-                            .get(&value.value)
-                            .copied()
-                            .ok_or_else(invalid)?;
-                        if immediate.format() != format {
-                            return Err(invalid());
-                        }
-                        TargetUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate {
-                            defining_operation,
-                            source_value: value.value,
-                            value: immediate,
+                        match scalar_type {
+                            ScalarType::Boolean => {
+                                let (defining_operation, immediate) = boolean_constants
+                                    .get(&value.value)
+                                    .copied()
+                                    .ok_or_else(invalid)?;
+                                TargetUnitWriteOnlyPrimitiveStoreSource::BooleanImmediate {
+                                    defining_operation,
+                                    source_value: value.value,
+                                    value: immediate,
+                                }
+                            }
+                            ScalarType::IeeeFloat(format) => {
+                                let (defining_operation, immediate) = ieee_float_constants
+                                    .get(&value.value)
+                                    .copied()
+                                    .ok_or_else(invalid)?;
+                                if immediate.format() != format {
+                                    return Err(invalid());
+                                }
+                                TargetUnitWriteOnlyPrimitiveStoreSource::IeeeFloatImmediate {
+                                    defining_operation,
+                                    source_value: value.value,
+                                    value: immediate,
+                                }
+                            }
+                            ScalarType::Callable(_) | ScalarType::Integer(_) => {
+                                return Err(invalid());
+                            }
                         }
                     };
                     (
-                        ValueShape::borrowed_reference(u32::from(byte_size), byte_size),
+                        ValueShape::borrowed_reference(shape.byte_size, shape.alignment),
                         source,
                     )
                 }

@@ -1245,3 +1245,6 @@ pub fn resolve_callable_value_at_invocation(
     }
     Ok(values)
 }
+
+#[cfg(test)]
+mod tests;

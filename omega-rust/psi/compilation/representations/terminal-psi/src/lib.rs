@@ -954,16 +954,17 @@ mod source_guards {
     }
 }
 
+pub use callable_values::{
+    TerminalCallableCatalog, TerminalCallableContract, TerminalCallableEnvelope,
+    TerminalCallableEvidenceLane, TerminalCallableInvocation, TerminalCallableTermination,
+    TerminalCallableTerminationPremise, TerminalMachineDescriptor, TerminalMachineDescriptorOrigin,
+    TerminalMachineEnvelope,
+};
 pub use language_core::BindingRelevance;
 pub use semantic_vocabulary::{
     BoundaryCompletion, BoundaryRequirementKind, ExternalCompletionKind,
 };
 pub use terminal_module::*;
-pub use callable_values::{
-    TerminalCallableCatalog, TerminalCallableContract, TerminalCallableEnvelope, TerminalCallableEvidenceLane,
-    TerminalCallableInvocation, TerminalCallableTermination, TerminalCallableTerminationPremise,
-    TerminalMachineDescriptor, TerminalMachineDescriptorOrigin,
-};
 
 pub mod target_layouts {
     use crate::TerminalIdentityIndex;

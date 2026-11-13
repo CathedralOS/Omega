@@ -8627,6 +8627,7 @@ pub(crate) mod structural_type_foundations {
             ScalarType::Integer(integer) => Some(u64::from(integer.bits())),
             ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => Some(32),
             ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => Some(64),
+            ScalarType::Callable(_) => None,
         }
     }
 

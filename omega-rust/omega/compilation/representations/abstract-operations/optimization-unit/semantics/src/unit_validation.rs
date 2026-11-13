@@ -318,6 +318,17 @@ mod activation_storage {
                     erased_arguments: Vec::new(),
                     erased_proof_arguments: Vec::new(),
                 },
+                AbstractCallTarget::Callable { callee, contract } => T::CallMachine {
+                    callee: *callee,
+                    contract: *contract,
+                    arguments: arguments.clone(),
+                    structural_arguments: structural_arguments.clone(),
+                    claim_transfers: claim_transfers.clone(),
+                    requirement_obligations: requirement_obligations.clone(),
+                    crash_continuations: crash_continuations.clone(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                },
                 AbstractCallTarget::Dynamic {
                     selector,
                     interface,
@@ -9622,6 +9633,7 @@ pub(crate) mod function_structure {
             functions,
             structural_types,
             &unit.dynamic_dispatch,
+            &unit.callables,
         )?;
         byte_concatenation::validate(
             function,
@@ -11931,12 +11943,15 @@ pub(crate) mod operation_contracts {
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
                     && integer.bits() == 64 && fixed(integer))
                 }),
-                O::SelectMachine { result, descriptor, .. } => {
-                    unit.callables.descriptor(*descriptor).is_some_and(|selected| {
+                O::SelectMachine {
+                    result, descriptor, ..
+                } => unit
+                    .callables
+                    .descriptor(*descriptor)
+                    .is_some_and(|selected| {
                         result.scalar_type == ScalarType::Callable(selected.contract)
                             && unit.callables.contract(selected.contract).is_some()
-                    })
-                }
+                    }),
                 O::SelectImplementation { result, table, .. } => {
                     matches!(result.scalar_type, ScalarType::Integer(integer)
                 if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
@@ -12077,17 +12092,18 @@ pub(crate) mod operation_contracts {
                 | O::StructuralCase { .. }
                 | O::ReturnUnit { .. }
                 | abstract_operations::return_structural_or_crash_pattern!() => true,
-                O::StructuralScalarFieldRead { result, .. } => {
-                    matches!(
-                        result.scalar_type,
-                        ScalarType::Boolean | ScalarType::Integer(_)
-                    )
-                }
+                O::StructuralScalarFieldRead { result, .. } => match result.scalar_type {
+                    ScalarType::Boolean | ScalarType::Integer(_) => true,
+                    ScalarType::Callable(contract) => unit.callables.contract(contract).is_some(),
+                    ScalarType::IeeeFloat(_) => false,
+                },
                 O::IntegerConstant {
                     scalar_type, value, ..
                 } => match scalar_type {
                     ScalarType::Integer(integer) => integer.admits(*value),
-                    ScalarType::Boolean | ScalarType::IeeeFloat(_) => false,
+                    ScalarType::Boolean | ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => {
+                        false
+                    }
                 },
                 O::IeeeFloatConstant { .. } => true,
                 O::FloatResultPolicy { format, policy, .. } => {
@@ -14489,17 +14505,20 @@ pub(crate) mod operation_contracts {
     ) -> Result<(), OptimizationUnitValidationError> {
         let definitions = values::collect_value_definitions(function)?;
         for definition in definitions.values() {
-            unit.callables.validate_scalar_type(definition.scalar_type)
+            unit.callables
+                .validate_scalar_type(definition.scalar_type)
                 .map_err(OptimizationUnitValidationError::CallableValueProvenance)?;
         }
         if let Some(contract) = &function.verified_contract {
             for formal in &contract.erased_scalar_formals {
-                unit.callables.validate_scalar_type(formal.scalar_type)
+                unit.callables
+                    .validate_scalar_type(formal.scalar_type)
                     .map_err(OptimizationUnitValidationError::CallableValueProvenance)?;
             }
         }
         if let abstract_operations::AbstractFunctionResult::Scalar(result) = &function.result {
-            unit.callables.validate_scalar_type(result.scalar_type)
+            unit.callables
+                .validate_scalar_type(result.scalar_type)
                 .map_err(OptimizationUnitValidationError::CallableValueProvenance)?;
         }
         let dominators = dominators(function.entry, blocks.keys().copied(), predecessors);
@@ -15250,6 +15269,7 @@ pub(crate) mod references {
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
     ) -> Result<(), OptimizationUnitValidationError> {
         let invalid = || catalog_mismatch(function);
         let is_reference = |structural_type| {
@@ -15408,7 +15428,13 @@ pub(crate) mod references {
                         || source.path().contains(&ReferenceOriginProjection::Element)
                 })
         }) {
-            validate_alternative_result_dependencies(function, functions, types, dynamic_dispatch)?;
+            validate_alternative_result_dependencies(
+                function,
+                functions,
+                types,
+                dynamic_dispatch,
+                callables,
+            )?;
         }
         let mut sources = BTreeMap::new();
         for (path, mapping) in paths.iter().zip(&result.reference_sources) {
@@ -15476,6 +15502,7 @@ pub(crate) mod references {
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         dynamic_dispatch: &TerminalDynamicDispatchCatalog,
+        callables: &terminal_psi::TerminalCallableCatalog,
     ) -> Result<(), OptimizationUnitValidationError> {
         let invalid = || catalog_mismatch(function);
         let mut pending = vec![(function.machine, false)];
@@ -15498,6 +15525,7 @@ pub(crate) mod references {
             for node in current.block_nodes() {
                 if let O::CallStructural {
                     callee,
+                    structural_arguments,
                     result: AbstractStructuralCallResult::Structural { result, .. },
                     ..
                 } = &node.operation
@@ -15506,6 +15534,28 @@ pub(crate) mod references {
                     match callee {
                         abstract_operations::AbstractCallTarget::Machine(machine) => {
                             pending.push((*machine, false));
+                        }
+                        abstract_operations::AbstractCallTarget::Callable { contract, .. } => {
+                            let contract = callables.contract(*contract).ok_or_else(invalid)?;
+                            let terminal_psi::BoundaryMachineResult::Structural(declared) =
+                                &contract.result
+                            else {
+                                return Err(invalid());
+                            };
+                            if declared.structural_type != result.structural_type
+                                || declared.multiplicity != result.multiplicity
+                            {
+                                return Err(invalid());
+                            }
+                            // The callable publishes its result origins. Bind
+                            // those exact regions to actual arguments; private
+                            // bodies cannot strengthen the public contract.
+                            terminal_semantics::bind_reference_call_results(
+                                types.values().copied(),
+                                terminal_semantics::ReferenceCallContract::Callable(contract),
+                                structural_arguments,
+                            )
+                            .map_err(OptimizationUnitValidationError::CallableValueProvenance)?;
                         }
                         abstract_operations::AbstractCallTarget::Dynamic {
                             interface,
@@ -15581,21 +15631,29 @@ mod runtime_evidence {
             .functions
             .iter()
             .flat_map(|function| function.evidence_contract_lanes.iter().cloned())
-            .chain(catalog.lanes().iter().filter(|lane| matches!(lane.owner, terminal_psi::EvidenceCallableOwner::Runtime(_))).cloned())
+            .chain(
+                catalog
+                    .lanes()
+                    .iter()
+                    .filter(|lane| {
+                        matches!(lane.owner, terminal_psi::EvidenceCallableOwner::Runtime(_))
+                    })
+                    .cloned(),
+            )
             .collect::<Vec<_>>();
         for function in &unit.functions {
             let expected = catalog
                 .lanes()
                 .iter()
-                .filter(|lane| lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine))
+                .filter(|lane| {
+                    lane.owner == terminal_psi::EvidenceCallableOwner::Machine(function.machine)
+                })
                 .collect::<Vec<_>>();
             if !function.evidence_contract_lanes.iter().eq(expected) {
                 return Err("optimizer changed the verified evidence declaration lane");
             }
         }
-        let consumes_snapshots = calls
-            .iter()
-            .any(|call| call.runtime_call.is_some());
+        let consumes_snapshots = calls.iter().any(|call| call.runtime_call.is_some());
         let checks_calls = consumes_snapshots
             || lanes
                 .iter()
@@ -15658,8 +15716,16 @@ mod runtime_evidence {
                             ..
                         } => {
                             let target = match callee {
-                                abstract_operations::AbstractCallTarget::Machine(machine) => terminal_psi::EvidenceCallableTarget::Machine(*machine),
-                                abstract_operations::AbstractCallTarget::Callable { callee, contract } => terminal_psi::EvidenceCallableTarget::Runtime { contract: *contract, callee: *callee },
+                                abstract_operations::AbstractCallTarget::Machine(machine) => {
+                                    terminal_psi::EvidenceCallableTarget::Machine(*machine)
+                                }
+                                abstract_operations::AbstractCallTarget::Callable {
+                                    callee,
+                                    contract,
+                                } => terminal_psi::EvidenceCallableTarget::Runtime {
+                                    contract: *contract,
+                                    callee: *callee,
+                                },
                                 abstract_operations::AbstractCallTarget::Dynamic { .. } => continue,
                             };
                             let (role, result, selected) = match result {
@@ -15728,10 +15794,9 @@ mod runtime_evidence {
                     });
                 }
             }
-            let observes = calls.iter().any(|call| {
-                call.caller == function.machine
-                    && call.runtime_call.is_some()
-            });
+            let observes = calls
+                .iter()
+                .any(|call| call.caller == function.machine && call.runtime_call.is_some());
             let mut values = Vec::new();
             if observes {
                 values.extend(function.parameters.iter().map(|value| value.value));

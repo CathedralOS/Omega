@@ -7813,6 +7813,7 @@ impl TypedTrees {
         }).collect::<Result<Vec<_>, &'static str>>()?;
         CallableApplication {
             region_scope: declaration,
+            static_argument_owner: supplier,
             types: substitutions.to_vec(),
             lifetimes,
             ..CallableApplication::default()

@@ -131,6 +131,7 @@ pub(crate) mod source {
             structural_types: unit.structural_types.clone(),
             boundary_machines: unit.boundary_machines.clone(),
             provider_candidates: unit.provider_candidates.clone(),
+            callables: unit.callables.clone(),
             dynamic_dispatch: unit.dynamic_dispatch.clone(),
             identities: unit.identities.clone(),
             functions,

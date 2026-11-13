@@ -28,6 +28,9 @@ pub(crate) const fn type_layout(size: usize, alignment: usize) -> TypeLayout {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum TypeLayoutDescriptor {
+    Callable {
+        contract: checked_trees::typed_trees::callable_values::RuntimeCallableContractHandle,
+    },
     Reference {
         referee: Box<TypeLayoutDescriptor>,
         is_mutable: bool,

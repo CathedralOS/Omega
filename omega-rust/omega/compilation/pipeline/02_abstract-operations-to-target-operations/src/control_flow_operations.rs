@@ -731,15 +731,26 @@ pub(crate) mod operations {
             AbstractOperation::ReleaseReference { .. } => {
                 super::references::release(operation, site)
             }
-            AbstractOperation::SelectMachine { psi_operation, result, descriptor } => {
-                let selected = callables.descriptor(*descriptor)
+            AbstractOperation::SelectMachine {
+                psi_operation,
+                result,
+                descriptor,
+            } => {
+                let selected = callables
+                    .descriptor(*descriptor)
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-                if result.scalar_type != semantic_vocabulary::ScalarType::Callable(selected.contract) {
+                if result.scalar_type
+                    != semantic_vocabulary::ScalarType::Callable(selected.contract)
+                {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
                 }
-                let result_home = super::primitive_storage::retain_result(*psi_operation, *result, site.live)?;
+                let result_home =
+                    super::primitive_storage::retain_result(*psi_operation, *result, site.live)?;
                 site.provenance.operations.push(*psi_operation);
-                site.operations.push(TargetUnitOperation::SelectMachine { result_home, descriptor: *descriptor });
+                site.operations.push(TargetUnitOperation::SelectMachine {
+                    result_home,
+                    descriptor: *descriptor,
+                });
                 Ok(())
             }
             AbstractOperation::SelectImplementation {

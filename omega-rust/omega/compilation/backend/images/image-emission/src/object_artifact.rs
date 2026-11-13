@@ -45,9 +45,8 @@ mod carriers {
         pub(crate) byte_literal_pool: Option<ObjectByteLiteralPool>,
         pub(crate) native_code_layout_pool:
             Option<crate::object::function_fragments::native_code_layouts::NativeCodeLayoutPool>,
-        pub(crate) code_descriptor_pool: Option<
-            crate::object::function_fragments::code_descriptors::ObjectCodeDescriptorPool,
-        >,
+        pub(crate) code_descriptor_pool:
+            Option<crate::object::function_fragments::code_descriptors::ObjectCodeDescriptorPool>,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3215,6 +3214,7 @@ mod normalized_foreign_calls {
             return Some(Kind::CopyI64);
         }
         match scalar_type {
+            ScalarType::Callable(_) => None,
             ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
                 Some(Kind::Float32ToBits)
             }
@@ -4535,21 +4535,9 @@ pub(crate) mod replay {
                     terminal_psi::StructuralTypeShape::AtomicCell(cell) => {
                         replay_structural_field_shape(&(*cell).into(), declarations, cache, active)?
                     }
-                    terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
-                        ValueShape::integer(1, 1)
+                    terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) => {
+                        calling_conventions::terminal_layout::scalar_shape(*scalar)
                     }
-                    terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
-                        integer,
-                    )) => {
-                        let size = integer.bits().div_ceil(8);
-                        ValueShape::integer(u32::from(size), size.next_power_of_two().min(8))
-                    }
-                    terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    )) => ValueShape::float(4),
-                    terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    )) => ValueShape::float(8),
                     terminal_psi::StructuralTypeShape::ByteSequence(_)
                     | terminal_psi::StructuralTypeShape::ElementView { .. } => return None,
                     terminal_psi::StructuralTypeShape::Record { fields, .. } => {
@@ -4921,9 +4909,6 @@ pub(crate) mod replay {
                             active,
                         )
                     }
-                    terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean) => {
-                        Some(ValueShape::integer(1, 1))
-                    }
                     terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
                         let size = integer.bits().div_ceil(8);
                         Some(ValueShape::integer(
@@ -4939,18 +4924,12 @@ pub(crate) mod replay {
                             size.next_power_of_two().min(16),
                         ))
                     }
-                    terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    )) => Some(ValueShape::float(4)),
-                    terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    )) => Some(ValueShape::float(8)),
-                    terminal_psi::StructuralFieldType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ) => Some(ValueShape::float(4)),
-                    terminal_psi::StructuralFieldType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ) => Some(ValueShape::float(8)),
+                    terminal_psi::StructuralFieldType::Scalar(scalar) => {
+                        Some(calling_conventions::terminal_layout::scalar_shape(*scalar))
+                    }
+                    terminal_psi::StructuralFieldType::IeeeFloat(format) => {
+                        Some(ValueShape::float(format.byte_size()))
+                    }
                     terminal_psi::StructuralFieldType::ByteSequence(carrier)
                     | terminal_psi::StructuralFieldType::PredicateByteSequence {
                         carrier, ..

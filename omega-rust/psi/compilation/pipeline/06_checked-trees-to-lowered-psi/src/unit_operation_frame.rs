@@ -589,8 +589,7 @@ pub(crate) mod attached_unit {
             use crate::unit::{
                 CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, LoweringError,
                 Operation, OperationResult, StructuralOperationResult, StructuralPlaceDeclaration,
-                ValueDeclaration, allocate_dense, lookup_type_id, place_id, terminal_scalar_type,
-                unsupported, value_id,
+                ValueDeclaration, allocate_dense, lookup_type_id, place_id, unsupported, value_id,
             };
 
             impl OperationFrame<'_, '_> {
@@ -1036,8 +1035,7 @@ pub(crate) mod attached_unit {
             use crate::unit::{
                 CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind,
                 OperationResult, PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind,
-                ValueDeclaration, allocate_dense, lookup_machine_id, terminal_scalar_type,
-                unsupported, value_id,
+                ValueDeclaration, allocate_dense, lookup_machine_id, unsupported, value_id,
             };
             use checked_trees::{
                 CheckedBoundaryMachineResultPlan, CheckedUnitCallPlan, CheckedUnitCallResult,
@@ -2252,8 +2250,8 @@ pub(crate) mod attached_unit {
             use crate::emission::operation_emission::expressions::emit_direct_expression;
             use crate::shared::checked_facts::flow_facts;
             use crate::unit::{
-                LoweringError, OperationResult, ValueDeclaration, allocate_dense,
-                terminal_scalar_type, unsupported, value_id,
+                LoweringError, OperationResult, ValueDeclaration, allocate_dense, unsupported,
+                value_id,
             };
             use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult};
 
@@ -2905,7 +2903,7 @@ pub(crate) mod attached_unit {
                 OperationBuffer, SourceCallCoordinate,
             };
             use crate::emission::operation_emission::calls::CallEmissionContext;
-            use crate::unit::{LoweringError, ValueDeclaration, terminal_scalar_type, unsupported};
+            use crate::unit::{LoweringError, ValueDeclaration, unsupported};
 
             struct FrontierSource<'a, 'context> {
                 checked: &'a checked_trees::CheckedTrees,
@@ -3521,10 +3519,10 @@ pub(crate) mod attached_unit {
                 CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, LoweringError,
                 Operation, OperationKind, OperationResult, PlaceId, StructuralAccess,
                 StructuralDomainId, StructuralPlaceDeclaration, StructuralPlaceKind,
-                ValueDeclaration, allocate_dense, lookup_type_id, place_id, terminal_scalar_type,
-                unsupported,
+                ValueDeclaration, allocate_dense, lookup_type_id, place_id, unsupported,
             };
             use checked_trees::CheckedUnitStructuralArgumentPlan;
+            use semantic_vocabulary::ScalarType;
 
             impl OperationFrame<'_, '_> {
                 pub(crate) fn establish_local(
@@ -6977,7 +6975,7 @@ pub(crate) mod attached_unit {
                                     "an unnamed common field has no scalar zero",
                                 ))?;
                         let zero = crate::emission::operation_emission::expressions::emit_scalar_leaf(
-                            crate::unit::attached_unit::structural_values::record::zero_constant(scalar_type),
+                            crate::unit::attached_unit::structural_values::record::zero_constant(scalar_type)?,
                             scalar_type,
                             self.next_value,
                             self.operations,

@@ -294,7 +294,11 @@ impl PsiOptimizationUnit {
                 abstract_operations::AbstractCallTarget::Callable { .. } => (None, None, None),
             },
             AbstractOperation::SelectMachine { descriptor, .. } => (
-                self.callables.descriptor(*descriptor).map(|row| row.machine), None, None,
+                self.callables
+                    .descriptor(*descriptor)
+                    .map(|row| row.machine),
+                None,
+                None,
             ),
             AbstractOperation::SelectImplementation { table, .. } => (None, Some(*table), None),
             _ => (None, None, None),

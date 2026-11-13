@@ -554,11 +554,11 @@ pub(crate) mod computations {
             LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
         };
         use crate::shared::checked_facts::{flow_facts, value_facts};
-        use crate::shared::declarations::target_signature;
         use arena::HandleSpan;
         use checked_trees::{
             CheckedScalarComputationStructuralArgument, CheckedScalarComputationTemporaryCleanup,
         };
+        use semantic_vocabulary::ScalarType;
 
         pub(crate) mod source {
 
@@ -927,10 +927,13 @@ pub(crate) mod computations {
                         ))?;
                     operands.push(Operand::Produced(slot.clone()));
                 }
+                let dynamic_selector = match callee {
+                    checked_trees::CheckedScalarCallee::Dynamic { selector, .. } => Some(*selector),
+                    _ => None,
+                };
                 let mut lanes = Vec::with_capacity(signature.parameters.len());
                 for (position, formal) in signature.parameters.iter().enumerate() {
-                    if formal.relevance.is_erased() || position == 0 && callee.selector().is_some()
-                    {
+                    if formal.relevance.is_erased() || position == 0 && dynamic_selector.is_some() {
                         lanes.push((None, None));
                     } else if parameters
                         .get(structural_ordinal)
@@ -952,7 +955,7 @@ pub(crate) mod computations {
                         continue;
                     }
                     if position == 0
-                        && let Some(selector) = callee.selector()
+                        && let Some(selector) = dynamic_selector
                     {
                         operands.push(Operand::DispatchSelector(Argument::Computation(selector)));
                         continue;
@@ -1649,7 +1652,7 @@ pub(crate) mod computations {
             Multiplicity, Operation, OperationKind, OperationResult, PlaceId,
             StructuralMultiplicity, StructuralOperationResult, StructuralPlaceDeclaration,
             StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueDeclaration,
-            allocate_dense, emit_direct_expression, place_id, terminal_scalar_type,
+            allocate_dense, emit_direct_expression, place_id,
         };
         use super::{
             Argument, CheckedScalarComputationKind, CheckedTrees, Computation, Expansion,
@@ -4728,12 +4731,14 @@ pub(crate) mod computations {
                     ))?,
                     scalar_type: leaf_type,
                 },
-                ScalarType::IeeeFloat(_) => LoweredDirectExpression::PrimitiveRead {
-                    qualifications: Default::default(),
-                    source: read_source,
-                    path: read_path,
-                    scalar_type: leaf_type,
-                },
+                ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => {
+                    LoweredDirectExpression::PrimitiveRead {
+                        qualifications: Default::default(),
+                        source: read_source,
+                        path: read_path,
+                        scalar_type: leaf_type,
+                    }
+                }
             };
             if leaf_type == scalar_type {
                 Ok(leaf)
@@ -5382,7 +5387,7 @@ pub(crate) mod computations {
                     CheckedScalarExpression::StructuralParameterIndexedRead {
                         observation,
                         root,
-                        primitive_type,
+                        scalar_type,
                         ..
                     } => (
                         *root,
@@ -5392,7 +5397,7 @@ pub(crate) mod computations {
                             path: Vec::new(),
                             index: Box::new(selector.clone()),
                             element_path: suffix,
-                            primitive_type: *primitive_type,
+                            scalar_type: *scalar_type,
                         },
                     ),
                     CheckedScalarExpression::StructuralSequenceLength { root, .. } => {
@@ -6317,7 +6322,8 @@ pub(crate) mod computations {
                         checked_trees::cast_or_qualification_triple_pattern!(operand, ..) => {
                             pending.push((*operand, false))
                         }
-                        CheckedScalarComputationKind::StorageAddress { .. }
+                        CheckedScalarComputationKind::MachineValue { .. }
+                        | CheckedScalarComputationKind::StorageAddress { .. }
                         | CheckedScalarComputationKind::ByteSequenceLiteralComparison { .. }
                         | CheckedScalarComputationKind::ByteSequencePredicate { .. }
                         | CheckedScalarComputationKind::RetainedConstant { .. }

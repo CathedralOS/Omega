@@ -1400,6 +1400,13 @@ impl<'a> Lowering<'a> {
             ScalarType::IeeeFloat(_) => {
                 return Err(self.internal("a float field reached lowering"));
             }
+            ScalarType::Callable(_) => {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Expression("callable field without a retained contract"),
+                ));
+            }
         };
         let operation = self.operation_identity(source);
         self.emit(operation, Some(scalar_type), kind)
@@ -1711,6 +1718,13 @@ impl<'a> Lowering<'a> {
             },
             ScalarType::IeeeFloat(_) => {
                 return Err(self.internal("a float local reached lowering"));
+            }
+            ScalarType::Callable(_) => {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Expression("zero-initialized callable"),
+                ));
             }
         };
         let operation = self.operation_identity(source);

@@ -2163,6 +2163,11 @@ pub(crate) mod crash_routes {
                     ScalarType::IeeeFloat(format) => {
                         ScalarTerm::ieee_float_field_path(root, path, *format)
                     }
+                    ScalarType::Callable(_) => {
+                        return unsupported(
+                            "opaque callable storage cannot supply an erased mathematical scalar term",
+                        );
+                    }
                 });
             }
             lowered_direct_scalar_term(expression, values, erased)
@@ -3086,7 +3091,7 @@ pub(crate) mod crash_routes {
                 path,
                 index,
                 element_path,
-                primitive_type,
+                scalar_type,
                 ..
             } = expression
             else {
@@ -3112,7 +3117,10 @@ pub(crate) mod crash_routes {
                 root_type,
                 &terminal_path,
             );
-            let expected = terminal_scalar_type(*primitive_type)?;
+            let primitive = scalar_type.primitive().ok_or(LoweringError::Unsupported(
+                "opaque callable storage is not a mathematical indexed term",
+            ))?;
+            let expected = terminal_scalar_type(primitive)?;
             if actual != Some(expected) {
                 return unsupported(
                     "indexed contract path does not select its retained scalar type",
@@ -3132,6 +3140,11 @@ pub(crate) mod crash_routes {
                 (Some(path), ScalarType::Boolean) => ScalarTerm::boolean_field_path(root, path),
                 (Some(path), ScalarType::IeeeFloat(format)) => {
                     ScalarTerm::ieee_float_field_path(root, path, format)
+                }
+                (_, ScalarType::Callable(_)) => {
+                    return unsupported(
+                        "opaque callable storage is not a mathematical indexed term",
+                    );
                 }
                 (None, _) => ScalarTerm::StructuralRead {
                     root,
@@ -3361,6 +3374,11 @@ pub(crate) mod crash_routes {
                 }
                 ScalarType::IeeeFloat(format) => {
                     ScalarTerm::ieee_float_field_path(root, terminal_path, format)
+                }
+                ScalarType::Callable(_) => {
+                    return unsupported(
+                        "opaque callable storage is not a mathematical structural term",
+                    );
                 }
             })
         }
@@ -3828,13 +3846,17 @@ pub(crate) mod crash_routes {
                                     index: parameter_position,
                                 },
                             path,
-                            primitive_type,
+                            scalar_type,
                             ..
                         } => lower_structural_member_term(
                             identities,
                             *parameter_position,
                             path,
-                            crate::emission::scalar_types::terminal_scalar_type(*primitive_type)?,
+                            crate::emission::scalar_types::terminal_scalar_type(
+                                scalar_type.primitive().ok_or(LoweringError::Unsupported(
+                                    "opaque callable storage is not crash-predicate arithmetic",
+                                ))?,
+                            )?,
                             self.parameters,
                             self.structural_types,
                         ),
@@ -8343,8 +8365,10 @@ pub(crate) mod float_meaning_projection {
                 usize::try_from(scalar.source_position).ok() == Some(authored_position)
             })
             .ok_or_else(invalid_source)?;
-        if graph_state.scalar_parameters[scalar_index].primitive_type
-            != parameter.fallback.primitive
+        if graph_state.scalar_parameters[scalar_index]
+            .scalar_type
+            .primitive()
+            != Some(parameter.fallback.primitive)
         {
             return Err(invalid_source());
         }

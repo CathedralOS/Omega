@@ -887,14 +887,11 @@ pub(crate) mod branch_states {
 }
 pub(crate) mod call_closure {
 
-    use super::{
-        CheckedTerminalSignatureEligibility, CheckedTrees, LoweringError, PrimitiveType,
-        unsupported,
-    };
+    use super::{CheckedTerminalSignatureEligibility, CheckedTrees, LoweringError, unsupported};
 
     pub(crate) mod callee {
         use super::super::CheckedUnitStructuralParameterPlan;
-        use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
+        use super::{CheckedTrees, LoweringError, unsupported};
         use crate::shared::checked_facts::flow_facts;
         use crate::unit::attached_unit::bodies::UnitBody;
 
@@ -2435,11 +2432,14 @@ pub(crate) mod contracts {
             if let CheckedScalarExpression::ConstantApplication {
                 recipe,
                 owner,
-                primitive_type,
+                scalar_type,
             } = expression
             {
+                let primitive_type = scalar_type.primitive().ok_or(LoweringError::Unsupported(
+                    "opaque machine values cannot appear in mathematical constant applications",
+                ))?;
                 let scalar_type =
-                    crate::emission::scalar_types::integer_scalar_type(*primitive_type)?;
+                    crate::emission::scalar_types::integer_scalar_type(primitive_type)?;
                 if let Some(application) = self.views.scalar_applications.recipe_in(*recipe, *owner)
                 {
                     if self.views.scalar_applications.scalar_type(application) != Some(scalar_type)
@@ -2461,11 +2461,10 @@ pub(crate) mod contracts {
                     .ok_or(LoweringError::Unsupported(
                         "contract constant application has no admitted target value",
                     ))?;
-                let value =
-                    typed_trees::closed_numeric::land_integer(&value.value, *primitive_type)
-                        .ok_or(LoweringError::Unsupported(
-                            "contract constant application does not fit its declared carrier",
-                        ))?;
+                let value = typed_trees::closed_numeric::land_integer(&value.value, primitive_type)
+                    .ok_or(LoweringError::Unsupported(
+                        "contract constant application does not fit its declared carrier",
+                    ))?;
                 let scalar_type = scalar_type.as_integer().ok_or(LoweringError::Unsupported(
                     "contract constant application has no integer carrier",
                 ))?;

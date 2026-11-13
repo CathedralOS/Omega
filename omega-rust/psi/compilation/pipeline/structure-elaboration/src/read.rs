@@ -193,6 +193,7 @@ fn symbol_kind(kind: SymbolKind) -> &'static str {
         SymbolKind::Field => "field",
         SymbolKind::Variant => "variant",
         SymbolKind::Machine => "machine",
+        SymbolKind::CallableContract => "callable contract",
         SymbolKind::Operator => "operator",
         SymbolKind::Measure => "measure",
         SymbolKind::Proposition => "proposition",

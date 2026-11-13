@@ -1415,6 +1415,56 @@ impl TypedTrees {
         )
     }
 
+    /// Normalize the complete contract under exact outer region identities.
+    /// Signature-owned binders are masked by the same owner as ordinary types.
+    pub fn runtime_callable_type_identity_in_region_scope(
+        &self,
+        request: TypeIdentityRequest<'_>,
+        lexical_owner: SymbolHandle,
+        lifetime_binders: &[(LifetimeParameterIdentity, usize)],
+        resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> IdentityResult<String> {
+        if lifetime_binders
+            .iter()
+            .enumerate()
+            .any(|(position, (region, ordinal))| {
+                crate::type_identity::lifetime_parameter_name(self, *region).is_none()
+                    || lifetime_binders[..position]
+                        .iter()
+                        .any(|(prior, prior_ordinal)| prior == region && prior_ordinal != ordinal)
+            })
+            || resolved_lifetimes
+                .iter()
+                .enumerate()
+                .any(|(position, (formal, actual))| {
+                    crate::type_identity::lifetime_parameter_name(self, *formal).is_none()
+                        || crate::type_identity::lifetime_parameter_name(self, *actual).is_none()
+                        || resolved_lifetimes[..position]
+                            .iter()
+                            .any(|(prior, prior_actual)| prior == formal && prior_actual != actual)
+                })
+        {
+            return Err(RuntimeCallableIdentityError::UnresolvedType);
+        }
+        normalize_type_in_context(
+            self,
+            request.type_reference,
+            &TypeIdentityContext {
+                binders: request.binders,
+                substitutions: request.substitutions,
+                qualification: request.qualification,
+                application_owner: lexical_owner,
+                application_argument_owner: lexical_owner,
+                lifetime_binders,
+                resolved_lifetimes,
+                exact_toolchain_sources,
+                ..Default::default()
+            },
+            false,
+        )
+    }
+
     pub fn runtime_callable_type_identity(
         &self,
         request: TypeIdentityRequest<'_>,
@@ -1609,12 +1659,14 @@ mod tests {
                     name: Identifier::generated("T"),
                     ..Default::default()
                 }]);
-        let witness = program.traits.insert(TraitDefinition {
+        let witnesses = program.traits.insert_many([TraitDefinition {
             symbol: declarations[2],
             name: Identifier::generated("Witness"),
             type_parameters: witness_parameters,
             ..Default::default()
-        });
+        }]);
+        program.roots.traits = witnesses;
+        let witness = witnesses.handle_at(0);
         let mut spans = Vec::new();
         for subjects in &parameters {
             spans.push(
@@ -1628,7 +1680,7 @@ mod tests {
                     })),
             );
         }
-        program.propositions.insert(PropositionDefinition {
+        let base = PropositionDefinition {
             symbol: declarations[0],
             name: Identifier::generated("Base"),
             parameters: spans[0],
@@ -1636,21 +1688,25 @@ mod tests {
                 evidence: witness_type,
             },
             ..Default::default()
-        });
+        };
         let expansion = application(
             &mut program,
             declarations[0],
             &[parameters[1][1], parameters[1][0]],
         );
-        program.propositions.insert(PropositionDefinition {
-            symbol: declarations[1],
-            name: Identifier::generated("Flip"),
-            parameters: spans[1],
-            body: PropositionBody::Transparent {
-                proposition: PropositionFormula::Application(expansion),
+        let propositions = program.propositions.insert_many([
+            base,
+            PropositionDefinition {
+                symbol: declarations[1],
+                name: Identifier::generated("Flip"),
+                parameters: spans[1],
+                body: PropositionBody::Transparent {
+                    proposition: PropositionFormula::Application(expansion),
+                },
+                ..Default::default()
             },
-            ..Default::default()
-        });
+        ]);
+        program.roots.propositions = propositions;
         let contracts = [0, 1].map(|index| {
             program
                 .runtime_callable_contracts
@@ -1723,6 +1779,117 @@ mod tests {
             ),
             Err(RuntimeCallableIdentityError::UnresolvedContractFact)
         );
+
+        // Equal region spellings do not merge an owned binder with a captured
+        // outer declaration. Alpha-renaming the owned binder preserves identity.
+        let first = fixture.contracts[0];
+        let outer = fixture.contracts[1];
+        let first_symbol = fixture
+            .program
+            .runtime_callable_contract(first)
+            .signature
+            .symbol;
+        let outer_symbol = fixture
+            .program
+            .runtime_callable_contract(outer)
+            .signature
+            .symbol;
+        fixture
+            .program
+            .runtime_callable_contracts
+            .get_mut(first)
+            .signature
+            .lifetime_parameters = vec![Identifier::generated("same")];
+        fixture
+            .program
+            .runtime_callable_contracts
+            .get_mut(outer)
+            .signature
+            .lifetime_parameters = vec![Identifier::generated("same")];
+        let own_region = LifetimeParameterIdentity {
+            declaration: first_symbol,
+            ordinal: 0,
+        };
+        let outer_region = LifetimeParameterIdentity {
+            declaration: outer_symbol,
+            ordinal: 0,
+        };
+        let unit = fixture
+            .program
+            .runtime_callable_contract(first)
+            .signature
+            .return_type;
+        let parameter = fixture
+            .program
+            .runtime_callable_contract(first)
+            .signature
+            .parameters
+            .handle_at(0);
+        let reference =
+            |program: &mut TypedTrees, region: LifetimeParameterIdentity, spelling: &str| {
+                let reference = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Reference {
+                        referee: unit,
+                        access: language_core::ReferenceAccess::Shared,
+                        lifetime: Some(Identifier::generated(spelling)),
+                    });
+                program
+                    .type_reference_table
+                    .retain_operand_lifetime_owner(reference, region.declaration)
+                    .unwrap();
+                program
+                    .type_reference_table
+                    .retain_operand_lifetimes(reference, [region])
+                    .unwrap();
+                reference
+            };
+        let own_reference = reference(&mut fixture.program, own_region, "same");
+        let outer_reference = reference(&mut fixture.program, outer_region, "same");
+        fixture
+            .program
+            .state_parameters
+            .get_mut(parameter)
+            .type_reference = own_reference;
+        let callable = fixture
+            .program
+            .type_reference_table
+            .insert(TypeReferenceNode::Callable { contract: first });
+        let lexical_owner = fixture
+            .program
+            .runtime_callable_contract(first)
+            .lexical_owner;
+        let identity = |program: &TypedTrees| {
+            program
+                .runtime_callable_type_identity_in_region_scope(
+                    TypeIdentityRequest::ordinary(callable),
+                    lexical_owner,
+                    &[(outer_region, 0)],
+                    &[],
+                    &[],
+                )
+                .unwrap()
+        };
+        let own_identity = identity(&fixture.program);
+        fixture
+            .program
+            .state_parameters
+            .get_mut(parameter)
+            .type_reference = outer_reference;
+        assert_ne!(own_identity, identity(&fixture.program));
+        fixture
+            .program
+            .runtime_callable_contracts
+            .get_mut(first)
+            .signature
+            .lifetime_parameters = vec![Identifier::generated("renamed")];
+        let renamed = reference(&mut fixture.program, own_region, "renamed");
+        fixture
+            .program
+            .state_parameters
+            .get_mut(parameter)
+            .type_reference = renamed;
+        assert_eq!(own_identity, identity(&fixture.program));
     }
 
     #[test]

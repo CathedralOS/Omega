@@ -193,6 +193,7 @@ pub(super) fn physical_authority_use(operation: &AbstractOperation) -> PhysicalA
         },
         AbstractOperation::AtomicEvent { .. }
         | AbstractOperation::SelectImplementation { .. }
+        | AbstractOperation::SelectMachine { .. }
         | AbstractOperation::WriteOnlyPrimitiveStore { .. }
         | abstract_operations::byte_sequence_write_pair_pattern!(..)
         | abstract_operations::byte_sequence_store_pair_pattern!(..)

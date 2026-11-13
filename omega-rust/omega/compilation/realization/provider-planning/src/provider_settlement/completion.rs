@@ -306,12 +306,15 @@ impl CompletionReview<'_> {
                             .into(),
                     );
                 }
+                let (machine, state) = call.target.declaration().ok_or_else(|| {
+                    "completion review needs the exact original external-completion leaf; a runtime callable contract does not establish that leaf".to_owned()
+                })?;
                 let arguments = call
                     .scalar_arguments
                     .iter()
                     .map(|argument| self.scalar(argument, values))
                     .collect::<Result<Vec<_>, _>>()?;
-                let outcome = self.machine(call.target.machine, call.target.state, arguments)?;
+                let outcome = self.machine(machine, state, arguments)?;
                 if outcome.returns
                     && let Some(result) = call.scalar_result()
                 {

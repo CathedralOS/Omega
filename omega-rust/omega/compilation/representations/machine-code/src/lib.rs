@@ -300,7 +300,9 @@ pub mod image_addresses {
 
         pub fn machine_descriptor(&self) -> Option<semantic_vocabulary::MachineDescriptorId> {
             match self.reference {
-                selected_instructions::SelectedImageAddressReference::MachineDescriptor { descriptor } => Some(descriptor),
+                selected_instructions::SelectedImageAddressReference::MachineDescriptor {
+                    descriptor,
+                } => Some(descriptor),
                 _ => None,
             }
         }

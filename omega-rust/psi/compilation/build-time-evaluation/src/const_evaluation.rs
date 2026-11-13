@@ -23,7 +23,7 @@ pub(crate) mod const_applications {
     use arena::HandleSpan;
     use diagnostics::Diagnostic;
     use language_semantics::const_value::DecodedCanonicalConstValue;
-    use std::collections::{HashMap, HashSet};
+    use std::collections::HashSet;
     use symbols::{SymbolHandle, SymbolKind};
     use typed_trees::expression::ExpressionNode;
     use typed_trees::{
@@ -31,7 +31,7 @@ pub(crate) mod const_applications {
         data::{DataMember, TypeParameterKind},
         expression::ExpressionHandle,
         name::Identifier,
-        types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
+        types::{TypeReferenceHandle, TypeReferenceNode},
     };
 
     pub(crate) struct PendingConstApplication {
@@ -194,7 +194,8 @@ pub(crate) mod const_applications {
                 return Err(round.diagnostics);
             }
         }
-        realize_folded_applications(typed, &published, domain);
+        realize_folded_applications(typed, &published, domain)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         crate::report_evaluation_diagnostics(&warnings)?;
         Ok(())
     }
@@ -207,9 +208,9 @@ pub(crate) mod const_applications {
             Vec<ExpressionHandle>,
         )],
         domain: &mut EvaluationDomain,
-    ) {
+    ) -> Result<(), &'static str> {
         if published.is_empty() {
-            return;
+            return Ok(());
         }
         let mut closed: HashSet<TypeReferenceHandle> =
             published.iter().map(|(site, _, _)| *site).collect();
@@ -249,7 +250,7 @@ pub(crate) mod const_applications {
                 {
                     continue;
                 }
-                let Some((symbol, name)) = realize_data_instance(typed, site, base_symbol) else {
+                let Some((symbol, name)) = realize_data_instance(typed, site, base_symbol)? else {
                     declined.insert(site);
                     continue;
                 };
@@ -265,7 +266,7 @@ pub(crate) mod const_applications {
                 progress = true;
             }
             if !progress {
-                return;
+                return Ok(());
             }
         }
     }
@@ -279,6 +280,19 @@ pub(crate) mod const_applications {
             return true;
         }
         match typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Callable { contract } => {
+                if !typed.runtime_callable_contracts.is_valid(*contract)
+                    || typed
+                        .runtime_callable_contract_identity(*contract, &[])
+                        .is_err()
+                {
+                    return false;
+                }
+                typed_trees::references::type_reference_inputs(typed, reference)
+                    .types
+                    .iter()
+                    .any(|input| closed.contains(input))
+            }
             TypeReferenceNode::Generic { arguments, .. } => type_reference_table(typed)
                 .type_reference_handles(*arguments)
                 .iter()
@@ -302,6 +316,33 @@ pub(crate) mod const_applications {
 
     fn closed_argument(typed: &TypedTrees, reference: TypeReferenceHandle) -> bool {
         match typed.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Callable { contract } => {
+                if !typed.runtime_callable_contracts.is_valid(*contract)
+                    || typed
+                        .runtime_callable_contract_identity(*contract, &[])
+                        .is_err()
+                {
+                    return false;
+                }
+                let inputs = typed_trees::references::type_reference_inputs(typed, reference);
+                let free = inputs
+                    .symbols
+                    .into_iter()
+                    .filter(|symbol| {
+                        matches!(
+                            typed.symbols.get(*symbol).kind,
+                            SymbolKind::TypeParameter
+                                | SymbolKind::Parameter
+                                | SymbolKind::Local
+                                | SymbolKind::MachineParameter
+                                | SymbolKind::ConformanceParameter
+                                | SymbolKind::PropositionParameter
+                                | SymbolKind::PropositionMachineParameter
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                !typed.type_reference_mentions_any(reference, &free)
+            }
             TypeReferenceNode::Named { symbol, .. } => {
                 !symbol.is_valid()
                     || matches!(
@@ -383,7 +424,9 @@ pub(crate) mod const_applications {
                 {
                     continue;
                 }
-                let Some((symbol, name)) = realize_data_instance(typed, site, base_symbol) else {
+                let Some((symbol, name)) = realize_data_instance(typed, site, base_symbol)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                else {
                     continue;
                 };
                 domain.include(symbol);
@@ -407,7 +450,7 @@ pub(crate) mod const_applications {
         typed: &mut TypedTrees,
         site: TypeReferenceHandle,
         base_symbol: SymbolHandle,
-    ) -> Option<(SymbolHandle, String)> {
+    ) -> Result<Option<(SymbolHandle, String)>, &'static str> {
         let TypeReferenceNode::Generic {
             base_name,
             lifetime_arguments,
@@ -415,12 +458,14 @@ pub(crate) mod const_applications {
             ..
         } = typed.type_reference_table.type_reference(site).clone()
         else {
-            return None;
+            return Ok(None);
         };
         let argument_handles = type_reference_table(typed)
             .type_reference_handles(arguments)
             .to_vec();
-        let template = typed.data_definition_by_symbol(base_symbol).cloned()?;
+        let Some(template) = typed.data_definition_by_symbol(base_symbol).cloned() else {
+            return Ok(None);
+        };
         if template.generic_instance.is_some()
             || template.quotient.is_some()
             || !template.requires_facts.is_empty()
@@ -431,44 +476,59 @@ pub(crate) mod const_applications {
                 .iter()
                 .any(|machine| machine.attached_data_symbol == base_symbol)
         {
-            return None;
+            return Ok(None);
         }
         let parameters = typed.data_type_parameters(&template).to_vec();
         if parameters.len() != argument_handles.len() {
-            return None;
+            return Ok(None);
         }
-        let mut bindings = HashMap::new();
+        let mut bindings = Vec::with_capacity(parameters.len());
         for (parameter, argument) in parameters.iter().zip(&argument_handles) {
             match parameter.kind {
                 TypeParameterKind::Type
                 | TypeParameterKind::Const { .. }
                 | TypeParameterKind::Value { .. } => {
-                    bindings.insert(parameter.symbol, *argument);
+                    bindings.push((parameter.symbol, *argument));
                 }
-                _ => return None,
+                _ => return Ok(None),
             }
         }
-        let synthetic_name = format!(
-            "{}<{}>",
-            template.name.as_str(),
-            argument_handles
-                .iter()
-                .map(|argument| argument_slug(typed, *argument))
-                .collect::<Option<Vec<_>>>()?
-                .join(", ")
-        );
+        let Some(slugs) = argument_handles
+            .iter()
+            .map(|argument| argument_slug(typed, *argument))
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Ok(None);
+        };
+        let synthetic_name = format!("{}<{}>", template.name.as_str(), slugs.join(", "));
         if let Some(existing) = typed.data_definitions().iter().find(|definition| {
             definition.generic_instance.is_some_and(|origin| {
                 instance_origin_matches(typed, origin, base_symbol, &argument_handles)
             })
         }) {
-            return Some((existing.symbol, synthetic_name));
+            return Ok(Some((existing.symbol, synthetic_name)));
         }
         let template_members = typed.data_members(&template).to_vec();
+        if template_members
+            .iter()
+            .any(|member| member.as_field().is_none())
+        {
+            return Ok(None);
+        }
+        let supplier = typed.type_reference_table.operand_lifetime_owner(site);
         let mut member_types = Vec::with_capacity(template_members.len());
         for member in &template_members {
-            let field = member.as_field()?;
-            let type_reference = substitute_member_type(typed, field.type_reference, &bindings)?;
+            let field = member
+                .as_field()
+                .ok_or("constant data realization lost its field declaration")?;
+            let type_reference = typed.apply_callable_type_in_scope(
+                field.type_reference,
+                &bindings,
+                &[],
+                template.symbol,
+                supplier,
+                &[],
+            )?;
             member_types.push((field.clone(), type_reference));
         }
         let instance_symbol = typed.symbols.insert_generated_root_from(
@@ -503,111 +563,7 @@ pub(crate) mod const_applications {
             typed.push_data_member(&mut instance, DataMember::Field(field));
         }
         typed.push_data_definition(instance);
-        Some((instance_symbol, synthetic_name))
-    }
-
-    fn substitute_member_type(
-        typed: &mut TypedTrees,
-        reference: TypeReferenceHandle,
-        bindings: &HashMap<SymbolHandle, TypeReferenceHandle>,
-    ) -> Option<TypeReferenceHandle> {
-        match typed.type_reference_table.type_reference(reference).clone() {
-            TypeReferenceNode::Named { symbol, .. } => {
-                bindings.get(&symbol).copied().or(Some(reference))
-            }
-            TypeReferenceNode::Reference {
-                referee,
-                access,
-                lifetime,
-            } => {
-                let referee = substitute_member_type(typed, referee, bindings)?;
-                Some(
-                    typed
-                        .type_reference_table
-                        .insert(TypeReferenceNode::Reference {
-                            referee,
-                            access,
-                            lifetime,
-                        }),
-                )
-            }
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => {
-                let element_type = substitute_member_type(typed, element_type, bindings)?;
-                let length = match length {
-                    FixedArrayLength::Literal(_) => length,
-                    FixedArrayLength::ConstParameter { symbol, .. } => {
-                        let argument = bindings.get(&symbol).copied()?;
-                        match typed.type_reference_table.type_reference(argument) {
-                            TypeReferenceNode::Named { name, .. } => {
-                                FixedArrayLength::Literal(name.as_str().parse().ok()?)
-                            }
-                            TypeReferenceNode::ConstExpression(root) => {
-                                let (machine, name) = direct_const_call(typed, *root)?;
-                                FixedArrayLength::ConstCall {
-                                    machine,
-                                    name,
-                                    source_span: typed.expression_table.source_span(*root),
-                                }
-                            }
-                            _ => return None,
-                        }
-                    }
-                    FixedArrayLength::Expression(_) | FixedArrayLength::ConstCall { .. } => {
-                        return None;
-                    }
-                };
-                Some(
-                    typed
-                        .type_reference_table
-                        .insert(TypeReferenceNode::FixedArray {
-                            element_type,
-                            length,
-                        }),
-                )
-            }
-            TypeReferenceNode::Slice { element_type } => {
-                let element_type = substitute_member_type(typed, element_type, bindings)?;
-                Some(
-                    typed
-                        .type_reference_table
-                        .insert(TypeReferenceNode::Slice { element_type }),
-                )
-            }
-            TypeReferenceNode::Generic {
-                base_symbol,
-                base_name,
-                lifetime_arguments,
-                arguments,
-            } => {
-                let mut substituted = Vec::new();
-                for argument in type_reference_table(typed)
-                    .type_reference_handles(arguments)
-                    .to_vec()
-                {
-                    substituted.push(substitute_member_type(typed, argument, bindings)?);
-                }
-                let arguments = typed
-                    .type_reference_table
-                    .insert_type_reference_handles(substituted);
-                Some(
-                    typed
-                        .type_reference_table
-                        .insert(TypeReferenceNode::Generic {
-                            base_symbol,
-                            base_name,
-                            lifetime_arguments,
-                            arguments,
-                        }),
-                )
-            }
-            TypeReferenceNode::Constrained { .. }
-            | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::DynamicTrait { .. } => None,
-            TypeReferenceNode::Unit => Some(reference),
-        }
+        Ok(Some((instance_symbol, synthetic_name)))
     }
 
     fn argument_slug(typed: &TypedTrees, reference: TypeReferenceHandle) -> Option<String> {
@@ -4039,6 +3995,11 @@ pub(crate) mod data_layout_queries {
                 continue;
             }
             match typed.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Callable { contract } => {
+                    typed
+                        .runtime_callable_contract_identity(*contract, &[])
+                        .map_err(|reason| reason.to_string())?;
+                }
                 TypeReferenceNode::FixedArray {
                     element_type,
                     length,

@@ -9512,7 +9512,9 @@ use semantics::{classify, evaluate as evaluate_semantics};
             scalar_value_definition(function, value).and_then(|definition| {
                 match definition.scalar_type {
                     ScalarType::Integer(integer) => Some(integer),
-                    ScalarType::Boolean | ScalarType::IeeeFloat(_) => None,
+                    ScalarType::Boolean | ScalarType::IeeeFloat(_) | ScalarType::Callable(_) => {
+                        None
+                    }
                 }
             })
         }

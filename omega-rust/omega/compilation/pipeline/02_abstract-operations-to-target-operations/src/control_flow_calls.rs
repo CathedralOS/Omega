@@ -1160,7 +1160,8 @@ pub(crate) mod calls {
                 (AbstractCallSignature::Machine(callee), Some(callee))
             }
             AbstractCallTarget::Callable { callee, contract } => {
-                let contract = callables.contract(contract)
+                let contract = callables
+                    .contract(contract)
                     .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
                 let operand = super::scalar_sources::source(callee, function, live)?;
                 if operand.scalar_type() != semantic_vocabulary::ScalarType::Callable(contract.id) {
@@ -1248,7 +1249,14 @@ pub(crate) mod calls {
             .zip(&signature.scalar_parameters)
             .enumerate()
             .map(|(position, (value, parameter))| {
-                scalar_argument(call.diagnostic_owner, position, *value, parameter, function, live)
+                scalar_argument(
+                    call.diagnostic_owner,
+                    position,
+                    *value,
+                    parameter,
+                    function,
+                    live,
+                )
             })
             .collect::<Result<Vec<_>, _>>()?;
         let arguments = call
@@ -1366,7 +1374,9 @@ pub(crate) mod calls {
                         TargetStructuralResultContract::Machine(result_declaration.clone())
                     }
                     AbstractCallSignature::Callable(contract) => {
-                        let terminal_psi::BoundaryMachineResult::Structural(result_declaration) = &contract.result else {
+                        let terminal_psi::BoundaryMachineResult::Structural(result_declaration) =
+                            &contract.result
+                        else {
                             return Err(LoweringError::unsupported_control_flow(function.machine));
                         };
                         TargetStructuralResultContract::Callable(result_declaration.clone())
@@ -1537,7 +1547,9 @@ pub(crate) mod calls {
         let home = match call.result {
             AbstractStructuralCallResult::Unit => {
                 if !declaration.is_unit_result() {
-                    return Err(LoweringError::UnitCallTargetKindMismatch(call.diagnostic_owner));
+                    return Err(LoweringError::UnitCallTargetKindMismatch(
+                        call.diagnostic_owner,
+                    ));
                 }
                 None
             }

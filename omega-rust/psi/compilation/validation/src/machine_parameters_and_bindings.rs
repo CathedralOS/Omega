@@ -165,7 +165,9 @@ pub mod machine_parameters {
         ) -> SymbolHandle {
             // Contract copies may share formal symbols. The retained row, not
             // its signature symbol, owns the surrounding lexical namespace.
-            program.runtime_callable_contracts.iter()
+            program
+                .runtime_callable_contracts
+                .iter()
                 .find(|(_, row)| std::ptr::eq(&row.signature, signature))
                 .map_or_else(
                     || program.declaration_scope_parent(signature.symbol),
@@ -659,7 +661,12 @@ pub mod machine_parameters {
                 actual.declaration,
                 applied.map_or_else(
                     || signature_lexical_owner(program, requirement),
-                    |view| program.static_machine_application(view.invocation).lexical_owner,
+                    |view| {
+                        program
+                            .expression_table
+                            .static_machine_application(view.invocation)
+                            .lexical_owner
+                    },
                 ),
                 actual.lexical_owner,
                 actual.contracts,

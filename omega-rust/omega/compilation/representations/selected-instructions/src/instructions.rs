@@ -48,8 +48,13 @@ impl SelectedInstruction {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedCallTarget {
     Machine(MachineId),
-    Dynamic { interface: u32, slot: u32 },
-    Callable { contract: semantic_vocabulary::CallableContractId },
+    Dynamic {
+        interface: u32,
+        slot: u32,
+    },
+    Callable {
+        contract: semantic_vocabulary::CallableContractId,
+    },
 }
 
 impl SelectedCallTarget {
@@ -59,7 +64,9 @@ impl SelectedCallTarget {
             target_operations::NativeCallTarget::Dynamic {
                 interface, slot, ..
             } => Self::Dynamic { interface, slot },
-            target_operations::NativeCallTarget::Callable { contract, .. } => Self::Callable { contract },
+            target_operations::NativeCallTarget::Callable { contract, .. } => {
+                Self::Callable { contract }
+            }
         }
     }
 

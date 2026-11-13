@@ -1,14 +1,12 @@
 /*
-We represent direct, dynamic, and boundary call targets, result roles, place-free
-formal signatures, and plan-laid access-view inputs.
+Argument planning needs public formals even when code is selected at runtime.
+Named machines, table slots and machine values expose them through
+`AbstractCallSignature`; indirect calls never borrow a body's private signature
+or invent a machine declaration. Structural formals and results use the same
+view across these targets.
 
-Dynamic requirement slots have no machine body and therefore no parameter places,
-while direct machines carry parameter and result declarations. We unify both
-behind `AbstractCallSignature`, `StructuralCallFormal`, and `StructuralCallResult`
-so native argument planning never fabricates a dummy machine or borrows a table
-row's private declaration. We also keep `AbstractOperationPlanWithAccessViewInputs`
-separate from ordinary structural parameters so pointer-shaped `Access<P, T>`
-views are never mistaken for owned structural backing.
+Access-view inputs stay separate from ordinary structural parameters so
+pointer-shaped `Access<P, T>` views are never mistaken for owned backing.
 */
 
 use crate::{AbstractFunction, AbstractOperationPlan, AbstractResult};
@@ -103,36 +101,44 @@ impl AbstractCallTarget {
             Self::Machine(_) => None,
             Self::Callable { contract, .. } => Some(ScalarType::Callable(contract)),
             Self::Dynamic { .. } => Some(ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                    .expect("dispatch selector uses the declared u64 carrier"),
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("dispatch selector uses the declared u64 carrier"),
             )),
         }
     }
 
     pub fn canonical_bytes(self) -> Vec<u8> {
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(17);
+        self.visit_canonical_bytes(|part| bytes.extend_from_slice(part));
+        bytes
+    }
+
+    /// Share the target's tagged identity without allocating at each hash pass.
+    pub fn visit_canonical_bytes(self, mut emit: impl FnMut(&[u8])) {
         match self {
             Self::Machine(machine) => {
-                bytes.push(0);
-                crate::codec_bytes::push_encoded(&mut bytes, machine.get().to_le_bytes());
+                emit(&[0]);
+                emit(&machine.get().to_le_bytes());
             }
             Self::Callable { callee, contract } => {
-                bytes.push(2);
-                crate::codec_bytes::push_encoded(&mut bytes, callee.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, contract.get().to_le_bytes());
+                emit(&[2]);
+                emit(&callee.get().to_le_bytes());
+                emit(&contract.get().to_le_bytes());
             }
             Self::Dynamic {
                 selector,
                 interface,
                 slot,
             } => {
-                bytes.push(1);
-                crate::codec_bytes::push_encoded(&mut bytes, selector.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, interface.to_le_bytes());
-                crate::codec_bytes::push_encoded(&mut bytes, slot.to_le_bytes());
+                emit(&[1]);
+                emit(&selector.get().to_le_bytes());
+                emit(&interface.to_le_bytes());
+                emit(&slot.to_le_bytes());
             }
         }
-        bytes
     }
 }
 
@@ -244,7 +250,10 @@ impl<'declaration> AbstractCallSignature<'declaration> {
                 .get(position)
                 .map(|parameter| parameter.scalar_type),
             Self::Requirement(requirement) => requirement.scalar_parameters.get(position).copied(),
-            Self::Callable(contract) => contract.scalar_parameters.get(position).map(|formal| formal.scalar_type),
+            Self::Callable(contract) => contract
+                .scalar_parameters
+                .get(position)
+                .map(|formal| formal.scalar_type),
         }
     }
 
@@ -266,7 +275,9 @@ impl<'declaration> AbstractCallSignature<'declaration> {
                 .structural_parameters
                 .get(position)
                 .map(Into::into),
-            Self::Callable(contract) => contract.structural_parameters.get(position).map(Into::into),
+            Self::Callable(contract) => {
+                contract.structural_parameters.get(position).map(Into::into)
+            }
         }
     }
 
@@ -312,4 +323,43 @@ pub fn call_source(
     source.path.extend(formal.path.iter().cloned());
     source.access = formal.access;
     Some(source)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AbstractCallTarget;
+    use semantic_vocabulary::{CallableContractId, MachineId, ValueId};
+
+    #[test]
+    fn callable_target_identity_keeps_code_and_contract() {
+        let callee = ValueId::new(1).unwrap();
+        let contract = CallableContractId::new(1).unwrap();
+        let callable = AbstractCallTarget::Callable { callee, contract };
+        // These coordinates can have the same payload bytes across target kinds.
+        // Reusing an identity must never change a code value into a table slot.
+        let dynamic = AbstractCallTarget::Dynamic {
+            selector: callee,
+            interface: 1,
+            slot: 0,
+        };
+        let direct = AbstractCallTarget::Machine(MachineId::new(1).unwrap());
+        assert_ne!(callable.canonical_bytes(), dynamic.canonical_bytes());
+        assert_ne!(callable.canonical_bytes(), direct.canonical_bytes());
+        assert_ne!(
+            callable.canonical_bytes(),
+            AbstractCallTarget::Callable {
+                callee: ValueId::new(2).unwrap(),
+                contract,
+            }
+            .canonical_bytes()
+        );
+        assert_ne!(
+            callable.canonical_bytes(),
+            AbstractCallTarget::Callable {
+                callee,
+                contract: CallableContractId::new(2).unwrap(),
+            }
+            .canonical_bytes()
+        );
+    }
 }

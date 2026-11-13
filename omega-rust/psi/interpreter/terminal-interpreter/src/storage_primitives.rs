@@ -1734,7 +1734,9 @@ pub(crate) mod primitive_storage {
             if !terminal_scalar_belongs_to_type(value) {
                 return Err(malformed());
             }
-            if value.scalar_type() == target { return Ok(value); }
+            if value.scalar_type() == target {
+                return Ok(value);
+            }
             if terminal_semantics::scalar_reference_view_is_total(value.scalar_type(), target) {
                 return super::scalar_reference_observation(value, target);
             }
@@ -1814,7 +1816,10 @@ pub(crate) mod primitive_storage {
             let result = match stored {
                 ScalarType::Callable(contract) => TerminalScalarValue::Callable {
                     contract,
-                    descriptor: semantic_vocabulary::MachineDescriptorId::new(u64::try_from(bits).map_err(|_| malformed())?).ok_or_else(malformed)?,
+                    descriptor: semantic_vocabulary::MachineDescriptorId::new(
+                        u64::try_from(bits).map_err(|_| malformed())?,
+                    )
+                    .ok_or_else(malformed)?,
                 },
                 ScalarType::Boolean => boolean_bits(bits)?,
                 ScalarType::Integer(integer) => {
@@ -4416,7 +4421,8 @@ pub(crate) mod primitive_storage {
             }
             if let Some(restriction) = restriction {
                 if !crate::engine::scalar_operations::terminal_scalar_belongs_to_type(scalar)
-                    || !scalar.satisfies_field(&restriction) {
+                    || !scalar.satisfies_field(&restriction)
+                {
                     return Err(malformed());
                 }
             }
@@ -4639,7 +4645,9 @@ pub(crate) mod primitive_storage {
         target: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
         use terminal_semantics::ScalarViewValue;
-        if stored.scalar_type() == target { return Ok(stored); }
+        if stored.scalar_type() == target {
+            return Ok(stored);
+        }
         let input = crate::boundary::values::scalar_view_value(&stored).ok_or_else(malformed)?;
         let observed =
             terminal_semantics::scalar_reference_view_value(stored.scalar_type(), target, input)

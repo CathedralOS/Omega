@@ -1895,14 +1895,14 @@ pub mod borrow {
             }
             let source = self.calls.get(call);
             let source_is_bound = match source.runtime_call {
-                Some(binding) => !source.target_symbol.is_valid()
-                    && binding.callee.is_valid() && binding.contract.is_valid(),
+                Some(binding) => {
+                    !source.target_symbol.is_valid()
+                        && binding.callee.is_valid()
+                        && binding.contract.is_valid()
+                }
                 None => source.target_symbol.is_valid(),
             };
-            if !source_is_bound
-                || !loan.storage_owner.is_valid()
-                || !loan.owner_symbol.is_valid()
-            {
+            if !source_is_bound || !loan.storage_owner.is_valid() || !loan.owner_symbol.is_valid() {
                 return None;
             }
             let owner = self.owner_segments.span(loan.owner_path)?;

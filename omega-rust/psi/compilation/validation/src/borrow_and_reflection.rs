@@ -3379,7 +3379,13 @@ pub mod borrow_contracts {
                 }],
             };
         }
-        resolve_structural_signature_view_return_source(program, signature, substitutions, scope_starts, argument_owner)
+        resolve_structural_signature_view_return_source(
+            program,
+            signature,
+            substitutions,
+            scope_starts,
+            argument_owner,
+        )
     }
 
     pub fn resolve_runtime_callable_view_return_source(
@@ -3393,7 +3399,13 @@ pub mod borrow_contracts {
             });
         }
         let row = program.runtime_callable_contracts.get(contract);
-        resolve_structural_signature_view_return_source(program, &row.signature, &[], &[], argument_owner)
+        resolve_structural_signature_view_return_source(
+            program,
+            &row.signature,
+            &[],
+            &[],
+            argument_owner,
+        )
     }
 
     fn resolve_structural_signature_view_return_source(

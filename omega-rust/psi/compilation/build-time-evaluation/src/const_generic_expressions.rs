@@ -792,6 +792,9 @@ mod call_custody {
         }
         let mut children = Vec::new();
         match table.expression(expression) {
+            ExpressionNode::MachineValue(_) => {
+                return Err("a runtime machine value is not a constant scalar initializer".into());
+            }
             ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::Call(call) => {
                 if call.receiver.is_valid() {

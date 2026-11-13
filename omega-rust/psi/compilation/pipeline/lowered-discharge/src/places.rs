@@ -2765,6 +2765,9 @@ impl crate::Bindings for Named<'_> {
             ScalarType::IeeeFloat(_) => Err(crate::Unbound::Unsupported(
                 "a clause term outside the scalar subset",
             )),
+            ScalarType::Callable(_) => Err(crate::Unbound::Unsupported(
+                "an opaque callable value is not a mathematical clause term",
+            )),
         }
     }
 

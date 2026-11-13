@@ -357,6 +357,9 @@ impl<'program> LayoutBuilder<'program> {
             .type_reference_table
             .type_reference(type_reference)
         {
+            TypeReferenceNode::Callable { contract } => TypeLayoutDescriptor::Callable {
+                contract: *contract,
+            },
             TypeReferenceNode::Reference {
                 referee, access, ..
             } => TypeLayoutDescriptor::Reference {
