@@ -37,7 +37,7 @@ impl RouteScope<'_> {
             typed,
             structure_elaboration::Compilation {
                 entries: self.entries,
-                subject: self.subject,
+                subjects: &[self.subject],
                 selected: self.selected,
                 bindings: self.bindings,
             },

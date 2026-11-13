@@ -312,7 +312,7 @@ impl<'t> Program<'t> {
             ExpressionNode::StructLiteral(literal) => {
                 return self.record_literal(id, slots, handle, literal, source);
             }
-            ExpressionNode::String(_) => return unserved("string literal"),
+            ExpressionNode::String(bytes) => return self.byte_literal(id, bytes, expected, source),
             ExpressionNode::ZeroValue(_) => return unserved("zero value"),
         };
         Ok(Expression {
@@ -476,6 +476,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         | ExpressionKind::Index { base, .. } => names_storage(base),
         ExpressionKind::Borrow { .. }
         | ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Array { .. }
         | ExpressionKind::Record { .. }
@@ -710,6 +711,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
         && match (&left.kind, &right.kind) {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
+            (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
             (ExpressionKind::SavedSubject(a), ExpressionKind::SavedSubject(b)) => a == b,
             (
@@ -841,6 +843,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (
                 ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
+            | ExpressionKind::ByteLiteral(_)
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Array { .. }

@@ -284,6 +284,14 @@ impl Storage<'_> {
             OperationKind::EstablishStructuralLocal {} => {
                 rows.push((fresh()?, Stored::Vacated));
             }
+            // Literal bytes establish the explicitly named home. Unlike a
+            // record constructor, this operation has no structural result.
+            OperationKind::EstablishByteSequenceLiteral { destination, .. } => {
+                rows.push((
+                    self.stored_at(*destination, &[], concerns)?,
+                    Stored::Established,
+                ));
+            }
             OperationKind::EstablishScalarArray { elements } => {
                 let root = fresh()?;
                 rows.push((root.clone(), Stored::Established));

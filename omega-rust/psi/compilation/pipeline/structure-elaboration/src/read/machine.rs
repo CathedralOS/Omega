@@ -1183,7 +1183,14 @@ impl<'t> Program<'t> {
                 return unserved("write-only reference parameter");
             }
         }
-        let value_type = self.value_type(id, referee)?;
+        let value_type = if matches!(
+            self.typed.type_reference_table.type_reference(referee),
+            TypeReferenceNode::Slice { .. }
+        ) {
+            self.value_type(id, formal.type_reference)?
+        } else {
+            self.value_type(id, referee)?
+        };
         // A data type with `requires` may be stored into by the callee, so
         // its domain is owed again where the loan returns; no slice follows
         // a domain across a call yet.
@@ -1731,6 +1738,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
     match &expression.kind {
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Array { elements } => {
@@ -1872,6 +1880,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => {}
         ExpressionKind::Array { elements } => {
             for element in elements {

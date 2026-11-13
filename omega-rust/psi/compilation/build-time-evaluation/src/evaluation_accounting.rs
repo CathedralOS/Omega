@@ -183,6 +183,7 @@ pub(crate) use canonical_scalar::CanonicalScalarScope;
 #[derive(Debug, Clone)]
 pub enum PureEvaluationRecord {
     CanonicalScalar(CanonicalScalarEvaluationReceipt),
+    Invocation(PureTerminalEvaluationReceipt),
 }
 
 impl compiler_storage::Record for PureEvaluationRecord {
@@ -197,6 +198,9 @@ impl compiler_storage::Record for PureEvaluationRecord {
                 compiler_storage::Record::write(&1_u32, output)?;
                 compiler_storage::Record::write(receipt, output)
             }
+            Self::Invocation(_) => Err(output.error(
+                "invocation-local evaluation receipts cannot be saved as portable evidence",
+            )),
         })
     }
     fn read<Context>(
@@ -218,11 +222,18 @@ impl PureEvaluationRecord {
     fn has_complete_usage(&self) -> bool {
         match self {
             Self::CanonicalScalar(receipt) => receipt.returned(),
+            Self::Invocation(receipt) => {
+                matches!(
+                    receipt.outcome,
+                    PureTerminalEvaluationOutcome::Materialized { .. }
+                )
+            }
         }
     }
     fn validate_charge(&self) -> Result<(), String> {
         match self {
             Self::CanonicalScalar(receipt) => receipt.validate_charge(),
+            Self::Invocation(receipt) => receipt.validate_charge(),
         }
     }
 }
@@ -241,6 +252,10 @@ pub struct MeasuredEvaluation<T> {
 }
 
 impl<T> MeasuredEvaluation<T> {
+    pub(crate) fn new(value: T, usage: evaluation_accounting::BuildEvaluationUsage) -> Self {
+        Self { value, usage }
+    }
+
     pub const fn value(&self) -> &T {
         &self.value
     }
@@ -281,6 +296,179 @@ pub enum PureTerminalEvaluationOutcome {
     },
 }
 
+/// A temporary caller can establish a real invocation without becoming a
+/// portable program. Retain its source and code together with the actual
+/// arguments and charges; saving this receipt remains explicitly unsupported.
+#[derive(Debug, Clone)]
+pub struct PureTerminalEvaluationReceipt {
+    source: Arc<typed_trees::FrozenTypedTrees>,
+    machine: symbols::SymbolHandle,
+    requester: symbols::SymbolHandle,
+    caller: symbols::SymbolHandle,
+    arguments: Vec<BuildTimeValue>,
+    program: Arc<psi_terminal_production::ProducedTerminalProgram>,
+    admission: terminal_installation::AdmittedCompilerEvaluation,
+    outcome: PureTerminalEvaluationOutcome,
+    usage: psi_work::WorkUsage,
+}
+
+impl PureTerminalEvaluationReceipt {
+    pub(crate) fn new(
+        accepted: &psi_terminal_production::AcceptedTerminalSource,
+        entry: &crate::PreparedBuildMachineEntry,
+        arguments: &[BuildTimeValue],
+        program: Arc<psi_terminal_production::ProducedTerminalProgram>,
+        admission: terminal_installation::AdmittedCompilerEvaluation,
+        outcome: PureTerminalEvaluationOutcome,
+        usage: psi_work::WorkUsage,
+    ) -> Result<Self, String> {
+        let machine = entry.symbol();
+        let requester = entry.requester();
+        let entry = accepted
+            .entry()
+            .ok_or("evaluation receipt lost its accepted entry")?;
+        let caller = *accepted
+            .closure()
+            .elaboration
+            .machines
+            .get(entry)
+            .ok_or("evaluation receipt lost its actual caller")?;
+        if !accepted.is_invocation()
+            || &accepted.closure().elaboration.module != program.view().module()
+        {
+            return Err("evaluation receipt has another accepted code owner".into());
+        }
+        let receipt = Self {
+            source: Arc::clone(accepted.source()),
+            machine,
+            requester,
+            caller,
+            arguments: arguments.to_vec(),
+            program,
+            admission,
+            outcome,
+            usage,
+        };
+        receipt.validate_charge()?;
+        Ok(receipt)
+    }
+
+    pub fn source(&self) -> &typed_trees::FrozenTypedTrees {
+        &self.source
+    }
+    pub const fn machine(&self) -> symbols::SymbolHandle {
+        self.machine
+    }
+    pub const fn requester(&self) -> symbols::SymbolHandle {
+        self.requester
+    }
+    pub const fn caller(&self) -> symbols::SymbolHandle {
+        self.caller
+    }
+    pub fn arguments(&self) -> &[BuildTimeValue] {
+        &self.arguments
+    }
+    pub fn program(&self) -> &psi_terminal_production::ProducedTerminalProgram {
+        &self.program
+    }
+    pub fn admission(&self) -> &terminal_installation::AdmittedCompilerEvaluation {
+        &self.admission
+    }
+    pub fn outcome(&self) -> &PureTerminalEvaluationOutcome {
+        &self.outcome
+    }
+    pub fn usage(&self) -> &psi_work::WorkUsage {
+        &self.usage
+    }
+
+    pub fn validate_charge(&self) -> Result<(), String> {
+        if self.usage.schedule() != psi_work::WorkSchedule::CURRENT.identity()
+            || self.usage.total_units() > PURE_PSI_WORK_BUDGET
+        {
+            return Err("source invocation work policy changed".into());
+        }
+        let total = self
+            .usage
+            .attribution()
+            .values()
+            .try_fold(0_u64, |total, row| total.checked_add(row.units()));
+        if total != Some(self.usage.total_units()) {
+            return Err("source invocation attribution is inconsistent".into());
+        }
+        if self.source.machine_by_symbol(self.machine).is_none()
+            || !self
+                .source
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(self.requester)
+            || self.source.machine_by_symbol(self.caller).is_none()
+            || self.source.symbols.get(self.caller).generated_from != self.requester
+            || self
+                .program
+                .view()
+                .module()
+                .identities
+                .invocation_scope()
+                .is_none()
+            || self.program.evidence().is_none()
+        {
+            return Err("source invocation lost its accepted source/code custody".into());
+        }
+        let selected = self
+            .program
+            .view()
+            .module()
+            .entry
+            .ok_or("source invocation receipt lost its entry")?;
+        self.admission.require_invocation(
+            self.program.view(),
+            self.admission.target(),
+            selected,
+        )?;
+        match &self.outcome {
+            PureTerminalEvaluationOutcome::Materialized { usage, .. } => {
+                usage
+                    .validate()
+                    .map_err(|error| format!("source invocation storage usage: {error:?}"))?;
+                if usage.work_units != self.usage.total_units() {
+                    return Err("source invocation work and storage measurements differ".into());
+                }
+            }
+            PureTerminalEvaluationOutcome::Failed { .. } => {}
+            PureTerminalEvaluationOutcome::Returned { .. } => {
+                return Err(
+                    "source invocation requires its materialized result measurement".into(),
+                );
+            }
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn pure_terminal_invocation_account()
+-> Result<evaluation_accounting::EvaluationInvocationAccount, String> {
+    let limits = evaluation_accounting::BuildEvaluationSponsorLimits::new(
+        PURE_PSI_WORK_BUDGET,
+        1,
+        1,
+        1,
+        u64::MAX,
+        u64::MAX,
+        u64::MAX,
+        u64::MAX,
+    )
+    .ok_or("pure invocation limits are invalid")?;
+    let measurement = evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+        storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
+    };
+    evaluation_accounting::BuildEvaluationSponsor::new_with_measurement(limits, measurement)
+        .map_err(|error| format!("pure invocation sponsor: {error:?}"))?
+        .begin_invocation(measurement, PURE_PSI_WORK_BUDGET)
+        .map_err(|error| format!("pure invocation account: {error:?}"))
+}
+
 #[derive(Debug, Clone, Default, compiler_storage::Record)]
 pub struct SourceCompletionAccounting {
     receipts: Arc<[PureEvaluationRecord]>,
@@ -288,6 +476,13 @@ pub struct SourceCompletionAccounting {
 }
 
 impl SourceCompletionAccounting {
+    pub(crate) fn append_invocation(&mut self, receipt: PureTerminalEvaluationReceipt) {
+        self.append(Self {
+            receipts: vec![PureEvaluationRecord::Invocation(receipt)].into(),
+            reused: false,
+        });
+    }
+
     pub fn was_reused(&self) -> bool {
         self.reused
     }

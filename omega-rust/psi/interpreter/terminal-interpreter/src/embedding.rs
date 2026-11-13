@@ -774,9 +774,11 @@ pub(crate) mod instance {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use crate::boundary::structural_inputs::byte_arrays::byte_array_length;
         use crate::boundary::values::{
-            StructuralByteSequenceRuntimeField, StructuralFieldNamespace, TerminalStructuralValue,
+            StructuralByteSequenceRuntimeField, StructuralFieldNamespace, StructuralRuntimePlace,
+            TerminalStructuralValue,
         };
         use crate::engine::execution::TerminalExecution;
+        use crate::storage::byte_sequences::binding::ByteSequenceBinding;
         use crate::storage::structural_storage::contents::{self, StorageLeafKind};
         use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, PlaceId};
         use terminal_psi::{StructuralAccess, StructuralTypeShape};
@@ -931,6 +933,63 @@ pub(crate) mod instance {
                         .get(destination)
                         .ok_or(TerminalStorageObservationError::OpaqueContents)?;
                     Ok(TerminalStorageObservationValue::Bytes(bytes.read_view()?))
+                }
+                StorageLeafKind::Opaque {
+                    destination,
+                    declaration,
+                } if execution
+                    .structural_declaration(*declaration)?
+                    .shape
+                    .is_shared_readable_byte_view() =>
+                {
+                    let unsupported = |reason| {
+                        TerminalStorageObservationError::Execution(
+                            TerminalInterpretError::UnsupportedSemanticVariant(reason),
+                        )
+                    };
+                    let binding = if let Some(binding) =
+                        execution.structural_byte_descriptors.get(destination)
+                    {
+                        let home = match binding {
+                            ByteSequenceBinding::Immutable(bytes) => bytes.descriptor_home(),
+                            binding => binding.descriptor_home(),
+                        }
+                        .ok_or_else(|| {
+                            unsupported("observed byte field has no retained descriptor home")
+                        })?;
+                        if home.structural_type != *declaration
+                            || StructuralRuntimePlace::from(home) != *destination
+                            || !binding.matches_shared_home(home)
+                        {
+                            return Err(unsupported(
+                                "observed byte field differs from its retained descriptor home",
+                            ));
+                        }
+                        binding
+                    } else if path.is_empty()
+                        && value.structural_type == *declaration
+                        && StructuralRuntimePlace::from(value) == *destination
+                    {
+                        let binding =
+                            execution.returned_byte_sequence.as_ref().ok_or_else(|| {
+                                unsupported(
+                                    "returned byte value has no retained descriptor binding",
+                                )
+                            })?;
+                        if !binding.matches_shared_home(value) {
+                            return Err(unsupported(
+                                "returned byte binding differs from its actual result home",
+                            ));
+                        }
+                        binding
+                    } else {
+                        return Err(unsupported(
+                            "observed byte field has no retained descriptor binding",
+                        ));
+                    };
+                    Ok(TerminalStorageObservationValue::Bytes(
+                        binding.read_view(execution)?,
+                    ))
                 }
                 StorageLeafKind::Opaque { .. } => {
                     Err(TerminalStorageObservationError::OpaqueContents)

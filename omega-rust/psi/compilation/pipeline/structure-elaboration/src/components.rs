@@ -217,6 +217,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
     match &value.kind {
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Not(operand)
@@ -286,6 +287,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
         match &value.kind {
             ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
+            | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_) => false,
             ExpressionKind::Array { .. }

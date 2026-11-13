@@ -14,7 +14,8 @@ pub mod terminal_values;
 pub use build_time_values::BuildTimeValue;
 pub use evaluation_accounting::{
     CanonicalScalarEvaluationReceipt, MeasuredEvaluation, PureEvaluationRecord,
-    PureTerminalEvaluationOutcome, RecordedPreCheck, SourceCompletionAccounting,
+    PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt, RecordedPreCheck,
+    SourceCompletionAccounting,
 };
 pub use evaluation_requests::{
     BuildMachineEvaluationError, BuildTimeOperationEvaluation, CURRENT_EVALUATION_SEMANTICS,

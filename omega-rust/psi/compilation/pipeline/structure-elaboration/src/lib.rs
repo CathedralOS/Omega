@@ -52,6 +52,7 @@ mod declare;
 mod lower;
 mod names;
 mod outcome;
+mod proof_scope;
 mod read;
 
 pub use body::{
@@ -140,9 +141,10 @@ pub struct MachineSources {
 pub struct Compilation<'a> {
     /// The Build's bound program entries. The first is the module's entry.
     pub entries: &'a [SymbolHandle],
-    /// The package the request checks. `None` for a source that belongs to
-    /// no admitted package; such a source is its own subject.
-    pub subject: Option<PackageKeyIdentity>,
+    /// Full checks explicitly requested in addition to the entry/selection
+    /// closure. `Some(package)` selects that package; `None` selects standalone
+    /// user source. An empty slice requests only the concrete root closure.
+    pub subjects: &'a [Option<PackageKeyIdentity>],
     /// The declarations the Build's selections name (selected providers and
     /// what each provides, layout-scope entries, chosen representations),
     /// whichever package declares them. The check claims each with its
@@ -381,8 +383,10 @@ pub fn elaborate_for(
         program.fixed_inputs.push(other);
     }
     program.selected_declarations(entry, compilation.selected)?;
-    program.subject_declarations(entry, compilation.subject)?;
-    finish_reading(program, entry, IdTable::default(), Some(typed))
+    program.subject_declarations(entry, compilation.subjects)?;
+    let mut elaboration = finish_reading(program, entry, IdTable::default(), Some(typed))?;
+    proof_scope::declare(typed, &mut elaboration)?;
+    Ok(elaboration)
 }
 
 /// Elaborates one machine and the closure of machines it calls, in discovery

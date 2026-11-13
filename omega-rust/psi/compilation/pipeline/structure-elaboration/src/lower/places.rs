@@ -238,6 +238,9 @@ pub(crate) fn declare<'a>(
             crate::StorageShape::PrimitiveScalar { scalar_type, .. } => {
                 StructuralTypeShape::PrimitiveScalar(*scalar_type)
             }
+            crate::StorageShape::ByteSequence(carrier) => {
+                StructuralTypeShape::ByteSequence(*carrier)
+            }
         };
         structural_types.push(StructuralTypeDeclaration {
             requires: record.requires.clone(),
@@ -408,6 +411,7 @@ fn expression_homes<'b>(
     match &expression.kind {
         ExpressionKind::SavedSubject(_)
         | ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Borrow { place, home, .. } => {
@@ -1067,6 +1071,42 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 })
             }
+            ExpressionKind::ByteLiteral(bytes) => {
+                if !matches!(self.record_type(record)?.shape,
+                    crate::StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view())
+                {
+                    return Err(self.internal("a byte literal requires a shared byte view"));
+                }
+                let operation = self.operation_identity(expression.source);
+                let (root, place) = self.root(
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        declaration_ordinal: self.position(self.roots.len())?,
+                        structural_type: record,
+                    },
+                    record,
+                )?;
+                self.emit(
+                    operation,
+                    None,
+                    OperationKind::EstablishByteSequenceLiteral {
+                        destination: root,
+                        bytes: bytes.clone(),
+                        qualifications: Vec::new(),
+                    },
+                )?;
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )?;
+                Ok(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                })
+            }
             ExpressionKind::Record { fields } => {
                 let (root, place) = self.establish(record, fields, expression.source)?;
                 Ok(Located {
@@ -1249,7 +1289,14 @@ impl<'a> Lowering<'a> {
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
-        let (root, steps, exact, actual) = self.capture_place(place, home_identity)?;
+        let (root, steps, exact, actual) = if matches!(place.kind, ExpressionKind::ByteLiteral(_))
+            && access == language_core::ReferenceAccess::Shared
+        {
+            let at = self.located(place)?;
+            (at.root, at.path, at.place, ValueType::Record(at.record))
+        } else {
+            self.capture_place(place, home_identity)?
+        };
         if actual != value_type {
             return Err(self.internal("a loan has another type than its captured place"));
         }
@@ -2133,6 +2180,11 @@ impl<'a> Lowering<'a> {
             }
             StorageShape::FixedArray { .. } => {
                 return Err(self.internal("zero array without a closed extent"));
+            }
+            StorageShape::ByteSequence(_) => {
+                return Err(
+                    self.internal("byte view initialization requires actual readable backing")
+                );
             }
             StorageShape::Record(_) | StorageShape::Sum(_) => {}
         }

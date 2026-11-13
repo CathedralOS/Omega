@@ -172,7 +172,7 @@ pub(super) fn is_active(
                 .binary_search_by(|value| value.path.as_slice().cmp(&path[..position]))
                 .map_err(|_| invalid_operands())?;
             let discriminator = &values[selector_position];
-            let TerminalStorageContents::Case(active) = discriminator.contents else {
+            let TerminalStorageContents::Case(active) = discriminator.contents.clone() else {
                 return Err(invalid_operands());
             };
             if active != *case {

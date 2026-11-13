@@ -213,7 +213,7 @@ impl<'layout> CapturedStorage<'layout> {
         let primitive_byte_root = layout.is_none()
             && values.len() == 1
             && values[0].path.is_empty()
-            && matches!(values[0].contents, TerminalStorageContents::Scalar { value, stored_scalar: ScalarType::Integer(word) }
+            && matches!(values[0].contents.clone(), TerminalStorageContents::Scalar { value, stored_scalar: ScalarType::Integer(word) }
                 if value.scalar_type() == ScalarType::Integer(word)
                     && word.bits() == 8 && !word.is_address());
         let mut encoded = Vec::with_capacity(values.len());
@@ -223,7 +223,10 @@ impl<'layout> CapturedStorage<'layout> {
                     .binary_search_by(|cell| cell.path.cmp(&value.path))
                     .map_err(|_| invalid_operands())?;
                 let cell = &cells[position];
-                (cell.byte_offset, cell.encode(layout, value.contents)?)
+                (
+                    cell.byte_offset,
+                    cell.encode(layout, value.contents.clone())?,
+                )
             } else {
                 if values.len() != 1 || !value.path.is_empty() {
                     return Err(invalid_operands());
@@ -231,7 +234,7 @@ impl<'layout> CapturedStorage<'layout> {
                 let TerminalStorageContents::Scalar {
                     value,
                     stored_scalar,
-                } = value.contents
+                } = value.contents.clone()
                 else {
                     return Err(invalid_operands());
                 };

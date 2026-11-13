@@ -1343,6 +1343,17 @@ pub(crate) mod record {
                 Ok(())
             }
 
+            pub(crate) fn stage_byte_descriptor(
+                &mut self,
+                destination: StructuralRuntimePlace,
+                bytes: crate::storage::byte_sequences::binding::ByteSequenceBinding,
+            ) -> Result<(), TerminalInterpretError> {
+                if self.byte_descriptors.insert(destination, bytes)?.is_some() {
+                    return Err(malformed());
+                }
+                Ok(())
+            }
+
             pub(crate) fn stage_reference(
                 &mut self,
                 destination: StructuralRuntimePlace,
@@ -4160,13 +4171,16 @@ pub(crate) mod structural_storage {
         };
         use terminal_semantics::scalar_array_leaf_shape;
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum TerminalStorageContents {
             Scalar {
                 value: TerminalScalarValue,
                 stored_scalar: ScalarType,
             },
             Case(StructuralCaseId),
+            /// Plain immutable contents; the receiving declaration still owns
+            /// the view's access and predicates. This supplies no qualification.
+            Bytes(std::sync::Arc<[u8]>),
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -4195,7 +4209,7 @@ pub(crate) mod structural_storage {
                 if self.path != value.path {
                     return Err("contents do not name the complete active declaration paths");
                 }
-                match (&self.kind, value.contents) {
+                match (&self.kind, value.contents.clone()) {
                     (
                         StorageLeafKind::Scalar {
                             scalar,
@@ -4421,7 +4435,7 @@ pub(crate) mod structural_storage {
                             .binary_search_by(|value| value.path.cmp(path))
                             .map_err(|_| malformed())?;
                         let value = &values[position];
-                        let TerminalStorageContents::Case(case) = value.contents else {
+                        let TerminalStorageContents::Case(case) = value.contents.clone() else {
                             return Err(malformed());
                         };
                         case

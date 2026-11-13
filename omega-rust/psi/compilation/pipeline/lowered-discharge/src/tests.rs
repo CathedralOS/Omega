@@ -31,6 +31,7 @@ mod guard_contradiction;
 mod inferred_bounds;
 mod mathematical_clauses;
 mod mutable_formals;
+mod proof_scope;
 mod ranges;
 mod reach;
 mod references;

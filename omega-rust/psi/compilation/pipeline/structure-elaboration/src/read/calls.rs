@@ -287,6 +287,9 @@ impl<'t> Program<'t> {
         call: &TableCallExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        if let Some(description) = self.declaration_query(id, call, source)? {
+            return Ok(description);
+        }
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if call.installed_interrupt_operation.is_some() {
             return unserved("installed interrupt operation");
@@ -758,7 +761,7 @@ impl<'t> Program<'t> {
     /// rejects it after them, where a product selects the callee, so a
     /// reader that took every resolved call as permitted would accept a
     /// program that reaches into a dependency's private machine.
-    fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
+    pub(super) fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let Some(declaration) = self.typed.machine_by_symbol(callee) else {
             return unserved("target is not a machine declaration");
@@ -833,7 +836,7 @@ impl<'t> Program<'t> {
             read.push(if *erased {
                 self.erased_term(id, slots, *argument, formal.scalar())?
             } else if let Some(borrowed) = borrowed {
-                let (lent, lender) = self.lent(id, slots, *argument, borrowed)?;
+                let (lent, lender) = self.lent(id, slots, *argument, borrowed, *formal)?;
                 // Its position among the runtime actuals, as the invocation
                 // row counts them: erased arguments are not actuals.
                 let actual = formals[..read.len()]
@@ -902,9 +905,28 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         argument: ExpressionHandle,
         formal: &crate::body::Borrowed,
+        expected: ValueType,
     ) -> Checked<(Expression, String)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
+        if matches!(self.node(id, argument)?, ExpressionNode::String(_)) {
+            if formal.access != ReferenceAccess::Shared {
+                return unserved("byte literal cannot lend mutable storage");
+            }
+            let place = self.expression(id, slots, argument, Some(expected))?;
+            return Ok((
+                Expression {
+                    result: place.result,
+                    kind: ExpressionKind::Borrow {
+                        access: ReferenceAccess::Shared,
+                        place: Box::new(place),
+                        home: None,
+                    },
+                    source,
+                },
+                self.typed.expression_table.display_name(argument),
+            ));
+        }
         let (target, access) = match self.node(id, argument)? {
             ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
             ExpressionNode::Name(path) => {
@@ -1132,7 +1154,9 @@ fn mentions<'a>(
         ExpressionKind::SavedSubject(_) => {
             Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))
         }
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) => Ok(false),
+        ExpressionKind::Integer(_)
+        | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::Boolean(_) => Ok(false),
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)

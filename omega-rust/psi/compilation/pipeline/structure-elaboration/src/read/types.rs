@@ -294,6 +294,11 @@ impl Program<'_> {
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
         if handle.is_valid()
+            && let Some(view) = self.byte_view_type(id, handle)?
+        {
+            return Ok(view);
+        }
+        if handle.is_valid()
             && let TypeReferenceNode::FixedArray {
                 element_type,
                 length,

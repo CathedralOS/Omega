@@ -330,6 +330,35 @@ impl Program<'_> {
                 machine,
                 Construct::Machine,
             )?;
+            if let crate::StorageShape::ByteSequence(carrier) = declaration.shape {
+                let source_is_bytes = if let Some(application) = &source.application {
+                    application.substitutions.is_empty()
+                        && super::bytes::source_byte_view(
+                            self.typed,
+                            application.reference,
+                            machine,
+                        )?
+                        .is_some_and(|(source_carrier, identity)| {
+                            source_carrier == carrier && identity == declaration.identity
+                        })
+                } else {
+                    carrier.is_shared_readable_view()
+                };
+                if source.declaration.is_valid()
+                    || !source.fields.is_empty()
+                    || !source.cases.is_empty()
+                    || !source_is_bytes
+                {
+                    return Err(malformed(
+                        machine,
+                        "byte storage has nominal or invalid source custody",
+                    ));
+                }
+                // A literal defines its own claim-free structural byte type.
+                // Its source and contents stay on the establishment operation;
+                // neither that type nor a source view mints a nominal schema.
+                continue;
+            }
             if matches!(
                 declaration.shape,
                 crate::StorageShape::FixedArray { .. }

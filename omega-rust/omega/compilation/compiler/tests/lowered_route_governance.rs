@@ -47,7 +47,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },

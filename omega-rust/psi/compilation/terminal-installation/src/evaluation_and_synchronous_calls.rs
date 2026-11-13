@@ -792,29 +792,38 @@ pub(crate) mod compiler_evaluation {
     }
     pub(crate) use failures::require_root_failure_admission;
 
+    #[derive(Debug, Clone)]
     pub struct AdmittedCompilerEvaluation {
         providers: crate::AdmittedProviderSelections,
-        artifact: terminal_psi::TerminalPsiIdentity,
+        artifact: terminal_codec::TerminalExecutionIdentity,
         target: String,
         declaration: ProofDeclarationId,
+        requester: DeclarationCustody,
     }
 
     impl AdmittedCompilerEvaluation {
+        pub const fn requester(&self) -> DeclarationCustody {
+            self.requester
+        }
+        pub fn target(&self) -> &str {
+            &self.target
+        }
         pub fn providers(&self) -> &crate::AdmittedProviderSelections {
             &self.providers
         }
-        pub fn require_invocation(
+        pub fn require_invocation<'code>(
             &self,
-            artifact: terminal_codec::TerminalArtifactView<'_>,
+            artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
             target: &str,
             entry: TargetMachineCallable,
         ) -> Result<(), String> {
+            let artifact = artifact.into();
             let declaration = artifact
                 .module()
                 .scalar_applications
                 .proof_scope
                 .callable_declaration(entry);
-            if self.artifact != artifact.identity()
+            if self.artifact != artifact.custody_identity()
                 || self.target != target
                 || declaration != Some(self.declaration)
             {
@@ -827,15 +836,16 @@ pub(crate) mod compiler_evaluation {
         }
     }
 
-    pub fn admit_compiler_evaluation(
-        artifact: terminal_codec::TerminalArtifactView<'_>,
+    pub fn admit_compiler_evaluation<'code>(
+        artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
         target: &str,
         root: ProofDeclarationId,
         providers: crate::AdmittedProviderSelections,
         requester: DeclarationCustody,
         authority: Option<&dyn DeclarationSelectionAuthority>,
     ) -> Result<AdmittedCompilerEvaluation, String> {
-        if providers.terminal_psi() != artifact.identity() {
+        let artifact = artifact.into();
+        if providers.execution_identity() != &artifact.custody_identity() {
             return Err(
                 "compiler-evaluation provider installation names a different artifact".into(),
             );
@@ -878,9 +888,8 @@ pub(crate) mod compiler_evaluation {
         }
         let mut effects = CompilerEvaluationEffects::default();
         let mut closure_violation = None;
-        let mut selection_violation = authority.and_then(|authority| {
-            require_selection(requester, root_facts.custody, authority).err()
-        });
+        let mut selection_violation =
+            require_selection(requester, root_facts.custody, authority).err();
         for &machine in &closure.machines {
             let facts = declaration(scope, machine)?;
             for service in &facts.effects.services {
@@ -907,24 +916,21 @@ pub(crate) mod compiler_evaluation {
                     facts.name
                 ));
             }
-            if let Some(authority) = authority {
-                let requests = facts.selections.as_ref().map_err(Clone::clone)?;
-                for request in requests {
-                    if let Err(reason) = require_selection(
-                        DeclarationCustody::Package(request.requester),
-                        DeclarationCustody::Package(request.owner),
-                        authority,
-                    ) && selection_violation.is_none()
-                    {
-                        selection_violation = Some(reason);
-                    }
+            let requests = facts.selections.as_ref().map_err(Clone::clone)?;
+            for request in requests {
+                if let Err(reason) = require_selection(
+                    DeclarationCustody::Package(request.requester),
+                    DeclarationCustody::Package(request.owner),
+                    authority,
+                ) && selection_violation.is_none()
+                {
+                    selection_violation = Some(reason);
                 }
             }
         }
         for edge in &closure.invocations {
             if !edge.provider
                 && !edge.static_delegation
-                && let Some(authority) = authority
                 && let (Ok(source), Ok(target)) = (
                     declaration(scope, edge.source.machine()),
                     declaration(scope, edge.target.machine()),
@@ -967,9 +973,10 @@ pub(crate) mod compiler_evaluation {
         )?;
         Ok(AdmittedCompilerEvaluation {
             providers,
-            artifact: artifact.identity(),
+            artifact: artifact.custody_identity(),
             target: target.to_owned(),
             declaration: root,
+            requester,
         })
     }
 
@@ -1062,9 +1069,12 @@ pub(crate) mod compiler_evaluation {
     fn require_selection(
         requester: DeclarationCustody,
         owner: DeclarationCustody,
-        authority: &dyn DeclarationSelectionAuthority,
+        authority: Option<&dyn DeclarationSelectionAuthority>,
     ) -> Result<(), String> {
         match (requester, owner) {
+            (DeclarationCustody::Missing, _) | (_, DeclarationCustody::Missing) => {
+                Err("build-time invocation lacks compiler-owned source/package provenance".into())
+            }
             // Exact checked selections bind the contract closure before lowering.
             // Its retained role never grants a package caller a default std edge.
             (DeclarationCustody::ToolchainContract, DeclarationCustody::Package(_))
@@ -1076,11 +1086,20 @@ pub(crate) mod compiler_evaluation {
             }
             (DeclarationCustody::Toolchain, _) | (_, DeclarationCustody::Toolchain) => Ok(()),
             (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
-                if authority.allows_declaration_selection(requester, owner) =>
+                if requester == owner =>
+            {
+                Ok(())
+            }
+            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
+                if authority.is_some_and(|authority| {
+                    authority.allows_declaration_selection(requester, owner)
+                }) =>
             {
                 Ok(())
             }
             (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner)) => {
+                let authority = authority
+                    .ok_or("build-time invocation has no direct dependency selection authority")?;
                 Err(format!(
                     "build-time invocation selects package {} from package {} without direct dependency authority",
                     authority.package_label(owner),
@@ -1090,7 +1109,6 @@ pub(crate) mod compiler_evaluation {
             (DeclarationCustody::UnownedUser, _) | (_, DeclarationCustody::UnownedUser) => Err(
                 "build-time invocation has user source without reconciled package custody".into(),
             ),
-            _ => Err("build-time invocation lacks compiler-owned source/package provenance".into()),
         }
     }
 
@@ -1119,7 +1137,7 @@ pub(crate) mod compiler_evaluation {
             (contract, package),
             (DeclarationCustody::Missing, contract),
         ] {
-            assert!(require_selection(requester, owner, &AllowPackages).is_err());
+            assert!(require_selection(requester, owner, Some(&AllowPackages)).is_err());
         }
         for (requester, owner) in [
             (contract, contract),
@@ -1127,8 +1145,15 @@ pub(crate) mod compiler_evaluation {
             (core, contract),
             (package, package),
         ] {
-            assert!(require_selection(requester, owner, &AllowPackages).is_ok());
+            assert!(require_selection(requester, owner, Some(&AllowPackages)).is_ok());
         }
+        let other = DeclarationCustody::Package(
+            semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap(),
+        );
+        assert!(require_selection(package, package, None).is_ok());
+        assert!(require_selection(package, other, None).is_err());
+        assert!(require_selection(package, other, Some(&AllowPackages)).is_ok());
+        assert!(require_selection(DeclarationCustody::Missing, core, None).is_err());
     }
 
     fn covered_recursive_edge(

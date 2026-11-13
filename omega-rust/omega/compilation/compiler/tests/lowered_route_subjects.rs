@@ -8,8 +8,8 @@
 //! `wiki/spec/build/validation_subjects.md` sets what a check claims: "every
 //! declaration of the subject packages is valid", and the closure "starts
 //! from every declaration of every subject, including unused ones". So each
-//! program must be rejected by the route or handed back to the current
-//! checker, and none may be accepted.
+//! program must be rejected or reported as unsupported by the route, and
+//! none may be accepted.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -32,7 +32,7 @@ enum Expected {
     /// machine is unproved.
     Rejected,
     /// A subject declaration is outside what the route lowers, so the
-    /// current checker decides the whole compilation.
+    /// compilation is reported as unsupported.
     FallsBack,
     /// The route lowers the whole program and an obligation of the uncalled
     /// machine has a goal form the prover has no rule for: not accepted,
@@ -287,7 +287,7 @@ fn route_verdict(
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -490,7 +490,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: Some(another),
+            subjects: &[Some(another)],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },
@@ -520,7 +520,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
             typed,
             Compilation {
                 entries: &frontier.entries,
-                subject: Some(another),
+                subjects: &[Some(another)],
                 selected: &[selected],
                 bindings: &frontier.bindings,
             },
@@ -755,7 +755,7 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
         &frontier.typed,
         Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         },

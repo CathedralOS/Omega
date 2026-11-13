@@ -210,23 +210,73 @@ fn nominal(
     Ok(identities.intern(&text))
 }
 
-/// Anonymous user declarations belong to the source owner of this one
-/// activation. Their arena coordinates are meaningful only inside its
-/// freshly minted invocation scope; they never become portable identities.
+/// Anonymous source and generated invocation declarations belong to this one
+/// activation. A generated call over concrete arguments must not acquire a
+/// portable identity from its temporary name. Its exact retained derivation
+/// must still end at a captured source token before local identity is minted.
 fn invocation_local(
     typed: &TypedTrees,
     symbol: SymbolHandle,
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<Option<terminal_psi::TerminalIdentityIndex>, &'static str> {
-    if !symbol.is_valid()
-        || !identities.is_invocation_scoped()
-        || typed.symbols.symbol_package_identity(symbol).is_some()
-        || typed.symbols.symbol_source_origin(symbol) != Some(source::SourceOrigin::User)
-    {
+    if !symbol.is_valid() || !identities.is_invocation_scoped() {
         return Ok(None);
     }
-    if typed.symbols.symbol_source_span(symbol).is_none() {
-        return Err("an invocation declaration has no captured source coordinate");
+    if !typed.symbols.symbols().nodes().is_valid(symbol) {
+        return Err("an invocation declaration is foreign to its retained symbols");
+    }
+    // An implicit source entry has no name token of its own. Its lexical
+    // owner's retained source still gives it an ordinary nominal identity;
+    // only an actual generated declaration requires a derivation chain.
+    if typed.symbols.get(symbol).generated_from.is_valid() {
+        let mut origin = symbol;
+        loop {
+            let previous = typed.symbols.get(origin).generated_from;
+            if !previous.is_valid() {
+                return Err("a generated invocation declaration has no derivation origin");
+            }
+            if !typed.symbols.symbols().nodes().is_valid(previous) {
+                return Err("a generated invocation declaration has a foreign derivation origin");
+            }
+            if previous.arena_index() >= origin.arena_index() {
+                return Err(
+                    "a generated invocation declaration has a nonpreceding derivation origin",
+                );
+            }
+            origin = previous;
+            let Some(span) = typed.symbols.symbol_source_span(origin) else {
+                continue;
+            };
+            let source = typed
+                .symbols
+                .source_file(span)
+                .ok_or("a generated invocation declaration names a foreign source")?;
+            if span.span.start >= span.span.end
+                || source.source.get(span.span.start..span.span.end).is_none()
+            {
+                return Err("a generated invocation declaration has an invalid source token");
+            }
+            break;
+        }
+    } else {
+        let span = typed
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .ok_or("an invocation declaration has no retained source provenance")?;
+        let source = typed
+            .symbols
+            .source_file(span)
+            .ok_or("an invocation declaration names a foreign source")?;
+        if span.span.start >= span.span.end
+            || source.source.get(span.span.start..span.span.end).is_none()
+        {
+            return Err("an invocation declaration has an invalid source token");
+        }
+        if typed.symbols.symbol_package_identity(symbol).is_some()
+            || typed.symbols.symbol_source_origin(symbol) != Some(source::SourceOrigin::User)
+        {
+            return Ok(None);
+        }
     }
     identities
         .intern_invocation_local(&format!(

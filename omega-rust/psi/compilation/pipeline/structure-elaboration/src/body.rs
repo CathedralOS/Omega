@@ -134,6 +134,7 @@ pub struct RecordType {
 pub enum StorageShape {
     Record(Vec<RecordField>),
     Sum(Vec<CaseType>),
+    ByteSequence(terminal_psi::ByteSequenceCarrier),
     FixedArray {
         element: StructuralTypeId,
         length: terminal_psi::ArrayExtent,
@@ -494,6 +495,8 @@ pub enum ExpressionKind {
     SavedSubject(arena::Handle<typed_trees::expression::CompletedValueCapture>),
     Integer(IntegerValue),
     Boolean(bool),
+    /// Actual immutable octets established at this expression's operation.
+    ByteLiteral(Vec<u8>),
     Array {
         elements: Vec<Expression>,
     },

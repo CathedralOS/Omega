@@ -313,7 +313,7 @@ fn probe(main: &Path, every_machine: bool, lines: &mut Vec<String>) -> Vec<Strin
     if !frontier.entries.is_empty() {
         let compilation = structure_elaboration::Compilation {
             entries: &frontier.entries,
-            subject: frontier.subject,
+            subjects: &[frontier.subject],
             selected: &frontier.selected,
             bindings: &frontier.bindings,
         };

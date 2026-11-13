@@ -188,6 +188,7 @@ impl Lowering<'_> {
                 )
             }
             ExpressionKind::SavedSubject(_)
+            | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::Array { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Case { .. } => Err(self.internal("a data literal has a scalar type")),

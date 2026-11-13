@@ -190,6 +190,7 @@ impl Lowering<'_> {
             ExpressionKind::Call { .. }
             | ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
+            | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Slot(_)
             | ExpressionKind::Array { .. }
