@@ -74,6 +74,13 @@ own to defend. Say what you saw, not what you would build.
 - Cost: it is unclear whether a module from the lowered-form checker must carry the 146 float-table rows; one session is building them while the default compile shows they are not read for a program without floats.
 - Reported: 2026-11-13, Claude Code, while carrying the lowered-form checker's published module into Terminal production
 
+### Every Build program runs through the old checker and the old lowering stage
+- Category: the documents disagree
+- Where: `omega-rust/omega/build-system/build-settings/src/admission/checking.rs:323` (`CheckRequest::check()` on the Build program), `build-settings/src/activation/preparation.rs` (`PreparedBuildExecution::prepare` calls `TerminalProductionRequest::produce`), `omega-rust/psi/compilation/build-time-evaluation/src/machine_execution.rs:5082` and `:5457`, `build-time-evaluation/src/const_initializers.rs:137`
+- Saw: a project's Build program is checked by Psi 05, lowered by Psi 06 and run in the terminal interpreter before the product check starts; with Psi 06 deleted, `omega --check` on `tests/omega/pass/arithmetic/anonymous_integer_arith` fails in 0.5 s with `project source discovery failed: no product route yet` and the lowered-form checker is never called (draft #2796)
+- Cost: AGENTS.md says the old stages are being removed now, but none of them can go until Build programs are judged and lowered another way; a worker who deletes one in the stated order stops every compilation, not only native output
+- Reported: 2026-11-13, Claude Code, while deleting Psi 06
+
 ### "Does this access cover that one" is written eight times with five different answers
 - Category: one idea, several implementations
 - Where: `omega-rust/psi/interpreter/terminal-interpreter/src/storage_references.rs:4455`; `omega-rust/psi/compilation/representations/terminal-psi/src/ownership.rs:62`; `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/references.rs:887`; `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_reference_custody.rs:4600` and `selection.rs:877`; `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:5124` and `:14940`; `omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs:350`
