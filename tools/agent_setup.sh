@@ -14,7 +14,8 @@
 #   if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi
 #
 # Tool binaries go to /usr/local/bin as root, else ~/.local/bin. The script
-# changes only this checkout's Git config, never the global one.
+# changes only this checkout's Git config. Managed sessions also retain their
+# shared worker pool through mbx's global collection policy.
 set -euo pipefail
 
 mbx_only=false
@@ -82,6 +83,12 @@ if [ "$(mbx --version 2>/dev/null)" != "mbx $MBX_VERSION" ]; then
     tar -xzf "$archive" -C "$bin" mbx)
 fi
 mbx --version
+# Collection settings are machine policy, unsupported in workspace .mbx.toml.
+# Managed hosts share one fixed worker pool; retain it without disabling GC or
+# changing local users' settings. Apply this in --mbx-only setup as well.
+if [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || [ -n "${CODEX_ENVIRONMENT_ID:-}" ]; then
+  python3 "$repo/tools/managed_cache_retention.py" "$repo"
+fi
 if [ "$mbx_only" = true ]; then
   exit 0
 fi
