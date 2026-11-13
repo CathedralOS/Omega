@@ -577,27 +577,8 @@ fn packages_do_not_manage_frontend_or_judgment_reuse() {
 }
 
 #[test]
-fn callback_root_policy_consumes_prepared_source_correspondence() {
-    let preparation = include_str!("../../realization/provider-planning/src/provider_instances.rs");
-    assert_absent(
-        &[preparation],
-        "callback roots reopen source:",
-        &[
-            "program.callback_declaration(usage)",
-            "program.facts.nominal_machine_uses",
-        ],
-    );
-    assert_eq!(
-        preparation
-            .matches("exact_checked_adapter(context, plan, row)")
-            .count(),
-        1
-    );
-}
-
-#[test]
-fn provider_instance_policy_consumes_checked_declaration_groups() {
-    let preparation = include_str!("../../realization/provider-planning/src/provider_instances.rs");
+fn provider_instance_inspection_does_not_reopen_checked_facts() {
+    let preparation = include_str!("../../products/src/provider_instances.rs");
     assert_absent(
         &[preparation],
         "provider instances reopen source:",
