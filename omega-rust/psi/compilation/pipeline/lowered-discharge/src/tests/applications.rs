@@ -21,9 +21,9 @@ data Applied {{
 }}
 machine entry() -> Applied {{
     Applied {{
-        small: Optional<u32>::Some {{ value: 1u32 }},
-        identity: Optional<u64>::Some {{ value: {payload} }},
-        nested: Optional<Optional<u64>>::Some {{ value: Optional<u64>::Some {{ value: 9u64 }} }}
+        small: Optional::Some {{ value: 1u32 }},
+        identity: Optional::Some {{ value: {payload} }},
+        nested: Optional::Some {{ value: Optional::Some {{ value: 9u64 }} }}
     }}
 }}
 "#

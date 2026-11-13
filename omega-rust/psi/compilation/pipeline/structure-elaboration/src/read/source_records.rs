@@ -141,6 +141,20 @@ pub(super) fn source_application(
                     "record application with constrained or non-type parameters",
                 ));
             }
+            // Ordinary nominal identities erase regions. Do not let a new
+            // byte/reference reader turn that storage key into lifetime
+            // correspondence until this same application owner retains it.
+            if typed
+                .region_free_scoped_type_identity(
+                    typed_trees::type_identity::TypeIdentityRequest::ordinary(*argument),
+                    &[],
+                )
+                .is_none()
+            {
+                return Err(unavailable(
+                    "record application whose reference regions are not retained",
+                ));
+            }
             binders.push(parameter.symbol);
             substitutions.push((parameter.symbol, *argument));
         }
@@ -181,6 +195,7 @@ fn validate_applied_members(
     use typed_trees::type_identity::TypeIdentityRequest;
     let same_field = |expected: &DataField, actual: &DataField| {
         typed.data_constructor_field(reference, template.symbol, expected.symbol) == Some(actual)
+            && expected.symbol == actual.symbol
             && expected.identity == actual.identity
             && expected.name == actual.name
             && expected.relevance == actual.relevance
@@ -551,8 +566,8 @@ mod tests {
             RefusalReason::ForeignIdentity
         );
     }
-    /// The fixture uses the same retained application rows Stage04 publishes:
-    /// one template symbol, but separately substituted members for each tuple.
+    /// Deliberately supplied rows challenge the receiving owner here. The
+    /// parsed-source controls cover the real producer rather than this fixture.
     struct AppliedFixture {
         typed: typed_trees::TypedTrees,
         template: DataDefinition,
@@ -764,7 +779,37 @@ mod tests {
             "{refusal:?}"
         );
         let valid = fixture.apply(fixture.u64_type, fixture.u64_type);
-        let mut false_copy = fixture.typed.closed_data_definition(valid).unwrap().clone();
+        let original = fixture.typed.closed_data_definition(valid).unwrap().clone();
+        let mut forged = original.clone();
+        let mut members = fixture.typed.data_members(&forged).to_vec();
+        let typed_trees::data::DataMember::Variant(some) = &mut members[1] else {
+            panic!("the retained Some case");
+        };
+        let replacement =
+            symbols::SymbolTableBuilder::child_handles(fixture.typed.symbols.append_children(
+                some.symbol,
+                [(
+                    symbols::SymbolKind::Field,
+                    symbols::SymbolNameRef::Static("value"),
+                )],
+            ))
+            .next()
+            .unwrap();
+        let mut fields = fixture.typed.data_payload_fields(some).to_vec();
+        assert_ne!(fields[0].symbol, replacement);
+        fields[0].symbol = replacement;
+        some.payload = fixture.typed.data_payload_fields.insert_many(fields);
+        forged.members = fixture.typed.data_members.insert_many(members);
+        fixture
+            .typed
+            .retain_data_application_definition(valid, forged, true);
+        let mut program = Program::new(&fixture.typed, false);
+        let refusal = program.record_at(machine(), valid).unwrap_err();
+        assert!(
+            refusal.detail.contains("substituted member roster"),
+            "{refusal:?}"
+        );
+        let mut false_copy = original;
         false_copy.properties.multiplicity = language_semantics::Multiplicity::Unrestricted;
         fixture
             .typed
@@ -773,6 +818,25 @@ mod tests {
         let refusal = program.record_at(machine(), valid).unwrap_err();
         assert!(
             refusal.detail.contains("storage obligations"),
+            "{refusal:?}"
+        );
+        let borrowed = fixture
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee: fixture.u64_type,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime: None,
+            });
+        let reference_application = fixture.apply(borrowed, borrowed);
+        let mut program = Program::new(&fixture.typed, false);
+        let refusal = program
+            .record_at(machine(), reference_application)
+            .unwrap_err();
+        assert!(
+            refusal
+                .detail
+                .contains("reference regions are not retained"),
             "{refusal:?}"
         );
     }
