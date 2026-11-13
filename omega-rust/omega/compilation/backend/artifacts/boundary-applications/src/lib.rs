@@ -172,10 +172,13 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
         module: &terminal_psi::TerminalModule,
         plans: &[effects::provider_plan::ProviderPlan],
         occurrences: &[Self],
+        execution_machines: &[semantic_vocabulary::MachineId],
     ) -> Result<(), &'static str> {
+        validate_comparison_scope(module, execution_machines)?;
         let comparisons = module
             .machines
             .iter()
+            .filter(|machine| execution_machines.binary_search(&machine.id).is_ok())
             .flat_map(|machine| {
                 machine.blocks.iter().flat_map(move |block| {
                     block.operations.iter().filter_map(move |operation| {
@@ -195,6 +198,12 @@ impl TerminalIeeeFloatComparisonOccurrenceProposal {
         }
         let mut seen = std::collections::BTreeSet::new();
         for occurrence in occurrences {
+            if execution_machines
+                .binary_search(&occurrence.terminal_machine)
+                .is_err()
+            {
+                return Err("comparison occurrence belongs to another execution scope");
+            }
             if !seen.insert((occurrence.terminal_machine, occurrence.terminal_operation)) {
                 return Err("Terminal proposal repeats an IEEE comparison occurrence");
             }
@@ -292,9 +301,17 @@ impl TerminalIntegerComparisonOccurrenceProposal {
         module: &terminal_psi::TerminalModule,
         plans: &[effects::provider_plan::ProviderPlan],
         occurrences: &[Self],
+        execution_machines: &[semantic_vocabulary::MachineId],
     ) -> Result<(), &'static str> {
+        validate_comparison_scope(module, execution_machines)?;
         let mut seen = std::collections::BTreeSet::new();
         for occurrence in occurrences {
+            if execution_machines
+                .binary_search(&occurrence.terminal_machine)
+                .is_err()
+            {
+                return Err("comparison occurrence belongs to another execution scope");
+            }
             if !seen.insert((occurrence.terminal_machine, occurrence.terminal_operation)) {
                 return Err("Terminal proposal repeats an integer comparison occurrence");
             }
@@ -390,9 +407,41 @@ impl TerminalIntegerComparisonOccurrenceProposal {
     }
 }
 
+// Module declarations need not follow scope order. Track each selected ID
+// once so repeated module IDs cannot hide an unknown selected machine.
+fn validate_comparison_scope(
+    module: &terminal_psi::TerminalModule,
+    execution_machines: &[semantic_vocabulary::MachineId],
+) -> Result<(), &'static str> {
+    let invalid_scope = "comparison scope has repeated, unordered or unknown machines";
+    if execution_machines.windows(2).any(|rows| rows[0] >= rows[1]) {
+        return Err(invalid_scope);
+    }
+    let mut remaining = execution_machines.len();
+    if remaining == 0 {
+        return Ok(());
+    }
+    let mut matched = vec![false; remaining];
+    for machine in &module.machines {
+        if let Ok(position) = execution_machines.binary_search(&machine.id)
+            && !matched[position]
+        {
+            matched[position] = true;
+            remaining -= 1;
+            if remaining == 0 {
+                return Ok(());
+            }
+        }
+    }
+    Err(invalid_scope)
+}
+
 #[cfg(test)]
 mod comparison_tests {
-    use super::TerminalIntegerComparisonOccurrenceProposal as IntegerOccurrence;
+    use super::{
+        TerminalIeeeFloatComparisonOccurrenceProposal as FloatOccurrence,
+        TerminalIntegerComparisonOccurrenceProposal as IntegerOccurrence,
+    };
     use effects::CompilerPrimitiveIntegerComparisonOperation as Authored;
     use effects::provider_plan::ProviderPlan;
     use effects::{CompilerIntrinsicExecutionIdentity, CompilerNumericType};
@@ -464,6 +513,53 @@ mod comparison_tests {
     }
 
     #[test]
+    fn comparison_scopes_reject_bad_ids_without_requiring_module_order() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 64).unwrap();
+        let mut module = comparison_module(
+            ScalarType::Integer(integer_type),
+            OperationKind::IntegerEqual {
+                left: ValueId::new(1).unwrap(),
+                right: ValueId::new(2).unwrap(),
+            },
+        );
+        module.machines[0].blocks[0].operations.clear();
+        let first = MachineId::new(1).unwrap();
+        let second = MachineId::new(2).unwrap();
+        let unknown = MachineId::new(3).unwrap();
+        let mut other = module.machines[0].clone();
+        other.id = second;
+        module.machines.insert(0, other);
+        let invalid = Err("comparison scope has repeated, unordered or unknown machines");
+        for (scope, expected) in [
+            (vec![], Ok(())),
+            (vec![first, second], Ok(())),
+            (vec![first, first], invalid),
+            (vec![second, first], invalid),
+            (vec![first, unknown], invalid),
+        ] {
+            assert_eq!(
+                FloatOccurrence::validate_roster(&module, &[], &[], &scope),
+                expected
+            );
+            assert_eq!(
+                IntegerOccurrence::validate_roster(&module, &[], &[], &scope),
+                expected
+            );
+        }
+        // Repeated declarations cannot count twice toward a missing ID.
+        module.machines[0].id = first;
+        let scope = [first, second];
+        assert_eq!(
+            FloatOccurrence::validate_roster(&module, &[], &[], &scope),
+            invalid
+        );
+        assert_eq!(
+            IntegerOccurrence::validate_roster(&module, &[], &[], &scope),
+            invalid
+        );
+    }
+
+    #[test]
     fn integer_rows_preserve_builtin_omission_and_exact_selected_negation() {
         let plans = [ProviderPlan::default()];
         let integer_type = IntegerType::new(IntegerSign::Signed, 64).unwrap();
@@ -485,12 +581,13 @@ mod comparison_tests {
             comparison: Authored::NotEqual,
             integer_type: CompilerNumericType::I64,
         };
+        let execution_machines = [module.machines[0].id];
         assert_eq!(
-            IntegerOccurrence::validate_roster(&module, &plans, &[]),
+            IntegerOccurrence::validate_roster(&module, &plans, &[], &execution_machines),
             Ok(())
         );
         assert_eq!(
-            IntegerOccurrence::validate_roster(&module, &plans, &[occurrence]),
+            IntegerOccurrence::validate_roster(&module, &plans, &[occurrence], &execution_machines),
             Err("Terminal integer comparison changed its authored negation")
         );
         module.machines[0].blocks[0].operations.push(Operation {
@@ -503,11 +600,16 @@ mod comparison_tests {
             },
         });
         assert_eq!(
-            IntegerOccurrence::validate_roster(&module, &plans, &[occurrence]),
+            IntegerOccurrence::validate_roster(&module, &plans, &[occurrence], &execution_machines),
             Ok(())
         );
         assert_eq!(
-            IntegerOccurrence::validate_roster(&module, &plans, &[occurrence, occurrence]),
+            IntegerOccurrence::validate_roster(
+                &module,
+                &plans,
+                &[occurrence, occurrence],
+                &execution_machines
+            ),
             Err("Terminal proposal repeats an integer comparison occurrence")
         );
         let mut duplicate_declaration = module.clone();
@@ -515,7 +617,12 @@ mod comparison_tests {
             .parameters
             .push(value(1, ScalarType::Integer(integer_type)));
         assert_eq!(
-            IntegerOccurrence::validate_roster(&duplicate_declaration, &plans, &[occurrence]),
+            IntegerOccurrence::validate_roster(
+                &duplicate_declaration,
+                &plans,
+                &[occurrence],
+                &execution_machines
+            ),
             Err("Terminal integer comparison changed operand type or identity")
         );
         let wrong_type = IntegerOccurrence {
@@ -523,7 +630,7 @@ mod comparison_tests {
             ..occurrence
         };
         assert_eq!(
-            IntegerOccurrence::validate_roster(&module, &plans, &[wrong_type]),
+            IntegerOccurrence::validate_roster(&module, &plans, &[wrong_type], &execution_machines),
             Err("Terminal integer comparison changed operand type or identity")
         );
     }

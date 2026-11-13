@@ -52,6 +52,7 @@ pub(super) fn project(
             )?;
             for production in once(&native.origin.primary).chain(&native.origin.equivalents) {
                 let occurrence = provider_planning::native_bindings::NativeBuildRowOrigin {
+                    application: native.application,
                     requirement: native.requirement,
                     origin: package_compilation::PackageNativeBindingOrigin {
                         primary: production.clone(),
@@ -60,6 +61,13 @@ pub(super) fn project(
                 };
                 let binding = project_native(input, &occurrence, &row.binding)?;
                 rows.push(PackagePolicyNativeBinding {
+                    application: candidate.plan.provider_application.is_valid().then(|| {
+                        candidate
+                            .plan
+                            .identities
+                            .text(candidate.plan.provider_application)
+                            .to_owned()
+                    }),
                     method: method.clone(),
                     binding,
                 });

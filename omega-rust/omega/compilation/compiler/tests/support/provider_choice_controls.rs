@@ -17,6 +17,8 @@ pub(super) struct PreparedProviderChoices {
     selected_plans: Vec<effects::provider_plan::ProviderPlan>,
     expected_instances: Vec<provider_instance_controls::ExpectedInstance>,
     callback_bodies: callback_body_controls::PreparedCallbackBodies,
+    callback_declarations: std::sync::Arc<psi_compiler::PreparedExternalProviderDeclarations>,
+    calling_requirements: Vec<terminal_psi::CallbackRequirementId>,
 }
 
 pub(super) fn prepare(
@@ -54,6 +56,10 @@ pub(super) fn prepare(
     );
     let expected_instances = provider_instance_controls::prepare(&checked, root)?;
     let callback_bodies = callback_body_controls::prepare(&checked, root)?;
+    let callback_declarations = std::sync::Arc::clone(&checked.execution().external_providers);
+    let calling_requirements = checked
+        .providers()
+        .callback_calling_requirements(&callback_declarations.callbacks);
     drop(checked);
     drop(prepared);
     Ok(PreparedProviderChoices {
@@ -61,6 +67,8 @@ pub(super) fn prepare(
         selected_plans,
         expected_instances,
         callback_bodies,
+        callback_declarations,
+        calling_requirements,
     })
 }
 
@@ -74,6 +82,8 @@ pub(super) fn inspect(
         selected_plans,
         expected_instances,
         callback_bodies,
+        callback_declarations,
+        calling_requirements,
     } = prepared;
     let original = retained
         .native_realization_proposal()
@@ -162,6 +172,9 @@ pub(super) fn inspect(
             } else {
                 &[]
             },
+            &callback_declarations.identities,
+            &callback_declarations.callbacks,
+            &calling_requirements,
         );
         // The retained producer now supplies the complete publication catalog.
         // This control still compares the exact target's whole proposal, as
@@ -213,6 +226,9 @@ pub(super) fn inspect(
                 } else {
                     &[]
                 },
+                &callback_declarations.identities,
+                &callback_declarations.callbacks,
+                &calling_requirements,
             );
             let outcomes = outcomes
                 .into_iter()

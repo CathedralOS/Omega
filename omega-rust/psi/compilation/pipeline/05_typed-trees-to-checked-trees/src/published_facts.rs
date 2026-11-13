@@ -8829,17 +8829,27 @@ pub(crate) mod provider_instance_publication {
         ) {
             let typed = &checked.typed;
             let mut requirements = Vec::new();
+            // A boundary interface can inherit an ordinary method. Keep that
+            // method linked to its checked implementation without making its
+            // declaring parent a physical boundary.
             for definition in typed
                 .traits()
                 .iter()
                 .filter(|definition| definition.is_boundary)
             {
-                requirements.extend(typed.executable_trait_machine_instances(definition).map(
-                    |signature| Requirement::Trait {
-                        definition,
-                        signature,
+                typed_trees::trait_definition::AppliedTraitScope::abstract_scope(definition).visit(
+                    typed,
+                    &mut |scope| {
+                        requirements.extend(
+                            typed
+                                .executable_trait_machine_instances(scope.declaration)
+                                .map(|signature| Requirement::Trait {
+                                    definition: scope.declaration,
+                                    signature,
+                                }),
+                        );
                     },
-                ));
+                );
             }
             requirements.extend(
                 typed
@@ -8857,6 +8867,11 @@ pub(crate) mod provider_instance_publication {
                     .filter(|operator| operator.is_boundary)
                     .map(Requirement::Operator),
             );
+            requirements.sort_unstable_by_key(|requirement| {
+                let symbol = requirement.symbol();
+                (symbol.arena_index(), symbol.generation())
+            });
+            requirements.dedup_by_key(|requirement| requirement.symbol());
             for machine in typed.machines().iter().filter(|machine| {
                 machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
             }) {

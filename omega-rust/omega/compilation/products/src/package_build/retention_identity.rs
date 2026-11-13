@@ -314,6 +314,21 @@ impl BuildOutputIdentity<'_> {
             let selection = &supply.selection;
             self.symbol(selection.subject)?;
             self.symbol(selection.requirement)?;
+            match selection.application {
+                None => self.digest.byte(0),
+                Some(application) => {
+                    self.digest.byte(1);
+                    let program = self.program.product_declarations();
+                    if !program.product_operand_applications.is_valid(application) {
+                        return Err("native binding has a stale prepared application".into());
+                    }
+                    let identity = program
+                        .product_operand_application_identity(application)?
+                        .and_then(|identity| program.type_identity_text(identity))
+                        .ok_or("native binding lost its complete application identity")?;
+                    self.digest.string(&identity);
+                }
+            }
             self.product_target(Some(selection.target));
             self.native_locator(&selection.locator);
             self.digest.string(&selection.producer.declaration_path);

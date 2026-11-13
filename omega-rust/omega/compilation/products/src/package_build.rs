@@ -103,7 +103,7 @@ impl PreparedPackageBuild {
         target: TargetProfile,
         inputs: PackageCompilationInputs,
         rollback: OptimizationRollback,
-        prepared: PreparedBuild,
+        mut prepared: PreparedBuild,
     ) -> Result<Self, Vec<Diagnostic>> {
         let build_handoff = prepared
             .build_sources

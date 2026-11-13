@@ -9,6 +9,7 @@ name = "abstract_operations_to_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
+verified-optimization-input = { path = "../../representations/abstract-operations/verified-input" }
 language-core = { path = "../../../../psi/foundation/language-core" }
 provider-admission = { path = "../../realization/provider-admission" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }

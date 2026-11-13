@@ -157,6 +157,11 @@ pub(super) fn native_binding(
     encoder: &mut Encoder,
     value: &crate::record::PackagePolicyNativeBinding,
 ) -> Result<(), PackageReviewEncodingError> {
+    encoder.option_field(
+        "application",
+        value.application.as_deref(),
+        |encoder, value| encoder.string(value),
+    )?;
     encoder.field_by("requirement", &value.method, encode_service_method)?;
     encoder.field_by("binding", &value.binding, encode_binding)
 }

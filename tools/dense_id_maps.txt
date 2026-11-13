@@ -11,7 +11,8 @@
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering.rs
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering_scalars.rs
 3 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering_storage.rs
-8 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/native_execution_scope.rs
+4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/native_execution_scope.rs
+4 omega-rust/omega/compilation/representations/abstract-operations/verified-input/src/native_execution_scope.rs
 3 omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/control_flow_analyses.rs
 4 omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/control_flow_cleanup.rs
 21 omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/global_value_numbering.rs

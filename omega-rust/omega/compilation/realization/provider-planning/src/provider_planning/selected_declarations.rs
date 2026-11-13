@@ -39,12 +39,14 @@ pub(crate) fn capture_plan_declarations(
                 }
                 crate::ProviderRowRealization::BuildNative(native) => {
                     ProviderDeclarationOrigin::BuildNative {
+                        application: native.application,
                         requirement: native.requirement,
                     }
                 }
                 crate::ProviderRowRealization::Toolchain => ProviderDeclarationOrigin::Toolchain,
             },
             requirement_identity: plan.identities.text(row.requirement_identity),
+            declared_requirement_identity: plan.identities.text(row.declared_requirement_identity),
             application: match row.binding {
                 ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Syscall { .. } => {
                     ProviderApplicationView::PhysicalLeaf
@@ -57,6 +59,10 @@ pub(crate) fn capture_plan_declarations(
     let declarations = checked.provider_declarations(ProviderDeclarationRequest {
         rows: &rows,
         named_application: provider.named_application,
+        provider_application_identity: plan
+            .provider_application
+            .is_valid()
+            .then(|| plan.identities.text(plan.provider_application)),
         installation_reach: !matches!(
             provider.schema,
             crate::ProviderSchemaDeclaration::BoundaryOperator(_)

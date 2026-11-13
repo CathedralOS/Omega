@@ -243,6 +243,8 @@ pub(super) fn derive(
                 plan.rows.push(ProviderPlanRow {
                     method: row.requirement_name.as_str().to_owned(),
                     requirement_identity,
+                    declared_requirement_identity: requirement_identity,
+                    calling_signature: None,
                     requirement_lifetime_partition: lifetime_partition,
                     admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding,

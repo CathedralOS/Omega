@@ -25,6 +25,13 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
     }).ok_or("boundary provider controls require a demanded checked body")?;
 
     for artifact in [retained.artifact(), &loaded] {
+        let work = terminal_psi_to_abstract_operations::prepare_native_execution_with_components(
+            proposal,
+            artifact,
+            &[],
+            &[],
+        )
+        .map_err(|errors| format!("boundary provider work: {errors:?}"))?;
         let settle = |selected: &effects::SelectedProviderPlanFacts,
                       executions: &[Vec<Option<effects::CompilerIntrinsicExecutionIdentity>>],
                       realizations: &[Vec<Option<String>>]| {
@@ -41,7 +48,7 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
                         }
                     }).collect(),
                 calling_applications: proposal.boundary_applications().calling.clone(),
-            }.settle(artifact, selected)
+            }.settle(artifact, work.execution_scope())
         };
         let actual = settle(
             &providers.selection,
@@ -49,7 +56,7 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact) -> Result<(), String>
             &providers.numeric_realizations,
         )
         .map_err(|errors| format!("boundary provider admission: {errors:?}"))?;
-        if actual != proposal.boundary_applications().coverage {
+        if &actual != work.boundary_application_coverage() {
             return Err("retained/decoded boundary admission changed exact coverage".into());
         }
 

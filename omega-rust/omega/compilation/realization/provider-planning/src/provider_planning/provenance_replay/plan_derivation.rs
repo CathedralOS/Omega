@@ -143,6 +143,8 @@ pub(crate) fn derive_provider_plans(
                 plans[position].plan.rows.push(ProviderPlanRow {
                     method: requirement.as_str().to_owned(),
                     requirement_identity,
+                    declared_requirement_identity: requirement_identity,
+                    calling_signature: None,
                     requirement_lifetime_partition:
                         language_semantics::type_identity::normalize_requirement_lifetime_partition(
                             &clause.trait_lifetime_arguments,
@@ -304,6 +306,8 @@ fn derive_top_level_requirement_plans(
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: schema_method.name.clone(),
                 requirement_identity,
+                declared_requirement_identity: requirement_identity,
+                calling_signature: None,
                 requirement_lifetime_partition: Vec::new(),
                 admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                 binding,
@@ -415,6 +419,8 @@ fn derive_boundary_operator_plans(
             plans[position].plan.rows.push(ProviderPlanRow {
                 method: "realize".to_owned(),
                 requirement_identity,
+                declared_requirement_identity: requirement_identity,
+                calling_signature: None,
                 requirement_lifetime_partition: Vec::new(),
                 admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                 binding,
@@ -668,6 +674,8 @@ fn derive_accessor_plans(
                 plans[position].plan.rows.push(ProviderPlanRow {
                     method: operation.operation.clone(),
                     requirement_identity,
+                    declared_requirement_identity: requirement_identity,
+                    calling_signature: None,
                     requirement_lifetime_partition: Vec::new(),
                     admitted_same_stack_bytes: machine.admitted_same_stack_bytes,
                     binding: ProviderBinding::CompilerIntrinsic {

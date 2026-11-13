@@ -225,9 +225,21 @@ pub(super) fn native_producer(
         .typed
         .trait_machine_signature(native.requirement)
         .map(|(owner, signature)| {
-            compilation
-                .typed
-                .trait_requirement_callable_identity_text(owner, signature)
+            let selected = native.application.map(|handle| {
+                compilation
+                    .typed
+                    .product_operand_applications
+                    .get(handle)
+                    .declaration
+            });
+            let selected = selected
+                .and_then(|symbol| compilation.typed.closed_requirement_application(symbol));
+            compilation.typed.trait_requirement_callable_identity_text(
+                owner,
+                selected
+                    .as_ref()
+                    .map_or(signature, |application| application.signature),
+            )
         })
         .ok_or_else(|| rejected("native Build producer lost its exact requirement"))?;
     let identities = compilation

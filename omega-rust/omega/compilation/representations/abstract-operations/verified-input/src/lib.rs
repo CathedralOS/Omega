@@ -1,15 +1,13 @@
 #![forbid(unsafe_code)]
 
 /*
-  The admitted program that Omega 00 hands to Omega 01: the lowered
-  `AbstractOperationPlan`, the Terminal module it came from, and the provider,
-  target, callback, interrupt and evidence selections admitted beside it.
+  Native lowering must use the complete set of selected providers, callbacks,
+  component calls and entry calls. This owner checks that set once and keeps it
+  with the lowered program, so later stages cannot substitute a smaller scope.
 
-  Omega 00 (`00_terminal-psi-to-abstract-operations`) is the only producer: it
-  admits a canonical Terminal artifact, lowers it, and fills these selections
-  as each admission step succeeds. Omega 01 and later realization stages read
-  them. The type lives here, not in either stage, so that Omega 01 never
-  depends on Omega 00 to name its own input (pipeline.md "Public contracts").
+  The checked native proposal supplies execution coverage here. Omega 00 lowers
+  the selected functions and admits realization; subsequent stages read the
+  resulting input without depending on that earlier pipeline stage.
 */
 
 use abstract_operations::AbstractOperationPlan;
@@ -18,11 +16,44 @@ use terminal_installation::{
     AdmittedScalarApplications, AdmittedTargetLayouts, AdmittedTargetMachineSelections,
 };
 
+mod native_execution_scope;
+pub use native_execution_scope::{NativeExecutionScope, NativeExecutionScopeError};
+
+pub mod callback_settlement;
+pub mod component_inputs;
+pub mod entry_settlement;
+pub mod native_proposal;
+pub mod settlement;
+pub use component_inputs::{
+    AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
+    RetainedComponentNativeInputs,
+};
+mod native_execution;
+pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
+pub use callback_settlement::{
+    CallbackRegistrarOccurrence, settle_callback_registrar_imports,
+    settle_native_callback_placements,
+};
+pub use entry_settlement::{
+    NativeProgramEntrySettlement, NativeProgramEntrySettlementError, PhysicalProgramEntry,
+    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
+};
+pub use native_execution::PreparedNativeExecution;
+pub use native_proposal::{
+    RetainedTerminalArtifact, TerminalNativeProposalRequest, TerminalNativeRealizationProposal,
+};
+pub use provider_admission::{
+    InstalledInterruptNativeEntryProposal, NativeCallbackArgumentProposal, SelectedProviderAdapter,
+};
+pub use settlement::boundary_application_settlement::BoundaryApplicationSettlement;
+
 mod entry_call;
 pub use entry_call::SelectedProgramEntryCall;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationInput {
+    native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
+    selected_provider_closure: Option<[u8; 32]>,
     scalar_applications: Option<AdmittedScalarApplications>,
     selected_program_entry_call: Option<SelectedProgramEntryCall>,
     plan: AbstractOperationPlan,
@@ -63,6 +94,8 @@ impl VerifiedPsiOptimizationInput {
         target_machine_selections: Option<AdmittedTargetMachineSelections>,
     ) -> Self {
         Self {
+            native_execution_scope: None,
+            selected_provider_closure: None,
             scalar_applications: None,
             selected_program_entry_call: None,
             admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort::empty(
@@ -91,10 +124,28 @@ impl VerifiedPsiOptimizationInput {
         entry_call: Option<SelectedProgramEntryCall>,
         layouts: AdmittedTargetLayouts,
         scalar_applications: Option<AdmittedScalarApplications>,
-    ) {
+        scope: Option<std::sync::Arc<NativeExecutionScope>>,
+        selected_provider_closure: [u8; 32],
+    ) -> Result<(), &'static str> {
+        if let Some(scope) = scope.as_ref() {
+            scope.require_input_context(
+                &self.plan,
+                self.target_machine_selections.as_ref(),
+                selected_provider_closure,
+            )?;
+            if scope.entry_call() != entry_call.as_ref() {
+                return Err("native input changes its checked semantic entry call");
+            }
+        }
+        if self.native_execution_scope.is_some() && self.native_execution_scope != scope {
+            return Err("native input already retains a different checked execution scope");
+        }
         self.selected_program_entry_call = entry_call;
         self.target_layout_selections = Some(layouts);
         self.scalar_applications = scalar_applications;
+        self.native_execution_scope = scope;
+        self.selected_provider_closure = Some(selected_provider_closure);
+        Ok(())
     }
 
     /// Records the provider rows that realize target families and external
@@ -104,10 +155,20 @@ impl VerifiedPsiOptimizationInput {
         family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
         external_requirement_applications: Vec<effects::SelectedExternalRequirementApplication>,
         identities: terminal_psi::TerminalIdentityTable,
-    ) {
+        selected_provider_closure: [u8; 32],
+    ) -> Result<(), &'static str> {
+        if let Some(scope) = self.native_execution_scope.as_ref() {
+            scope.require_input_context(
+                &self.plan,
+                self.target_machine_selections.as_ref(),
+                selected_provider_closure,
+            )?;
+        }
         self.target_family_realizations = family_realizations;
         self.external_requirement_applications = external_requirement_applications;
         self.selected_provider_requirement_identities = identities;
+        self.selected_provider_closure = Some(selected_provider_closure);
+        Ok(())
     }
 
     pub fn retain_admitted_assumed_bindings(
@@ -180,15 +241,13 @@ impl VerifiedPsiOptimizationInput {
         &self.admitted_installed_interrupts
     }
 
-    pub fn into_lowering_facts(self) -> provider_admission::AdmittedLoweringFacts {
-        provider_admission::AdmittedLoweringFacts {
-            program_entry: self.selected_program_entry_call.as_ref().map(|call| {
-                provider_admission::LoweringEntryCall {
-                    boundary: call.boundary(),
-                    entry: call.entry(),
-                    source_signature: call.source_signature(),
-                }
-            }),
+    pub fn into_lowering_facts(self) -> AdmittedLoweringFacts {
+        AdmittedLoweringFacts {
+            terminal: self.plan.psi,
+            entry: self.plan.entry,
+            native_execution_scope: self.native_execution_scope,
+            selected_provider_closure: self.selected_provider_closure,
+            program_entry: self.selected_program_entry_call,
             module: self.context.module,
             assumed_bindings: self.admitted_assumed_bindings,
             target_machine_selections: self.target_machine_selections,
@@ -256,5 +315,101 @@ pub struct VerifiedPsiOptimizationContext {
 impl VerifiedPsiOptimizationContext {
     pub const fn module(&self) -> &terminal_psi::TerminalModule {
         &self.module
+    }
+}
+
+// Keep the selected functions with the entry, callbacks and provider choices
+// that established them. Only this input owner can separate those facts from
+// its verified input; later stages borrow the sealed association.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedLoweringFacts {
+    terminal: terminal_psi::TerminalPsiIdentity,
+    entry: semantic_vocabulary::MachineId,
+    native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
+    selected_provider_closure: Option<[u8; 32]>,
+    module: terminal_psi::TerminalModule,
+    program_entry: Option<SelectedProgramEntryCall>,
+    assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
+    target_machine_selections: Option<AdmittedTargetMachineSelections>,
+    native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
+    installed_interrupts: provider_admission::AdmittedInstalledInterruptCohort,
+}
+
+impl AdmittedLoweringFacts {
+    pub fn require_lowering_context(
+        &self,
+        plan: &AbstractOperationPlan,
+        target: target::NativeTarget,
+    ) -> Result<(), &'static str> {
+        if self.terminal != plan.psi || self.entry != plan.entry {
+            return Err("lowering facts belong to another Terminal program or entry");
+        }
+        if let Some(selections) = &self.target_machine_selections {
+            let profile = target::TargetProfile::from_canonical_target_name(selections.target())
+                .map_err(|_| "lowering facts name an unknown target")?;
+            if selections.terminal_psi() != plan.psi || profile.native_target() != target {
+                return Err("lowering facts belong to another target selection");
+            }
+        } else if self.native_execution_scope.is_some() {
+            return Err("native lowering facts have no target selection custody");
+        }
+        Ok(())
+    }
+
+    /// Returns the functions selected for this native entry and provider choices.
+    /// Absence requires full-module validation or rejection, never empty coverage.
+    pub fn native_execution_scope_for(
+        &self,
+        terminal: terminal_psi::TerminalPsiIdentity,
+        target: target::NativeTarget,
+        entry: semantic_vocabulary::MachineId,
+        selected_provider_closure: [u8; 32],
+    ) -> Result<Option<&NativeExecutionScope>, &'static str> {
+        let Some(scope) = self.native_execution_scope.as_deref() else {
+            return Ok(None);
+        };
+        let selections = self
+            .target_machine_selections
+            .as_ref()
+            .ok_or("native execution scope has no target selection custody")?;
+        let profile = target::TargetProfile::from_canonical_target_name(selections.target())
+            .map_err(|_| "native execution scope names an unknown target")?;
+        if self.terminal != terminal
+            || selections.terminal_psi() != terminal
+            || profile.native_target() != target
+            || self.entry != entry
+            || self.selected_provider_closure != Some(selected_provider_closure)
+        {
+            return Err(
+                "native execution scope belongs to another artifact, target, entry or provider selection",
+            );
+        }
+        Ok(Some(scope))
+    }
+
+    pub const fn module(&self) -> &terminal_psi::TerminalModule {
+        &self.module
+    }
+
+    pub const fn program_entry(&self) -> Option<&SelectedProgramEntryCall> {
+        self.program_entry.as_ref()
+    }
+
+    pub fn assumed_bindings(&self) -> &[InstalledAssumedBindingEvidence] {
+        &self.assumed_bindings
+    }
+
+    pub const fn target_machine_selections(&self) -> Option<&AdmittedTargetMachineSelections> {
+        self.target_machine_selections.as_ref()
+    }
+
+    pub const fn native_callbacks(&self) -> &provider_admission::AdmittedNativeCallbackCohort {
+        &self.native_callbacks
+    }
+
+    pub const fn installed_interrupts(
+        &self,
+    ) -> &provider_admission::AdmittedInstalledInterruptCohort {
+        &self.installed_interrupts
     }
 }

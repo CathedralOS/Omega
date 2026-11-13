@@ -48,6 +48,7 @@ pub struct SettledTargetMachineDeclarations {
 }
 
 pub struct CheckedProviderSelection {
+    pub callback_roots: Result<terminal_psi::PreparedTerminalRoots, Vec<Diagnostic>>,
     pub settlement: ProviderSettlement<crate::DeferredProviderRows>,
     pub selected_provider_plan_facts: SelectedProviderPlanFacts,
     pub selected_provider_provenance: Vec<SelectedProviderReviewProvenance>,
@@ -109,6 +110,19 @@ impl<Rows> ProviderSettlement<Rows> {
                     })
             })
             .collect()
+    }
+    pub fn callback_calling_requirements(
+        &self,
+        declarations: &terminal_psi::PreparedCallbackDeclarations,
+    ) -> Vec<terminal_psi::CallbackRequirementId> {
+        declarations.calling_requirements(self.boundary_calling_plan_realizations.iter().map(
+            |realization| {
+                (
+                    realization.calling_owner_application(),
+                    realization.requirement_machine,
+                )
+            },
+        ))
     }
 }
 
@@ -197,6 +211,13 @@ pub fn settle_checked_providers(
     prepared_providers: Result<crate::target_machines::PreparedProductProviders, Vec<Diagnostic>>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
+    callbacks: Result<
+        (
+            &std::sync::Arc<terminal_psi::TerminalIdentityTable>,
+            &terminal_psi::PreparedCallbackDeclarations,
+        ),
+        &[Diagnostic],
+    >,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
     let planning_target = selected_target_profile.or_else(target::TargetProfile::host_if_supported);
     let target_name = planning_target.map(target::TargetProfile::target_name);
@@ -227,15 +248,38 @@ pub fn settle_checked_providers(
     prepared.independent_components = independent_components.clone();
     let artifact = calling_program.artifact.view();
     let canonical_roots = prepared.close_application_roots(artifact)?;
+    let callback_inputs = callbacks.map(|(identities, callbacks)| {
+        (
+            identities,
+            callbacks,
+            callbacks.calling_requirements(boundary_calling_plan_realizations.iter().map(
+                |realization| {
+                    (
+                        realization.calling_owner_application(),
+                        realization.requirement_machine,
+                    )
+                },
+            )),
+        )
+    });
     let provider_selection::SelectedTargetProviders {
         selection: canonical_selection,
         facts: mut selected_provider_plan_facts,
         demanded_plans: boundary_provider_demands,
         choices,
         invoked_declarations: _,
+        callback_roots,
     } = prepared.select(
         artifact,
-        provider_selection::ProviderApplicationDemand::Product(canonical_roots.as_deref()),
+        provider_selection::ProviderApplicationDemand::Product(
+            canonical_roots.as_deref(),
+            callback_inputs
+                .as_ref()
+                .map(|(identities, callbacks, calling)| {
+                    (*identities, *callbacks, calling.as_slice())
+                })
+                .map_err(|errors| *errors),
+        ),
         &assumptions,
     )?;
     let provider_declarations: std::sync::Arc<[backend_plan::TerminalTargetProviderPlan]> =
@@ -274,8 +318,9 @@ pub fn settle_checked_providers(
     let completed_providers = selected_provider_plans
         .into_iter()
         .map(|selected| {
-            let review = selected.candidate.owner;
-            selected_declarations.push(review.declarations);
+            let realization = selected.candidate.owner;
+            selected_declarations.push(realization.declarations);
+            let review = realization.owner;
             selected_families.push(review.families);
             Ok((
                 SelectedProviderReviewProvenance {
@@ -360,6 +405,11 @@ pub fn settle_checked_providers(
             selection: canonical_selection,
         });
     Ok(CheckedProviderSelection {
+        callback_roots: callback_roots.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "product provider selection lost callback preparation",
+            )]
+        })?,
         settlement: ProviderSettlement {
             calling_program,
             selected_provider_publication,

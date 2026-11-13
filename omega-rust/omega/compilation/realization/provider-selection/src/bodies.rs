@@ -15,6 +15,7 @@ the selected realization.
 */
 
 mod callback_roots;
+pub(crate) use callback_roots::{CallbackApplicationUse, InstalledHelperUse};
 mod target_bodies;
 
 pub use callback_roots::{

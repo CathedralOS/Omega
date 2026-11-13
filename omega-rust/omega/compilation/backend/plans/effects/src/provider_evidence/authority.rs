@@ -774,6 +774,7 @@ pub enum TerminalAuthorityClosureCustody {
     SelectedRequirement {
         service_schema: crate::provider_plan::ServiceSchemaDigest,
         requirement_identity: terminal_psi::TerminalIdentityIndex,
+        declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
         provider_plan: crate::provider_plan::ProviderPlanDigest,
     },
     ProgramRoot {
@@ -794,6 +795,7 @@ impl TerminalAuthorityClosureLeaf {
     pub fn new(
         service_schema: crate::provider_plan::ServiceSchemaDigest,
         requirement_identity: terminal_psi::TerminalIdentityIndex,
+        declared_requirement_identity: terminal_psi::TerminalIdentityIndex,
         provider_plan: crate::provider_plan::ProviderPlanDigest,
         mechanism: TerminalMechanismIdentity,
         origin: TerminalAuthorityClosureLeafOrigin,
@@ -804,6 +806,7 @@ impl TerminalAuthorityClosureLeaf {
             custody: TerminalAuthorityClosureCustody::SelectedRequirement {
                 service_schema,
                 requirement_identity,
+                declared_requirement_identity,
                 provider_plan,
             },
             mechanism,
@@ -865,7 +868,9 @@ impl TerminalAuthorityClosureLeaf {
         ) {
             return Err(TerminalAuthorityClosureReviewBuildError::MechanismOriginMismatch);
         }
-        if self.subject_identity().is_absent() {
+        if matches!(self.custody, TerminalAuthorityClosureCustody::SelectedRequirement { declared_requirement_identity, .. } if declared_requirement_identity.is_absent())
+            || self.subject_identity().is_absent()
+        {
             return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
         }
         if matches!(
@@ -984,7 +989,11 @@ impl TerminalAuthorityClosureReviewReceipt {
         }
         for leaf in &leaves {
             leaf.validate()?;
-            if identities.text(leaf.subject_identity()).is_none() {
+            if identities
+                .text(leaf.subject_identity())
+                .is_none_or(str::is_empty)
+                || matches!(leaf.custody, TerminalAuthorityClosureCustody::SelectedRequirement { declared_requirement_identity, .. } if identities.text(declared_requirement_identity).is_none_or(str::is_empty))
+            {
                 return Err(TerminalAuthorityClosureReviewBuildError::EmptyRequirement);
             }
         }
@@ -1107,7 +1116,26 @@ fn same_closure_leaf_key(
             TerminalAuthorityClosureCustody::ProgramRoot { .. },
             TerminalAuthorityClosureCustody::ProgramRoot { .. },
         ) => left.origin.checked_site() == right.origin.checked_site(),
-        _ => left.custody == right.custody && left.origin == right.origin,
+        (
+            TerminalAuthorityClosureCustody::SelectedRequirement {
+                service_schema: left_schema,
+                requirement_identity: left_requirement,
+                provider_plan: left_plan,
+                ..
+            },
+            TerminalAuthorityClosureCustody::SelectedRequirement {
+                service_schema: right_schema,
+                requirement_identity: right_requirement,
+                provider_plan: right_plan,
+                ..
+            },
+        ) => {
+            left_schema == right_schema
+                && left_requirement == right_requirement
+                && left_plan == right_plan
+                && left.origin == right.origin
+        }
+        _ => false,
     }
 }
 
@@ -1121,7 +1149,7 @@ fn terminal_authority_closure_review_identity(
     identities: &terminal_psi::TerminalIdentityTable,
 ) -> [u8; 32] {
     let mut digest = crate::provider_evidence::digest_encoder::DomainDigestEncoder::new(
-        b"omega.terminal-authority.closure-review.v5\0",
+        b"omega.terminal-authority.closure-review.v6\0",
     );
     digest.raw(&terminal_artifact_identity);
     digest.byte(match target.architecture {
@@ -1149,9 +1177,18 @@ fn terminal_authority_closure_review_identity(
     digest.raw(&(leaves.len() as u64).to_be_bytes());
     for leaf in leaves {
         match leaf.custody {
-            TerminalAuthorityClosureCustody::SelectedRequirement { service_schema, .. } => {
+            TerminalAuthorityClosureCustody::SelectedRequirement {
+                service_schema,
+                declared_requirement_identity,
+                ..
+            } => {
                 digest.byte(0);
                 digest.raw(service_schema.as_bytes());
+                let declared = identities
+                    .text(declared_requirement_identity)
+                    .unwrap_or_default();
+                digest.raw(&(declared.len() as u64).to_be_bytes());
+                digest.raw(declared.as_bytes());
             }
             TerminalAuthorityClosureCustody::ProgramRoot { .. } => digest.byte(1),
         }
@@ -1246,6 +1283,7 @@ mod physical_leaf_tests {
             TerminalAuthorityClosureLeaf::new(
                 schema,
                 requirement,
+                requirement,
                 plan,
                 CheckedPhysicalTerminalMechanismIdentity::port_write(profile, port).into(),
                 TerminalAuthorityClosureLeafOrigin::CheckedPhysical { machine, operation },
@@ -1281,6 +1319,7 @@ mod physical_leaf_tests {
         assert_eq!(
             TerminalAuthorityClosureLeaf::new(
                 schema,
+                requirement,
                 requirement,
                 plan,
                 CheckedPhysicalTerminalMechanismIdentity::port_write(profile, 0x3f8).into(),

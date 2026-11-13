@@ -452,6 +452,8 @@ mod tests {
             rows: vec![ProviderPlanRow {
                 method: "output_string".to_owned(),
                 requirement_identity,
+                declared_requirement_identity: requirement_identity,
+                calling_signature: None,
                 requirement_lifetime_partition: Vec::new(),
                 admitted_same_stack_bytes: bytes,
                 binding,

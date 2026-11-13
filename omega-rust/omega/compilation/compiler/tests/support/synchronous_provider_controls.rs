@@ -316,9 +316,12 @@ fn inspect_program_context(
     let proposal = retained
         .native_realization_proposal()
         .ok_or("missing native proposal")?;
-    let work = proposal
-        .prepare_native_callable_execution(artifact, TargetMachineCallable::Machine(alpha))
-        .map_err(|errors| format!("program context parent preparation: {errors:?}"))?;
+    let work = terminal_psi_to_abstract_operations::prepare_native_callable_execution(
+        proposal,
+        artifact,
+        TargetMachineCallable::Machine(alpha),
+    )
+    .map_err(|errors| format!("program context parent preparation: {errors:?}"))?;
     let (input, execution) = work
         .lower(None)
         .map_err(|errors| format!("program context parent lowering: {errors:?}"))?;
@@ -329,17 +332,17 @@ fn inspect_program_context(
             .clone(),
     )
     .map_err(|error| format!("program context package permissions: {error:?}"))?;
-    let providers = proposal
-        .prepare_native_providers(
-            artifact,
-            RetainedNativeProviderInputs {
-                execution: &execution,
-                optimization_selections: proposal.post_terminal_optimizations().selections(),
-                accepted_package_permissions: &permissions,
-                imports: &[],
-            },
-        )
-        .map_err(|errors| format!("program context provider preparation: {errors:?}"))?;
+    let providers = terminal_psi_to_abstract_operations::prepare_native_providers(
+        proposal,
+        artifact,
+        RetainedNativeProviderInputs {
+            execution: &execution,
+            optimization_selections: proposal.post_terminal_optimizations().selections(),
+            accepted_package_permissions: &permissions,
+            imports: &[],
+        },
+    )
+    .map_err(|errors| format!("program context provider preparation: {errors:?}"))?;
     let settlements = providers.program_settlements();
     let policy = current_terminal_authority_policy();
     let receiving_permissions = None;
@@ -392,16 +395,17 @@ fn inspect_program_context(
         "changed program choices",
     )?;
     drop(parent);
-    let child_input = execution
-        .lower_callable(
-            artifact,
-            proposal,
-            TargetMachineCallable::Machine(beta),
-            None,
-        )
-        .map_err(|errors| format!("program context child lowering: {errors:?}"))?;
+    let (child_input, child_coverage) = terminal_psi_to_abstract_operations::lower_native_callable(
+        &execution,
+        artifact,
+        proposal,
+        TargetMachineCallable::Machine(beta),
+        None,
+    )
+    .map_err(|errors| format!("program context child lowering: {errors:?}"))?;
     let child_request = NativeAdmissionRequest {
         entry: TargetMachineCallable::Machine(beta),
+        boundary_application_coverage: Some(&child_coverage),
         providers: ProviderAdmissionRequest {
             program_provider_context: Some(&context),
             ..request.providers

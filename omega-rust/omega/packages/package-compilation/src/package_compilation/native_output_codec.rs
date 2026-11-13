@@ -1,14 +1,14 @@
-// Canonical wire encoding, decoding, and content digesting (`OMG-NATIVE-OUTPUTS\x02`)
+// Canonical wire encoding, decoding, and content digesting (`OMG-NATIVE-OUTPUTS\x03`)
 // for the native declarations, foreign/syscall locators, and `NativeBuildEvaluation`
 // carried inside a `PackageBuildHandoff`. Decoding reconstructs inert anchors
 // without granting source visibility, host backing, or native execution authority.
 
 use super::{NativeBuildEvaluation, PackageBuildHandoff};
 use crate::build_execution::build_record_codec;
+use build_time_evaluation::native_bindings::CapturedNativeDeclaration;
 use filesystem_authority::observation_codec::{ObservationCursor, push_framed};
 use language_semantics::declaration_selection::{
-    CapturedNativeDeclaration, CapturedNativeIntent, NativeBindingProducer, NativeBindingSource,
-    ProductTarget,
+    CapturedNativeIntent, NativeBindingProducer, NativeBindingSource, ProductTarget,
 };
 use semantic_vocabulary::{ForeignLocatorCandidate, NativeBindingLocator, PackageKeyIdentity};
 use std::sync::Arc;
@@ -97,13 +97,19 @@ fn choices(bundle: &PackageBuildHandoff, output: &mut Vec<u8>) {
 
 pub fn digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
     let mut digest =
-        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-outputs-v2\0");
+        crate::digest_encoder::DomainDigestEncoder::new(b"omega-package-native-outputs-v3\0");
     let anchors = bundle
         .native_declarations()
         .iter()
         .map(|declaration| &declaration.requirement)
         .collect::<Vec<_>>();
     digest.raw(&super::provider_selection_codec::retained_declarations_digest(&anchors));
+    let applications = bundle
+        .native_declarations()
+        .iter()
+        .map(|declaration| declaration.application.as_ref())
+        .collect::<Vec<_>>();
+    digest.raw(&super::provider_selection_codec::product_applications_digest(&applications));
     let mut bytes = Vec::new();
     choices(bundle, &mut bytes);
     digest.bytes(&bytes);
@@ -118,7 +124,7 @@ pub fn digest(bundle: &PackageBuildHandoff) -> [u8; 32] {
 }
 
 pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
-    let mut output = b"OMG-NATIVE-OUTPUTS\x02".to_vec();
+    let mut output = b"OMG-NATIVE-OUTPUTS\x03".to_vec();
     let anchors = bundle
         .native_declarations()
         .iter()
@@ -127,6 +133,15 @@ pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
     push_framed(
         &mut output,
         &super::provider_selection_codec::encode_retained_declarations(&anchors),
+    );
+    let applications = bundle
+        .native_declarations()
+        .iter()
+        .map(|declaration| declaration.application.as_ref())
+        .collect::<Vec<_>>();
+    push_framed(
+        &mut output,
+        &super::provider_selection_codec::encode_product_applications(&applications),
     );
     choices(bundle, &mut output);
     match bundle.native_evaluation() {
@@ -152,17 +167,19 @@ pub fn encode(bundle: &PackageBuildHandoff) -> Vec<u8> {
 
 pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuildHandoff> {
     let mut cursor = ObservationCursor::new(bytes);
-    let magic = b"OMG-NATIVE-OUTPUTS\x02";
+    let magic = b"OMG-NATIVE-OUTPUTS\x03";
     if cursor.bytes(magic.len())? != magic {
         return None;
     }
     let anchors = super::provider_selection_codec::decode_retained_declarations(cursor.framed()?)?;
+    let applications =
+        super::provider_selection_codec::decode_product_applications(cursor.framed()?)?;
     let declared_count = count(&mut cursor)?;
-    if declared_count != anchors.len() {
+    if declared_count != anchors.len() || declared_count != applications.len() {
         return None;
     }
     let mut declarations = Vec::new();
-    for requirement in anchors {
+    for (requirement, application) in anchors.into_iter().zip(applications) {
         let package = PackageKeyIdentity::from_digest(cursor.bytes(32)?.try_into().ok()?)?;
         let declaration_path = read_string(&mut cursor)?;
         let callable_identity = read_string(&mut cursor)?;
@@ -181,6 +198,7 @@ pub fn decode(bytes: &[u8], handoff: PackageBuildHandoff) -> Option<PackageBuild
             _ => return None,
         };
         declarations.push(CapturedNativeDeclaration {
+            application,
             source: NativeBindingSource {
                 producer: NativeBindingProducer {
                     package,

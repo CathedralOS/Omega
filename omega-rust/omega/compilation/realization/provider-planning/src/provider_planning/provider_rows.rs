@@ -168,7 +168,7 @@ impl DirectBoundaryInput {
         let row = original.rows.get(self.row_index).ok_or_else(|| {
             Diagnostic::error("direct boundary projection lost its original provider row")
         })?;
-        let requirement = original.identities.text(row.requirement_identity);
+        let requirement = original.identities.text(row.declared_requirement_identity);
         let satisfied_schema = original.schema.clone();
         let mut plan = original.clone();
         plan.rows = vec![row.clone()];
@@ -185,6 +185,8 @@ impl DirectBoundaryInput {
         declaration.trait_name = declaration.identities.intern(&self.callable_identity);
         declaration.trait_package_identity = self.realization_package;
         plan.rows[0].requirement_identity = plan.identities.intern(&self.callable_identity);
+        plan.rows[0].declared_requirement_identity = plan.rows[0].requirement_identity;
+        plan.rows[0].calling_signature = None;
         let [method] = declaration.methods.as_mut_slice() else {
             return Err(Diagnostic::error(
                 "boundary leaf does not bind one exact requirement contract",
@@ -285,7 +287,10 @@ fn capture_direct_declarations(
                     "boundary leaf has no exact callable identity",
                 )]
             })?;
-        let requirement = source.plan.identities.text(row.requirement_identity);
+        let requirement = source
+            .plan
+            .identities
+            .text(row.declared_requirement_identity);
         if source
             .plan
             .schema

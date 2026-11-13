@@ -8,6 +8,8 @@ use omega::language::core::F64::negate;
 use omega::language::core::F32::is_nan;
 use omega::language::core::F64::is_nan;
 use omega_language_std::Console;
+use omega::language::core::F32;
+use omega::language::core::F64;
 
 data Main {
     negative_zero32: f32;
