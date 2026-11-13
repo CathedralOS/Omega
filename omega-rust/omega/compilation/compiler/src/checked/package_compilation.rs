@@ -327,32 +327,17 @@ impl CompilationSession {
         selected.finish_check().result
     }
 
+    // Provider publication needs the lowered route's actual provider custody.
+    // The removed checked-tree producer cannot be called with typed source.
     pub fn produce_package_build_provider(
         &mut self,
-        build: PackageBuild,
-        declaration_path: &str,
+        _build: PackageBuild,
+        _declaration_path: &str,
     ) -> Result<psi_compiler::ProducedBuildProvider, CompileFailure> {
-        super::run_on_compile_thread(|| {
-            let (_, _, inputs, rollback, prepared) = build.source.into_continuation();
-            prepared
-                .build_sources
-                .build_execution_profile
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "Build provider production requires its admitted execution profile",
-                    )]
-                })?;
-            let source = super::checking::complete_prepared_build(prepared, Some(&inputs))?;
-            let checked =
-                super::checking::check_product_source(source, Some(&inputs), &rollback, None)?;
-            Ok(psi_compiler::BuildProviderProductionRequest {
-                checked: &checked.program,
-                exact_toolchain_sources: checked.sources.exact_toolchain_sources(),
-                package: inputs.root(),
-                declaration_path,
-            }
-            .produce()?)
-        })
+        Err(vec![Diagnostic::error(
+            "no product route yet: package Build provider publication requires lowered-route provider custody",
+        )]
+        .into())
     }
 
     pub fn complete_package_components<Owner: Send>(
