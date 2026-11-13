@@ -1223,6 +1223,21 @@ pub(crate) mod conformance {
                     conformance,
                     &mut diagnostics,
                 );
+                let invocations = crate::infer_synchronous_invocations(program);
+                if let Some(summary) = invocations.for_machine(machine.symbol) {
+                    crate::machine_calls::invocations::validate_top_level_invocation_refinement(
+                        program,
+                        machine,
+                        requirement,
+                        summary,
+                        &mut diagnostics,
+                    );
+                } else {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "machine `{}` has no checked synchronous-invocation summary",
+                        machine.name,
+                    )));
+                }
             }
             crate::program_validation::finish_strict_diagnostics(diagnostics)
         }

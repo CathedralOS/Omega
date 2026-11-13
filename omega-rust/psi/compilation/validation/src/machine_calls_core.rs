@@ -7195,6 +7195,21 @@ pub mod invocations {
         for conformance in program.machine_trait_conformances(machine) {
             let Some(trait_definition) = program.trait_definition_by_symbol(conformance.symbol)
             else {
+                if let Some(typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(
+                    requirement,
+                )) = typed_trees::machine::resolve_satisfied_declaration(
+                    program.typed_program(),
+                    machine,
+                    conformance,
+                ) {
+                    validate_top_level_invocation_refinement(
+                        program,
+                        machine,
+                        requirement,
+                        summary,
+                        diagnostics,
+                    );
+                }
                 continue;
             };
             let requirements = program.trait_machine_signatures(trait_definition);
@@ -7276,6 +7291,54 @@ pub mod invocations {
                 );
             }
         }
+    }
+
+    pub(crate) fn validate_top_level_invocation_refinement(
+        program: &dyn CheckingInput,
+        machine: &Machine,
+        requirement: &Machine,
+        summary: &flow_effects::MachineInvocationInference,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        // An omitted clause on a checked body still owes the requirement's
+        // closed ceiling. Retain the exact closed application and compare the
+        // completed inference in the corresponding entry parameter positions.
+        let requirement =
+            match crate::resolve_closed_requirement_application(program, machine, requirement) {
+                Ok(requirement) => requirement,
+                Err(diagnostic) => {
+                    diagnostics.push(diagnostic);
+                    return;
+                }
+            };
+        let Some(entry) = program.machine_states(requirement).first() else {
+            diagnostics.push(Diagnostic::error(format!(
+                "top-level boundary requirement `{}` has no entry signature",
+                requirement.name,
+            )));
+            return;
+        };
+        let allowed = crate::declared_machine_invocations(program, requirement);
+        if allowed.len() != program.machine_invokes(requirement).len() {
+            diagnostics.push(Diagnostic::error(format!(
+                "top-level boundary requirement `{}` has an invalid authored invokes ceiling",
+                requirement.name,
+            )));
+            return;
+        }
+        report_missing_targets(
+            program,
+            program.state_parameters(entry),
+            &summary.inferred_transitive,
+            &allowed,
+            |binding, ceiling| {
+                format!(
+                    "machine `{}` does not refine top-level boundary requirement `{}`: its body may synchronously invoke binding `{binding}`, but the requirement omits `invokes {binding}` (requirement invokes: [{ceiling}])",
+                    machine.name, requirement.name,
+                )
+            },
+            diagnostics,
+        );
     }
 
     fn report_missing_targets(

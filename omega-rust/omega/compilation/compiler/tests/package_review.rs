@@ -12,6 +12,142 @@ use compiler::{CheckedCompileRequest, CompilationSession, PackageReviewFailure};
 use package_evidence::PackageReviewProjectionError;
 
 #[test]
+fn inferred_public_invocations_preserve_requirement_ceilings() {
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-public-invocation-ceiling-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir(&scratch).unwrap();
+    let source = r#"
+public boundary trait Entry { machine enter() reaches none crashes none; }
+public domain i32::Operand;
+DECLARATION
+machine callback() reaches none crashes none invokes Entry {}
+machine dispatch<const Callback: machine() reaches none crashes none invokes Entry>()
+reaches none crashes none
+{ Callback(); }
+VISIBILITY machine provider(left: i32 in Operand, right: i32 in Operand) -> i32
+satisfies InvocationApi::closed
+reaches none crashes none
+{ dispatch<callback>(); left as i32 }
+"#;
+    // Boundary traits are the current source form. The retained token form
+    // still reaches the legacy requirement checker and must not grant a false
+    // promise while that path remains accepted.
+    for (form, declaration) in [
+        (
+            "trait",
+            r#"public boundary trait InvocationApi {
+    machine closed(left: i32 in Operand, right: i32 in Operand) -> i32
+    reaches none crashes none REQUIREMENT_INVOKES;
+}"#,
+        ),
+        (
+            "token",
+            r#"public data InvocationApi {}
+public boundary machine - InvocationApi::closed(left: i32 in Operand, right: i32 in Operand) -> i32
+reaches none crashes none REQUIREMENT_INVOKES;"#,
+        ),
+    ] {
+        for (case, visibility, ceiling) in [
+            ("permitted", "public", "invokes Entry"),
+            ("public_closed", "public", ""),
+            ("private_closed", "", ""),
+        ] {
+            let root = scratch.join(format!("{form}-{case}"));
+            std::fs::create_dir(&root).unwrap();
+            let path = root.join("main.omg");
+            std::fs::write(
+                &path,
+                source
+                    .replace("DECLARATION", declaration)
+                    .replace("REQUIREMENT_INVOKES", ceiling)
+                    .replace("VISIBILITY", visibility),
+            )
+            .unwrap();
+            let outcome = orchestration::check_source(
+                &mut CompilationSession::default(),
+                CheckedCompileRequest::new(&path, None),
+            )
+            .result;
+            if ceiling.is_empty() {
+                let failure = outcome.err().unwrap_or_else(|| {
+                    panic!("{form}-{case}: a checked body cannot widen a closed requirement")
+                });
+                let diagnostics = format!("{:?}", failure.into_diagnostics());
+                assert!(
+                    diagnostics.contains("InvocationApi::closed")
+                        && diagnostics.contains("requirement omits `invokes Entry`"),
+                    "{form}-{case}: {diagnostics}"
+                );
+                continue;
+            }
+            let checked = outcome.unwrap_or_else(|failure| {
+                panic!("{form}-{case}: {:?}", failure.into_diagnostics())
+            });
+            let program = checked.source_inspection().program();
+            let provider = program
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "provider")
+                .unwrap();
+            let fact = program
+                .facts
+                .synchronous_invocations
+                .machines
+                .iter()
+                .find(|fact| fact.machine == provider.symbol)
+                .unwrap();
+            assert!(!fact.published_targets.is_empty());
+            assert_eq!(fact.published_targets, fact.checked_inferred_targets);
+            if form != "token" {
+                continue;
+            }
+
+            // Export review revalidates this retained declaration independently
+            // of the source pass that originally produced the checked custody.
+            let mut typed = program.typed.clone().into_inner();
+            typed
+                .machines_mut()
+                .iter_mut()
+                .find(|machine| machine.name.as_str() == "InvocationApi::closed")
+                .unwrap()
+                .invokes = arena::HandleSpan::empty();
+            let input = validation::CheckingContext::new(&typed);
+            let provider = input
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "provider")
+                .unwrap();
+            let requirement = input
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "InvocationApi::closed")
+                .unwrap();
+            let conformance = &input.machine_trait_conformances(provider)[0];
+            let diagnostics = validation::revalidate_top_level_requirement_realization(
+                &input,
+                provider,
+                requirement,
+                conformance,
+            )
+            .expect_err("standalone revalidation must check the inferred entry ceiling");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("omits `invokes Entry`")),
+                "{diagnostics:?}"
+            );
+        }
+    }
+    std::fs::remove_dir_all(scratch).unwrap();
+}
+
+#[test]
 fn callback_review_rejoins_candidate_types_reports_and_target_members() {
     use package_evidence::{PackageReviewInput, project_checked_package_policy};
     let target = "macos_arm64";
