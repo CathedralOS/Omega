@@ -512,6 +512,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         | ExpressionKind::BitwiseNot(_)
         | ExpressionKind::Cast(_)
         | ExpressionKind::Requalify(_)
+        | ExpressionKind::Establish { .. }
         | ExpressionKind::ShortCircuit { .. }
         | ExpressionKind::Call { .. } => false,
     }
@@ -963,6 +964,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::BitwiseNot(_)
                 | ExpressionKind::Cast(_)
             | ExpressionKind::Requalify(_)
+                | ExpressionKind::Establish { .. }
                 | ExpressionKind::ShortCircuit { .. }
                 | ExpressionKind::Call { .. }
                 // A loan is formed afresh each time; two are never one.

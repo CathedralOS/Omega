@@ -184,17 +184,19 @@ impl Program<'_> {
             }
         }
         for domain in typed.domain_definitions() {
-            if self.owner(entry, domain.symbol, subjects, purpose)? == Owner::Subject
-                && !judged_where_used(typed, domain)
-            {
+            if self.owner(entry, domain.symbol, subjects, purpose)? != Owner::Subject {
+                continue;
+            }
+            if !judged_where_used(typed, domain) {
                 return Err(refuse(
                     entry,
                     Construct::Machine,
-                    Unserved::Declaration(
-                        "domain with predicates, a cleanup machine, operators or parameters",
-                    ),
+                    Unserved::Declaration("domain with a cleanup machine, operators or parameters"),
                 ));
             }
+            // Its predicates are stated wherever a type carries the domain;
+            // a declaration nothing uses must still be one the route reads.
+            self.declared_predicates(entry, domain)?;
         }
         for declared in typed.traits() {
             if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
@@ -379,10 +381,11 @@ fn names_only(data: &typed_trees::data::DataDefinition) -> bool {
 
 /// Whether everything a domain declaration says is judged where a value of
 /// the domain is used, so that as a subject it is passed over: a tag,
-/// `domain i32::Km;`, optionally with an access policy or establishment
-/// routes. It has no predicate, cleanup selection, operator, alias or
+/// `domain i32::Km;`, optionally with predicates, an access policy or
+/// establishment routes. It has no cleanup selection, operator, alias or
 /// parameter. A type that names it resolves it where the type is read
-/// (`declared_domain`).
+/// (`declared_domain`), and its predicates join the contract of each place
+/// declared in it (`predicates`).
 ///
 /// A policy or a route list restricts who may add the domain, read inside
 /// a value of it and change one. Each of those uses asks the declaration
@@ -396,8 +399,6 @@ fn judged_where_used(
 ) -> bool {
     domain.alias.is_none()
         && domain.cleanup_selection.is_none()
-        && domain.facts.is_empty()
-        && domain.predicate_presence == language_semantics::DomainPredicatePresence::Absent
         && domain.operators.is_empty()
         && domain.index_arguments.is_empty()
         && typed.domain_type_parameters(domain).is_empty()

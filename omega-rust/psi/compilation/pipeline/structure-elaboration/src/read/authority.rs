@@ -65,10 +65,12 @@ impl Program<'_> {
             }
             // dependent_values.md, "Invariant windows": a write that is not
             // known to preserve the domain "opens a window on the place",
-            // closed by proving the predicates again. No window is kept
-            // here, so a partial write under a domain with predicates would
-            // leave a value its type no longer describes. A complete value
-            // of the same type brings its own membership.
+            // closed by proving the predicates again. A window is kept for
+            // the clauses of a data type, which a field's domain joins
+            // (`predicates`); a data value that carries the domain itself
+            // has no such owner, so a partial write under it would leave a
+            // value its type no longer describes. A complete value of the
+            // same type brings its own membership.
             if access == Access::Write && has_predicates(definition) {
                 return unserved("write inside a value whose domain has predicates");
             }
@@ -123,14 +125,20 @@ impl Program<'_> {
     /// constructed with every field supplied.
     pub(super) fn zero_established(&self, id: MachineId, value_type: ValueType) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
-        let mut pending = vec![value_type];
-        while let Some(value_type) = pending.pop() {
+        // Each type with whether it is a field of a record in the value.
+        let mut pending = vec![(value_type, false)];
+        while let Some((value_type, contained)) = pending.pop() {
             for domain in value_type.qualification().domains.members() {
+                // A field's predicates are clauses of the data type that
+                // declares it (`predicates`), so the checker judges whether
+                // zero satisfies them and keeps the window when it does not.
+                // A zeroed local that is itself the qualified scalar has no
+                // such owner.
                 let free = self
                     .typed
                     .domain_definition(domain)
                     .is_some_and(|definition| {
-                        !has_predicates(definition)
+                        (contained || !has_predicates(definition))
                             && definition.issuance()
                                 == typed_trees::domain::DomainIssuance::Unrestricted
                     });
@@ -144,7 +152,7 @@ impl Program<'_> {
             let data = self.data_type(id, record)?;
             match &data.shape {
                 StorageShape::Record(fields) => {
-                    pending.extend(fields.iter().map(|field| field.value_type));
+                    pending.extend(fields.iter().map(|field| (field.value_type, true)));
                 }
                 // "The ordinary zero representation of a sum selects the
                 // first declared case and a recursively zeroed payload."
@@ -152,10 +160,10 @@ impl Program<'_> {
                     cases
                         .first()
                         .into_iter()
-                        .flat_map(|case| case.fields.iter().map(|field| field.value_type)),
+                        .flat_map(|case| case.fields.iter().map(|field| (field.value_type, false))),
                 ),
                 StorageShape::FixedArray { element, .. } => {
-                    pending.push(ValueType::record(*element));
+                    pending.push((ValueType::record(*element), false));
                 }
                 StorageShape::ByteSequence(_) | StorageShape::PrimitiveScalar { .. } => {}
             }

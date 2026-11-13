@@ -814,6 +814,19 @@ pub enum ExpressionKind {
     /// policy, so no operation is emitted and the operand keeps the
     /// operations its own type chose.
     Requalify(Box<Expression>),
+    /// `value as +D` for a domain with predicates: the scalar operand,
+    /// whose value is the result, and the predicates the cast proves of
+    /// it, each over the one value `ValueId(1)` (`read/predicates.rs`).
+    /// domains.md, "Domain-only casts": "Has predicates | Prove them for
+    /// this value." Lowering continues in a block whose parameter is the
+    /// result and whose invariant is the clauses, so the edge into it owes
+    /// them and everything after knows them.
+    Establish {
+        operand: Box<Expression>,
+        clauses: Vec<Proposition>,
+        /// The domain and its predicates as written, for a diagnostic.
+        stated: String,
+    },
     /// `&&` when `conjunction`, else `||`: the right operand runs only when
     /// the left does not decide the result.
     ShortCircuit {

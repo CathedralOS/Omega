@@ -224,6 +224,7 @@ impl Lowering<'_> {
             | ExpressionKind::BitwiseNot(_)
             | ExpressionKind::Cast(_)
             | ExpressionKind::Requalify(_)
+            | ExpressionKind::Establish { .. }
             | ExpressionKind::ShortCircuit { .. }
             | ExpressionKind::Borrow { .. } => Ok(None),
         }

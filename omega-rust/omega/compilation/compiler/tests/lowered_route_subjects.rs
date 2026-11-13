@@ -815,11 +815,10 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
         falls_back("machine generic machines not judged as their own check forms"),
         falls_back("machine generic machines not judged as their own check forms"),
         falls_back("declaration const"),
-        // A tag-only domain is passed over; one with a predicate is not
-        // judged yet.
-        falls_back(
-            "declaration domain with predicates, a cleanup machine, operators or parameters",
-        ),
+        // A domain's predicates are contracts of the places declared in it,
+        // so a declaration no type names owes nothing once its clauses are
+        // read.
+        Verdict::Accepted(1),
         // A requirement has no body: nothing is owed until something
         // implements or calls it.
         Verdict::Accepted(1),

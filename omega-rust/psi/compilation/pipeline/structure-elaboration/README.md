@@ -1079,6 +1079,22 @@ and its declarations state none. `Elaboration::domains` restates them by the
 type's identity for the checker, which refuses a table that differs from the
 declarations.
 
+**Domain predicates.** A named domain's `requires`
+([domains](../../../../../wiki/spec/language/domains.md#declaration-and-membership))
+is not a kind of fact of its own. `read/predicates.rs` states each clause as
+the contract the place declared in the domain already has, with the domain's
+`self` standing for that place:
+
+| Where `T in D` is written | What the predicates of `D` become |
+| --- | --- |
+| a formal | entry `requires` clauses of the callable, so a caller owes them as a `CallRequirement` and the body is given them |
+| a result | `ensures` clauses of the callable |
+| a field of a data type | `requires` clauses of that data type over `self.field`, owed by its constructions, stores and zero establishment and kept by its invariant windows |
+| the result of `value as +D` | the invariant of the block the cast continues in (`ExpressionKind::Establish`, `lower/control.rs` `prove_membership`): the jump into it owes the clauses as an `ArrivalInvariant` at the cast, and the block's one parameter is the result |
+
+Served for a scalar carrier. A domain with predicates on a data carrier, on a
+borrowed formal, on a case payload or on an array element is refused by name.
+
 Lowering mints one `DataDomain` obligation per owed clause, at the point
 before the operation that owes it
 ([data and literals](../../../../../wiki/spec/language/data_and_literals.md):

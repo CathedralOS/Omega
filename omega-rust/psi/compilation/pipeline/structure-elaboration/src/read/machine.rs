@@ -382,9 +382,9 @@ impl<'t> Program<'t> {
     /// parameter `value: T in D` "gives the body the fact `value in D`".
     ///
     /// The formal's type already says it, so such a contract adds nothing
-    /// to read: the type is what a caller must supply, and the body is
-    /// given no assumption from the domain's predicates, which only makes
-    /// it prove more. Any other contract on a state stays refused.
+    /// to read: the type is what a caller must supply, and the domain's
+    /// predicates join the entry clauses from the type (`predicates`). Any
+    /// other contract on a state stays refused.
     fn contracts_restate_formal_domains(&self, state: &typed_trees::state::State) -> bool {
         use typed_trees::domain::ProofFact;
         use typed_trees::expression::ExpressionNode;
@@ -1093,6 +1093,27 @@ impl<'t> Program<'t> {
                 }
             }
         }
+        // A formal or a result in a domain with predicates states them as
+        // entry clauses and guarantees (`predicates`); a clause the
+        // callable also wrote itself is stated once.
+        let domains = self.signature_predicates(
+            id,
+            &required,
+            &exit,
+            result.map(|result| (result, result_value)),
+        )?;
+        for (clause, text) in domains.requires {
+            if !requires.contains(&clause) {
+                requires.push(clause);
+                requires_text.push(text);
+            }
+        }
+        for (clause, text) in domains.ensures {
+            if !ensures.contains(&clause) {
+                ensures.push(clause);
+                ensures_text.push(text);
+            }
+        }
         // effects.md: "On a public checked body omitted `crashes` means no
         // crash route, exactly as `crashes none`. Private checked bodies may
         // omit any of the three to request inference." An authored
@@ -1224,7 +1245,7 @@ impl<'t> Program<'t> {
     /// or closed type equations decide it as true. One they decide as false
     /// is refused: the application is outside the family its declaration
     /// admits, and nothing about its body would mean anything.
-    fn states_nothing(
+    pub(super) fn states_nothing(
         &self,
         id: MachineId,
         expression: typed_trees::expression::ExpressionHandle,
@@ -1952,7 +1973,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
-        | ExpressionKind::Requalify(operand) => {
+        | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Establish { operand, .. } => {
             spans(operand, binder, out);
         }
         ExpressionKind::Call { arguments, .. } => {
@@ -2093,7 +2115,8 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
-        | ExpressionKind::Requalify(operand) => {
+        | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Establish { operand, .. } => {
             expression_slot_uses(operand, uses);
         }
         ExpressionKind::Call { arguments, .. } => {
