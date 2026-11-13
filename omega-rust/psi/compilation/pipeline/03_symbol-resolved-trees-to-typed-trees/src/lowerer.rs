@@ -1769,12 +1769,11 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
-    crate::typing_queries::require_prebound_transitions(
-        &lowerer.typed_trees,
+    crate::typing_queries::defer_unbound_calls(
+        &mut lowerer.typed_trees,
         cohort.typed_machines,
         cohort.completed_machines,
-    )?;
-    bind_dynamic_call_targets(&mut lowerer.typed_trees)
+    )
 }
 
 fn lower_authored_service_reach_row(
@@ -2090,8 +2089,4 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
     trees.proof_output_calls = proof_output_calls;
     trees.ranking_expression_custody = ranking_expression_custody;
     trees
-}
-
-fn bind_dynamic_call_targets(trees: &mut TypedTrees) -> Result<(), Diagnostic> {
-    crate::typing_queries::require_prebound_calls(trees)
 }

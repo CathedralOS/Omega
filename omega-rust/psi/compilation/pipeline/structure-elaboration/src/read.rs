@@ -857,15 +857,7 @@ mod tests {
         let mut program = Program::new(&typed, false);
         let mut assigned = |target| {
             program
-                .assignment(
-                    machine(),
-                    &slots,
-                    &TableAssignment {
-                        target,
-                        value,
-                        ..Default::default()
-                    },
-                )
+                .assignment(machine(), &slots, &TableAssignment { target, value })
                 .unwrap_err()
                 .detail
         };
@@ -892,7 +884,6 @@ mod tests {
                     &TableAssignment {
                         target: whole,
                         value,
-                        ..Default::default()
                     },
                 )
                 .unwrap_err()

@@ -35,6 +35,9 @@ pub enum DeferredRequest {
     /// A call naming something that is not called this way: a machine reached
     /// through a value, or a declaration of a kind with no call form.
     UncallableCallTarget,
+    /// A literal assigned to a place whose declared type typing does not
+    /// compute: the literal is left without the type it must be built at.
+    AssignmentLiteralDestination,
 }
 
 impl DeferredRequest {
@@ -46,6 +49,9 @@ impl DeferredRequest {
             }
             Self::UnresolvedCallTarget => "holding a call whose name resolves to no declaration",
             Self::UncallableCallTarget => "holding a call of a target that is not called this way",
+            Self::AssignmentLiteralDestination => {
+                "holding a literal assigned to a place whose declared type is not computed yet"
+            }
         }
     }
 }
