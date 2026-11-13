@@ -1266,9 +1266,9 @@ pub(crate) mod results {
         ExternalCompletion(TerminalExternalCompletion),
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct TerminalEffectWait {
-        pub program: terminal_psi::TerminalPsiIdentity,
+        pub program: terminal_codec::TerminalExecutionIdentity,
         pub machine: MachineId,
         pub block: BlockId,
         pub operation: OperationId,

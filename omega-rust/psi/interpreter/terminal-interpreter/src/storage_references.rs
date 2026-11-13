@@ -2001,9 +2001,13 @@ pub(crate) mod placed {
             self.commit_boundary_result(&operation.result, &declaration.result, returned)?;
             self.effects
                 .push(crate::boundary::effects::TerminalEffect::BoundaryCall {
-                    machine: self.current_machine,
-                    operation: operation.id,
-                    boundary: declaration.id,
+                    site: crate::TerminalEffectWait {
+                        program: self.program.identity.clone(),
+                        machine: self.current_machine,
+                        block: self.current,
+                        operation: operation.id,
+                        boundary: declaration.id,
+                    },
                     arguments: arguments.to_vec(),
                     structural_arguments: vec![presentation],
                     byte_sequence_arguments: vec![None],

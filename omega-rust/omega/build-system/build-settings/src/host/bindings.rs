@@ -37,6 +37,7 @@ mod product_queries;
 pub use product_queries::{BuildProductDescription, BuildProductQuery};
 
 pub struct TerminalBuildBindingHost {
+    artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildBindingCall]>,
     queries: Arc<[psi_compiler::TerminalBuildQueryCall]>,
     product_facet: Option<TerminalStructuralValue>,
@@ -130,6 +131,7 @@ impl TerminalBuildBindingHost {
             .then(|| build_facet(artifact, &original, "tests"))
             .transpose()?;
         Ok(Arc::new(Self {
+            artifact: artifact.custody_identity(),
             calls: Arc::clone(calls),
             queries: Arc::clone(queries),
             product_facet,
@@ -258,6 +260,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         byte_buffers: &mut [terminal_interpreter::TerminalBoundaryByteBuffer],
         storage_buffers: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        crate::host::require_effect_owner(effect, &self.host.artifact)?;
         let native = self.host.calls.iter().any(|call| {
             crate::host::is_call_at(effect, call.site)
                 && call.action == TerminalBuildBindingOperation::BindNative
@@ -282,6 +285,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<bool, TerminalEffectRejection> {
+        crate::host::require_effect_owner(effect, &self.host.artifact)?;
         let TerminalEffect::BoundaryCall { .. } = effect else {
             return Err(TerminalEffectRejection::new("not a Build binding effect"));
         };
@@ -300,6 +304,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<bool, TerminalEffectRejection> {
+        crate::host::require_effect_owner(effect, &self.host.artifact)?;
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
             arguments,
@@ -364,6 +369,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         &mut self,
         effect: &TerminalEffect,
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        crate::host::require_effect_owner(effect, &self.host.artifact)?;
         use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
@@ -608,3 +614,6 @@ fn activation_ticket<'values>(
     }
     Ok((ticket, values))
 }
+
+#[cfg(test)]
+mod tests;
