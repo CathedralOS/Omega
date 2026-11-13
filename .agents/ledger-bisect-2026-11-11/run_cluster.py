@@ -85,22 +85,21 @@ def diff_hunk(sha: str) -> str:
 
 
 def fixture_add_sha(witness: str) -> str:
-    rel = f"tests/omega/{witness}.omg"
-    found = git(
-        ["log", "-1", "--diff-filter=A", "--format=%H", "--first-parent", "--", rel],
-        WT,
-        check=False,
-    )
-    sha = found.stdout.strip()
-    if len(sha) == 40:
-        return sha
-    found = git(
-        ["log", "-1", "--diff-filter=A", "--format=%H", "--", rel],
-        WT,
-        check=False,
-    )
-    sha = found.stdout.strip()
-    return sha if len(sha) == 40 else ""
+    # Fixtures are directories with main.omg, or a single .omg file.
+    for rel in (f"tests/omega/{witness}/main.omg", f"tests/omega/{witness}.omg"):
+        found = git(
+            ["log", "-1", "--diff-filter=A", "--format=%H", "--first-parent", "--", rel],
+            WT,
+            check=False,
+        )
+        sha = found.stdout.strip()
+        if len(sha) == 40:
+            return sha
+        found = git(["log", "-1", "--diff-filter=A", "--format=%H", "--", rel], WT, check=False)
+        sha = found.stdout.strip()
+        if len(sha) == 40:
+            return sha
+    return ""
 
 
 def first_parent(sha: str) -> list[str]:
