@@ -778,6 +778,7 @@ pub(crate) mod instance {
             TerminalStructuralValue,
         };
         use crate::engine::execution::TerminalExecution;
+        use crate::storage::byte_sequences::binding::ByteSequenceBinding;
         use crate::storage::structural_storage::contents::{self, StorageLeafKind};
         use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, PlaceId};
         use terminal_psi::{StructuralAccess, StructuralTypeShape};
@@ -949,7 +950,11 @@ pub(crate) mod instance {
                     let binding = if let Some(binding) =
                         execution.structural_byte_descriptors.get(destination)
                     {
-                        let home = binding.descriptor_home().ok_or_else(|| {
+                        let home = match binding {
+                            ByteSequenceBinding::Immutable(bytes) => bytes.descriptor_home(),
+                            binding => binding.descriptor_home(),
+                        }
+                        .ok_or_else(|| {
                             unsupported("observed byte field has no retained descriptor home")
                         })?;
                         if home.structural_type != *declaration
