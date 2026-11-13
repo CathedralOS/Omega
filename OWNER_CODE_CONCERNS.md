@@ -67,6 +67,13 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### A machine's reach row cannot tell `reaches none` from an omitted clause
+- Category: a verdict with nothing behind it
+- Where: `omega-rust/psi/compilation/representations/typed-trees/src/calls_and_control_flow.rs:1781` (`Machine::service_reach_row`), `typed-trees/src/lib.rs:1594` (`authored_service_reach_rows_for`), `omega-rust/psi/compilation/representations/terminal-psi/src/control_flow.rs:653` (`declared_service_reach`)
+- Saw: a header that wrote `reaches none` and one that wrote no clause both hold the empty row; whether a ceiling exists is known only by finding a row for the symbol in the `authored_service_reach_rows` side list, and the Terminal machine's `declared_service_reach` has the same gap (an empty list for both)
+- Cost: a reader that looks only at the row treats a promised empty reach as "infer it" and never checks the promise; a machine stage 04 clones keeps the promise only if its template is looked up too, which `structure-elaboration/src/reach.rs` now does by hand
+- Reported: 2026-11-13, Claude Code, while building service reach on the lowered-form route
+
 ### Every Build program runs through the old checker and the old lowering stage
 - Category: the documents disagree
 - Where: `omega-rust/omega/build-system/build-settings/src/admission/checking.rs:323` (`CheckRequest::check()` on the Build program), `build-settings/src/activation/preparation.rs` (`PreparedBuildExecution::prepare` calls `TerminalProductionRequest::produce`), `omega-rust/psi/compilation/build-time-evaluation/src/machine_execution.rs:5082` and `:5457`, `build-time-evaluation/src/const_initializers.rs:137`
