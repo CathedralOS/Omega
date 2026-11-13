@@ -215,34 +215,36 @@ pub(crate) fn land_owned_fixed_byte_literal(
     Ok(())
 }
 
+fn static_namespace(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+    symbol.is_valid()
+        && matches!(
+            program.symbols.get(symbol).kind,
+            SymbolKind::Module
+                | SymbolKind::BuiltinType
+                | SymbolKind::Data
+                | SymbolKind::Domain
+                | SymbolKind::TypeAlias
+                | SymbolKind::Machine
+                | SymbolKind::Trait
+                | SymbolKind::Conformance
+        )
+}
+
+fn concrete_callable(program: &TypedTrees, symbol: SymbolHandle) -> bool {
+    symbol.is_valid()
+        && (program.machine_by_own_or_state_symbol(symbol).is_some()
+            || program.operator_definition_by_symbol(symbol).is_some())
+}
+
 pub(crate) fn require_prebound_calls(program: &TypedTrees) -> Result<(), Diagnostic> {
     use typed_trees::expression::ExpressionNode;
-    let namespace = |symbol: SymbolHandle| {
-        symbol.is_valid()
-            && matches!(
-                program.symbols.get(symbol).kind,
-                SymbolKind::Module
-                    | SymbolKind::BuiltinType
-                    | SymbolKind::Data
-                    | SymbolKind::Domain
-                    | SymbolKind::TypeAlias
-                    | SymbolKind::Machine
-                    | SymbolKind::Trait
-                    | SymbolKind::Conformance
-            )
-    };
-    let concrete = |symbol: SymbolHandle| {
-        symbol.is_valid()
-            && (program.machine_by_own_or_state_symbol(symbol).is_some()
-                || program.operator_definition_by_symbol(symbol).is_some())
-    };
     for (handle, expression) in program.expression_table.expression_entries() {
         let ExpressionNode::Call(call) = expression else {
             continue;
         };
         let receiver_is_namespace = !call.receiver.is_valid()
-            || matches!(program.expression_table.expression(call.receiver), ExpressionNode::Name(path) if namespace(path.symbol));
-        if !concrete(call.target_symbol) || !receiver_is_namespace {
+            || matches!(program.expression_table.expression(call.receiver), ExpressionNode::Name(path) if static_namespace(program, path.symbol));
+        if !concrete_callable(program, call.target_symbol) || !receiver_is_namespace {
             return Err(
                 crate::unavailable_judgment("static or dynamic callable target binding")
                     .with_source_span(program.expression_table.source_span(handle)),
@@ -259,8 +261,8 @@ pub(crate) fn require_prebound_calls(program: &TypedTrees) -> Result<(), Diagnos
                     .statement_table
                     .name_path_members(call.receiver)
                     .is_empty()
-                    || namespace(call.receiver_symbol);
-                if !concrete(call.target_symbol) || !receiver_is_namespace {
+                    || static_namespace(program, call.receiver_symbol);
+                if !concrete_callable(program, call.target_symbol) || !receiver_is_namespace {
                     return Err(crate::unavailable_judgment(
                         "projected or dynamic statement-call target binding",
                     )
@@ -294,14 +296,16 @@ pub(crate) fn require_prebound_transitions(
                     else {
                         continue;
                     };
-                    let local = path.symbol == machine.symbol
-                        || program
-                            .machine_states(machine)
-                            .iter()
-                            .any(|state| state.symbol == path.symbol);
-                    if !local {
+                    // Keep the exact named call for the lowered checker. It
+                    // binds the arguments/result and emits every callee
+                    // requirement at this terminal call. Unbound or value-based
+                    // dispatch still needs its real selected correspondence.
+                    if !concrete_callable(program, path.symbol)
+                        || (path.receiver_symbol.is_valid()
+                            && !static_namespace(program, path.receiver_symbol))
+                    {
                         return Err(crate::unavailable_judgment(
-                            "terminal callable transition normalization",
+                            "terminal callable transition target binding",
                         )
                         .with_source_span(*source_span));
                     }
@@ -355,5 +359,116 @@ mod tests {
         assert!(error.message.starts_with("no product route yet:"));
         assert!(error.message.contains("callable target binding"));
         assert_eq!(program.expression_table.expression_count(), 1);
+    }
+    #[test]
+    fn bound_terminal_calls_keep_their_target_and_unbound_receivers_refuse() {
+        use typed_trees::statement::{
+            StatementNode, TableNamePath, TableTransition, TransitionTargetNode,
+        };
+        use typed_trees::{
+            machine::{Machine, MachineBodyStatus},
+            state::State,
+        };
+        let mut symbols = symbols::SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, symbols::SymbolNameRef::Static("root"));
+        let machines = symbols.insert_children(
+            root,
+            [
+                (
+                    SymbolKind::Machine,
+                    symbols::SymbolNameRef::Static("caller"),
+                ),
+                (
+                    SymbolKind::Machine,
+                    symbols::SymbolNameRef::Static("callee"),
+                ),
+            ],
+        );
+        let caller = machines.handle_at(0);
+        let callee = machines.handle_at(1);
+        let caller_children = symbols.insert_children(
+            caller,
+            [
+                (SymbolKind::State, symbols::SymbolNameRef::Static("entry")),
+                (SymbolKind::Local, symbols::SymbolNameRef::Static("context")),
+            ],
+        );
+        let state = caller_children.handle_at(0);
+        let receiver = caller_children.handle_at(1);
+        let target_state = symbols
+            .insert_children(
+                callee,
+                [(SymbolKind::State, symbols::SymbolNameRef::Static("entry"))],
+            )
+            .handle_at(0);
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let mut members = Default::default();
+        program.statement_table.push_name_path_member(
+            &mut members,
+            typed_trees::name::Identifier::generated("callee"),
+        );
+        let target =
+            program
+                .statement_table
+                .insert_transition_target(TransitionTargetNode::Named {
+                    path: TableNamePath {
+                        symbol: callee,
+                        head_symbol: callee,
+                        members,
+                        ..Default::default()
+                    },
+                    arguments: Default::default(),
+                    evidence_arguments: Box::new([]),
+                    source_span: Default::default(),
+                    authored_call_selection: None,
+                    operational_acknowledgement: Default::default(),
+                    static_machine_parameter: Default::default(),
+                });
+        let statements = program
+            .statement_table
+            .insert_statements([StatementNode::Transition(TableTransition {
+                target,
+                ..Default::default()
+            })]);
+        let states = program.machine_states.insert_many([State {
+            symbol: state,
+            statement_nodes: statements,
+            ..Default::default()
+        }]);
+        let target_states = program.machine_states.insert_many([State {
+            symbol: target_state,
+            ..Default::default()
+        }]);
+        for (symbol, states) in [(caller, states), (callee, target_states)] {
+            program.push_machine(Machine {
+                symbol,
+                states,
+                body_is_present: true,
+                body_status: MachineBodyStatus::Complete,
+                ..Default::default()
+            });
+        }
+        let before = program.clone();
+        require_prebound_transitions(&program, 0, &[])
+            .expect("an exact declared terminal call is retained for judgment");
+        assert!(program == before);
+        let mut unbound = program.clone();
+        let TransitionTargetNode::Named { path, .. } =
+            unbound.statement_table.transition_target_mut(target)
+        else {
+            panic!("named target")
+        };
+        path.symbol = SymbolHandle::invalid();
+        assert!(require_prebound_transitions(&unbound, 0, &[]).is_err());
+        let TransitionTargetNode::Named { path, .. } =
+            program.statement_table.transition_target_mut(target)
+        else {
+            panic!("named target")
+        };
+        path.receiver_symbol = receiver;
+        assert!(require_prebound_transitions(&program, 0, &[]).is_err());
     }
 }
