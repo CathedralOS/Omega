@@ -1083,12 +1083,16 @@ dependencies = [
  "proof-admission",
  "semantic-vocabulary",
  "source",
+ "source-files-to-tokens",
  "structure-elaboration",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
  "terminal-check-tables",
  "terminal-codec",
  "terminal-psi",
  "terminal-semantics",
+ "tokens-to-syntax-trees",
  "typed-trees",
 ]
 
