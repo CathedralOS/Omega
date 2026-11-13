@@ -90,3 +90,31 @@ more compute, a smoke-set gate, auto-revert on red, an import allowlist with siz
 - Byte views: nothing built. w3_byte_views_handoff.md has the entry points, the witness pair
   (w3v_fixtures\) and the main risk (proving an index bound from two length observations).
   worker-3's omega.exe is stale (probe-patched); rebuild before use.
+
+## FINAL STATE: all workers stopped, slots clean, nothing running
+
+Open draft PRs to pick up (none may be merged as they stand):
+- #2796 delete Psi 06 (130,032 lines). Build-verified, HELD: merging stops every compilation
+  until a Build program runs on the lowered route (see THE BLOCKER above). Needs a rebase.
+- #2805 build the application from the route's published module + carry evidence seals.
+  Verified one commit before head (native exit 0 / Psi exit 0 on the witness); head is a
+  later merge with main that was never built. To land: merge main, rebuild, re-run the
+  witness and checks listed in its body, mark ready, merge.
+- #2809 SOUNDNESS: refuse a generic machine that calls itself (it was accepted with no
+  termination judgment). Verified before merging main; re-run the four commands in its body
+  on the merged head, then land. Do this one first.
+- #2808 service reach (written `reaches` ceilings) on the route. NOT ready: four neighbour
+  fixtures moved in the focused run and the base comparison was never completed; PR body
+  fails check-rules (gate name, Proof line, provenance). Boundary calls are not built.
+- #2810 these notes (never merge).
+
+Candidate owner questions, NOT filed and not checked against the spec by the coordinator:
+- Does a same-package caller see a private machine's written `reaches` ceiling or its
+  narrower derived reach? (w10_service_reach_handoff.md; effects.md)
+- Does a conformance member that omits `requires`/`ensures` inherit the requirement's?
+  (w12_handoff_1113.md)
+
+Next-session order of work: (1) land #2809; (2) land #2805; (3) the Build-program stack,
+items 1, 3, 4 first (lifetime-parameterised data, byte views, boundary calls); (4) traits and
+conformances per w12_handoff_1113.md; (5) finish or redo #2808; then #2796 and the rest of the
+removal per w14_removal_handoff.md.

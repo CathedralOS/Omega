@@ -87,3 +87,27 @@ Written `reaches` ceilings on checked-body machines, fail closed.
 5. Not run anywhere: `lowered_route_*` compiler tests, `omega run --both` on the new pass fixture,
    `cargo xtask stage-coverage`, and whether Omega 00 accepts a published module with service rows
    (the compile does not publish the route's module).
+
+## State at stop (owner stopped all work)
+
+Draft PR https://github.com/CathedralOS/Omega/pull/2808, branch `work/psi-lowered-service-reach`,
+head a6ee9f1f776c7. NOT merged, NOT ready.
+
+The focused corpus blast is not clean and is uninvestigated:
+`mbx xtask corpus --filter pass/effects/checked_reach_ceiling_exit,fail/effects/checked_reach_ceiling_exceeded`
+-> the two new fixtures are right (checked; rejected expected), four neighbours moved against the
+published ledger: pass/effects/checked_callback_provider_ceiling and
+pass/effects/core_critical_service_catalog (checked -> rejected),
+fail/effects/boundary_explicit_capability_required and fail/effects/crashes_none_rejects_trap
+(rejected -> rejected unexpected). The base-commit run of those four was stopped before a result.
+Suspect to check first: `pass/effects/core_critical_service_catalog` is a public machine with a
+14-service `reaches` clause and an empty body, which this change now serves instead of handing
+back; if the route (or the current checker under the router) rejects it, read the diagnostic.
+`crashes_none_rejects_trap` uses only `reaches none`, which was served before, so it may be a row
+`main` moved.
+
+First step for whoever resumes: at origin/main run the four-fixture filter above the corpus
+command printed, then the same at the PR head, capture diagnostics (the stale
+`target\debug\omega.exe` in the slot cannot be used: it is from 11-11), fix, merge origin/main,
+then `check-rules` with a `Proof:` line (check-rules requires it; the PR body has none yet).
+Slot: clean, detached at the PR head, nothing running.

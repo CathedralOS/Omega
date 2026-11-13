@@ -3,7 +3,10 @@
 ## Done
 - PR #2797 (merged, `cd9fe4c29`): a generic body that calls another generic machine is judged.
 - Item 0, soundness: `psi: refuse a generic machine that calls itself instead of accepting it unjudged`
-  (branch `work/psi-generic-call-cycle-refused`; PR number and merge commit are in the handback).
+  (branch `work/psi-generic-call-cycle-refused`, DRAFT PR #2809, head `48cb57b4e`, NOT merged: owner stopped work).
+  Verified on `cd9fe4c29` + change; NOT re-verified after merging `origin/main` (`f4a966d6d`). To finish: on the
+  merged head run `mbx test -p lowered-discharge --lib`, `mbx clippy -p lowered-discharge --all-targets -- -D warnings`,
+  `mbx test -p compiler --test lowered_route_subjects -- a_generic_body_that_applies`, `mbx xtask fmt --check`, then merge.
   `judge_generic_forms` in `lowered-discharge/src/verdict.rs` now gives every generic template that
   reaches itself (`reaches_itself`) the refusal `generic machine <name> on a call cycle`, instead of
   judging its form. Test: `a_generic_body_that_applies_another_generic_machine_is_judged` in
@@ -89,4 +92,4 @@ Not decided by the spec text I read, check before relying on it: whether a membe
 #2765 has landed (`0682e01d9`) and changed `judge_owing` in `verdict.rs`.
 
 ## Slot state
-`C:\Projects\Omega\.agents\worktree\worker-12`: clean at the item 0 PR head, nothing running.
+`C:\Projects\Omega\.agents\worktree\worker-12`: clean at `48cb57b4e` (the draft PR head), nothing running. The stopped re-run left partial build output in `target/`; a failed incremental link there means rebuild, not a code defect.
