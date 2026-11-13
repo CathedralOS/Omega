@@ -1577,6 +1577,29 @@ fn affine_residual_replay_rejects_a_wrong_subtree_type() {
         ),
         "a short supplied roster must bound reconstruction before array enumeration"
     );
+    array.structural_types[1].shape = terminal_psi::StructuralTypeShape::FixedArray {
+        element: id(1),
+        length: terminal_psi::ArrayExtent::Literal(2),
+    };
+    for block in &mut array.machines[0].blocks {
+        if let terminal_psi::Terminator::Return {
+            cleanup_actions, ..
+        } = &mut block.terminator
+        {
+            cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                terminal_psi::StructuralAffineDiscard {
+                    place: id(1),
+                    path: vec![terminal_psi::StructuralPathSegment::FixedIndex(1)],
+                    structural_type: id(1),
+                },
+            ));
+        }
+    }
+    assert!(
+        matches!(terminal_semantics::plain_affine::verify(&array.machines[0], &array.structural_types),
+        Err(terminal_semantics::plain_affine::Error::Malformed(detail)) if detail.contains("exceeds its output")),
+        "an unrelated edge's forged output cannot inflate this edge's reconstruction budget"
+    );
     let mut changed = false;
     for block in &mut elaboration.module.machines[0].blocks {
         let rosters = match &mut block.terminator {

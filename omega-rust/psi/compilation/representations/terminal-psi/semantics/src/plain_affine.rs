@@ -156,7 +156,6 @@ struct Analysis<'a> {
     roots: Vec<Option<Root>>,
     unavailable: Vec<Unavailable>,
     unavailable_roots: Vec<Option<Site>>,
-    max_residuals: usize,
 }
 
 fn index(raw: u64) -> Result<usize, Error> {
@@ -265,7 +264,7 @@ fn live_entries(machine: &TerminalMachine) -> Result<Vec<IdSet<PlaceId>>, Error>
 /// Plans only no-code affine storage. Nominal hooks, conserved claims and
 /// borrowed extraction require their own contracts, rather than an empty plan.
 pub fn plan(machine: &TerminalMachine, types: &[StructuralTypeDeclaration]) -> Result<Plan, Error> {
-    analyze(machine, types, usize::MAX)
+    analyze(machine, types, false)
 }
 
 /// Reconstructs the canonical schedule without trusting the supplied actions.
@@ -275,14 +274,7 @@ pub fn verify(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Plan, Error> {
-    let max_residuals = machine
-        .blocks
-        .iter()
-        .flat_map(|block| block.terminator.cleanup_rosters())
-        .flat_map(|(_, actions)| actions)
-        .filter(|action| matches!(action, TerminalAffineCleanupAction::DiscardResidual(_)))
-        .count();
-    let plan = analyze(machine, types, max_residuals)?;
+    let plan = analyze(machine, types, true)?;
     for block in &machine.blocks {
         for (edge, actions) in block.terminator.cleanup_rosters() {
             for action in actions {
@@ -316,7 +308,7 @@ pub fn verify(
 fn analyze(
     machine: &TerminalMachine,
     types: &[StructuralTypeDeclaration],
-    max_residuals: usize,
+    bound_output: bool,
 ) -> Result<Plan, Error> {
     use semantic_vocabulary::StructuralPlaceKind;
     use terminal_psi::{TerminalMachineResult, Terminator};
@@ -542,7 +534,6 @@ fn analyze(
         roots,
         unavailable: Vec::new(),
         unavailable_roots,
-        max_residuals,
     };
     let mut cleanup = Vec::new();
     while let Some(block_id) = pending.pop() {
@@ -650,7 +641,17 @@ fn analyze(
         let mut targets = block.terminator.successor_edges();
         targets.sort_by_key(|(edge, _)| *edge);
         let rosters = block.terminator.cleanup_rosters().collect::<Vec<_>>();
-        for (ordinal, (edge, _)) in rosters.iter().copied().enumerate() {
+        for (ordinal, (edge, supplied)) in rosters.iter().copied().enumerate() {
+            let mut residual_budget = if bound_output {
+                supplied
+                    .iter()
+                    .filter(|action| {
+                        matches!(action, TerminalAffineCleanupAction::DiscardResidual(_))
+                    })
+                    .count()
+            } else {
+                usize::MAX
+            };
             let mut outgoing = if ordinal + 1 == rosters.len() {
                 std::mem::take(&mut state)
             } else {
@@ -671,7 +672,14 @@ fn analyze(
                     if needed.is_some_and(|needed| needed.contains(place)) {
                         retained.push(place);
                     } else {
-                        actions.extend(analysis.dispose(place, region)?);
+                        let disposal = analysis.dispose(place, region, residual_budget)?;
+                        residual_budget -= disposal
+                            .iter()
+                            .filter(|action| {
+                                matches!(action, TerminalAffineCleanupAction::DiscardResidual(_))
+                            })
+                            .count();
+                        actions.extend(disposal);
                         outgoing.regions[raw] = None;
                     }
                 }
@@ -880,6 +888,7 @@ impl Analysis<'_> {
         &self,
         place: PlaceId,
         region: &Region,
+        max_residuals: usize,
     ) -> Result<Vec<TerminalAffineCleanupAction>, Error> {
         use std::collections::BTreeSet;
         let info = self
@@ -908,7 +917,7 @@ impl Analysis<'_> {
             self.types,
             info.structural_type,
             &moved,
-            self.max_residuals,
+            max_residuals,
         )
         .ok_or(Error::Malformed(
             "affine residual partition exceeds its output or has no typed complement",
