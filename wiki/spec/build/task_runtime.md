@@ -2,12 +2,12 @@
 
 A selected `TaskRuntime` boundary provider executes an ordinary named machine
 as a distinct activation.
-`TaskRuntime::start<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(job)`
+`TaskRuntime::start<WorkResult, Job, Worker::run, ActivationStorage::Fixed>(runtime_authority, job)`
 and the matching `TaskRuntime::try_start` are boundary
 requirements invoked by path like any other; there is no receiver value, and
 the provider behind them is a build selection. The machine argument is a
 compile-time machine symbol, not capture inference or a runtime function
-value. The last argument is the compile-time
+value. The final static argument is the compile-time
 [storage plan](#storage-plans) selected for the new activation. A direct `Worker::run(job)` remains an ordinary call. There is no bare spawn, implicit detach, future
 transformation, or privileged supervisor. [Call acknowledgements](../language/effects.md#call-site-acknowledgements)
 describe only what the start/control operation may do to its caller.
@@ -20,6 +20,55 @@ all ordinary entry, lifetime, effect and custody contracts.
 Root profiles may select default providers and owners may override their slots,
 but starting/controlling a task still requires a held runtime capability.
 Selection does not grant ambient authority.
+
+## Runtime providers and call authority
+
+Named decision: `sealed-runtime-providers`, settled 2026-11-12. Task runtimes
+are ordinary selected packages over the existing owned-activation boundary.
+The compiler is responsible for activation lowering, preservation, plan checking
+and checked control transfer; allocation, queues, scheduling, capacity management
+and lifecycle bookkeeping are runtime-package responsibilities. Exact core
+recognition of `TaskRuntime::start`/`try_start` and a generated activation plan
+do not establish that an executor exists or that these responsibilities have
+been implemented. A provider must not depend on private compiler frame layouts
+or arbitrary continuation addresses to use the admitted activation operations.
+
+`start` and `try_start` take an explicit runtime-authority value or borrow before
+the job arguments. Its checked qualification and retained provenance authorize
+use of the particular runtime instance and applicable execution context before
+the call. The parameter is ordinary explicit data, not another provider selector
+or a receiver. Public visibility, core import, `reaches` and provider selection
+cannot supply the missing input obligation. Apply the same protection to every
+lower-level activation/control-transfer entry, or make it inaccessible except
+through a genuinely checked restricted route under
+[initial-call authority](../resources/authority.md#initial-call-authority).
+
+Restricted issuance controls who can establish the runtime qualification;
+its call preconditions and access policy control authorized use. An unrestricted
+domain merely named Authorized is insufficient. An admitted entry may establish
+initial authority under its exact contract, and checked code may delegate or
+forward it without an endless chain of new tokens. Selection chooses the code;
+it does not mint runtime authority. Ordinary native/boundary admission preserves
+its assumptions and physical-authority obligations; an assumed binding is not
+a routine repair for a missing proof, capability contract or realization.
+
+Authority to start work is independent of available capacity. `start` must
+establish the required reservation/backing and custody before execution;
+`try_start` may decline and returns the arguments and resources it did not
+retain. A qualification does not manufacture storage. Startup and lifecycle
+operations must agree on runtime instance, activation identity, backing custody
+and settlement. Fabricated provider/activation fields do not establish a real
+task claim, and owning `Task<T>` alone grants no execution custody.
+
+A root profile may select a shipped ordinary reference provider as a default;
+there need not be one universal runtime. A configuration that cannot realize
+the demanded task behavior rejects explicitly rather than substituting a no-op.
+Ordinary authored providers need checked bodies or legitimate admitted native
+bindings; only exact compiler primitives use sealed custody. Refusing false
+compiler-backing claims is independent of implementing the missing providers:
+neither keeps the other pending, and refusal-only or plan-only tests do not
+complete executable task delivery. See the
+[runtime/provider acceptance](../../drafts/designs/runtime_provider_authority.md#acceptance).
 
 ## Three owners
 
@@ -75,8 +124,8 @@ The plan is selected where the activation is created, by a compile-time
 ```omega
 machine serve(request: Request) -> Reply suspends { ... }
 
-let a = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Fixed>(move first);
-let b = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Split>(move second);
+let a = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Fixed>(runtime_authority, move first);
+let b = TaskRuntime::start<Reply, Request, serve, ActivationStorage::Split>(runtime_authority, move second);
 ```
 
 - The machine being run does not choose. No machine declaration, `suspends`

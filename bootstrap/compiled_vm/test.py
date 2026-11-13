@@ -294,10 +294,14 @@ def omega_control_customer(work, timeout):
     gate = ROOT / "tests/bootstrap/omega-executable"
     lexer = (ROOT / "source/psi/lex/lexer.omg").read_bytes()
     declarations = []
-    for name in (b"is_identifier_start", b"is_identifier_continue"):
+    for name in (b"is_identifier_start", b"is_identifier_continue", b"lexer_digit_in_base"):
         start = lexer.index(b"machine " + name + b"(")
         end = lexer.index(b"\nmachine ", start + 1)
         declarations.append(lexer[start:end])
+    tokens = (ROOT / "source/psi/tokens/tokens.omg").read_bytes()
+    start = tokens.index(b"public data NumericBase ")
+    end = tokens.index(b"\n}", start) + 2
+    declarations.insert(0, tokens[start:end])
     program = b"\n".join(declarations) + b"\n" + (gate / "lexer_controls.omg").read_bytes()
     source = closure + (gate / "controls_control.epsilon").read_bytes()
     request = epsilon_request((work / "epsilon.delta").read_bytes(), source, program)
@@ -310,7 +314,7 @@ def omega_control_customer(work, timeout):
     (work / "control-observation.bin").write_bytes(observation)
     assert status == 0 and observation[:5] == bytes(5), (status, observation[:80])
     offset = 5
-    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 47)):
+    for index, expected in enumerate((42, 42, 43, 44, 45, 46, 47, 42, 43, 43, 43, 42, 43, 42, 43, 42, 42, 42, 42)):
         assert offset + 5 <= len(observation), ("truncated artifact frame", index)
         code = observation[offset]
         length = struct.unpack_from("<I", observation, offset + 1)[0]
@@ -324,7 +328,7 @@ def omega_control_customer(work, timeout):
         stamp(tape, executable)
         assert execute(executable) == (expected, b""), index
     assert offset == len(observation), "unexpected publication after the final artifact"
-    print(f"Omega runtime control: seven emitted executables, actual lexer boundaries, parallel transfers, short circuit, explicit domain casts and 26 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
+    print(f"Omega runtime control: 19 emitted executables, actual lexer byte/base matrix, nominal sums, source-set lookup/reset and 37 refusals passed; {time.monotonic()-started:.3f}s", flush=True)
 
 
 def omega_storage_customer(work, timeout):

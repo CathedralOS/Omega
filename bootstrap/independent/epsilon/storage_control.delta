@@ -1,0 +1,157 @@
+; Authored control is compiled to direct target expressions and tail calls.
+; Only runtime values/store/output cross a continuation; syntax stays here.
+(def epsilon_delta_stored_return ((context EpsilonDeltaContext)
+  (expression EpsilonOptionalExpression) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match expression
+    (NoEpsilonExpression (EpsilonDeltaCompiled (epsilon_emit_stored_resultless store output)))
+    ((SomeEpsilonExpression value) (epsilon_delta_stored_expression context value store output))))
+
+(def epsilon_delta_stored_continuation ((context EpsilonDeltaContext)
+  (continuation EpsilonContinuation) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match continuation
+    ((EpsilonReturnContinuation start end expression)
+      (epsilon_delta_stored_return context expression store output))
+    ((EpsilonExpressionContinuation start end expression)
+      (epsilon_delta_stored_expression context expression store output))))
+
+(def epsilon_delta_stored_arms ((context EpsilonDeltaContext)
+  (arms EpsilonArmList) (coordinate Int)) EpsilonDeltaCompilation
+  (match arms
+    (NoEpsilonArms (EpsilonDeltaCompiled
+      (epsilon_emit_stored_trap 9 (epsilon_emit_generated "output" coordinate))))
+    ((MoreEpsilonArms arm rest)
+      (match arm
+        ((EpsilonArmSyntax start end pattern continuation)
+          (match (epsilon_delta_stored_continuation context continuation
+            (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate))
+            ((EpsilonDeltaCompiled selected)
+              (match (epsilon_delta_stored_arms context rest coordinate)
+                ((EpsilonDeltaCompiled otherwise)
+                  (epsilon_delta_arm_selector context pattern
+                    (epsilon_emit_generated "scalar" coordinate) selected otherwise))
+                ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+                ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+                ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+            ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+            ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))))
+
+(def epsilon_delta_stored_transition ((context EpsilonDeltaContext)
+  (terminal EpsilonTerminal) (subject EpsilonExpression) (arms EpsilonArmList)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (let coordinate Int (epsilon_expression_start subject)
+    (match context
+      ((EpsilonDeltaContextAt source catalog locals fields callables control declaration)
+        (match (epsilon_control_find_transition_subject terminal control)
+          (NoEpsilonTransitionSubjectReference (EpsilonDeltaInternal coordinate))
+          ((OneEpsilonTransitionSubjectReference kind)
+            (match kind
+              ((EpsilonSumTransitionSubject owner) (EpsilonDeltaUnsupported coordinate))
+              (EpsilonScalarTransitionSubject
+                (match (epsilon_delta_stored_expression context subject store output)
+                  ((EpsilonDeltaCompiled subjectText)
+                    (match (epsilon_delta_stored_arms context arms coordinate)
+                      ((EpsilonDeltaCompiled armText)
+                        (EpsilonDeltaCompiled (epsilon_emit_stored_scalar_then coordinate subjectText armText)))
+                      ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+                      ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+                      ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+                  ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+                  ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+                  ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))))))))
+
+(def epsilon_delta_stored_terminal ((context EpsilonDeltaContext)
+  (terminal EpsilonOptionalTerminal) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match terminal
+    (NoEpsilonTerminal (EpsilonDeltaCompiled (epsilon_emit_stored_resultless store output)))
+    ((SomeEpsilonTerminal value)
+      (match value
+        ((EpsilonReturnTerminal start end expression)
+          (epsilon_delta_stored_return context expression store output))
+        ((EpsilonTransitionTerminal start end subject arms)
+          (epsilon_delta_stored_transition context value subject arms store output))))))
+
+(def epsilon_delta_stored_let ((context EpsilonDeltaContext)
+  (name EpsilonName) (initializer EpsilonExpression) (nextCoordinate Int) (continuation Bytes)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (let coordinate Int (epsilon_expression_start initializer)
+    (match (epsilon_delta_stored_expression context initializer store output)
+      ((EpsilonDeltaCompiled text)
+        (let nextStore Bytes (epsilon_emit_generated "store" nextCoordinate)
+          (let bound Bytes (epsilon_emit_match
+            (epsilon_emit_call "epsilon_runtime_allocate"
+              (epsilon_emit_spaced (epsilon_emit_generated "value" coordinate)
+                (epsilon_emit_generated "store" coordinate)))
+            (epsilon_emit_case (epsilon_emit_call "EpsilonRuntimeAllocated"
+              (epsilon_emit_spaced (epsilon_delta_home_name (epsilon_delta_context_source context) name) nextStore))
+              (epsilon_emit_call "let" (epsilon_emit_spaced
+                (epsilon_emit_spaced (epsilon_emit_generated "output" nextCoordinate) "Bytes")
+                (epsilon_emit_spaced (epsilon_emit_generated "output" coordinate) continuation)))))
+            (EpsilonDeltaCompiled (epsilon_emit_stored_value_then coordinate text bound)))))
+      ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+      ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+      ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset)))))
+
+(def epsilon_delta_stored_assignment ((context EpsilonDeltaContext)
+  (target EpsilonExpression) (value EpsilonExpression) (nextCoordinate Int) (continuation Bytes)
+  (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (let targetCoordinate Int (epsilon_expression_start target)
+    (let valueCoordinate Int (epsilon_expression_start value)
+      (match (epsilon_delta_stored_expression context target store output)
+        ((EpsilonDeltaCompiled targetText)
+          (match (epsilon_delta_stored_expression context value
+            (epsilon_emit_generated "store" targetCoordinate) (epsilon_emit_generated "output" targetCoordinate))
+            ((EpsilonDeltaCompiled valueText)
+              (let write Bytes (epsilon_emit_call "epsilon_compiled_write"
+                (epsilon_emit_spaced (epsilon_emit_generated "place" targetCoordinate)
+                  (epsilon_emit_spaced (epsilon_emit_generated "value" valueCoordinate)
+                    (epsilon_emit_spaced (epsilon_emit_generated "store" valueCoordinate)
+                      (epsilon_emit_spaced (epsilon_emit_generated "output" valueCoordinate)
+                        (epsilon_emit_decimal targetCoordinate))))))
+                (EpsilonDeltaCompiled (epsilon_emit_stored_value_then targetCoordinate targetText
+                  (epsilon_emit_stored_value_then valueCoordinate valueText
+                    (epsilon_emit_stored_effect_then nextCoordinate write continuation))))))
+            ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+            ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+            ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
+
+(def epsilon_delta_stored_statement ((context EpsilonDeltaContext)
+  (statement EpsilonStatement) (continuation Bytes) (store Bytes) (output Bytes)) EpsilonDeltaCompilation
+  (match statement
+    ((EpsilonLetStatement start end name typeValue initializer)
+      (epsilon_delta_stored_let context name initializer end continuation store output))
+    ((EpsilonAssignmentStatement start end target value)
+      (epsilon_delta_stored_assignment context target value end continuation store output))
+    ((EpsilonPostfixStatement start end expression)
+      (match (epsilon_delta_stored_expression context expression store output)
+        ((EpsilonDeltaCompiled text)
+          (EpsilonDeltaCompiled (epsilon_emit_stored_effect_then end text continuation)))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))
+    ((EpsilonAssertStatement start end expression)
+      (match (epsilon_delta_stored_expression context expression store output)
+        ((EpsilonDeltaCompiled text)
+          (let coordinate Int (epsilon_expression_start expression)
+            (let next Bytes (epsilon_emit_if
+              (epsilon_emit_call "eq" (epsilon_emit_spaced (epsilon_emit_generated "scalar" coordinate) "1"))
+              (epsilon_emit_stored_alias_effects end
+                (epsilon_emit_generated "store" coordinate) (epsilon_emit_generated "output" coordinate) continuation)
+              (epsilon_emit_if
+                (epsilon_emit_call "eq" (epsilon_emit_spaced (epsilon_emit_generated "scalar" coordinate) "0"))
+                (epsilon_emit_stored_trap 8 (epsilon_emit_generated "output" coordinate))
+                (epsilon_emit_stored_trap 7 (epsilon_emit_generated "output" coordinate))))
+              (EpsilonDeltaCompiled (epsilon_emit_stored_scalar_then coordinate text next)))))
+        ((EpsilonDeltaRejected reason offset) (EpsilonDeltaRejected reason offset))
+        ((EpsilonDeltaUnsupported offset) (EpsilonDeltaUnsupported offset))
+        ((EpsilonDeltaInternal offset) (EpsilonDeltaInternal offset))))))
+
+(def epsilon_delta_stored_statement_coordinate ((statement EpsilonStatement)) Int
+  (match statement
+    ((EpsilonLetStatement start end name typeValue initializer) end)
+    ((EpsilonAssignmentStatement start end target value) end)
+    ((EpsilonPostfixStatement start end expression) end)
+    ((EpsilonAssertStatement start end expression) end)))

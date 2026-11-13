@@ -98,6 +98,25 @@ machine Main::main(&mut self) {
     assert self.parser.call_expressions[0].argument_count == 1;
     self.check_call_stacks_empty();
 
+    // Qualification and value projection must stay distinct at statement
+    // entry, where calls are promoted to expressions only after their tail.
+    self.parser.parse_view("machine p() { plain(); ns::touch(); value.method(); }");
+    self.check_complete();
+    assert self.parser.call_statement_count == 3;
+    assert self.parser.call_statements[0].name_member_count == 1;
+    assert self.parser.call_statements[0].receiver_member_count == 0;
+    assert self.parser.call_statements[1].name_member_count == 2;
+    assert self.parser.call_statements[1].receiver_member_count == 1;
+    assert self.parser.call_statements[2].name_member_count == 1;
+    assert self.parser.call_statements[2].receiver_member_count == 1;
+    self.parser.parse_view("machine p() -> u8 { ns::answer() }");
+    self.check_complete();
+    assert self.parser.call_expression_count == 1;
+    assert self.parser.call_expressions[0].name_member_count == 2;
+    self.parser.parse_view("machine p() -> u8 { value.method() }");
+    self.check_complete();
+    assert self.parser.call_expressions[0].name_member_count == 1;
+
     self.parser.parse_view("machine p() { let x: u32 in Trapping = 65 as +Trapping; let y: u32 = x as -Trapping; let z: u32 = (7 as u32); }");
     self.check_complete();
     assert self.parser.cast_expression_count == 3;

@@ -36,7 +36,8 @@ mod validation {
             Ok(())
         }
 
-        fn validate_after_operands(&self) -> Result<(), PropositionError> {
+        /// Checks this node alone, given operands that already passed this check.
+        pub fn validate_after_operands(&self) -> Result<(), PropositionError> {
             match self {
                 Self::StructuralRead { path, .. } => {
                     if path.is_empty() {

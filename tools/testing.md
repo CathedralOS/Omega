@@ -985,6 +985,14 @@ that host's golden `tests/omega/corpus_native_<target>.txt`; records gain
 `stderr:match|differs|unavailable` facts. Use it with `--filter` for
 backend-visible changes.
 
+Native mode, including `--both`, omits fail-tier rejection controls. The focused
+corpus plan names those omitted controls; its mode counts precede shard filtering
+when a shard is selected. A clean native/Psi result verifies only the observed rows.
+Run the same selection and shard in ordinary checking mode (without `--native`,
+`--native-target`, `--interpret` or `--both`) to check the selected negative
+diagnostic pins.
+`--interpret` alone retains those checking controls.
+
 `expected_source_locations.txt` can accompany a diagnostic fixture. Each
 nonempty line contains a relative path suffix, a one-based line, and a one-based
 column, separated by whitespace. Each row must match a compiler diagnostic's
@@ -1667,8 +1675,13 @@ environment must allow `ghcr.io` and its blob host
 `pkg-containers.githubusercontent.com`. The SessionStart hook in `.claude/settings.json` runs
 `bash tools/warm_build.sh session-start`, which unpacks it into the primary
 checkout's `target/` and into `.agents/worktree/worker-1/target` before the
-session's first command. Measured on the same container with the archives CI
-published for commit `fd5aef2f7`: 14 s to restore both, then
+session's first command. Managed Codex environments can run the same command
+from their setup script; `CODEX_ENVIRONMENT_ID` enables restoration and preserves
+the restored worker's base during acquisition, just as `CLAUDE_CODE_REMOTE=true`
+does for Claude Code. Local Codex sessions do not opt in merely by running Codex.
+The archive's Cargo paths and toolchain must still match the environment for
+its compiled artifacts to be reused. Measured on the same container with the
+archives CI published for commit `fd5aef2f7`: 14 s to restore both, then
 `mbx build -p omega` took 30 s in the primary checkout, where it reran the
 `compiler` build script and recompiled 4 crates, and 5 s in the worker slot.
 

@@ -72,9 +72,9 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 
 ## Step 3: Implement Across the Full Path & Challenge Assumptions
 
-Before editing, apply the [stop rule](../../../AGENTS.md#decision-making-framing-for-compiler-completion):
-if the fix would add another carrier, case or per-place branch for a mechanism
-that already has one, stop and write the cluster report instead.
+Before editing, apply rule 6 of the [decision-making framing](../../../AGENTS.md#decision-making-framing-for-compiler-completion):
+if the fix wants another carrier, case or per-place branch for a mechanism
+that already has one, widen that mechanism and make the general fix in this PR.
 
 1. **Generalize the mechanism end to end:** Apply
    [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering)
@@ -103,7 +103,7 @@ that photograph: a different object, and a green check on it is not done.
 1. **Prove what you built, then the ring around it ([Law of completion](../../../AGENTS.md#law-of-completion)):**
    - Prove the change itself: the unit tests of the crates you touched.
    - Run `cargo xtask corpus --filter <fixtures>` naming only the fixtures
-     this change targets, ten at most. You already know which they are. The
+     this change targets. You already know which they are. The
      gate adds the ring around them (each one's twin in the other tiers and
      its neighbours by name) and prints every record as it finishes.
    - A clean blast ends pre-merge testing. Land.

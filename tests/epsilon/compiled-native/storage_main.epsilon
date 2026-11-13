@@ -1,0 +1,54 @@
+data Counter { left: i32; right: i32; }
+data Main { console: Console; counter: Counter; bytes: [u8; 8]; }
+
+machine Counter::increment(&mut self) -> i32 {
+    self.left = self.left + 1;
+    return self.left;
+}
+machine Counter::pair(&mut self, first: i32, second: i32) -> i32 {
+    return first * 10 + second;
+}
+machine Counter::carried(&mut self, value: i32, bytes: &[u8]) -> i32 {
+    value = value + 1;
+    transition true { true -> finish(2) }
+    state finish(index: i32) { return value + bytes[index]; }
+}
+
+machine Main::main(&mut self) {
+    let index: i32 = self.console.read_byte();
+    let stress: i32 = self.console.read_byte();
+    self.counter.left = 3;
+    self.counter.right = 9;
+    let observed: i32 = self.counter.pair(self.counter.left, self.counter.increment());
+    assert observed == 34;
+    assert self.counter.right == 9;
+    assert (0 && self.counter.increment()) == 0;
+    assert (1 || self.counter.increment()) == 1;
+    assert self.counter.left == 4;
+    let snapshot: Counter = self.counter;
+    self.counter.left = 5;
+    assert snapshot.left == 4;
+    self.bytes[2] = 7;
+    let local: [u8; 8] = self.bytes;
+    let view: &[u8] = local.as_slice;
+    local[2] = 8;
+    assert self.bytes[2] == 7;
+    assert view[2] == 8;
+    assert self.counter.carried(2, view) == 11;
+    self.console.write_byte(65);
+    transition stress {
+        1 -> retain(view, index, 300000)
+        _ -> retain(view, index, 3)
+    }
+
+    state retain(view: &[u8], index: i32, remaining: i32) {
+        transition remaining {
+            0 -> finish(view, index)
+            _ -> retain(view, index, remaining - 1)
+        }
+    }
+    state finish(view: &[u8], index: i32) {
+        assert view[index] == 8;
+        self.console.exit_process(42);
+    }
+}

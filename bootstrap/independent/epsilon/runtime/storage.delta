@@ -1,0 +1,148 @@
+; Pure functions bridge into the shared effect outcome without changing store
+; or output. General receiver code therefore reuses the same I32/trap meaning.
+(def epsilon_compiled_from_pure ((outcome EpsilonCompiledOutcome)
+  (store EpsilonRuntimeStore) (output Bytes)) EpsilonEvaluatorOutcome
+  (match outcome
+    ((EpsilonCompiledScalar value) (epsilon_evaluator_integer value store output))
+    (EpsilonCompiledResultless (EpsilonEvaluatorResultless store output))
+    ((EpsilonCompiledTrap kind) (EpsilonEvaluatorTrap kind output))
+    ((EpsilonCompiledInternal offset) (EpsilonEvaluatorInternal offset))))
+
+; Discarding a statement result preserves its effects. The compiled successor
+; is emitted once, rather than copied under both successful outcome variants.
+(def epsilon_compiled_discard ((outcome EpsilonEvaluatorOutcome)) EpsilonEvaluatorOutcome
+  (match outcome
+    ((EpsilonEvaluatorValue value place store output) (EpsilonEvaluatorResultless store output))
+    ((EpsilonEvaluatorResultless store output) outcome)
+    ((EpsilonEvaluatorExit code output) outcome)
+    ((EpsilonEvaluatorTrap kind output) outcome)
+    ((EpsilonEvaluatorInternal offset) outcome)))
+
+(def epsilon_compiled_write ((place EpsilonRuntimeOptionalPlace)
+  (value EpsilonRuntimeValue) (store EpsilonRuntimeStore) (output Bytes)
+  (offset Int)) EpsilonEvaluatorOutcome
+  (match place
+    (NoEpsilonRuntimePlace (EpsilonEvaluatorInternal offset))
+    ((SomeEpsilonRuntimePlace target)
+      (match (epsilon_runtime_write target value store)
+        ((EpsilonRuntimeStoreUpdated nextStore) (EpsilonEvaluatorResultless nextStore output))
+        ((EpsilonRuntimeStoreTrapped kind) (EpsilonEvaluatorTrap kind output))
+        (EpsilonRuntimeStoreInternal (EpsilonEvaluatorInternal offset))))))
+
+; Byte output has the same range obligation as U8 storage. That shared check
+; owns ByteRange; the intrinsic descriptor has no authored source coordinate.
+(def epsilon_compiled_write_byte ((value Int) (store EpsilonRuntimeStore)
+  (output Bytes)) EpsilonEvaluatorOutcome
+  (let status Int (epsilon_runtime_integer_store_status (EpsilonU8Type 0 0) value)
+    (if (eq status 0)
+      (EpsilonEvaluatorResultless store (bytes_concat output (bytes_single value)))
+      (if (eq status 5) (EpsilonEvaluatorTrap 5 output) (EpsilonEvaluatorInternal 0)))))
+
+(def epsilon_compiled_u32 ((value Int)) Bytes
+  (bytes_concat
+    (bytes_concat (bytes_single (% value 256)) (bytes_single (% (/ value 256) 256)))
+    (bytes_concat (bytes_single (% (/ value 65536) 256))
+      (bytes_single (% (/ value 16777216) 256)))))
+
+; Internal contradictions remain the canonical EEOUT internal frame, never an
+; authored exit or trap. Ordinary exit/trap observation prefixes are unchanged.
+(def epsilon_compiled_internal_observation ((offset Int)) Bytes
+  (let magic Bytes (bytes_concat (bytes_single 255)
+    (bytes_concat "EEOUT" (bytes_concat (bytes_single 1) (bytes_single 0))))
+    (let classification Bytes (bytes_concat (bytes_single 3)
+      (bytes_concat (bytes_single 2) (bytes_concat (bytes_single 0) (bytes_single 0))))
+      (let coordinate Bytes (bytes_concat (epsilon_compiled_u32 offset) (epsilon_compiled_u32 0))
+        (let zero64 Bytes (bytes_concat (epsilon_compiled_u32 0) (epsilon_compiled_u32 0))
+          (bytes_concat magic (bytes_concat classification
+            (bytes_concat (epsilon_compiled_u32 1)
+              (bytes_concat coordinate (bytes_concat zero64 zero64))))))))))
+
+(def epsilon_compiled_observation ((outcome EpsilonEvaluatorOutcome)) Bytes
+  (match outcome
+    ((EpsilonEvaluatorValue value place store output) (epsilon_compiled_internal_observation 0))
+    ((EpsilonEvaluatorResultless store output)
+      (bytes_concat (bytes_single 0) (bytes_concat (epsilon_compiled_u32 0) output)))
+    ((EpsilonEvaluatorExit code output)
+      (bytes_concat (bytes_single 0) (bytes_concat
+        (epsilon_compiled_u32 (if (lt code 0) (+ code 4294967296) code)) output)))
+    ((EpsilonEvaluatorTrap kind output)
+      (bytes_concat (bytes_single 1) (bytes_concat (bytes_single kind) output)))
+    ((EpsilonEvaluatorInternal offset) (epsilon_compiled_internal_observation offset))))
+
+; A view's private descriptor home is never an authored place. Other reads
+; preserve the actual home so receiver and indexed assignment can project it.
+(def epsilon_compiled_read ((place EpsilonRuntimePlace)
+  (store EpsilonRuntimeStore) (output Bytes) (offset Int)) EpsilonEvaluatorOutcome
+  (match (epsilon_runtime_read place store)
+    (NoEpsilonRuntimeValue (EpsilonEvaluatorInternal offset))
+    ((SomeEpsilonRuntimeValue value)
+      (match value
+        ((EpsilonRuntimeViewValue view)
+          (EpsilonEvaluatorValue value NoEpsilonRuntimePlace store output))
+        ((EpsilonRuntimeInteger scalar)
+          (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
+        ((EpsilonRuntimeAggregate typeValue children)
+          (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))
+        ((EpsilonRuntimeSumValue owner caseValue payload)
+          (EpsilonEvaluatorValue value (SomeEpsilonRuntimePlace place) store output))))))
+
+(def epsilon_compiled_finish_call ((floor Int)
+  (outcome EpsilonEvaluatorOutcome)) EpsilonEvaluatorOutcome
+  (match outcome
+    ((EpsilonEvaluatorValue value place store output)
+      (EpsilonEvaluatorValue value NoEpsilonRuntimePlace
+        (epsilon_runtime_release_since floor store) output))
+    ((EpsilonEvaluatorResultless store output)
+      (EpsilonEvaluatorResultless (epsilon_runtime_release_since floor store) output))
+    ((EpsilonEvaluatorExit code output) outcome)
+    ((EpsilonEvaluatorTrap kind output) outcome)
+    ((EpsilonEvaluatorInternal offset) outcome)))
+
+(def epsilon_compiled_arguments_use_root ((values EpsilonCompiledArguments)
+  (identifier Int)) Int
+  (match values
+    (NoEpsilonCompiledArguments 0)
+    ((MoreEpsilonCompiledArguments value rest)
+      (if (epsilon_runtime_value_uses_root value identifier) 1
+        (epsilon_compiled_arguments_use_root rest identifier)))))
+
+(def epsilon_compiled_homes_use_root ((homes EpsilonCompiledHomes)
+  (identifier Int) (roots EpsilonRuntimeRoots)) Int
+  (match homes
+    (NoEpsilonCompiledHomes 0)
+    ((MoreEpsilonCompiledHomes home rest)
+      (if (eq home identifier) 1
+        (let referenced Int
+          (match (epsilon_runtime_find_root home roots)
+            (NoEpsilonRuntimeValue 0)
+            ((SomeEpsilonRuntimeValue value)
+              (epsilon_runtime_value_uses_root value identifier)))
+          (if referenced 1 (epsilon_compiled_homes_use_root rest identifier roots)))))))
+
+; These are the shared state-liveness predicates over direct compiled homes
+; and argument values. The newest-first filter preserves IDs and the fixed
+; invocation floor, including an old local array still borrowed by a view.
+(def epsilon_compiled_retain_rows ((floor Int)
+  (values EpsilonCompiledArguments) (homes EpsilonCompiledHomes)
+  (receiver EpsilonRuntimeOptionalPlace) (roots EpsilonRuntimeRoots)
+  (remaining EpsilonRuntimeRoots) (retained EpsilonRuntimeRoots)) EpsilonRuntimeRoots
+  (match remaining
+    (NoEpsilonRuntimeRoots (epsilon_runtime_reverse_roots retained NoEpsilonRuntimeRoots))
+    ((MoreEpsilonRuntimeRoots identifier value rest)
+      (if (lt identifier floor)
+        (epsilon_runtime_reverse_roots retained remaining)
+        (let keep Int
+          (if (epsilon_compiled_arguments_use_root values identifier) 1
+            (if (epsilon_compiled_homes_use_root homes identifier roots) 1
+              (epsilon_runtime_receiver_uses_root receiver identifier)))
+          (epsilon_compiled_retain_rows floor values homes receiver roots rest
+            (if keep (MoreEpsilonRuntimeRoots identifier value retained) retained)))))))
+
+(def epsilon_compiled_retain_state ((floor Int)
+  (values EpsilonCompiledArguments) (homes EpsilonCompiledHomes)
+  (receiver EpsilonRuntimeOptionalPlace) (store EpsilonRuntimeStore)) EpsilonRuntimeStore
+  (match store
+    ((EpsilonRuntimeStoreState next roots input)
+      (EpsilonRuntimeStoreState next
+        (epsilon_compiled_retain_rows floor values homes receiver roots roots
+          NoEpsilonRuntimeRoots) input))))

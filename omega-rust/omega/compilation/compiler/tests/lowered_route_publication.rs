@@ -9,13 +9,19 @@
 //! one compile so Omega 00 can fill
 //! `AcceptedObligationFact::proof_bundle_fingerprint`").
 //!
+//! Each machine of the published module states the declaration identity of
+//! the source machine it lowers, so the Build's selected entry is found on it
+//! the way the program-entry receipt finds it on the current checker's
+//! program.
+//!
 //! The default compile does not take this path yet: a governed program is
 //! still built from the current checker's output.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
 use fixture_package_inputs::{
-    FixtureFrontierCheck, check_fixture_keeping_typed_frontier, repo_root,
+    FixtureFrontierCheck, check_fixture_keeping_typed_frontier, discover_fixture,
+    fixture_build_snapshot, produce_fixture, repo_root, review_fixture,
 };
 use lowered_discharge::{RouteVerdict, judge};
 use psi_work::WorkMeter;
@@ -135,4 +141,140 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         ),
         "{status:?}"
     );
+}
+
+/// The Terminal product the default compile builds for `fixture`, which is
+/// the current checker's program.
+fn current_product(fixture: &str) -> terminal_codec::CanonicalTerminalArtifact {
+    let target = "linux_x86_64";
+    let main = repo_root().join(fixture).join("main.omg");
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(
+            scope,
+            || -> Result<_, Vec<diagnostics::Diagnostic>> {
+                let discovered = discover_fixture(
+                    &main,
+                    package_compilation::BuildExecutionInputs {
+                        snapshot: fixture_build_snapshot(&main)?,
+                        ..Default::default()
+                    },
+                )?;
+                let profile = target::TargetProfile::from_omega_target_name(Some(target))
+                    .map_err(|error| vec![error])?;
+                let mut prepared = review_fixture(
+                    discovered,
+                    &[profile],
+                    compiler::CompilationProduct::Terminal(Default::default()),
+                )?;
+                let retained = produce_fixture(&mut prepared, Some(target))?
+                    .into_report()
+                    .map_err(compiler::CompilationProductError::into_diagnostics)?
+                    .into_retained_terminal_artifact()
+                    .ok_or_else(|| {
+                        vec![diagnostics::Diagnostic::error(
+                            "the Terminal product retained no artifact",
+                        )]
+                    })?;
+                Ok(retained.artifact().clone())
+            },
+        )
+        .expect("compiler worker")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+    })
+    .unwrap_or_else(|diagnostics| panic!("{fixture} must reach Terminal Psi: {diagnostics:#?}"))
+}
+
+/// The route states, for every machine of the module it publishes, the
+/// declaration identity the current checker's program states for the same
+/// source machine: the exact-owner machine and state, the semantic
+/// declaration, the parameter and result types, the callable and the
+/// published suspension and blocking. Only the contract commitment differs,
+/// because each checker commits to the contract in its own form. The
+/// Build's selected entry, named as the current program names it, is
+/// therefore found on the published module exactly once, with a Unit
+/// result, which is what the program-entry receipt requires of it.
+#[test]
+fn the_published_module_states_each_machines_declaration_identity() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let fixture = "tests/omega/run/calls/scalar_contract_route_exit";
+    let publication = accepted(fixture)
+        .publish()
+        .expect("the accepted module publishes");
+    let published = publication.artifact.semantic_module();
+    let current = current_product(fixture);
+    let current = current.semantic_module();
+
+    let text = |module: &terminal_psi::TerminalModule, identity| {
+        module
+            .identities
+            .text(identity)
+            .filter(|text: &&str| !text.is_empty())
+            .expect("a declaration identity is interned and not empty")
+            .to_owned()
+    };
+    let stated = |module: &terminal_psi::TerminalModule,
+                  declaration: &terminal_psi::CheckedMachineDeclaration| {
+        (
+            text(module, declaration.machine.identity()),
+            text(module, declaration.state.identity()),
+            text(module, declaration.semantic_declaration),
+            declaration
+                .parameter_types
+                .iter()
+                .map(|identity| text(module, *identity))
+                .collect::<Vec<_>>(),
+            text(module, declaration.callable),
+            text(module, declaration.result_type),
+            declaration.published_may_suspend,
+            declaration.published_may_block,
+            declaration.specialization.is_some(),
+        )
+    };
+    let current_declarations: Vec<_> = current
+        .machines
+        .iter()
+        .filter_map(|machine| machine.declaration.as_ref())
+        .collect();
+    assert_eq!(
+        published.machines.len(),
+        6,
+        "the fixture declares six machines"
+    );
+    for machine in &published.machines {
+        let declaration = machine
+            .declaration
+            .as_ref()
+            .expect("every source-produced machine states its declaration identity");
+        let ours = stated(published, declaration);
+        let theirs = current_declarations
+            .iter()
+            .find(|candidate| stated(current, candidate).0 == ours.0)
+            .unwrap_or_else(|| panic!("the current program has no machine {}", ours.0));
+        assert_eq!(ours, stated(current, theirs));
+        assert_ne!(declaration.contract, [0; 32]);
+        assert_ne!(declaration.contract, theirs.contract);
+    }
+
+    let Some(terminal_psi::TargetMachineCallable::Machine(current_entry)) = current.entry else {
+        panic!("the current program names one entry machine");
+    };
+    let current_entry = current
+        .machine(current_entry)
+        .and_then(|machine| machine.declaration.as_ref())
+        .expect("the current program's entry states its declaration");
+    let selected = terminal_psi::PreparedNominalRoot::new(
+        &text(current, current_entry.machine.identity()),
+        "main",
+        None,
+    )
+    .expect("the entry's declaration identity is not empty");
+    let entry = selected
+        .resolve(published)
+        .expect("the selected entry is found once on the published module");
+    assert_eq!(
+        Some(terminal_psi::TargetMachineCallable::Machine(entry.id)),
+        published.entry
+    );
+    assert_eq!(entry.result, terminal_psi::TerminalMachineResult::Unit);
 }

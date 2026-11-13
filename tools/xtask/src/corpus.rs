@@ -11,12 +11,6 @@ use crate::fixture_selection::FixtureSelection;
 use crate::repo_root;
 
 pub(crate) const SELECTION_BUDGET: usize = 200;
-/// The most fixtures one pre-merge run may name. The author knows which
-/// fixtures a change targets; the gate adds the ring around them
-/// ([`blast_wave`]). A cold fixture costs minutes of several cores and main is
-/// measured after every merge, so anything larger is a sweep.
-pub(crate) const NAMED_LIMIT: usize = 10;
-
 /// The fixtures one step away from `named`, with why each was added: the same
 /// name in another tier (a pass program's fail twin), and the fixture just
 /// before and just after it by name in its own group, which are usually
@@ -88,10 +82,37 @@ pub struct CorpusRecord {
 }
 
 /// Where a downloaded copy of the published check ledger is kept, relative to
-/// the repository root. The post-merge check publishes it on the project site;
-/// fetch it with
-/// `curl -fsSL --create-dirs -o build/corpus-ledger/corpus_outcomes.txt https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt`.
+/// the repository root. The post-merge check publishes it on the project site.
 pub const PUBLISHED_LEDGER: &str = "build/corpus-ledger/corpus_outcomes.txt";
+const PUBLISHED_LEDGER_URL: &str = "https://cathedralos.github.io/Omega/corpus/corpus_outcomes.txt";
+
+/// Downloads the published ledger so a run is compared with what main was
+/// last measured to do. The file in the repository is only as new as the last
+/// time someone committed it, and a blast compared with a stale ledger is
+/// never clean for reasons that are not the change's. Best effort: with no
+/// network or no `curl`, the previous download or the repository's file is
+/// used, as before.
+fn refresh_published_ledger(root: &Path) {
+    let path = root.join(PUBLISHED_LEDGER);
+    let fetched = path.with_extension("fetching");
+    let downloaded = Command::new("curl")
+        .args(["-fsSL", "--max-time", "30", "--create-dirs", "-o"])
+        .arg(&fetched)
+        .arg(PUBLISHED_LEDGER_URL)
+        .stdin(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success());
+    // Only a download that reads as a ledger replaces the last good copy.
+    let usable = downloaded
+        && fs::read_to_string(&fetched)
+            .is_ok_and(|text| parse_records(&text).is_ok_and(|records| !records.is_empty()));
+    if usable {
+        let _ = fs::rename(&fetched, &path);
+    } else {
+        let _ = fs::remove_file(&fetched);
+        eprintln!("corpus: could not refresh the published ledger; using the copy on disk");
+    }
+}
 
 /// The downloaded published ledger, when one is present and readable as a
 /// ledger. An empty or unreadable download is ignored, so a failed fetch falls
@@ -465,6 +486,75 @@ fn selected_fixture_count(
     Ok(count)
 }
 
+struct ModeCoverage<'a> {
+    mode: &'static str,
+    selected: usize,
+    omitted_rejections: Vec<&'a str>,
+}
+
+impl<'a> ModeCoverage<'a> {
+    fn new(names: &'a [String], native: bool, interpret: bool) -> Self {
+        Self {
+            mode: match (native, interpret) {
+                (true, true) => "native/Psi",
+                (true, false) => "native",
+                (false, true) => "checking/Psi",
+                (false, false) => "checking",
+            },
+            selected: names.len(),
+            // The native runner visits only pass/run tiers. Interpretation
+            // alone still visits fail fixtures and checks their diagnostic pins.
+            omitted_rejections: names
+                .iter()
+                .filter(|name| native && name.starts_with("fail/"))
+                .map(String::as_str)
+                .collect(),
+        }
+    }
+
+    fn plan_summary(&self, sharded: bool) -> String {
+        let scope = if sharded { " before sharding" } else { "" };
+        format!(
+            "corpus: {} mode: {} eligible of {} selected fixture(s){scope}; {} rejection control(s) omitted",
+            self.mode,
+            self.selected - self.omitted_rejections.len(),
+            self.selected,
+            self.omitted_rejections.len(),
+        )
+    }
+
+    fn report(&self, sharded: bool, detailed: bool) {
+        eprintln!("{}", self.plan_summary(sharded));
+        if self.omitted_rejections.is_empty() {
+            return;
+        }
+        if detailed && self.selected <= SELECTION_BUDGET {
+            for fixture in &self.omitted_rejections {
+                eprintln!("corpus:   not checked in this mode: {fixture}");
+            }
+        }
+        eprintln!(
+            "corpus: verify those diagnostic pins in checking mode: use the same selection/shard without --native, --native-target, --interpret or --both"
+        );
+    }
+
+    fn clean_summary(&self, observed: usize, sweep: bool) -> String {
+        let kind = if sweep { "clean" } else { "blast clean" };
+        if !self.omitted_rejections.is_empty() {
+            format!(
+                "corpus: {kind} — {observed} observed fixture(s) verified in {} mode; selected rejection controls still require checking mode",
+                self.mode,
+            )
+        } else if sweep {
+            format!("corpus: clean — {observed} fixture(s) verified")
+        } else {
+            format!(
+                "corpus: blast clean — {observed} fixture(s) verified; nothing more to run before merging"
+            )
+        }
+    }
+}
+
 pub(crate) fn current_stamp(root: &Path) -> String {
     let rev = Command::new("git")
         .args(["rev-parse", "--short=12", "HEAD"])
@@ -756,6 +846,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     // publishes the measured one. A downloaded copy is the newer statement of
     // what main does, so reads compare with it. `--record` and `--golden`
     // keep naming the file they were given.
+    if !record && !explicit_golden && !native && !interpret && !list_pinned {
+        refresh_published_ledger(&root);
+    }
     let golden_path = match published_ledger(&root) {
         Some(published) if !record && !explicit_golden && !native && !interpret => {
             println!(
@@ -800,19 +893,32 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let selection = if sweep || !shard.trim().is_empty() {
         FixtureSelection::fragments(&filter)
     } else {
-        if selected > NAMED_LIMIT {
-            eprintln!(
-                "corpus: --filter matches {selected} fixtures. Name the fixtures this change targets, {NAMED_LIMIT} at most; the gate adds the ones around them. A whole group or tier is a sweep (--sweep), which is a background checkpoint, not a pre-merge step."
-            );
-            return Err(2);
-        }
         let list = |selection: &FixtureSelection| {
             selected_fixture_names(&root, selection).map_err(|e| {
                 eprintln!("corpus: {e}");
                 2u8
             })
         };
-        let named = list(&FixtureSelection::fragments(&filter))?;
+        // The author names fixtures, because they know which ones the change
+        // targets. A fragment that matches several is a family, and choosing
+        // a family is choosing by name what to sweep.
+        let mut named = Vec::new();
+        for fragment in filter.split(',').map(str::trim).filter(|f| !f.is_empty()) {
+            let matches = list(&FixtureSelection::fragments(fragment))?;
+            match matches.iter().find(|name| name.as_str() == fragment) {
+                Some(exact) => named.push(exact.clone()),
+                None if matches.len() == 1 => named.extend(matches),
+                None => {
+                    eprintln!(
+                        "corpus: `{fragment}` matches {} fixtures, so it names a family, not a fixture. Name each fixture this change targets (tier/group/name); the gate adds the ones around them. A group or tier is a sweep (--sweep): a background checkpoint, not a pre-merge step.",
+                        matches.len()
+                    );
+                    return Err(2);
+                }
+            }
+        }
+        named.sort();
+        named.dedup();
         let all: BTreeSet<String> = list(&FixtureSelection::All)?.into_iter().collect();
         let wave = blast_wave(&named, &all);
         eprintln!(
@@ -841,6 +947,12 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         eprintln!("corpus: selection matches no fixtures");
         return Err(2);
     }
+    let selected_names = selected_fixture_names(&root, &selection).map_err(|e| {
+        eprintln!("corpus: {e}");
+        2u8
+    })?;
+    let coverage = ModeCoverage::new(&selected_names, native, interpret);
+    coverage.report(!shard.trim().is_empty(), !sweep);
     let evidence = execution::reserve_directory(&root.join("build/corpus-runs")).map_err(|e| {
         eprintln!("corpus: {e}");
         4u8
@@ -973,14 +1085,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             observed.len()
         );
         Err(1)
-    } else if sweep {
-        println!("corpus: clean — {} fixture(s) verified", observed.len());
-        Ok(())
     } else {
-        println!(
-            "corpus: blast clean — {} fixture(s) verified; nothing more to run before merging",
-            observed.len()
-        );
+        println!("{}", coverage.clean_summary(observed.len(), sweep));
         Ok(())
     }
 }
@@ -988,6 +1094,71 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn native_modes_distinguish_the_selected_blast_from_rejection_coverage() {
+        let names: Vec<String> = (0..9)
+            .map(|n| format!("pass/calls/positive_{n}"))
+            .chain(["run/fail_named_group/positive".to_owned()])
+            .chain((0..7).map(|n| format!("fail/calls/rejection_{n}")))
+            .collect();
+        for interpret in [false, true] {
+            let coverage = ModeCoverage::new(&names, true, interpret);
+            assert_eq!(coverage.omitted_rejections.len(), 7);
+            assert!(coverage.plan_summary(false).contains("10 eligible of 17"));
+            assert!(
+                coverage
+                    .omitted_rejections
+                    .iter()
+                    .all(|name| name.starts_with("fail/"))
+            );
+            for sweep in [false, true] {
+                let result = coverage.clean_summary(10, sweep);
+                assert!(result.contains("10 observed fixture(s) verified"));
+                assert!(result.contains("rejection controls still require checking mode"));
+                assert!(!result.contains("nothing more to run"));
+            }
+        }
+    }
+
+    #[test]
+    fn checking_and_interpreted_only_modes_retain_negative_controls() {
+        let names = vec![
+            "pass/calls/positive".to_owned(),
+            "fail/calls/twin".to_owned(),
+        ];
+        for interpret in [false, true] {
+            let coverage = ModeCoverage::new(&names, false, interpret);
+            assert!(coverage.omitted_rejections.is_empty());
+            assert!(coverage.plan_summary(false).contains("2 eligible of 2"));
+            assert!(
+                coverage
+                    .clean_summary(2, false)
+                    .contains("nothing more to run")
+            );
+        }
+    }
+
+    #[test]
+    fn shard_plans_label_pre_shard_counts_and_results_use_actual_observations() {
+        let names = vec![
+            "pass/calls/first".to_owned(),
+            "pass/calls/second".to_owned(),
+            "fail/calls/twin".to_owned(),
+        ];
+        let coverage = ModeCoverage::new(&names, true, true);
+        assert!(
+            coverage
+                .plan_summary(true)
+                .contains("2 eligible of 3 selected fixture(s) before sharding")
+        );
+        assert!(!coverage.plan_summary(false).contains("before sharding"));
+        assert!(
+            coverage
+                .clean_summary(1, false)
+                .contains("1 observed fixture(s) verified")
+        );
+    }
 
     /// The wave around a named fixture is its twin in another tier and the
     /// fixtures beside it by name in its own group, never another group's and

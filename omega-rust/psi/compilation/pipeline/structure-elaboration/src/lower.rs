@@ -697,6 +697,8 @@ impl<'a> Lowering<'a> {
         let machine = TerminalMachine {
             assembly_target_requirement: RegisterTargetApplicability::Any,
             id: self.id,
+            // Stated by `declare` for a compilation's module, from the typed
+            // trees; lowering has only the closed body.
             declaration: None,
             attachment: None,
             nominal_cleanup_subject: None,

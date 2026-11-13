@@ -326,8 +326,11 @@ jobs:
     if: ${{ !cancelled() && needs.plan.outputs.skip == 'false' && needs.build.outputs.runner == 'true' }}
     name: shard ${{ matrix.shard }}
     runs-on: ubuntu-24.04
-    # Long enough to run a worse row twice and then at the base commit.
-    timeout-minutes: 90
+    # A shard's fixtures run until they finish; main is not measured by a
+    # shard that is stopped. On 2026-11-12 a 47-fixture shard had finished 21
+    # when the 90 minutes this used to allow ran out. 350 is just under the
+    # six hours GitHub gives any job.
+    timeout-minutes: 350
     strategy:
       fail-fast: false
       # A push run's shards in one wave: the repository may run 20 hosted jobs

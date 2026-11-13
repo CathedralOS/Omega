@@ -1,8 +1,7 @@
-; This first lowering profile is structurally pure: scalar values/operators,
-; lexical parameters, free calls and state transfers. No accepted operation
-; can read a receiver, update storage or perform Console I/O. Every machine is
-; checked and compiled, including unreachable bodies, so a call cannot hide an
-; effectful unsupported callee. This is a capability judgment, not a name list.
+; This owner implements the pure calling convention: scalar values/operators,
+; lexical parameters, free calls and state transfers. Receiver code uses the
+; effect-threaded owner instead. Every body, including an unreachable one,
+; must lower before the compiler publishes any function text.
 (def epsilon_delta_expression ((context EpsilonDeltaContext)
   (expression EpsilonExpression)) EpsilonDeltaCompilation
   (match expression

@@ -118,6 +118,10 @@ pub enum PublicationError {
     /// check form, which is never encoded (generics.md, "Generic bodies use
     /// the abstract requirement envelope").
     GenericCheckForm,
+    /// A machine of the module has no declaration identity, for the reason
+    /// given (`Elaboration::undeclared`). product.md: "Source-produced
+    /// machine bodies retain a portable checked declaration identity".
+    Undeclared(MachineId, &'static str),
     /// The module fails a structural check of Terminal semantics.
     Semantic(String),
     Artifact(terminal_codec::CanonicalTerminalArtifactError),
@@ -134,6 +138,9 @@ impl AcceptedClosure {
     pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
         if !self.elaboration.requirements.is_empty() {
             return Err(PublicationError::GenericCheckForm);
+        }
+        if let Some((machine, reason)) = self.elaboration.undeclared.first() {
+            return Err(PublicationError::Undeclared(*machine, reason));
         }
         let module = self.elaboration.module.clone();
         terminal_semantics::activation_storage::validate_module(&module)
