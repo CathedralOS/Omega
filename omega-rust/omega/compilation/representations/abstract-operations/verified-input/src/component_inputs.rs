@@ -12,6 +12,7 @@ pub struct ComponentExportInput<'input> {
 
 pub struct ComponentNativeInputs<'input> {
     component: &'input VerifiedComponent,
+    evidence: Option<&'input Arc<terminal_codec::EvidenceSeals>>,
     proposal: &'input TerminalNativeRealizationProposal,
     exports: Vec<ComponentExportInput<'input>>,
     plan_digest: effects::provider_plan::ProviderPlanDigest,
@@ -60,6 +61,10 @@ impl<'input> AdmittedNativeComponentCall<'input> {
 }
 
 impl<'input> ComponentNativeInputs<'input> {
+    pub const fn evidence(&self) -> Option<&'input Arc<terminal_codec::EvidenceSeals>> {
+        self.evidence
+    }
+
     pub fn admit_native_calls(
         &self,
         receiver: terminal_codec::TerminalArtifactView<'_>,
@@ -191,6 +196,7 @@ impl RetainedComponentNativeInputs {
             .collect::<Result<Vec<_>, String>>()?;
         Ok(ComponentNativeInputs {
             component: &self.component,
+            evidence: self.retained.evidence(),
             proposal,
             exports,
             plan_digest: self.plan_digest,

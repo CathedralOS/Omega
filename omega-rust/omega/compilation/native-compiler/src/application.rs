@@ -16,6 +16,10 @@ pub struct TerminalApplication {
     pub receipt: terminal_psi::CheckedProgramEntryTerminalReceipt,
     pub provider_proposals: Vec<backend_plan::TerminalTargetProviderProposal>,
     pub physical_entry_adapter: bool,
+    /// The evidence seals of `artifact`, when the checker on the lowered
+    /// form published it. They stay beside the artifact until Omega 00
+    /// lowers it.
+    pub evidence: Option<Arc<terminal_codec::EvidenceSeals>>,
 }
 
 impl TerminalApplication {
@@ -30,12 +34,11 @@ impl TerminalApplication {
                 .bind_physical_adapter(&self.artifact)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
         }
-        Ok(
-            RetainedTerminalArtifact::new_with_native_realization_proposal(
-                self.artifact,
-                proposal.with_target_provider_proposals(self.provider_proposals),
-            ),
+        RetainedTerminalArtifact::new_with_native_realization_proposal(
+            self.artifact,
+            proposal.with_target_provider_proposals(self.provider_proposals),
         )
+        .with_evidence(self.evidence)
     }
 }
 

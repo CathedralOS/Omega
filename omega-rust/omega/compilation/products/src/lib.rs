@@ -55,7 +55,7 @@ pub use test_products::{
 
 pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
-    ProductReportPlan, ProductReportRequest, RetainedCompilationChecks,
+    ProductReportPlan, ProductReportRequest,
 };
 pub use compilation_products::{
     CompileOutputKind, CompileReport, PendingNativeProduct, RetainedNativeProgram,
@@ -67,7 +67,7 @@ pub use compile_outcomes::{
 };
 pub use compile_request::{
     CheckedCompileRequest, CheckedExecutionRequest, CompileOptions, CompileRequest,
-    NativeImageDemand, NativeProductRequest, RequestedCompileProduct, SettledCheckReuse,
+    NativeImageDemand, NativeProductRequest, RequestedCompileProduct,
 };
 pub use evaluated_build::{
     BuildAdmission, BuildConfig, ComputedBuildConfig, EvaluatedBuild,

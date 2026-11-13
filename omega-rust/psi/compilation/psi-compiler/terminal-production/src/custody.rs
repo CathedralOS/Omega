@@ -30,12 +30,13 @@ pub struct ProducedTerminalApplication {
 #[must_use = "Terminal production retains independent application judgments"]
 pub struct ProducedTerminalProgram {
     pub(crate) program: terminal_codec::TerminalProgramProduct,
+    pub(crate) evidence: Option<Arc<terminal_codec::EvidenceSeals>>,
     pub(crate) build_bindings: TerminalBuildBindings,
     pub(crate) build_requests: TerminalBuildRequests,
     pub(crate) build_filesystem: TerminalBuildFilesystem,
     pub(crate) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     pub(crate) provenance: terminal_psi::TerminalMachineProvenance,
-    pub(crate) source_records: Vec<checked_trees::typed_trees::SourceRecordCorrespondence>,
+    pub(crate) source_records: Vec<typed_trees::SourceRecordCorrespondence>,
 }
 
 impl compiler_storage::Record for ProducedTerminalProgram {
@@ -105,6 +106,7 @@ impl compiler_storage::Record for ProducedTerminalProgram {
             let build_filesystem = TerminalBuildFilesystem::new(view, filesystem);
             Ok(Self {
                 program: terminal_codec::TerminalProgramProduct::Portable(artifact),
+                evidence: None,
                 build_bindings,
                 build_requests,
                 build_filesystem,
@@ -117,11 +119,15 @@ impl compiler_storage::Record for ProducedTerminalProgram {
 }
 
 impl ProducedTerminalProgram {
+    pub const fn evidence(&self) -> Option<&Arc<terminal_codec::EvidenceSeals>> {
+        self.evidence.as_ref()
+    }
     pub fn into_shared_portable(
         self,
     ) -> Result<PortableTerminalProgram, CanonicalTerminalArtifactError> {
         Ok(PortableTerminalProgram {
             artifact: Arc::new(self.program.into_portable()?),
+            evidence: self.evidence,
             build_bindings: self.build_bindings,
             build_requests: self.build_requests,
             build_filesystem: self.build_filesystem,
@@ -173,16 +179,20 @@ impl ProducedTerminalProgram {
 #[derive(Debug)]
 pub struct PortableTerminalProgram {
     artifact: Arc<CanonicalTerminalArtifact>,
+    evidence: Option<Arc<terminal_codec::EvidenceSeals>>,
     build_bindings: TerminalBuildBindings,
     build_requests: TerminalBuildRequests,
     build_filesystem: TerminalBuildFilesystem,
     applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     provenance: terminal_psi::TerminalMachineProvenance,
-    source_records: Vec<checked_trees::typed_trees::SourceRecordCorrespondence>,
+    source_records: Vec<typed_trees::SourceRecordCorrespondence>,
 }
 
 impl PortableTerminalProgram {
-    pub fn source_records(&self) -> &[checked_trees::typed_trees::SourceRecordCorrespondence] {
+    pub const fn evidence(&self) -> Option<&Arc<terminal_codec::EvidenceSeals>> {
+        self.evidence.as_ref()
+    }
+    pub fn source_records(&self) -> &[typed_trees::SourceRecordCorrespondence] {
         &self.source_records
     }
     pub fn attach_application(

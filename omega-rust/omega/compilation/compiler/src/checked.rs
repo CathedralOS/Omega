@@ -39,7 +39,7 @@ pub use checking::typed_frontier::{
 pub use checking::{
     CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
     IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
-    PreparedPackageBuild, RestrictedBuildGrants, SettledCheckReuse, SourceCompilation,
+    PreparedPackageBuild, RestrictedBuildGrants, SourceCompilation,
 };
 pub use compilation_session::CompilationSession;
 pub use optimization_core::{

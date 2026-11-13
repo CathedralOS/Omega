@@ -197,6 +197,7 @@ fn source_checked_obligation_facts(
     seals: &[terminal_codec::ObligationEvidenceSeal],
 ) -> Result<Vec<AcceptedObligationFact>, VerifiedPsiOptimizationUnitBuildError> {
     let mut coordinates = BTreeSet::new();
+    let validator = terminal_codec::EvidenceSealValidator::new(module, seals);
     let mut attached = vec![false; seals.len()];
     let mut facts = Vec::new();
     for function in &unit.functions {
@@ -273,8 +274,7 @@ fn source_checked_obligation_facts(
                     Vec::new()
                 };
                 let fingerprint = sealed_fingerprint(
-                    module,
-                    seals,
+                    &validator,
                     &mut attached,
                     function.machine,
                     *support,
@@ -410,66 +410,29 @@ fn source_checked_obligation_facts(
 /// those hypotheses, and that the hypotheses held where the obligation sits.
 /// This stage does not re-run the kernel.
 fn sealed_fingerprint(
-    module: &terminal_psi::TerminalModule,
-    seals: &[terminal_codec::ObligationEvidenceSeal],
+    validator: &terminal_codec::EvidenceSealValidator<'_, '_>,
     attached: &mut [bool],
     machine: semantic_vocabulary::MachineId,
     operation: semantic_vocabulary::OperationId,
     obligation: semantic_vocabulary::ObligationId,
 ) -> Result<[u8; 32], VerifiedPsiOptimizationUnitBuildError> {
-    let Some(position) = seals
-        .iter()
-        .position(|seal| seal.machine == machine && seal.obligation == obligation)
-    else {
+    let found = validator
+        .fingerprint(machine, operation, obligation)
+        .map_err(|error| match error {
+            terminal_codec::EvidenceSealValidationError::Codec(error) => {
+                VerifiedPsiOptimizationUnitBuildError::PropositionCodec(error)
+            }
+            _ => VerifiedPsiOptimizationUnitBuildError::EvidenceSealMismatch {
+                machine,
+                operation,
+                obligation,
+            },
+        })?;
+    let Some((position, fingerprint)) = found else {
         return Ok([0; 32]);
     };
-    let seal = &seals[position];
-    let mismatch = || VerifiedPsiOptimizationUnitBuildError::EvidenceSealMismatch {
-        machine,
-        operation,
-        obligation,
-    };
-    if !seal.intact()? {
-        return Err(mismatch());
-    }
-    let lowered = module
-        .machines
-        .iter()
-        .find(|candidate| candidate.id == machine)
-        .ok_or_else(mismatch)?;
-    let found = lowered
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|candidate| candidate.id == operation)
-        .ok_or_else(mismatch)?;
-    let declarations = lowered
-        .parameters
-        .iter()
-        .chain(lowered.blocks.iter().flat_map(|block| &block.parameters))
-        .chain(
-            lowered
-                .blocks
-                .iter()
-                .flat_map(|block| &block.operations)
-                .filter_map(|candidate| candidate.result.scalar_ref()),
-        )
-        .map(|declaration| (declaration.id, declaration.scalar_type))
-        .collect();
-    let types = terminal_semantics::SortedValueTypes::new(declarations).ok_or_else(mismatch)?;
-    let semantics = terminal_semantics::proof_bearing_scalar_leaf_semantics(found, &types)
-        .ok()
-        .flatten()
-        .ok_or_else(mismatch)?;
-    let goal = semantics
-        .canonical_goal()
-        .kernel_proposition()
-        .map_err(|_| mismatch())?;
-    if semantics.obligation() != obligation || goal != seal.goal {
-        return Err(mismatch());
-    }
     attached[position] = true;
-    Ok(seal.fingerprint)
+    Ok(fingerprint)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

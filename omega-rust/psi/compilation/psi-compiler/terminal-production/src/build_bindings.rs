@@ -908,25 +908,10 @@ pub(crate) mod build_queries {
 }
 
 pub(crate) mod build_requests {
-    use semantic_vocabulary::{BoundaryMachineId, OperationId};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-    pub enum TerminalBuildRequestOperation {
-        Package,
-        Application,
-        Member,
-        ArtifactOnly,
-        PathDependency,
-        GitDependency,
-        LogLine,
-    }
-
-    #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
-    pub struct TerminalBuildRequestCall {
-        pub operation: OperationId,
-        pub boundary: BoundaryMachineId,
-        pub action: TerminalBuildRequestOperation,
-    }
+    pub use language_semantics::build_requests::{
+        TerminalBuildRequestCall, TerminalBuildRequestOperation,
+    };
 
     #[derive(Debug, PartialEq, Eq)]
     pub struct TerminalBuildRequests {

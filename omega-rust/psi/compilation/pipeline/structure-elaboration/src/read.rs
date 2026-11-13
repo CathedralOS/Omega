@@ -29,6 +29,7 @@ mod contracts;
 mod expressions;
 mod machine;
 mod places;
+mod source_records;
 mod statements;
 mod subjects;
 mod transitions;
@@ -44,6 +45,7 @@ use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
 
 pub(crate) struct Program<'t> {
+    pub publication: terminal_codec::TerminalPublication,
     typed: &'t TypedTrees,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
@@ -159,6 +161,7 @@ fn span<'a, T: Default>(
 impl<'t> Program<'t> {
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
         Self {
+            publication: terminal_codec::TerminalPublication::Portable,
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
@@ -923,6 +926,7 @@ mod tests {
         let mut program = Program::new(&typed, false);
         program.record_sources.push(places::RecordSource {
             declaration: point,
+            application: None,
             fields: vec![a, b],
             cases: Vec::new(),
         });
