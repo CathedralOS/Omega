@@ -130,8 +130,8 @@ pub(crate) fn declare<'a>(
     types: &'a IdTable<StructuralTypeId, RecordType>,
     bodies: &IdTable<MachineId, Body>,
     signatures: &IdTable<MachineId, Signature>,
+    mut identities: TerminalIdentityTableBuilder,
 ) -> Checked<Declared<'a>> {
-    let mut identities = TerminalIdentityTableBuilder::default();
     let mut field_identities = IdTable::default();
     let mut structural_types = Vec::with_capacity(types.len());
     let mut native_layouts = NativeLayoutCatalog::default();

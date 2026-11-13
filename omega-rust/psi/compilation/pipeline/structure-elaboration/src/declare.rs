@@ -130,9 +130,14 @@ fn declaration(
         .machine_callable_identity_text(declared)
         .filter(|callable| !callable.is_empty())
         .ok_or("the machine has no callable identity")?;
-    let semantic = typed
-        .normalized_hermetic_symbol_identity(symbol)
-        .map_err(|_| "the machine has no hermetic declaration identity")?;
+    let semantic = match invocation_local(typed, symbol, identities)? {
+        Some(identity) => identity,
+        None => identities.intern(
+            &typed
+                .normalized_hermetic_symbol_identity(symbol)
+                .map_err(|_| "the machine has no hermetic declaration identity")?,
+        ),
+    };
     let type_text = |type_reference| {
         typed
             .type_identity_text(typed.package_qualified_type_identity(type_reference))
@@ -144,8 +149,8 @@ fn declaration(
         .map(|formal| type_text(formal.type_reference))
         .collect::<Result<Vec<_>, _>>()?;
     let result_type = type_text(state.return_type)?;
-    let machine_identity = nominal(typed, sources, symbol)?;
-    let state_identity = nominal(typed, sources, state.symbol)?;
+    let machine_identity = nominal(typed, sources, symbol, identities)?;
+    let state_identity = nominal(typed, sources, state.symbol, identities)?;
 
     let mut commitment = Commitment(DomainDigestEncoder::new(COMMITMENT_DOMAIN));
     callable.hash(&mut commitment);
@@ -167,9 +172,9 @@ fn declaration(
     signature.termination.hash(&mut commitment);
 
     Ok(CheckedMachineDeclaration {
-        machine: NominalDeclarationIdentity::new(identities.intern(&machine_identity)),
-        state: NominalDeclarationIdentity::new(identities.intern(&state_identity)),
-        semantic_declaration: identities.intern(&semantic),
+        machine: NominalDeclarationIdentity::new(machine_identity),
+        state: NominalDeclarationIdentity::new(state_identity),
+        semantic_declaration: semantic,
         parameter_types: parameter_types
             .iter()
             .map(|text| identities.intern(text))
@@ -192,10 +197,42 @@ fn nominal(
     typed: &TypedTrees,
     sources: &[(source::SourceId, [u8; 32])],
     symbol: SymbolHandle,
-) -> Result<String, &'static str> {
-    typed
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<terminal_psi::TerminalIdentityIndex, &'static str> {
+    if let Some(identity) = invocation_local(typed, symbol, identities)? {
+        return Ok(identity);
+    }
+    let text = typed
         .exact_owner_nominal_identity(symbol, sources)
         .and_then(|identity| typed.type_identity_text(identity))
         .filter(|text| !text.is_empty())
-        .ok_or("the declaration has no exact package or toolchain owner")
+        .ok_or("the declaration has no exact package or toolchain owner")?;
+    Ok(identities.intern(&text))
+}
+
+/// Anonymous user declarations belong to the source owner of this one
+/// activation. Their arena coordinates are meaningful only inside its
+/// freshly minted invocation scope; they never become portable identities.
+fn invocation_local(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<Option<terminal_psi::TerminalIdentityIndex>, &'static str> {
+    if !symbol.is_valid()
+        || !identities.is_invocation_scoped()
+        || typed.symbols.symbol_package_identity(symbol).is_some()
+        || typed.symbols.symbol_source_origin(symbol) != Some(source::SourceOrigin::User)
+    {
+        return Ok(None);
+    }
+    if typed.symbols.symbol_source_span(symbol).is_none() {
+        return Err("an invocation declaration has no captured source coordinate");
+    }
+    identities
+        .intern_invocation_local(&format!(
+            "invocation-declaration({}:{})",
+            symbol.arena_index(),
+            symbol.generation()
+        ))
+        .map(Some)
 }

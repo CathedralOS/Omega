@@ -100,6 +100,42 @@ fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signatu
     }
 }
 
+#[test]
+fn emitted_calls_have_behavior_before_any_judgment_and_raw_bodies_have_no_source_records() {
+    let mut bodies = IdTable::default();
+    bodies.push(Body {
+        slots: Vec::new(),
+        statements: vec![
+            Statement::Evaluate(call(2, Vec::new(), None)),
+            Statement::Arm {
+                guard: None,
+                target: Target::Unit,
+                source: nowhere(),
+            },
+        ],
+    });
+    bodies.push(Body {
+        slots: Vec::new(),
+        statements: vec![Statement::Arm {
+            guard: None,
+            target: Target::Unit,
+            source: nowhere(),
+        }],
+    });
+    let mut signatures = IdTable::default();
+    signatures.push(signature(Vec::new(), None));
+    signatures.push(signature(Vec::new(), None));
+    let elaboration =
+        crate::lower_bodies(id(1), &bodies, &signatures, &IdTable::default()).unwrap();
+    assert!(elaboration.source_records.is_empty());
+    let behavior = &elaboration.module.unoptimized_behavior;
+    assert_eq!(behavior.len(), 2);
+    assert_eq!(behavior[0].machine, id(1));
+    assert!(matches!(behavior[0].operations.as_slice(),
+        [terminal_psi::UnoptimizedBehaviorOperation::Invocation { callee, .. }] if *callee == id(2)));
+    assert!(behavior[1].operations.is_empty());
+}
+
 /// Scalar slot or formal types as the body holds them.
 fn scalars(types: Vec<ScalarType>) -> Vec<ValueType> {
     types.into_iter().map(ValueType::Scalar).collect()
@@ -156,7 +192,13 @@ fn lower_records(
 ) -> terminal_check_tables::Checked<crate::lower::Lowered> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     bodies.push(body);
-    let declared = crate::lower::places::declare(id(1), records, &bodies, signatures)?;
+    let declared = crate::lower::places::declare(
+        id(1),
+        records,
+        &bodies,
+        signatures,
+        terminal_psi::TerminalIdentityTableBuilder::default(),
+    )?;
     crate::lower::machine(
         id(1),
         &bodies,

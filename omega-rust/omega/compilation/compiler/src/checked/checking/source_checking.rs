@@ -241,7 +241,7 @@ pub(crate) fn check_product_source(
     };
     let mut judged = None;
     let mut accepted = false;
-    let mut route_program = None;
+    let mut accepted_source = None;
     let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
         let started = std::time::Instant::now();
         // The checker on the lowered form judges the trees by reference
@@ -262,11 +262,10 @@ pub(crate) fn check_product_source(
             if keep {
                 judged = Some(trees.clone());
             }
-            let (judgment, published) = route_scope.judge(trees);
-            route_program = published;
-            let verdict = judgment.verdict();
-            accepted = verdict.is_ok();
-            verdict
+            let source = route_scope.judge(Arc::new(trees.clone()));
+            accepted = source.is_ok();
+            accepted_source = Some(source?);
+            Ok(())
         });
         if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
             artifacts::compile_timings::counters::record_product_source_check(started.elapsed());
@@ -332,7 +331,11 @@ pub(crate) fn check_product_source(
                 .clone(),
             selections.portable_productions(),
         )
-        .with_route(route_program),
+        .with_accepted(accepted_source.ok_or_else(|| {
+            vec![Diagnostic::error(
+                "no product route yet: no accepted typed source was retained",
+            )]
+        })?),
     );
     let native_bindings = Arc::new(
         provider_planning::native_bindings::PreparedNativeBuildBindings::capture(

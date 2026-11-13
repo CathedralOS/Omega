@@ -16,7 +16,7 @@
 //   Psi 05 for a verdict. A missing verdict is a refusal, never an
 //   acceptance.
 // - The route accepts: the application is built from the module the route
-//   published, with its evidence seals, whenever that module publishes
+//   published, with its evidence seals, only when that module publishes
 //   (`RouteScope::judge`). Psi 05 and 06 still run, because product
 //   selection, the provider inventory and target preparation read their
 //   output until the route's published module feeds them too (TASKS.md,
@@ -31,6 +31,7 @@
 // fails on that stage's own diagnostics.
 
 use diagnostics::Diagnostic;
+#[cfg(test)]
 use lowered_discharge::{CompilationRefusal, RouteVerdict};
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceId, SourceMap};
@@ -56,21 +57,13 @@ impl RouteScope<'_> {
     /// machines of the closure. The route accepts only when it accepts every
     /// one of them.
     ///
-    /// Beside the judgment comes the program the route published, when it
-    /// accepted the whole compilation and its module publishes
-    /// (`AcceptedClosure::publish`). The first verdict is the closure of the
-    /// compilation's roots, which is the program; the others are generic
-    /// check forms, which are never programs. A module that does not publish
-    /// yet (a machine with no declaration identity) yields none, and the
-    /// application is then built from Psi 06's output while that exists.
+    /// Keep the exact source owner before judging. Publication is performed by
+    /// the shared factory; a missing publication never selects another module.
     pub(super) fn judge(
         &self,
-        typed: &typed_trees::TypedTrees,
-    ) -> (
-        RouteJudgment,
-        Option<compilation_products::RouteTerminalProgram>,
-    ) {
-        let verdicts = lowered_discharge::judge_compilation(
+        typed: std::sync::Arc<typed_trees::FrozenTypedTrees>,
+    ) -> Result<std::sync::Arc<psi_compiler::AcceptedTerminalSource>, Vec<Diagnostic>> {
+        psi_compiler::AcceptedTerminalSource::judge(
             typed,
             structure_elaboration::Compilation {
                 entries: self.entries,
@@ -78,19 +71,9 @@ impl RouteScope<'_> {
                 selected: self.selected,
                 bindings: self.bindings,
             },
-        );
-        let published = match verdicts.first() {
-            Some(Ok(RouteVerdict::Accepted(closure))) => closure.publish().ok(),
-            _ => None,
-        };
-        let judgment = RouteJudgment::all(verdicts.into_iter().map(RouteJudgment::of).collect());
-        let published = published
-            .filter(|_| matches!(judgment, RouteJudgment::Accepted))
-            .map(|publication| compilation_products::RouteTerminalProgram {
-                artifact: std::sync::Arc::new(publication.artifact),
-                seals: publication.seals,
-            });
-        (judgment, published)
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .map(std::sync::Arc::new)
     }
 }
 
@@ -114,6 +97,7 @@ pub(crate) const NO_PRODUCT_ROUTE: &str = "no product route yet";
 pub(crate) const NOT_SUPPORTED_YET: &str = "not supported yet";
 
 /// What the route decided.
+#[cfg(test)]
 #[derive(Debug)]
 pub(super) enum RouteJudgment {
     /// Every obligation of the closure was discharged.
@@ -126,6 +110,7 @@ pub(super) enum RouteJudgment {
     Refused(Vec<Diagnostic>),
 }
 
+#[cfg(test)]
 impl RouteJudgment {
     /// The judgment of a compilation made of several separately judged
     /// parts: refused when any part is, with every refused part's

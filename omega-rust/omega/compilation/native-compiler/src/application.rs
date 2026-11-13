@@ -19,7 +19,7 @@ pub struct TerminalApplication {
     /// The evidence seals of `artifact`, when the checker on the lowered
     /// form published it. They stay beside the artifact until Omega 00
     /// lowers it.
-    pub evidence: Option<terminal_codec::EvidenceSeals>,
+    pub evidence: Option<Arc<terminal_codec::EvidenceSeals>>,
 }
 
 impl TerminalApplication {
@@ -39,7 +39,7 @@ impl TerminalApplication {
                 self.artifact,
                 proposal.with_target_provider_proposals(self.provider_proposals),
             )
-            .with_evidence(self.evidence),
+            .with_evidence(self.evidence)?,
         )
     }
 }

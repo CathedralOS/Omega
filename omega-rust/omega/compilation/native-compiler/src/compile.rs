@@ -83,19 +83,10 @@ fn produce(
             .iter()
             .map(crate::components::EmittedComponent::admit_call)
             .collect::<Result<Vec<_>, _>>()?;
-        let (mut input, execution) = {
+        let (input, execution) = {
             observation.enter(NativePipelineStage::TerminalToAbstract);
             work.lower(scalar_input)
         }?;
-        // The seals arrive beside the artifact they were produced for, and
-        // Omega 00 attaches them only to that module's identity.
-        if let Some(evidence) = retained.evidence() {
-            input.attach_evidence(evidence.clone()).map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "Terminal native proposal: obligation evidence was refused: {error}"
-                ))]
-            })?;
-        }
         let prepared = {
             terminal_psi_to_abstract_operations::prepare_native_providers(
                 proposal,

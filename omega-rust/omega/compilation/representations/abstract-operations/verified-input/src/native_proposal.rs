@@ -695,7 +695,7 @@ pub struct RetainedTerminalArtifact {
     /// The evidence seals produced beside this exact in-memory artifact by
     /// the checker on the lowered form. Terminal Psi's bytes carry no
     /// evidence, so a product rebuilt from bytes has none.
-    evidence: Option<terminal_codec::EvidenceSeals>,
+    evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
 }
 
 impl RetainedTerminalArtifact {
@@ -712,12 +712,18 @@ impl RetainedTerminalArtifact {
 
     /// Keeps the seals that were produced beside this artifact, so native
     /// production hands them to Omega 00 with the module they name.
-    pub fn with_evidence(mut self, evidence: Option<terminal_codec::EvidenceSeals>) -> Self {
+    pub fn with_evidence(
+        mut self,
+        evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if let Some(evidence) = &evidence {
+            validate_operation_evidence(&self.artifact, evidence)?;
+        }
         self.evidence = evidence;
-        self
+        Ok(self)
     }
 
-    pub const fn evidence(&self) -> Option<&terminal_codec::EvidenceSeals> {
+    pub const fn evidence(&self) -> Option<&std::sync::Arc<terminal_codec::EvidenceSeals>> {
         self.evidence.as_ref()
     }
 
@@ -741,4 +747,24 @@ impl RetainedTerminalArtifact {
     ) {
         (self.artifact, self.native_realization_proposal)
     }
+}
+
+/// Validate the complete in-memory bundle before selecting executable machines.
+/// A foreign or damaged dormant seal cannot disappear through scope filtering.
+pub(crate) fn validate_operation_evidence(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    evidence: &terminal_codec::EvidenceSeals,
+) -> Result<(), Vec<Diagnostic>> {
+    if evidence.module != artifact.view().identity() {
+        return Err(vec![Diagnostic::error(
+            "operation evidence belongs to another canonical artifact",
+        )]);
+    }
+    terminal_codec::EvidenceSealValidator::new(artifact.semantic_module(), &evidence.seals)
+        .validate_all()
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "canonical operation evidence: {error}"
+            ))]
+        })
 }

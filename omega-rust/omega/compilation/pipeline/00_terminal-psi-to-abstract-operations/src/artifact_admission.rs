@@ -249,6 +249,7 @@ mod native {
             artifact: &terminal_codec::CanonicalTerminalArtifact,
             establishments: &[TerminalAccessViewEstablishment],
             selection: &NativeExecutionSelection<'_>,
+            evidence: Option<&terminal_codec::EvidenceSeals>,
         ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
             let Self {
                 profile,
@@ -271,6 +272,14 @@ mod native {
                     &full_machines
                 }
             };
+            let evidence = evidence
+                .map(|evidence| evidence.project_for_machines(module, machines))
+                .transpose()
+                .map_err(|error| {
+                    ArtifactLoweringError::TargetFamily(format!(
+                        "native operation evidence: {error}"
+                    ))
+                })?;
             let scalar_applications = selection
                 .scalar_applications
                 .as_ref()
@@ -329,6 +338,13 @@ mod native {
                     ),
                 )
                 .map_err(|reason| ArtifactLoweringError::TargetFamily(reason.into()))?;
+            if let Some(evidence) = evidence {
+                input.attach_evidence(evidence).map_err(|error| {
+                    ArtifactLoweringError::TargetFamily(format!(
+                        "native operation evidence: {error}"
+                    ))
+                })?;
+            }
             Ok(input)
         }
     }
@@ -353,6 +369,7 @@ mod native {
                 artifact,
                 establishments,
                 selection,
+                None,
             )
         }
 
@@ -368,7 +385,7 @@ mod native {
             selection: &NativeExecutionSelection<'_>,
         ) -> Result<Self, ArtifactLoweringError> {
             NativeScopePreparation::prepare(artifact, profile, root, selection)?
-                .lower_with_private_entry_ram(artifact, recipes, selection)
+                .lower_with_private_entry_ram(artifact, recipes, selection, None)
         }
 
         pub fn plan(&self) -> &AbstractOperationPlan {
@@ -403,6 +420,7 @@ mod native {
             artifact: &terminal_codec::CanonicalTerminalArtifact,
             recipes: &[terminal_installation::CheckedPrivateEntryRamRecipe],
             selection: &NativeExecutionSelection<'_>,
+            evidence: Option<&terminal_codec::EvidenceSeals>,
         ) -> Result<VerifiedNativeArtifactInput, ArtifactLoweringError> {
             if recipes
                 .iter()
@@ -445,7 +463,7 @@ mod native {
                     })
                 })
                 .collect::<Result<Vec<_>, ArtifactLoweringError>>()?;
-            let mut input = self.lower(artifact, &establishments, selection)?;
+            let mut input = self.lower(artifact, &establishments, selection, evidence)?;
             input.private_entry_ram = recipes.to_vec();
             Ok(input)
         }
