@@ -2367,7 +2367,18 @@ impl<'a> Storage<'a> {
                         .map(|argument| self.argument(argument, Construct::Edge(*edge)))
                         .collect::<Checked<Vec<_>>>()?,
                 ),
+                // An external completion reads its arguments like any
+                // transfer and, like a crash, consumes nothing: process
+                // exit "may abandon outstanding in-domain obligations,
+                // including linear obligations, without cleanup or
+                // discharge claims" (process_exit.md, "Abandonment and
+                // survivors"), so no window has to be closed before it.
                 Terminator::Jump {
+                    edge,
+                    structural_arguments,
+                    ..
+                }
+                | Terminator::ExternalCompletion {
                     edge,
                     structural_arguments,
                     ..
@@ -2400,12 +2411,6 @@ impl<'a> Storage<'a> {
                 // "A crash may abandon an open window but supplies no
                 // survivor-safety theorem"): it consumes nothing.
                 Terminator::Crash { .. } => continue,
-                _ => {
-                    return Err(self.unsupported(
-                        Construct::Block(block.id),
-                        "a terminator outside this route",
-                    ));
-                }
             };
             // A return or a terminal transfer ends the scope of every place
             // of this machine; a jump stays inside it.

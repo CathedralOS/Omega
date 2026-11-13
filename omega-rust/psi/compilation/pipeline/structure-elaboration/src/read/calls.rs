@@ -53,13 +53,14 @@ impl<'t> Program<'t> {
                 "boundary contract needs its complete inherited refinement correspondence",
             ));
         }
-        if typed_trees::boundary_completions::boundary_requirement_completion(self.typed, target)
-            != semantic_vocabulary::BoundaryCompletion::NormalReturn
-        {
-            return Err(unserved(
-                "boundary call needs its external-completion lowering",
-            ));
-        }
+        // The typed trees own which requirement is the canonical process
+        // exit (process_exit.md: "Psi recognizes the exact admitted
+        // canonical requirement, including package and contract identity; a
+        // matching path, method spelling, or ordinary user declaration does
+        // not acquire its meaning"). The signature carries that fact to the
+        // one call path every boundary call takes.
+        let completion =
+            typed_trees::boundary_completions::boundary_requirement_completion(self.typed, target);
         self.visible_to(caller, target)?;
         let (mut signature, _) = self.requirement_signature(caller, requirement, &[])?;
         signature.termination = match &requirement.termination_guarantee {
@@ -95,7 +96,8 @@ impl<'t> Program<'t> {
         let boundary = self.boundary_symbols.push(target);
         let signature_id = self.boundary_signatures.push(signature);
         let service_id = self.boundary_services.push(service);
-        if boundary != signature_id || boundary != service_id {
+        let completion_id = self.boundary_completions.push(completion);
+        if boundary != signature_id || boundary != service_id || boundary != completion_id {
             return Err(unserved(
                 "boundary signature lost its exact declaration coordinate",
             ));
@@ -1067,6 +1069,7 @@ impl<'t> Program<'t> {
         let signature = crate::body::Signatures {
             machines: &self.signatures,
             boundaries: &self.boundary_signatures,
+            completions: &self.boundary_completions,
         }
         .get(callee, id)?;
         let formals: Vec<_> = signature
@@ -1130,6 +1133,7 @@ impl<'t> Program<'t> {
         let signature = crate::body::Signatures {
             machines: &self.signatures,
             boundaries: &self.boundary_signatures,
+            completions: &self.boundary_completions,
         }
         .get(callee, id)?;
         if signature.parameters.len() != read.len()

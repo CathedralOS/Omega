@@ -915,21 +915,15 @@ fn fill_knowledge(
             Construct::Invocation(invocation),
         )?;
         // A call with no normal completion is a terminator. Its callee's
-        // guarantees "apply only on normal return" (calls_and_outcomes.md), and
-        // it has none, so it adds no knowledge.
+        // guarantees "apply only on normal return; external exit neither
+        // establishes them nor necessarily violates them"
+        // (calls_and_outcomes.md), and it has no return, so it adds no
+        // knowledge.
         let operation = match row.site {
             InvocationSite::Operation(operation) => operation,
-            InvocationSite::InvokeNoNormal(_) => continue,
-            _ => {
-                return Err(refusal(
-                    RefusalReason::Unsupported,
-                    id,
-                    Construct::Invocation(invocation),
-                    "invocation outside an operation or a no-normal call",
-                ));
-            }
+            InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => continue,
         };
-        let callee = callee(module, id, invocation, &row.callee)?;
+        let callee = callee(module, id, invocation, row)?;
         let actuals = scalar_actuals(&row.actuals);
         let erased = callable_erased_actuals(module, lowered, callee, id, invocation, row.site)?;
         let ensures = module.callable_ensures(callee).ok_or_else(|| {
@@ -1155,11 +1149,11 @@ pub(crate) fn callee(
     module: &TerminalModule,
     machine: MachineId,
     invocation: terminal_check_tables::InvocationId,
-    callee: &Callee,
+    row: &terminal_check_tables::edges::InvocationRow,
 ) -> Checked<semantic_vocabulary::TargetMachineCallable> {
     let concerns = Construct::Invocation(invocation);
     let unavailable = |detail| refusal(RefusalReason::Unsupported, machine, concerns, detail);
-    let Callee::Declared(callee) = *callee else {
+    let Callee::Declared(callee) = row.callee else {
         return Err(unavailable("call through a selector value"));
     };
     match callee {
@@ -1177,11 +1171,39 @@ pub(crate) fn callee(
             })?;
             if declaration.declaration.is_none()
                 || declaration.role != terminal_psi::BoundaryDeclarationRole::Callable
-                || declaration.completion != semantic_vocabulary::BoundaryCompletion::NormalReturn
             {
                 return Err(unavailable(
                     "boundary call has no supported exact callable contract",
                 ));
+            }
+            // A declaration and its call site state one completion
+            // (calls_and_outcomes.md: "an explicit closed external
+            // completion kind and no normal result. Its invocation is a
+            // terminal transfer ... with no normal successor"): a
+            // requirement that completes externally is called only as a
+            // terminator, one that returns only as an operation. Nothing
+            // downstream may read an exit as a call that returns.
+            let returns = matches!(row.site, InvocationSite::Operation(_));
+            let external = matches!(row.site, InvocationSite::ExternalCompletion(_));
+            match declaration.completion {
+                semantic_vocabulary::BoundaryCompletion::NormalReturn if returns => {}
+                semantic_vocabulary::BoundaryCompletion::External(_) if external => {
+                    // process_exit.md: the canonical operation "permits no
+                    // source crash".
+                    if !declaration.crash_routes.is_empty() {
+                        return Err(unavailable(
+                            "external completion that declares a crash route",
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(refusal(
+                        RefusalReason::ForeignIdentity,
+                        machine,
+                        concerns,
+                        "boundary call site does not match its declaration's completion",
+                    ));
+                }
             }
             if declaration.declaration.as_ref().is_some_and(|checked| {
                 checked.source.published_may_suspend || checked.source.published_may_block
@@ -1718,7 +1740,7 @@ fn stated_goal(
                 id,
                 Construct::Invocation(invocation),
             )?;
-            let callee = callee(module, id, invocation, &row.callee)?;
+            let callee = callee(module, id, invocation, row)?;
             let erased =
                 callable_erased_actuals(module, lowered, callee, id, invocation, row.site)?;
             let clauses = module.callable_requires(callee).ok_or_else(|| {
@@ -1770,21 +1792,13 @@ fn stated_goal(
                     site,
                     concerns,
                 )?),
-                InvocationSite::InvokeNoNormal(_) => {
+                InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => {
                     let actuals = scalar_actuals(&row.actuals);
                     over_actuals(&mut ScalarActuals {
                         actuals: &actuals,
                         result: None,
                         tables,
                     })
-                }
-                _ => {
-                    return Err(refusal(
-                        RefusalReason::Unsupported,
-                        id,
-                        Construct::Invocation(invocation),
-                        "invocation outside a direct call",
-                    ));
                 }
             }
             .map_err(|unbound| unbound.refusal(id, concerns))

@@ -245,7 +245,7 @@ impl Minted<'_> {
                 "an invocation row's actuals are not the call's arguments",
             ));
         }
-        let callee = crate::callee(self.module, self.machine, invocation, &row.callee)?;
+        let callee = crate::callee(self.module, self.machine, invocation, row)?;
         if !inputs.claim_transfers.is_empty() || !inputs.completion_receipts.is_empty() {
             return Err(refusal(
                 RefusalReason::Unsupported,
@@ -431,13 +431,8 @@ pub(crate) fn follow_the_lowered_form(
                 }
             }
         }
-        if let Some(inputs) = block.terminator.module_invocation() {
-            minted.call(
-                InvocationSite::InvokeNoNormal(block.terminator.edge()),
-                inputs.declared(),
-                before,
-                Construct::Block(block.id),
-            )?;
+        if let Some((site, inputs)) = block.terminator.declared_invocation() {
+            minted.call(site, inputs, before, Construct::Block(block.id))?;
         }
         // A crashing terminator owes coverage at the point before it: its one
         // cause, or each cause among a no-normal call's continuations. An
