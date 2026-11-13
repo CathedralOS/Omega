@@ -531,6 +531,22 @@ mod native {
             &self.optimization_input
         }
 
+        /// Attaches seals that name exactly the module this input was
+        /// lowered from, as `lower_module_with_evidence` does for a module
+        /// lowered on its own: the product's application is lowered from
+        /// the artifact in memory, so its seals are still beside it.
+        pub fn attach_evidence(
+            &mut self,
+            evidence: terminal_codec::EvidenceSeals,
+        ) -> Result<(), &'static str> {
+            if self.optimization_input.plan().psi != evidence.module {
+                return Err("the evidence seals name a different module than the one lowered");
+            }
+            self.optimization_input
+                .attach_in_memory_evidence(evidence.seals);
+            Ok(())
+        }
+
         pub fn access_view_establishments(&self) -> &[TerminalAccessViewEstablishment] {
             &self.access_view_establishments
         }

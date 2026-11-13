@@ -10,16 +10,19 @@
 // the entry contract:
 //
 // - The route accepts and the current checker accepts: the program builds.
+//   Its application is the module the route published, with its evidence
+//   seals, whenever that module publishes (`RouteScope::judge`); provider
+//   selection, calling policies and the Build's companions still read the
+//   current checker's program.
 // - The route rejects: the compilation fails with the route's diagnostics,
 //   whatever the current checker said about the rest. When the current
 //   checker rejects too, its diagnostics follow the route's.
 // - The route accepts and the current checker rejects, every rejection lying
 //   outside the Build program and the entry contract: the program is valid,
-//   but no product can be built for it yet. Terminal Psi and native
-//   production run on the current checker's output, which a rejection never
-//   produces, and the route's own Terminal module has no production path. The
-//   compilation fails with an error that says so, with the current checker's
-//   diagnostics after it.
+//   but no product can be built for it yet. Provider selection and target
+//   preparation run on the current checker's output, which a rejection never
+//   produces. The compilation fails with an error that says so, with the
+//   current checker's diagnostics after it.
 //
 // The current checker's verdict stands instead when the route does not
 // serve some construct of the closure (`RouteVerdict::FallBack`, the
@@ -65,21 +68,42 @@ impl RouteScope<'_> {
     /// it, and the machines stage 04 generated for the program's own
     /// applications are judged as closed machines of the closure. The route
     /// decides only when it decides every one of them.
-    pub(super) fn judge(&self, typed: &typed_trees::TypedTrees) -> RouteJudgment {
-        RouteJudgment::all(
-            lowered_discharge::judge_compilation(
-                typed,
-                structure_elaboration::Compilation {
-                    entries: self.entries,
-                    subject: self.subject,
-                    selected: self.selected,
-                    bindings: self.bindings,
-                },
-            )
-            .into_iter()
-            .map(RouteJudgment::of)
-            .collect(),
-        )
+    ///
+    /// Beside the judgment comes the program the route published, when it
+    /// accepted the whole compilation and its module publishes
+    /// (`AcceptedClosure::publish`). The first verdict is the closure of the
+    /// compilation's roots, which is the program; the others are generic
+    /// check forms, which are never programs. A module that does not publish
+    /// yet (a machine with no declaration identity) yields none, and the
+    /// product is then built from the current checker's output.
+    pub(super) fn judge(
+        &self,
+        typed: &typed_trees::TypedTrees,
+    ) -> (
+        RouteJudgment,
+        Option<compilation_products::RouteTerminalProgram>,
+    ) {
+        let verdicts = lowered_discharge::judge_compilation(
+            typed,
+            structure_elaboration::Compilation {
+                entries: self.entries,
+                subject: self.subject,
+                selected: self.selected,
+                bindings: self.bindings,
+            },
+        );
+        let published = match verdicts.first() {
+            Some(Ok(RouteVerdict::Accepted(closure))) => closure.publish().ok(),
+            _ => None,
+        };
+        let judgment = RouteJudgment::all(verdicts.into_iter().map(RouteJudgment::of).collect());
+        let published = published
+            .filter(|_| matches!(judgment, RouteJudgment::Accepted))
+            .map(|publication| compilation_products::RouteTerminalProgram {
+                artifact: std::sync::Arc::new(publication.artifact),
+                seals: publication.seals,
+            });
+        (judgment, published)
     }
 }
 
@@ -206,9 +230,8 @@ pub(super) fn govern<T>(
                 "{NO_PRODUCT_ROUTE}: the checker on the lowered form accepts this program, and \
                  its verdict governs this compilation because every rejection below lies \
                  outside the Build program and the target's entry contract; no product can be \
-                 built for it, because Terminal Psi and native production run on the current \
-                 checker's output and the lowered form's own module has no production path; the \
-                 current checker's diagnostics follow"
+                 built for it, because provider selection and target preparation still run on \
+                 the current checker's output; the current checker's diagnostics follow"
             )));
             reported.extend(rejection);
             reported
@@ -282,7 +305,7 @@ mod tests {
         );
     }
 
-    /// Both accept: the program builds from the current checker's output.
+    /// Both accept: the program builds.
     #[test]
     fn both_accepting_builds() {
         assert!(govern(Ok(()), Some(RouteJudgment::Accepted), &NONE).is_ok());

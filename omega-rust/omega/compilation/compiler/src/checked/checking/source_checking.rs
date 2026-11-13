@@ -224,6 +224,7 @@ pub(crate) fn check_product_source(
     };
     let mut judged = None;
     let mut route = None;
+    let mut route_program = None;
     let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
         let started = std::time::Instant::now();
         // The checker on the lowered form judges the same trees Psi 05 is
@@ -240,7 +241,9 @@ pub(crate) fn check_product_source(
             checked_slices: None,
         }
         .check_inspecting_typed_frontier(&mut |trees| {
-            route = Some(route_scope.judge(trees));
+            let (judgment, published) = route_scope.judge(trees);
+            route = Some(judgment);
+            route_program = published;
             if keep {
                 judged = Some(trees.clone());
             }
@@ -301,13 +304,16 @@ pub(crate) fn check_product_source(
         Arc::clone(&program),
         sources.exact_toolchain_sources(),
     ));
-    let terminal_publication = Arc::new(compilation_products::ProductTerminalPublication::new(
-        rollback
-            .settle(&computed_build_config.config.settings.optimizations)
-            .effective()
-            .clone(),
-        selections.portable_productions(),
-    ));
+    let terminal_publication = Arc::new(
+        compilation_products::ProductTerminalPublication::new(
+            rollback
+                .settle(&computed_build_config.config.settings.optimizations)
+                .effective()
+                .clone(),
+            selections.portable_productions(),
+        )
+        .with_route(route_program),
+    );
     let native_bindings = Arc::new(
         provider_planning::native_bindings::PreparedNativeBuildBindings::capture(
             provider_inventory

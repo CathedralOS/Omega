@@ -455,13 +455,28 @@ pub(crate) fn produce_retained_terminal_artifacts(
                 Ok(program) => {
                     for (application, custody) in cohort.into_iter().zip(applications) {
                         let mut timings = std::mem::take(application.request.view.timings);
-                        let produced = program
-                            .attach_application(&custody, &mut PsiStageTimings::new(&mut timings));
+                        // The application is attached to the program the
+                        // lowered-form route published when there is one:
+                        // the entry receipt, the composition roots and the
+                        // target's provider proposals are all taken from
+                        // that artifact, and its seals go with it.
+                        let route = application.request.view.publication.route();
+                        let artifact = route.map_or(program.artifact(), |route| &route.artifact);
+                        let produced = match route {
+                            Some(route) => custody.attach_published(
+                                &route.artifact,
+                                &mut PsiStageTimings::new(&mut timings),
+                            ),
+                            None => program.attach_application(
+                                &custody,
+                                &mut PsiStageTimings::new(&mut timings),
+                            ),
+                        };
                         *application.request.view.timings = timings;
                         let outcome = produced.and_then(|produced| {
                             if let Some(policy) = &application.policy {
                                 policy.admit(
-                                    program.artifact().semantic_module(),
+                                    artifact.semantic_module(),
                                     &mut produced.roots.into_iter(),
                                 )?;
                             }
@@ -478,14 +493,15 @@ pub(crate) fn produce_retained_terminal_artifacts(
                                     .and_then(|entry| entry.physical_adapter())
                                     .is_some(),
                                 provider_proposals: application.provider_publication.publish(
-                                    program.artifact().view(),
+                                    artifact.view(),
                                     application.request.selections.identity(),
                                     &realization_scopes,
                                     &application.request.view.callback_declarations.identities,
                                     &application.request.view.callback_declarations.callbacks,
                                     &application.request.view.callback_calling_requirements,
                                 ),
-                                artifact: Arc::clone(program.artifact()),
+                                artifact: Arc::clone(artifact),
+                                evidence: route.map(|route| route.seals.clone()),
                                 receipt,
                             }))
                         });

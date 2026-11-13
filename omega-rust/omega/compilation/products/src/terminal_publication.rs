@@ -13,6 +13,18 @@ pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
     productions: Arc<psi_compiler::PortableProductions>,
+    route: Option<RouteTerminalProgram>,
+}
+
+/// The application's program as the checker on the lowered form published
+/// it: the canonical artifact of exactly the module that checker judged, and
+/// the evidence seals bound to that module's identity
+/// (`lowered_discharge::AcceptedClosure::publish`). The seals exist only in
+/// memory beside this artifact and travel with it to Omega 00.
+#[derive(Debug, Clone)]
+pub struct RouteTerminalProgram {
+    pub artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
+    pub seals: terminal_codec::EvidenceSeals,
 }
 
 impl std::fmt::Debug for ProductTerminalPublication {
@@ -21,6 +33,7 @@ impl std::fmt::Debug for ProductTerminalPublication {
             .debug_struct("ProductTerminalPublication")
             .field("optimizations", &self.optimizations)
             .field("published", &self.program.get().map(Result::is_ok))
+            .field("route", &self.route.is_some())
             .finish()
     }
 }
@@ -34,7 +47,21 @@ impl ProductTerminalPublication {
             optimizations,
             program: OnceLock::new(),
             productions,
+            route: None,
         }
+    }
+
+    /// The same publication with the application's program taken from the
+    /// lowered-form route. An executable application is then attached to
+    /// that artifact; the shared program above still serves every other
+    /// reader of published code.
+    pub fn with_route(mut self, route: Option<RouteTerminalProgram>) -> Self {
+        self.route = route;
+        self
+    }
+
+    pub fn route(&self) -> Option<&RouteTerminalProgram> {
+        self.route.as_ref()
     }
 
     // The same portable productions published for a different root

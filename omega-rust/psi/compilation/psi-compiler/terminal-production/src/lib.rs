@@ -637,6 +637,25 @@ pub(crate) mod composition_roots {
             }
         }
 
+        /// Attaches this application to a canonical artifact published
+        /// without this crate's production: the lowered-form route's own
+        /// module (`lowered_discharge::AcceptedClosure::publish`). The entry
+        /// receipt and the composition roots are resolved on that artifact
+        /// exactly as on a produced program; it carries no machine
+        /// provenance, so a root is named by its declaration alone.
+        pub fn attach_published(
+            &self,
+            artifact: &terminal_codec::CanonicalTerminalArtifact,
+            observer: &mut impl PsiCompilationObserver,
+        ) -> Result<ProducedTerminalApplication, Vec<Diagnostic>> {
+            self.attach(
+                artifact.view().into(),
+                Ok(artifact),
+                &TerminalMachineProvenance::default(),
+                observer,
+            )
+        }
+
         pub(crate) fn attach(
             &self,
             view: terminal_codec::TerminalExecutionView<'_>,
