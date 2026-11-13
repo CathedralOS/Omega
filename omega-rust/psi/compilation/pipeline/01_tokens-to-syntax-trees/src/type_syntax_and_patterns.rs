@@ -274,8 +274,7 @@ pub(crate) mod patterns {
                     members: path,
                     application: path_application,
                 } => {
-                    if let Some((field, case_variant, component)) = path
-                        .application
+                    if let Some((field, case_variant, component)) = path_application
                         .is_none()
                         .then(|| {
                             single_destructured_field_name(syntax_trees, path.to_owned(), fields)
