@@ -370,30 +370,35 @@ mod tests {
             state::State,
         };
         let mut symbols = symbols::SymbolTableBuilder::default();
-        let caller = symbols.insert_root(
-            SymbolKind::Machine,
-            symbols::SymbolNameRef::Static("caller"),
+        let root = symbols.insert_root(SymbolKind::Root, symbols::SymbolNameRef::Static("root"));
+        let machines = symbols.insert_children(
+            root,
+            [
+                (
+                    SymbolKind::Machine,
+                    symbols::SymbolNameRef::Static("caller"),
+                ),
+                (
+                    SymbolKind::Machine,
+                    symbols::SymbolNameRef::Static("callee"),
+                ),
+            ],
         );
-        let callee = symbols.insert_root(
-            SymbolKind::Machine,
-            symbols::SymbolNameRef::Static("callee"),
+        let caller = machines.handle_at(0);
+        let callee = machines.handle_at(1);
+        let caller_children = symbols.insert_children(
+            caller,
+            [
+                (SymbolKind::State, symbols::SymbolNameRef::Static("entry")),
+                (SymbolKind::Local, symbols::SymbolNameRef::Static("context")),
+            ],
         );
-        let state = symbols
-            .insert_children(
-                caller,
-                [(SymbolKind::State, symbols::SymbolNameRef::Static("entry"))],
-            )
-            .handle_at(0);
+        let state = caller_children.handle_at(0);
+        let receiver = caller_children.handle_at(1);
         let target_state = symbols
             .insert_children(
                 callee,
                 [(SymbolKind::State, symbols::SymbolNameRef::Static("entry"))],
-            )
-            .handle_at(0);
-        let receiver = symbols
-            .insert_children(
-                caller,
-                [(SymbolKind::Local, symbols::SymbolNameRef::Static("context"))],
             )
             .handle_at(0);
         let mut program = TypedTrees {
