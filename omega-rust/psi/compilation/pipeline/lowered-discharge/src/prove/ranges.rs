@@ -509,3 +509,122 @@ impl Prover<'_> {
         self.land(mathematical, term, limit, direction)
     }
 }
+
+impl Prover<'_> {
+    /// A bound on `output == dividend % divisor` whose divisor is a value
+    /// its own bounds fix to one literal (`divisor >= 16 && divisor <= 16`)
+    /// that no earlier result equation states, so `chain_step` has no
+    /// landing for it. The kernel bounds the remainder by that literal
+    /// spelled in place (`dividend % 16`), and the bound is carried onto the
+    /// output through its result equation and the proved `divisor == 16`
+    /// (`ValueEqualityTransport`). `None` unless the kernel's own
+    /// denotation of the conclusion is that image.
+    pub(super) fn remainder_by_fixed_divisor(
+        &mut self,
+        axiom: usize,
+        output: &ScalarTerm,
+        expression: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<Bound> {
+        let ScalarTerm::ExactIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+        } = expression
+        else {
+            return None;
+        };
+        let (dividend, divisor) = (left.as_ref(), right.as_ref());
+        let ScalarTerm::Value { id: divisor_id, .. } = divisor else {
+            return None;
+        };
+        if !matches!(dividend, ScalarTerm::Value { .. }) || divisor == output {
+            return None;
+        }
+        let lower = self.bound(*divisor_id, Direction::Lower)?;
+        let upper = self.bound(*divisor_id, Direction::Upper)?;
+        if scalar_type.compare(lower.literal, upper.literal) != Some(Ordering::Equal) {
+            return None;
+        }
+        let literal = ScalarTerm::integer(*scalar_type, lower.literal).ok()?;
+        let fixed = node(
+            Proposition::Equal(divisor.clone(), literal.clone()),
+            ProofRule::IntegerOrderAntisymmetry {
+                forward: Box::new(upper.proof),
+                backward: Box::new(lower.proof),
+            },
+        );
+        let target =
+            ScalarTerm::exact_integer_remainder(*scalar_type, dividend.clone(), literal).ok()?;
+        let witness = IntegerAffineWitness {
+            root: dividend.clone(),
+            target: target.clone(),
+            definition_axioms: Vec::new(),
+            literal_axioms: Vec::new(),
+        };
+        let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
+        let equation = node(
+            self.axioms.get(axiom)?.clone(),
+            ProofRule::SemanticAxiom { index: axiom },
+        );
+        let mut best: Option<Bound> = None;
+        for root_direction in [Direction::Upper, Direction::Lower] {
+            let Ok(root_bound) = self.evidence(dividend, root_direction) else {
+                continue;
+            };
+            let Ok(image) = map_integer_affine_bound(&form, &root_bound.conclusion) else {
+                continue;
+            };
+            let found = match (&image, direction) {
+                (Proposition::LessOrEqual(left, right), Direction::Upper) if left == &target => {
+                    right.integer_value()
+                }
+                (Proposition::LessOrEqual(left, right), Direction::Lower) if right == &target => {
+                    left.integer_value()
+                }
+                _ => None,
+            };
+            let Some((_, found)) = found else {
+                continue;
+            };
+            let Ok(found_term) = ScalarTerm::integer(*scalar_type, found) else {
+                continue;
+            };
+            let conclusion = Self::oriented(output, found_term, direction);
+            let denotes = proof_admission::check_value_equality_denotation(
+                self.context,
+                &conclusion,
+                [&equation.conclusion, &fixed.conclusion],
+            );
+            if denotes.as_ref() != Ok(&image) {
+                continue;
+            }
+            let better = best.as_ref().is_none_or(|best| {
+                matches!(
+                    (scalar_type.compare(found, best.literal), direction),
+                    (Some(Ordering::Less), Direction::Upper)
+                        | (Some(Ordering::Greater), Direction::Lower)
+                )
+            });
+            if better {
+                best = Some(Bound {
+                    literal: found,
+                    proof: node(
+                        conclusion,
+                        ProofRule::ValueEqualityTransport {
+                            premise: Box::new(node(
+                                image,
+                                ProofRule::IntegerAffineBound {
+                                    root_bound: Box::new(root_bound),
+                                    witness: witness.clone(),
+                                },
+                            )),
+                            equalities: vec![equation.clone(), fixed.clone()],
+                        },
+                    ),
+                });
+            }
+        }
+        best
+    }
+}

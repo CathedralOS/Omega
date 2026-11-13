@@ -24,6 +24,7 @@ use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
 mod entry_inputs;
 mod guard_contradiction;
+mod inferred_bounds;
 mod mutable_formals;
 mod ranges;
 mod references;

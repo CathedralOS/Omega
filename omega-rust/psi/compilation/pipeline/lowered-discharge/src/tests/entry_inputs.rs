@@ -183,3 +183,73 @@ fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
     };
     assert!(!verdicts(&accepted.elaboration, &accepted.discharge, 1, requirement).is_empty());
 }
+
+#[test]
+fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
+    // The helper computes `value - 1` and returns no value, so its call is
+    // the Unit-result call operation, which owes the inferred input too.
+    let mut bodies = IdTable::default();
+    bodies.push(Body {
+        slots: vec![u32_type().into()],
+        statements: vec![Statement::Evaluate(expression(
+            ExpressionKind::Call {
+                callee: id(2),
+                arguments: vec![slot(0, u32_type())],
+            },
+            None,
+        ))],
+    });
+    bodies.push(Body {
+        slots: vec![u32_type().into()],
+        statements: vec![Statement::Evaluate(strict(
+            Strict::Subtract,
+            slot(0, u32_type()),
+            unsigned(1),
+        ))],
+    });
+    let signatures = |entry_requires: Vec<Proposition>| {
+        let mut signatures = IdTable::default();
+        for requires in [entry_requires, Vec::new()] {
+            signatures.push(Signature {
+                parameters: vec![u32_type().into()],
+                erased: Vec::new(),
+                borrowed: Vec::new(),
+                result: None,
+                requires,
+                ensures: Vec::new(),
+                crashes: CrashCeiling::Authored(Vec::new()),
+                termination: Termination::Silent,
+            });
+        }
+        signatures
+    };
+    let judged = |entry_requires| {
+        let mut elaboration = structure_elaboration::lower_bodies(
+            id(1),
+            &bodies,
+            &signatures(entry_requires),
+            &IdTable::default(),
+        )
+        .unwrap();
+        elaboration.private_inputs = vec![id(2)];
+        judge(Ok(elaboration)).unwrap()
+    };
+    let RouteVerdict::Accepted(accepted) = judged(vec![at_least(1, 1)]) else {
+        panic!("the caller's positive input reaches the helper")
+    };
+    assert_eq!(
+        accepted.elaboration.module.machines[1]
+            .contract
+            .requires
+            .len(),
+        1
+    );
+    let RouteVerdict::Rejected { unproved, .. } = judged(Vec::new()) else {
+        panic!("nothing makes the helper's input positive")
+    };
+    assert!(
+        unproved
+            .iter()
+            .any(|row| row.machine == id(2) && safety(&row.kind))
+    );
+}
