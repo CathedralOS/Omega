@@ -28,16 +28,11 @@ dependencies = [
  "provider-admission",
  "psi-work",
  "semantic-vocabulary",
- "source-files-to-tokens",
  "structure-elaboration",
- "symbol-resolved-trees-to-typed-trees",
- "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-psi",
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
- "tokens-to-syntax-trees",
- "typed-trees-to-typed-trees",
  "verified-optimization-input",
 ]
 
