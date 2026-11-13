@@ -194,9 +194,7 @@ pub mod provider_declarations {
             self.graph
                 .names
                 .iter()
-                .filter(|(_, name)| {
-                    name.builtin_type.is_none() && name.builtin_function.is_none()
-                })
+                .filter(|(_, name)| name.builtin_type.is_none() && name.builtin_function.is_none())
                 .filter_map(|(_, name)| name.declaration)
         }
     }
