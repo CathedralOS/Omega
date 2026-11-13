@@ -505,3 +505,10 @@ own to defend. Say what you saw, not what you would build.
 - Saw: Psi 02 still requires every scalar constant to be a literal and says richer initializers "arrive with build-time evaluation", but that evaluation (about 36,000 lines) left with the old checker; `source/library/std/targets/uefi_x86_64/handoff.omg:29` (`const A: u64 = B;`) therefore stops every compilation that loads `std`, and Psi 04 accepts only an empty program
 - Cost: no source program reaches the lowered-form checker, so no work on the checker can be verified from source until constants have an evaluator and Psi 04 passes a nonempty program through
 - Reported: 2026-11-13, Claude Code, while restoring source activation for the route probe
+
+### An `invokes` row that names an ordinary trait is dropped without a word
+- Category: a verdict with nothing behind it
+- Where: `typed-trees/src/declarations.rs` (`declared_targets`); `lowered-discharge/src/refinement.rs` (`prove_callable_refinement`)
+- Saw: `declared_targets` keeps an `invokes` target only when it is a boundary trait or a parameter of boundary type and silently discards any other, so `invokes Handler` over an ordinary trait reads as no clause at all to every consumer of `declared_machine_invocations`; separately, `prove_callable_refinement` has no caller outside its own tests, so the reach and entry containment it guards is never asked of a real conformance
+- Cost: a written entry ceiling can vanish before any checker sees it, and a supplied implementation outside its requirement's ceilings is not refused anywhere in a compile until that operation is wired
+- Reported: 2026-11-13, Claude Code, while putting `invokes` on the lowered-form checker

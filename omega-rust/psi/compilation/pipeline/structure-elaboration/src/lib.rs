@@ -56,7 +56,7 @@ mod proof_scope;
 mod read;
 
 pub use body::{
-    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, Policy, ReachCeiling,
+    Axis, Body, Borrowed, CaseType, Ceiling, CrashCeiling, Expression, ExpressionKind, Policy,
     RecordField, RecordType, Signature, Statement, StorageShape, Strict, Target, Termination,
     ValueType, self_place,
 };
@@ -907,7 +907,8 @@ mod publication_scope_tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
-            reaches: crate::ReachCeiling::Inferred,
+            reaches: crate::Ceiling::Inferred,
+            invokes: crate::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });

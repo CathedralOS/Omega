@@ -1855,6 +1855,7 @@ pub(crate) mod declaration_foundations {
         }
         require_known_services(module, &boundary.published_service_ceiling)?;
         require_known_services(module, &boundary.fixed_service_reach)?;
+        require_known_services(module, &boundary.published_synchronous_entries)?;
         validate_boundary_scalar_rows(boundary)?;
         if let Some(owner) = boundary.owning_service {
             if boundary.kind != terminal_psi::BoundaryRequirementKind::Trait {
@@ -2314,6 +2315,7 @@ pub(crate) mod machine_foundations {
         validate_block_parameter_places(machine)?;
         validate_provider_attachment_foundation(module, machine)?;
         require_known_services(module, &machine.published_service_ceiling)?;
+        require_known_services(module, &machine.published_synchronous_entries)?;
         validate_parameter_places(machine)?;
         validate_entry_claims(module, machine)?;
         validate_loan_completions(module, machine)?;
@@ -3880,6 +3882,7 @@ pub(crate) mod scalar_applications {
                 content_guarantees: Vec::new(),
                 fixed_service_reach: Vec::new(),
                 owning_service: None,
+                published_synchronous_entries: Vec::new(),
                 published_service_ceiling: Vec::new(),
             };
             module.boundary_machines.push(boundary);
@@ -11681,7 +11684,7 @@ fn require_known_services(
         .iter()
         .any(|service| !has_service(module, *service))
     {
-        return malformed("published service ceiling references an unknown service");
+        return malformed("published service row references an unknown service");
     }
     Ok(())
 }

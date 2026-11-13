@@ -53,6 +53,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 
 mod arrivals;
 mod callable_formations;
+mod ceilings;
 mod crashes;
 mod describe;
 mod entry_inputs;
@@ -65,13 +66,13 @@ mod prove;
 mod refinement;
 mod result_summaries;
 mod reuse;
-mod service_reach;
 mod verdict;
 
 pub use callable_formations::{
     CallableFormationCause, CallableFormationDefect, CallableFormationFailure,
     check_bound_callable_shapes,
 };
+pub use ceilings::Axis as CeilingAxis;
 pub use places::{ConflictingLoan, LoanConflict};
 pub use refinement::prove_callable_refinement;
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
@@ -1170,7 +1171,7 @@ pub(crate) fn callee(
                 ));
             }
             // What the requirement may reach is charged to this caller
-            // where every call is (`service_reach`).
+            // where every call is (`ceilings`).
         }
     }
     Ok(callee)

@@ -230,7 +230,8 @@ mod tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
-            reaches: structure_elaboration::ReachCeiling::Inferred,
+            reaches: structure_elaboration::Ceiling::Inferred,
+            invokes: structure_elaboration::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });

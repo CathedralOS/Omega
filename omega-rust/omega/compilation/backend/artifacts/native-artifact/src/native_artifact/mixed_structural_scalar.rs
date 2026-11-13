@@ -110,6 +110,7 @@ mod tests {
         let machine = TerminalMachine {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             closed_reach_application: None,
+            published_synchronous_entries: Vec::new(),
             declared_service_reach: Vec::new(),
             id: MachineId::new(1).expect("machine"),
             attachment: None,

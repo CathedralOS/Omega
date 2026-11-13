@@ -512,9 +512,6 @@ impl<'t> Program<'t> {
         {
             return unserved("type equations, owned data or conformances");
         }
-        if !machine.invokes.is_empty() {
-            return unserved("invokes");
-        }
         Ok(())
     }
 
@@ -624,6 +621,7 @@ impl<'t> Program<'t> {
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
         signature.reaches = self.reach_ceiling(id, machine.symbol)?;
+        signature.invokes = self.entry_ceiling(id, self.typed.machine_invokes(machine), false)?;
         // Diagnostics name the declaration the author wrote, not a clone
         // stage 04 generated from it.
         let authored = crate::template_of(self.typed, symbol)
@@ -712,9 +710,6 @@ impl<'t> Program<'t> {
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
         }
-        if !requirement.invokes.is_empty() {
-            return unserved("invokes");
-        }
         if requirement.service_reach_is_installation_bound
             || self
                 .typed
@@ -726,7 +721,7 @@ impl<'t> Program<'t> {
         if requirement.suspends || requirement.blocks {
             return unserved("suspends or blocks");
         }
-        let (signature, mut names) = self.contract(
+        let (mut signature, mut names) = self.contract(
             id,
             requirement.symbol,
             requirement.parameters,
@@ -738,6 +733,8 @@ impl<'t> Program<'t> {
             &[],
             &bound,
         )?;
+        signature.invokes =
+            self.entry_ceiling(id, self.typed.state_signature_invokes(requirement), true)?;
         names.machine = requirement.name.as_str().to_owned();
         Ok((signature, names))
     }
@@ -1007,6 +1004,10 @@ impl<'t> Program<'t> {
                 requires,
                 ensures,
                 reaches,
+                // The declaration's own reader states this axis: a machine
+                // and a requirement keep their `invokes` rows in different
+                // tables and read omission differently.
+                invokes: crate::Ceiling::Inferred,
                 crashes,
                 // A requirement's termination is its selected member's to
                 // keep; a machine's is read from its plan by its caller.
