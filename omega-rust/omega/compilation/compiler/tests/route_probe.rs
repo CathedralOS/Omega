@@ -563,3 +563,25 @@ fn a_call_that_never_returns_may_not_be_lent_one_place_twice() {
         ["rejected"]
     );
 }
+
+/// A machine that declares a lifetime is one machine, judged once
+/// (`wiki/spec/language/lifetimes.md`: "Lifetime arguments are erased
+/// regions"): it may return the view it was given for the lifetime its
+/// result names, and a call gives that lifetime the region of the view it
+/// passes. The twin returns the view of the other lifetime ("A signature
+/// does not authorize returning unrelated storage") and is not accepted.
+#[test]
+fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
+    let program = |returned: &str| {
+        format!(
+            "machine pick<'a, 'b>(view: &'a [u8], other: &'b [u8]) -> &'a [u8] {{ {returned} }}\n\
+             machine relay(name: &[u8], second: &[u8]) {{ let kept: &[u8] = pick(name, second); }}\n\
+             machine main() {{ }}\n"
+        )
+    };
+    assert_eq!(verdicts("lifetime_view", &program("view")), ["accepted"]);
+    assert_eq!(
+        verdicts("lifetime_other_view", &program("other")),
+        ["not-supported"]
+    );
+}

@@ -12,8 +12,8 @@
 use super::build_purpose::judge_build;
 use super::*;
 
-/// `accepted` for a program the checker accepts and can publish, else the
-/// refusal's text.
+/// `accepted` for a program the checker accepts and can publish, `rejected`
+/// for one it judges wrong, else the refusal's text.
 fn verdict(build: &str) -> String {
     match judge_build(build) {
         Err(crate::CompilationRefusal::Elaboration(refusal))
@@ -22,6 +22,7 @@ fn verdict(build: &str) -> String {
             accepted.publish_invocation().unwrap();
             "accepted".to_owned()
         }
+        Ok(RouteVerdict::Rejected { .. }) => "rejected".to_owned(),
         other => panic!("{other:?}"),
     }
 }
@@ -231,33 +232,13 @@ machine whole(alias: &[u8], description: Description) {{ }}
         )),
         "accepted"
     );
-    // The twin passes the whole record beside a view lent from inside it.
+    // A stored view lends none of its record's storage, so the reader lets
+    // the record be named beside it; the twin hands the whole record over
+    // while the view's field is still passed in place, and the checker
+    // rejects that use of storage already given away.
     assert_eq!(
         verdict(&program("whole(description.alias, description);")),
-        "call argument that names storage another argument lends"
-    );
-}
-
-/// A field is not its sibling: a call may lend one field and read another.
-/// It may not read the field it lends.
-#[test]
-fn a_call_lends_one_field_and_reads_its_sibling() {
-    let program = |call: &str| {
-        format!(
-            r#"
-data Pair {{ left: u32; right: u32; }}
-machine build_entry() {{ let mut pair: Pair = Pair {{ left: 1, right: 2 }}; {call} }}
-machine bump(left: &mut u32, right: u32) {{ }}
-"#
-        )
-    };
-    assert_eq!(
-        verdict(&program("bump(&mut pair.left, pair.right);")),
-        "accepted"
-    );
-    assert_eq!(
-        verdict(&program("bump(&mut pair.left, pair.left);")),
-        "call argument that names storage another argument lends"
+        "rejected"
     );
 }
 

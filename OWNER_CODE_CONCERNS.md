@@ -67,6 +67,20 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### Data applied at a lifetime is one record whose stored views name only the data's own binders
+- Category: a verdict with nothing behind it
+- Where: `structure-elaboration/src/read/types.rs` (`value_type`, the `Inner<'a>` arm), `read/places.rs` (`lifetime_binders`, `declared_field`), `read/bytes.rs` (`byte_view_type`)
+- Saw: `Session<'a>` and bare `Session` are the same `ValueType::Record`, and the field `name: &'storage [u8]` has the type "view of `Session`'s `'storage`" in every value. So `long.name = short.name` between two `Session` values is accepted without anything relating the regions the two were applied at, and `with_alias<'s>(d: &mut Description<'s>, alias: &'s [u8]) { d.alias = alias; }` is refused as a type mismatch because the lifetime argument relates nothing. It is safe today only because a view of a formal's region can never enter a record at all
+- Cost: the toolchain's own `dependency::with_alias` cannot be judged, and the first slice that lets a formal's view into a record (or forms a view of local storage) inherits an unchecked exchange between records of different regions. The type of a record value needs its lifetime arguments
+- Reported: 2026-11-13, Claude Code, while reading machines with lifetime parameters
+
+### Every view written without a lifetime is one type in every machine
+- Category: a verdict with nothing behind it
+- Where: `typed-trees/src/type_identity.rs` (`RegionForm::Elided`, no owner and no position); `structure-elaboration/src/read/bytes.rs` (`source_byte_view`), `read/calls.rs` (`view_regions`)
+- Saw: `&[u8]` renders one identity wherever it is written, so two formals without a lifetime have the same type and `pick(a: &[u8], b: &[u8]) -> &[u8] { b }` is accepted as a declaration, though lifetimes.md says "Ambiguous elision requires an explicit relation". The call is what refuses it, and only when the two views passed are of different regions
+- Cost: the elision rule has no owner at the declaration; a reader of the callee alone cannot tell which input the result is related to, and the diagnostic lands on a caller
+- Reported: 2026-11-13, Claude Code, while giving a call's lifetimes the regions of the views it passes
+
 ### A clause the specification rejects can only be reported as not supported yet
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/psi/compilation/representations/terminal-psi/check-tables/src/lib.rs` (`RefusalReason`); `structure-elaboration/src/read/contracts.rs` (`term`, the `Trapping` arm)

@@ -602,8 +602,7 @@ impl<'t> Program<'t> {
         // Each refusal says which rule the parameters broke and names the
         // declaration: they are different constructs with different work
         // behind them, and one shared text sent a reader to the wrong one.
-        let unserved_parameters =
-            |what| Err(refuse_parameters(id, what, machine.name.as_str()));
+        let unserved_parameters = |what| Err(refuse_parameters(id, what, machine.name.as_str()));
         match reading {
             Reading::Closed if parameters.is_empty() => {}
             Reading::Closed => {

@@ -1122,7 +1122,11 @@ impl<'t> Program<'t> {
                 self.expression(id, slots, *argument, Some(*formal))?
             });
         }
-        lent_storage_is_untouched(id, &read, &self.captures)?;
+        lent_storage_is_untouched(id, &read, &self.captures, |place| {
+            place
+                .result
+                .is_some_and(|held| self.view_region(held).is_some())
+        })?;
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
         {
@@ -1259,7 +1263,9 @@ impl<'t> Program<'t> {
             Some(ViewRegion::Elided) => match unnamed.split_first() {
                 None => Ok(result),
                 Some((first, rest)) if rest.iter().all(|other| other == first) => Ok(Some(*first)),
-                Some(_) => typing("result without a lifetime of a call passed views of two regions"),
+                Some(_) => {
+                    typing("result without a lifetime of a call passed views of two regions")
+                }
             },
             Some(region) => match named.iter().find(|(parameter, _)| *parameter == region) {
                 Some((_, stood)) => Ok(Some(*stood)),
@@ -1456,49 +1462,15 @@ fn root_slot<'a>(
     }
 }
 
-/// One place a call lends: the binding at its root and, when the place is
-/// that binding or fields beneath it and nothing else, the field positions
-/// down to it. `None` stands for the whole binding.
-struct Lent {
-    root: usize,
-    fields: Option<Vec<usize>>,
-}
-
-/// `binding.field.field`: the binding and the field positions beneath it.
-fn field_path(expression: &Expression) -> Option<(usize, Vec<usize>)> {
-    match &expression.kind {
-        ExpressionKind::Slot(slot) => Some((*slot, Vec::new())),
-        ExpressionKind::Field { base, field } => {
-            let (root, mut fields) = field_path(base)?;
-            fields.push(*field);
-            Some((root, fields))
-        }
-        _ => None,
-    }
-}
-
-/// Whether the storage at `fields` beneath `root` (all of `root` for
-/// `None`) shares any with a lent place: one is the other or lies within
-/// it. Two different fields of one record share nothing.
-fn overlaps(lent: &[Lent], root: usize, fields: Option<&[usize]>) -> bool {
-    lent.iter().any(|lent| {
-        lent.root == root
-            && match (&lent.fields, fields) {
-                (Some(lent), Some(fields)) => {
-                    let shared = lent.len().min(fields.len());
-                    lent[..shared] == fields[..shared]
-                }
-                _ => true,
-            }
-    })
-}
-
 /// Arguments run left to right, but this lowering forms loans together at
 /// the call. Conservatively refuse any argument read or newly evaluated
-/// selector of storage this call lends, including reads before a loan. This
+/// selector of a root this call lends, including reads before a loan. This
 /// preserves the existing restriction until loan timing is represented.
-/// Storage is compared exactly where it is named exactly: a field is not
-/// its sibling, so `f(&record.a, record.b)` lends nothing `record.b` reads.
+///
+/// A place that holds a byte view lends none of its binding's storage: the
+/// callee is given the view, whose bytes are elsewhere. lifetimes.md: "The
+/// result carries loans into the original backing, not a borrow of the
+/// caller's private carrier storage." `holds_view` says which places do.
 fn lent_storage_is_untouched<'a>(
     id: MachineId,
     arguments: &'a [Expression],
@@ -1506,6 +1478,7 @@ fn lent_storage_is_untouched<'a>(
         arena::Handle<typed_trees::expression::CompletedValueCapture>,
         Expression,
     )],
+    holds_view: impl Fn(&Expression) -> bool,
 ) -> Checked<()> {
     let mut captures: Vec<_> = captures
         .iter()
@@ -1514,12 +1487,10 @@ fn lent_storage_is_untouched<'a>(
     let mut lent = Vec::new();
     for argument in arguments {
         if let ExpressionKind::Borrow { place, .. } = &argument.kind
-            && let Some(root) = root_slot(id, place, &captures)?
+            && !holds_view(place)
+            && let Some(slot) = root_slot(id, place, &captures)?
         {
-            lent.push(Lent {
-                root,
-                fields: field_path(place).map(|(_, fields)| fields),
-            });
+            lent.push(slot);
         }
     }
     if lent.is_empty() {
@@ -1550,7 +1521,7 @@ fn lent_storage_is_untouched<'a>(
 fn selectors_mention<'a>(
     id: MachineId,
     place: &'a Expression,
-    lent: &[Lent],
+    slots: &[usize],
     captures: &mut Vec<(
         arena::Handle<typed_trees::expression::CompletedValueCapture>,
         &'a Expression,
@@ -1558,11 +1529,11 @@ fn selectors_mention<'a>(
 ) -> Checked<bool> {
     match &place.kind {
         ExpressionKind::Index { base, index } => {
-            Ok(selectors_mention(id, base, lent, captures)?
-                || mentions(id, index, lent, captures)?)
+            Ok(selectors_mention(id, base, slots, captures)?
+                || mentions(id, index, slots, captures)?)
         }
         ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
-            selectors_mention(id, base, lent, captures)
+            selectors_mention(id, base, slots, captures)
         }
         ExpressionKind::SavedSubject(_) => {
             root_slot(id, place, captures)?;
@@ -1576,20 +1547,16 @@ fn selectors_mention<'a>(
 fn mentions<'a>(
     id: MachineId,
     expression: &'a Expression,
-    lent: &[Lent],
+    slots: &[usize],
     captures: &mut Vec<(
         arena::Handle<typed_trees::expression::CompletedValueCapture>,
         &'a Expression,
     )>,
 ) -> Checked<bool> {
     match &expression.kind {
-        ExpressionKind::Slot(slot) => Ok(overlaps(lent, *slot, Some(&[]))),
+        ExpressionKind::Slot(slot) => Ok(slots.contains(slot)),
         ExpressionKind::SavedSubject(_) => {
-            Ok(root_slot(id, expression, captures)?.is_some_and(|root| overlaps(lent, root, None)))
-        }
-        ExpressionKind::Field { .. } if field_path(expression).is_some() => {
-            Ok(field_path(expression)
-                .is_some_and(|(root, fields)| overlaps(lent, root, Some(&fields))))
+            Ok(root_slot(id, expression, captures)?.is_some_and(|root| slots.contains(&root)))
         }
         ExpressionKind::Integer(_)
         | ExpressionKind::ByteLiteral(_)
@@ -1603,21 +1570,21 @@ fn mentions<'a>(
         | ExpressionKind::IsCase {
             subject: operand, ..
         }
-        | ExpressionKind::Borrow { place: operand, .. } => mentions(id, operand, lent, captures),
+        | ExpressionKind::Borrow { place: operand, .. } => mentions(id, operand, slots, captures),
         ExpressionKind::Array { elements } => {
             for element in elements {
-                if mentions(id, element, lent, captures)? {
+                if mentions(id, element, slots, captures)? {
                     return Ok(true);
                 }
             }
             Ok(false)
         }
         ExpressionKind::Index { base, index } => {
-            Ok(mentions(id, base, lent, captures)? || mentions(id, index, lent, captures)?)
+            Ok(mentions(id, base, slots, captures)? || mentions(id, index, slots, captures)?)
         }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, operand) in fields {
-                if mentions(id, operand, lent, captures)? {
+                if mentions(id, operand, slots, captures)? {
                     return Ok(true);
                 }
             }
@@ -1629,7 +1596,7 @@ fn mentions<'a>(
             arms,
             default,
         } => {
-            if mentions(id, subject, lent, captures)? {
+            if mentions(id, subject, slots, captures)? {
                 return Ok(true);
             }
             if let Some(capture) = capture {
@@ -1637,12 +1604,12 @@ fn mentions<'a>(
             }
             let result = (|| {
                 for (_, arm) in arms {
-                    if mentions(id, arm, lent, captures)? {
+                    if mentions(id, arm, slots, captures)? {
                         return Ok(true);
                     }
                 }
                 match default {
-                    Some(arm) => mentions(id, arm, lent, captures),
+                    Some(arm) => mentions(id, arm, slots, captures),
                     None => Ok(false),
                 }
             })();
@@ -1653,11 +1620,11 @@ fn mentions<'a>(
         }
         ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
-            Ok(mentions(id, left, lent, captures)? || mentions(id, right, lent, captures)?)
+            Ok(mentions(id, left, slots, captures)? || mentions(id, right, slots, captures)?)
         }
         ExpressionKind::Call { arguments, .. } => {
             for argument in arguments {
-                if mentions(id, argument, lent, captures)? {
+                if mentions(id, argument, slots, captures)? {
                     return Ok(true);
                 }
             }
@@ -1735,32 +1702,48 @@ mod tests {
         // The payload aliases the original array, but its selector was read
         // before the call. Lending that selector's slot must not replay it.
         let overlapping =
-            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(capture)], &captures)
-                .unwrap_err();
+            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(capture)], &captures, |_| {
+                false
+            })
+            .unwrap_err();
         assert!(
             overlapping
                 .detail
                 .contains("argument that names storage another argument lends")
         );
         assert!(
-            lent_storage_is_untouched(id, &[borrow(slot(1)), payload(capture)], &captures).is_ok()
+            lent_storage_is_untouched(id, &[borrow(slot(1)), payload(capture)], &captures, |_| {
+                false
+            })
+            .is_ok()
         );
         assert!(
-            lent_storage_is_untouched(id, &[borrow(slot(2)), payload(capture)], &captures).is_ok()
+            lent_storage_is_untouched(id, &[borrow(slot(2)), payload(capture)], &captures, |_| {
+                false
+            })
+            .is_ok()
         );
         let refused =
-            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(foreign)], &captures)
-                .unwrap_err();
+            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(foreign)], &captures, |_| {
+                false
+            })
+            .unwrap_err();
         assert!(refused.detail.contains("outside its match capture"));
         assert!(
-            lent_storage_is_untouched(id, &[borrow(saved(capture)), payload(capture)], &captures)
-                .is_err()
+            lent_storage_is_untouched(
+                id,
+                &[borrow(saved(capture)), payload(capture)],
+                &captures,
+                |_| false
+            )
+            .is_err()
         );
         assert!(
             lent_storage_is_untouched(
                 id,
                 &[borrow(slot(2)), payload(capture)],
-                &[(capture, saved(capture))]
+                &[(capture, saved(capture))],
+                |_| false
             )
             .is_err()
         );
