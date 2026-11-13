@@ -109,6 +109,14 @@ construction, not `satisfies` rebinding or a new executable wrapper. Runtime
 selection alone needs no additional state record: explicit state arguments are
 needed only when the operation itself requires state.
 
+[Same-family record transport](../proofs/contracts.md#exact-matching-and-evidence-transport)
+may also present a callable field under a compatible indexed requirement of
+the same origin. Its receiving contract and retained invocation route are
+distinct: projection preserves both, and the receiving type alone cannot
+supply exact-route authority. Dependent evidence concerns the transported view
+of that actual selection. Runtime descriptors are reused only with compatible
+representation and calling shape; this is not a wrapper-generating conversion.
+
 Callable addresses do not automatically supply executable equality, ordering,
 hashing, or proof identity. Ordinary conformance synthesis needs its published
 derivation; it cannot compare descriptors or hidden witness tags as a shortcut.

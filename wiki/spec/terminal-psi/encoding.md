@@ -119,6 +119,15 @@ theorem rediscovery nor certificate replay. Proof-discovery policy and usage
 are accounting; they neither rename applications nor establish claims. Closed
 values retain their own evaluation obligations.
 
+For same-family record transport, retained compatibility also identifies the
+source and destination schema applications, originating field correspondence,
+original callable selections and routes, receiving contracts and dependent
+evidence, and any mutable handback obligations. Publication must not replace an
+original route with the destination type's named route. Missing or inconsistent
+relationships reject at admission; retaining a successful proof-search result
+alone is insufficient. This specifies retained meaning, not a new numeric wire
+tag or executable transport instruction.
+
 The migration must update identity-profile provenance and evidence serialization
 together, rejecting or explicitly migrating artifacts with legacy law-sensitive
 keys rather than silently reinterpreting them. No new numeric wire tags are

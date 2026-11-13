@@ -102,6 +102,10 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Lowering, checker, and data-flow
 
+- **SAME-FAMILY-RECORD-TRANSPORT.** Admit explicitly supplied records across proved-compatible indices without forwarding machines ([contract and acceptance](wiki/spec/proofs/contracts.md#exact-matching-and-evidence-transport)); extends **OPERATION-RECORD-IMPLEMENTATIONS** and indexed-value compatibility.
+  - Extend the shared record/callable compatibility judgment in the lowered-form checker, not conformance search. Preserve original selections/routes, dependency-ordered evidence and mutable source handback through specialization, projection and published Psi; migrate the blanket reindexing refusal.
+  Acceptance: the spec's static/runtime, generic exact-route, dependent-law, linear-custody, mutable-handback and artifact controls pass, with native/Psi agreement on executable positives across hosted targets. Canonical keys stay stable; no wrapper declarations, new authority or runtime conversion are introduced. Reuse indexed-value and implementation-record fixtures; no new fact family.
+
 - **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/drafts/designs/operation_arithmetic_policy.md).
   Acceptance: draft fixtures pass `--both`; `source/psi` has no `in Trapping`.
 

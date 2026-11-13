@@ -79,6 +79,11 @@ machine-typed field accepts a callable with a compatible contract, retaining
 any existing invocation route; unlike a named machine requirement, it does not
 require binding to a new route.
 
+An explicitly supplied record can also pass to the same trait at proved-compatible
+indices without forwarding machines. Its original operations and invocation
+routes remain; dependent laws and the receiving contract must still check.
+See [record transport](../spec/proofs/contracts.md#exact-matching-and-evidence-transport).
+
 Two names for the same typed record mean the same implementation. To keep
 policies distinct, put the difference in a schema argument or ordinary field.
 An inline body declares a new machine, so it is a different selection even if
