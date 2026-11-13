@@ -29,7 +29,8 @@ public boundary trait WorkerProvider {
     requires machine Target(arguments: Arguments) -> T suspends blocks;
     ensures true
     reaches none
-    suspends blocks;
+    suspends blocks
+    crashes Trap crashes Abort;
 }
 
 // Hung-worker recovery boundary — the declared isolation contract the board
@@ -130,7 +131,8 @@ public boundary trait BlockingExecutor {
     machine submit<T, Arguments, const N: u64>(
         submission: Submission<T, Arguments>,
         executor: &mut Executor<T, Arguments, N>
-    ) -> SubmitOutcome<T, Arguments> reaches none;
+    ) -> SubmitOutcome<T, Arguments> reaches none
+        crashes Trap crashes Abort;
 
     // Take the next queued submission as a worker. Suspends on the wait word
     // while the queue is empty and open — blocking creates no semantic safe
@@ -143,7 +145,8 @@ public boundary trait BlockingExecutor {
     requires
         executor.open
     suspends
-    blocks;
+    blocks
+    crashes Trap crashes Abort;
 
     // Request cancellation of the activation this claim covers — the
     // cancel-request half of the claim's authority
@@ -153,7 +156,7 @@ public boundary trait BlockingExecutor {
     // consume the claim. A worker that ignores the request and never reports
     // an outcome is the hung case; recovery from it is the
     // `IsolatedWorkerProvider` contract above.
-    machine request_cancel<T>(ticket: &Ticket<T>) reaches none;
+    machine request_cancel<T>(ticket: &Ticket<T>) reaches none crashes Trap crashes Abort;
 
     // Terminally consume this claim against the executor that vended it;
     // blocks until the worker reports a lifecycle outcome. Same shape as
@@ -167,7 +170,8 @@ public boundary trait BlockingExecutor {
     ) -> ExecutorOutcome<T>
     reaches none
     suspends
-    blocks;
+    blocks
+    crashes Trap crashes Abort;
 
     // Terminally consume an executor with a provably empty queue and no live
     // completion claims — reclaiming it requires reconciliation of every
@@ -180,5 +184,6 @@ public boundary trait BlockingExecutor {
     reaches none
     requires
         executor.queue.length == 0,
-        executor.outstanding == 0;
+        executor.outstanding == 0
+    crashes Trap crashes Abort;
 }

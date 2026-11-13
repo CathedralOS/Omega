@@ -28,7 +28,8 @@ boundary trait BoundedQueueAccess {
     // Live element count. O(1) measure for `requires`/`ensures`.
     machine Length<T, const N: u64>(
         queue: &BoundedQueue<T, N>
-    ) -> u64 reaches none;
+    ) -> u64 reaches none
+        crashes none;
 
     // Append `value` at the tail. Custody of `value` moves into the queue;
     // requires provable spare room.
@@ -38,7 +39,8 @@ boundary trait BoundedQueueAccess {
     )
     reaches none
     requires
-        queue.length < queue.items.len;
+        queue.length < queue.items.len
+    crashes none;
 
     // Remove and return the head element of a provably non-empty queue.
     // Custody moves to the caller — the moved-custody edge on the consume
@@ -48,7 +50,8 @@ boundary trait BoundedQueueAccess {
     ) -> T
     reaches none
     requires
-        queue.length > 0;
+        queue.length > 0
+    crashes none;
 
     // Terminally consume a provably empty queue — `queue` moves in by value,
     // the consume-side custody edge. The emptiness obligation is what keeps
@@ -58,5 +61,6 @@ boundary trait BoundedQueueAccess {
     )
     reaches none
     requires
-        queue.length == 0;
+        queue.length == 0
+    crashes none;
 }

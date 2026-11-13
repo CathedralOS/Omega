@@ -45,9 +45,9 @@ public data StartOutcome<T, Arguments> {
 // consumes the claim exactly once. The claim is an ordinary explicit argument
 // of both rows.
 public boundary trait TaskLifecycle {
-    machine request_cancel<T>(task: &Task<T>) reaches none;
+    machine request_cancel<T>(task: &Task<T>) reaches none crashes Trap crashes Abort;
 
-    machine finish<T>(task: Task<T>) -> TaskOutcome<T> reaches none suspends blocks;
+    machine finish<T>(task: Task<T>) -> TaskOutcome<T> reaches none suspends blocks crashes Trap crashes Abort;
 }
 
 // Runtime authority is a public selected boundary capability: callers invoke
@@ -60,11 +60,13 @@ public boundary trait TaskRuntime {
         arguments: Arguments
     ) -> Task<T>
     requires machine Target(arguments: Arguments) -> T suspends blocks;
-    ensures true reaches none;
+    ensures true reaches none
+    crashes Trap crashes Abort;
 
     machine try_start<T, Arguments, machine Target>(
         arguments: Arguments
     ) -> StartOutcome<T, Arguments>
     requires machine Target(arguments: Arguments) -> T suspends blocks;
-    ensures true reaches none;
+    ensures true reaches none
+    crashes Trap crashes Abort;
 }

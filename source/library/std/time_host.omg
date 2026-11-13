@@ -49,13 +49,15 @@ public boundary trait TimeHost {
     invokes LinuxX64TimeRead
     invokes LinuxArm64TimeRead
     invokes DarwinTimeRead
-    invokes WindowsTimeRead;
+    invokes WindowsTimeRead
+    crashes none;
     // Ticks per second for monotonic_ticks. Stable for the process lifetime.
     // Windows reads the frequency through the same raw trait; other hosts
     // return a constant.
     machine monotonic_ticks_per_second() -> u64
     reaches TimeHost
-    invokes WindowsTimeRead;
+    invokes WindowsTimeRead
+    crashes none;
     // Wall clock: ONE non-tearing read, raw platform units since the
     // platform epoch.
     machine wall_clock_raw() -> u64
@@ -63,11 +65,12 @@ public boundary trait TimeHost {
     invokes LinuxX64TimeRead
     invokes LinuxArm64TimeRead
     invokes DarwinTimeRead
-    invokes WindowsTimeRead;
+    invokes WindowsTimeRead
+    crashes none;
     // Units per second for wall_clock_raw (constant per target).
-    machine wall_clock_units_per_second() -> u64 reaches TimeHost;
+    machine wall_clock_units_per_second() -> u64 reaches TimeHost crashes none;
     // Platform-epoch -> Unix-epoch shift, in seconds (constant per target).
-    machine wall_clock_epoch_offset_seconds() -> u64 reaches TimeHost;
+    machine wall_clock_epoch_offset_seconds() -> u64 reaches TimeHost crashes none;
     // Millisecond sleep. The Darwin and Linux x86-64 providers wait with
     // poll, Linux arm64 with nanosleep (the asm-generic table publishes no
     // poll), Windows with kernel32 `Sleep` bound as `WindowsTimeRead::sleep`,
@@ -78,5 +81,6 @@ public boundary trait TimeHost {
     invokes LinuxArm64TimeRead
     invokes DarwinTimeRead
     invokes WindowsTimeRead
-    blocks;
+    blocks
+    crashes none;
 }

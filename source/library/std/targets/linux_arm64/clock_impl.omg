@@ -12,7 +12,8 @@ public data LinuxArmClockSleepRequest { seconds: i64; nanoseconds: i64; }
 boundary trait LinuxArmClockWait {
     machine nanosleep(request: &LinuxArmClockSleepRequest, remainder: u64)
     reaches
-        Clock;
+        Clock
+    crashes none;
 }
 
 // Splitting before widening preserves every u32 duration and keeps the

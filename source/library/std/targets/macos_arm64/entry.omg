@@ -8,7 +8,7 @@ use omega::language::core::ProgramStorageEntry;
 // This calling contract supplies no bridge, loader admission, receiver, or
 // numeric stack guarantee. ProviderSelected requires independent backing.
 boundary trait MacosArm64PhysicalEntry {
-    machine enter(argc: i32, argv: addr, envp: addr, apple: addr) -> i32 reaches none;
+    machine enter(argc: i32, argv: addr, envp: addr, apple: addr) -> i32 reaches none crashes Trap crashes Abort;
 }
 
 data MacosArm64 {}
