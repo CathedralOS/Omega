@@ -1,0 +1,10 @@
+// Rejected: a carrier cast takes an operand with no domains, and `near`
+// carries `Km`. The accepted form removes it by name first.
+domain i32::Km;
+domain i64::Far;
+
+machine widened(near: i32 in Km) -> i64 in Far {
+    near as i64 +Far
+}
+
+machine main() { }

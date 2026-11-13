@@ -1,0 +1,8 @@
+// Rejected: `plain` carries no domain, so `-Km` names one the operand lacks.
+domain i32::Km;
+
+machine absent(plain: i32) -> i32 {
+    plain as -Km
+}
+
+machine main() { }

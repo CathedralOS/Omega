@@ -65,7 +65,7 @@ pub struct PreparedBuildEvaluation {
     execution: PreparedBuildExecution,
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
-    provider_folded_constants: bool,
+    constants: compilation_products::BuildConstants,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
 }
 
@@ -118,7 +118,7 @@ impl PreparedBuildEvaluation {
             execution,
             restricted_build_requests,
             base_source_consumption_commitment,
-            provider_folded_constants,
+            constants,
             restricted_build_grants,
         } = self;
         let returned = returned.ok_or_else(|| {
@@ -132,7 +132,7 @@ impl PreparedBuildEvaluation {
             configuration,
             restricted_build_requests,
             base_source_consumption_commitment,
-            provider_folded_constants,
+            constants,
         })
     }
 }
@@ -204,14 +204,13 @@ pub fn prepare_build_evaluation(
             "Build execution requires its source-owned selection",
         )]
     })?;
-    let (prepared, providers, provider_folded_constants) =
-        crate::admission::checking::prepare_admitted_build(
-            typed,
-            selected_machine,
-            package_inputs,
-            dependency_activation,
-            timings,
-        )?;
+    let (prepared, providers, constants) = crate::admission::checking::prepare_admitted_build(
+        typed,
+        selected_machine,
+        package_inputs,
+        dependency_activation,
+        timings,
+    )?;
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,
         package_inputs,
@@ -248,7 +247,7 @@ pub fn prepare_build_evaluation(
         execution,
         restricted_build_requests,
         base_source_consumption_commitment,
-        provider_folded_constants,
+        constants,
         restricted_build_grants,
     })
 }

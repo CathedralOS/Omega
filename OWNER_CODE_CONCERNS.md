@@ -67,6 +67,20 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### Core's `AccessPlan` and `AccessPolicy` are the superseded layout-containing shape
+- Category: one idea, several implementations
+- Where: `source/library/core/layout.omg` (`AccessPlan`, `AccessPlan::inaccessible`, `AccessPolicy::plan(schema: Schema)`); `wiki/spec/resources/access.md`, "Plans and admitted supply"
+- Saw: the spec's plan is `AccessPlan::new(&schema, issuance)` over `reflect::TypeSchema` with `Issuance::Only`/`Unrestricted`, `allow_readers`, `allow_writers`, `IssuedBy` and `IssuedByAny`; core still declares a plan that contains a `LayoutPlan`, takes `layout::Schema`, and has no issuance at all, and `alloc/vec.omg` and `samples/cli/probes/layout_access_plan` are written against it
+- Cost: a domain's `access Policy` clause now reaches the typed trees, but no policy in the library can state an issuance, so every domain that selects one stays "planned" and nobody can be shown to issue it
+- Reported: 2026-11-13, Claude Code, while reading a domain's `access` clause
+
+### Typing refuses every program that writes `=D`, `-D` or `+D`
+- Category: a verdict with nothing behind it
+- Where: `omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (`domain_cast_accounting::account`)
+- Saw: the parser reads domain-cast entries, and typing then returns a whole-program "domain cast operand accounting" error for the first one it meets, in any declaration, reached or not; the accounting needs the operand's complete qualified type, which the deleted checker computed
+- Cost: no program holding a domain cast reaches the lowered-form checker, so the judgment of `as +D` cannot be built or tested there until accounting has an owner or the refusal moves onto the declaration as a deferred row
+- Reported: 2026-11-13, Claude Code, while reading a domain's `access` clause
+
 ### Constant operands are still read from a table keyed by spelling
 - Category: a verdict with nothing behind it
 - Where: `02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs` (`module_constants::lexical_integer_const_values`), built at five call sites in `preparation_const_evaluation.rs`, `preparation_generic_data.rs` and `preparation_machine_equations.rs` and handed to `evaluate_const_argument_expression` and the fact evaluators
@@ -519,3 +533,24 @@ own to defend. Say what you saw, not what you would build.
 - Saw: these stages see the program together with all of `core` and `std` and have no notion of what an entry demands, so one such construct in an uncalled library declaration stops a program that never reaches it; the gates the route probe met (unbound calls, assignment literals, constructor field types, layout-policy and computed types) now record the refusal on the declaration instead (`typed-trees/src/deferred_refusals.rs`), and the others still refuse the program
 - Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
+
+### A generated machine is identified three ways and copied by a hand-kept list
+- Category: one idea built twice
+- Where: `typed-trees` (`MachineSpecialization` rows, `Symbol::generated_from`, `executable_application_template`); `structure-elaboration/src/lib.rs` (`template_of`), `read/calls.rs` (`applies_nothing`), `declare.rs`; `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`template`, `held_types`)
+- Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
+- Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
+- Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
+
+### An implementation's refinement witness is built twice, and its dispatch row keeps fields nobody fills
+- Category: one idea built twice
+- Where: `lowered-discharge/src/verdict.rs` (`witnesses`, and the witness parts of `judge_compilation_for`); `typed-trees` (`StaticRequirementDispatch`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
+- Saw: "this machine refines that requirement" is elaborated and discharged once to carry a generic form's proofs into a generated machine, where a failure is silently skipped, and a second time as the part that gives the verdict; the two share `elaborate_witness` and nothing else. Separately, the dispatch a generated call carries has an application fingerprint, a commitment, a selection application and a contract signature that only the deleted checker filled, so the pass writes four of nine fields
+- Cost: every selected implementation is proved twice per compilation, and a reader of the dispatch cannot tell an empty commitment from one that was never computed
+- Reported: 2026-11-13, Claude Code, while serving implementation parameters in the specialization pass
+
+### A typing unit test is red on `main` and nothing runs it before merge
+- Category: a test that pins nothing while it is red
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs`, `construction_destinations::tests::an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine`
+- Saw: at `6f829063b3ed7` the test fails with no local change: `owned = Record {}` is asserted to be built at the type handle written on `owned` and gets a different handle (index 3, not 1), so either landing now inserts an equal copy of the type or the assertion compares identity where it means equality
+- Cost: `mbx test -p symbol-resolved-trees-to-typed-trees --lib` cannot be clean for anyone changing typing, so a second regression in the same crate hides behind the first
+- Reported: 2026-11-13, Claude Code, while accounting for domain casts in typing

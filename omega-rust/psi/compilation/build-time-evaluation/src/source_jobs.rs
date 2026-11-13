@@ -5,11 +5,9 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
+mod build_activation;
 mod invocation;
 
-fn unavailable(job: &str) -> Vec<Diagnostic> {
-    vec![Diagnostic::error(format!("no product route yet: {job}"))]
-}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {
     pub target: String,
@@ -40,9 +38,7 @@ pub fn is_exact_toolchain_build_prelude_data(
             && typed.symbols.is_build_prelude_symbol(symbol)
     })
 }
-pub fn admit_toolchain_build_activation(_typed: &TypedTrees) -> Result<bool, Vec<Diagnostic>> {
-    Err(unavailable("source Build activation admission"))
-}
+pub use build_activation::{BUILD_VALUE_UNPROTECTED, admit_toolchain_build_activation};
 
 pub use crate::evaluation_requests::{
     CapturedFilesystemRoot as BuildMachineCapturedFilesystemRoot,

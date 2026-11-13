@@ -48,6 +48,8 @@ use typed_trees::TypedTrees;
 use crate::{Elaboration, Signature};
 
 const COMMITMENT_DOMAIN: &[u8] = b"omega.lowered-machine-public-contract.v1\0";
+/// Domain of the commitment a generated machine makes to its application.
+const APPLICATION_DOMAIN: &[u8] = b"omega.lowered-machine-static-application.v1\0";
 
 /// Feeds what `Hash` writes into the commitment digest, as the current
 /// checker's `ContractHasher` does for its own commitment.
@@ -161,12 +163,6 @@ fn declaration(
     else {
         return Err("the machine does not have exactly one state");
     };
-    // A machine stage 04 generated for a static application also names its
-    // template and the application's commitment, which this route does not
-    // state yet.
-    if typed.executable_application_template(symbol)?.is_some() {
-        return Err("the machine is a generated application of a generic machine");
-    }
     let formals = typed
         .state_parameters
         .span(state.parameters)
@@ -194,6 +190,12 @@ fn declaration(
         .map(|formal| type_text(formal.type_reference))
         .collect::<Result<Vec<_>, _>>()?;
     let result_type = type_text(state.return_type)?;
+    // A machine stage 04 generated for a static application also names the
+    // generic machine it was generated from and commits to the application.
+    let specialization = match typed.executable_application_template(symbol)? {
+        Some(template) => Some(application(typed, sources, symbol, template, identities)?),
+        None => None,
+    };
     let machine_identity = nominal(typed, sources, symbol, identities)?;
     let state_identity = nominal(typed, sources, state.symbol, identities)?;
 
@@ -229,7 +231,91 @@ fn declaration(
         // publishes neither.
         published_may_suspend: false,
         published_may_block: false,
-        specialization: None,
+        specialization,
+    })
+}
+
+/// What the declaration of `instance`, a machine stage 04 generated from the
+/// generic machine `template`, states beside its own identity: the generic
+/// machine's identities and a commitment to the application.
+///
+/// The commitment is this route's own, like the contract commitment: a
+/// digest of the generic machine's callable identity and the identity of
+/// each type and implementation the application binds, in parameter order.
+/// Two machines generated from one generic machine at the same arguments
+/// commit alike, and no other pair does. Type and implementation arguments
+/// are stated; an application that binds anything else is left undeclared.
+fn application(
+    typed: &TypedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    instance: SymbolHandle,
+    template: SymbolHandle,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<terminal_psi::CheckedMachineSpecialization, &'static str> {
+    use typed_trees::static_applications::StaticMachineBindingValue;
+    let declared = typed
+        .machine_by_symbol(template)
+        .ok_or("a generated machine's generic machine has no typed-tree declaration")?;
+    let callable = typed
+        .machine_callable_identity_text(declared)
+        .filter(|callable| !callable.is_empty())
+        .ok_or("a generated machine's generic machine has no callable identity")?;
+    let semantic = typed
+        .normalized_hermetic_symbol_identity(template)
+        .map_err(|_| "a generated machine's generic machine has no hermetic identity")?;
+    let mut rows = typed
+        .machine_specializations
+        .iter()
+        .filter(|row| row.instance == instance);
+    let (Some(row), None) = (rows.next(), rows.next()) else {
+        return Err("a generated machine does not have exactly one application");
+    };
+    let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
+    callable.hash(&mut commitment);
+    let bindings = typed
+        .expression_table
+        .static_machine_application_bindings(row.binding_application);
+    if bindings.is_empty() {
+        return Err("a generated machine's application binds nothing");
+    }
+    for binding in bindings {
+        match &binding.value {
+            StaticMachineBindingValue::Type(type_reference) => typed
+                .type_identity_text(typed.package_qualified_type_identity(*type_reference))
+                .filter(|text| !text.is_empty())
+                .ok_or("an application's type argument has no identity")?
+                .hash(&mut commitment),
+            // conformances.md, "Resulting-value identity": a name "creates
+            // no additional identity", so the implementation is stated by
+            // the declaration that stands for its value, whichever name the
+            // application wrote. The kind is hashed with it, so a type and
+            // an implementation never commit alike.
+            StaticMachineBindingValue::Conformance(argument) => {
+                let named = argument.symbol;
+                if !named.is_valid()
+                    || !typed.symbols.symbols().nodes().is_valid(named)
+                    || typed.symbols.get(named).kind != symbols::SymbolKind::Conformance
+                {
+                    return Err("an application's implementation argument names no implementation");
+                }
+                let identity = typed
+                    .normalized_hermetic_symbol_identity(typed.implementation_value_head(named))
+                    .map_err(|_| "an application's implementation argument has no identity")?;
+                ("implementation", identity).hash(&mut commitment);
+            }
+            _ => {
+                return Err(
+                    "a generated machine's application binds something other than a type or an implementation",
+                );
+            }
+        }
+    }
+    Ok(terminal_psi::CheckedMachineSpecialization {
+        capture: None,
+        template: NominalDeclarationIdentity::new(nominal(typed, sources, template, identities)?),
+        template_callable: identities.intern(&callable),
+        template_semantic_declaration: identities.intern(&semantic),
+        commitment: commitment.0.finish(),
     })
 }
 

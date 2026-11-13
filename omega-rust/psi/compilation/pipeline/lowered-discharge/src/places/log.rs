@@ -21,7 +21,8 @@ So the walk reads the stores from the operations themselves
   identity.
 - A whole copy stores what its source held into its fresh root, and a record
   stored into a field stores what its source held into that field.
-- A scalar store stores its value into exactly the leaf it names.
+- A scalar store stores its value into exactly the leaf it names, and a view
+  store puts what its source descriptor held into exactly the field it names.
 - A call's record result holds what the callee returned, and a place the
   call borrows exclusively holds what the callee left there.
 - A scalar local declared without an initializer is zero-constructed
@@ -437,6 +438,29 @@ impl Storage<'_> {
                     Stored::Moved(self.argument(value, concerns)?),
                 ));
             }
+            // The field takes the source's descriptor (structural_access.md:
+            // "The field then denotes the source's exact backing and
+            // extent"), so it holds what the source held. The whole-home
+            // form (`field: None`) is not derived and stays refused below.
+            OperationKind::StructuralByteViewFieldStore {
+                destination,
+                path,
+                field: Some(field),
+                source,
+                ..
+            } => {
+                let carrier = self.stored_at(*destination, path, concerns)?;
+                let stored = beneath(&carrier, &[Segment::Field(*field)])?;
+                if !matches!(self.shape(&stored, concerns)?, Shape::View) {
+                    return Err(
+                        self.foreign(concerns, "a view store into a field that stores none")
+                    );
+                }
+                rows.push((
+                    stored,
+                    Stored::Moved(self.stored_at(*source, &[], concerns)?),
+                ));
+            }
             OperationKind::EstablishPrimitiveLocal { value, .. } => {
                 rows.push((fresh()?, Stored::Value(*value)));
             }
@@ -523,6 +547,8 @@ impl Storage<'_> {
                 StructuralFieldType::Structural(nested) => {
                     self.zero_scalars(nested, at, found, concerns)?;
                 }
+                // The empty shared view has no scalar leaf.
+                ref stored if super::is_stored_view(stored) => {}
                 _ => return Err(self.unsupported(concerns, "a field type outside plain data")),
             }
             at.segments.pop();
@@ -603,7 +629,7 @@ impl Storage<'_> {
             let declared = match self.root_kind(leaf.root, concerns)? {
                 StructuralPlaceKind::Parameter { .. } => match self.shape(&leaf, concerns)? {
                     Shape::Scalar(scalar_type) => Some(scalar_type),
-                    Shape::Typed(_) | Shape::Payload(_) => None,
+                    Shape::Typed(_) | Shape::View | Shape::Payload(_) => None,
                 },
                 _ => None,
             };

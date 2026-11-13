@@ -98,6 +98,14 @@ impl AcceptedTerminalSource {
         // the reader refuses the native binding that would need one.
         let companions = crate::build_companions::produce(&self.source, elaboration)
             .map_err(|diagnostic| vec![diagnostic])?;
+        crate::build_bindings::validate_companions(
+            program.view(),
+            &companions.bindings,
+            &companions.queries,
+            &companions.requests,
+            &companions.filesystem,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let build_bindings = crate::TerminalBuildBindings::new(
             program.view(),
             companions.bindings,
@@ -129,6 +137,52 @@ impl AcceptedTerminalSource {
             reaches_outside: companions.unowned != 0,
             filesystem: !companions.filesystem.is_empty(),
         })
+    }
+
+    /// The constants the declarations of this accepted module name, by
+    /// name, each once and in the order the declarations name them.
+    ///
+    /// The declarations are the ones the elaboration lowered: its machines,
+    /// its boundary requirements and the records it declares. They are read
+    /// in the judged source, so the answer is about this artifact and does
+    /// not rest on the reader having refused constants on the way here. A
+    /// Build admission settles nothing for a module that names none.
+    pub fn constants_read(&self) -> Vec<String> {
+        let elaboration = &self.closure.elaboration;
+        let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let mut lowered = elaboration
+            .machines
+            .iter()
+            .map(|(_, symbol)| *symbol)
+            .chain(elaboration.boundaries.iter().map(|(_, symbol)| *symbol))
+            .chain(
+                elaboration
+                    .source_records
+                    .iter()
+                    .map(|record| record.declaration),
+            )
+            .collect::<Vec<_>>();
+        lowered.sort_unstable_by_key(|symbol| key(*symbol));
+        let constants = self
+            .source
+            .const_declarations()
+            .iter()
+            .map(|declaration| declaration.symbol)
+            .collect();
+        let mut uses = typed_trees::references::ConstantUses::new(constants, |declaration| {
+            lowered
+                .binary_search_by_key(&key(declaration), |symbol| key(*symbol))
+                .is_ok()
+        });
+        typed_trees::references::visit_program(&self.source, &mut uses);
+        let mut names = Vec::<String>::new();
+        for found in uses.into_uses() {
+            let name = self.source.symbols.name(found.constant);
+            if !names.iter().any(|known| known == name) {
+                names.push(name.to_owned());
+            }
+        }
+        names
     }
 
     pub fn source(&self) -> &Arc<FrozenTypedTrees> {

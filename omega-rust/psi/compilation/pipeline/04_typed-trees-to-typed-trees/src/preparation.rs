@@ -22,10 +22,16 @@ struct Pass {
 /// The order is part of the stage's contract: a later pass may read what an
 /// earlier one wrote. Specialization and selection passes belong before the
 /// annotations, which describe the bodies those passes produce.
-const PASSES: &[Pass] = &[Pass {
-    name: "record patterns",
-    run: crate::passes::record_patterns::prepare,
-}];
+const PASSES: &[Pass] = &[
+    Pass {
+        name: "specialization",
+        run: crate::passes::specialization::prepare,
+    },
+    Pass {
+        name: "record patterns",
+        run: crate::passes::record_patterns::prepare,
+    },
+];
 
 /// Work the caller asks of this stage beside the program itself. It is a
 /// request, not evidence that preparation or checking occurred.

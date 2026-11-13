@@ -1037,7 +1037,7 @@ pub(crate) mod domain {
         };
         let (
             alias,
-            authored_routes,
+            (authored_routes, access_policy),
             predicate_presence,
             facts,
             operators,
@@ -1052,7 +1052,7 @@ pub(crate) mod domain {
             let (alias, input) = parse_domain_alias(syntax_trees, input)?;
             (
                 Some(alias),
-                Vec::new(),
+                (Vec::new(), None),
                 DomainPredicatePresence::Absent,
                 HandleSpan::empty(),
                 HandleSpan::empty(),
@@ -1076,11 +1076,11 @@ pub(crate) mod domain {
                 ),
                 None => (predicate_presence, authored_facts),
             };
-            let ((authored_routes, semantic_clause_token_count), input) =
-                parse_domain_establishment(input, predicate_presence.is_present())?;
+            let ((issuance, semantic_clause_token_count), input) =
+                parse_domain_establishment(syntax_trees, input, predicate_presence.is_present())?;
             (
                 None,
-                authored_routes,
+                issuance,
                 predicate_presence,
                 facts,
                 HandleSpan::empty(),
@@ -1098,6 +1098,7 @@ pub(crate) mod domain {
                 is_public: false,
                 alias,
                 authored_routes,
+                access_policy,
                 cleanup_selection,
                 classification,
                 predicate_presence,
@@ -1168,6 +1169,7 @@ pub(crate) mod domain {
     fn domain_requires_terminator(input: Input<'_, '_>) -> bool {
         super::parse_declaration::named_implementation_prefix(input).is_some()
             || input.at_contextual("established")
+            || input.at_contextual("access")
             || input.at_contextual("satisfies")
             || input.at_punctuation(PunctuationKind::LeftBrace)
             || input.tokens.is_empty()
@@ -1231,13 +1233,45 @@ pub(crate) mod domain {
         }
     }
 
+    /*
+        Who may introduce the domain: the clause after the predicates. `access
+        Policy` selects the named policy whose plan states the issuance
+        (domains.md, "Domain-owned read and write authority"). The retired
+        `established by` list is still read until its declarations migrate
+        (`DOMAIN-ACCESS-AUTHORITY`); a domain writes one or the other.
+    */
+    type DomainIssuanceClause = (
+        Vec<Vec<Identifier>>,
+        Option<syntax_trees::expression::StaticMachineArgument>,
+    );
+
+    const ACCESS_WITH_ESTABLISHED_BY: &str = "a domain with an `access` policy states its issuers \
+        in that policy's plan; remove the `established by` clause";
+
     fn parse_domain_establishment<'tokens, 'source>(
+        syntax_trees: &mut SyntaxTrees,
         input: Input<'tokens, 'source>,
         requires_consumed: bool,
-    ) -> ParseResult<'tokens, 'source, (Vec<Vec<Identifier>>, usize)> {
+    ) -> ParseResult<'tokens, 'source, (DomainIssuanceClause, usize)> {
         if input.at_punctuation(PunctuationKind::Semicolon) {
             let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-            return Ok(((Vec::new(), 0), input));
+            return Ok((((Vec::new(), None), 0), input));
+        }
+
+        if input.at_contextual("access") {
+            let clause_start_tokens = input.tokens.len();
+            let input = input.take_contextual("access")?;
+            let (policy, input) = parse_static_selection(
+                syntax_trees,
+                input,
+                "access requires a complete policy application",
+            )?;
+            if input.at_contextual("established") {
+                return Err(input.error_here(ACCESS_WITH_ESTABLISHED_BY));
+            }
+            let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
+            let token_count = clause_start_tokens.saturating_sub(input.tokens.len());
+            return Ok((((Vec::new(), Some(policy)), token_count), input));
         }
 
         if input.at_contextual("satisfies") {
@@ -1251,7 +1285,7 @@ pub(crate) mod domain {
             && !input.at_punctuation(PunctuationKind::LeftBrace)
             && domain_requires_terminator(input)
         {
-            return Ok(((Vec::new(), 0), input));
+            return Ok((((Vec::new(), None), 0), input));
         }
 
         if input.at_punctuation(PunctuationKind::LeftBrace) {
@@ -1279,9 +1313,8 @@ pub(crate) mod domain {
         }
 
         if !input.at_contextual("established") {
-            return Err(input.error_here(
-                "expected `;` to end the domain declaration or an `established by` clause",
-            ));
+            return Err(input
+                .error_here("expected `;` to end the domain declaration or an `access` clause"));
         }
         let mut input = input.take_contextual("established")?;
         input = input.take_contextual("by")?;
@@ -1298,9 +1331,12 @@ pub(crate) mod domain {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
         }
 
+        if input.at_contextual("access") {
+            return Err(input.error_here(ACCESS_WITH_ESTABLISHED_BY));
+        }
         input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         let token_count = routes_start_tokens.saturating_sub(input.tokens.len());
-        Ok(((authored_routes, token_count), input))
+        Ok((((authored_routes, None), token_count), input))
     }
 
     fn at_legacy_authored_route(mut input: Input<'_, '_>) -> bool {
@@ -1347,24 +1383,38 @@ pub(crate) mod domain {
             return Ok((None, input));
         }
         let input = input.take_contextual("dropped")?.take_contextual("by")?;
+        let (selection, input) = parse_static_selection(
+            syntax_trees,
+            input,
+            "dropped by requires a complete static machine application",
+        )?;
+        Ok((Some(selection), input))
+    }
+
+    /// One declaration a domain clause selects, with the static arguments it
+    /// is applied at: the machine after `dropped by`, the policy after
+    /// `access`.
+    fn parse_static_selection<'tokens, 'source>(
+        syntax_trees: &mut SyntaxTrees,
+        input: Input<'tokens, 'source>,
+        incomplete_application: &'static str,
+    ) -> ParseResult<'tokens, 'source, syntax_trees::expression::StaticMachineArgument> {
         let (path, input) = parse_authored_route(input)?;
         let (application, input) = match try_parse_static_symbol_application(syntax_trees, input)? {
             Some((application, input)) => (Some(application), input),
             None if input.at_punctuation(PunctuationKind::Less) => {
-                return Err(
-                    input.error_here("dropped by requires a complete static machine application")
-                );
+                return Err(input.error_here(incomplete_application));
             }
             None => (None, input),
         };
         Ok((
-            Some(syntax_trees::expression::StaticMachineArgument {
+            syntax_trees::expression::StaticMachineArgument {
                 type_reference: Default::default(),
                 path: path.into_boxed_slice(),
                 application,
                 const_literal: None,
                 evidence_projection: None,
-            }),
+            },
             input,
         ))
     }

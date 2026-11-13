@@ -29,6 +29,7 @@ impl TerminalBuildBindingAdapter {
         effect: &TerminalEffect,
         buffers: &[TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
+        crate::host::require_effect_owner(effect, &self.host.artifact)?;
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
             arguments,

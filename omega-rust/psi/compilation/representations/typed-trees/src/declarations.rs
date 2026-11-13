@@ -891,6 +891,34 @@ pub mod domain {
     use diagnostics::Diagnostic;
     use symbols::SymbolHandle;
 
+    /// The policy a domain selects with `access Policy`
+    /// (`wiki/spec/language/domains.md`, "Domain-owned read and write
+    /// authority"): the named implementation whose `plan` states who may
+    /// introduce the domain and who may read or write what it governs.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub struct DomainAccessPolicy {
+        pub implementation: SymbolHandle,
+        /// Where the policy is named.
+        pub source_span: source::SourceSpan,
+    }
+
+    /// Who may introduce a domain, as far as its declaration decides it
+    /// (`wiki/spec/resources/access.md`, "Plans and admitted supply").
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum DomainIssuance<'domain> {
+        /// No policy and no route list: qualification needs the predicates
+        /// and nothing else.
+        Unrestricted,
+        /// Exactly these origins, written on the declaration with the
+        /// retired `established by` clause.
+        Only(&'domain [language_semantics::DomainEstablishmentRoute]),
+        /// The selected policy's plan states the issuance. Nothing evaluates
+        /// a plan yet, so no origin can be shown to be authorized: a reader
+        /// treats this as admitting nobody it can name, never as
+        /// unrestricted.
+        Planned(DomainAccessPolicy),
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct DomainDefinition {
         pub symbol: SymbolHandle,
@@ -911,6 +939,20 @@ pub mod domain {
         pub semantic_id: language_semantics::SemanticDomainId,
         pub semantic_roles: language_semantics::DomainSemanticRoles,
         pub establishment_routes: Vec<language_semantics::DomainEstablishmentRoute>,
+        pub access_policy: Option<DomainAccessPolicy>,
+    }
+
+    impl DomainDefinition {
+        /// Who may introduce this domain. The one question every reader of
+        /// an `as +D` asks; a declaration writes a policy or a route list,
+        /// never both.
+        pub fn issuance(&self) -> DomainIssuance<'_> {
+            match self.access_policy {
+                Some(policy) => DomainIssuance::Planned(policy),
+                None if self.establishment_routes.is_empty() => DomainIssuance::Unrestricted,
+                None => DomainIssuance::Only(&self.establishment_routes),
+            }
+        }
     }
 
     impl Default for DomainDefinition {
@@ -934,6 +976,7 @@ pub mod domain {
                 semantic_id: language_semantics::SemanticDomainId::NULL,
                 semantic_roles: language_semantics::DomainSemanticRoles::default(),
                 establishment_routes: Vec::new(),
+                access_policy: None,
             }
         }
     }

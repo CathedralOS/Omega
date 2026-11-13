@@ -652,6 +652,7 @@ mod tests {
             is_public: false,
             alias: None,
             cleanup_selection: None,
+            access_policy: None,
             authored_routes: Vec::new(),
             classification: None,
             predicate_presence: DomainPredicatePresence::Absent,

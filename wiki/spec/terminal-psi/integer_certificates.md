@@ -8,6 +8,15 @@ but different question. Representability uses
 
 ## Comparison denotations
 
+[Width-indexed carriers](../language/numeric_values.md#width-indexed-integers)
+retain arbitrary positive static widths throughout goal construction, exact
+constants, evidence and execution. A host `i64`/`u64`/`i128` limit is not a proof
+rule: endpoints, masks and arithmetic must not truncate wider questions.
+Check resource demands before materializing huge constants or limb storage.
+Wrapping is modulo `2^N`; wrapping shift counts are modulo N, not a hardware
+register mask. Literal and rule formation at width one must not assume that
+positive one or negative two is representable in `i1`.
+
 Builtin fixed-integer comparisons, including mixed widths and signedness, denote
 the [exact mathematical relation](../language/numeric_values.md#integer-equality-and-order)
 between the original operands. Reconstruction retains both source carriers,

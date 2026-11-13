@@ -31,6 +31,10 @@ constraints retain binder kinds, static/runtime distinctions, type-equation
 inference and specialization rules; an entry predicate does not make an unknown
 value static. Repeated predicate clauses in one scope conjoin their obligations.
 `ensures` remains the distinct normal-completion guarantee and proof obligation.
+For carrier-generic domains, [integer-family eligibility](generics.md#integer-carrier-constraints)
+is an obligation on the generic type application, checked before the subject
+predicate. This is a distinction of checking scope, not a special first
+`requires` clause or permission for a predicate to justify its own formation.
 
 A static callable parameter states its contract as its type:
 `const Step: machine(...)` is structural and

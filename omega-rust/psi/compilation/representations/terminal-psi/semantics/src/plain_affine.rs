@@ -120,6 +120,18 @@ impl Region {
         self.whole = self.base && self.unavailable_children == 0;
     }
 
+    /// What both regions hold available: every part either has vacated is
+    /// vacant.
+    fn intersection(&self, other: &Region) -> Region {
+        let mut both = self.clone();
+        let mut vacated = Vec::new();
+        other.vacancies(&mut Vec::new(), &mut vacated);
+        for path in vacated {
+            both.set(&path, false);
+        }
+        both
+    }
+
     fn vacancies(&self, prefix: &mut Vec<Segment>, output: &mut Vec<Vec<Segment>>) {
         if !self.base {
             output.push(prefix.clone());
@@ -149,6 +161,54 @@ struct State {
     // Establishment order of the currently allocated owned homes. Normal-edge
     // disposal walks this frontier, not every root ever produced by the body.
     active: Vec<PlaceId>,
+}
+
+impl State {
+    /// The frontier two arrivals at one block agree on. A root one arrival
+    /// no longer owns (its home was consumed by a whole transfer, or it was
+    /// disposed of) is not owned at the join. Of a root both still own, the
+    /// join owns the part both own: a part one arrival moved out is vacant
+    /// there, and the arrival that still holds it discards it on its edge
+    /// and keeps the home (`Analysis::walk`).
+    fn meet(&self, other: &State) -> Result<State, Error> {
+        if self.regions.len() != other.regions.len() {
+            return Err(Error::Malformed("two arrivals track different places"));
+        }
+        let regions = self
+            .regions
+            .iter()
+            .zip(&other.regions)
+            .map(|pair| match pair {
+                (Some(mine), Some(theirs)) => Ok(Some(mine.intersection(theirs))),
+                _ => Ok(None),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let owned = |active: &[PlaceId]| -> Result<Vec<PlaceId>, Error> {
+            let mut kept = Vec::new();
+            for place in active {
+                if regions[index(place.get())?].is_some() {
+                    kept.push(*place);
+                }
+            }
+            Ok(kept)
+        };
+        let active = owned(&self.active)?;
+        if active != owned(&other.active)? {
+            return Err(Error::Unsupported(
+                "affine homes established in different orders at a reconvergence",
+            ));
+        }
+        Ok(State { regions, active })
+    }
+}
+
+/// One normal edge out of a walked block.
+struct Arrival {
+    edge: EdgeId,
+    /// `None` for an edge that leaves the machine.
+    target: Option<semantic_vocabulary::BlockId>,
+    outgoing: State,
+    actions: Vec<TerminalAffineCleanupAction>,
 }
 
 struct Analysis<'a> {
@@ -311,7 +371,7 @@ fn analyze(
     bound_output: bool,
 ) -> Result<Plan, Error> {
     use semantic_vocabulary::StructuralPlaceKind;
-    use terminal_psi::{TerminalMachineResult, Terminator};
+    use terminal_psi::TerminalMachineResult;
     // A generic requirement is a check-form signature, not an executable
     // activation. Its caller still transfers each argument normally.
     if machine.blocks.is_empty() {
@@ -521,50 +581,106 @@ fn analyze(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let initial = State { regions, active };
-    let mut entering: Vec<Option<State>> = vec![None; machine.blocks.len()];
-    // Keep an entry snapshot only while another predecessor may still need
-    // comparison. Straight-line continuations move their frontier rather than
-    // retaining a full history of every earlier local home.
-    let mut arrivals = vec![0usize; machine.blocks.len()];
-    for block in &machine.blocks {
-        for target in block.terminator.successor_targets() {
-            *arrivals
-                .get_mut(index(target.get())?)
-                .ok_or(Error::Malformed("edge target is outside the machine"))? += 1;
-        }
-    }
     let first = index(machine.entry.get())?;
-    *entering
-        .get_mut(first)
-        .ok_or(Error::Malformed("entry block is outside the machine"))? = Some(initial);
-    let mut pending = vec![machine.entry];
-    let mut analyzed = vec![false; machine.blocks.len()];
-    let unavailable_roots = vec![None; roots.len()];
+    if first >= machine.blocks.len() {
+        return Err(Error::Malformed("entry block is outside the machine"));
+    }
     let mut analysis = Analysis {
         types,
         roots,
         unavailable: Vec::new(),
-        unavailable_roots,
+        unavailable_roots: Vec::new(),
     };
-    let mut cleanup = Vec::new();
+    // Each block is entered with the frontier every arrival agrees on
+    // (ownership.md, "Paths and control flow": predecessor paths must agree
+    // on the live ownership frontier). A value one path transferred whole
+    // and another still owns is not owned at the join: the path that still
+    // owns it disposes of it on its edge, and a later use is a use after
+    // the value was transferred. The entering frontiers only shrink, so the
+    // walk reaches a fixpoint; loops are re-walked until their head agrees
+    // with its back edges. Nothing the walk reports is kept until then.
+    let mut entering: Vec<Option<State>> = vec![None; machine.blocks.len()];
+    entering[first] = Some(initial);
+    let mut pending = vec![machine.entry];
     while let Some(block_id) = pending.pop() {
         let slot = index(block_id.get())?;
-        if std::mem::replace(&mut analyzed[slot], true) {
-            continue;
+        let state = entering[slot]
+            .clone()
+            .ok_or(Error::Malformed("block has no incoming frontier"))?;
+        analysis.unavailable_roots = vec![None; analysis.roots.len()];
+        for arrival in analysis.walk(machine, block_id, state, &live, bound_output, None)? {
+            let Some(target) = arrival.target else {
+                continue;
+            };
+            let destination = index(target.get())?;
+            let merged = match &entering[destination] {
+                None => arrival.outgoing,
+                Some(earlier) => earlier.meet(&arrival.outgoing)?,
+            };
+            if entering[destination].as_ref() != Some(&merged) {
+                entering[destination] = Some(merged);
+                pending.push(target);
+            }
         }
+    }
+    analysis.unavailable.clear();
+    analysis.unavailable_roots = vec![None; analysis.roots.len()];
+    let mut cleanup = Vec::new();
+    for block in &machine.blocks {
+        let Some(state) = entering[index(block.id.get())?].clone() else {
+            continue;
+        };
+        for arrival in analysis.walk(
+            machine,
+            block.id,
+            state,
+            &live,
+            bound_output,
+            Some(&entering),
+        )? {
+            if let Some(target) = arrival.target
+                && entering[index(target.get())?].as_ref() != Some(&arrival.outgoing)
+            {
+                return Err(Error::Malformed(
+                    "an edge leaves a frontier its successor does not enter with",
+                ));
+            }
+            if !arrival.actions.is_empty() {
+                cleanup.push((arrival.edge, arrival.actions));
+            }
+        }
+    }
+    cleanup.sort_by_key(|(edge, _)| *edge);
+    Ok(Plan {
+        affine_roots,
+        cleanup,
+        unavailable: analysis.unavailable,
+    })
+}
+
+impl Analysis<'_> {
+    /// Walks one block from `state` and returns its normal edges, each with
+    /// the frontier it carries and the disposals it performs. A root the
+    /// successor does not read again is disposed of on the edge. With
+    /// `entering`, the fixpoint's frontiers, a root the successor reads but
+    /// does not own is disposed of too: another arrival transferred it.
+    fn walk(
+        &mut self,
+        machine: &TerminalMachine,
+        block_id: semantic_vocabulary::BlockId,
+        mut state: State,
+        live: &[IdSet<PlaceId>],
+        bound_output: bool,
+        entering: Option<&[Option<State>]>,
+    ) -> Result<Vec<Arrival>, Error> {
+        use terminal_psi::Terminator;
         let block = machine
             .blocks
-            .get(slot)
+            .get(index(block_id.get())?)
             .filter(|block| block.id == block_id)
             .ok_or(Error::Malformed("block is not at its identity"))?;
-        let mut state = if arrivals[slot] == 0 {
-            entering[slot].take()
-        } else {
-            entering[slot].clone()
-        }
-        .ok_or(Error::Malformed("block has no incoming frontier"))?;
         for operation in &block.operations {
-            analysis.operation(&mut state, operation)?;
+            self.operation(&mut state, operation)?;
         }
         let site = Site::Edge(
             block
@@ -575,7 +691,7 @@ fn analyze(
         );
         match &block.terminator {
             Terminator::StructuralCase { source, path, .. } => {
-                analysis.argument(
+                self.argument(
                     &mut state,
                     &StructuralArgument {
                         place: *source,
@@ -587,7 +703,7 @@ fn analyze(
                 )?;
             }
             Terminator::ReturnStructural { source, .. } => {
-                analysis.argument(
+                self.argument(
                     &mut state,
                     &StructuralArgument::whole(*source, StructuralAccess::Owned),
                     site,
@@ -599,7 +715,7 @@ fn analyze(
                 ..
             } => {
                 for argument in structural_arguments {
-                    if analysis.root(argument.place)?.is_some() {
+                    if self.root(argument.place)?.is_some() {
                         return Err(Error::Unsupported("affine block successor arguments"));
                     }
                 }
@@ -613,7 +729,7 @@ fn analyze(
                 ..
             } => {
                 for argument in structural_arguments {
-                    analysis.argument(&mut state, argument, site, true)?;
+                    self.argument(&mut state, argument, site, true)?;
                 }
             }
             Terminator::Conditional {
@@ -623,7 +739,7 @@ fn analyze(
             } => {
                 for edge in [when_true, when_false] {
                     for argument in &edge.structural_arguments {
-                        if analysis.root(argument.place)?.is_some() {
+                        if self.root(argument.place)?.is_some() {
                             return Err(Error::Unsupported("affine block successor arguments"));
                         }
                     }
@@ -633,20 +749,20 @@ fn analyze(
             | Terminator::ReturnUnit { .. }
             | Terminator::Crash { .. } => {}
         }
-        let no_normal = matches!(
+        if matches!(
             block.terminator,
             Terminator::Crash { .. }
                 | Terminator::InvokeNoNormal { .. }
                 | Terminator::ExternalCompletion { .. }
-        );
-        if no_normal {
-            continue;
+        ) {
+            return Ok(Vec::new());
         }
         // Edge IDs are machine-wide and untrusted here. Index only the
         // actual local successors, never allocate up to a serialized raw ID.
         let mut targets = block.terminator.successor_edges();
         targets.sort_by_key(|(edge, _)| *edge);
         let rosters = block.terminator.cleanup_rosters().collect::<Vec<_>>();
+        let mut arrivals = Vec::with_capacity(rosters.len());
         for (ordinal, (edge, supplied)) in rosters.iter().copied().enumerate() {
             let mut residual_budget = if bound_output {
                 supplied
@@ -670,15 +786,36 @@ fn analyze(
             let needed = target
                 .map(|target| index(target.get()).map(|index| &live[index]))
                 .transpose()?;
+            let owned_there = match (entering, target) {
+                (Some(entering), Some(target)) => Some(
+                    entering
+                        .get(index(target.get())?)
+                        .and_then(Option::as_ref)
+                        .ok_or(Error::Malformed("edge target has no entering frontier"))?,
+                ),
+                _ => None,
+            };
             let mut actions = Vec::new();
             let mut retained = Vec::new();
             for place in std::mem::take(&mut outgoing.active).into_iter().rev() {
                 let raw = index(place.get())?;
                 if let Some(region) = &outgoing.regions[raw] {
-                    if needed.is_some_and(|needed| needed.contains(place)) {
+                    let read_there = needed.is_some_and(|needed| needed.contains(place));
+                    let there = owned_there.map(|there| there.regions[raw].as_ref());
+                    if read_there && there.is_none_or(|there| there.is_some()) {
+                        if let Some(Some(there)) = there
+                            && there != region
+                        {
+                            let discards = self.equalize(place, region, there)?;
+                            residual_budget = residual_budget.checked_sub(discards.len()).ok_or(
+                                Error::Malformed("affine residual partition exceeds its output"),
+                            )?;
+                            actions.extend(discards);
+                            outgoing.regions[raw] = Some(there.clone());
+                        }
                         retained.push(place);
                     } else {
-                        let disposal = analysis.dispose(place, region, residual_budget)?;
+                        let disposal = self.dispose(place, region, residual_budget)?;
                         residual_budget -= disposal
                             .iter()
                             .filter(|action| {
@@ -692,41 +829,16 @@ fn analyze(
             }
             retained.reverse();
             outgoing.active = retained;
-            if !actions.is_empty() {
-                cleanup.push((edge, actions));
-            }
-            if let Some(target) = target {
-                let destination = index(target.get())?;
-                arrivals[destination] = arrivals[destination]
-                    .checked_sub(1)
-                    .ok_or(Error::Malformed("too many predecessor arrivals"))?;
-                match &entering[destination] {
-                    Some(earlier) if earlier != &outgoing => {
-                        return Err(Error::Unsupported(
-                            "different affine frontiers at a reconvergence",
-                        ));
-                    }
-                    Some(_) => {}
-                    None => {
-                        entering[destination] = Some(outgoing);
-                        pending.push(target);
-                    }
-                }
-                if arrivals[destination] == 0 && analyzed[destination] {
-                    entering[destination] = None;
-                }
-            }
+            arrivals.push(Arrival {
+                edge,
+                target,
+                outgoing,
+                actions,
+            });
         }
+        Ok(arrivals)
     }
-    cleanup.sort_by_key(|(edge, _)| *edge);
-    Ok(Plan {
-        affine_roots,
-        cleanup,
-        unavailable: analysis.unavailable,
-    })
-}
 
-impl Analysis<'_> {
     fn storage_use(
         &mut self,
         state: &State,
@@ -944,6 +1056,56 @@ impl Analysis<'_> {
         Ok(actions)
     }
 
+    /// Discards what `held` still holds of `place` and the join does not
+    /// (`joined`, a region within it), keeping the home: each vacancy of the
+    /// join this arrival still holds whole is one residual discard, the
+    /// same consumption a projected move performs. A vacancy this arrival
+    /// holds only part of is refused; its exact complement is not yet
+    /// partitioned here.
+    fn equalize(
+        &self,
+        place: PlaceId,
+        held: &Region,
+        joined: &Region,
+    ) -> Result<Vec<TerminalAffineCleanupAction>, Error> {
+        let info = self
+            .root(place)?
+            .ok_or(Error::Malformed("missing affine owner"))?;
+        let mut vacated = Vec::new();
+        joined.vacancies(&mut Vec::new(), &mut vacated);
+        let mut actions = Vec::new();
+        for path in vacated {
+            if held.vacant(&path) {
+                continue;
+            }
+            if path.is_empty() || !held.available(&path) {
+                return Err(Error::Unsupported(
+                    "a partly moved region at a reconvergence",
+                ));
+            }
+            let storage = crate::canonical_structural_storage_path(
+                self.types.iter(),
+                info.structural_type,
+                &path,
+            )
+            .ok_or(Error::Malformed("moved region has no typed storage path"))?;
+            let (_, declaration) = crate::canonical_static_projection(
+                self.types.iter(),
+                info.structural_type,
+                &storage,
+            )
+            .ok_or(Error::Malformed("moved region has no structural type"))?;
+            actions.push(TerminalAffineCleanupAction::DiscardResidual(
+                terminal_psi::StructuralAffineDiscard {
+                    place,
+                    path: storage,
+                    structural_type: declaration.id,
+                },
+            ));
+        }
+        Ok(actions)
+    }
+
     fn root(&self, root: PlaceId) -> Result<Option<&Root>, Error> {
         self.roots
             .get(index(root.get())?)
@@ -967,6 +1129,28 @@ impl Analysis<'_> {
                     declaration.structural_type,
                     path,
                 )
+            })
+            .or_else(|| {
+                // A byte field's descriptor is inline storage of its record,
+                // so its region is the carrier's path and the field. The
+                // static projection stops there because a view's bytes lie
+                // outside the record; the descriptor does not.
+                let (StructuralPathSegment::Field(_), carrier) = path.split_last()? else {
+                    return None;
+                };
+                let field = crate::runtime_structural_field(
+                    self.types.iter(),
+                    declaration.structural_type,
+                    path,
+                )?;
+                field.field_type.byte_sequence_carrier()?;
+                let (mut canonical, _) = crate::canonical_static_projection(
+                    self.types.iter(),
+                    declaration.structural_type,
+                    carrier,
+                )?;
+                canonical.push(Segment::Field(field.id));
+                Some(canonical)
             })
             .ok_or(Error::Unsupported(
                 "affine projection outside the static structural vocabulary",
@@ -1058,5 +1242,22 @@ mod tests {
         assert_eq!(vacancies, [vec![field(1), field(2)]]);
         value.set(&[field(1), field(2)], true);
         assert_eq!(value, Region::new(true));
+    }
+
+    #[test]
+    fn a_join_owns_only_what_every_arrival_still_owns() {
+        let mut moved_a = Region::new(true);
+        moved_a.set(&[field(1)], false);
+        let mut moved_b = Region::new(true);
+        moved_b.set(&[field(2)], false);
+        let joined = moved_a.intersection(&moved_b);
+        assert!(!joined.available(&[field(1)]));
+        assert!(!joined.available(&[field(2)]));
+        assert!(joined.available(&[field(3)]));
+        assert_eq!(joined, moved_b.intersection(&moved_a));
+        assert_eq!(Region::new(true).intersection(&moved_a), moved_a);
+        let mut vacancies = Vec::new();
+        joined.vacancies(&mut Vec::new(), &mut vacancies);
+        assert_eq!(vacancies, [vec![field(1)], vec![field(2)]]);
     }
 }

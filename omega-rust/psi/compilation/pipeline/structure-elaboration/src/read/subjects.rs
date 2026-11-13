@@ -11,7 +11,10 @@ is set aside for its own check form (`Elaboration::generic_templates`). Any
 other machine becomes a `MachineId` and is read, lowered and judged like a
 called one; its callees
 follow as they do from an entry, whichever package declares them. A data
-declaration is resolved as a record. Every other kind of declaration is
+declaration is resolved as a record. A plain trait has each requirement's
+contract read, and a plain implementation has each row set aside as the
+statement that its machine refines the requirement
+(`Elaboration::conformance_witnesses`). Every other kind of declaration is
 refused as `Unsupported`, because this route judges none of them yet and a
 declaration left out would be accepted without a row or a refusal.
 
@@ -165,7 +168,8 @@ impl Program<'_> {
             }
             // A generic machine is checked once as written, as its own check
             // form, not as a closed body (`Elaboration::generic_templates`).
-            if machine.type_parameters.is_empty() {
+            // One whose only parameters are implementations is generic too.
+            if !machine.has_specialization_parameters() {
                 let id = self.machine(machine.symbol)?;
                 self.subject_machines.push(id);
             } else {
@@ -177,6 +181,16 @@ impl Program<'_> {
                 && !names_only(data)
             {
                 self.record(entry, data.symbol)?;
+            }
+        }
+        for declared in typed.traits() {
+            if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
+                self.subject_trait(entry, declared)?;
+            }
+        }
+        for declared in typed.conformances() {
+            if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
+                self.subject_implementation(entry, declared)?;
             }
         }
         // One row per remaining declaration table of the typed trees' roots.
@@ -209,11 +223,6 @@ impl Program<'_> {
                 symbols_of(typed.mathematical_definitions(), |row| row.symbol),
                 "mathematical definition",
             ),
-            (symbols_of(typed.traits(), |row| row.symbol), "trait"),
-            (
-                symbols_of(typed.conformances(), |row| row.symbol),
-                "conformance",
-            ),
             (
                 symbols_of(typed.wire_schemas(), |row| row.symbol),
                 "wire schema",
@@ -229,6 +238,96 @@ impl Program<'_> {
                     ));
                 }
             }
+        }
+        Ok(())
+    }
+}
+
+/// Whether a trait is a list of requirements and nothing else: no
+/// parameter, bound, schema clause or refinement of another trait, and not a
+/// boundary, whose requirements a provider supplies.
+fn lists_requirements_only(declared: &typed_trees::trait_definition::TraitDefinition) -> bool {
+    !declared.is_boundary
+        && declared.lifetime_parameters.is_empty()
+        && declared.type_parameters.is_empty()
+        && declared.conformance_bounds.is_empty()
+        && declared.requires.is_empty()
+        && declared.refines.is_none()
+        && declared.refinement_clauses.is_empty()
+}
+
+impl<'t> Program<'t> {
+    /// A subject trait that only lists requirements declares contracts with
+    /// no body: there is nothing to prove of it, and each contract must be
+    /// one the route reads, or a requirement nothing reads would be accepted
+    /// without a row or a refusal.
+    fn subject_trait(
+        &mut self,
+        entry: MachineId,
+        declared: &'t typed_trees::trait_definition::TraitDefinition,
+    ) -> Checked<()> {
+        if !lists_requirements_only(declared) {
+            return Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Declaration(
+                    "trait with parameters, schema clauses, a refinement or a boundary",
+                ),
+            ));
+        }
+        for requirement in self.typed.trait_machine_signatures(declared) {
+            self.requirement_signature(entry, requirement, &[])?;
+        }
+        Ok(())
+    }
+
+    /// A subject implementation of a trait that only lists requirements,
+    /// with no parameter of its own, owes one witness per requirement: the
+    /// machine its row selects refines that requirement. An implementation
+    /// that leaves a requirement without exactly one row is refused.
+    fn subject_implementation(
+        &mut self,
+        entry: MachineId,
+        declared: &'t typed_trees::trait_definition::Conformance,
+    ) -> Checked<()> {
+        let unserved = |what| {
+            Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Declaration(what),
+            ))
+        };
+        let typed = self.typed;
+        let plain = declared.lifetime_parameters.is_empty()
+            && declared.type_parameters.is_empty()
+            && declared.trait_lifetime_arguments.is_empty()
+            && declared.arguments.is_empty();
+        let Some(implemented) = typed
+            .trait_definition_by_symbol(declared.trait_symbol)
+            .filter(|implemented| plain && lists_requirements_only(implemented))
+        else {
+            return unserved("implementation with parameters or of a trait that has them");
+        };
+        let requirements = typed.trait_machine_signatures(implemented);
+        if declared.rows.len() != requirements.len() {
+            return unserved("implementation that does not give each requirement one machine");
+        }
+        for requirement in requirements {
+            let mut rows = declared
+                .rows
+                .iter()
+                .filter(|row| row.requirement == requirement.symbol);
+            let (Some(row), None) = (rows.next(), rows.next()) else {
+                return unserved("implementation that does not give each requirement one machine");
+            };
+            if row.declaring_trait != implemented.symbol {
+                return unserved("implementation row of an inherited requirement");
+            }
+            self.conformance_witnesses.push(crate::ConformanceWitness {
+                declaring_trait: row.declaring_trait,
+                requirement: row.requirement,
+                implementation: row.realization_machine,
+            });
         }
         Ok(())
     }

@@ -31,6 +31,11 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
+        // Typing accounts for `=D -D +D` and leaves each entry in the trees;
+        // judging one needs a qualification set on the carrier.
+        if cast.form.entry().is_some() {
+            return unserved("domain cast entry");
+        }
         if cast.form != language_core::CastForm::Value {
             return unserved("recast");
         }

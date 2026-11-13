@@ -106,11 +106,16 @@ file is the subject's. A declaration with no source file is refused.
 
 Subject declarations that are not machines are also roots. A `data`
 declaration is resolved as a record, so one outside the record subset refuses
-the compilation even when no machine names it. Every other kind (`const`,
-`domain`, `operator`, `trait`, a conformance, a proposition, a measure, a
-mathematical definition, a type alias, a wire schema, a machine token
-binding) is refused as `declaration <kind>`: the route judges none of them
-yet.
+the compilation even when no machine names it. A trait that only lists
+requirements has each requirement's contract read. An implementation of such
+a trait, with no parameter of its own, has each of its rows set aside
+(`Elaboration::conformance_witnesses`): the checker judges, as a part of its
+own, that the machine the row selects refines the requirement. A trait or
+implementation with parameters, schema clauses or a refinement, and a
+boundary trait, are refused by name. Every other kind (`const`, `domain`,
+`operator`, a proposition, a measure, a mathematical definition, a type
+alias, a wire schema, a machine token binding) is refused as
+`declaration <kind>`: the route judges none of them yet.
 
 Two sets the specification's closure names are not roots, so the route's
 verdict does not cover them and a router must not treat it as if it did.
@@ -513,6 +518,16 @@ The one view a field may store is a byte view, `name: &'a [u8]`, and its type
 is keyed by the region it names under the declaration that binds it, so a
 view of any other region, an elided one included, is another type: it cannot
 be stored in the field or returned as it (`typing assigned value type`).
+In the lowered form the member is a byte field of its record
+(`StructuralFieldType::ByteSequence`, with the view type as the field's
+inline carrier), not a nested value of the view type
+([structural access](../../../../../wiki/spec/terminal-psi/structural_access.md#store-vocabulary)):
+an assignment to it is `StructuralByteViewFieldStore` from the root that
+holds the source descriptor, a record literal takes the view as that field's
+operand, a copy out of it is the ordinary leaf copy, and a local declared
+without an initializer holds the empty shared view there. A field that
+stores an exclusive view is refused (`stored view that is not a shared byte
+view`).
 Naming the data bare therefore relates nothing. The source record
 correspondence a product keeps is the declaration's, with no lifetime
 argument in it: it keeps the type occurrence the record was read from, bare

@@ -24,17 +24,34 @@ pub(crate) fn is_call_at(
     matches!(
         effect,
         terminal_interpreter::TerminalEffect::BoundaryCall {
-            machine,
-            operation,
-            boundary,
+            site: actual,
             ..
-        } if site
-            == psi_compiler::BuildCallSite {
-                machine: *machine,
-                operation: *operation,
-                boundary: *boundary,
-            }
+        } if site == psi_compiler::BuildCallSite {
+            machine: actual.machine,
+            operation: actual.operation,
+            boundary: actual.boundary,
+        }
     )
+}
+
+/// A row's local coordinates are meaningful only in the code and invocation
+/// that published it. Another invocation of identical code must not use this
+/// activation's receiver, tickets or filesystem scope.
+pub(crate) fn require_effect_owner(
+    effect: &terminal_interpreter::TerminalEffect,
+    artifact: &terminal_codec::TerminalExecutionIdentity,
+) -> Result<(), terminal_interpreter::TerminalEffectRejection> {
+    let terminal_interpreter::TerminalEffect::BoundaryCall { site, .. } = effect else {
+        return Err(terminal_interpreter::TerminalEffectRejection::new(
+            "not a Build host effect",
+        ));
+    };
+    if &site.program != artifact {
+        return Err(terminal_interpreter::TerminalEffectRejection::new(
+            "Build host effect belongs to another accepted artifact",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -54,9 +71,19 @@ mod tests {
 
     fn call(at: BuildCallSite) -> TerminalEffect {
         TerminalEffect::BoundaryCall {
-            machine: at.machine,
-            operation: at.operation,
-            boundary: at.boundary,
+            site: terminal_interpreter::TerminalEffectWait {
+                program: terminal_codec::TerminalExecutionIdentity::portable(
+                    terminal_psi::TerminalPsiIdentity {
+                        vocabulary_marker: terminal_psi::TerminalModule::for_entry(at.machine)
+                            .vocabulary_marker,
+                        program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([0; 32]),
+                    },
+                ),
+                machine: at.machine,
+                block: semantic_vocabulary::BlockId::new(1).unwrap(),
+                operation: at.operation,
+                boundary: at.boundary,
+            },
             arguments: vec![],
             structural_arguments: vec![],
             byte_sequence_arguments: vec![],

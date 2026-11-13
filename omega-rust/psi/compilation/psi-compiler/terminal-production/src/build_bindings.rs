@@ -137,6 +137,60 @@ impl TerminalBuildBindings {
     }
 }
 
+pub(crate) fn validate_companions(
+    artifact: TerminalExecutionView<'_>,
+    bindings: &[TerminalBuildBindingCall],
+    queries: &[TerminalBuildQueryCall],
+    requests: &[build_requests::TerminalBuildRequestCall],
+    filesystem: &[build_filesystem::TerminalBuildFilesystemCall],
+) -> Result<(), &'static str> {
+    validate_sites(
+        artifact,
+        bindings
+            .iter()
+            .map(|call| call.site)
+            .chain(queries.iter().map(|call| call.site))
+            .chain(requests.iter().map(|call| call.site))
+            .chain(filesystem.iter().map(|call| call.site)),
+    )
+}
+
+fn validate_sites(
+    artifact: TerminalExecutionView<'_>,
+    sites: impl IntoIterator<Item = BuildCallSite>,
+) -> Result<(), &'static str> {
+    let mut emitted = Vec::new();
+    for machine in &artifact.module().machines {
+        for operation in machine.operations() {
+            if let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = operation.kind {
+                if artifact.module().boundary_machine(boundary).is_none() {
+                    return Err("Build boundary call has no emitted declaration");
+                }
+                emitted.push((machine.id, operation.id, boundary));
+            }
+        }
+    }
+    emitted.sort_unstable();
+    let mut sites = sites
+        .into_iter()
+        .map(|site| (site.machine, site.operation, site.boundary))
+        .collect::<Vec<_>>();
+    sites.sort_unstable();
+    if sites
+        .windows(2)
+        .any(|pair| (pair[0].0, pair[0].1) == (pair[1].0, pair[1].1))
+    {
+        return Err("Build boundary call has duplicate source companions");
+    }
+    if sites
+        .iter()
+        .any(|site| emitted.binary_search(site).is_err())
+    {
+        return Err("Build companion has no exact emitted boundary call");
+    }
+    Ok(())
+}
+
 pub(crate) mod build_filesystem {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub enum TerminalBuildFilesystemOperation {

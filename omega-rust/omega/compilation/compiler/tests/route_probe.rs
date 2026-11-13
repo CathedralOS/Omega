@@ -43,6 +43,24 @@ machine main() { }
 
 /// One word per judged part of `source`, staged as a standalone `main.omg`.
 fn verdicts(name: &str, source: &str) -> Vec<&'static str> {
+    judged(name, source)
+        .iter()
+        .map(|verdict| match verdict {
+            Ok(RouteVerdict::Accepted(_)) => "accepted",
+            Ok(RouteVerdict::Rejected { .. }) => "rejected",
+            Ok(RouteVerdict::Incomplete(_)) => "incomplete",
+            Ok(RouteVerdict::FallBack(_)) => "not-supported",
+            Err(_) => "defect",
+        })
+        .collect()
+}
+
+/// The route's verdict on each part of `source`, staged as a standalone
+/// `main.omg`: the entry closure first.
+fn judged(
+    name: &str,
+    source: &str,
+) -> Vec<Result<RouteVerdict, lowered_discharge::CompilationRefusal>> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -77,15 +95,6 @@ fn verdicts(name: &str, source: &str) -> Vec<&'static str> {
             bindings: &frontier.bindings,
         },
     )
-    .iter()
-    .map(|verdict| match verdict {
-        Ok(RouteVerdict::Accepted(_)) => "accepted",
-        Ok(RouteVerdict::Rejected { .. }) => "rejected",
-        Ok(RouteVerdict::Incomplete(_)) => "incomplete",
-        Ok(RouteVerdict::FallBack(_)) => "not-supported",
-        Err(_) => "defect",
-    })
-    .collect()
 }
 
 #[test]
@@ -98,5 +107,139 @@ fn an_uncalled_defect_of_a_standalone_program_is_rejected() {
     assert_eq!(
         verdicts("uncalled_overflow", UNCALLED_OVERFLOW),
         ["rejected"]
+    );
+}
+
+/// The source of a kept fixture program, read from the repository.
+fn fixture(directory: &str) -> String {
+    let main = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../..")
+        .join(directory)
+        .join("main.omg");
+    std::fs::read_to_string(&main).unwrap_or_else(|error| panic!("{}: {error}", main.display()))
+}
+
+/// `main` calls `relay<u8>` and `relay<bool>`, and `relay<T>` calls
+/// `forward<T>`. Typed preparation generates the four machines those
+/// applications select, so the entry closure is closed and judged; the two
+/// generic machines are each judged once as written.
+#[test]
+fn a_program_applying_a_generic_machine_at_types_is_judged() {
+    assert_eq!(
+        verdicts(
+            "type_parameter",
+            &fixture("tests/fixtures/run/generics/type_parameter_contract")
+        ),
+        ["accepted", "accepted", "accepted"]
+    );
+}
+
+/// Its twin differs only in the bound `relay` promises, which `forward`'s
+/// contract does not give: `relay` is rejected as written, and so is the
+/// entry closure holding the machines generated from it. `forward` stands.
+#[test]
+fn a_generic_machine_that_exceeds_its_callee_is_rejected_where_it_is_applied() {
+    assert_eq!(
+        verdicts(
+            "type_parameter_exceeds",
+            &fixture("tests/fixtures/fail/generics/type_parameter_contract_exceeds_callee")
+        ),
+        ["rejected", "accepted", "rejected"]
+    );
+}
+
+/// A finite family: `pick<T>` admits `u8` and `u16` and is applied at both.
+/// Each generated machine is the body under its own type, and each listed
+/// type is judged once as an alternative of the generic machine.
+#[test]
+fn a_program_applying_a_finite_family_is_judged() {
+    assert_eq!(
+        verdicts(
+            "finite_family",
+            &fixture("tests/fixtures/run/generics/finite_family_contract")
+        ),
+        ["accepted", "accepted", "accepted"]
+    );
+}
+
+/// Its twin differs only in what `pick` returns at `u16`: that alternative
+/// and the entry closure holding `pick` at `u16` are rejected, and the `u8`
+/// alternative stands.
+#[test]
+fn a_finite_family_alternative_that_breaks_its_contract_is_rejected() {
+    assert_eq!(
+        verdicts(
+            "finite_family_wrong_alternative",
+            &fixture("tests/fixtures/fail/generics/finite_family_contract_wrong_alternative")
+        ),
+        ["rejected", "accepted", "rejected"]
+    );
+}
+
+/// `advance<Selected satisfies Step>` is applied at `Hold` and at `Shift`.
+/// Typed preparation generates one machine per implementation, in which the
+/// call through `Selected` enters that implementation's `apply`. Four parts
+/// are judged: the entry closure holding both generated machines, `advance`
+/// once as written against `Step::apply`'s contract, and for each
+/// implementation that its `apply` refines `Step::apply`.
+#[test]
+fn a_program_applying_a_generic_machine_at_implementations_is_judged() {
+    let parts = judged(
+        "implementation_parameter",
+        &fixture("tests/fixtures/run/generics/implementation_parameter_contract"),
+    );
+    let [Ok(RouteVerdict::Accepted(closure)), form, hold, shift] = &parts[..] else {
+        panic!("four parts, the entry closure accepted: {parts:?}");
+    };
+    for part in [form, hold, shift] {
+        assert!(matches!(part, Ok(RouteVerdict::Accepted(_))), "{part:?}");
+    }
+    // Each generated machine states the generic machine it came from and
+    // commits to its own implementation, so the two do not commit alike.
+    assert!(closure.elaboration.undeclared.is_empty());
+    let commitments = closure
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .filter_map(|machine| machine.declaration.as_ref()?.specialization.as_ref())
+        .map(|specialization| specialization.commitment)
+        .collect::<Vec<_>>();
+    let [at_hold, at_shift] = commitments[..] else {
+        panic!("two generated machines: {commitments:?}");
+    };
+    assert_ne!(at_hold, at_shift);
+}
+
+/// Its twin differs only in the bound `advance` promises, 18, which holds
+/// for both selections and not for `Step::apply`'s contract. The closure
+/// and both implementations stand; `advance` as written is rejected, so the
+/// selections a program makes do not make a generic body valid.
+#[test]
+fn a_generic_machine_valid_only_for_its_selections_is_rejected_as_written() {
+    assert_eq!(
+        verdicts(
+            "implementation_parameter_only_selection",
+            &fixture(
+                "tests/fixtures/fail/generics/implementation_parameter_contract_only_holds_for_selection"
+            )
+        ),
+        ["accepted", "rejected", "accepted", "accepted"]
+    );
+}
+
+/// The same program where `Shift::apply` promises `result <= 25`, more than
+/// `Step::apply`'s 20 allows. `advance` as written and `Hold` stand. The
+/// witness that `Shift::apply` refines `Step::apply` is rejected, and so is
+/// the closure: `advance` at `Shift` can no longer take the proof of the
+/// generic body, and its own body returns up to 26.
+#[test]
+fn an_implementation_that_promises_less_than_its_requirement_is_rejected() {
+    let source = fixture("tests/fixtures/run/generics/implementation_parameter_contract");
+    let weaker = source.replace("ensures result <= 17", "ensures result <= 25");
+    assert_ne!(source, weaker, "the fixture states Shift's promise");
+    assert_eq!(
+        verdicts("implementation_exceeds_requirement", &weaker),
+        ["rejected", "accepted", "accepted", "rejected"]
     );
 }
