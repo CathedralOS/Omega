@@ -230,23 +230,6 @@ fn package_frontiers_batch_components_without_nested_source_workers() {
 }
 
 #[test]
-fn installation_reach_settlement_consumes_prepared_rows() {
-    let projection = include_str!(
-        "../../realization/provider-planning/src/provider_planning/selected_declarations.rs"
-    );
-    assert_absent(
-        &[projection],
-        "reach projection reconstructs",
-        &[
-            "typed.machines()",
-            "typed.traits()",
-            "attached_data_path",
-            "named_provider_row",
-        ],
-    );
-}
-
-#[test]
 fn native_provider_handoff_borrows_closed_source_associations() {
     let projection = include_str!("../../products/src/checked_compilation.rs");
     assert_absent(
@@ -356,50 +339,6 @@ fn native_telescope_construction_is_shared_by_canonical_replay_and_projection() 
 }
 
 #[test]
-fn provider_derivation_consumes_the_prepared_service_census() {
-    let derivation = include_str!(
-        "../../realization/provider-planning/src/provider_planning/provenance_replay/plan_derivation.rs"
-    );
-    let named = include_str!(
-        "../../realization/provider-planning/src/provider_planning/provenance_replay/named_provider_plans.rs"
-    );
-    let service_catalog =
-        include_str!("../../realization/provider-planning/src/service_declarations.rs");
-    assert_absent(
-        &[derivation, named, service_catalog],
-        "provider census consumer reopens",
-        &[
-            "projection::from_typed",
-            "service_schema::from_typed",
-            "service_schema::from_sealed_accessor",
-        ],
-    );
-    let native_supply =
-        include_str!("../../realization/provider-planning/src/native_bindings/plans.rs");
-    let settlement = include_str!("../../realization/provider-planning/src/provider_settlement.rs");
-    let entry = include_str!("../../realization/provider-planning/src/program_entry.rs");
-    let nomination =
-        include_str!("../../realization/provider-planning/src/program_entry/discovery.rs");
-    let adapter = include_str!(
-        "../../realization/provider-planning/src/provider_planning/provenance_replay/adapter_conformance.rs"
-    );
-    assert_absent(
-        &[native_supply, settlement, entry, nomination, adapter],
-        "provider census consumer reopens",
-        &["service_schema::from_typed"],
-    );
-    let build = include_str!("../../../build-system/build-settings/src/admission/checking.rs");
-    assert_in_order(
-        build,
-        "Build admission checking",
-        &[
-            "PreparedServiceCatalog::prepare(context, &[])",
-            "derive_satisfies_plans(",
-        ],
-    );
-}
-
-#[test]
 fn native_product_supplies_inputs_without_orchestrating_component_emission() {
     let source = include_str!("product_execution.rs");
     let inputs =
@@ -462,15 +401,9 @@ fn exclusion_source_resolution_stays_out_of_terminal_policy() {
 }
 
 #[test]
-fn terminal_composition_admission_follows_canonical_publication() {
+fn terminal_composition_keeps_source_and_omega_policy_out_of_attachment() {
     let producer =
         include_str!("../../../../psi/compilation/psi-compiler/terminal-production/src/lib.rs");
-    assert_eq!(producer.matches("application.attach(").count(), 1);
-    assert_in_order(
-        producer,
-        "application attachment",
-        &["finalize_terminal_program(", "application.attach("],
-    );
     assert_absent(
         &[producer],
         "Psi production runs Omega policy:",
@@ -604,24 +537,6 @@ fn provider_demand_is_prepared_by_psi_not_each_target_settlement() {
         &[publication],
         "target publication recomputes provider demand:",
         &["is_candidate_demanded"],
-    );
-}
-
-#[test]
-fn target_defaults_consume_one_psi_authored_origin_inventory() {
-    let target_selection =
-        include_str!("../../realization/provider-planning/src/target_machines.rs");
-    let selection = target_selection
-        .split("pub fn settle_provider_defaults(")
-        .nth(1)
-        .expect("target-default selection")
-        .split("///")
-        .next()
-        .expect("target-default body");
-    assert_absent(
-        &[selection],
-        "target defaults rescan source:",
-        &[".machines()", "ProviderPlanningContext"],
     );
 }
 

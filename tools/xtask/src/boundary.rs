@@ -110,10 +110,6 @@ pub struct Allowance {
 
 const FIREWALL_ALLOWANCES: &[Allowance] = &[
     Allowance {
-        owner: PROVIDER_PLANNING,
-        dependency: "omega-rust/psi/compilation/representations/checked-trees",
-    },
-    Allowance {
         owner: SELECTED_DISPATCH,
         dependency: TERMINAL_PRODUCTION,
     },
@@ -269,8 +265,8 @@ pub fn forbidden_rules() -> Vec<Rule> {
         Rule {
             owners: vec![PSI_FACADE],
             forbidden: TERMINAL_STAGES.to_vec(),
-            reason: "Psi 06-08 are sequenced only by terminal-production",
-            except_owners: vec![TERMINAL_PRODUCTION],
+            reason: "retired Lowered Psi stages do not return through the Psi facade",
+            except_owners: vec![],
             allowed: vec![],
         },
         Rule {

@@ -86,7 +86,6 @@ pub struct CheckedProductSource {
     pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub program: Arc<typed_trees::FrozenTypedTrees>,
     pub provider_inventory: Arc<typed_trees::provider_declarations::PreparedProviderInventory>,
-    pub native_bindings: Arc<provider_planning::native_bindings::PreparedNativeBuildBindings>,
     pub terminal_publication: Arc<crate::ProductTerminalPublication>,
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,

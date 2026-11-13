@@ -22,7 +22,6 @@ arena = { path = "../../../psi/foundation/arena" }
 native-compiler = { path = "../native-compiler" }
 compilation-products = { path = "../products" }
 component-description = { path = "../backend/artifacts/component-description" }
-lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
 build-declarations = { path = "../../packages/build-declarations" }
 build-settings = { path = "../../build-system/build-settings" }
 build-output = { path = "../../packages/build-output" }

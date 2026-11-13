@@ -413,35 +413,34 @@ pub(crate) mod statement {
             };
             let root_type = lower_type_reference_into_table(lowerer, &declared_root)?;
             let mut current = root_type;
-            let mut path = Vec::with_capacity(steps.len());
             for step in steps.into_iter().rev() {
-                match step {
+                current = match step {
                     ProjectionStep::Element(selector) => {
-                        let selector =
-                            crate::expressions::expression::lower_executable_expression_handle(
-                                lowerer, selector,
-                            )?;
-                        path.push(facts::PlaceSegment::Index {
-                            expression: selector,
-                        });
+                        // Retain the exact authored operand even though reading
+                        // an element type supplies no index/bounds evidence.
+                        crate::expressions::expression::lower_executable_expression_handle(
+                            lowerer, selector,
+                        )?;
+                        crate::typing_queries::collection_element_type(
+                            &lowerer.typed_trees,
+                            current,
+                        )?
                     }
                     ProjectionStep::Field(member) => {
-                        let Some(symbol) =
+                        let symbol =
                             declared_projection_field(&lowerer.typed_trees, current, member)
-                        else {
-                            return Ok(None);
-                        };
-                        path.push(facts::PlaceSegment::Field { symbol });
+                                .ok_or_else(|| {
+                                    crate::unavailable_judgment(
+                                        "collection field declaration identity",
+                                    )
+                                })?;
+                        crate::typing_queries::collection_field_type(
+                            &lowerer.typed_trees,
+                            current,
+                            symbol,
+                        )?
                     }
-                }
-                let Some(projected) = validation::project_type_reference_from_segments(
-                    &lowerer.typed_trees,
-                    root_type,
-                    &path,
-                ) else {
-                    return Ok(None);
                 };
-                current = projected;
             }
             Ok(Some(current))
         }
@@ -456,7 +455,7 @@ pub(crate) mod statement {
                 .peeled_type_reference(reference);
             let owner = program.closed_data_definition(reference).or_else(|| {
                 let symbol = program.type_reference_table.type_head_symbol(reference)?;
-                validation::unique_data_definition_by_symbol(program, symbol)
+                program.unique_data_definition_by_symbol(symbol)
             })?;
             if owner.generic_instance.is_some() {
                 return program

@@ -53,9 +53,6 @@
 4 omega-rust/omega/compilation/representations/abstract-operations/verified-input/src/native_execution_scope.rs
 1 omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/original_homes.rs
 1 omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs
-5 omega-rust/psi/compilation/build-time-evaluation/src/const_evaluation.rs
-1 omega-rust/psi/compilation/build-time-evaluation/src/const_generic_expressions.rs
-1 omega-rust/psi/compilation/build-time-evaluation/src/const_initializers.rs
 3 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs
 9 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs
 10 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation_const_evaluation.rs
@@ -66,10 +63,6 @@
 4 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection_authored.rs
 1 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols.rs
 1 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/symbols_top_level.rs
-3 omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/selection_and_reflection.rs
-29 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/control_flow_and_retention.rs
-1 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs
-19 omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/scalar_and_value_passes.rs
 5 omega-rust/psi/compilation/proof/admission/src/bounded_denotation.rs
 2 omega-rust/psi/compilation/proof/admission/src/integer_rules.rs
 1 omega-rust/psi/compilation/proof/admission/src/lib.rs
@@ -94,16 +87,6 @@
 4 omega-rust/psi/compilation/representations/typed-trees/src/type_system.rs
 2 omega-rust/psi/compilation/terminal-installation/src/evaluation_and_synchronous_calls.rs
 4 omega-rust/psi/compilation/terminal-installation/src/provider_and_target_installation.rs
-9 omega-rust/psi/compilation/validation/src/calls.rs
-4 omega-rust/psi/compilation/validation/src/completed_storage_and_conservation.rs
-2 omega-rust/psi/compilation/validation/src/contract_entailment.rs
-2 omega-rust/psi/compilation/validation/src/declarations_core.rs
-1 omega-rust/psi/compilation/validation/src/effect_inference.rs
-2 omega-rust/psi/compilation/validation/src/float_and_mathematical_contracts.rs
-8 omega-rust/psi/compilation/validation/src/frozen_program_and_queries.rs
-4 omega-rust/psi/compilation/validation/src/machine_calls_core.rs
-14 omega-rust/psi/compilation/validation/src/proof_contracts_core.rs
-2 omega-rust/psi/compilation/validation/src/type_references_and_wire.rs
 2 omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs
 2 omega-rust/psi/foundation/semantic-vocabulary/src/storage.rs
 1 omega-rust/psi/foundation/symbols/src/fast_map.rs

@@ -235,7 +235,6 @@ dependencies = [
  "access-plans",
  "arena",
  "build-time-values",
- "checked-trees",
  "compiler-storage",
  "diagnostics",
  "evaluation-accounting",
@@ -245,7 +244,6 @@ dependencies = [
  "language-semantics",
  "layout-plans",
  "numerics",
- "psi-terminal-production",
  "psi-work",
  "semantic-vocabulary",
  "source",
@@ -262,8 +260,6 @@ dependencies = [
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
- "typed-trees-to-typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -346,28 +342,6 @@ name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
-
-[[package]]
-name = "checked-trees"
-version = "0.1.0"
-dependencies = [
- "access-plans",
- "arena",
- "compiler-storage",
- "diagnostics",
- "facts",
- "flow-effects",
- "language-core",
- "language-semantics",
- "numerics",
- "optimization",
- "proof-admission",
- "semantic-vocabulary",
- "source",
- "source-audit",
- "symbols",
- "typed-trees",
-]
 
 [[package]]
 name = "command-group"
@@ -458,7 +432,6 @@ dependencies = [
  "layout-plans",
  "libc",
  "lowered-discharge",
- "lowered-psi",
  "machine-code",
  "machine-emission",
  "mimalloc",
@@ -667,20 +640,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "facts"
-version = "0.1.0"
-dependencies = [
- "arena",
- "compiler-storage",
- "language-core",
- "language-semantics",
- "numerics",
- "semantic-vocabulary",
- "symbols",
- "typed-trees",
-]
-
-[[package]]
 name = "filesystem-authority"
 version = "0.1.0"
 dependencies = [
@@ -805,7 +764,6 @@ dependencies = [
  "language-core",
  "layout-plans",
  "legalized-operations",
- "lowered-psi-to-terminal-psi",
  "machine-code",
  "machine-emission",
  "object-file",
@@ -1132,39 +1090,6 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "typed-trees",
-]
-
-[[package]]
-name = "lowered-psi"
-version = "0.1.0"
-dependencies = [
- "arena",
- "checked-trees",
- "language-semantics",
- "semantic-vocabulary",
- "symbols",
- "terminal-psi",
-]
-
-[[package]]
-name = "lowered-psi-to-lowered-psi"
-version = "0.1.0"
-dependencies = [
- "lowered-psi",
- "optimization",
- "semantic-vocabulary",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
-]
-
-[[package]]
-name = "lowered-psi-to-terminal-psi"
-version = "0.1.0"
-dependencies = [
- "lowered-psi-to-lowered-psi",
- "terminal-codec",
- "terminal-semantics",
 ]
 
 [[package]]
@@ -1798,7 +1723,6 @@ dependencies = [
  "build-time-evaluation",
  "build-time-values",
  "calling-conventions",
- "checked-trees",
  "component-description",
  "diagnostics",
  "effects",
@@ -1818,16 +1742,12 @@ dependencies = [
  "semantic-vocabulary",
  "source",
  "source-audit",
- "source-files-to-tokens",
- "symbol-resolved-trees-to-typed-trees",
  "symbols",
- "syntax-trees-to-symbol-resolved-trees",
  "target",
  "terminal-codec",
  "terminal-installation",
  "terminal-psi",
  "terminal-semantics",
- "tokens-to-syntax-trees",
 ]
 
 [[package]]
@@ -1853,7 +1773,6 @@ version = "0.1.0"
 dependencies = [
  "arena",
  "build-time-evaluation",
- "checked-trees",
  "compiler-storage",
  "diagnostics",
  "flow-effects",
@@ -1882,14 +1801,10 @@ dependencies = [
 name = "psi-terminal-production"
 version = "0.1.0"
 dependencies = [
- "checked-trees",
  "compiler-storage",
  "diagnostics",
  "language-semantics",
  "lowered-discharge",
- "lowered-psi-to-lowered-psi",
- "lowered-psi-to-terminal-psi",
- "optimization",
  "semantic-vocabulary",
  "source",
  "structure-elaboration",
@@ -2374,7 +2289,6 @@ dependencies = [
  "arena",
  "compiler-storage",
  "diagnostics",
- "facts",
  "language-core",
  "language-semantics",
  "numerics",
@@ -2383,7 +2297,6 @@ dependencies = [
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -2787,17 +2700,12 @@ name = "typed-trees-to-typed-trees"
 version = "0.1.0"
 dependencies = [
  "arena",
- "checked-trees",
  "compiler-storage",
  "diagnostics",
- "facts",
  "language-core",
  "language-semantics",
- "numerics",
- "source",
  "symbols",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -2811,33 +2719,6 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
-
-[[package]]
-name = "validation"
-version = "0.1.0"
-dependencies = [
- "access-plans",
- "arena",
- "checked-trees",
- "compiler-storage",
- "diagnostics",
- "facts",
- "flow-effects",
- "language-core",
- "language-semantics",
- "layout-plans",
- "lowered-discharge",
- "numerics",
- "optimization",
- "proof-admission",
- "rayon",
- "semantic-vocabulary",
- "source",
- "structure-elaboration",
- "symbols",
- "terminal-check-tables",
- "typed-trees",
-]
 
 [[package]]
 name = "verified-optimization-input"
