@@ -430,3 +430,15 @@ own to defend. Say what you saw, not what you would build.
 - Saw: 220 to 420 seconds per fixture at Idle priority with other builds running; one `tests/psi/checking` pass took 2,067 seconds and about 11 GB
 - Cost: agents validate with a few named probes instead of the corpus, and skip coverage tools; a wider check is not practical locally
 - Reported: 2026-11-12, Claude Code (two workers), while building lowered-form checker lanes
+
+### Build activation, library slices and sibling-target checks accept on the old checker alone
+- Where: every `psi_compiler::CheckRequest::check()` caller other than the product check in `omega-rust/omega/compilation/compiler/src/checked/checking/source_checking.rs` (Build activation, library slice checks, sibling targets)
+- Saw: only the product check shows its trees to the lowered-form checker; the others call `check()`, which runs Psi 05 with no second verdict, so a Build program or a library slice is still accepted with no evidence the proof kernel re-checked
+- Cost: after the 2026-11-12 cut the compiler reads as if one checker decides everything, while every compilation still depends on these unbacked acceptances until Psi 05 is deleted
+- Reported: 2026-11-12, Claude Code, while removing the fall-back to the old checker
+
+### Fail fixtures pin the old checker's wording for a failed call requirement
+- Where: `tests/omega/fail/calls/free_machine_named_transition_rejected/expected.txt` and its family
+- Saw: the fixture pins "value call to `scan` violates required fact `value == 41`"; the lowered-form checker says "cannot prove requires contract for call scan from Main::main: 40 == 41 ...", so the row is red although the program is rejected for the right reason
+- Cost: these rows stay red after the old stages go until the new checker names the callee's clause, and they read as checker failures rather than a wording gap
+- Reported: 2026-11-12, Claude Code (two workers), while removing the old checker

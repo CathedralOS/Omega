@@ -220,9 +220,7 @@ pub(super) fn govern<T>(
         // returns a program the route never accepted is a defect here.
         return match current {
             Err(rejection) => Err(rejection),
-            Ok(_) => Err(vec![route_defect(
-                "the check finished without its verdict",
-            )]),
+            Ok(_) => Err(vec![route_defect("the check finished without its verdict")]),
         };
     }
     current.map_err(|rejection| {
