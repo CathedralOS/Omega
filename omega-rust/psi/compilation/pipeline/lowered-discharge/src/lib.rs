@@ -62,6 +62,7 @@ mod known;
 mod minted;
 mod places;
 mod prove;
+mod refinement;
 mod reuse;
 mod verdict;
 
@@ -70,6 +71,7 @@ pub use callable_formations::{
     check_bound_callable_shapes,
 };
 pub use places::{ConflictingLoan, LoanConflict};
+pub use refinement::prove_callable_refinement;
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, PublicationError,

@@ -15332,12 +15332,35 @@ pub(crate) mod contract_refinement {
         pub(crate) result: TypeReferenceHandle,
     }
 
-    pub(crate) struct CallableContractRefinement {
-        required: ContractFacts,
-        actual: ContractFacts,
+    pub(crate) enum CallableContractRefinement {
+        Lowered {
+            verdict: terminal_check_tables::Checked<()>,
+        },
+        Source {
+            required: ContractFacts,
+            actual: ContractFacts,
+        },
     }
 
     impl CallableContractRefinement {
+        pub(crate) fn prepare_lowered<'a>(
+            program: &'a typed_trees::TypedTrees,
+            required: &'a StateSignature,
+            actual: structure_elaboration::CallableDeclaration<'a>,
+        ) -> Option<Self> {
+            use terminal_check_tables::RefusalReason;
+            let verdict = lowered_discharge::prove_callable_refinement(program, required, actual);
+            match &verdict {
+                Err(refused)
+                    if refused.reason == RefusalReason::Unsupported
+                        || matches!(refused.reason, RefusalReason::Unproved(cause) if cause.is_incomplete()) =>
+                {
+                    None
+                }
+                _ => Some(Self::Lowered { verdict }),
+            }
+        }
+
         pub(crate) fn prepare(
             program: &dyn crate::CheckingInput,
             required: CallableContract<'_>,
@@ -15379,7 +15402,7 @@ pub(crate) mod contract_refinement {
                     return None;
                 }
             }
-            Some(Self {
+            Some(Self::Source {
                 required: ContractFacts::collect(
                     program,
                     required.owner,
@@ -15401,24 +15424,37 @@ pub(crate) mod contract_refinement {
             })
         }
 
+        pub(crate) fn refusal_detail(&self) -> Option<&str> {
+            match self {
+                Self::Lowered {
+                    verdict: Err(refused),
+                } => Some(&refused.detail),
+                _ => None,
+            }
+        }
+
         pub(crate) fn proves(
             &self,
             program: &dyn crate::CheckingInput,
             kind: &SignatureContractKind,
         ) -> bool {
+            let (required, actual) = match self {
+                Self::Lowered { verdict } => {
+                    return verdict.is_ok()
+                        && matches!(
+                            kind,
+                            SignatureContractKind::Requires | SignatureContractKind::Ensures
+                        );
+                }
+                Self::Source { required, actual } => (required, actual),
+            };
             let (premises, premise_scope, goals, goal_scope) = match kind {
-                SignatureContractKind::Requires => (
-                    &self.required.requires,
-                    &self.required,
-                    &self.actual.requires,
-                    &self.actual,
-                ),
-                SignatureContractKind::Ensures => (
-                    &self.actual.ensures,
-                    &self.actual,
-                    &self.required.ensures,
-                    &self.required,
-                ),
+                SignatureContractKind::Requires => {
+                    (&required.requires, required, &actual.requires, actual)
+                }
+                SignatureContractKind::Ensures => {
+                    (&actual.ensures, actual, &required.ensures, required)
+                }
                 _ => return false,
             };
             goals
