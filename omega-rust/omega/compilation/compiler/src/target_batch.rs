@@ -15,7 +15,7 @@ publishes shared Terminal code (`PreparedProductTarget::capture`), so preparing
 one target never reopens Source for later siblings.
 
 `produce_products` then plans all requested products, extracts only the work
-items that require portable Terminal Psi production (`CompilationWork::Terminal`),
+items that planning admitted (each requires portable Terminal Psi production),
 runs `produce_retained_terminal_artifacts` once across the batch, and pairs each
 finished output back with its caller-supplied owner without parallel index tables.
 */
@@ -24,7 +24,7 @@ use crate::checked::PreparedProductTarget;
 use crate::checked::run_on_compile_thread;
 use crate::execution_settlement::SelectedProductTarget;
 use crate::product_execution::{
-    CompilationOutput, CompilationProduct, CompilationProductError, CompilationWork, ProductRequest,
+    CompilationOutput, CompilationProduct, CompilationProductError, ProductRequest,
 };
 use crate::terminal::produce_retained_terminal_artifacts;
 use crate::{CompileRequest, TargetProductOutcome};
@@ -167,24 +167,21 @@ pub(crate) fn produce_products<Owner>(
     let terminal_requests = work
         .iter_mut()
         .filter_map(|(_, planned)| match planned {
-            Ok(CompilationWork::Terminal(product)) => Some(product.terminal_request()),
-            _ => None,
+            Ok(product) => Some(product.terminal_request()),
+            Err(_) => None,
         })
         .collect();
     let mut terminals = produce_retained_terminal_artifacts(terminal_requests).into_iter();
 
     work.into_iter()
         .map(|(owner, planned)| {
-            let outcome = planned.and_then(|planned| match planned {
-                CompilationWork::Complete(output) => Ok(output),
-                CompilationWork::Terminal(product) => match terminals.next() {
-                    Some(Ok(terminal)) => product.finish(terminal),
-                    Some(Err(diagnostics)) => Err(diagnostics.into()),
-                    None => Err(vec![Diagnostic::error(
-                        "Terminal production lost a requested application",
-                    )]
-                    .into()),
-                },
+            let outcome = planned.and_then(|product| match terminals.next() {
+                Some(Ok(terminal)) => product.finish(terminal),
+                Some(Err(diagnostics)) => Err(diagnostics.into()),
+                None => Err(vec![Diagnostic::error(
+                    "Terminal production lost a requested application",
+                )]
+                .into()),
             });
             (owner, outcome)
         })

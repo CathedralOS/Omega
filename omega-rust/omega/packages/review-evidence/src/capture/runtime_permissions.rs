@@ -47,8 +47,8 @@ impl PreparedRuntimePolicy {
             )]);
         }
         if input.sources.package_identity() != Some(package)
-            || input.execution.selected_target_profile != Some(target)
-            || input.execution.selected_native_target() != Some(target.native_target())
+            || input.execution.target_profile() != Some(target)
+            || input.execution.native_target() != Some(target.native_target())
         {
             return Err(vec![Diagnostic::error(
                 "policy package or target differs from the exact root activation",

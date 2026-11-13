@@ -167,7 +167,7 @@ impl ProductReportPlan {
             source_file_count,
             application: checked.build_admission().native_application_metadata(
                 &checked.build().config.settings,
-                checked.execution().selected_target_profile,
+                checked.execution().target_profile(),
             ),
             build_outputs,
             build_observation: checked.build().observation_identity(),

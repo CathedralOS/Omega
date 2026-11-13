@@ -64,15 +64,6 @@ impl CompilationSession {
         }
     }
 
-    pub(super) fn attach_component_products(&self, outcome: &mut SelectedCompileOutcome) {
-        if let Ok(selected) = &mut outcome.result
-            && let Err(diagnostics) =
-                selected.retain_independent_component_products(&self.component_products)
-        {
-            outcome.result = Err(diagnostics.into());
-        }
-    }
-
     pub fn begin_source_compilation(
         &mut self,
         request: CheckedCompileRequest,
@@ -216,12 +207,10 @@ impl CompilationSession {
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
         frontier: Option<&mut Option<super::checking::typed_frontier::TypedFrontier>>,
     ) -> SelectedCompileOutcome {
-        let mut outcome = match source.select(returned, frontier) {
+        match source.select(returned, frontier) {
             Ok(outcome) => outcome,
-            Err(failure) => return refusal(failure),
-        };
-        self.attach_component_products(&mut outcome);
-        outcome
+            Err(failure) => refusal(failure),
+        }
     }
 
     pub(super) fn begin_build(

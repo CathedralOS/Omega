@@ -38,19 +38,10 @@ impl InspectionCompilation {
         produced: ProducedTerminalProduct,
     ) -> Result<CompilationOutput, CompilationProductError> {
         let completed = (|| {
-            if self.realization.custody.execution.has_proof_obligations {
-                produced.check_conditions(&mut self.realization.custody)?;
-            }
+            produced.check_conditions(&mut self.realization.custody)?;
             self.realization
-                .check_declaration_requirements(Some(produced.module()))?;
-            match produced {
-                ProducedTerminalProduct::Descriptive { program, .. } => {
-                    Ok(CompilationOutput::Inspection(program))
-                }
-                _ => Err(vec![Diagnostic::error(
-                    "inspection lost its source-issued Terminal production",
-                )]),
-            }
+                .check_declaration_requirements(produced.module())?;
+            Ok::<_, Vec<Diagnostic>>(CompilationOutput::Inspection(produced.program))
         })();
         completed.map_err(|diagnostics| CompilationProductError::ProductionAttempt {
             diagnostics,

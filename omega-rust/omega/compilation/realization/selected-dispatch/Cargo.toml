@@ -10,14 +10,9 @@ path = "src/lib.rs"
 
 [dependencies]
 backend-plan = { path = "../../backend/plans/backend-plan" }
-trust-model = { path = "../trust-model" }
 effects = { path = "../../backend/plans/effects" }
-package-compilation = { path = "../../../packages/package-compilation" }
+optimization-core = { path = "../../../foundation/optimization-core" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
 provider-planning = { path = "../provider-planning" }
-psi-terminal-production = { path = "../../../../psi/compilation/psi-compiler/terminal-production" }
 target = { path = "../../backend/target" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
-semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
-language-semantics = { path = "../../../../psi/foundation/language-semantics" }
-symbols = { path = "../../../../psi/foundation/symbols" }
-terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

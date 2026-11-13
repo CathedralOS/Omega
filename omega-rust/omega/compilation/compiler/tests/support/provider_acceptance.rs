@@ -2,15 +2,16 @@
 //!
 //! Three sibling sites used to resolve, admit and permission a package-owned
 //! service role by hand. Every role now resolves the same way, once: one exact
-//! plan (the selected provider plans zipped with their provenance) serving the
+//! settled provider plan serving the
 //! role's schema with an `exit_process` row and belonging to the accepting
 //! owner, then an `AcceptedSemanticBinding` with that plan's digests and the
 //! sorted terminal-authority rows of the methods the role accepts.
 //!
-//! `Console` is a package-owned boundary, so its schema symbol names the owner;
-//! `ProcessExit` is toolchain-owned (`omega::language::core::process_exit`) and
-//! carries no package identity, so the bound package owns the selected nominal
-//! provider type. Both spellings live here so the requirement projection and
+//! `Console` is a package-owned boundary, so the package the plan originates
+//! from names the owner; `ProcessExit` is toolchain-owned
+//! (`omega::language::core::process_exit`) and carries no package identity, so
+//! the bound package owns the selected nominal provider type. Both coordinates
+//! are read from the settled plan itself. Both spellings live here so the requirement projection and
 //! the binding constructors cannot disagree about which package owns a plan.
 //! This is test policy, not evidence that an audit occurred.
 
@@ -26,27 +27,19 @@ use terminal_psi::TerminalIdentityTableBuilder;
 /// Ownership through the provider-type nominal, the coordinate a
 /// package-authored provider type carries its package in.
 pub fn provider_type_owner(
-    checked: &CheckedCompilation,
-    provenance: &provider_planning::SelectedProviderReviewProvenance,
+    plan: &effects::provider_plan::ProviderPlan,
     owner: PackageKeyIdentity,
 ) -> bool {
-    provenance
-        .provider
-        .provider_type
-        .is_some_and(|provider| checked.symbols.symbol_package_identity(provider) == Some(owner))
+    plan.provider_type_package_identity == Some(owner)
 }
 
-/// Ownership through the boundary declaration schema the plan was resolved
-/// from: a package-owned service boundary carries the owner there.
+/// Ownership through the package the plan originates from: a package-owned
+/// service boundary and its provider carry the owner there.
 pub fn schema_symbol_owner(
-    checked: &CheckedCompilation,
-    provenance: &provider_planning::SelectedProviderReviewProvenance,
+    plan: &effects::provider_plan::ProviderPlan,
     owner: PackageKeyIdentity,
 ) -> bool {
-    checked
-        .symbols
-        .symbol_package_identity(provenance.provider.schema.symbol())
-        == Some(owner)
+    plan.origin_package_identity == Some(owner)
 }
 
 /// The authority classes one accepted method's terminal event requires; an
@@ -106,11 +99,7 @@ fn accept(
     owner: PackageKeyIdentity,
     trait_name: &str,
     binding_role: AcceptedSemanticBindingRole,
-    owns: fn(
-        &CheckedCompilation,
-        &provider_planning::SelectedProviderReviewProvenance,
-        PackageKeyIdentity,
-    ) -> bool,
+    owns: fn(&effects::provider_plan::ProviderPlan, PackageKeyIdentity) -> bool,
     accepted_methods: &[&str],
 ) -> Result<AcceptedSemanticBinding, Vec<Diagnostic>> {
     let candidates = checked
@@ -118,16 +107,15 @@ fn accept(
         .plans()
         .plans()
         .iter()
-        .zip(checked.execution().selected_provider_provenance.as_slice())
-        .filter(|(plan, provenance)| {
+        .filter(|plan| {
             plan.schema
                 .identity_text(plan.schema.declaration.trait_name)
                 == trait_name
                 && plan.rows.iter().any(|row| row.method == "exit_process")
-                && owns(checked, provenance, owner)
+                && owns(plan, owner)
         })
         .collect::<Vec<_>>();
-    let [(plan, provenance)] = candidates.as_slice() else {
+    let [plan] = candidates.as_slice() else {
         return Err(vec![Diagnostic::error(format!(
             "repository fixture {trait_name} acceptance resolved {} exact package-owned provider plans instead of one",
             candidates.len()
@@ -136,9 +124,8 @@ fn accept(
     let binding = AcceptedSemanticBinding::new(
         binding_role,
         owner,
-        checked
-            .symbols
-            .display_path(provenance.provider.schema.symbol(), "::"),
+        plan.schema
+            .identity_text(plan.schema.declaration.trait_name),
         plan.schema.identity_digest(),
         plan.identity_digest(),
     )

@@ -1,118 +1,109 @@
-// Target execution uses saved declarations and selected plans without access
-// to checked source; explicit source inspection and the checked interpreter
-// use a separate owner on CheckedCompilation outside this record.
+// A product of one target reads two settled things: which target it is for
+// and which provider plans supply the boundary requirements its accepted
+// Terminal module reaches. This record holds exactly those, and its only
+// constructor takes them from provider settlement, so a product cannot be
+// formed for a target whose supply was never settled.
 //
-// SelectedExecution holds the complete selected implementation data for one
-// target:
-// - selected_native_target returns the native ABI of the selected deployment
-//   profile while keeping profiles that share an ABI (such as windows_x64 and
-//   uefi_x64) distinct in selected_target_profile; semantic-only checking
-//   selects neither and cannot be staged.
-// - program_entry_service_requirements returns boundaries in the selected
-//   entry's checked service reach, nominating exact provider requirements
-//   without constructing a receiver or fields.
-// - accepted_semantic_bindings and terminal_authority_permissions expose
-//   consumer-policy semantic bindings and permission rows resolved and consumed
-//   by this checked package compilation, while candidate_service_binding
-//   constructs a non-authoritative review candidate for one exact package-owned
-//   requirement-only boundary.
+// It deliberately carries nothing a product can derive. The selected program
+// entry, native provider declarations, calling applications, callback roots
+// and review provenance belong to the products that use them and are formed
+// there from these plans and the accepted artifact; a product whose inputs
+// have no producer yet refuses by name instead of reading a retained copy.
 
 use diagnostics::Diagnostic;
-use package_compilation::AcceptedSemanticBindingRole;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedExecution {
-    pub direct_boundary_leaves: Vec<backend_plan::DirectBoundaryLeaf>, // complete direct-call supplies constructed after host bindings resolve
-    pub selected_provider_plan_facts: Arc<effects::SelectedProviderPlanFacts>,
-    pub entry_service_requirements: Vec<symbols::SymbolHandle>,
-    pub trust_declarations: Arc<language_semantics::trust_declarations::TrustDeclarations>,
-    pub has_proof_obligations: bool,
-    pub service_declarations: Arc<provider_planning::service_declarations::ServiceDeclarations>,
-    pub external_providers: Arc<psi_terminal_production::PreparedExternalProviderDeclarations>,
-    pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>, // refusal remains data so checking-only stops acquire no native-only obligations
-    pub selected_target_profile: Option<target::TargetProfile>,
-    pub selected_program_entry:
-        Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
-    pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>, // exact admitted deployment provider; absence retains the SSE2 baseline
-    pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>, // authored Build grants resolved to exact selected plans
-    pub callback_roots: terminal_psi::PreparedTerminalRoots, // selected canonical declarations for behavior admission, including dormant uses
-    pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
-    pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,
+    target_profile: Option<target::TargetProfile>,
+    plans: Arc<effects::SelectedProviderPlanFacts>,
 }
 
 impl SelectedExecution {
-    pub fn selected_native_target(&self) -> Option<target::NativeTarget> {
-        self.selected_target_profile
+    /// Forms the selected execution of `target_profile` (the host when the
+    /// request named no target) from its settled supply. A chosen supply
+    /// whose provider plan cannot be formed refuses here, by requirement.
+    pub fn settle(
+        target_profile: Option<target::TargetProfile>,
+        supply: &provider_planning::target_supply::SettledTargetSupply,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let plans = effects::SelectedProviderPlanFacts::from_selected_plans(supply.plans()?)
+            .map_err(|reason| {
+                vec![Diagnostic::error(format!(
+                    "provider settlement for `{}`: {reason}",
+                    supply.target()
+                ))]
+            })?;
+        Ok(Self {
+            target_profile,
+            plans: Arc::new(plans),
+        })
+    }
+
+    /// The deployment profile the request named. Profiles that share a
+    /// native ABI (such as windows_x64 and uefi_x64) stay distinct here.
+    pub fn target_profile(&self) -> Option<target::TargetProfile> {
+        self.target_profile
+    }
+
+    pub fn native_target(&self) -> Option<target::NativeTarget> {
+        self.target_profile
             .map(target::TargetProfile::native_target)
     }
 
-    pub fn program_entry_service_requirements(&self) -> Vec<symbols::SymbolHandle> {
-        self.entry_service_requirements.clone()
-    }
-
     pub fn plans(&self) -> &effects::SelectedProviderPlanFacts {
-        &self.selected_provider_plan_facts
+        &self.plans
     }
 
-    pub fn resolved_semantic_binding(
+    pub fn shared_plans(&self) -> &Arc<effects::SelectedProviderPlanFacts> {
+        &self.plans
+    }
+
+    /// The provider proposal this target's conditions are checked against:
+    /// its settled plans joined to one produced Terminal artifact.
+    ///
+    /// A settled plan becomes a Terminal provider plan only with the
+    /// declaration and numeric realizations of its rows. Nothing on the
+    /// lowered route produces those yet, so each plan is refused by name and
+    /// the refusal travels in the proposal like any other; a target with no
+    /// plan proposes the empty selection of that artifact.
+    pub fn provider_proposal(
         &self,
-        role: AcceptedSemanticBindingRole,
-    ) -> Option<&crate::ResolvedAcceptedSemanticBinding> {
-        self.resolved_semantic_bindings
+        artifact: terminal_codec::TerminalArtifactView<'_>,
+        optimization_selection: optimization_core::OptimizationSelectionIdentity,
+    ) -> backend_plan::TerminalTargetProviderProposal {
+        let target = self
+            .target_profile
+            .unwrap_or_else(target::TargetProfile::host)
+            .target_name();
+        let refusals = self
+            .plans
+            .plans()
             .iter()
-            .find(|binding| binding.role() == role)
-    }
-
-    pub fn accepted_semantic_bindings(
-        &self,
-    ) -> impl ExactSizeIterator<Item = &package_compilation::AcceptedSemanticBinding> {
-        self.resolved_semantic_bindings
-            .iter()
-            .map(crate::ResolvedAcceptedSemanticBinding::accepted)
-    }
-
-    pub fn terminal_authority_permissions(
-        &self,
-    ) -> (
-        Vec<effects::ServiceTerminalAuthorityPermission>,
-        terminal_psi::TerminalIdentityTable,
-    ) {
-        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-        let mut permissions = Vec::new();
-        for binding in self.accepted_semantic_bindings() {
-            for permission in binding.terminal_authority_permissions() {
-                let mut permission = permission.clone();
-                permission.rekey_requirement_identity(
-                    identities.intern(
-                        binding
-                            .terminal_authority_permission_identities()
-                            .text(permission.requirement_identity())
-                            .unwrap_or_default(),
-                    ),
-                );
-                permissions.push(permission);
-            }
+            .map(|plan| {
+                format!(
+                    "no product route yet: provider proposal for `{target}`: provider plan `{}` has no Terminal declaration or numeric realization on this route",
+                    plan.name
+                )
+            })
+            .collect::<Vec<_>>();
+        let selection = if refusals.is_empty() {
+            backend_plan::TerminalTargetProviderSelection::from_plans(Vec::new(), artifact)
+                .map(|mut selection| {
+                    selection.assumed_bindings = self.plans.assumed_bindings().to_vec();
+                    selection
+                })
+                .map_err(|reason| vec![reason])
+        } else {
+            Err(refusals)
+        };
+        backend_plan::TerminalTargetProviderProposal {
+            target: target.to_owned(),
+            terminal_psi: artifact.identity(),
+            optimization_selection,
+            application_roots: None,
+            application_required: true,
+            selection,
         }
-        (permissions, identities.build())
-    }
-
-    pub fn candidate_service_binding(
-        &self,
-        role: AcceptedSemanticBindingRole,
-        package: semantic_vocabulary::PackageKeyIdentity,
-        declaration_path: &str,
-    ) -> Result<package_compilation::AcceptedSemanticBinding, Diagnostic> {
-        let service = self
-            .service_declarations
-            .select(package, declaration_path)?;
-        let schema = &service.declaration.schema;
-        package_compilation::AcceptedSemanticBinding::new_service(
-            role,
-            package,
-            declaration_path,
-            package_compilation::accepted_service_schema_digest(role, schema),
-        )
-        .map_err(Diagnostic::error)
     }
 }

@@ -1,96 +1,30 @@
-# Selected execution realization
+# Selected execution
 
-[provider_binding.rs](src/provider_binding.rs) prepares one complete selected
-execution from the shared checked program and Build inputs: provider grants,
-callback roots, declaration catalogs, selected review, accepted host roles
-and complete direct-call leaves. Source checking has already
-admitted representation properties and captured source review records. Psi
-derives and checks every authored generic operator candidate and finite boundary
-family without provider selection.
+A product of one target reads two settled things: which target it is for and
+which provider plans supply the boundary requirements its accepted Terminal
+module reaches. [selected_execution.rs](src/selected_execution.rs) holds exactly
+those.
 
-[selected_execution.rs](src/selected_execution.rs) is the retained result, not
-a second execution phase. Terminal production borrows that completed result;
-there is no post-Terminal source installation step. Provider planning retains source
-owners once and prepares foreign ABI results at their original row coordinates;
-selected execution does not mutate incomplete leaves or reconstruct truncated
-source plans. The same inputs retain intrinsic declaration facts from
-[intrinsic_declarations.rs](../provider-planning/src/intrinsic_declarations.rs):
-exact ownership, signature/effect/supply eligibility and deferred failures.
-Selected intrinsic/host-role settlement and direct-leaf completion consume those
-same facts without checked-source queries. The candidate's
-[original rows](../provider-planning/src/provider_planning/provider_rows.rs) own
-optional direct-call inputs alongside declaration facts; bodyful completion
-adapters retain host-role eligibility without inventing direct leaves. Independent
-package review still projects the supplied source through its own preparation.
-Preparation consumes the original candidate after constant closure; its typed
-output prevents completion from accepting the earlier unprepared snapshot.
-The accepted public plan remains distinct from the original candidate and the
-projected callable plan. The leaves are target-companion supplies, not permission
-to execute.
-Task activation instead consumes
-portable demands in the source-free native proposal join. The compiler supplies inputs and
-consumes the result; it does not implement these decisions.
-Callback roots use [source preparation](../provider-planning/src/provider_instances.rs)
-followed by [source-free selection](../provider-selection/src/bodies/callback_roots.rs).
-Psi freezes the complete final nominal-use roster once in its existing prepared
-declaration product, including dormant/symbolic uses, exact requirement and body
-declarations, separate published/actual/refinement contracts and entry-resource
-reports. Target preparation borrows that inventory and closes calling declarations
-through its authenticated owner/member correspondence; it preserves empty-argument
-matching and duplicate counts without publishing an ABI merely to count plans.
-Preparation freezes exact adapter results once per original selected plan/row.
-Trait and top-level instance expansion consume those results at their original
-diagnostic points; the returned callback product contains only projected plans
-and checked-body facts, not source borrows. Selection owns use iteration, row
-lookup, calling counts and entry diagnostics. It rejoins complete plan/row values
-across the projection's clone and preserves dormant uses and duplicate order.
-Selected roots borrow the same canonical table instead of querying source
-signatures again. This is not native ABI placement or a claim that the instance
-producer is already Terminal-only.
-The same declaration route serves general checked-provider instance projection:
-Psi records inherited/generic candidates, while source-free provider selection
-judges counts, template rows and closed-instance coverage. It retains the original
-plan/row association and does not substitute the reviewed candidate for custody.
-`SelectedExecution::provider_source` keeps the checked owner and whole selected
-plans inseparable. Its lazy declaration payload is shared by callbacks, Check,
-review and reference execution. These consumers still judge selection at their
-own admission points; preparing a payload neither reports its deferred errors nor
-grants execution. Empty callback rosters leave the payload unprepared.
-Checked-provider binding prepares exact service declaration/schema records once.
-Resolved semantic bindings retain those records without source symbols; role and
-permission settlement read them directly. The invocation's catalog provides local
-source correspondence only where host classification still needs it. Package
-review prepares an independent candidate catalog and compares complete records,
-never substitutes the custody projection for candidate evidence.
-The optional checked-tree interpreter prepares its exact adapter and
-float-comparison bindings beside its only consumer, the driver's corpus runner
-([checked interpreter dispatch](../../compiler/tests/support/checked_interpreter_dispatch/mod.rs)),
-immediately before reference execution. Ordinary compilation neither builds nor
-retains this oracle-only table.
-It never rewrites checked arenas. Terminal/native installation consumes the
-portable requirements and its own selected provider inputs.
+`SelectedExecution::settle` is its only constructor. It takes the target and
+the supply that [provider settlement](../provider-planning/src/target_supply.rs)
+chose for it, so no product can be formed for a target whose supply was never
+settled, and a chosen supply whose provider plan cannot be formed refuses
+there by requirement.
 
-The preparation entrance imports no Psi transform. The source coordinator constructs
-preparation/checking requests and supplies its operator selections. Boundary
-dispatch borrows the canonical program and selects Product declaration and
-expression handles; it does not clone and prune a second typed program. Exact
-identity lookup applies that same frontier, so Build copies cannot supply or
-ambiguate Product adapters.
+Everything else a product needs is derived where it is used, from these plans
+and the accepted Terminal artifact:
 
-The narrower operations are:
+- `SelectedExecution::provider_proposal` joins the settled plans to one
+  produced artifact. The compiler checks the program's target-local scalar
+  conditions against that proposal. A target with no plan proposes the empty
+  selection of that artifact; a plan with no Terminal declaration on this
+  route is refused by name inside the proposal.
+- Task activations are realized against `plans()` by the compiler
+  (`execution_settlement.rs`).
+- Root trust obligations resolve grants against `plans()` and the trust claims
+  of the source census (`CheckedCompilation::admit_trust`).
 
-- [Operator selection](src/selected_dispatch.rs): exact operator realizations
-  and Build comparison facts. It retains Psi's checked execution plans.
-- [Intrinsic review](src/intrinsic_review.rs): accepted semantic bindings and
-  selected-row provenance.
-
-This is still a checked-tree realization seam, not the completed Terminal-only
-architecture. Its source-dependent inputs must ultimately become retained
-Terminal evidence. Moving this owner out of the compiler does not claim that
-provider installation already occurs after Terminal production.
-
-Build admission owns [deferred constant evaluation](../../../build-system/build-settings/src/admission/selected_constants.rs).
-It consumes selected numeric identities from this owner and invokes Psi evaluation
-under the exact admitted Build context. Product constants depending on runtime
-provider selection still require portable recipes; a target choice is never
-folded back into shared checked Product source.
+The record carries no program entry, callback roots, native provider
+declarations, calling applications or review provenance. An executable product
+needs those; nothing on the lowered route produces them yet, so the compiler
+refuses such a product by name instead of reading a retained copy.

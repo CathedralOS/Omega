@@ -2,7 +2,9 @@
 //! Terminal module what a target must supply. Each test types a program from
 //! source through the ordinary lexer, parser, resolver and typer, has the
 //! lowered-form checker judge it, harvests the provider defaults it declares
-//! and runs the two stages on that accepted module.
+//! and runs the two stages on that accepted module. The last tests carry the
+//! settled supply on into the selected execution a product reads and check
+//! the produced program's target-local conditions against it.
 
 use build_time_evaluation::provider_declarations::{
     ProviderPlanningContext, ProviderSelection, TargetProviderDefaults, retain_provider_defaults,
@@ -145,6 +147,105 @@ fn settle(supplied: &str, program: &str) -> Result<SettledTargetSupply, String> 
 
 fn first(diagnostics: Vec<diagnostics::Diagnostic>) -> String {
     diagnostics[0].message.clone()
+}
+
+fn profile() -> target::TargetProfile {
+    target::TargetProfile::from_canonical_target_name(TARGET).expect("a hosted target")
+}
+
+/// The Terminal artifact a product of the accepted source is checked on.
+fn produced(accepted: &AcceptedTerminalSource) -> Arc<terminal_codec::CanonicalTerminalArtifact> {
+    let program = accepted
+        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+        .expect("the accepted source publishes")
+        .into_shared_portable()
+        .expect("the publication is portable");
+    Arc::clone(program.artifact())
+}
+
+/// The target-local conditions of `artifact`, checked against `proposal`.
+fn check_conditions(
+    artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
+    proposal: &backend_plan::TerminalTargetProviderProposal,
+) -> Result<(), String> {
+    build_settings::scalar_completion::complete(
+        artifact,
+        TARGET,
+        &[],
+        std::slice::from_ref(proposal),
+        &mut Default::default(),
+    )
+    .map(drop)
+}
+
+/// A program that reaches no boundary requirement settles a selected
+/// execution with no plan for its target, and the program's target-local
+/// conditions check against the proposal formed from it: nothing but the
+/// settled supply and the produced artifact is needed to check the program.
+#[test]
+fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
+    let (accepted, defaults) = accepted(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES_NOTHING);
+    let settled = prepare(&accepted, &[], &defaults)
+        .unwrap()
+        .settle()
+        .unwrap();
+    let execution = selected_dispatch::SelectedExecution::settle(Some(profile()), &settled)
+        .expect("a supply that demands nothing settles");
+    assert_eq!(execution.target_profile(), Some(profile()));
+    assert!(execution.plans().plans().is_empty());
+
+    let artifact = produced(&accepted);
+    let proposal = execution.provider_proposal(
+        artifact.view(),
+        optimization_core::OptimizationSelections::default().identity(),
+    );
+    assert_eq!(proposal.target, TARGET);
+    assert_eq!(
+        proposal
+            .selection
+            .as_ref()
+            .map(|selection| selection.plans.len()),
+        Ok(0)
+    );
+    assert_eq!(check_conditions(&artifact, &proposal), Ok(()));
+
+    // The proposal belongs to the artifact it was formed from: the same
+    // settled execution proposes nothing for another program's artifact.
+    let (other, _) = accepted_other();
+    assert_eq!(
+        check_conditions(&produced(&other), &proposal),
+        Err("scalar application roots belong to another artifact".to_owned())
+    );
+}
+
+/// A second program with a different accepted module.
+fn accepted_other() -> (AcceptedTerminalSource, Vec<TargetProviderDefaults>) {
+    accepted(
+        &format!("{SLOT}{NATIVE_DEFAULT}"),
+        "machine helper() {\n}\nmachine main() {\n    helper();\n}\n",
+    )
+}
+
+/// The twin reaches the requirement, so its supply is chosen and no selected
+/// execution can be formed for the target: the only constructor refuses with
+/// the plan that cannot be formed, and no product can read a custody that
+/// was never settled.
+#[test]
+fn a_reached_requirement_forms_no_selected_execution_without_its_plan() {
+    let (accepted, defaults) = accepted(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let settled = prepare(&accepted, &[], &defaults)
+        .unwrap()
+        .settle()
+        .unwrap();
+    assert_eq!(
+        selected_dispatch::SelectedExecution::settle(Some(profile()), &settled)
+            .map(|execution| execution.plans().plans().len())
+            .map_err(first),
+        Err(
+            "no product route yet: provider settlement for `linux_x86_64`: `Service::go` is supplied by `Native`, and no provider or calling plan can be formed for a selected provider on this route"
+                .to_owned()
+        )
+    );
 }
 
 /// A program whose entry reaches no boundary requirement demands nothing:
