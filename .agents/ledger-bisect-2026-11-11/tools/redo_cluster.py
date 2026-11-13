@@ -215,7 +215,9 @@ def bisect(witness: str, good: str, mode: str) -> tuple[str | None, str]:
     log(f"bisect --first-parent mode={mode} good={good[:12]}")
     subprocess.run(["git", "bisect", "run", "bash", str(TOOL / "bisect_witness.sh")], env=env)
     blog = git("bisect", "log", check=False)
-    match = re.search(r"^([0-9a-f]{40}) is the first bad commit", blog, re.M)
+    match = re.search(r"# first bad commit: \[([0-9a-f]{40})\]", blog)
+    if not match:
+        match = re.search(r"^([0-9a-f]{40}) is the first bad commit", blog, re.M)
     first = match.group(1) if match else None
     git("bisect", "reset", check=False)
     checkout(BRANCH)
