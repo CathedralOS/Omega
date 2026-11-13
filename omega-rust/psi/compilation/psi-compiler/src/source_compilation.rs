@@ -451,7 +451,7 @@ mod product_policy {
                 executed: request.executed,
                 retained: &[],
             }
-            .require_absent()?;
+            .require_none_requested()?;
             let providers = self.admit_product_provider_requests(
                 request.activation,
                 request.declared,

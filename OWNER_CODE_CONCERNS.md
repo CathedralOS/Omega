@@ -554,3 +554,10 @@ own to defend. Say what you saw, not what you would build.
 - Saw: at `6f829063b3ed7` the test fails with no local change: `owned = Record {}` is asserted to be built at the type handle written on `owned` and gets a different handle (index 3, not 1), so either landing now inserts an equal copy of the type or the assertion compares identity where it means equality
 - Cost: `mbx test -p symbol-resolved-trees-to-typed-trees --lib` cannot be clean for anyone changing typing, so a second regression in the same crate hides behind the first
 - Reported: 2026-11-13, Claude Code, while accounting for domain casts in typing
+
+### The Product admissions of a finished Build are signatures with nothing behind them
+- Category: a verdict with nothing behind it
+- Where: `build-time-evaluation/src/product.rs` (`native_bindings::collect`, `product_declarations::admit`, `product_policy::*`, `provider_declarations::collect_product_provider_selections`, `retain_provider_defaults`, `RetainedProviderSelection::rejoin`); callers in `psi-compiler/src/source_compilation.rs` (`admit_product_policy`) and `compiler/src/checked/checking/source_checking.rs`
+- Saw: the old checker's deletion left each admission as a function that takes the typed program and the Build activation, ignores both, and either refuses or returns an empty list. Until 2026-11-13 each refused any program whose Build ran at all, so six unrelated refusals stood between every project and its Product; the callers still prepare operands and thread results as if producers existed.
+- Cost: nobody can tell from the code which Build operations work; the unused parameters and the result types (`AdmittedProductDeclarations`, `NativeBindingSelection`) describe a design that has no implementation and will drift from whatever replaces it
+- Reported: 2026-11-13, Claude Code, while taking the witness's finished Build to its Product
