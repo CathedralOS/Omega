@@ -35,7 +35,7 @@ pub use product_queries::ProductQueries;
 pub(crate) use source_checking::check_product_source;
 
 use crate::execution_settlement::SelectedCompileOutcome;
-use artifacts::compile_timings::{CompileTimings, StageMeta, counters};
+use artifacts::compile_timings::{CompileTimings, counters};
 use compilation_products::{
     CheckedExecutionRequest, CompileFailure, PreparedBuild, PreparedProductSource,
     PreparedSourceFrontier, TypedCompilationFrontier,
@@ -573,13 +573,3 @@ pub(crate) fn attribute_diagnostics(
     }
 }
 
-pub(crate) fn timed<T>(
-    timings: &mut CompileTimings,
-    stage: StageMeta,
-    step: impl FnOnce(&mut CompileTimings) -> T,
-) -> T {
-    let started = std::time::Instant::now();
-    let result = step(timings);
-    timings.add_completed(stage, started.elapsed().as_micros());
-    result
-}
