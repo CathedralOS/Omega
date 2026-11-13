@@ -1182,3 +1182,66 @@ fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
+
+/// One program per thing the route decides about data with no field and no
+/// case. Each is the declarations followed by `machine main() {}`.
+const EMPTY_RECORDS: &[(&str, &str)] = &[
+    (
+        "minted",
+        "data Token {}\nmachine spare() -> u32 { let token: Token = Token {}; 0 }",
+    ),
+    (
+        "declared",
+        "data Token {}\nmachine spare() -> u32 { let token: Token; 0 }",
+    ),
+    // Not `[copy]`: the second argument names a local whose value moved.
+    (
+        "affine_passed_twice",
+        "data Token {}\nmachine take(token: Token) -> u32 { 0 }\n\
+         machine spare(token: Token) -> u32 { take(token) + take(token) }",
+    ),
+    (
+        "copy_passed_twice",
+        "data Token [copy] {}\nmachine take(token: Token) -> u32 { 0 }\n\
+         machine spare(token: Token) -> u32 { take(token) + take(token) }",
+    ),
+    (
+        "lent",
+        "data Token {}\nmachine touch(token: &mut Token) {}\n\
+         machine spare() -> u32 {\n    let mut token: Token = Token {};\n    \
+         touch(&mut token);\n    0\n}",
+    ),
+    (
+        "field",
+        "data Token {}\ndata Holder { token: Token; count: u32; }\n\
+         machine spare() -> u32 {\n    \
+         let holder: Holder = Holder { token: Token {}, count: 3 };\n    holder.count\n}",
+    ),
+];
+
+/// Data with no field and no case is a record whose roster is empty; the
+/// route used to refuse every value of one (`type data without fields`). A
+/// value is minted, declared, lent and held in a field like any record, and
+/// one that is not `[copy]` still moves only once although it has no storage
+/// to find empty.
+#[test]
+fn an_empty_record_is_a_record_with_no_field() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(3),
+        Verdict::Accepted(3),
+        Verdict::Accepted(2),
+    ];
+    assert_eq!(expected.len(), EMPTY_RECORDS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in EMPTY_RECORDS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
