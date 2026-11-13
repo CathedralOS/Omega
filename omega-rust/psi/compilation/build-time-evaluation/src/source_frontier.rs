@@ -53,7 +53,15 @@ fn require_no_source_jobs(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 /// library declaration is not an error of a program that never reaches it.
 /// Work recorded beside the program (recipes, plans, schemas) still refuses.
 fn defer_source_jobs(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    for (declaration, request) in source_jobs(typed)? {
+    require_no_recorded_work(typed)?;
+    defer_declared_jobs(typed)
+}
+
+/// Records the requests written inside declarations and judges nothing
+/// else. A later step that would evaluate one kind of them, and has no
+/// evaluator, calls this instead of refusing the program.
+pub(crate) fn defer_declared_jobs(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    for (declaration, request) in declared_jobs(typed)? {
         let source_span = typed
             .symbols
             .symbol_source_span(declaration)
@@ -66,6 +74,13 @@ fn defer_source_jobs(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
 /// The evaluation requests of the program's declarations, after refusing
 /// every request the program holds outside them.
 fn source_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
+    require_no_recorded_work(typed)?;
+    declared_jobs(typed)
+}
+
+/// Refuses work recorded beside the program rather than inside one of its
+/// declarations: nothing could raise it later.
+fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     require_no_unevaluated_constant_use(typed)?;
     if !typed.constant_recipes.is_empty()
         || !typed.constant_expression_contexts.is_empty()
@@ -115,6 +130,12 @@ fn source_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
             ));
         }
     }
+    Ok(())
+}
+
+/// The evaluation requests written inside declarations, each with the
+/// declaration that holds it. One that no declaration owns refuses.
+fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
     // Reuse the reference owner's complete type-position inventory rather
     // than searching selected statements or treating a type as only a name.
     let references = typed_trees::references::collect_program_references(typed);

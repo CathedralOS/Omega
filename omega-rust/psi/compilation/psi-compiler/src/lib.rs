@@ -23,6 +23,7 @@
 
 #![forbid(unsafe_code)]
 
+mod root_bindings;
 mod source_checking;
 mod source_compilation;
 pub(crate) mod source_parsing {
