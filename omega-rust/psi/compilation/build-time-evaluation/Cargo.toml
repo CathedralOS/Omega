@@ -16,7 +16,7 @@ checked-trees = { path = "../representations/checked-trees" }
 validation = { path = "../validation" }
 arena = { path = "../../foundation/arena" }
 access-plans = { path = "../../foundation/access-plans" }
-checked-interpreter = { path = "../../interpreter/checked-interpreter" }
+filesystem-authority = { path = "../../foundation/filesystem-authority" }
 psi-terminal-production = { path = "../psi-compiler/terminal-production" }
 terminal-interpreter = { path = "../../interpreter/terminal-interpreter" }
 terminal-installation = { path = "../terminal-installation" }

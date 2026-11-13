@@ -22,9 +22,8 @@ transformations live in the linked pipeline stages.
 | [Terminal Psi](terminal-psi/src/lib.rs) | [07: lowered Psi → Terminal Psi](../pipeline/08_lowered-psi-to-terminal-psi/README.md) | [Omega 00: Terminal Psi → abstract operations](../../../omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 
 Psi 07 optimizes lowered Psi in the same representation. The independent
-[checked interpreter](../../interpreter/checked-interpreter/README.md) and
-[Terminal interpreter](../../interpreter/terminal-interpreter/README.md) consume
-their respective program forms without creating another pipeline representation.
+[Terminal interpreter](../../interpreter/terminal-interpreter/README.md) consumes
+Terminal Psi without creating another pipeline representation.
 
 Constituent semantic records have separate package owners:
 [facts](checked-trees/facts/src/lib.rs) holds fact contexts, places and evidence;
