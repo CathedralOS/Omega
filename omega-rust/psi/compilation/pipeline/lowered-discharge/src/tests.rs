@@ -30,6 +30,7 @@ mod build_purpose;
 mod ceilings;
 mod empty_records;
 mod entry_inputs;
+mod entryless;
 mod guard_contradiction;
 mod inferred_bounds;
 mod lifetime_elision;
