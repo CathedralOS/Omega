@@ -567,7 +567,13 @@ impl Program<'_> {
             match table.expression(expression) {
                 ExpressionNode::Integer(literal) if literal.landing().is_none() => {}
                 ExpressionNode::Float(literal) if literal.landing().is_none() => {}
-                ExpressionNode::Binary(binary) => {
+                // A suffixed operator has no anonymous meaning
+                // (numeric_values.md, "Policy operators": "A wholly
+                // anonymous tree rejects"), so a tree holding one is read
+                // operator by operator and refused there.
+                ExpressionNode::Binary(binary)
+                    if binary.policy == numerics::arithmetic::ArithmeticDomain::Exact =>
+                {
                     pending.extend([binary.left, binary.right]);
                 }
                 _ => return false,

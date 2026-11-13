@@ -560,23 +560,19 @@ mod tests {
         }
     }
 
+    /// `+!` is refused by name before its operands are read: no type carries
+    /// `Trapping` on this route. The `%` and `|` forms are read
+    /// (`compiler/tests/route_probe.rs`).
     #[test]
-    fn a_suffixed_operator_is_refused_before_its_operands_are_read() {
-        use numerics::arithmetic::ArithmeticDomain;
+    fn a_trapping_operator_is_refused_before_its_operands_are_read() {
         let typed = TypedTrees::default();
-        for policy in [
-            ArithmeticDomain::Wrapping,
-            ArithmeticDomain::Saturating,
-            ArithmeticDomain::Trapping,
-        ] {
-            let node = ExpressionNode::Binary(TableBinaryExpression {
-                policy,
-                left: ExpressionHandle::invalid(),
-                operator: BinaryOperator::Add,
-                right: ExpressionHandle::invalid(),
-            });
-            assert_eq!(refused(&typed, node), "expression policy operator");
-        }
+        let node = ExpressionNode::Binary(TableBinaryExpression {
+            policy: numerics::arithmetic::ArithmeticDomain::Trapping,
+            left: ExpressionHandle::invalid(),
+            operator: BinaryOperator::Add,
+            right: ExpressionHandle::invalid(),
+        });
+        assert_eq!(refused(&typed, node), "expression Trapping policy operator");
     }
 
     /// `result` in a contract is taken by the owner identity stage 02

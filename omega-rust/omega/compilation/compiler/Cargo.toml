@@ -135,12 +135,6 @@ path = "tests/product_query_suspension.rs"
 name = "anonymous_module_owner"
 path = "tests/anonymous_module_owner.rs"
 
-# The typed-frontier seam returns Psi 04's trees for programs the current
-# checker rejects, and a distinct outcome for programs that stop earlier.
-[[test]]
-name = "typed_frontier"
-path = "tests/typed_frontier.rs"
-
 # The checker receives a dependency's default provider only for a boundary
 # trait the program reaches.
 [[test]]

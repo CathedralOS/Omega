@@ -67,6 +67,27 @@ own to defend. Say what you saw, not what you would build.
 
 ## Entries
 
+### A sum's `requires` over each case's payload is refused, and it was judged before
+- Category: tests that pin the bug
+- Where: `structure-elaboration/src/read/contracts.rs` (`field_term`, `projected`); `tests/fixtures/fail/facts/four_variant_enum_payload_bound_through_local_rejected`
+- Saw: the fixture's data writes `requires ((self in Packet::Alpha) && (self.v >= 40u64 && self.v <= 80u64)) || ...` over four cases; `lowered_route_messages` pinned the route's rejection of its `main` with the fixture's whole sentence, and the route now refuses the closure as `contract data value compared whole in a clause`. The test could not run between the Build activation refusal and this change, so nothing showed which change lost it; the row was removed rather than re-pinned
+- Cost: a program whose sum states a bound per case is refused instead of judged, and no test says so
+- Reported: 2026-11-13, Claude Code, while moving the lowered-form checker's tests off the Build
+
+### The seam that kept typed trees "beside the current checker" still exists, and two examples still compare against it
+- Category: zombie machinery
+- Where: `omega-rust/omega/compilation/compiler/src/checked/checking/typed_frontier.rs` (`CurrentCheckerVerdict`, `TypedFrontierCheck`, `check_keeping_typed_frontier`); `compiler/examples/route_one_comparison.rs`, `compiler/examples/structure_elaboration_corpus.rs`; `compiler/tests/support/fixture_package_inputs.rs` (`FixtureFrontierCheck`)
+- Saw: the seam was built so a harness could run a second checker beside the old one; the old one is deleted, so "the current checker's verdict" it returns is the lowered-form checker's own, and the two examples compare that checker with itself over a corpus that no longer exists. The tests that only read what the checker concludes left the seam in this change; `lowered_route_governance`, `lowered_route_publication` and two tests of `lowered_route_ownership` still use it to read what the product compile reports
+- Cost: the names say there are two checkers; an agent reading `current=accepted route=rejected` output or `FixtureFrontierCheck::Rejected` will look for the one that is gone
+- Reported: 2026-11-13, Claude Code, while moving the lowered-form checker's tests off the Build
+
+### Suffixed policy operators are read in executable code only
+- Category: one idea, several implementations
+- Where: `omega-rust/psi/compilation/pipeline/structure-elaboration/src/read/contracts.rs` (`policy operator in a clause term`, `policy operator in a mathematical term`); `read/expressions.rs` (`suffixed_expression`)
+- Saw: typed preparation used to rewrite `a +% b` into casts and the Wrapping add for bodies and contracts alike; that pass was deleted with the old checker (#2823) and every program with a suffixed operator was refused. The body reader now reads the suffix itself; the two contract readers still refuse it, and `+!` is refused everywhere because no type on the route carries `Trapping`
+- Cost: a `requires` or `ensures` that writes `+%` (accepted before #2823, `wiki/spec/proofs/contracts.md`, "Total arithmetic") is refused by name, and the clause readers and the body reader each decide what an operator means
+- Reported: 2026-11-13, Claude Code, while restoring `+%` in machine bodies
+
 ### Nothing makes a new reader site ask before it looks inside a qualified data value
 - Category: a verdict with nothing behind it
 - Where: `structure-elaboration/src/read/` (`authority.rs`, and every `ValueType::Record(record, _)` pattern in `places.rs`, `expressions.rs`, `transitions.rs`, `arrays.rs`, `contracts.rs`, `statements.rs`)

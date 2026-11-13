@@ -11,8 +11,8 @@
 //! prints through the standard library's `Console` pins that, with the same
 //! program refused at its import when the edge is left out.
 
-#[path = "support/unbuilt_dependencies.rs"]
-mod unbuilt_dependencies;
+#[path = "support/unbuilt_frontier.rs"]
+mod unbuilt_frontier;
 
 use lowered_discharge::RouteVerdict;
 
@@ -72,22 +72,7 @@ fn judged(
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let root =
-        std::env::temp_dir().join(format!("omega-route-probe-{}-{name}", std::process::id()));
-    std::fs::create_dir_all(&root).expect("staging directory");
-    let main = root.join("main.omg");
-    std::fs::write(&main, source).expect("staged source");
-    let frontier = compiler::CompilationSession::default().typed_frontier_without_build(
-        compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
-        None,
-    );
-    let _ = std::fs::remove_dir_all(&root);
-    let frontier = frontier.unwrap_or_else(|failure| {
-        panic!(
-            "{name}: Psi 00 through 04 must complete: {:?}",
-            failure.into_diagnostics()
-        )
-    });
+    let frontier = unbuilt_frontier::staged_frontier(name, source);
     assert_eq!(
         frontier.entries.len(),
         1,
@@ -116,6 +101,38 @@ fn a_standalone_program_is_judged_without_its_build() {
     assert_eq!(verdicts("accepted", ACCEPTED), ["accepted"]);
 }
 
+/// A suffixed operator names its policy at one operation
+/// (`wiki/spec/language/numeric_values.md`, "Policy operators"): `a +% b` on
+/// two `u32` values "is exactly what `+` means for two `u32 in Wrapping`
+/// operands", and its result is a plain `u32`. Each program is one machine
+/// nothing calls beside an empty `main`.
+///
+/// The Wrapping and Saturating adds are total, so both are accepted. A
+/// policy "does not license a zero divisor": `/%` with nothing known about
+/// the divisor is rejected. A suffix excuses no other operation: the bare
+/// `+` beside a `+%` is still Exact and still owes its range. `+!` is its own
+/// crash site, which no type on this route carries yet: refused by name.
+#[test]
+fn an_operator_suffix_chooses_the_policy_of_one_operation() {
+    let spare = |body: &str| {
+        format!("machine spare(left: u32, right: u32) -> u32 {{ {body} }}\nmachine main() {{ }}\n")
+    };
+    for (name, body, expected) in [
+        ("wrapping_add", "left +% right", "accepted"),
+        ("wrapping_literal", "left *% 31 +% 1", "accepted"),
+        ("saturating_add", "left +| right", "accepted"),
+        ("wrapping_divide", "left /% right", "rejected"),
+        (
+            "exact_beside_wrapping",
+            "let wrapped: u32 = left +% right; left + right",
+            "rejected",
+        ),
+        ("trapping_add", "left +! right", "not-supported"),
+    ] {
+        assert_eq!(verdicts(name, &spare(body)), [expected], "{name}");
+    }
+}
+
 #[test]
 fn an_uncalled_defect_of_a_standalone_program_is_rejected() {
     assert_eq!(
@@ -126,10 +143,7 @@ fn an_uncalled_defect_of_a_standalone_program_is_rejected() {
 
 /// The source of a kept fixture program, read from the repository.
 fn fixture(directory: &str) -> String {
-    let main = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../..")
-        .join(directory)
-        .join("main.omg");
+    let main = unbuilt_frontier::repository(directory).join("main.omg");
     std::fs::read_to_string(&main).unwrap_or_else(|error| panic!("{}: {error}", main.display()))
 }
 
@@ -258,13 +272,6 @@ fn an_implementation_that_promises_less_than_its_requirement_is_rejected() {
     );
 }
 
-/// The repository directory `directory` names.
-fn repository(directory: &str) -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../..")
-        .join(directory)
-}
-
 /// The kept program in `directory`, judged where it stands with `entry`
 /// bound and the Product dependencies `(alias, directory)` its Build
 /// registers. `Err` holds the messages that stopped it before the checker.
@@ -276,29 +283,12 @@ fn judged_with_dependencies(
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let program = repository(directory);
-    let mut request =
-        compiler::CheckedCompileRequest::new(&program.join("main.omg"), Some("linux_x86_64"));
-    if !dependencies.is_empty() {
-        let dependencies = dependencies
-            .iter()
-            .map(|(alias, directory)| ((*alias).to_owned(), repository(directory)))
-            .collect::<Vec<_>>();
-        request.package_inputs = Some(
-            unbuilt_dependencies::graph(&program, &dependencies)
-                .unwrap_or_else(|reason| panic!("{directory}: {reason}")),
-        );
-    }
-    compiler::CompilationSession::default()
-        .typed_frontier_without_build(request, Some(entry))
-        .map(|frontier| judge(&frontier))
-        .map_err(|failure| {
-            failure
-                .into_diagnostics()
-                .into_iter()
-                .map(|diagnostic| diagnostic.message)
-                .collect()
-        })
+    unbuilt_frontier::frontier(
+        &unbuilt_frontier::repository(directory).join("main.omg"),
+        Some(entry),
+        dependencies,
+    )
+    .map(|frontier| judge(&frontier))
 }
 
 const CONSOLE_PROGRAM: &str = "tests/fixtures/run/providers/default_console_provider_reached";

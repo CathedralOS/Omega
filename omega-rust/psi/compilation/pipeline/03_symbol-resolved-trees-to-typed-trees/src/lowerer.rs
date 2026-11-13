@@ -1202,6 +1202,7 @@ pub(crate) mod target_machine_families {
     use diagnostics::Diagnostic;
     use symbol_resolved_trees::SymbolResolvedTrees;
     use typed_trees::TypedTrees;
+    use typed_trees::deferred_refusals::DeferredRequest;
     use typed_trees::machine::{Machine, TargetMachineFamily, TargetMachineFamilyMember};
 
     /// `linux_arm64 machine write_byte(byte: i32)` and its siblings for the
@@ -1222,6 +1223,7 @@ pub(crate) mod target_machine_families {
             .collect::<Vec<_>>();
         declarations.sort_by_key(|machine| machine.target_family.arena_index());
         let mut families = Vec::new();
+        let mut uncompared = Vec::new();
         for declarations in
             declarations.chunk_by(|left, right| left.target_family == right.target_family)
         {
@@ -1250,8 +1252,18 @@ pub(crate) mod target_machine_families {
                         "target-machine family member did not survive typing",
                     ));
                 };
-                require_shared_signature(typed, interface, member)
-                    .map_err(|refusal| refusal.with_source_span(declaration.name.source_span()))?;
+                let span = declaration.name.source_span();
+                match require_shared_signature(typed, interface, member)
+                    .map_err(|refusal| refusal.with_source_span(span))?
+                {
+                    SharedSignature::Held => {}
+                    // The body was not held to the interface, so neither it
+                    // nor the interface a call is typed against may be read:
+                    // the row is on both, and whoever demands one raises it.
+                    SharedSignature::NotCompared => {
+                        uncompared.extend([(canonical, span), (declaration.symbol, span)]);
+                    }
+                }
                 members.push(TargetMachineFamilyMember {
                     target: lower_name(target),
                     machine: declaration.symbol,
@@ -1272,7 +1284,24 @@ pub(crate) mod target_machine_families {
         }
         families.sort_by(|left, right| left.name.as_str().cmp(right.name.as_str()));
         typed.target_machine_families.extend(families);
+        for (declaration, span) in uncompared {
+            typed.record_deferred_refusal(
+                declaration,
+                DeferredRequest::TargetFamilyGenericSignature,
+                span,
+            );
+        }
         Ok(())
+    }
+
+    /// What comparing one body with its family's interface concluded.
+    #[derive(Debug, PartialEq, Eq)]
+    enum SharedSignature {
+        /// The body has the interface's signature.
+        Held,
+        /// The family binds generic parameters, which typing does not
+        /// compare yet. Nothing was concluded about this body.
+        NotCompared,
     }
 
     /// Whether the body's contracts hold is not asked here: resolution already
@@ -1282,7 +1311,7 @@ pub(crate) mod target_machine_families {
         typed: &TypedTrees,
         interface: &Machine,
         member: &Machine,
-    ) -> Result<(), Diagnostic> {
+    ) -> Result<SharedSignature, Diagnostic> {
         let incompatible = |detail: &str| {
             Diagnostic::error(format!(
                 "machine `{}` has an incompatible signature for `{}` --                  every target's body of one machine shares its signature; incompatible {detail}",
@@ -1308,10 +1337,7 @@ pub(crate) mod target_machine_families {
             || !interface.conformance_bounds.is_empty()
             || !member.conformance_bounds.is_empty()
         {
-            return Err(Diagnostic::error(format!(
-                "no product route yet: typing does not compare the generic parameters of                  target-machine family member `{}` with its interface",
-                member.name,
-            )));
+            return Ok(SharedSignature::NotCompared);
         }
         let (Some(required), Some(actual)) = (
             typed.machine_states(interface).first(),
@@ -1345,12 +1371,12 @@ pub(crate) mod target_machine_families {
         if interface.purpose != member.purpose {
             return Err(incompatible("purpose"));
         }
-        Ok(())
+        Ok(SharedSignature::Held)
     }
 
     #[cfg(test)]
     mod tests {
-        use super::require_shared_signature;
+        use super::{SharedSignature, require_shared_signature};
         use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
         use typed_trees::TypedTrees;
         use typed_trees::data::TypeParameter;
@@ -1450,9 +1476,11 @@ pub(crate) mod target_machine_families {
                     .message
                     .contains("generic/lifetime parameter count")
             );
-            let unserved = require_shared_signature(&program, machine(generic), machine(generic))
-                .expect_err("a generic family has no comparison yet");
-            assert!(unserved.message.starts_with("no product route yet:"));
+            assert_eq!(
+                require_shared_signature(&program, machine(generic), machine(generic)),
+                Ok(SharedSignature::NotCompared),
+                "a generic family has no comparison yet"
+            );
         }
     }
 }

@@ -3,7 +3,8 @@
 //! `lowered_route_generics` test, which pins them: the generic body checked
 //! once, each selected implementation's refinement proof, and the generic
 //! body's certificates carried into each machine stage 04 generated from it.
-//! The including crate declares `fixture_package_inputs` at its root.
+//! The including crate declares `unbuilt_frontier` at its root: the typed
+//! trees come from the path that runs no Build.
 
 use std::path::Path;
 
@@ -79,24 +80,21 @@ fn report(
     all
 }
 
+/// The outcome of the three steps on the program in `main`, whose Build
+/// binds `main`: `route=<outcome>`, with one line per obligation in `lines`.
 pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
-    use crate::fixture_package_inputs::{self, FixtureFrontierCheck};
-    let (frontier, current) =
-        match fixture_package_inputs::check_fixture_keeping_typed_frontier(main, "linux_x86_64") {
-            FixtureFrontierCheck::Accepted { frontier, .. } => (frontier, "accepted"),
-            FixtureFrontierCheck::Rejected { frontier, .. } => (frontier, "rejected"),
-            FixtureFrontierCheck::ReviewRefused { frontier, .. } => (frontier, "review-refused"),
-            FixtureFrontierCheck::StoppedBeforeTypedFrontier(diagnostics) => {
-                return format!(
-                    "current=none\troute=unreached\t{}",
-                    one_line(format!("{:?}", diagnostics.first()))
-                );
-            }
-        };
-    let head = format!("current={current}");
+    let frontier = match crate::unbuilt_frontier::frontier(main, None, &[]) {
+        Ok(frontier) => frontier,
+        Err(stopped) => {
+            return format!(
+                "route=unreached\t{}",
+                one_line(format!("{:?}", stopped.first()))
+            );
+        }
+    };
     let typed = &frontier.typed;
     let Some(entry) = frontier.entries.first().copied() else {
-        return format!("{head}\troute=no-entry");
+        return "route=no-entry".to_owned();
     };
     let entry_machine = MachineId::new(1).expect("1 is nonzero");
     // Every machine stage 04 generated for a static application, each with
@@ -131,17 +129,17 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 match structure_elaboration::elaborate_closure(typed, specialization.instance) {
                     Ok(closure) => roots.push((closure, entry_machine)),
                     Err(refusal) => {
-                        return format!("{head}\troute=outside\t{}", one_line(&refusal.detail));
+                        return format!("route=outside\t{}", one_line(&refusal.detail));
                     }
                 }
             }
             if roots.is_empty() {
-                return format!("{head}\troute=outside\t{}", one_line(&entry_refusal.detail));
+                return format!("route=outside\t{}", one_line(&entry_refusal.detail));
             }
         }
     }
     if roots.is_empty() {
-        return format!("{head}\troute=no-specialization");
+        return "route=no-specialization".to_owned();
     }
     // Each generic machine is elaborated and discharged once, however many
     // applications of it the program makes: one check form, or for a finite
@@ -157,7 +155,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
             .get(specialization)
             .and_then(|symbol| structure_elaboration::template_of(typed, *symbol))
         else {
-            return format!("{head}\troute=defect\tspecialization without a template");
+            return "route=defect\tspecialization without a template".to_owned();
         };
         // 1. The generic body, once, against its requirements alone.
         if !generics.iter().any(|(symbol, _)| *symbol == template) {
@@ -167,10 +165,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 {
                     Ok(alternatives) => alternatives,
                     Err(_) => {
-                        return format!(
-                            "{head}\troute=outside\tgeneric: {}",
-                            one_line(&opaque.detail)
-                        );
+                        return format!("route=outside\tgeneric: {}", one_line(&opaque.detail));
                     }
                 },
             };
@@ -179,10 +174,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 let found = match discharge(&mut form) {
                     Ok(found) => found,
                     Err(refusal) => {
-                        return format!(
-                            "{head}\troute=defect\tgeneric: {}",
-                            one_line(&refusal.detail)
-                        );
+                        return format!("route=defect\tgeneric: {}", one_line(&refusal.detail));
                     }
                 };
                 // A generic body is checked for every use it admits, so an
@@ -250,13 +242,12 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                     })
                     .map(|(machine, _)| machine)
                 else {
-                    return format!(
-                        "{head}\troute=defect\tselection names no requirement of the generic form"
-                    );
+                    return "route=defect\tselection names no requirement of the generic form"
+                        .to_owned();
                 };
                 let Some(implementation) = consumer.machines.get(selected.implementation).copied()
                 else {
-                    return format!("{head}\troute=defect\tselection names no machine");
+                    return "route=defect\tselection names no machine".to_owned();
                 };
                 let mut witness = match structure_elaboration::elaborate_witness(
                     typed,
@@ -267,19 +258,13 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
                 ) {
                     Ok(witness) => witness,
                     Err(refusal) => {
-                        return format!(
-                            "{head}\troute=outside\twitness: {}",
-                            one_line(&refusal.detail)
-                        );
+                        return format!("route=outside\twitness: {}", one_line(&refusal.detail));
                     }
                 };
                 let refinement = match discharge(&mut witness) {
                     Ok(refinement) => refinement,
                     Err(refusal) => {
-                        return format!(
-                            "{head}\troute=defect\twitness: {}",
-                            one_line(&refusal.detail)
-                        );
+                        return format!("route=defect\twitness: {}", one_line(&refusal.detail));
                     }
                 };
                 report(
@@ -319,9 +304,9 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         let verdicts = match outcome {
             Some(Ok(verdicts)) => verdicts,
             Some(Err(refusal)) => {
-                return format!("{head}\troute=defect\tcarry: {}", one_line(&refusal.detail));
+                return format!("route=defect\tcarry: {}", one_line(&refusal.detail));
             }
-            None => return format!("{head}\troute=defect\tno check form"),
+            None => return "route=defect\tno check form".to_owned(),
         };
         for (obligation, verdict) in &verdicts {
             let (outcome, detail) = match verdict {
@@ -344,7 +329,7 @@ pub fn probe(main: &Path, lines: &mut Vec<String>) -> String {
         }
     }
     format!(
-        "{head}\troute=carried-{}",
+        "route=carried-{}",
         if carried_all { "accepted" } else { "refused" }
     )
 }
