@@ -1820,7 +1820,7 @@ pub(crate) mod instance {
             effect: &TerminalEffect,
         ) -> Result<&mut (dyn TerminalImportAdapter + 'host), TerminalEffectRejection> {
             match effect {
-                TerminalEffect::BoundaryCall { boundary, .. } => self.adapter_at(*boundary),
+                TerminalEffect::BoundaryCall { site, .. } => self.adapter_at(site.boundary),
                 TerminalEffect::ComponentCall { .. } => Err(TerminalEffectRejection::new(
                     "a component completion receipt is not a host effect request",
                 )),

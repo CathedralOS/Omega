@@ -162,9 +162,21 @@ mod tests {
             output.clone(),
         );
         let effect = |scalar_type, value| TerminalEffect::BoundaryCall {
-            machine: semantic_vocabulary::MachineId::new(1).unwrap(),
-            operation: OperationId::new(1).unwrap(),
-            boundary: BoundaryMachineId::new(1).unwrap(),
+            site: terminal_interpreter::TerminalEffectWait {
+                program: terminal_codec::TerminalExecutionIdentity::portable(
+                    terminal_psi::TerminalPsiIdentity {
+                        vocabulary_marker: terminal_psi::TerminalModule::for_entry(
+                            semantic_vocabulary::MachineId::new(1).unwrap(),
+                        )
+                        .vocabulary_marker,
+                        program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([0; 32]),
+                    },
+                ),
+                machine: semantic_vocabulary::MachineId::new(1).unwrap(),
+                block: semantic_vocabulary::BlockId::new(1).unwrap(),
+                operation: OperationId::new(1).unwrap(),
+                boundary: BoundaryMachineId::new(1).unwrap(),
+            },
             arguments: vec![TerminalScalarValue::Integer { scalar_type, value }],
             structural_arguments: vec![],
             byte_sequence_arguments: vec![],

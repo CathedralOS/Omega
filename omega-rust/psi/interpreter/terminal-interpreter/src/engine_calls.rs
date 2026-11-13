@@ -3426,10 +3426,15 @@ impl<'artifact> TerminalExecution<'artifact> {
                 self.export_host_atom(value)?;
             }
         }
-        let effect = TerminalEffect::BoundaryCall {
+        let site = crate::TerminalEffectWait {
+            program: self.program.identity.clone(),
             machine: self.current_machine,
+            block: self.current,
             operation: operation.id,
             boundary,
+        };
+        let effect = TerminalEffect::BoundaryCall {
+            site: site.clone(),
             arguments: scalar_arguments,
             structural_arguments: exported_values,
             byte_sequence_arguments: std::mem::take(&mut boundary_arguments.bytes),
@@ -3438,13 +3443,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         };
         let mut pending = PendingBoundaryCall {
             awaiting_provider_readiness: false,
-            site: crate::boundary::results::TerminalEffectWait {
-                program: self.program.identity.semantic(),
-                machine: self.current_machine,
-                block: self.current,
-                operation: operation.id,
-                boundary,
-            },
+            site,
             arguments: boundary_arguments,
             remaining_claims,
             effect,
@@ -3467,7 +3466,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         pending: &PendingBoundaryCall,
     ) -> Result<Option<TerminalExecutionStatus>, TerminalInterpretError> {
         operation_kind!(operation => BoundaryCall { boundary, .. });
-        if pending.site.program != self.program.identity.semantic()
+        if pending.site.program != self.program.identity
             || pending.site.machine != self.current_machine
             || pending.site.block != self.current
             || pending.site.operation != operation.id
@@ -3490,7 +3489,9 @@ impl<'artifact> TerminalExecution<'artifact> {
             });
         }
         if !ready {
-            return Ok(Some(TerminalExecutionStatus::AwaitingEffect(pending.site)));
+            return Ok(Some(TerminalExecutionStatus::AwaitingEffect(
+                pending.site.clone(),
+            )));
         }
         let computed = handler
             .poll_host_computation(&pending.effect)
@@ -3500,7 +3501,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             })?;
         Ok(
             (!computed).then_some(TerminalExecutionStatus::HostComputationPending(
-                pending.site,
+                pending.site.clone(),
             )),
         )
     }
