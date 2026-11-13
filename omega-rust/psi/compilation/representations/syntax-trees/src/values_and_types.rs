@@ -1001,10 +1001,19 @@ pub mod values {
                             expression.access.borrow_prefix(),
                             table.display_expression_name(expression.target)
                         ),
-                        Self::Name(path) => table
-                            .expressions
-                            .identifier_path_members(*path)
-                            .joined_path_with_in(table, "::"),
+                        Self::Name {
+                            members: path,
+                            application: path_application,
+                        } => StaticMachineArgument {
+                            path: table
+                                .expressions
+                                .identifier_path_members(path.to_owned())
+                                .to_vec()
+                                .into_boxed_slice(),
+                            application: path_application.clone(),
+                            ..Default::default()
+                        }
+                        .display_name(table),
                         Self::Range(range) => {
                             let separator = if range.end_inclusive { "..=" } else { ".." };
                             match (range.start.is_valid(), range.end.is_valid()) {
@@ -1720,7 +1729,12 @@ pub mod values {
             Membership(TableMembershipExpression),
             Member(TableMemberExpression),
             Borrow(TableBorrowExpression),
-            Name(HandleSpan<Identifier>),
+            // A declaration query needs each owner's and member's chosen type,
+            // constant and lifetime arguments without invoking the declaration.
+            Name {
+                members: HandleSpan<Identifier>,
+                application: Option<Box<StaticSymbolApplication>>,
+            },
             Range(TableRangeExpression),
             StructLiteral(TableStructLiteral),
             String(source::SourceBytes),

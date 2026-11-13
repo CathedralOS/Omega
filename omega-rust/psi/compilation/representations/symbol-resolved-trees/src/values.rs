@@ -86,7 +86,13 @@ pub mod expression {
                         table.display_name(expression.target)
                     ),
                     Self::Name(path) => {
-                        display_name_path(table.name_path_members(path.members), "::")
+                        if let Some(argument) = table.static_member(path.static_application) {
+                            argument.display_name_in(table)
+                        } else if path.static_application.is_valid() {
+                            "<missing applied declaration>".to_owned()
+                        } else {
+                            display_name_path(table.name_path_members(path.members), "::")
+                        }
                     }
                     Self::Range(range) => match (range.start.is_valid(), range.end.is_valid()) {
                         (true, true) => format!(
@@ -863,6 +869,20 @@ pub mod expression {
                     }
                     ExpressionNode::Borrow(borrow) => self.expression_payloads(borrow.target),
                     ExpressionNode::Name(path) => {
+                        if let Some(mut application) = self
+                            .program
+                            .expression_table()
+                            .static_member(path.static_application)
+                            .cloned()
+                        {
+                            self.static_argument(&mut application);
+                            *self
+                                .program
+                                .expression_table_mut()
+                                .static_member_mut(path.static_application)
+                                .expect("declaration application remains in its owning table") =
+                                application;
+                        }
                         path.head_symbol = self.symbol(path.head_symbol);
                         path.symbol = self.symbol(path.symbol);
                         path.reserved_result_of = self.symbol(path.reserved_result_of);
@@ -1266,6 +1286,7 @@ pub mod expression {
                             member_symbols,
                             head_symbol: original,
                             symbol: original,
+                            static_application: arena::Handle::invalid(),
                             reserved_result_of: SymbolHandle::invalid(),
                         }));
                 let arguments = program
@@ -1688,6 +1709,21 @@ pub mod expression {
                         }))
                     }
                     ExpressionNode::Name(path) => {
+                        let static_application = if path.static_application.is_valid() {
+                            let argument = source.table(self).static_member(path.static_application)
+                                .expect("declaration application belongs to its source expression table").clone();
+                            let copied = match source {
+                                ExpressionSource::Own => {
+                                    self.copy_static_argument_from_self(&argument)
+                                }
+                                ExpressionSource::Table(table) => {
+                                    self.copy_static_argument_from(table, &argument)
+                                }
+                            };
+                            self.insert_static_member(copied)
+                        } else {
+                            arena::Handle::invalid()
+                        };
                         let members = self.copy_name_path_members(source, path.members);
                         let member_symbols =
                             self.copy_name_path_member_symbols(source, path.member_symbols);
@@ -1697,6 +1733,7 @@ pub mod expression {
                             head_symbol: path.head_symbol,
                             symbol: path.symbol,
                             reserved_result_of: path.reserved_result_of,
+                            static_application,
                         }))
                     }
                     ExpressionNode::Range(range) => {
@@ -2073,6 +2110,7 @@ pub mod expression {
                 member_symbols: room_member_symbols,
                 head_symbol: room_symbol,
                 symbol: room_symbol,
+                static_application: arena::Handle::invalid(),
                 reserved_result_of: SymbolHandle::invalid(),
             }));
 
@@ -2095,6 +2133,7 @@ pub mod expression {
                 member_symbols: field_member_symbols,
                 head_symbol: room_symbol,
                 symbol: field_symbol,
+                static_application: arena::Handle::invalid(),
                 reserved_result_of: SymbolHandle::invalid(),
             }));
 
@@ -2412,6 +2451,7 @@ pub mod expression {
                 member_symbols: symbol_span,
                 head_symbol: member_symbols.first().copied().unwrap_or_default(),
                 symbol,
+                static_application: arena::Handle::invalid(),
                 reserved_result_of: SymbolHandle::invalid(),
             }))
         }
@@ -2619,7 +2659,7 @@ pub mod expression {
         }
 
         const EXPECTED_COPY_ROWS: &str = r#"
-expression #28 = Name(TableNamePath { members: #9+2, member_symbols: #5+2, head_symbol: #3, symbol: #3, reserved_result_of: #0@0 }) at 0:0..0 exposure Some(PrivateImplementation) partition None occurrences #5+1
+expression #28 = Name(TableNamePath { members: #9+2, member_symbols: #5+2, head_symbol: #3, symbol: #3, static_application: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure Some(PrivateImplementation) partition None occurrences #5+1
 expression #29 = Integer(IntegerLiteral { text: "1", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #30 = Float(FloatLiteral { text: "2.5", landing: None, presented: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #31 = ArrayLiteral(#7+2) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -2633,14 +2673,14 @@ expression #38 = String([72, 97, 108, 108]) at 0:0..0 exposure None partition No
 expression #39 = Integer(IntegerLiteral { text: "11", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #40 = Integer(IntegerLiteral { text: "13", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #41 = Binary(TableBinaryExpression { left: #39, operator: Add, right: #40, policy: Exact }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #42 = Name(TableNamePath { members: #13+1, member_symbols: #7+1, head_symbol: #3, symbol: #3, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #42 = Name(TableNamePath { members: #13+1, member_symbols: #7+1, head_symbol: #3, symbol: #3, static_application: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #43 = Integer(IntegerLiteral { text: "3", landing: None }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #44 = Indexed(TableIndexedExpression { collection: #42, index: #43 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #45 = StructLiteral(TableStructLiteral { application_type: #0@0, type_name: "Room", type_symbol: #11, case_name: Some("Open"), case_symbol: Some(#12), fields: #4+3 }) at 7:60..65 exposure None partition None occurrences #0@0+0
-expression #46 = Name(TableNamePath { members: #14+1, member_symbols: #0@0+0, head_symbol: #0@0, symbol: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #46 = Name(TableNamePath { members: #14+1, member_symbols: #0@0+0, head_symbol: #0@0, symbol: #0@0, static_application: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #47 = Member(TableMemberExpression { receiver: #46, member_symbol: #4, member: "count", case_variant: Some("Full") }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #48 = Borrow(TableBorrowExpression { target: #47, access: Mutable }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #49 = Name(TableNamePath { members: #15+1, member_symbols: #8+1, head_symbol: #4, symbol: #4, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #49 = Name(TableNamePath { members: #15+1, member_symbols: #8+1, head_symbol: #4, symbol: #4, static_application: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #50 = Atomic(TableAtomicExpression { value: #48, result: #49, ordering: Load(GlobalOrder), result_custody: Scalar }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #51 = UndeterminedNaN(F32) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #52 = Membership(TableMembershipExpression { is_pattern: false, value: #51, domain: #16+1, domain_symbol: #14, case_type_symbol: #0@0, case_symbol: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -3495,6 +3535,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub member_symbols: HandleSpan<SymbolHandle>,
         pub head_symbol: SymbolHandle,
         pub symbol: SymbolHandle,
+        pub static_application: arena::Handle<StaticMachineArgument>,
         /// The callable whose reserved `result` this name denotes, or invalid
         /// when it denotes no result. Stage 02 sets it once, where it decides a
         /// contract name is the reserved result occurrence
@@ -3518,6 +3559,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
                 member_symbols,
                 head_symbol,
                 symbol,
+                static_application: arena::Handle::invalid(),
                 reserved_result_of: SymbolHandle::invalid(),
             }
         }

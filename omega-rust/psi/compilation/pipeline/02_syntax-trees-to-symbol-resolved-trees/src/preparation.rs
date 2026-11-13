@@ -2968,9 +2968,10 @@ pub(crate) mod trait_defaults {
             let name =
                 Identifier::generated(syntax.items.state_parameter(parameter).name.as_str(syntax));
             let member = syntax.expressions.append_identifier_path_member(name);
-            syntax
-                .expressions
-                .insert(ExpressionNode::Name(HandleSpan::from_parts(member, 1)))
+            syntax.expressions.insert(ExpressionNode::Name {
+                members: HandleSpan::from_parts(member, 1),
+                application: None,
+            })
         });
         let equality = syntax
             .expressions
@@ -3398,6 +3399,36 @@ pub(crate) mod trait_defaults {
         }
         let node = syntax.expressions.expression(expression).clone();
         match node {
+            ExpressionNode::Name {
+                members: path,
+                application: mut path_application,
+            } => {
+                if let Some(application) = path_application.as_ref() {
+                    let argument = StaticMachineArgument {
+                        type_reference: TypeReferenceHandle::invalid(),
+                        path: syntax
+                            .expressions
+                            .identifier_path_members(path.to_owned())
+                            .into(),
+                        application: Some(application.clone()),
+                        const_literal: None,
+                        evidence_projection: None,
+                    };
+                    let mut changed = false;
+                    let rewritten =
+                        rewritten_static_argument(syntax, &argument, substitution, &mut changed);
+                    if changed {
+                        path_application = rewritten.application;
+                        syntax.expressions.replace_expression(
+                            expression,
+                            ExpressionNode::Name {
+                                members: path,
+                                application: path_application,
+                            },
+                        );
+                    }
+                }
+            }
             ExpressionNode::Call(mut call) => {
                 if let Some(arguments) =
                     rewritten_static_arguments(syntax, &call.machine_arguments, substitution)
@@ -3503,7 +3534,6 @@ pub(crate) mod trait_defaults {
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
-            | ExpressionNode::Name(_)
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_)
             | ExpressionNode::TypeExpression(_) => {}
@@ -3620,13 +3650,19 @@ pub(crate) mod trait_defaults {
                         const_literal: Some(literal.clone()),
                         evidence_projection: None,
                     }),
-                    ExpressionNode::Name(path) => {
-                        let members = syntax.expressions.identifier_path_members(*path);
-                        let [name] = members else {
-                            return None;
-                        };
-                        Some(bare_static_argument(name.clone()))
-                    }
+                    ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } => Some(StaticMachineArgument {
+                        type_reference: TypeReferenceHandle::invalid(),
+                        path: syntax
+                            .expressions
+                            .identifier_path_members(path.to_owned())
+                            .into(),
+                        application: path_application.clone(),
+                        const_literal: None,
+                        evidence_projection: None,
+                    }),
                     _ => None,
                 }
             }
@@ -3805,8 +3841,14 @@ pub(crate) mod declared_types {
                     children.push(reference)
                 });
                 match templates.expressions.expression(expression) {
-                    ExpressionNode::Name(path) => {
-                        let [name] = templates.expressions.identifier_path_members(*path) else {
+                    ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } if path_application.is_none() => {
+                        let [name] = templates
+                            .expressions
+                            .identifier_path_members(path.to_owned())
+                        else {
                             bindings.unresolved.push(expression);
                             continue;
                         };
@@ -3840,7 +3882,9 @@ pub(crate) mod declared_types {
                             bindings.unresolved.push(expression);
                         }
                     }
-                    ExpressionNode::Call(_) => bindings.unresolved.push(expression),
+                    ExpressionNode::Name { .. } | ExpressionNode::Call(_) => {
+                        bindings.unresolved.push(expression)
+                    }
                     _ => {}
                 }
             }
@@ -3852,12 +3896,19 @@ pub(crate) mod declared_types {
             selection: &ConstantSelection<'_>,
             expression: ExpressionHandle,
         ) -> bool {
-            let ExpressionNode::Name(path) = syntax.expressions.expression(expression) else {
+            let ExpressionNode::Name {
+                members: path,
+                application: path_application,
+            } = syntax.expressions.expression(expression)
+            else {
                 return false;
             };
+            if path_application.is_some() {
+                return false;
+            }
             let name = syntax
                 .expressions
-                .identifier_path_members(*path)
+                .identifier_path_members(path.to_owned())
                 .iter()
                 .map(|member| member.as_str(syntax))
                 .collect::<Vec<_>>()
@@ -3902,7 +3953,10 @@ pub(crate) mod declared_types {
                                     .expressions
                                     .append_identifier_path_member_to_span(&mut path, member);
                             }
-                            let expression = syntax.expressions.insert(ExpressionNode::Name(path));
+                            let expression = syntax.expressions.insert(ExpressionNode::Name {
+                                members: path,
+                                application: None,
+                            });
                             syntax.expressions.set_source_span(expression, span);
                             expression
                         }
@@ -4073,13 +4127,21 @@ pub(crate) mod declared_types {
                 bound: &[String],
             ) -> Result<(), Diagnostic> {
                 match syntax.expressions.expression(expression).clone() {
-                    ExpressionNode::Name(path) => {
-                        let path = syntax.expressions.identifier_path_members(path).to_vec();
+                    ExpressionNode::Name {
+                        members: path,
+                        application: path_application,
+                    } => {
+                        let application = path_application;
+                        let path = syntax
+                            .expressions
+                            .identifier_path_members(path.to_owned())
+                            .to_vec();
                         let Some(first) = path.first() else {
                             return Ok(());
                         };
                         let argument = StaticMachineArgument {
                             path: path.clone().into_boxed_slice(),
+                            application,
                             ..Default::default()
                         };
                         let name = argument_name(syntax, &argument, first)?;
@@ -4275,9 +4337,10 @@ pub(crate) mod declared_types {
                 let head = syntax
                     .expressions
                     .append_identifier_path_member(projection.term.clone());
-                let receiver = syntax
-                    .expressions
-                    .insert(ExpressionNode::Name(arena::HandleSpan::from_parts(head, 1)));
+                let receiver = syntax.expressions.insert(ExpressionNode::Name {
+                    members: arena::HandleSpan::from_parts(head, 1),
+                    application: None,
+                });
                 syntax.expressions.set_source_span(receiver, term_span);
                 let expression = syntax.expressions.insert(ExpressionNode::Member(
                     syntax_trees::expression::TableMemberExpression {
