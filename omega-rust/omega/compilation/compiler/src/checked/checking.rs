@@ -470,11 +470,10 @@ pub(super) fn complete_prepared_build(
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<PreparedProductSource, Vec<Diagnostic>> {
     let PreparedBuild {
-        mut built,
+        built,
         mut build_sources,
         mut timings,
     } = prepared;
-    let retained_build_check = built.retained_build_check.take();
     let base_sources = built.base_sources.clone();
     let (typed, source_completion_accounting, computed_build_config, admission) =
         build_continuation::complete_product_frontend(
@@ -494,7 +493,6 @@ pub(super) fn complete_prepared_build(
         admission,
         build_sources,
         timings,
-        retained_build_check,
     })
 }
 
