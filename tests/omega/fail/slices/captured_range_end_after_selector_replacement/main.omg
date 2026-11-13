@@ -1,8 +1,0 @@
-machine observe(views: &[&[u8]; 2]) -> u64 {
-    let mut selector: u64 = 0;
-    let measured: u64 = views[selector].len;
-    selector = 1;
-    let window: &[u8] = views[selector][0..measured];
-    window.len
-}
-machine main() {}

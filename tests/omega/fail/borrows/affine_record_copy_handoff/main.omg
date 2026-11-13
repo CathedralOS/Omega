@@ -1,7 +1,0 @@
-data Settings { count: i32; }
-machine Settings::observe(settings: Settings) -> i32 { settings.count }
-machine inspect() -> i32 {
-    let mut settings: Settings = Settings { count: 17 };
-    let first: i32 = Settings::observe(settings);
-    Settings::observe(settings)
-}

@@ -1,7 +1,0 @@
-data Ordinary { value: u64; }
-data Atomic { value: AtomicU64; }
-machine view(value: &Ordinary) { let atomic: &Atomic = value as &Atomic; }
-machine main() {
-    let number: Ordinary = Ordinary { value: 17 };
-    view(&number);
-}

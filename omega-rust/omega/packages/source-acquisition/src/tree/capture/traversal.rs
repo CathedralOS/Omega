@@ -1,190 +1,47 @@
 /*
-No-follow traversal, symlink policy validation, and closing drift sweeps for
-source trees.
+No-follow source operations and closing drift sweeps.
 
-Per-member checks (bounded file reads and each entry's initial no-follow
-observation) cover the window up to that member's inspection. Before a
-directory's visit returns, `close_captured_directory` re-lists its members
-(including policy-excluded names such as `.git`, root `build`, and root
-`omega.lock` matched case-insensitively) and re-observes each captured entry and
-the directory's own metadata so member additions, removals, replacements, or
-retargetings during sibling traversal reject with `LocalSourceChanged`. After
-the deepest close returns, `verify_captured_tree` re-observes every captured
-member's identity first (preventing a directory swapped for a symlink from
-redirecting re-opened listings) and then re-verifies every visited directory's
-metadata and member set from the retained root handle.
+Capture retains the selected members' opening identities. Enumerated subtrees
+also retain their complete member lists, including control names omitted by the
+source policy. Closing checks compare those identities and member lists before
+publication. Ancestors of explicitly selected files retain directory identities
+without enumerating unrelated siblings. The final sweep checks member identities
+first and reopens every selected directory without following symlinks, so a
+replaced ancestor cannot redirect later metadata or membership observations.
 */
 
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 
-use cap_fs_ext::DirExt;
 use cap_std::fs::Dir as CapabilityDirectory;
 
 use super::traversal_observations::{SourceEntry, SourceEntryKind, SourceTreePolicy};
 use crate::SourceResolveError;
-use crate::error::{local_source_changed, too_many_bytes, too_many_files};
+use crate::error::{local_source_changed, too_many_files};
 use crate::limits::{DEFAULT_BUILD_OUTPUT_DIRECTORY, LocalSourceLimits};
 use crate::tree::filesystem::{
     CapturedEntryObservation, IoResultAt, io_error, open_captured_directory, raw_os_bytes,
-    read_capability_file_bounded, require_unchanged_entry,
+    require_unchanged_entry,
 };
 
 pub(super) struct CapturedDirectoryObservation {
-    relative_path: PathBuf,
-    metadata: cap_std::fs::Metadata,
-    listed_names: Vec<OsString>,
+    pub(super) relative_path: PathBuf,
+    pub(super) metadata: cap_std::fs::Metadata,
+    pub(super) listed_names: Option<Vec<OsString>>,
 }
 
 pub(super) struct CapturedMemberObservation {
-    relative_path: PathBuf,
-    metadata: cap_std::fs::Metadata,
+    pub(super) relative_path: PathBuf,
+    pub(super) metadata: cap_std::fs::Metadata,
 }
 
 #[derive(Default)]
 pub(super) struct CapturedTreeObservations {
-    directories: Vec<CapturedDirectoryObservation>,
-    members: Vec<CapturedMemberObservation>,
+    pub(super) directories: Vec<CapturedDirectoryObservation>,
+    pub(super) members: Vec<CapturedMemberObservation>,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn visit_directory(
-    root_directory: &CapabilityDirectory,
-    directory: &CapabilityDirectory,
-    display_dir: &Path,
-    logical_dir: PathBuf,
-    depth: usize,
-    root: &Path,
-    limits: LocalSourceLimits,
-    policy: SourceTreePolicy,
-    captured_file_bytes: &mut u64,
-    entries: &mut Vec<SourceEntry>,
-    observations: &mut CapturedTreeObservations,
-) -> Result<(), SourceResolveError> {
-    if depth > limits.max_depth {
-        return Err(SourceResolveError::TooDeep {
-            path: display_dir.to_path_buf(),
-            limit: limits.max_depth,
-        });
-    }
-
-    let remaining_entries = limits.max_entries.saturating_sub(entries.len());
-    let excluded_entry_allowance = match policy {
-        SourceTreePolicy::ExactMaterialized => 0,
-        SourceTreePolicy::LocalPackage if logical_dir.as_os_str().is_empty() => 4,
-        SourceTreePolicy::LocalPackage => 1,
-    };
-    let directory_listing_limit = remaining_entries.saturating_add(excluded_entry_allowance);
-    let opening_metadata = directory.dir_metadata().at(display_dir)?;
-    let mut entry_names = Vec::new();
-    for entry in directory.entries().at(display_dir)? {
-        if entry_names.len() >= directory_listing_limit {
-            return Err(too_many_files(limits.max_entries));
-        }
-        entry_names.push(entry.at(display_dir)?.file_name());
-    }
-    entry_names.sort();
-    let entry_names_listed = entry_names;
-
-    let mut observed_entries = Vec::new();
-    for name in &entry_names_listed {
-        if excluded_from_capture(policy, &logical_dir, name) {
-            continue;
-        }
-        if entries.len() >= limits.max_entries {
-            return Err(too_many_files(limits.max_entries));
-        }
-        let display_path = display_dir.join(name);
-        let logical_path = logical_dir.join(name);
-        let metadata = directory.symlink_metadata(name).at(&display_path)?;
-        observed_entries.push(CapturedEntryObservation {
-            name: name.clone(),
-            metadata: metadata.clone(),
-        });
-        observations.members.push(CapturedMemberObservation {
-            relative_path: logical_path.clone(),
-            metadata: metadata.clone(),
-        });
-        if metadata.file_type().is_symlink() {
-            let raw_target = read_and_validate_symlink_target(
-                root_directory,
-                root,
-                directory,
-                &logical_dir,
-                name,
-                &display_path,
-                policy,
-            )?;
-            push_entry(
-                entries,
-                logical_path,
-                SourceEntryKind::Symlink {
-                    target_bytes: raw_os_bytes(raw_target.as_os_str()),
-                },
-                limits,
-            )?;
-        } else if metadata.is_dir() {
-            let child = open_captured_directory(directory, name, &display_path)?;
-            push_entry(
-                entries,
-                logical_path.clone(),
-                SourceEntryKind::Directory,
-                limits,
-            )?;
-            visit_directory(
-                root_directory,
-                &child,
-                &display_path,
-                logical_path,
-                depth + 1,
-                root,
-                limits,
-                policy,
-                captured_file_bytes,
-                entries,
-                observations,
-            )?;
-        } else if metadata.is_file() {
-            let remaining = limits
-                .max_bytes
-                .checked_sub(*captured_file_bytes)
-                .ok_or(too_many_bytes(limits.max_bytes))?;
-            let (bytes, executable) = read_capability_file_bounded(
-                directory,
-                name,
-                &display_path,
-                remaining,
-                limits.max_bytes,
-            )?;
-            *captured_file_bytes = captured_file_bytes
-                .checked_add(bytes.len() as u64)
-                .ok_or(too_many_bytes(limits.max_bytes))?;
-            push_entry(
-                entries,
-                logical_path,
-                SourceEntryKind::File { bytes, executable },
-                limits,
-            )?;
-        } else {
-            return Err(SourceResolveError::UnsupportedFileType { path: display_path });
-        }
-    }
-    close_captured_directory(
-        directory,
-        display_dir,
-        &opening_metadata,
-        &entry_names_listed,
-        &observed_entries,
-    )?;
-    observations.directories.push(CapturedDirectoryObservation {
-        relative_path: logical_dir,
-        metadata: opening_metadata,
-        listed_names: entry_names_listed,
-    });
-    Ok(())
-}
-
-fn close_captured_directory(
+pub(super) fn close_captured_directory(
     directory: &CapabilityDirectory,
     display_dir: &Path,
     opening_metadata: &cap_std::fs::Metadata,
@@ -246,26 +103,28 @@ pub(super) fn verify_captured_tree(
         let closing_metadata = directory.dir_metadata().at(&display_path)?;
         require_unchanged_entry(&record.metadata, &closing_metadata, &display_path)?;
 
-        let mut closed_names: Vec<OsString> = Vec::new();
-        for entry in directory.entries().at(&display_path)? {
-            closed_names.push(entry.at(&display_path)?.file_name());
-        }
-        closed_names.sort();
-        if closed_names != record.listed_names {
-            return Err(local_source_changed(&display_path));
+        if let Some(listed_names) = &record.listed_names {
+            let mut closed_names: Vec<OsString> = Vec::new();
+            for entry in directory.entries().at(&display_path)? {
+                closed_names.push(entry.at(&display_path)?.file_name());
+            }
+            closed_names.sort();
+            if closed_names != *listed_names {
+                return Err(local_source_changed(&display_path));
+            }
         }
     }
     Ok(())
 }
 
-fn open_observed_directory(
+pub(super) fn open_observed_directory(
     root_directory: &CapabilityDirectory,
     relative_path: &Path,
     display_path: &Path,
 ) -> Result<CapabilityDirectory, SourceResolveError> {
     let mut opened = root_directory.try_clone().at(display_path)?;
     for component in relative_path.components() {
-        opened = match opened.open_dir_nofollow(component.as_os_str()) {
+        opened = match open_captured_directory(&opened, component.as_os_str(), display_path) {
             Ok(child) => child,
             Err(error)
                 if matches!(
@@ -292,7 +151,7 @@ pub(crate) fn excluded_from_capture(
                 && (name == DEFAULT_BUILD_OUTPUT_DIRECTORY || is_root_control_file(name))))
 }
 
-fn read_and_validate_symlink_target(
+pub(super) fn read_and_validate_symlink_target(
     root_directory: &CapabilityDirectory,
     root: &Path,
     directory: &CapabilityDirectory,
@@ -348,7 +207,7 @@ fn is_root_control_file(name: &OsStr) -> bool {
     name.as_encoded_bytes().eq_ignore_ascii_case(b"omega.lock")
 }
 
-fn push_entry(
+pub(super) fn push_entry(
     entries: &mut Vec<SourceEntry>,
     relative: PathBuf,
     kind: SourceEntryKind,
@@ -365,7 +224,7 @@ fn push_entry(
     Ok(())
 }
 
-fn canonical_relative_path_bytes(relative: &Path) -> Vec<u8> {
+pub(super) fn canonical_relative_path_bytes(relative: &Path) -> Vec<u8> {
     let mut encoded = Vec::new();
     for component in relative.components() {
         if !encoded.is_empty() {
@@ -513,10 +372,10 @@ mod close_tests {
 
 #[cfg(test)]
 mod tree_tests {
+    use cap_fs_ext::DirExt;
     use std::ffi::OsString;
     use std::path::{Path, PathBuf};
 
-    use cap_fs_ext::DirExt;
     use cap_std::ambient_authority;
     use cap_std::fs::Dir as CapabilityDirectory;
 
@@ -568,7 +427,7 @@ mod tree_tests {
             observations.directories.push(CapturedDirectoryObservation {
                 relative_path: relative.to_path_buf(),
                 metadata: directory.dir_metadata().expect("observe directory"),
-                listed_names: listed.clone(),
+                listed_names: Some(listed.clone()),
             });
             for name in listed {
                 let child_relative = relative.join(&name);

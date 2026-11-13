@@ -5,9 +5,11 @@
 
     We admit compile-time machine closures against checked or pre-check programs,
     evaluate closed generic expressions, constant initializers, fixed-array
-    lengths, range endpoints, layout plans, and access views through the
-    Terminal and checked interpreters, and admit Build-issued product, provider,
-    and native-binding declarations against their source requests.
+    lengths and range endpoints through the Terminal interpreter, and admit
+    Build-issued product, provider, and native-binding declarations against
+    their source requests. Layout and access policy plans and constant domain
+    facts run a machine before the program is checked; no engine serves them,
+    so they are refused (`evaluation_requests`).
 */
 
 /*
@@ -838,10 +840,11 @@ pub(crate) mod build_time_evaluation {
 }
 mod const_evaluation;
 mod evaluation_accounting;
+mod evaluation_requests;
 pub use evaluation_accounting::{
-    CanonicalScalarEvaluationReceipt, PureEvaluationOutcome, PureEvaluationProgram,
-    PureEvaluationReceipt, PureEvaluationRecord, PureTerminalEvaluationOutcome,
-    PureTerminalEvaluationReceipt, RecordedPreCheck, SourceCompletionAccounting,
+    CanonicalScalarEvaluationReceipt, PureEvaluationProgram, PureEvaluationRecord,
+    PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt, RecordedPreCheck,
+    SourceCompletionAccounting,
 };
 mod layouts;
 mod machine_execution;
@@ -917,10 +920,9 @@ pub(crate) mod worklist {
 pub use language_semantics::wire::WireCompatibilityDemand;
 
 pub use build_time_values::BuildTimeValue;
-pub use checked_interpreter::{
-    CURRENT_EVALUATION_SEMANTICS, EvaluationUsage, SelectedBuildTimeBinaryOperator,
-    SelectedBuildTimeMachineBody,
-};
+// The request and result types are exported with the receipts that record them.
+// Nothing in this crate reads a request while typed-tree jobs are refused; the
+// Terminal engine for those jobs is their reader (TASKS.md, EARLY-TERMINAL-JOBS).
 pub use const_evaluation::const_domain_facts::evaluate_const_domain_facts;
 pub use const_evaluation::const_generic_calls::evaluate_const_generic_calls;
 pub use const_evaluation::const_lengths::evaluate_const_array_lengths;
@@ -930,6 +932,12 @@ pub use const_evaluation::data_layout_queries::{
 pub use const_evaluation::range_endpoints::evaluate_const_range_endpoints;
 pub use const_evaluation::selected_constants::SelectedConstantEvaluationRequest;
 pub use evaluation_accounting::MeasuredEvaluation;
+pub use evaluation_requests::{
+    BuildMachineEntry, BuildMachineEvaluationError, BuildMachineEvaluationRequest,
+    BuildMachineProgram, BuildTimeOperationEvaluation, CURRENT_EVALUATION_SEMANTICS,
+    EvaluationSemanticsIdentity, PrivateLayoutPlacementReceipt, SelectedBuildTimeBinaryOperator,
+    SelectedBuildTimeMachineBody, UnavailableStaticInput,
+};
 pub use layouts::access_lifecycles::{admit_access_lifecycle_plans, retain_access_lifecycle_plans};
 pub use layouts::access_views::{AccessViewRecord, desugar_access_views};
 pub use layouts::plan_laid::{
@@ -954,12 +962,9 @@ pub use machine_execution::selected_operators::{
     SelectedBuildTimeProviderBody, validate_selected_operators, validate_selected_provider_bodies,
 };
 pub use reflection::{
-    CaseDescription, DeclarationDescription, FieldDescription, FieldInfo, MemberKind,
-    MemberSelectionKey, NominalReferenceDescription, RuntimeVisitationPlan, SchemaNode,
-    SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, ScopedSelectionReceiver, SelectionChoice,
-    SelectionCoverage, SelectionProjection, SelectionRecord, SelectionRequirement,
-    SelectionSnapshot, SemanticSchemaGraph, TypeParameterDescription, VisitationCall,
-    VisitationOperation, construct_semantic_schema_graph, replay_runtime_visitation_plan,
+    FieldInfo, MemberKind, MemberSelectionKey, RuntimeVisitationPlan, ScopedSelectionReceiver,
+    SelectionChoice, SelectionCoverage, SelectionProjection, SelectionRecord, SelectionRequirement,
+    SelectionSnapshot, VisitationCall, VisitationOperation, replay_runtime_visitation_plan,
     replay_selection_snapshot, replay_semantic_schema_graph,
 };
 

@@ -1,6 +1,0 @@
-machine narrow(value: u32) -> u8 {
-    let selected: bool = value <= 255u32 && (value as u8) == 42u8;
-    value as u8
-}
-
-machine main() { let result: u8 = narrow(300u32); }

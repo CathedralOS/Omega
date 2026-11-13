@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "shared_observation_does_not_discharge_linear_owner");
-}

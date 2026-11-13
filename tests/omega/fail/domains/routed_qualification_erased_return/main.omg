@@ -1,8 +1,0 @@
-// Returning an erased value cannot satisfy a result that promises the issued
-// meaning the cast dropped.
-data Ticket [copy] { number: u64; }
-domain Ticket::Held established by issue;
-machine issue() -> Ticket in Ticket::Held { Ticket { number: 17 } }
-machine consume(t: Ticket in Ticket::Held) {}
-machine forward(t: Ticket in Ticket::Held) -> Ticket in Ticket::Held { t as Ticket }
-machine main() { let issued: Ticket in Ticket::Held = issue(); consume(forward(issued)); }

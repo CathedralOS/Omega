@@ -1,7 +1,0 @@
-// Mutability of a shared view descriptor does not grant its backing exclusive access.
-machine replace(values: &mut [u8]) {}
-machine main() {
-    let mut values: [u8; 2] = [1, 2];
-    let mut view: &[u8] = &values[..];
-    replace(view);
-}

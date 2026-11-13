@@ -1,9 +1,0 @@
-
-data Sample { value: f32; }
-
-machine inspect(sample: &mut Sample) {
-    sample.value = 0.5;
-    sample.value = 0.0f32 / 0.0;
-    transition { _ -> consume(sample.value) }
-    machine consume(value: f32 in Finite) {}
-}

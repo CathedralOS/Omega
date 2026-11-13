@@ -1,1 +1,0 @@
-cannot prove requires contract for call visit from Main::exercise: 1 < rooms.len

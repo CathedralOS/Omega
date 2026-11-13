@@ -485,12 +485,12 @@ pub(crate) mod call_identity {
     use symbols::{SymbolHandle, SymbolKind};
 
     /*
-        A constant must retain each call's declared method after evaluation. Record
-        the public method's source because the local evidence child has no source
-        declaration of its own. Keep that exact child as the separate call target;
-        invocation checking still verifies its binder and complete application.
+        Copies of a declaration selection must still name the same declaration.
+        Evidence methods use their exact bound requirement and generated entries
+        use their exact owning machine. Ordinary declarations keep their own
+        source; selected binders and complete applications remain separate.
     */
-    pub(crate) fn call_custody_source(
+    pub(crate) fn selected_declaration_source(
         program: &SymbolResolvedTrees,
         target: SymbolHandle,
     ) -> Result<SourceSpan, String> {

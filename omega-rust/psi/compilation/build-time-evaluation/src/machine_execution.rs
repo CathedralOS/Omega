@@ -10,8 +10,8 @@
 */
 
 pub(crate) mod admission {
+    use crate::evaluation_requests::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
     use crate::unique::push_unique;
-    use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
     use checked_trees::CheckedTrees;
     use diagnostics::Diagnostic;
     use std::collections::VecDeque;
@@ -4395,15 +4395,14 @@ pub(crate) mod admission {
             let value = self
                 .accounting
                 .evaluate(
-                    checked_interpreter::BuildMachineProgram::Typed(program),
+                    crate::evaluation_requests::BuildMachineProgram::Typed(program),
                     BuildMachineEvaluationRequest {
                         operators: &self.selected_operators,
                         ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
                     },
+                    &format!("constant domain fact `{machine_name}`"),
                 )
-                .map(BuildTimeOperationEvaluation::into_measured)?
-                .into_parts()
-                .0;
+                .map(BuildTimeOperationEvaluation::into_value)?;
             require_const_evaluable_result(program, machine, &value)?;
             Ok(value)
         }
@@ -4516,7 +4515,7 @@ pub(crate) mod admission {
                     )?;
                     let measured =
                         crate::machine_execution::build_machines::evaluate_checked_invocation(
-                            checked_interpreter::BuildMachineProgram::Checked(checked),
+                            crate::evaluation_requests::BuildMachineProgram::Checked(checked),
                             checked,
                             machine_symbol,
                             arguments,
@@ -4576,7 +4575,7 @@ pub(crate) mod admission {
                 Some(custody),
             )?;
             let measured = crate::machine_execution::build_machines::evaluate_checked_invocation(
-                checked_interpreter::BuildMachineProgram::Checked(checked),
+                crate::evaluation_requests::BuildMachineProgram::Checked(checked),
                 checked,
                 machine_symbol,
                 arguments,
@@ -4885,7 +4884,7 @@ pub(crate) mod build_activation {
 pub(crate) mod build_machines {
     use crate::build_time_evaluation::EvaluationDomain;
     use crate::const_evaluation::const_applications::defer_pending_const_applications;
-    use checked_interpreter::BuildMachineProgram;
+    use crate::evaluation_requests::BuildMachineProgram;
     use std::sync::Arc;
     use symbols::SymbolHandle;
     use typed_trees::TypedTrees;
@@ -5062,10 +5061,12 @@ pub(crate) mod build_machines {
         }
     }
 
-    pub use checked_interpreter::{
-        BuildEvaluationSponsor, BuildEvaluationSponsorLimits,
+    pub use crate::evaluation_requests::{
         CapturedFilesystemRoot as BuildMachineCapturedFilesystemRoot,
         FilesystemAccess as BuildMachineFilesystemAccess,
+    };
+    pub use evaluation_accounting::{BuildEvaluationSponsor, BuildEvaluationSponsorLimits};
+    pub use filesystem_authority::{
         FilesystemGrantRoot as BuildMachineFilesystemGrantRoot,
         FilesystemGrantRootIdentity as BuildMachineFilesystemGrantRootIdentity,
         FilesystemMetadataLayout as BuildMachineFilesystemMetadataLayout,

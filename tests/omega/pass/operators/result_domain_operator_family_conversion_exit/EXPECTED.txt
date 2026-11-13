@@ -1,1 +1,0 @@
-Frozen before execution: integer one is exactly representable in i8 and IEEE binary64. Normal I8::from_f32(1.0f32) selects the non-crashing i8 result overload; F64::from_i32(1i32) is exactly 1.0f64. Both comparisons true; native and Terminal exit 0. Family presence alone must not choose a trapping or saturating sibling.

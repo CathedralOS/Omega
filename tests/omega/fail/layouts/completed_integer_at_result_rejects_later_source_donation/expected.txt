@@ -1,2 +1,0 @@
-IntegerAt call in main
-performed write cannot transport its actual value relation

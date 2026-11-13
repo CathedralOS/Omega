@@ -1,2 +1,0 @@
-cannot prove requires contract for call needs_one from outer
-cannot prove requires contract for call needs_one from statement

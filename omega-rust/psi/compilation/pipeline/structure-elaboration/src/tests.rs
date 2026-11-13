@@ -56,7 +56,7 @@ fn slot(slot: usize, scalar_type: ScalarType) -> Expression {
 fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> Expression {
     expression(
         ExpressionKind::Call {
-            callee: id(callee).into(),
+            callee: id::<MachineId>(callee).into(),
             arguments,
         },
         result,
@@ -1256,7 +1256,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
-        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        copyable: true,
         identity: String::from("Point"),
         fields: vec![
             field(1, "x", ValueType::Scalar(u32_type())),
@@ -1266,7 +1266,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
-        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        copyable: true,
         identity: String::from("Line"),
         fields: vec![field(3, "from", point()), field(4, "to", point())],
         cases: Vec::new(),
@@ -1545,7 +1545,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                 5,
                 of_type(
                     ExpressionKind::Call {
-                        callee: id(2).into(),
+                        callee: id::<MachineId>(2).into(),
                         arguments: Vec::new(),
                     },
                     point(),
@@ -1912,7 +1912,7 @@ fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
     assert!(matches!(
         &operations[9].kind,
         OperationKind::StoreStructuralField {
-            disposition: terminal_psi::StructuralStoreDisposition::Vacant,
+            disposition: terminal_psi::StructuralStoreDisposition::ReplaceDiscardable,
             destination,
             path,
             field: Some(field),
@@ -2150,14 +2150,14 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::Scalar(u32_type());
     let mut records = IdTable::default();
     records.push(RecordType {
-        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        copyable: true,
         identity: String::from("Point"),
         fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
         cases: Vec::new(),
         requires: Vec::new(),
     });
     records.push(RecordType {
-        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        copyable: true,
         identity: String::from("Shape"),
         fields: Vec::new(),
         cases: vec![

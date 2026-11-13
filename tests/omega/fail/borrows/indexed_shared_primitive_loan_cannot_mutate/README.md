@@ -1,1 +1,0 @@
-A named shared reference to a runtime-selected primitive cannot lend exclusive access. Taking a mutable borrow of the local must reject on the requested-exclusive-access diagnostic; owning its binding does not grant mutation of the backing cell.

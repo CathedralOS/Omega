@@ -1,4 +1,0 @@
-use nonexistent::missing;
-
-machine main() {
-}

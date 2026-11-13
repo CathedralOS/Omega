@@ -1,2 +1,0 @@
-does not match one exact overload of operator requirement
-its entry parameter and result types must equal one declared requirement signature

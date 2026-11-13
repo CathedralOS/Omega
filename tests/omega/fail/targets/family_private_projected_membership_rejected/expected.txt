@@ -1,1 +1,0 @@
-cannot prove initializer of `receipt` in main is in domain `Receipt::Positive`; an annotation cannot establish routed qualification

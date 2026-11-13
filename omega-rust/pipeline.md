@@ -141,7 +141,6 @@ setup are not additional public program stages.
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | Typed → typed trees | [typed-trees-to-typed-trees](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
 | Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md) |
-| Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/compilation/pipeline/06_checked-trees-to-lowered-psi/README.md) |
 | Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs) |
 | Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/compilation/pipeline/08_lowered-psi-to-terminal-psi/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
@@ -1337,8 +1336,7 @@ projections consume compilation products, not compiler orchestration; the
 compiler uses their exact permission-consent comparison before production.
 Shared process and filesystem utilities remain under `omega/foundation/`.
 
-`psi/interpreter/` contains the `terminal-interpreter` engine and the
-`checked-interpreter` build-time evaluator that remains to migrate onto it. `psi/compilation/build-time-evaluation/` admits execution
+`psi/interpreter/` contains the `terminal-interpreter` engine. `psi/compilation/build-time-evaluation/` admits execution
 and elaborates results into source and typed trees. Checked fixed-array-length
 jobs use the Terminal program/instance lifecycle. Build activations use the
 Terminal Build host in `omega/build-system/build-settings/`; there is no
@@ -1354,9 +1352,9 @@ Exact consumed-source and toolchain identities belong to the shared
 `psi/foundation/source/src/source_identity.rs` owner; package review and early
 Psi use the same byte protocol without importing each other's orchestration.
 
-`psi/compilation/validation/` owns reusable judgments, with source-program checking
-separate from Terminal receiving-boundary admission. Its independent
-[`terminal-installation`](psi/compilation/validation/terminal-installation/src/lib.rs)
+`psi/compilation/validation/` owns reusable judgments for source-program checking.
+Terminal receiving-boundary admission is separate: the independent
+[`terminal-installation`](psi/compilation/terminal-installation/src/lib.rs)
 package admits provider selections and assumed links against an exact Terminal
 artifact and owns shared structural-entry backing descriptions. It consumes no
 source trees, target layout, compiler driver or execution engine. Native lowering
@@ -1576,7 +1574,6 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   `syntax-trees-to-symbol-resolved-trees` →
   `symbol-resolved-trees-to-typed-trees` →
   `typed-trees-to-typed-trees` → `typed-trees-to-checked-trees` →
-  `checked-trees-to-lowered-psi` →
   `lowered-psi-to-lowered-psi` → `lowered-psi-to-terminal-psi`, then
   `terminal-psi-to-abstract-operations` →
   `abstract-operations-to-target-operations` →

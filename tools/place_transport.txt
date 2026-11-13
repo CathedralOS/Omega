@@ -5,6 +5,7 @@
 # (wiki/drafts/designs/fact_transport.md).
 # Written by `python tools/check_rules.py --update-place-transport`.
 1 omega-rust/psi/compilation/build-time-evaluation/src/const_initializers.rs
+1 omega-rust/psi/compilation/build-time-evaluation/src/evaluation_requests.rs
 1 omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations.rs
 3 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs
 1 omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs
@@ -38,15 +39,6 @@
 2 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published_facts_crash_entry_values.rs
 2 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/values.rs
 4 omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/values_scalar.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/attached_unit.rs
-6 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission.rs
-3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission_cleanup.rs
-5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_bindings.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/operation_emission.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs.rs
-2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/scalar_computations.rs
-1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/shared.rs
-3 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit_structural_values.rs
 1 omega-rust/psi/compilation/pipeline/lowered-discharge/src/places.rs
 1 omega-rust/psi/compilation/proof/src/checker.rs
 5 omega-rust/psi/compilation/representations/checked-trees/facts/src/contexts_and_places.rs

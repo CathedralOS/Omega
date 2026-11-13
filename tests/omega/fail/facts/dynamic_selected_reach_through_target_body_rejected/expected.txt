@@ -1,2 +1,0 @@
-does not satisfy trait `SelectedObserve`
-service `Journal` is not allowed by the trait requirement

@@ -1,8 +1,0 @@
-use omega::language::core::DllImport;
-use omega::language::core::ForeignBinding;
-machine build(builder: &mut Build) {
-    Build::application(builder, "windows_raw_metadata_exit");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-    Build::bind(builder, windows_x86_64::ProgramEntry, entry_start);
-    Build::bind<FixturePipe::create>(builder, windows_x86_64, ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "CreatePipe" } });
-}

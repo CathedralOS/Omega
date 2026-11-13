@@ -487,6 +487,9 @@ pub(crate) struct Machine<'a> {
     /// predicate is the program's claim, so an arrival that fails it is an
     /// unproved obligation and the predicate is never weakened.
     pub(crate) declared: &'a [BlockId],
+    /// The machine's values the integer rules do not reach
+    /// (`crate::Unreached`).
+    pub(crate) unreached: &'a [ValueId],
 }
 
 /// Decides every `ArrivalInvariant` obligation into `decided`. An inferred
@@ -536,6 +539,7 @@ pub(crate) fn check(
                     point,
                     goal,
                     machine.relations,
+                    machine.unreached,
                 )
                 .map(Discharged::Certificate)
             });

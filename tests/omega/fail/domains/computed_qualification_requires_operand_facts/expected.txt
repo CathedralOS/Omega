@@ -1,3 +1,0 @@
-`as ... in Three`
-`as ... in Positive`
-`as ... in Never` cannot mint

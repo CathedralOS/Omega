@@ -1,2 +1,0 @@
-specification call `observe` has no observation-free, reach-free, crash-free value denotation
-the selected closure contains runtime observations or mutable storage

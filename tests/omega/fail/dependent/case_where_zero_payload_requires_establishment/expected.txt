@@ -1,2 +1,0 @@
-omits gated field `choice`
-zero-filled representation is not an established value

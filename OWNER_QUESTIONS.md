@@ -64,4 +64,85 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None.
+### Q1 - In `ensures` and in a crash route guard, does the name of a `mut` by-value parameter mean the argument or the value the body last assigned?
+
+Decision name: `mutable-parameter-contract-name`.
+
+**Customer.** A machine that counts with its own parameter and states what
+it returns:
+
+```omega
+machine advance(mut position: u32, step: u32) -> u32
+requires position <= 10, step <= 10
+ensures result == position + step
+{
+    position = position + step;
+    position
+}
+```
+
+A caller imports `ensures` by substituting its argument for `position`, so
+under one reading this contract is true and useful, and under the other it
+says `result == result + step` and the body is rejected.
+
+**Gap.** [Mathematical values](wiki/spec/terminal-psi/mathematical_values.md)
+says a caller importing an `ensures` "requires the matching result case and
+argument/result substitution", and
+[fact validity](wiki/spec/terminal-psi/fact_validity.md#entry-facts-and-crash-coverage)
+says "Entry hypotheses bind exact invocation formals" and "Current body
+values are not entry snapshots". Both point at the argument, but neither
+says what the *source name* denotes once the body has assigned it.
+[Ownership](wiki/spec/language/ownership.md#owned-local-mutability) covers
+`mut` locals and says only that "the recipient may bind its own value
+mutably". [Dependent values](wiki/spec/language/dependent_values.md) uses
+`old(entry.owner)` for the entry state of storage behind `&mut`, which
+suggests a bare name in `ensures` means the state at return; for a by-value
+parameter that state is invisible to the caller.
+
+**Options.** (a) The name always means the argument; the body's later value
+is unnameable in the contract. (b) The name means the value at return, and
+`old(position)` names the argument, as for `&mut` storage. (c) A contract
+clause other than `requires` may not name a `mut` parameter at all.
+
+**Until answered.** The lowered-form checker refuses such a clause as not
+supported (`contract clause that names a mutable parameter outside
+requires`); it accepts no program under either reading.
+
+### Q2 - Does an unsuffixed operator apply to one policy-qualified operand and one plain binding, or only to a plain literal?
+
+Decision name: `policy-operator-plain-operand`.
+
+**Customer.** A hash or checksum loop that keeps its state in a Wrapping
+binding and mixes in plain values:
+
+```omega
+machine mix(hash: u32 in Wrapping, byte: u32) -> u32 in Wrapping {
+    hash * 31 + byte
+}
+```
+
+`hash * 31` is the case every reading accepts. `... + byte` adds a plain
+`u32` binding to a `u32 in Wrapping` value.
+
+**Gap.** [Policy domains](wiki/spec/language/numeric_values.md#policy-domains)
+says core declares each unsuffixed operator "for two operands carrying the
+domain and for one such operand with a plain operand of the same carrier, so
+`counter + 1` needs no cast". Read as written, `byte` is a plain operand of
+the same carrier and the program is valid.
+[Overflow policies](wiki/spec/language/numeric_values.md#overflow-policies)
+says "incompatible policies do not mix implicitly" and "A machine naming no
+arithmetic policy publishes Exact", and the checker being removed rejects
+this exact program as "mixed arithmetic domains ... one operand is `Wrapping`
+and the other is `Exact`", while accepting the literal. Neither page says
+whether the plain-operand declarations were meant for literals only, and
+[literals and expected types](wiki/spec/language/domains.md#literals-and-expected-types)
+makes a literal an ordinary plain value, which would leave no way to tell the
+two apart by type.
+
+**Options.** (a) Any plain operand of the same carrier, as the sentence
+reads. (b) A literal only; a plain binding needs `as` first. The same answer
+applies to the comparisons core declares for these shapes.
+
+**Until answered.** The lowered-form checker serves the literal and refuses
+the plain binding as not supported (`operator between a policy-qualified
+operand and a plain operand that is not a literal`).

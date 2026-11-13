@@ -65,9 +65,9 @@ workload.
 | Workload | Command |
 | --- | --- |
 | `one_line_check` | `omega --check` on [`progress/one_line`](progress/one_line/main.omg) |
-| `addr_algebra_check` | `omega --check` on `tests/omega/pass/arithmetic/addr_algebra` |
+| `addr_algebra_check` | `omega --check` on `tests/fixtures/pass/arithmetic/addr_algebra` |
 | `medium_sample_check` | `omega --check` on `samples/cli/arithmetic/prime_counter` |
-| `heavy_proof_check` | `omega --check` on `tests/omega/pass/proofs/runtime_inductive_gauss_sum_exit` |
+| `heavy_proof_check` | `omega --check` on `tests/fixtures/pass/proofs/runtime_inductive_gauss_sum_exit` |
 | `native_run_both` | `omega run --both` on `samples/cli/arithmetic/wrapping_square_sum` |
 
 Changing a workload means bumping `BENCHMARK_SET` in `src/progress.rs`;

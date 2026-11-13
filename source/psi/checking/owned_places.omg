@@ -143,8 +143,20 @@ crashes Trap
             ExpressionKind::Name -> named(resolution, node)
             ExpressionKind::Index -> base(syntax, resolution, typing, expression.left, through, depth)
             ExpressionKind::Field -> field_step(syntax, resolution, typing, expression.left, through, depth, field)
-            ExpressionKind::Cast -> recast(syntax, resolution, typing, expression, through, depth)
+            ExpressionKind::Cast -> cast(syntax, resolution, typing, node, expression, through, depth)
             _ -> answer(0)
+        }
+    }
+
+    // Only a reference cast presents the operand's storage. A value cast
+    // has already evaluated and consumed its operand; rooting the result at
+    // the same local would move it twice and confuse captured-loan custody.
+    machine cast(syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, through: bool, depth: u64 in Trapping) -> u64 in Trapping {
+        let type_handle: u64 in Trapping = typing_expression_type(typing, node);
+        let row: TypeRow = type_table_row(&typing.types, type_handle);
+        transition row.kind == TypeKind::Reference {
+            true -> recast(syntax, resolution, typing, expression, through, depth)
+            _ -> answer(0 as u64 +Trapping)
         }
     }
 

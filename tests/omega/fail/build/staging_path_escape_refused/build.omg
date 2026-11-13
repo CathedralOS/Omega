@@ -1,7 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "staging_path_escape_refused");
-    Build::artifact_only(builder);
-    let path: BuildPath = BuildOutput::resolve(&builder.output, "../escape.txt");
-    let writer: i32 = BuildOutput::create(&mut builder.output, path, 0);
-    _ = BuildOutput::close(&mut builder.output, writer);
-}

@@ -1,1 +1,0 @@
-machine `compute_prod` cannot prove ensures contract proof fact `result >= 80 && result <= 180`

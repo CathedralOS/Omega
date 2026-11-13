@@ -1,1 +1,0 @@
-parameter `counter` uses boundary trait `Counter` as a value type

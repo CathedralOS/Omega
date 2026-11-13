@@ -1,1 +1,0 @@
-cannot prove requires contract for call exact_seven from after_call: view.value.number == 7

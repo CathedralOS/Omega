@@ -1,8 +1,0 @@
-// An artifact-only application publishes companion files and binds no
-// `ProgramEntry`, so this root declares no executable program. It exists
-// because a project root is a source file; the behavior under test is
-// entirely in `build.omg`.
-
-machine entry() -> i32 {
-    0
-}

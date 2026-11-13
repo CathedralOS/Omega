@@ -237,7 +237,7 @@ pub(crate) fn check_product_source(
     })
 }
 
-fn layout_target_scopes(
+pub(super) fn layout_target_scopes(
     typed: &typed_trees::TypedTrees,
     build: &compilation_products::BuildConfig,
 ) -> Result<Vec<build_time_evaluation::FixedLayoutTargetScope>, Vec<Diagnostic>> {

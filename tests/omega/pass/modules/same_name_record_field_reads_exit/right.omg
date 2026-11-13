@@ -1,5 +1,0 @@
-module right;
-
-public data Holder { value: u8; }
-
-public machine Holder::read(holder: &Holder) -> u8 { holder.value }

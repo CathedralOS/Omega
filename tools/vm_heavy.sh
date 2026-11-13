@@ -1,19 +1,19 @@
 #!/bin/sh
-# One heavy job per VM. Stacked jobs kept killing the ledger re-record on
+# One heavy job per VM. Stacked jobs kept killing long compiler runs on
 # 2026-11-09 (an out-of-memory kill and a blown 30-minute runner limit), so
-# every build, corpus run or compiler batch on this machine goes through:
+# every build, test run or compiler batch on this machine goes through:
 #
 #   vm-heavy <label> <command...>
 #
-# It refuses with exit 75 while a compiler build, a corpus run or another
+# It refuses with exit 75 while a compiler build, a test run or another
 # guarded job is active here. Otherwise it runs the command holding the lock.
 # A job killed with SIGKILL leaves the lock behind: after checking that nothing
 # is running, remove ~/omega-agent/heavy.lock by hand.
 A=$HOME/omega-agent; L=$A/heavy.lock
 if command -v tasklist > /dev/null 2>&1; then
-  busy=$(tasklist 2> /dev/null | grep -i -E "^(cargo|rustc|xtask|corpus_runner)" | head -1 | cut -c1-40)
+  busy=$(tasklist 2> /dev/null | grep -i -E "^(cargo|rustc|xtask)" | head -1 | cut -c1-40)
 else
-  busy=$(ps -eo comm= | grep -E "^(cargo|rustc|xtask|corpus_runner)" | head -1)
+  busy=$(ps -eo comm= | grep -E "^(cargo|rustc|xtask)" | head -1)
 fi
 if [ -n "$busy" ]; then
   echo "vm-heavy: refused, this machine is busy: $busy" >&2

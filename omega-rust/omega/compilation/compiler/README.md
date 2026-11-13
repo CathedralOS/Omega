@@ -47,7 +47,7 @@ through this route and checks actual production counts and shared backing
 storage. It does not execute a foreign-host image.
 `--check` and `--terminal` exercise the other report stops. For target-local
 failure isolation, use `--reject linux_arm64
-tests/omega/pass/targets/shared_program_distinct_roots_exit/main.omg
+tests/fixtures/pass/targets/shared_program_distinct_roots_exit/main.omg
 windows_x86_64 linux_arm64 macos_arm64`: the missing entry rejects without
 discarding either successful sibling.
 
@@ -149,8 +149,8 @@ The ordinary dependency control retains two different Builds and one Product
 check rather than merging their work:
 
 ```sh
-mbx run -p orchestration --example package_batch -- tests/omega/pass/build/package_batch_distinct_builds/main.omg 1 1 2 3
-mbx run -p orchestration --example package_batch -- --check --targets linux_x86_64 tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg 1 0 1 2
+mbx run -p orchestration --example package_batch -- tests/fixtures/pass/build/package_batch_distinct_builds/main.omg 1 1 2 3
+mbx run -p orchestration --example package_batch -- --check --targets linux_x86_64 tests/fixtures/fail/build/unrequested_target_entry_returns_value/main.omg 1 0 1 2
 ```
 
 The latter must reject `foreign_launch` because `ProgramEntry` has no result,
@@ -367,7 +367,7 @@ artifact.
 Terminal production borrows the unoptimized program for authored exclusions,
 checking each application's main and selected callback roots before optimization.
 Exclusion admission uses the backend effects checker; on rejection,
-[Psi lowering's source attribution](../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/lowered_machine_provenance.rs)
+the retained machine provenance
 supplies machine names and declaration spans. That diagnostic mapping is not
 admission evidence.
 

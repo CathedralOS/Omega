@@ -1,1 +1,0 @@
-cannot prove the value assigned to `items[1]`

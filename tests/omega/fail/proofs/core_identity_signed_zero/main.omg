@@ -1,7 +1,0 @@
-// IEEE comparison may equate signed zeros; raw identity must not.
-data FloatBox [copy] { value: f64; }
-machine impossible() reaches terminates
-ensures core::Identity<FloatBox>(
-    FloatBox { value: 0.0f64 }, FloatBox { value: -0.0f64 })
-{ }
-machine main() { }

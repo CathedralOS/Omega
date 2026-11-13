@@ -1,8 +1,0 @@
-// `invariant` is not reserved source syntax — it binds as an
-// ordinary identifier. Semantic invariant windows, default-domain
-// facts, and loop reasoning are independent mechanisms.
-data Main {}
-machine Main::main(main: &mut Main) -> i32 {
-    let invariant: i32 = 25;
-    invariant
-}

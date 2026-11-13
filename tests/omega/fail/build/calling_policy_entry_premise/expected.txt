@@ -1,2 +1,0 @@
-machine `LocalPolicy::plan` has an authored `requires` premise
-no checked invocation proof for that premise

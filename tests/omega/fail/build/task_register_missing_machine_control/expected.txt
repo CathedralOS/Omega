@@ -1,1 +1,0 @@
-machine `exercise` publishes service reach `TaskRegisterControl` but its checked body reaches undeclared service `MachineControl`

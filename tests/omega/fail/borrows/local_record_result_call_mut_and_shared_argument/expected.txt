@@ -1,1 +1,0 @@
-receives `tally` as both mutable and read-only

@@ -3,9 +3,8 @@ name = "compiler"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
-# Behavior is tested end to end: a fixture under tests/omega/{pass,fail,run}
-# is the test, and `tools/corpus_gate.py` runs it through `corpus_runner`.
-# No per-file test binaries (see tests/README.md).
+# Each test binary is declared below; the programs they read are kept in the
+# repository's tests/fixtures/ (see tests/README.md in this crate).
 autotests = false
 
 
@@ -53,7 +52,7 @@ lowered-discharge = { path = "../../../psi/compilation/pipeline/lowered-discharg
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
-terminal-installation = { path = "../../../psi/compilation/validation/terminal-installation" }
+terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 target-operations = { path = "../representations/target-operations" }
 proof-admission = { path = "../../../psi/compilation/proof/admission" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
@@ -103,21 +102,11 @@ language-core = { path = "../../../psi/foundation/language-core" }
 [target.'cfg(unix)'.dev-dependencies]
 # Match the CLI's native dependency features. A libc feature mismatch travels
 # through SHA-2 and semantic vocabulary, rebuilding the heavy Psi graph for
-# corpus_runner after an ordinary CLI build. This affects test artifacts only.
+# the test binaries after an ordinary CLI build. This affects test artifacts only.
 # Keep dev-dependency features off crates the CLI also links for the same reason.
 libc = { version = "0.2.186", features = ["extra_traits"] }
 
-# A standalone corpus outcome driver, not a test: `tools/corpus_gate.py`
-# builds and executes it directly and diffs the emitted per-fixture outcome
-# records against tests/omega/corpus_outcomes.txt. `harness = false` keeps
-# libtest out; the runner exits immediately under NEXTEST so suite runs never
-# execute it.
-[[test]]
-name = "corpus_runner"
-path = "tests/corpus_runner.rs"
-harness = false
-
-# No canonical module decode during retained realization, counted. It drives a corpus
+# No canonical module decode during retained realization, counted. It drives a kept
 # fixture by path rather than embedding Omega source.
 [[test]]
 name = "terminal_decode_once"
@@ -136,18 +125,6 @@ path = "tests/core_build_activation.rs"
 [[test]]
 name = "access_view_calls"
 path = "tests/access_view_calls.rs"
-
-[[test]]
-name = "terminal_entry_writeback"
-path = "tests/terminal_entry_writeback.rs"
-
-[[test]]
-name = "terminal_behavior_exclusions"
-path = "tests/terminal_behavior_exclusions.rs"
-
-[[test]]
-name = "terminal_effect_readiness"
-path = "tests/terminal_effect_readiness.rs"
 
 [[test]]
 name = "product_query_suspension"
@@ -171,6 +148,13 @@ path = "tests/typed_frontier.rs"
 [[test]]
 name = "checked_projection"
 path = "tests/checked_projection.rs"
+
+# The lowered-form checker is shown a standalone source program without its
+# Build and without the old checker, which is how it is probed while no Build
+# program can run.
+[[test]]
+name = "route_probe"
+path = "tests/route_probe.rs"
 
 # The checker on the lowered form judges every declaration a check claims: a
 # defect in a machine the entry never calls is rejected or handed back, never
@@ -221,3 +205,9 @@ path = "tests/executed_fixture_discovery.rs"
 [[test]]
 name = "filesystem_receiver"
 path = "tests/filesystem_receiver.rs"
+
+# Plain affine transfers, local homes and cleanup govern real source and the
+# accepted module executes after publication rather than relying on fallback.
+[[test]]
+name = "lowered_route_ownership"
+path = "tests/lowered_route_ownership.rs"

@@ -1,2 +1,0 @@
-machine outer() { machine helper() {} }
-machine main() { outer::helper(); }

@@ -1,1 +1,0 @@
-the transition from `walk` back to itself is not shown to strictly decrease the rank

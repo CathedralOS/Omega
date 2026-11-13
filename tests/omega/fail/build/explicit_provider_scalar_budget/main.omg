@@ -1,2 +1,0 @@
-// The helper cannot borrow an independent scalar-evaluation allowance.
-machine main() {}

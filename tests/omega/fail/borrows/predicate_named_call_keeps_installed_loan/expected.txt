@@ -1,1 +1,0 @@
-mutates `bytes[0]` while local borrow `slot` is still active

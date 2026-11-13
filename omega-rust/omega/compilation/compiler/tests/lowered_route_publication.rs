@@ -16,9 +16,9 @@
 //!
 //! The default compile takes this path for the application: when the route
 //! accepts a compilation and its module publishes, the Terminal product is
-//! that artifact and its seals stay beside it for Omega 00. Everything else
-//! a product reads (provider selection, calling policies, the Build's
-//! companions) still comes from the current checker's program.
+//! that artifact and its seals stay beside it for Omega 00. Calling and
+//! provider preparation retain that same accepted program and its exact
+//! source correspondence.
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
@@ -107,7 +107,7 @@ fn accepted(
 fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let (closure, root, signature, _) =
-        accepted("tests/omega/run/calls/scalar_contract_route_exit");
+        accepted("tests/fixtures/run/calls/scalar_contract_route_exit");
     let publication = closure.publish().expect("the accepted module publishes");
 
     // The artifact holds exactly the module the route checked.
@@ -185,7 +185,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         .expect("the published program runs");
     let expected_exit = std::fs::read_to_string(
         repo_root()
-            .join("tests/omega/run/calls/scalar_contract_route_exit/expected_native_exit.txt"),
+            .join("tests/fixtures/run/calls/scalar_contract_route_exit/expected_native_exit.txt"),
     )
     .unwrap();
     assert_eq!(expected_exit.trim(), "0");
@@ -203,7 +203,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
 #[test]
 fn the_default_compile_builds_the_application_from_the_routes_module() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let fixture = "tests/omega/run/calls/scalar_contract_route_exit";
+    let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
     let (closure, _, _, _) = accepted(fixture);
     let publication = closure.publish().expect("the accepted module publishes");
     let product = default_product(fixture);
@@ -273,7 +273,7 @@ fn default_product(fixture: &str) -> terminal_psi_to_abstract_operations::Retain
 #[test]
 fn the_published_module_states_each_machines_declaration_identity() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
-    let fixture = "tests/omega/run/calls/scalar_contract_route_exit";
+    let fixture = "tests/fixtures/run/calls/scalar_contract_route_exit";
     let (closure, _, _, checked) = accepted(fixture);
     let publication = closure.publish().expect("the accepted module publishes");
     let published = publication.artifact.semantic_module();

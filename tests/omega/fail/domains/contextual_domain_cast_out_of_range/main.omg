@@ -1,7 +1,0 @@
-// The same explicit addition receives the field carrier, but its value
-// must fit that carrier. A valid sibling field cannot admit this one.
-data Bytes { good: u8 in Trapping; bad: u8 in Trapping; }
-machine main() -> u8 {
-    let bytes: Bytes = Bytes { good: 7 as +Trapping, bad: 256 as +Trapping };
-    0
-}

@@ -8,6 +8,12 @@ Windows Job Object), closes unretained ambient descriptors across `exec`,
 enforces CPU/memory/file/process ceilings, and terminates the entire descendant
 container before returning or on drop.
 
+`ToolCommandChild` reuses that native container owner for trusted build tools
+with caller-configured file streams and resource policy. It does not apply the
+runtime resource caps or descriptor policy; the existing prepared runtime API
+continues to require both. Tool wrappers can expose primary exit separately,
+then terminate remaining workers and complete the ordinary container wait.
+
 Why separate `preparation`, `process_child`, and `bounded_process`?
 - `preparation` (`BoundedProcessPrepared`, `BoundedProcessLimits`) validates
   command argument/environment byte ceilings (4,096 args, 1,024 env entries,
@@ -47,6 +53,7 @@ pub use bounded_process::{
 pub use preparation::{BoundedProcessLimits, BoundedProcessPrepared};
 pub use process_child::{
     BoundedProcessChild, BoundedProcessCompletion, BoundedProcessExitStatus, ProcessResourceUsage,
+    ToolCommandChild,
 };
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]

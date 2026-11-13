@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "asm_msr_multi");
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-}

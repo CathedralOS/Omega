@@ -21,4 +21,4 @@ terminal-psi = { path = "../../../../psi/compilation/representations/terminal-ps
 installation-evidence = { path = "../../backend/runtime/installation-evidence" }
 runtime-abi = { path = "../../backend/runtime/runtime-abi" }
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
-terminal-installation = { path = "../../../../psi/compilation/validation/terminal-installation" }
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }

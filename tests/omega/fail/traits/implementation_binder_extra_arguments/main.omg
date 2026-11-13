@@ -1,5 +1,0 @@
-trait Reading { }
-trait Consumer<Reader satisfies Reading> { }
-trait Forward<Reader satisfies Reading>: Consumer<Reader<u32>> { }
-data Main { }
-machine Main::main() { }

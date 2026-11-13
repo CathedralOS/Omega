@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "method_view_receiver_unrelated_field_write");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-}

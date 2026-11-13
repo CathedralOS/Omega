@@ -16,7 +16,6 @@ authority.
 | 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
 | 04 — typed elaboration | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
 | 05 — checking and evidence | [checking.rs](05_typed-trees-to-checked-trees/src/checking.rs) | [checked trees](../representations/checked-trees/) |
-| 06 — lowering | [machine_lowering.rs](06_checked-trees-to-lowered-psi/src/machine_lowering.rs) | [Lowered Psi](../representations/lowered-psi/) |
 | 07 — selected optimization | [psi_optimization.rs](07_lowered-psi-to-lowered-psi/src/psi_optimization.rs) | the same Lowered Psi representation |
 | 08 — publication | [publish_artifact.rs](08_lowered-psi-to-terminal-psi/src/publish_artifact.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
 
@@ -36,8 +35,7 @@ It is not a spelling for `transition`. Scalar computation dispatch saves the
 subject once, evaluates patterns in order, and sends only the selected result
 to the ordinary expression continuation. Source replay independently checks the
 exact arm identities and coverage; it cannot treat an arbitrary last arm as a
-default. [Terminal execution tests](06_checked-trees-to-lowered-psi/tests/value_dispatch.rs)
-cover overlaps, call-argument composition, subject-once execution and skipped calls.
+default.
 
 The [dispatch contract](../../../../wiki/spec/language/patterns.md) is broader than
 the current implementation. Wildcards and complete Boolean value alternatives
@@ -133,7 +131,7 @@ publishes an explicitly erased qualified Match/call result;
 records its host build outcome. No runtime tag is introduced: ordinary jumps carry fresh values, and Boolean
 pattern equality uses the existing comparison and branch machinery.
 
-`cargo run -p omega -- --check tests/omega/pass/expressions/declared_operator_match_result/main.omg`
+`cargo run -p omega -- --check tests/fixtures/pass/expressions/declared_operator_match_result/main.omg`
 checks a wider declared operator result joined with an anonymous numeric arm.
 This is a legacy signature-plus-satisfier fixture, not the settled direct supply
 model. [Declaration-owned machine bodies](../../../../wiki/spec/language/expressions.md#executable-supply)

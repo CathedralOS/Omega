@@ -32,8 +32,9 @@ owning backing. This is not heap capacity, allocator overhead or process memory.
 Usage records are telemetry, not admission or transferable sponsorship.
 In-process `EvaluationInvocationUsage` retains exact account custody for issuer
 checks. Cache records retain the explicit engine, work and storage identities
-and reject unknown versions. The tree projection remains in checked-interpreter
-and cannot manufacture a Terminal observation.
+and reject unknown versions. The tree interpreter that produced tree-measured
+usage is removed, and a tree-measured record cannot manufacture a Terminal
+observation.
 
 The common Terminal work meter can retain an exact invocation account and pay
 it at each operation/selected edge before execution. Local resumable allowance

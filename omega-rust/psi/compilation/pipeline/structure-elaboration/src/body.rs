@@ -30,12 +30,31 @@ use crate::SourceOrigin;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ValueType {
     Scalar(ScalarType),
+    /// An integer whose type carries an arithmetic policy, `u32 in Wrapping`
+    /// or `u32 in Saturating`. It is stored and compared as its carrier; the
+    /// policy only chooses what an arithmetic operator over it means
+    /// (`wiki/spec/language/numeric_values.md`, "Overflow policies": "Adding
+    /// and removing a policy domain ... change future operations, not
+    /// existing payloads"). It is a different type from the bare carrier, so
+    /// every typing rule that compares two types tells them apart. The
+    /// carrier is always a `ScalarType::Integer`.
+    Qualified(ScalarType, Policy),
     Record(StructuralTypeId),
     /// A value of a type parameter that a generic check form leaves rigid.
     /// It is neither a scalar nor a record: no operator, field or literal
     /// applies to it, so every typing rule that asks for one refuses it. It
     /// can be named, passed to a call and returned.
     Rigid(RigidType),
+}
+
+/// An arithmetic policy a type can carry. `Exact` is the bare carrier, which
+/// is `ValueType::Scalar`; `Trapping` is refused by the reader.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Policy {
+    /// Overflow reduces modulo the carrier.
+    Wrapping,
+    /// Overflow clamps to the carrier's bounds.
+    Saturating,
 }
 
 impl From<ScalarType> for ValueType {
@@ -45,9 +64,12 @@ impl From<ScalarType> for ValueType {
 }
 
 impl ValueType {
+    /// The scalar a value of this type is stored as: the type itself, or a
+    /// policy-qualified integer's carrier.
     pub const fn scalar(self) -> Option<ScalarType> {
         match self {
             Self::Scalar(scalar_type) => Some(scalar_type),
+            Self::Qualified(carrier, _) => Some(carrier),
             Self::Record(_) | Self::Rigid(_) => None,
         }
     }
@@ -55,16 +77,26 @@ impl ValueType {
     /// How a value of this type is declared on the lowered form, when it is
     /// a value there and not a place: its declared type, and the rigid type
     /// that declaration stands in for.
+    /// The arithmetic policy this type carries, if it carries one.
+    pub const fn policy(self) -> Option<Policy> {
+        match self {
+            Self::Qualified(_, policy) => Some(policy),
+            Self::Scalar(_) | Self::Record(_) | Self::Rigid(_) => None,
+        }
+    }
+
     pub const fn declared(self) -> Option<(ScalarType, Option<RigidType>)> {
         match self {
             Self::Scalar(scalar_type) => Some((scalar_type, None)),
+            Self::Qualified(carrier, _) => Some((carrier, None)),
             Self::Rigid(rigid) => Some((RigidType::DECLARED_AS, Some(rigid))),
             Self::Record(_) => None,
         }
     }
 }
 
-/// One plain record or sum, with its declared ownership multiplicity.
+/// One plain record type: its fields in declaration order and its authored
+/// copy permission. Plain owned records remain affine even with scalar fields.
 /// A field is named by its position here and by its `StructuralFieldId`,
 /// both fixed once by the reader from the field's symbol.
 ///
@@ -81,7 +113,7 @@ impl ValueType {
 /// beside cases, is refused by the reader.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordType {
-    pub multiplicity: terminal_psi::StructuralMultiplicity,
+    pub copyable: bool,
     pub identity: String,
     pub fields: Vec<RecordField>,
     /// The declared cases in declaration order; empty for a record. A case
@@ -515,6 +547,12 @@ pub enum ExpressionKind {
     /// transformation: exact widening, or narrowing with representability
     /// proved. The denoted value does not change."
     Cast(Box<Expression>),
+    /// A cast that adds or removes an arithmetic policy and keeps the carrier,
+    /// `x as u32 in Wrapping` or `w as u32`: the operand, whose value is the
+    /// result. Only `result` differs from the operand, and only in its
+    /// policy, so no operation is emitted and the operand keeps the
+    /// operations its own type chose.
+    Requalify(Box<Expression>),
     /// `&&` when `conjunction`, else `||`: the right operand runs only when
     /// the left does not decide the result.
     ShortCircuit {

@@ -1,1 +1,0 @@
-machine `incorrect` ensures contract proof fact `result == 4` is disproved by constant arithmetic

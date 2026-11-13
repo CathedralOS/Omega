@@ -1,7 +1,0 @@
-const CELL: u64 = 41u64;
-machine main() crashes Trap {
-    let alignment: u64 = align_of(CELL);
-    transition alignment == 8u64 { true -> done() _ -> bad() }
-    machine done() {}
-    machine bad() { crash Trap; }
-}

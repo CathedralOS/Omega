@@ -48,7 +48,7 @@ use target::TargetProfile;
 
 fn copy_project(root: &Path, name: &str, files: &[&str]) {
     let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../tests/omega/pass/build")
+        .join("../../../../tests/fixtures/pass/build")
         .join(name);
     let destination = root.join(name);
     std::fs::create_dir(&destination).unwrap();

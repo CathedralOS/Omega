@@ -24,5 +24,6 @@ mod capture;
 mod limits;
 mod observation;
 mod path_policy;
+mod selected;
 mod snapshots;
 mod staging;

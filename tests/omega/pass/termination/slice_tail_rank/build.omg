@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "slice_tail_rank");
-    builder.freestanding = true;
-}

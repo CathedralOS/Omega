@@ -1,9 +1,0 @@
-// Importing slice helpers leaves builtin bounds in force.
-
-data Main {
-    values: [i32; 3];
-}
-
-machine inspect(main: &mut Main) {
-    let last: i32 = main.values[3];
-}

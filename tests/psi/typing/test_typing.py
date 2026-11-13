@@ -54,6 +54,7 @@ DIAGNOSTICS = {
     28: 'NotAPlace',
     29: 'TerminalResultMismatch',
     30: 'AnonymousFraction',
+    43: 'FractionalIntermediate',
     31: 'UnsupportedExpression',
     33: 'UninferredGenericArgument',
     34: 'SatisfierMismatch',
@@ -342,10 +343,73 @@ def nested_machine_cases(program: str) -> None:
     rejected(program, "shared-reborrow-does-not-insert-a-fresh-descriptor-borrow", source, "MismatchedTypes", b"cell!2")
 
 
+def numeric_landing_cases(program: str) -> None:
+    rejected(
+        program,
+        "anonymous-fraction",
+        b"machine f() { let a: u8 = 7 / 2; }",
+        "AnonymousFraction",
+        b"7 / 2",
+    )
+    # Wholly anonymous arithmetic denotes an exact rational; landing needs an
+    # integral value (wiki/spec/language/numeric_values.md).
+    accepted(
+        program,
+        "anonymous-rationals-land-explicitly-when-integral",
+        b"machine f(x: i32) -> i32 { x * ((7 / 2 * 2) as i32) }\n"
+        b"machine g() -> u32 { let value: u32 = ((4097 / 4096) * 4096) as u32; value }\n"
+        b"machine h() -> i32 { ((1 / 3 + 2 / 3) * 5) as i32 }",
+        ((b"7 / 2 * 2", "i32"),),
+    )
+    for name, source, origin in (
+        ("local", b"machine f() { let x: u32 = (4097 / 4096) * 4096; }", b"4097 / 4096"),
+        ("result", b"machine f() -> i32 { (1 / 3 + 2 / 3) * 5 }", b"1 / 3"),
+        ("typed-peer", b"machine f(x: i32) -> i32 { x * (7 / 2 * 2) }", b"7 / 2"),
+        ("negation", b"machine f() -> i32 { -(5 / 2) * 2 }", b"5 / 2"),
+        ("array", b"machine f() { let x: [u8; 1] = [(5 / 2) * 2]; }", b"5 / 2"),
+        ("earlier-boundary", b"machine f() -> u8 { ((5 / 2) * 2 as u8) as u8 }", b"5 / 2"),
+    ):
+        rejected(program, "fractional-history-" + name, source,
+                 "AnonymousFraction" if name == "earlier-boundary" else "FractionalIntermediate", origin)
+    # Failed overload admission still uses the existing family-level diagnostic.
+    rejected(program, "fractional-history-argument",
+             b"machine g(x: u8) {} machine f() { g((5 / 2) * 2); }",
+             "NoMatchingMachine", b"g((5 / 2) * 2)")
+    accepted(program, "negative-rational-explicit-landing",
+             b"machine f() -> i32 { (-(5 / 2) * 2) as i32 }", ())
+    rejected(program, "negation-keeps-denominator",
+             b"machine f() -> i32 { -(5 / 2) }", "AnonymousFraction", b"-(5 / 2")
+    rejected(
+        program,
+        "anonymous-fraction-rejects-at-landing",
+        b"machine f() -> u8 { 7 / 2 + 1 }",
+        "AnonymousFraction",
+        b"7 / 2 + 1",
+    )
+    rejected(
+        program,
+        "anonymous-fraction-rejects-at-a-cast",
+        b"machine f() -> u8 { (7 / 2) as u8 }",
+        "AnonymousFraction",
+        b"7 / 2) as u8",
+    )
+    rejected(
+        program,
+        "anonymous-division-by-zero-has-no-value",
+        b"machine f() -> u8 { 7 / 0 * 0 }",
+        "AnonymousFraction",
+        b"7 / 0",
+    )
+
+
 def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: test_typing.py <omega-typing-harness>")
+    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != "--numeric-landing"):
+        raise SystemExit("usage: test_typing.py <omega-typing-harness> [--numeric-landing]")
     program = sys.argv[1]
+    if len(sys.argv) == 3:
+        numeric_landing_cases(program)
+        print(f"Psi numeric landing: {len(CASE_SOURCES)} cases passed")
+        return
 
     accepted(program, "empty", b"", ())
     accepted(
@@ -693,44 +757,7 @@ def main() -> None:
         "LiteralOutOfRange",
         b"250 + 6",
     )
-    rejected(
-        program,
-        "anonymous-fraction",
-        b"machine f() { let a: u8 = 7 / 2; }",
-        "AnonymousFraction",
-        b"7 / 2",
-    )
-    # Wholly anonymous arithmetic denotes an exact rational; landing needs an
-    # integral value (wiki/spec/language/numeric_values.md).
-    accepted(
-        program,
-        "anonymous-rationals-land-when-integral",
-        b"machine f(x: i32) -> i32 { x * (7 / 2 * 2) }\n"
-        b"machine g() -> u32 { let value: u32 = (4097 / 4096) * 4096; value }\n"
-        b"machine h() -> i32 { (1 / 3 + 2 / 3) * 5 }",
-        ((b"7 / 2 * 2", "i32"),),
-    )
-    rejected(
-        program,
-        "anonymous-fraction-rejects-at-landing",
-        b"machine f() -> u8 { 7 / 2 + 1 }",
-        "AnonymousFraction",
-        b"7 / 2 + 1",
-    )
-    rejected(
-        program,
-        "anonymous-fraction-rejects-at-a-cast",
-        b"machine f() -> u8 { (7 / 2) as u8 }",
-        "AnonymousFraction",
-        b"7 / 2) as u8",
-    )
-    rejected(
-        program,
-        "anonymous-division-by-zero-has-no-value",
-        b"machine f() -> u8 { 7 / 0 * 0 }",
-        "AnonymousFraction",
-        b"7 / 0",
-    )
+    numeric_landing_cases(program)
     rejected(
         program,
         "anonymous-remainder-needs-a-typed-operand",

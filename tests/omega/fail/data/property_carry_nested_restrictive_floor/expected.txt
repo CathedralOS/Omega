@@ -1,2 +1,0 @@
-data `Envelope` declares carry policy
-field `payload` permits only `carry(suspension: forbidden, cpu: same, thread: same, address: stable)`

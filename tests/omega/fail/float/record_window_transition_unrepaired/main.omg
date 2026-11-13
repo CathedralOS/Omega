@@ -1,9 +1,0 @@
-
-data Sample requires value >= 0.0 && value <= 1.0 { value: f32; }
-data Envelope { child: Sample; }
-
-machine inspect(envelope: &mut Envelope) {
-    envelope.child.value = 2.0;
-    transition { _ -> consume(&envelope.child) }
-    machine consume(child: &Sample) {}
-}

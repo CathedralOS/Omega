@@ -1,2 +1,0 @@
-public boundary trait Service { machine read() -> i32 reaches; }
-machine invalid(slot: &Binding<Service>) {}

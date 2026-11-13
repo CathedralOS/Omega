@@ -1,3 +1,0 @@
-Linux x86-64/glibc malloc returns the hosted addr scalar, which is passed unchanged to free. The interpreter carries that address as an opaque host-provenance value, so the program runs on both engines. It exits through the canonical `ProcessExit::exit_process`, which both engines observe as successful termination; a returning libc `exit` import would not be. The retained aggregate declarations are unused by main; this exact authored reduction isolates address scalar custody from the failing distinct-snapshot program.
-
-Run `omega run --both tests/omega/pass/providers/foreign_address_result_release_exit/main.omg`; authored exit is 70 on both engines. No other-host qualification is claimed.

@@ -1,9 +1,0 @@
-// Synchronous native metadata queries can occupy the calling worker.
-use omega_language_std::WindowsMetadataResult;
-use omega_language_std::WindowsFilesystemHost;
-use omega::language::core::FilesystemMetadataQuery;
-
-machine inspect(handle: u64) -> WindowsMetadataResult
-reaches FilesystemMetadataQuery {
-    WindowsFilesystemHost::metadata(handle)
-}

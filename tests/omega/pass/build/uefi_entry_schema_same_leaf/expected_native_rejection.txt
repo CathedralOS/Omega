@@ -1,1 +1,0 @@
-semantic entry requires an explicitly selected checked physical adapter

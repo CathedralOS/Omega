@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
- Build::application(builder, "outcome_specific_later_mutated");
- builder.freestanding = true;
-}

@@ -1,1 +1,0 @@
-reads `counter[0]` while local borrow

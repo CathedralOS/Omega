@@ -1,1 +1,0 @@
-symbolic field `private callback` writes outside the 16-byte materialization

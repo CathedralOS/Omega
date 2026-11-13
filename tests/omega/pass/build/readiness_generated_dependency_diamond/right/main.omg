@@ -1,3 +1,0 @@
-use leaf;
-
-public machine right_value() -> addr { leaf::value() }

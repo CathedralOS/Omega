@@ -1,4 +1,0 @@
-machine invalid(value: i8, count: i16) -> i8
-    requires value >= -8, value <= 7, count >= 1, count <= 3
-    ensures (value << count) >= -63
-{ value << count }

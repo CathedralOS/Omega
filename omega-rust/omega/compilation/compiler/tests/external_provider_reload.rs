@@ -12,7 +12,7 @@ use terminal_psi_to_abstract_operations::provider_admission;
 #[test]
 fn numeric_native_inputs_reload_and_reject_substituted_retained_meaning() {
     let recovered = reload_with_numeric_control(
-        "tests/omega/pass/float/named_provider_negate_is_nan_exit/main.omg",
+        "tests/fixtures/pass/float/named_provider_negate_is_nan_exit/main.omg",
         true,
     );
     let proposal = recovered.native_realization_proposal().unwrap();
@@ -36,8 +36,9 @@ fn numeric_native_inputs_reload_and_reject_substituted_retained_meaning() {
 
 #[test]
 fn checked_native_inputs_reload_from_canonical_inherited_instances() {
-    let recovered =
-        reload("tests/omega/pass/providers/canonical_inherited_provider_instances_exit/main.omg");
+    let recovered = reload(
+        "tests/fixtures/pass/providers/canonical_inherited_provider_instances_exit/main.omg",
+    );
     let proposal = recovered.native_realization_proposal().unwrap();
     let rows = proposal
         .providers()
@@ -53,7 +54,7 @@ fn checked_native_inputs_reload_from_canonical_inherited_instances() {
 
 #[test]
 fn unused_source_provider_demand_does_not_require_terminal_instances() {
-    reload("tests/omega/pass/providers/uncalled_boundary_provider_exit/main.omg");
+    reload("tests/fixtures/pass/providers/uncalled_boundary_provider_exit/main.omg");
 }
 
 // A real checked proposal is the public source of scoped coverage. Raw rows
@@ -63,8 +64,9 @@ fn checked_native_scope_rejects_same_context_provider_and_callback_omissions() {
     use terminal_psi_to_abstract_operations::{
         NativeExecutionSelection, VerifiedNativeArtifactInput,
     };
-    let retained =
-        reload("tests/omega/pass/providers/canonical_inherited_provider_instances_exit/main.omg");
+    let retained = reload(
+        "tests/fixtures/pass/providers/canonical_inherited_provider_instances_exit/main.omg",
+    );
     let artifact = retained.artifact();
     let proposal = retained.native_realization_proposal().unwrap();
     let root = artifact.semantic_module().entry.unwrap();
@@ -96,7 +98,7 @@ fn checked_native_scope_rejects_same_context_provider_and_callback_omissions() {
     );
 
     let retained =
-        reload("tests/omega/pass/layouts/private_callback_inherited_policy_exit/main.omg");
+        reload("tests/fixtures/pass/layouts/private_callback_inherited_policy_exit/main.omg");
     let artifact = retained.artifact();
     let proposal = retained.native_realization_proposal().unwrap();
     let root = artifact.semantic_module().entry.unwrap();
@@ -131,8 +133,9 @@ fn checked_native_scope_rejects_same_context_provider_and_callback_omissions() {
 #[test]
 fn checked_native_scope_rejects_other_handoff_contexts() {
     use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput;
-    let retained =
-        reload("tests/omega/pass/providers/canonical_inherited_provider_instances_exit/main.omg");
+    let retained = reload(
+        "tests/fixtures/pass/providers/canonical_inherited_provider_instances_exit/main.omg",
+    );
     let artifact = retained.artifact();
     let proposal = retained.native_realization_proposal().unwrap();
     let work = terminal_psi_to_abstract_operations::prepare_native_callable_execution(
@@ -190,7 +193,7 @@ fn checked_native_scope_rejects_other_handoff_contexts() {
     let mut other_choices = digest;
     other_choices[0] ^= 1;
     assert!(attach(source.clone(), other_choices).is_err());
-    let other = reload("tests/omega/pass/providers/uncalled_boundary_provider_exit/main.omg");
+    let other = reload("tests/fixtures/pass/providers/uncalled_boundary_provider_exit/main.omg");
     let other_proposal = other.native_realization_proposal().unwrap();
     let other_work = terminal_psi_to_abstract_operations::prepare_native_callable_execution(
         other_proposal,
@@ -219,7 +222,7 @@ fn checked_native_scope_derives_assumptions_and_preserves_the_semantic_entry() {
         NativeExecutionSelection, VerifiedNativeArtifactInput,
     };
     let retained = reload(
-        "tests/omega/pass/providers/runtime_closed_provider_and_assumed_chain_exit/main.omg",
+        "tests/fixtures/pass/providers/runtime_closed_provider_and_assumed_chain_exit/main.omg",
     );
     let artifact = retained.artifact();
     let proposal = retained.native_realization_proposal().unwrap();
@@ -260,7 +263,7 @@ fn checked_native_scope_derives_assumptions_and_preserves_the_semantic_entry() {
     );
 
     let retained = reload_at(
-        "tests/omega/pass/build/uefi_selected_context_entry/main.omg",
+        "tests/fixtures/pass/build/uefi_selected_context_entry/main.omg",
         "uefi_x86_64",
         false,
     );
@@ -295,7 +298,7 @@ fn checked_native_scope_derives_assumptions_and_preserves_the_semantic_entry() {
 
 #[test]
 fn checked_native_scope_binds_completed_direct_and_family_choices() {
-    let retained = reload("tests/omega/pass/float/named_provider_negate_is_nan_exit/main.omg");
+    let retained = reload("tests/fixtures/pass/float/named_provider_negate_is_nan_exit/main.omg");
     let artifact = retained.artifact();
     let proposal = retained.native_realization_proposal().unwrap();
     let initial = proposal.providers().selection.clone();
@@ -409,7 +412,8 @@ fn checked_native_scope_binds_completed_direct_and_family_choices() {
     );
     // This source has a real foreign satisfying machine, so it exercises the
     // retained direct contract rather than inventing a leaf for a Build row.
-    let retained = reload("tests/omega/pass/boundary/named_target_foreign_provider_exit/main.omg");
+    let retained =
+        reload("tests/fixtures/pass/boundary/named_target_foreign_provider_exit/main.omg");
     let module = retained.artifact().semantic_module();
     let foreign = retained
         .native_realization_proposal()
@@ -533,8 +537,9 @@ fn checked_native_scope_binds_completed_direct_and_family_choices() {
 #[test]
 fn native_target_catalogs_reload_without_losing_later_native_choices() {
     use effects::provider_plan::ProviderBinding;
-    let retained =
-        reload("tests/omega/pass/build/native_row_outranks_scoped_implementations_exit/main.omg");
+    let retained = reload(
+        "tests/fixtures/pass/build/native_row_outranks_scoped_implementations_exit/main.omg",
+    );
     let proposal = retained.native_realization_proposal().unwrap();
     assert_eq!(proposal.target_profile(), target::TargetProfile::MacosArm64);
     let mut requirement = None;

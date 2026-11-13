@@ -1,6 +1,0 @@
-data Record { bytes: &mut [u16]; }
-data Choice { case Writable(bytes: &mut [u16]); }
-machine record(bytes: &mut [u8]) { inspect_record(Record { bytes: bytes }); }
-machine selected_case(bytes: &mut [u8]) { inspect_choice(Choice::Writable { bytes: bytes }); }
-machine inspect_record(value: Record) {}
-machine inspect_choice(value: Choice) {}

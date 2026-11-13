@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "established_by_domain");
-    builder.freestanding = true;
-}

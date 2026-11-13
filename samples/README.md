@@ -5,9 +5,9 @@ user-code point of view. A runnable sample's `build.omg`
 binds a target's program entry, and its `main.omg` header documents the result
 with `// Expected exit: <n>` or `// Expected output contains: <text>`, so
 `tools/sample_native_gate.py` can hold it to that result. A check-only probe of
-one language behavior is a fixture under `tests/omega/{pass,fail}/<behavior>/`,
-not a sample; the existing `cli/probes/` projects predate this rule, and new
-probes go to the fixture tree. When the
+one language behavior is a program a Rust test reads, kept under
+`tests/fixtures/{pass,fail}/<group>/<name>/`, not a sample; the existing
+`cli/probes/` projects predate this rule. When the
 boards run dry, new samples at the language frontier are how the next real work
 is found.
 
@@ -54,7 +54,7 @@ their child projects are the discovery results.
 | `example` | Runnable demonstration, also usable as ordinary user code. |
 | `library-consumer` | Runnable witness of a reusable library contract. |
 | `library` | Package declarations; qualify through their consumers, not a native entry invented by the gate. |
-| `check-only` | Existing positive probe without a program-entry binding; failure is still a gate failure. New isolated compiler witnesses go in `tests/omega`. |
+| `check-only` | Existing positive probe without a program-entry binding; failure is still a gate failure. A new isolated compiler witness is a test on the changed code, with its program in `tests/fixtures`. |
 | `intended-invalid` | Complete source control that must reject for its authored reason. |
 | `external` | Pinned submodule with its own workflow; excluded from these gates. |
 
@@ -74,6 +74,13 @@ For an ambiguous role or non-`main.omg` entry, add one local `sample.json`:
   "rejection_contains": ["the authored callee contract", "the authored reason"]
 }
 ```
+
+`source_inputs`, when supplied, is a nonempty list of source-root-relative files
+or subtrees. The caller captures exactly that inventory before Build execution
+and Product discovery; list the required entry, Build companion, and other
+owned source/data inputs. The gate forwards it to checking, package preparation,
+and execution with `--build-input`; a resumed package review retains its recorded
+selection. Standalone `omega` and `omega run` accept the same flags.
 
 `entry` names one local Omega source. `rejection_contains` is a list of literal
 stderr diagnostic fragments, all required. Optional `rejection_any_contains`
@@ -130,12 +137,13 @@ mbx run -p omega -- refresh-samples samples/cli/basics/cli_mvp
 
 Use `cargo` instead of `mbx` if the wrapper is unavailable. These commands use
 the host target; cross-target or firmware compilation uses the ordinary compile
-command with an explicit target. Refreshing the whole corpus does not imply
+command with an explicit target. Refreshing every sample does not imply
 that every sample is currently supported.
 
 Samples should read like code someone might write. If a sample exposes a small
-missing compiler behavior, pin that behavior in `tests/omega/` with the smallest
-feature-shaped program, then come back to the sample.
+missing compiler behavior, pin that behavior with a test on the changed code and
+the smallest feature-shaped program under `tests/fixtures/`, then come back to
+the sample.
 The same outcome owner carries those compiler repairs and the complete sample
 through acceptance and authorized landing. A compiler stage or overlapping file
 does not create a worker dependency. Group related samples only by a demonstrated

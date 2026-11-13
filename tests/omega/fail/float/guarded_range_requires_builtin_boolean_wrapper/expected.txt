@@ -1,1 +1,0 @@
-cannot prove requires contract for call bounded from select: value >= 0.0 && value <= 1.0

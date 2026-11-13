@@ -1,5 +1,0 @@
-// Expected error: state `receive` receives `control` as both mutable and read-only
-// Returning invocations hold their exclusive argument during later evaluation.
-data Control { value: i32; }
-machine receive(control: &mut Control, value: i32) { control.value = value; }
-machine transfer(control: &mut Control) { receive(&mut control, control.value); }

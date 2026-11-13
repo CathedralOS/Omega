@@ -1,2 +1,0 @@
-Build helper scalar completion: scalar evaluation execution:
-BudgetExhausted(Work)

@@ -1,1 +1,0 @@
-`as ... in Extent::Vacant` cannot establish a non-vacuous domain

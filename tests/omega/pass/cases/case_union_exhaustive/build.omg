@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "case_union_exhaustive");
-    builder.freestanding = true;
-}

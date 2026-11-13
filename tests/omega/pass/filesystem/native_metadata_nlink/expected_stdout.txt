@@ -1,1 +1,0 @@
-PASS: nlink 1 -> 2 after hard_link

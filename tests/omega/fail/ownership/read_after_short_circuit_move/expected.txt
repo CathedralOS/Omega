@@ -1,2 +1,0 @@
-cannot use `ticket.value`
-after `ticket` was transferred or consumed

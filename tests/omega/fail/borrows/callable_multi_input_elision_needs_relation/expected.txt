@@ -1,2 +1,0 @@
-takes 2 candidate ref inputs
-cannot infer which input the returned view borrows

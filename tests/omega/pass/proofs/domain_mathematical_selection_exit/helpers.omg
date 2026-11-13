@@ -1,5 +1,0 @@
-module helpers;
-// Reordered and repeated captures under conjunction retain binder identity.
-public let no_wrap(length: u64, base: addr): core::Strict<0> =
-    embed(base) + embed(length) <= addr::Bound
-    && embed(length) >= 0 && embed(base) >= 0;

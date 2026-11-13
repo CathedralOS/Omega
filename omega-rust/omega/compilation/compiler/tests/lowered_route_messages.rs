@@ -23,45 +23,48 @@ static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Each fixture and the machine whose closure the route rejects.
 const REJECTIONS: &[(&str, &str)] = &[
-    // A callee clause stated over the caller's actual.
+    // A callee clause stated over the caller's actual. The actual is the
+    // formal itself: a clause over an exclusive or or a mask is one the
+    // route's rules cannot decide, which it reports as `Incomplete`, not as
+    // a rejection (`lowered-discharge`, `prove/reach`).
     (
-        "tests/omega/fail/arithmetic/bitwise_non_singleton_endpoint_bounds",
-        "probe",
+        "tests/fixtures/fail/arithmetic/signed_zero_does_not_prove_positive",
+        "check",
     ),
     // The same, where the fixture pins the whole sentence: the fact the
     // callee asked for in its own words, and the caller's state.
     (
-        "tests/omega/fail/facts/four_variant_enum_payload_bound_through_local_rejected",
+        "tests/fixtures/fail/facts/four_variant_enum_payload_bound_through_local_rejected",
         "main",
     ),
     // A nested callee.
     (
-        "tests/omega/fail/calls/state_arrival_call_result_above_bound",
+        "tests/fixtures/fail/calls/state_arrival_call_result_above_bound",
         "main",
     ),
     // An `ensures` clause, authored text over the machine's own formals.
     (
-        "tests/omega/fail/arithmetic/truncating_reconstruction_negative_dividend",
+        "tests/fixtures/fail/arithmetic/truncating_reconstruction_negative_dividend",
         "shifted",
     ),
     // An overflow, with the local the value lands in.
     (
-        "tests/omega/fail/arithmetic/unformed_contradiction_cannot_hide_overflow",
+        "tests/fixtures/fail/arithmetic/unformed_contradiction_cannot_hide_overflow",
         "unsafe",
     ),
     // A division whose divisor is not shown nonzero.
     (
-        "tests/omega/fail/arithmetic/exact_divisor_unproven",
+        "tests/fixtures/fail/arithmetic/exact_divisor_unproven",
         "quotient",
     ),
     // A case payload read where no case was selected.
     (
-        "tests/omega/fail/contracts/case_payload_requires_declared_premise",
+        "tests/fixtures/fail/contracts/case_payload_requires_declared_premise",
         "main",
     ),
     // A shift count.
     (
-        "tests/omega/fail/arithmetic/boolean_shift_guard_missing_lower_bound",
+        "tests/fixtures/fail/arithmetic/boolean_shift_guard_missing_lower_bound",
         "calculate",
     ),
 ];

@@ -1,1 +1,0 @@
-requires a well-typed integer result

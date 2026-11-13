@@ -4,10 +4,11 @@ an initializer, and assignment. An assignment to a name rebinds its slot (a
 scalar value, or the fresh root of a whole record value); an assignment to a
 member path is a store into that exact field of a mutable local's record; an
 assignment to a scalar local declared without an initializer is a store into
-its home. Formals are immutable here: a `mut` formal is refused where the
-signature is read. A formal passed by `&mut` is stored into in place: a
-scalar referent like a home, a field of a record referent like a field of a
-mutable local.
+its home. A `mut` formal that holds its own value is assigned and stored
+into as a `mut` local is; any other formal that holds its own value is
+immutable. A formal passed by `&mut` is stored into in place: a scalar
+referent like a home, a field of a record referent like a field of a mutable
+local.
 */
 
 use semantic_vocabulary::MachineId;
@@ -98,6 +99,7 @@ impl Program<'_> {
                         | ExpressionKind::Not(_)
                         | ExpressionKind::BitwiseNot(_)
                         | ExpressionKind::Cast(_)
+                        | ExpressionKind::Requalify(_)
                         | ExpressionKind::ShortCircuit { .. }
                         | ExpressionKind::Borrow { .. }
                         | ExpressionKind::Call { .. } => {
@@ -189,6 +191,11 @@ impl Program<'_> {
             let value_type = self.value_type(id, local.type_reference)?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
+                // Its home would be declared with the identity of a
+                // primitive type the lowered form has no row for.
+                ValueType::Qualified(..) => {
+                    return unserved("uninitialized local of a policy-qualified type");
+                }
                 ValueType::Record(_) => None,
                 ValueType::Scalar(_) => Some(
                     self.typed
@@ -249,6 +256,22 @@ impl Program<'_> {
             && slots[named].borrowed.is_some()
         {
             return unserved("local bound to a reference without a declared type");
+        }
+        // domains.md, "Literals and expected types": "An expected type
+        // selects the carrier in which an anonymous literal lands. It never
+        // inserts a domain cast", and "An annotated `let` is no exception".
+        // So `let x: u32 in Wrapping = 5;` binds a plain `u32` to a
+        // Wrapping local, which only a cast does.
+        if let Some(declared) = declared
+            && declared.policy().is_some()
+            && value_type.policy().is_none()
+            && declared.scalar() == value_type.scalar()
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("local initializer without the arithmetic policy of its local"),
+            ));
         }
         if declared.is_some_and(|declared| declared != value_type) {
             return Err(refuse(

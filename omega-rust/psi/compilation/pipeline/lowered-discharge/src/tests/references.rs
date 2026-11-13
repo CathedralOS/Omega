@@ -18,15 +18,15 @@ use structure_elaboration::{Borrowed, RecordField, RecordType};
 /// One machine with formals that may be borrowed. `borrowed` lists each
 /// borrowed formal's position and access; its `parameters` entry is the
 /// referent type.
-struct Lending {
-    parameters: Vec<ValueType>,
-    borrowed: Vec<(usize, ReferenceAccess)>,
-    locals: Vec<ValueType>,
-    requires: Vec<Proposition>,
-    statements: Vec<Statement>,
+pub(super) struct Lending {
+    pub(super) parameters: Vec<ValueType>,
+    pub(super) borrowed: Vec<(usize, ReferenceAccess)>,
+    pub(super) locals: Vec<ValueType>,
+    pub(super) requires: Vec<Proposition>,
+    pub(super) statements: Vec<Statement>,
 }
 
-fn unit(parameters: Vec<ValueType>, statements: Vec<Statement>) -> Lending {
+pub(super) fn unit(parameters: Vec<ValueType>, statements: Vec<Statement>) -> Lending {
     Lending {
         parameters,
         borrowed: Vec::new(),
@@ -36,7 +36,7 @@ fn unit(parameters: Vec<ValueType>, statements: Vec<Statement>) -> Lending {
     }
 }
 
-fn pair() -> ValueType {
+pub(super) fn pair() -> ValueType {
     ValueType::Record(id(1))
 }
 
@@ -48,7 +48,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
-        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        copyable: true,
         identity: String::from("Pair"),
         fields: vec![field(1, "a"), field(2, "b")],
         cases: Vec::new(),
@@ -57,7 +57,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     records
 }
 
-fn lower_lending(machines: Vec<Lending>) -> Checked<structure_elaboration::Elaboration> {
+pub(super) fn lower_lending(machines: Vec<Lending>) -> Checked<structure_elaboration::Elaboration> {
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
     let mut signatures: IdTable<MachineId, Signature> = IdTable::default();
     for machine in machines {
@@ -99,11 +99,11 @@ fn of(kind: ExpressionKind, result: ValueType) -> Expression {
     }
 }
 
-fn named(slot: usize, value_type: ValueType) -> Expression {
+pub(super) fn named(slot: usize, value_type: ValueType) -> Expression {
     of(ExpressionKind::Slot(slot), value_type)
 }
 
-fn field(base: Expression, field: usize) -> Expression {
+pub(super) fn field(base: Expression, field: usize) -> Expression {
     of(
         ExpressionKind::Field {
             base: Box::new(base),
@@ -114,7 +114,7 @@ fn field(base: Expression, field: usize) -> Expression {
 }
 
 /// `&place` or `&mut place`; `home` when the place is an SSA scalar local.
-fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Expression {
+pub(super) fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Expression {
     let result = place.result.unwrap();
     of(
         ExpressionKind::Borrow {
@@ -126,10 +126,10 @@ fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Expression {
     )
 }
 
-fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
+pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
     Statement::Evaluate(Expression {
         kind: ExpressionKind::Call {
-            callee: id(callee),
+            callee: id::<MachineId>(callee).into(),
             arguments,
         },
         result: None,
@@ -137,7 +137,7 @@ fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
     })
 }
 
-fn store(slot: usize, path: Vec<usize>, value: Expression) -> Statement {
+pub(super) fn store(slot: usize, path: Vec<usize>, value: Expression) -> Statement {
     Statement::Store {
         slot,
         path,
@@ -146,7 +146,7 @@ fn store(slot: usize, path: Vec<usize>, value: Expression) -> Statement {
     }
 }
 
-fn pair_of(a: u128, b: u128) -> Expression {
+pub(super) fn pair_of(a: u128, b: u128) -> Expression {
     of(
         ExpressionKind::Record {
             fields: vec![(0, unsigned(a)), (1, unsigned(b))],
@@ -194,7 +194,7 @@ fn two(first: ReferenceAccess, second: ReferenceAccess) -> Lending {
     }
 }
 
-fn accepted(machines: Vec<Lending>) -> Box<crate::AcceptedClosure> {
+pub(super) fn accepted(machines: Vec<Lending>) -> Box<crate::AcceptedClosure> {
     match judge(lower_lending(machines)).unwrap() {
         RouteVerdict::Accepted(closure) => closure,
         verdict => panic!("the program must be accepted: {verdict:?}"),
@@ -566,7 +566,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                     guard: Some(named(0, ScalarType::Boolean.into())),
                     target: Target::Value(Expression {
                         kind: ExpressionKind::Call {
-                            callee: id(2),
+                            callee: id::<MachineId>(2).into(),
                             arguments: vec![lend(
                                 ReferenceAccess::Mutable,
                                 named(1, u32_type().into()),

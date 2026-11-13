@@ -1,7 +1,0 @@
-// The twin of pass/effects/checked_reach_ceiling_exit: only `main`'s ceiling
-// differs. The call of `relay` contributes `Mark`, which `Unused` leaves out.
-public boundary trait Mark {}
-public boundary trait Unused {}
-public machine marked() reaches Mark {}
-machine relay() reaches Mark + Unused { marked(); }
-machine main() reaches Unused { relay(); }

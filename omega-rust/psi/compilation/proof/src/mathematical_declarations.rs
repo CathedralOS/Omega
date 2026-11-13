@@ -59,7 +59,9 @@ mod declaration_records {
         let body = match definition.body {
             MathematicalBody::Assumption => CheckedMathematicalBody::Assumption,
             MathematicalBody::Definition(term) => CheckedMathematicalBody::Definition {
-                term_spelling: program.render_proof_expression(term, ProofSubstitutions::None),
+                term_spelling: program
+                    .try_render_proof_expression(term, ProofSubstitutions::None)
+                    .map_err(|error| refuse(program, definition, error.to_string()))?,
             },
         };
         Ok(CheckedMathematicalDeclaration {
@@ -227,9 +229,18 @@ mod declaration_records {
                     .expression_handles(*arguments)
                     .iter()
                     .map(|argument| {
-                        program.render_proof_expression(*argument, ProofSubstitutions::None)
+                        program
+                            .try_render_proof_expression(*argument, ProofSubstitutions::None)
+                            .map_err(|error| {
+                                vec![
+                                    diagnostics::Diagnostic::error(error.to_string())
+                                        .with_source_span(
+                                            program.expression_table.source_span(*argument),
+                                        ),
+                                ]
+                            })
                     })
-                    .collect::<Vec<_>>()
+                    .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?
                     .join(", ");
                 Ok(format!("{callee_identity}({arguments})"))
             }

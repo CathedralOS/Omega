@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "unbounded_offset_names_the_bound");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-}

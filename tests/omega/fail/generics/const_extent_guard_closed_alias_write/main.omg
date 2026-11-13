@@ -1,4 +1,0 @@
-machine main() -> i64 in Wrapping {
- let values: [i64 in Wrapping; 0]; let mut enabled: bool = 0u64 > 0u64; enabled = true;
- transition enabled { true -> (values[0]) _ -> (0) }
-}

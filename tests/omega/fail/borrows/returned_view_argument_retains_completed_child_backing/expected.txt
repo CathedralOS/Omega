@@ -1,1 +1,0 @@
-mutates `returned_storage[0]` while local borrow `returned_original` is still active

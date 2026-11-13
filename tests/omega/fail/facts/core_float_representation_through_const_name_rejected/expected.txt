@@ -1,1 +1,0 @@
-violates required fact `float::to_bits(value) == 0xff800123`

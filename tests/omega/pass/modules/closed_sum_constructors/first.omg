@@ -1,3 +1,0 @@
-module first;
-public data Choice<T> { case Empty; case Full(value: T); }
-public data Packet<T> { stamp: u8; case Empty; case Full(value: T); }

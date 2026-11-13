@@ -1,3 +1,0 @@
-cannot complete return from machine `main` state `entry`
-the `requires` facts of `built` (data `Ratio`)
-unproved; restore them first

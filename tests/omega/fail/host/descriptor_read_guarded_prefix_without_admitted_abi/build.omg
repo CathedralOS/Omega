@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "descriptor_read_guarded_prefix_without_admitted_abi");
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

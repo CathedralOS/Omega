@@ -1,2 +1,0 @@
-read_without_content_permission
-FilesystemContentRead

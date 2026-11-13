@@ -1250,6 +1250,9 @@ pub mod evidence {
             }
         }
 
+        pub type ProofLabelResult<T> =
+            Result<T, crate::runtime_callable_identity::RuntimeCallableIdentityError>;
+
         #[derive(Clone, Copy)]
         pub enum ProofSubstitutions<'a> {
             None,
@@ -1284,18 +1287,25 @@ pub mod evidence {
                 application: &PropositionApplication,
                 labels: Option<PropositionLabels<'_>>,
             ) -> Option<NormalizedPropositionApplicationIdentity> {
-                let rendered;
-                let labels = match labels {
-                    Some(labels) => labels,
-                    None => {
-                        rendered = self.proposition_labels(application);
-                        rendered.borrow()
-                    }
-                };
+                self.try_normalize_nominal_proposition_application(application, labels)
+                    .ok()
+                    .flatten()
+            }
+
+            pub fn try_normalize_nominal_proposition_application(
+                &self,
+                application: &PropositionApplication,
+                labels: Option<PropositionLabels<'_>>,
+            ) -> ProofLabelResult<Option<NormalizedPropositionApplicationIdentity>> {
+                let rendered = self.proposition_labels(application)?;
+                let labels = labels.unwrap_or_else(|| rendered.borrow());
                 let (binder_labels, argument_labels) =
                     (labels.binder_labels, labels.argument_labels);
-                let binder_identities =
-                    binder_argument_identities_for_labels(self, application, binder_labels)?;
+                let Some(binder_identities) =
+                    binder_argument_identities_for_labels(self, application, binder_labels)
+                else {
+                    return Ok(None);
+                };
                 self.normalize_nominal_proposition_application_inner(
                     application,
                     binder_labels,
@@ -1312,18 +1322,22 @@ pub mod evidence {
                 argument_labels: &[String],
                 binder_identities: &[Option<String>],
                 visiting: &mut Vec<SymbolHandle>,
-            ) -> Option<NormalizedPropositionApplicationIdentity> {
+            ) -> ProofLabelResult<Option<NormalizedPropositionApplicationIdentity>> {
                 if visiting.contains(&application.proposition) {
-                    return None;
+                    return Ok(None);
                 }
-                let declaration = self.proposition_definition_by_symbol(application.proposition)?;
+                let Some(declaration) =
+                    self.proposition_definition_by_symbol(application.proposition)
+                else {
+                    return Ok(None);
+                };
                 let binders = self.proposition_binders(declaration);
                 let parameters = self.proposition_parameters(declaration);
                 if binders.len() != binder_labels.len()
                     || binders.len() != binder_identities.len()
                     || parameters.len() != argument_labels.len()
                 {
-                    return None;
+                    return Ok(None);
                 }
                 let substitutions = binders
                     .iter()
@@ -1360,43 +1374,47 @@ pub mod evidence {
                 };
                 match &declaration.body {
                     PropositionBody::Primitive => {
-                        Some(endpoint(PropositionEvidenceClassification::FactOnly))
+                        Ok(Some(endpoint(PropositionEvidenceClassification::FactOnly)))
                     }
                     PropositionBody::Witness { evidence } => {
-                        let (evidence, interface) = normalize_evidence_interface(
+                        let Some((evidence, interface)) = normalize_evidence_interface(
                             self,
                             *evidence,
                             binders,
                             binder_labels,
                             binder_identities,
-                        )?;
-                        Some(endpoint(PropositionEvidenceClassification::Witness {
+                        ) else {
+                            return Ok(None);
+                        };
+                        Ok(Some(endpoint(PropositionEvidenceClassification::Witness {
                             evidence,
                             interface,
-                        }))
+                        })))
                     }
                     PropositionBody::Transparent {
                         proposition: PropositionFormula::BooleanExpression(_),
-                    } => None,
+                    } => Ok(None),
                     PropositionBody::Transparent {
                         proposition: PropositionFormula::Application(expansion),
                     } => {
                         visiting.push(application.proposition);
-                        let (expanded_binders, expanded_binder_identities, expanded_arguments) =
-                            expanded_application_parts(
-                                self,
+                        let normalized = (|| {
+                            let (expanded_binders, expanded_binder_identities, expanded_arguments) =
+                                expanded_application_parts(
+                                    self,
+                                    expansion,
+                                    &substitutions,
+                                    binders,
+                                    binder_identities,
+                                )?;
+                            self.normalize_nominal_proposition_application_inner(
                                 expansion,
-                                &substitutions,
-                                binders,
-                                binder_identities,
-                            );
-                        let normalized = self.normalize_nominal_proposition_application_inner(
-                            expansion,
-                            &expanded_binders,
-                            &expanded_arguments,
-                            &expanded_binder_identities,
-                            visiting,
-                        );
+                                &expanded_binders,
+                                &expanded_arguments,
+                                &expanded_binder_identities,
+                                visiting,
+                            )
+                        })();
                         visiting.pop();
                         normalized
                     }
@@ -1418,11 +1436,22 @@ pub mod evidence {
                 .unwrap_or_else(|| format!("invalid-constructor:{}", literal.type_name))
             }
 
+            /// Display a proof expression in diagnostics. Semantic consumers
+            /// use `try_render_proof_expression` and retain its failure.
             pub fn render_proof_expression(
                 &self,
                 expression: ExpressionHandle,
                 substitutions: ProofSubstitutions<'_>,
             ) -> String {
+                self.try_render_proof_expression(expression, substitutions)
+                    .unwrap_or_else(|error| format!("<cannot render proof expression: {error}>"))
+            }
+
+            pub fn try_render_proof_expression(
+                &self,
+                expression: ExpressionHandle,
+                substitutions: ProofSubstitutions<'_>,
+            ) -> ProofLabelResult<String> {
                 match substitutions {
                     ProofSubstitutions::None => render_expression(self, expression, &[], &[]),
                     ProofSubstitutions::BySymbol(substitutions) => {
@@ -1450,8 +1479,8 @@ pub mod evidence {
             pub fn proposition_labels(
                 &self,
                 application: &PropositionApplication,
-            ) -> OwnedPropositionLabels {
-                OwnedPropositionLabels {
+            ) -> ProofLabelResult<OwnedPropositionLabels> {
+                Ok(OwnedPropositionLabels {
                     binder_labels: application
                         .binder_arguments
                         .iter()
@@ -1462,10 +1491,10 @@ pub mod evidence {
                         .expression_handles(application.arguments)
                         .iter()
                         .map(|argument| {
-                            self.render_proof_expression(*argument, ProofSubstitutions::None)
+                            self.try_render_proof_expression(*argument, ProofSubstitutions::None)
                         })
-                        .collect(),
-                }
+                        .collect::<ProofLabelResult<Vec<_>>>()?,
+                })
             }
 
             pub fn normalize_proposition_application(
@@ -1473,18 +1502,25 @@ pub mod evidence {
                 application: &PropositionApplication,
                 labels: Option<PropositionLabels<'_>>,
             ) -> Option<NormalizedPropositionFormula> {
-                let rendered;
-                let labels = match labels {
-                    Some(labels) => labels,
-                    None => {
-                        rendered = self.proposition_labels(application);
-                        rendered.borrow()
-                    }
-                };
+                self.try_normalize_proposition_application(application, labels)
+                    .ok()
+                    .flatten()
+            }
+
+            pub fn try_normalize_proposition_application(
+                &self,
+                application: &PropositionApplication,
+                labels: Option<PropositionLabels<'_>>,
+            ) -> ProofLabelResult<Option<NormalizedPropositionFormula>> {
+                let rendered = self.proposition_labels(application)?;
+                let labels = labels.unwrap_or_else(|| rendered.borrow());
                 let (binder_labels, argument_labels) =
                     (labels.binder_labels, labels.argument_labels);
-                let binder_identities =
-                    binder_argument_identities_for_labels(self, application, binder_labels)?;
+                let Some(binder_identities) =
+                    binder_argument_identities_for_labels(self, application, binder_labels)
+                else {
+                    return Ok(None);
+                };
                 let mut visiting = Vec::new();
                 self.normalize_proposition_application_inner(
                     application,
@@ -1518,16 +1554,16 @@ pub mod evidence {
                 argument_labels: &[String],
                 binder_identities: &[Option<String>],
                 visiting: &mut Vec<SymbolHandle>,
-            ) -> Option<NormalizedPropositionFormula> {
+            ) -> ProofLabelResult<Option<NormalizedPropositionFormula>> {
                 if visiting.contains(&application.proposition) {
-                    return None;
+                    return Ok(None);
                 }
                 let declaration = self.proposition_definition_by_symbol(application.proposition);
                 if declaration.is_none()
                     && self.symbols.get(application.proposition).kind
                         == symbols::SymbolKind::PropositionParameter
                 {
-                    let parameter_count = self
+                    let Some(parameter_count) = self
                         .data_type_parameters
                         .iter()
                         .map(|(_, parameter)| parameter)
@@ -1538,27 +1574,32 @@ pub mod evidence {
                                 Some(contract.parameters.len())
                             }
                             _ => None,
-                        })?;
+                        })
+                    else {
+                        return Ok(None);
+                    };
                     if !binder_labels.is_empty() || parameter_count != argument_labels.len() {
-                        return None;
+                        return Ok(None);
                     }
-                    return Some(NormalizedPropositionFormula::Proposition {
+                    return Ok(Some(NormalizedPropositionFormula::Proposition {
                         label: canonical_application_label(
                             application.name.as_str(),
                             binder_labels,
                             argument_labels,
                         ),
                         classification: PropositionEvidenceClassification::FactOnly,
-                    });
+                    }));
                 }
-                let declaration = declaration?;
+                let Some(declaration) = declaration else {
+                    return Ok(None);
+                };
                 let binders = self.proposition_binders(declaration);
                 let parameters = self.proposition_parameters(declaration);
                 if binders.len() != binder_labels.len()
                     || binders.len() != binder_identities.len()
                     || parameters.len() != argument_labels.len()
                 {
-                    return None;
+                    return Ok(None);
                 }
 
                 let mut substitutions = Vec::new();
@@ -1570,23 +1611,27 @@ pub mod evidence {
                 }
 
                 match &declaration.body {
-                    PropositionBody::Primitive => Some(NormalizedPropositionFormula::Proposition {
-                        label: canonical_application_label(
-                            declaration.name.as_str(),
-                            binder_labels,
-                            argument_labels,
-                        ),
-                        classification: PropositionEvidenceClassification::FactOnly,
-                    }),
+                    PropositionBody::Primitive => {
+                        Ok(Some(NormalizedPropositionFormula::Proposition {
+                            label: canonical_application_label(
+                                declaration.name.as_str(),
+                                binder_labels,
+                                argument_labels,
+                            ),
+                            classification: PropositionEvidenceClassification::FactOnly,
+                        }))
+                    }
                     PropositionBody::Witness { evidence } => {
-                        let (evidence, interface) = normalize_evidence_interface(
+                        let Some((evidence, interface)) = normalize_evidence_interface(
                             self,
                             *evidence,
                             binders,
                             binder_labels,
                             binder_identities,
-                        )?;
-                        Some(NormalizedPropositionFormula::Proposition {
+                        ) else {
+                            return Ok(None);
+                        };
+                        Ok(Some(NormalizedPropositionFormula::Proposition {
                             label: canonical_application_label(
                                 declaration.name.as_str(),
                                 binder_labels,
@@ -1596,20 +1641,20 @@ pub mod evidence {
                                 evidence,
                                 interface,
                             },
-                        })
+                        }))
                     }
                     PropositionBody::Transparent { proposition } => {
                         visiting.push(application.proposition);
-                        let normalized = match proposition {
+                        let normalized = (|| match proposition {
                             PropositionFormula::BooleanExpression(expression) => {
-                                Some(NormalizedPropositionFormula::Boolean {
+                                Ok(Some(NormalizedPropositionFormula::Boolean {
                                     label: render_expression(
                                         self,
                                         *expression,
                                         &substitutions,
                                         &[],
-                                    ),
-                                })
+                                    )?,
+                                }))
                             }
                             PropositionFormula::Application(expansion) => {
                                 let (
@@ -1622,7 +1667,7 @@ pub mod evidence {
                                     &substitutions,
                                     binders,
                                     binder_identities,
-                                );
+                                )?;
                                 self.normalize_proposition_application_inner(
                                     expansion,
                                     &expanded_binders,
@@ -1631,7 +1676,7 @@ pub mod evidence {
                                     visiting,
                                 )
                             }
-                        };
+                        })();
                         visiting.pop();
                         normalized
                     }
@@ -1645,7 +1690,7 @@ pub mod evidence {
             substitutions: &[(SymbolHandle, String)],
             binders: &[PropositionBinder],
             binder_identities: &[Option<String>],
-        ) -> (Vec<String>, Vec<Option<String>>, Vec<String>) {
+        ) -> ProofLabelResult<(Vec<String>, Vec<Option<String>>, Vec<String>)> {
             let expanded_binders = expansion
                 .binder_arguments
                 .iter()
@@ -1674,12 +1719,12 @@ pub mod evidence {
                 .expression_handles(expansion.arguments)
                 .iter()
                 .map(|argument| render_expression(program, *argument, substitutions, &[]))
-                .collect::<Vec<_>>();
-            (
+                .collect::<ProofLabelResult<Vec<_>>>()?;
+            Ok((
                 expanded_binders,
                 expanded_binder_identities,
                 expanded_arguments,
-            )
+            ))
         }
 
         fn canonical_application_label(
@@ -1705,26 +1750,149 @@ pub mod evidence {
             argument.path.joined_path()
         }
 
+        #[cfg(test)]
+        mod proof_label_tests {
+            use super::*;
+            use crate::callable_values::RuntimeCallBinding;
+            use crate::expression::{ExpressionNode, TableCallExpression};
+            use crate::runtime_callable_identity::RuntimeCallableIdentityError;
+            use crate::type_identity::package_policy_reading_tests::fixture::Fixture;
+            use crate::types::TypeReferenceNode;
+
+            #[test]
+            fn callable_labels_keep_selection_identity_and_refuse_unresolved_children() {
+                let mut fixture = Fixture::new();
+                let expression = fixture.machine_value();
+                let ExpressionNode::MachineValue(value) = fixture
+                    .program
+                    .expression_table
+                    .expression(expression)
+                    .clone()
+                else {
+                    panic!("fixture must retain a machine selection");
+                };
+                let expected = fixture
+                    .program
+                    .runtime_machine_value_identity(&value, &[])
+                    .unwrap();
+                assert_eq!(
+                    fixture
+                        .program
+                        .try_render_proof_expression(expression, ProofSubstitutions::None,),
+                    Ok(expected)
+                );
+                let amount = fixture.integer(9);
+                assert_eq!(
+                    fixture
+                        .program
+                        .try_render_proof_expression(amount, ProofSubstitutions::None,),
+                    Ok(fixture.program.expression_table.display_name(amount))
+                );
+
+                let TypeReferenceNode::Callable { contract } = *fixture
+                    .program
+                    .type_reference_table
+                    .type_reference(value.type_reference)
+                else {
+                    panic!("fixture must retain its exact callable contract");
+                };
+                let mut unresolved = value;
+                unresolved.selected.symbol = SymbolHandle::invalid();
+                let unresolved = fixture.expression(ExpressionNode::MachineValue(unresolved));
+                let call = fixture.expression(ExpressionNode::Call(TableCallExpression {
+                    runtime_call: Some(RuntimeCallBinding {
+                        callee: unresolved,
+                        contract,
+                    }),
+                    ..Default::default()
+                }));
+                let error = RuntimeCallableIdentityError::UnresolvedSymbol;
+                assert_eq!(
+                    fixture
+                        .program
+                        .try_render_proof_expression(call, ProofSubstitutions::None,),
+                    Err(error)
+                );
+                let arguments = fixture
+                    .program
+                    .expression_table
+                    .insert_expression_handles([call]);
+                let application = PropositionApplication {
+                    proposition: SymbolHandle::invalid(),
+                    name: Identifier::generated("invalid_selection"),
+                    binder_arguments: Box::new([]),
+                    arguments,
+                };
+                let supplied_arguments = ["caller supplied label".to_owned()];
+                for labels in [
+                    None,
+                    Some(PropositionLabels {
+                        binder_labels: &[],
+                        argument_labels: &supplied_arguments,
+                    }),
+                ] {
+                    assert_eq!(
+                        fixture
+                            .program
+                            .try_normalize_proposition_application(&application, labels,),
+                        Err(error)
+                    );
+                    assert_eq!(
+                        fixture
+                            .program
+                            .try_normalize_nominal_proposition_application(&application, labels,),
+                        Err(error)
+                    );
+                }
+                assert!(
+                    fixture
+                        .program
+                        .normalize_proposition_application(&application, None)
+                        .is_none()
+                );
+            }
+        }
+
+        // Display helpers accept total callbacks. Discard their complete output
+        // when a child cannot be normalized, preserving the original failure.
+        fn with_fallible_children<T>(
+            render: impl Fn(ExpressionHandle) -> ProofLabelResult<String>,
+            display: impl FnOnce(&dyn Fn(ExpressionHandle) -> String) -> T,
+        ) -> ProofLabelResult<T> {
+            let failure = std::cell::Cell::new(None);
+            let result = display(&|expression| match render(expression) {
+                Ok(label) => label,
+                Err(error) => {
+                    if failure.get().is_none() {
+                        failure.set(Some(error));
+                    }
+                    String::new()
+                }
+            });
+            match failure.into_inner() {
+                Some(error) => Err(error),
+                None => Ok(result),
+            }
+        }
+
         fn render_expression(
             program: &crate::TypedTrees,
             expression: ExpressionHandle,
             substitutions: &[(SymbolHandle, String)],
             name_substitutions: &[(String, String)],
-        ) -> String {
+        ) -> ProofLabelResult<String> {
             use crate::expression::ExpressionNode;
+            if !program.expression_table.expression_is_valid(expression) {
+                return Err(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact);
+            }
             let render = |expression| {
                 render_expression(program, expression, substitutions, name_substitutions)
             };
-            match program.expression_table.expression(expression) {
+            Ok(match program.expression_table.expression(expression) {
                 ExpressionNode::MachineValue(value) => {
-                    crate::type_identity::normalized_expression_identity(
-                        program,
-                        expression,
-                        substitutions,
-                    )
-                    .unwrap_or_else(|| format!("<invalid machine value {value:?}>"))
+                    return program.runtime_machine_value_identity(value, substitutions);
                 }
-                ExpressionNode::Match(dispatch) => {
+                ExpressionNode::Match(dispatch) => with_fallible_children(render, |render| {
                     let arms = program
                         .expression_table
                         .match_arms(dispatch.arms)
@@ -1740,14 +1908,14 @@ pub mod evidence {
                         .collect::<Vec<_>>()
                         .join(", ");
                     format!("match {} {{ {arms} }}", render(dispatch.subject))
-                }
+                })?,
                 ExpressionNode::SavedSubject(saved) => format!(
                     "<saved subject #{}:{}>",
                     saved.capture.arena_index(),
                     saved.capture.generation()
                 ),
                 ExpressionNode::Atomic(atomic) => {
-                    format!("atomic[{:?}]({})", atomic.ordering, render(atomic.value))
+                    format!("atomic[{:?}]({})", atomic.ordering, render(atomic.value)?)
                 }
                 ExpressionNode::ArrayLiteral(values) => format!(
                     "[{}]",
@@ -1756,19 +1924,19 @@ pub mod evidence {
                         .expression_handles(*values)
                         .iter()
                         .map(|value| render(*value))
-                        .collect::<Vec<_>>()
+                        .collect::<ProofLabelResult<Vec<_>>>()?
                         .join(", ")
                 ),
                 ExpressionNode::Binary(binary) => format!(
                     "{} {} {}",
-                    render(binary.left),
+                    render(binary.left)?,
                     binary.operator.display_name(),
-                    render(binary.right)
+                    render(binary.right)?
                 ),
                 ExpressionNode::Boolean(value) => value.to_string(),
                 ExpressionNode::Cast(cast) => format!(
                     "({} as {})",
-                    render(cast.value),
+                    render(cast.value)?,
                     crate::expression::display_name_path(
                         program
                             .expression_table
@@ -1776,19 +1944,23 @@ pub mod evidence {
                         "::",
                     )
                 ),
-                ExpressionNode::Call(call) => {
+                ExpressionNode::Call(call) => with_fallible_children(render, |render| {
                     crate::expression::display_call_label(&program.expression_table, call, render)
-                }
+                })?,
                 ExpressionNode::Float(value) => value.to_string(),
                 ExpressionNode::UndeterminedNaN(format) => {
                     format!("<undetermined NaN {}>", format.name())
                 }
                 ExpressionNode::Indexed(indexed) => {
-                    format!("{}[{}]", render(indexed.collection), render(indexed.index))
+                    format!(
+                        "{}[{}]",
+                        render(indexed.collection)?,
+                        render(indexed.index)?
+                    )
                 }
                 ExpressionNode::Integer(value) => value.to_string(),
                 ExpressionNode::Member(member) => {
-                    format!("{}.{}", render(member.receiver), member.member)
+                    format!("{}.{}", render(member.receiver)?, member.member)
                 }
                 ExpressionNode::Borrow(inner) => format!(
                     "{} {}",
@@ -1797,14 +1969,14 @@ pub mod evidence {
                         language_core::ReferenceAccess::WriteOnly => "write",
                         language_core::ReferenceAccess::Shared => "shared",
                     },
-                    render(inner.target)
+                    render(inner.target)?
                 ),
                 ExpressionNode::Name(path) => {
                     if let Some((_, replacement)) = substitutions
                         .iter()
                         .find(|(symbol, _)| *symbol == path.symbol || *symbol == path.head_symbol)
                     {
-                        return replacement.clone();
+                        return Ok(replacement.clone());
                     }
                     let members = program.expression_table.name_path_members(path.members);
                     if let Some(first) = members.first()
@@ -1812,7 +1984,7 @@ pub mod evidence {
                             .iter()
                             .find(|(name, _)| name == first.as_str())
                     {
-                        return replacement.clone();
+                        return Ok(replacement.clone());
                     }
                     let selected = program
                         .expression_table
@@ -1829,40 +2001,51 @@ pub mod evidence {
                                 .is_some_and(|mut children| children.any(|child| child == pair[1]))
                         })
                         && program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant
-                        && let Some(label) = constructor_values::render(
-                            program,
-                            program.symbols.get(path.symbol).parent,
-                            Some(path.symbol),
-                            &[],
-                            render,
-                        )
                     {
-                        return label;
+                        let label = with_fallible_children(render, |render| {
+                            constructor_values::render(
+                                program,
+                                program.symbols.get(path.symbol).parent,
+                                Some(path.symbol),
+                                &[],
+                                render,
+                            )
+                        })?;
+                        if let Some(label) = label {
+                            return Ok(label);
+                        }
                     }
                     crate::expression::display_name_path(members, "::")
                 }
                 ExpressionNode::Range(range) => {
                     match (range.start.is_valid(), range.end.is_valid()) {
-                        (true, true) => format!("{}..{}", render(range.start), render(range.end)),
-                        (true, false) => format!("{}..", render(range.start)),
-                        (false, true) => format!("..{}", render(range.end)),
+                        (true, true) => format!("{}..{}", render(range.start)?, render(range.end)?),
+                        (true, false) => format!("{}..", render(range.start)?),
+                        (false, true) => format!("..{}", render(range.end)?),
                         (false, false) => "..".to_owned(),
                     }
                 }
                 ExpressionNode::String(value) => format!("{value:?}"),
                 ExpressionNode::StructLiteral(literal) => {
-                    program.render_proof_constructor_value(literal, render)
+                    with_fallible_children(render, |render| {
+                        program.render_proof_constructor_value(literal, render)
+                    })?
                 }
                 ExpressionNode::TypeExpression(reference) => {
                     program.display_type_reference(*reference)
                 }
                 ExpressionNode::ZeroValue(_) => program.expression_table.display_name(expression),
                 ExpressionNode::Unary(unary) => {
-                    format!("{}{}", unary.operator.display_name(), render(unary.operand))
+                    format!(
+                        "{}{}",
+                        unary.operator.display_name(),
+                        render(unary.operand)?
+                    )
                 }
-            }
+            })
         }
     }
+
     pub mod ranking {
         use crate::TypedTrees;
         use crate::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};

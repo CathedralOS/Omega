@@ -1,1 +1,0 @@
-contract call cycle: the `requires`/`ensures` contracts of `first`, `second` call each other

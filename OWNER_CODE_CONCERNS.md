@@ -79,6 +79,34 @@ own to defend. Say what you saw, not what you would build.
 - Saw: omission and authored `reaches none` can both normalize to the empty row; generated applications also need their exact template's authored ceiling.
 - Cost: reading only the normalized row can infer permission where the source promised none, so the surviving owner must retain writtenness explicitly.
 
+### Terminal production keeps a request type and readers that nothing can satisfy
+- Category: zombie machinery
+- Where: `omega-rust/psi/compilation/psi-compiler/terminal-production/src/lib.rs` (`TerminalProductionRequest::produce`), `src/external_providers.rs` (`PreparedExternalProviderDeclarations::prepare`), `src/build_bindings.rs` (`BuildProviderProductionRequest::produce`); callers in `compiler/src/terminal/product_code.rs`, `selected-dispatch/src/provider_binding.rs`, `review-evidence/src/capture/input.rs`, `build-settings/src/activation/preparation.rs`, `build-time-evaluation/src/machine_execution.rs`
+- Saw: after Psi 06 was deleted these three entries always return `no product route yet`, but their callers and everything downstream of a produced program (provider selection, package review, native realization, the corpus runner's source controls) still compile as if a program could arrive
+- Cost: a reader sees a full production pipeline and cannot tell that no program reaches Terminal Psi; the hand-off from the lowered route's published module has to replace these three entries, not add a fourth
+- Reported: 2026-11-12, Claude Code, while deleting Psi 06
+
+### The stage-coverage command still reports a column for the deleted Psi 06
+- Category: zombie machinery
+- Where: `tools/xtask/src/stage_coverage.rs` (`STAGES`), `tools/testing.md` stage-coverage section
+- Saw: `stage-coverage` counts lines under the deleted Psi 06 directory, so that column is always empty; the command exists to measure the old checker and has no reader once Psi 05 and `validation` are gone
+- Cost: the coverage table reads as if Psi 06 ran no lines, and the command outlives what it measures
+- Reported: 2026-11-12, Claude Code, while deleting Psi 06
+
+### Constructing the source compiler repeats an hour of checking before its tests
+- Category: verifying costs more than writing
+- Where: [tests/product/gate.sh:42](tests/product/gate.sh#L42), [tests/product/gate.sh:70](tests/product/gate.sh#L70)
+- Saw: frozen Rust producer b520 checked the 269-unit, 3.8 MB compiler in 4,089 seconds during update; native construction then took 3,796 seconds, including 3,227 seconds in Psi 05, with a peak near 19 GiB; all 191 product cases took 80 seconds afterward
+- Cost: a source repair spends hours in producer checking before its executable cases run; these measurements belong to the old checker being removed, and cannot stand for seed-chain or replacement-checker performance
+- Reported: 2026-11-12, Codex, while finishing bootstrap compiler construction and storage PRs #2782 and #2788
+
+### Every Build program runs through the old checker and the old lowering stage
+- Category: the documents disagree
+- Where: `omega-rust/omega/build-system/build-settings/src/admission/checking.rs:323` (`CheckRequest::check()` on the Build program), `build-settings/src/activation/preparation.rs` (`PreparedBuildExecution::prepare` calls `TerminalProductionRequest::produce`), `omega-rust/psi/compilation/build-time-evaluation/src/machine_execution.rs:5082` and `:5457`, `build-time-evaluation/src/const_initializers.rs:137`
+- Saw: a project's Build program is checked by Psi 05, lowered by Psi 06 and run in the terminal interpreter before the product check starts; with Psi 06 deleted, `omega --check` on `tests/omega/pass/arithmetic/anonymous_integer_arith` fails in 0.5 s with `project source discovery failed: no product route yet` and the lowered-form checker is never called (draft #2796)
+- Cost: AGENTS.md says the old stages are being removed now, but none of them can go until Build programs are judged and lowered another way; a worker who deletes one in the stated order stops every compilation, not only native output
+- Reported: 2026-11-13, Claude Code, while deleting Psi 06
+
 ### "Does this access cover that one" is written eight times with five different answers
 - Category: one idea, several implementations
 - Where: `omega-rust/psi/interpreter/terminal-interpreter/src/storage_references.rs:4455`; `omega-rust/psi/compilation/representations/terminal-psi/src/ownership.rs:62`; `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/references.rs:887`; `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_reference_custody.rs:4600` and `selection.rs:877`; `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:5124` and `:14940`; `omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs:350`
@@ -282,13 +310,6 @@ own to defend. Say what you saw, not what you would build.
 - Cost: every table in the Psi half sits on these containers, so a dangling handle anywhere looks like an empty declaration, not an error, and the next reader of the dummy sees whatever was last written to it
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The checked interpreter answers thirteen host-sounding call names it could not resolve
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/interpreter/checked-interpreter/src/execution_expressions.rs:863-968`
-- Saw: when `resolve_static_call` fails and the call is unqualified, the names `tick_count`, `key_state`, `dc_create`, `get_dc`, `window_create`, `is_window`, `window_destroy`, `foreground_window`, `msg_peek`, `msg_translate`, `msg_dispatch`, `read_byte` and `blit` return made-up values (0, 1, a counter, the fifth argument); any other name returns the resolution error
-- Cost: a failed lookup becomes a successful call keyed on spelling alone, so a build-time program calling an undeclared machine with one of these names runs instead of stopping
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The Terminal interpreter reports a failed run-time check as a malformed artifact, with one error for 1,329 sites
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/psi/interpreter/terminal-interpreter/src/boundary_values.rs:696`; example at `engine_execution.rs:3691`
@@ -454,3 +475,10 @@ own to defend. Say what you saw, not what you would build.
 - Saw: the fixture pins "value call to `scan` violates required fact `value == 41`"; the lowered-form checker says "cannot prove requires contract for call scan from Main::main: 40 == 41 ...", so the row is red although the program is rejected for the right reason
 - Cost: these rows stay red after the old stages go until the new checker names the callee's clause, and they read as checker failures rather than a wording gap
 - Reported: 2026-11-12, Claude Code (two workers), while removing the old checker
+
+### Nothing live judges that an implementation refines its trait requirement
+- Category: a verdict with nothing behind it
+- Where: `lowered_discharge::prove_callable_refinement` and `structure_elaboration::elaborate_witness`; their only callers are `psi/compilation/validation/src/contract_entailment.rs` (frozen for deletion) and a test support file
+- Saw: the lowered-form checker refuses every program that declares a trait (`declaration trait` in `structure-elaboration/src/read/subjects.rs`), so the refinement proof it owns is never run by `judge_compilation`
+- Cost: when `validation` is deleted the member-refines-requirement rule has no checker until `judge_compilation` judges each conformance row; 1,344 corpus programs declare a trait
+- Reported: 2026-11-13, Claude Code, while closing the generic self-application hole

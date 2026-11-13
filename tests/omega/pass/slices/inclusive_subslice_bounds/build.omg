@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "inclusive_subslice_bounds");
-    builder.freestanding = true;
-}

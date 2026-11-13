@@ -1,7 +1,0 @@
-data Cell { value: i32; }
-machine reset_value(cell: &mut Cell) -> i32 { cell.value = 0; 0 }
-machine needs_one(value: i32) -> i32 requires value == 1 { value }
-machine sum(first: i32, second: i32) -> i32 { second }
-machine outer(cell: &mut Cell) -> i32 requires cell.value == 1 {
- sum(reset_value(cell), needs_one(cell.value))
-}

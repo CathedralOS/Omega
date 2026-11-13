@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "inherited_boundary_private_field_postcondition");
-    Build::bind(builder, macos_arm64::ProgramEntry, entry_start);
-}

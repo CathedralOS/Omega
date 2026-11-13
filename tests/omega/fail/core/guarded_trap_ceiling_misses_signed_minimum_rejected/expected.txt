@@ -1,2 +1,0 @@
-machine `narrow` has an uncovered Trap crash
-publish a same-cause `crashes` route whose guard covers this site

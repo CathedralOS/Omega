@@ -1,3 +1,0 @@
-const TAG: u16 = 7;
-machine unused<const Tag: u8>() {}
-machine Main::main() { unused<TAG>(); }

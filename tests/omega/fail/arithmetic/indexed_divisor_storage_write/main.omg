@@ -1,8 +1,0 @@
-data Coefficients { values: [i64 in Wrapping; 2]; }
-machine quotient(coefficients: &mut Coefficients) -> i64 in Wrapping
-requires coefficients.values[0] > 0 {
-    coefficients.values[0] = 0;
-    let numerator: i64 in Wrapping = 20;
-    numerator / coefficients.values[0]
-}
-machine main() { }

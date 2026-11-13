@@ -1,1 +1,0 @@
-machine main() reaches MachineControl { asm { cli } }

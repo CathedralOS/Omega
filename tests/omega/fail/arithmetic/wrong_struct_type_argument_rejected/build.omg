@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "wrong_struct_type_argument_rejected");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-}

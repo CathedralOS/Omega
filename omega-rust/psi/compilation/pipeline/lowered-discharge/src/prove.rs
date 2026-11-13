@@ -52,6 +52,7 @@ use semantic_vocabulary::{
 use terminal_check_tables::values::ValueRow;
 
 mod ranges;
+mod reach;
 
 use crate::known::{Fact, is_branch_fact};
 
@@ -65,33 +66,60 @@ const CASE_BRANCH_BUDGET: usize = 64;
 /// Whether this prover has rules for `goal`'s form at all, decided from the
 /// form alone. It mirrors `Prover::prove_direct`: truth and falsehood,
 /// conjunctions and disjunctions of covered parts, an implication whose
-/// conclusion is covered, integer orders and equalities, and an arithmetic
-/// bound of an add, subtract, multiply, left shift or single value against a
-/// literal. Anything else the prover can only take from an equal
-/// hypothesis, so a failure on it says nothing about the program: it is
-/// `UnprovedCause::NoRuleForGoalForm`, published `Incomplete`, not
-/// `NoDerivation`.
-pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
+/// conclusion is covered, integer orders and equalities, a comparison of two
+/// closed mathematical terms, and an arithmetic bound of one add, subtract,
+/// multiply, left shift or single value against a literal. Anything else the
+/// prover can only take from an equal hypothesis, so a failure on it says
+/// nothing about the program: it is `UnprovedCause::NoRuleForGoalForm`,
+/// published `Incomplete`, not `NoDerivation`.
+///
+/// `fixed` says which values a result equation fixes to a literal. A
+/// mathematical term over such values and literals is closed once those
+/// equations are substituted, which is how the kernel reads it
+/// (`Prover::by_transport`), so a comparison of two such terms is evaluated,
+/// not searched for (`Prover::has_rules_for`).
+fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
-            parts.iter().all(has_rules_for)
+            parts.iter().all(|part| covered(part, fixed))
         }
         // The premise is only assumed; the conclusion is what is proved.
-        Proposition::Implication { conclusion, .. } => has_rules_for(conclusion),
+        Proposition::Implication { conclusion, .. } => covered(conclusion, fixed),
         Proposition::LessOrEqual(left, _)
         | Proposition::LessThan(left, _)
         | Proposition::Equal(left, _) => matches!(left.scalar_type(), ScalarType::Integer(_)),
+        // A comparison of two closed terms is the kernel's to evaluate
+        // (`Prover::closed`), whatever its relation.
+        Proposition::IntegerMathEqual(left, right)
+        | Proposition::IntegerMathLessThan(left, right) => {
+            closed_mathematical(left, fixed) && closed_mathematical(right, fixed)
+        }
         Proposition::IntegerMathLessOrEqual(left, right) => {
-            let bounded = |term: &IntegerMathTerm| {
-                matches!(
-                    term,
-                    IntegerMathTerm::Add(..)
-                        | IntegerMathTerm::Subtract(..)
-                        | IntegerMathTerm::Multiply(..)
-                        | IntegerMathTerm::ShiftLeft { .. }
-                        | IntegerMathTerm::MathValue { .. }
-                )
+            if closed_mathematical(left, fixed) && closed_mathematical(right, fixed) {
+                return true;
+            }
+            // `Prover::arithmetic_interval` bounds one operation over values
+            // of one carrier and literals, the shape an exact operation's
+            // representability goal has. A deeper term, or one over two
+            // carriers, is a clause's (`embed(a) + embed(b) * 10 <= 99`),
+            // and nothing here bounds it.
+            let leaf = |term: &IntegerMathTerm| match term {
+                IntegerMathTerm::MathValue { source_type, .. } => Some(Some(*source_type)),
+                IntegerMathTerm::IntegerLiteral(_) => Some(None),
+                _ => None,
+            };
+            let bounded = |term: &IntegerMathTerm| match term {
+                IntegerMathTerm::Add(first, second)
+                | IntegerMathTerm::Subtract(first, second)
+                | IntegerMathTerm::Multiply(first, second) => match (leaf(first), leaf(second)) {
+                    (Some(first), Some(second)) => {
+                        first.is_none() || second.is_none() || first == second
+                    }
+                    _ => false,
+                },
+                IntegerMathTerm::ShiftLeft { .. } | IntegerMathTerm::MathValue { .. } => true,
+                IntegerMathTerm::IntegerLiteral(_) | IntegerMathTerm::Embed(_) => false,
             };
             match (left, right) {
                 (term, IntegerMathTerm::IntegerLiteral(_))
@@ -100,6 +128,68 @@ pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
             }
         }
         _ => false,
+    }
+}
+
+/// `covered` with no value fixed: the goal's form as written.
+#[cfg(test)]
+pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
+    covered(goal, &|_| false)
+}
+
+/// Whether `term` is literals, values that `fixed` says are literals, and
+/// arithmetic over them.
+fn closed_mathematical(term: &IntegerMathTerm, fixed: &dyn Fn(ValueId) -> bool) -> bool {
+    match term {
+        IntegerMathTerm::IntegerLiteral(_) => true,
+        IntegerMathTerm::MathValue { value, .. } => fixed(*value),
+        IntegerMathTerm::Embed(_) => false,
+        IntegerMathTerm::Add(..)
+        | IntegerMathTerm::Subtract(..)
+        | IntegerMathTerm::Multiply(..)
+        | IntegerMathTerm::ShiftLeft { .. } => term
+            .operands()
+            .into_iter()
+            .all(|operand| closed_mathematical(operand, fixed)),
+    }
+}
+
+/// How many literals `Prover::literal_bounds` tries as a bound that holds by
+/// cases. Each is one or two goals; what lies beyond is simply not described.
+const INTERVAL_CANDIDATES: usize = 12;
+
+/// The literals `proposition` compares `subject` with, at any depth.
+fn compared_literals(
+    proposition: &Proposition,
+    subject: &ScalarTerm,
+    found: &mut Vec<IntegerValue>,
+) {
+    match proposition {
+        Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
+            for part in parts {
+                compared_literals(part, subject, found);
+            }
+        }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => {
+            compared_literals(premise, subject, found);
+            compared_literals(conclusion, subject, found);
+        }
+        Proposition::LessOrEqual(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::Equal(left, right) => {
+            for (value, literal) in [(left, right), (right, left)] {
+                if value == subject
+                    && let Some((_, literal)) = literal.integer_value()
+                    && !found.contains(&literal)
+                {
+                    found.push(literal);
+                }
+            }
+        }
+        _ => {}
     }
 }
 
@@ -332,12 +422,16 @@ impl<'a> Prover<'a> {
         let target = denotation(goal)?;
         let premise = if target == Proposition::Truth {
             primitive(Proposition::Truth, PrimitiveJudgment::Truth)
+        } else if let Some(fact) = self.facts.iter().find(|fact| fact.proposition == target) {
+            fact.proof.clone()
         } else {
-            self.facts
-                .iter()
-                .find(|fact| fact.proposition == target)?
-                .proof
-                .clone()
+            // The denotation leaves mathematical arithmetic as written
+            // (fact_validity.md: "Open integer relations, mathematical
+            // arithmetic, IEEE relations, and storage observations remain
+            // unchanged"), so a mathematical comparison whose values are
+            // all fixed to literals arrives here closed and not yet
+            // decided. The kernel evaluates it.
+            self.closed(target)?
         };
         Some(node(
             goal.clone(),
@@ -352,6 +446,21 @@ impl<'a> Prover<'a> {
         ))
     }
 
+    /// Whether the rules cover `goal`'s form (`covered`) at this prover's
+    /// program point: a value one of its equations fixes to a literal is that
+    /// literal.
+    pub(crate) fn has_rules_for(&self, goal: &Proposition) -> bool {
+        covered(goal, &|value| {
+            self.equations.iter().any(|(equation, _)| {
+                matches!(
+                    equation,
+                    Proposition::Equal(ScalarTerm::Value { id, .. }, ScalarTerm::Integer { .. })
+                        if *id == value
+                )
+            })
+        })
+    }
+
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
         decide_primitive(
             self.context,
@@ -360,6 +469,83 @@ impl<'a> Prover<'a> {
         )
         .ok()
         .map(|()| primitive(proposition, PrimitiveJudgment::ClosedIntegerRelation))
+    }
+
+    /// The tightest literal bounds this prover can prove on an integer
+    /// `value`, lower then upper, leaving out a bound that is only its
+    /// carrier's. Each is found with the proof that a goal stating it would
+    /// get, so a caller may state either as a goal here and have it proved.
+    pub(crate) fn literal_bounds(
+        &mut self,
+        value: ValueId,
+    ) -> (Option<IntegerValue>, Option<IntegerValue>) {
+        let Some(ScalarType::Integer(integer)) = self.values.get(value).map(|row| row.scalar_type)
+        else {
+            return (None, None);
+        };
+        let narrower = |bound: Option<Bound>, carrier: IntegerValue| {
+            bound
+                .map(|bound| bound.literal)
+                .filter(|literal| integer.compare(*literal, carrier) != Some(Ordering::Equal))
+        };
+        let mut lower = narrower(self.bound(value, Direction::Lower), integer.minimum_value());
+        let mut upper = narrower(self.bound(value, Direction::Upper), integer.maximum_value());
+        // A bound that holds only by cases is no bound of the value's own:
+        // under `c == true` with `c` the join of `20 <= v && v <= 60`, the
+        // limits are inside a disjunctive fact. Each literal such a fact
+        // compares the value with, and its neighbours, is tried as a goal,
+        // which `prove` splits; the narrowest that holds is taken. A side
+        // the value already has a bound on is left as it is: the search is
+        // for what nothing else says, and each try costs a proof search.
+        let subject = ScalarTerm::value(value, ScalarType::Integer(integer));
+        let mut compared = Vec::new();
+        if lower.is_none() || upper.is_none() {
+            for fact in &self.facts {
+                if matches!(fact.proposition, Proposition::Disjunction(_)) {
+                    compared_literals(&fact.proposition, &subject, &mut compared);
+                }
+            }
+        }
+        let (try_lower, try_upper) = (lower.is_none(), upper.is_none());
+        let mut candidates = Vec::new();
+        for literal in compared {
+            for candidate in [step(literal, false), Some(literal), step(literal, true)]
+                .into_iter()
+                .flatten()
+            {
+                if !candidates.contains(&candidate) {
+                    candidates.push(candidate);
+                }
+            }
+        }
+        candidates.truncate(INTERVAL_CANDIDATES);
+        let narrows = |candidate: IntegerValue, known: Option<IntegerValue>, wanted: Ordering| {
+            known.is_none_or(|known| integer.compare(candidate, known) == Some(wanted))
+        };
+        for candidate in candidates {
+            let Ok(literal) = ScalarTerm::integer(integer, candidate) else {
+                continue;
+            };
+            if try_lower
+                && narrows(candidate, lower, Ordering::Greater)
+                && integer.compare(candidate, integer.minimum_value()) != Some(Ordering::Equal)
+                && self
+                    .prove(&Proposition::LessOrEqual(literal.clone(), subject.clone()))
+                    .is_ok()
+            {
+                lower = Some(candidate);
+            }
+            if try_upper
+                && narrows(candidate, upper, Ordering::Less)
+                && integer.compare(candidate, integer.maximum_value()) != Some(Ordering::Equal)
+                && self
+                    .prove(&Proposition::LessOrEqual(subject.clone(), literal))
+                    .is_ok()
+            {
+                upper = Some(candidate);
+            }
+        }
+        (lower, upper)
     }
 
     /// A certificate whose conclusion is exactly `goal`: directly, or by a
@@ -407,12 +593,32 @@ impl<'a> Prover<'a> {
     /// not). It is tried last, so a reachable point pays for it only when its
     /// goal is otherwise unproved.
     fn unreachable(&mut self, goal: &Proposition) -> Option<ProofNode> {
-        let orders: Vec<ProofNode> = self
+        let mut orders: Vec<ProofNode> = self
             .facts
             .iter()
             .filter(|fact| fact.axiom.is_none() && order(&fact.proposition).is_some())
             .map(|fact| fact.proof.clone())
             .collect();
+        // An equality with a literal is two orders, and either may be the
+        // one the value's bounds contradict: a callee's crash route
+        // `denominator == 0` assumed at a call that passes 3.
+        let equalities: Vec<ProofNode> = self
+            .facts
+            .iter()
+            .filter(|fact| {
+                fact.axiom.is_none()
+                    && matches!(
+                        &fact.proposition,
+                        Proposition::Equal(left, right)
+                            if left.integer_value().is_some() != right.integer_value().is_some()
+                    )
+            })
+            .map(|fact| fact.proof.clone())
+            .collect();
+        for equality in equalities {
+            orders.extend(weaken(equality.clone()));
+            orders.extend(flip(equality).and_then(weaken));
+        }
         if let Some(refuted) = orders
             .into_iter()
             .find_map(|known| self.refute(known, goal))
@@ -698,9 +904,14 @@ impl<'a> Prover<'a> {
                 }
                 self.arithmetic(left, right)
             }
+            // Between mathematical integers only the order `<=` has bound
+            // rules. An equality or a strict order holds here when its two
+            // sides are closed, which the kernel evaluates; over values
+            // fixed to literals `by_transport` reaches the same evaluation.
+            Proposition::IntegerMathEqual(..) | Proposition::IntegerMathLessThan(..) => self
+                .closed(goal.clone())
+                .ok_or("mathematical equality or strict order over open terms"),
             Proposition::Atom(_)
-            | Proposition::IntegerMathEqual(..)
-            | Proposition::IntegerMathLessThan(..)
             | Proposition::IeeeFloatComparison { .. }
             | Proposition::ScalarIeeeFloatComparison { .. }
             | Proposition::ByteSequenceEqual { .. }
@@ -950,29 +1161,6 @@ impl<'a> Prover<'a> {
         }
     }
 
-    /// The tightest literal bounds this prover can prove on an integer
-    /// `value`, lower then upper, leaving out a bound that is only its
-    /// carrier's. Each is found with the proof that a goal stating it would
-    /// get, so a caller may state either as a goal here and have it proved.
-    pub(crate) fn literal_bounds(
-        &mut self,
-        value: ValueId,
-    ) -> (Option<IntegerValue>, Option<IntegerValue>) {
-        let Some(ScalarType::Integer(integer)) = self.values.get(value).map(|row| row.scalar_type)
-        else {
-            return (None, None);
-        };
-        let lower = self
-            .bound(value, Direction::Lower)
-            .map(|bound| bound.literal)
-            .filter(|literal| *literal != integer.minimum_value());
-        let upper = self
-            .bound(value, Direction::Upper)
-            .map(|bound| bound.literal)
-            .filter(|literal| *literal != integer.maximum_value());
-        (lower, upper)
-    }
-
     /// The best bound on `value` in `direction`, memoized for this goal set.
     fn bound(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
         let slot = self
@@ -1153,7 +1341,9 @@ impl<'a> Prover<'a> {
                     .then(|| self.quotient_at_most_dividend(axiom, subject, expression))
                     .flatten()
                     .and_then(|(dividend, relation)| self.through(relation, &dividend, direction));
-                [defined, below, within, quotient]
+                // A remainder by a divisor its own bounds fix to a literal.
+                let fixed = self.remainder_by_fixed_divisor(axiom, subject, expression, direction);
+                [defined, below, within, quotient, fixed]
                     .into_iter()
                     .flatten()
                     .reduce(|best, next| {

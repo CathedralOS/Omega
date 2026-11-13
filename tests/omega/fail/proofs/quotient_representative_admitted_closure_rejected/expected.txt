@@ -1,1 +1,0 @@
-inline member `ObservationRoute::observe` requires a checked body or an admitted external realization

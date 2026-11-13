@@ -1,1 +1,0 @@
-uncovered Trap crash in machine `accumulate` state `entry` terminal expression: Trapping `+` of `total as u8` and `step as u8` in `u8`

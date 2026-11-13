@@ -1,4 +1,0 @@
-// Direct identity retains its relevant Type sort without an explicit squash.
-let identity_as_strict<A: core::Type<0>>(left: A, right: A): core::Strict<0> =
-    core::Identity<A>(left, right);
-machine main() { }

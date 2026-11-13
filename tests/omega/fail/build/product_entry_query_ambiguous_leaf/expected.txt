@@ -1,1 +1,0 @@
-product entry `launch` is ambiguous: more than one visible declaration is compatible with slot `windows_x86_64::ProgramEntry`

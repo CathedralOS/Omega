@@ -1,1 +1,0 @@
-cannot apply generic parameter `Box` as a generic constructor

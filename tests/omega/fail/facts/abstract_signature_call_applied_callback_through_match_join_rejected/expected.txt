@@ -1,2 +1,0 @@
-structurally false
-premise(kept)

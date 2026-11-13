@@ -1,1 +1,0 @@
-mutates `y.value` while local borrow `second` is still active

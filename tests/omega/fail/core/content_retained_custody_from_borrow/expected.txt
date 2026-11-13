@@ -1,1 +1,0 @@
-returns content-bearing custody `PendingWrite::Retained` sourced only from borrowed parameter `buffer`

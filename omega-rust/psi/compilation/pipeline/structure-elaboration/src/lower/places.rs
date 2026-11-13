@@ -1,7 +1,7 @@
 /*
 The place family of lowering: structural roots, projections interned on first
 use, the forward write log, record construction, field reads, stores, whole
-copies and locals declared without an initializer. This is where
+copies, affine transfers and local storage homes. This is where
 `MachineTables::places`, `roots` and `writes` are filled, in lockstep with
 the Terminal Psi operations that create or change the storage.
 
@@ -9,10 +9,13 @@ Roots. One Terminal `PlaceId` and one `PlaceRow { origin: Root }` per record
 formal, per operation that produces storage (a literal, a whole copy, a call
 with a record result, the home of a local declared without an initializer)
 and for a record machine's result place; `roots` maps the `PlaceId` to its
-row. A record local has no place of its own: its slot holds the root its
-initializer, or the last whole value assigned to it, produced.
-ownership.md: "Parameter, named-local, and call-result roots retain distinct
-establishment identities."
+row. An affine named local reserves a distinct home and receives its
+initializer through a checked whole store. A continuing transfer retains
+an explicit continuation even when whole transport consumed its source home.
+Projected moves leave a home whose residuals and retirement belong to its
+normal continuation. A copy local can
+retain its initializer's unrestricted root. ownership.md: "Parameter,
+named-local, and call-result roots retain distinct establishment identities."
 
 Projections. `r.a` is the row `(r, Segment::Field(a))`, found by binary
 search of the parent's sorted `children` and pushed only when absent, so a
@@ -109,9 +112,14 @@ pub(crate) struct Declared<'a> {
 
 /// The Terminal Psi declarations of the record types, in identity order.
 ///
-/// Copyability follows the declaration's multiplicity. These plain records
-/// have no nominal hook or conserved claim, so represented contents need no
-/// executable disposal; affine values still retain their move/discard custody.
+/// Copy permission follows the declaration; affine plain data is never
+/// promoted to copyable because its fields happen to be scalars.
+/// `no_code_affine_cleanup`
+/// because its "represented owned contents require no executable disposal"
+/// and `descriptor_cleanup` because it is "a closed value containing only
+/// owned storage and reference descriptors, with no nominal cleanup hook or
+/// conserved claim" (`wiki/spec/terminal-psi/structural_access.md`); it owns
+/// no linear claim and authors no layout.
 ///
 /// A scalar local declared without an initializer is homed in a place of
 /// primitive structural type, so each scalar type such a local has is
@@ -129,13 +137,6 @@ pub(crate) fn declare<'a, 'b>(
     let mut native_layouts = NativeLayoutCatalog::default();
     let mut payload_identities = IdTable::default();
     for (id, record) in types.iter() {
-        if record.multiplicity == StructuralMultiplicity::Linear {
-            return Err(refuse(
-                entry,
-                Construct::Machine,
-                Unserved::Type("linear record claims"),
-            ));
-        }
         let mut declare_fields = |declared: &[RecordField]| {
             let mut indexes = Vec::with_capacity(declared.len());
             let mut fields = Vec::with_capacity(declared.len());
@@ -151,7 +152,9 @@ pub(crate) fn declare<'a, 'b>(
                             Unserved::Type("generic data"),
                         ));
                     }
-                    ValueType::Scalar(scalar_type) => StructuralFieldType::Scalar(scalar_type),
+                    ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
+                        StructuralFieldType::Scalar(scalar_type)
+                    }
                     ValueType::Record(nested) => {
                         // A data type holds only types declared before it,
                         // so the table is acyclic and in dependency order.
@@ -232,7 +235,7 @@ pub(crate) fn declare<'a, 'b>(
             id,
             identity: identities.intern(&record.identity),
             owns_linear_claim: false,
-            copyable: record.multiplicity == StructuralMultiplicity::Unrestricted,
+            copyable: record.copyable,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
             shape,
@@ -246,7 +249,7 @@ pub(crate) fn declare<'a, 'b>(
     let mut homes: Vec<(ScalarType, Option<&String>)> = Vec::new();
     for signature in signatures {
         for borrowed in &signature.borrowed {
-            if let Some(ValueType::Scalar(scalar_type)) =
+            if let Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
                 signature.parameters.get(borrowed.position).copied()
             {
                 homes.push((scalar_type, borrowed.home.as_ref()));
@@ -259,7 +262,9 @@ pub(crate) fn declare<'a, 'b>(
             let Statement::Declare { slot, home, .. } = statement else {
                 continue;
             };
-            let Some(ValueType::Scalar(scalar_type)) = body.slots.get(*slot).copied() else {
+            let Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
+                body.slots.get(*slot).copied()
+            else {
                 continue;
             };
             homes.push((scalar_type, home.as_ref()));
@@ -363,7 +368,11 @@ fn expression_homes<'b>(
         | ExpressionKind::MachineValue { .. }
         | ExpressionKind::Slot(_) => {}
         ExpressionKind::Borrow { place, home, .. } => {
-            if let (Some(home), Some(ValueType::Scalar(scalar_type))) = (home, place.result) {
+            if let (
+                Some(home),
+                Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)),
+            ) = (home, place.result)
+            {
                 homes.push((scalar_type, Some(home)));
             }
             expression_homes(place, homes);
@@ -371,6 +380,7 @@ fn expression_homes<'b>(
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
+        | ExpressionKind::Requalify(operand)
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -426,9 +436,6 @@ impl Records<'_> {
         record: StructuralTypeId,
         machine: MachineId,
     ) -> Checked<StructuralMultiplicity> {
-        if let Some(record) = self.types.get(record) {
-            return Ok(record.multiplicity);
-        }
         if self
             .primitives
             .iter()
@@ -436,14 +443,13 @@ impl Records<'_> {
         {
             return Ok(StructuralMultiplicity::Unrestricted);
         }
-        Err(Refusal {
-            reason: RefusalReason::ForeignIdentity,
-            machine,
-            concerns: Construct::Machine,
-            detail: String::from("a structural place has no declared multiplicity"),
+        let record = terminal_check_tables::row(self.types, record, machine, Construct::Machine)?;
+        Ok(if record.copyable {
+            StructuralMultiplicity::Unrestricted
+        } else {
+            StructuralMultiplicity::Affine
         })
     }
-
     /// The primitive structural type `declare` declared for `scalar_type`.
     pub(super) fn primitive(
         &self,
@@ -549,7 +555,7 @@ enum Operand {
     Record(PlaceId),
 }
 
-fn structural_result(
+fn owned_result(
     place: PlaceId,
     record: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
@@ -681,7 +687,9 @@ impl<'a> Lowering<'a> {
     fn entry_leaves(&mut self, place: ExactPlaceId, value_type: ValueType) -> Checked<()> {
         match value_type {
             ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
-            ValueType::Scalar(scalar_type) => self.entry_content(place, scalar_type).map(drop),
+            ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
+                self.entry_content(place, scalar_type).map(drop)
+            }
             ValueType::Record(record) => {
                 let data = self.record_type(record)?;
                 for field in &data.fields {
@@ -787,7 +795,7 @@ impl<'a> Lowering<'a> {
         let multiplicity = self.records.multiplicity(record, self.id)?;
         self.draft()?.operations.push(Operation::unsuspended(
             operation,
-            OperationResult::Structural(structural_result(place, record, multiplicity)),
+            OperationResult::Structural(owned_result(place, record, multiplicity)),
             kind,
         ));
         self.point = Some(ProgramPoint::AfterOperation(operation));
@@ -895,6 +903,7 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
             | ExpressionKind::Cast(_)
+            | ExpressionKind::Requalify(_)
             | ExpressionKind::ShortCircuit { .. } => {
                 Err(self.internal("a scalar operation has a record type"))
             }
@@ -906,51 +915,104 @@ impl<'a> Lowering<'a> {
 
     /// Evaluates a record-typed expression to a root that holds its value
     /// and that nothing else names. A literal or call is its own fresh root;
-    /// an unrestricted value is copied, and an affine whole value transfers
-    /// its custody. Passing or returning a value uses that same operation.
+    /// a slot or member path is copied only with declared copy permission.
+    /// Otherwise `MoveStructuralValue` vacates exactly that region; its
+    /// continuation owns any remaining cleanup and home retirement.
     pub(super) fn record(&mut self, expression: &Expression) -> Checked<PlaceId> {
         let at = self.located(expression)?;
         if at.fresh && at.path.is_empty() {
             return Ok(at.root);
         }
         let path = self.storage_path(&at.path)?;
+        let moving = !self.record_type(at.record)?.copyable;
+        if moving && self.borrowed_roots.contains(&at.root) {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Expression("owned extraction from borrowed storage"),
+            ));
+        }
         self.name_entry(at.root, at.place, ValueType::Record(at.record))?;
-        let multiplicity = self.record_type(at.record)?.multiplicity;
-        let kind = match multiplicity {
-            StructuralMultiplicity::Unrestricted => OperationKind::StructuralLeafCopy {
-                source: at.root,
-                path,
-            },
-            StructuralMultiplicity::Affine if path.is_empty() => {
-                OperationKind::MoveStructuralValue {
-                    source: StructuralArgument::whole(at.root, StructuralAccess::Owned),
-                }
-            }
-            StructuralMultiplicity::Affine => {
-                return Err(refuse(
-                    self.id,
-                    Construct::Machine,
-                    Unserved::Type("partial affine extraction"),
-                ));
-            }
-            StructuralMultiplicity::Linear => {
-                return Err(refuse(
-                    self.id,
-                    Construct::Machine,
-                    Unserved::Type("linear record claims"),
-                ));
-            }
-        };
         let operation = self.operation_identity(expression.source);
-        let (root, exact) = self.produce(operation, at.record, kind)?;
-        // Value transport retains its exact source relationship in the
-        // operation; this row records the destination's new contents.
+        let (root, exact) = self.produce(
+            operation,
+            at.record,
+            if moving {
+                OperationKind::MoveStructuralValue {
+                    source: StructuralArgument {
+                        place: at.root,
+                        path,
+                        access: StructuralAccess::Owned,
+                    },
+                }
+            } else {
+                OperationKind::StructuralLeafCopy {
+                    source: at.root,
+                    path,
+                }
+            },
+        )?;
+        // The copy's source is the operation's own `source` and `path`; the
+        // row says only that the fresh root has new contents.
         self.write(
             exact,
             ProgramPoint::AfterOperation(operation),
             Content::Overwritten,
         )?;
+        if moving {
+            self.write(
+                at.place,
+                ProgramPoint::AfterOperation(operation),
+                Content::Vacated,
+            )?;
+            if at.path.is_empty() {
+                self.retire_homes(&[], expression.source)?;
+            }
+        }
         Ok(root)
+    }
+
+    /// A named affine local has its own home: the initializer transfers into
+    /// it rather than becoming another name for a call result or parameter.
+    /// Capture all operands before the continuation can dispose the previous
+    /// binding. The admitted plain slice stores no persistent reference
+    /// descriptors, so rebinding has no retained loan of the previous home.
+    pub(super) fn bind_record(&mut self, expression: &Expression) -> Checked<PlaceId> {
+        let Some(ValueType::Record(record)) = expression.result else {
+            return Err(self.internal("a scalar initializer is used as a record"));
+        };
+        let value = self.record(expression)?;
+        if self.record_type(record)?.copyable {
+            return Ok(value);
+        }
+        self.retire_homes(&[], expression.source)?;
+        let reserve = self.operation_identity(expression.source);
+        let (home, exact) =
+            self.produce(reserve, record, OperationKind::EstablishStructuralLocal {})?;
+        self.write(
+            exact,
+            ProgramPoint::AfterOperation(reserve),
+            Content::Vacated,
+        )?;
+        let store = self.operation_identity(expression.source);
+        self.emit(
+            store,
+            None,
+            OperationKind::StoreStructuralField {
+                disposition: StructuralStoreDisposition::Vacant,
+                destination: home,
+                path: Vec::new(),
+                field: None,
+                value: StructuralArgument::whole(value, StructuralAccess::Owned),
+            },
+        )?;
+        self.write(
+            exact,
+            ProgramPoint::AfterOperation(store),
+            Content::Overwritten,
+        )?;
+        self.retire_homes(&[value], expression.source)?;
+        Ok(home)
     }
 
     /// The place a loan lends, as the call passes it: the lent place's root
@@ -977,7 +1039,10 @@ impl<'a> Lowering<'a> {
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
         let (root, steps, exact) = match (&place.kind, value_type) {
-            (ExpressionKind::Slot(slot), ValueType::Scalar(scalar_type)) => {
+            (
+                ExpressionKind::Slot(slot),
+                ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _),
+            ) => {
                 let bound = *self.slot_mut(*slot)?;
                 let home = match bound {
                     Some(Bound::Home(home)) => home,
@@ -997,7 +1062,10 @@ impl<'a> Lowering<'a> {
                 };
                 (home, Vec::new(), self.exact_root(home)?)
             }
-            (ExpressionKind::Field { base, field }, ValueType::Scalar(_)) => {
+            (
+                ExpressionKind::Field { base, field },
+                ValueType::Scalar(_) | ValueType::Qualified(..),
+            ) => {
                 let at = self.located(base)?;
                 let step = Step::Field {
                     owner: at.record,
@@ -1084,7 +1152,9 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("a literal names a field past its record"))?;
             let evaluated = match field.value_type {
                 ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(_) => Operand::Scalar(self.scalar(operand)?),
+                ValueType::Scalar(_) | ValueType::Qualified(..) => {
+                    Operand::Scalar(self.scalar(operand)?)
+                }
                 ValueType::Record(_) => Operand::Record(self.record(operand)?),
             };
             if operands[*position].replace(evaluated).is_some() {
@@ -1160,7 +1230,9 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("a literal names a field past its case"))?;
             let evaluated = match field.value_type {
                 ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(_) => Operand::Scalar(self.scalar(operand)?),
+                ValueType::Scalar(_) | ValueType::Qualified(..) => {
+                    Operand::Scalar(self.scalar(operand)?)
+                }
                 ValueType::Record(_) => Operand::Record(self.record(operand)?),
             };
             if operands[*position].replace(evaluated).is_some() {
@@ -1281,7 +1353,7 @@ impl<'a> Lowering<'a> {
             for field in &selected.fields {
                 parameters.push(match field.value_type {
                     ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                    ValueType::Scalar(scalar_type) => {
+                    ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
                         let value = self.value(
                             scalar_type,
                             ValueOrigin::BlockParameter {
@@ -1565,7 +1637,7 @@ impl<'a> Lowering<'a> {
                 }
                 Bound::Record(root)
             }
-            ValueType::Scalar(scalar_type) => {
+            ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
                 let home = self
                     .records
                     .primitives
@@ -1692,7 +1764,7 @@ impl<'a> Lowering<'a> {
             place = self.step(place, step)?;
             record = match declared.value_type {
                 ValueType::Record(nested) => nested,
-                ValueType::Scalar(_) | ValueType::Rigid(_) => {
+                ValueType::Scalar(_) | ValueType::Qualified(..) | ValueType::Rigid(_) => {
                     return Err(self.internal("a store path crosses a scalar field"));
                 }
             };
@@ -1718,7 +1790,7 @@ impl<'a> Lowering<'a> {
         }
         match declared.value_type {
             ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
-            ValueType::Scalar(_) => {
+            ValueType::Scalar(_) | ValueType::Qualified(..) => {
                 let stored = self.scalar(value)?;
                 let operation = self.operation_identity(source);
                 self.owe_domains(operation, owed, source)?;
@@ -1747,7 +1819,7 @@ impl<'a> Lowering<'a> {
                     operation,
                     None,
                     OperationKind::StoreStructuralField {
-                        disposition: StructuralStoreDisposition::Vacant,
+                        disposition: StructuralStoreDisposition::ReplaceDiscardable,
                         destination: root,
                         path: storage,
                         field: Some(declared.id),
@@ -1818,7 +1890,7 @@ impl<'a> Lowering<'a> {
             prefix.push(Segment::Field(field.id));
             match field.value_type {
                 ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(scalar_type) => {
+                ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _) => {
                     let zero = self.zero(scalar_type, source)?;
                     zeros.push((prefix.clone(), zero));
                 }
@@ -1855,8 +1927,10 @@ impl<'a> Lowering<'a> {
         Ok(())
     }
 
-    /// Ends the block after a call that consumed record arguments and
-    /// retires their homes on the edge into its continuation. ownership.md:
+    /// Retains a normal continuation after record argument staging. Copy
+    /// temporaries still need explicit retirement; the ownership plan replaces
+    /// affine actions, omitting a second retirement when whole transport has
+    /// already consumed the source home. ownership.md:
     /// "A dying temporary's normal continuation owns its remaining cleanup.
     /// ... a continuing body uses an explicit continuation edge." and "The
     /// checked dying-owner partition publishes `RetireHome` after its

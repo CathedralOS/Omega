@@ -1,1 +1,0 @@
-constant predicate is false under the selected target realization

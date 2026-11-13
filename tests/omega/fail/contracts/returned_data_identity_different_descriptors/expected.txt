@@ -1,3 +1,0 @@
-cannot prove ensures contract
-replace_buffer
-core::Identity<<structural type>>(result, incoming)

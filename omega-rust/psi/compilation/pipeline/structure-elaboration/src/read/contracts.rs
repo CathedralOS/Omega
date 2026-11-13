@@ -6,11 +6,12 @@ with `self` and its fields as the names in scope (`ClauseScope::subject`).
 */
 
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, MachineId, PlaceId, Proposition, ScalarTerm, ScalarType,
-    StructuralCaseSubject, StructuralTypeId, ValueId,
+    CanonicalStructuralPathSegment, IntegerMathLiteral, IntegerMathTerm, MachineId, PlaceId,
+    Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralTypeId, ValueId,
 };
 use symbols::SymbolHandle;
 use terminal_check_tables::{Checked, Construct};
+use typed_trees::closed_numeric;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
@@ -47,8 +48,27 @@ pub(super) struct ClauseScope<'s> {
     /// formal's place, about what that place holds at entry
     /// (fact_validity.md: "Entry hypotheses bind exact invocation formals
     /// or structural entry paths"). A crash route guard and an `ensures`
-    /// clause may not, yet.
+    /// clause may not, yet. The slice that lets them must settle what a
+    /// field of a `mut` record formal means there first: the body stores
+    /// into that formal's own place, so the place no longer holds what the
+    /// caller passed.
     pub(super) formal_fields: bool,
+    /// Whether a comparison in this clause may be between mathematical
+    /// integers (`embed(a) + embed(b) <= 99`).
+    pub(super) mathematical: MathematicalTerms,
+}
+
+/// Whether a clause may compare mathematical integers. A machine's
+/// `requires` and `ensures` may: the checker states either over a call's or
+/// a return's values by the one substitution it has for every clause. A
+/// crash route guard and a data `requires` may not yet, because each is
+/// restated by a substitution of its own that knows only scalar comparisons
+/// (`canonical::substitute`, and the checker's data-domain goal).
+#[derive(Clone, Copy)]
+pub(super) enum MathematicalTerms {
+    Served,
+    /// The refusal that names the clause kind.
+    Refused(&'static str),
 }
 
 /// The value a data declaration's `requires` is about.
@@ -68,6 +88,12 @@ pub(super) enum ResultTerm {
     Named(ValueId, ScalarType),
     /// Why this clause cannot name `result`.
     Absent(&'static str),
+}
+
+/// The mathematical integer `magnitude`, negated when `negative`; zero has
+/// no sign (`IntegerMathLiteral::new` refuses a negative zero).
+fn mathematical_literal(negative: bool, magnitude: u64) -> Option<IntegerMathLiteral> {
+    IntegerMathLiteral::new(negative && magnitude != 0, u128::from(magnitude)).ok()
 }
 
 /// The place of the formal in `slot`: lowering mints the formals that are
@@ -245,6 +271,11 @@ impl Program<'_> {
             | BinaryOperator::BitwiseXor => return unserved("arithmetic clause"),
             BinaryOperator::CaseMembership => return unserved("case membership"),
         };
+        // A comparison with an `embed` on either side is between
+        // mathematical integers, which no carrier bounds.
+        if self.mathematical(binary.left) || self.mathematical(binary.right) {
+            return self.mathematical_comparison(id, scope, comparison, binary.left, binary.right);
+        }
         // A wholly anonymous operand lands in its partner's type.
         let ((left, left_type), (right, right_type)) = if self.wholly_anonymous(binary.left) {
             let right = self.term(id, scope, binary.right, None)?;
@@ -322,6 +353,16 @@ impl Program<'_> {
                 self.write_clause_text(slots, member.receiver, text);
                 text.push_text(&language_core::PLACE_MEMBER_SEPARATOR.to_string());
                 text.push_text(member.member.as_str());
+            }
+            // `embed(rest)`: the formal inside stays open, so a call's
+            // statement of the clause names its own argument there.
+            ExpressionNode::Call(call) if self.embeds(call) => {
+                text.push_text(call.target.as_str());
+                text.push_text("(");
+                for argument in table.expression_handles(call.arguments) {
+                    self.write_clause_text(slots, *argument, text);
+                }
+                text.push_text(")");
             }
             ExpressionNode::Name(path)
                 if path.symbol.is_valid()
@@ -432,11 +473,26 @@ impl Program<'_> {
                 }
                 // A record formal is a place, not a value: a clause can only
                 // project it, which the member arm below refuses.
-                let ValueType::Scalar(scalar_type) = scope.slots[slot].value_type else {
+                // A policy-qualified formal is named as its stored value: a
+                // comparison of it compares that value whatever the policy.
+                let (ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) =
+                    scope.slots[slot].value_type
+                else {
                     return unserved("record formal named whole in a clause");
                 };
                 if matches!(scalar_type, ScalarType::Callable(_)) {
                     return unserved("callable value in a clause");
+                }
+                // A `mut` formal names two things by the end of the body:
+                // the argument the caller passed and whatever the body
+                // last assigned. An entry `requires` can only mean the
+                // first. Which one a guarantee or a crash route guard
+                // means the specification does not say
+                // (`OWNER_QUESTIONS.md`, decision
+                // `mutable-parameter-contract-name`), so such a clause is
+                // refused rather than read as either.
+                if scope.slots[slot].assignable && !scope.formal_fields {
+                    return unserved("clause that names a mutable parameter outside requires");
                 }
                 let value = scope.values.get(slot).copied().flatten().ok_or_else(|| {
                     refuse(
@@ -490,7 +546,226 @@ impl Program<'_> {
             ExpressionNode::Boolean(value) => {
                 Ok((ScalarTerm::Boolean(*value), ScalarType::Boolean))
             }
-            _ => unserved("term other than a formal or literal"),
+            // Carrier arithmetic computes, so it owes its formation
+            // condition before the clause can use it (contracts.md, "Total
+            // arithmetic": "Exact operations discharge representability
+            // before formation", and a suffixed operator "whose selected
+            // meaning can transfer control cannot form a proof term"). No
+            // slice states that obligation yet.
+            ExpressionNode::Binary(binary)
+                if binary.policy == numerics::arithmetic::ArithmeticDomain::Exact =>
+            {
+                unserved("carrier arithmetic in a clause term")
+            }
+            ExpressionNode::Binary(_) => unserved("policy operator in a clause term"),
+            ExpressionNode::Cast(_) => unserved("cast in a clause term"),
+            // An `embed` is a mathematical integer, which only a
+            // mathematical comparison holds (`mathematical_term`).
+            ExpressionNode::Call(call) if self.embeds(call) => {
+                unserved("embed outside a mathematical comparison")
+            }
+            ExpressionNode::Call(_) => unserved("call in a clause term"),
+            _ => unserved("term other than a formal, a literal or an embedded integer"),
+        }
+    }
+
+    /// Whether `call` is the builtin integer embedding applied to one value:
+    /// decided by the symbol stage 02 resolved the callee to, never by its
+    /// spelling, so a machine a program names `embed` is not one.
+    fn embeds(&self, call: &typed_trees::expression::TableCallExpression) -> bool {
+        !call.receiver.is_valid()
+            && call.machine_arguments.is_empty()
+            && call.evidence_arguments.is_empty()
+            && call.target_symbol.is_valid()
+            && self
+                .typed
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                == Some(symbols::BuiltinFunction::IntegerEmbed)
+    }
+
+    /// Whether `expression` holds an `embed` beneath binary operators only:
+    /// what makes the comparison it stands in one between mathematical
+    /// integers. An `embed` inside a call's or a cast's operand does not; that
+    /// operand is the call's or the cast's to read.
+    fn mathematical(&self, expression: ExpressionHandle) -> bool {
+        let table = &self.typed.expression_table;
+        let mut pending = vec![expression];
+        while let Some(expression) = pending.pop() {
+            if !expression.is_valid() {
+                continue;
+            }
+            match table.expression(expression) {
+                ExpressionNode::Call(call) if self.embeds(call) => return true,
+                ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
+                _ => {}
+            }
+        }
+        false
+    }
+
+    /// A comparison between mathematical integers, as the proposition
+    /// Terminal Psi keeps for one (`IntegerMathEqual`, `IntegerMathLessThan`,
+    /// `IntegerMathLessOrEqual`). `>` and `>=` are the same order read from
+    /// the other side, and `!=` is `a < b or b < a`, as for carrier integers.
+    fn mathematical_comparison(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        comparison: BinaryOperator,
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+    ) -> Checked<Proposition> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        if let MathematicalTerms::Refused(why) = scope.mathematical {
+            return unserved(why);
+        }
+        let left = self.mathematical_term(id, scope, left)?;
+        let right = self.mathematical_term(id, scope, right)?;
+        match comparison {
+            // The codec holds an equality's operands in the vocabulary's
+            // order (`validate_canonical_proposition`).
+            BinaryOperator::Equal if left <= right => {
+                Ok(Proposition::IntegerMathEqual(left, right))
+            }
+            BinaryOperator::Equal => Ok(Proposition::IntegerMathEqual(right, left)),
+            BinaryOperator::Less => Ok(Proposition::IntegerMathLessThan(left, right)),
+            BinaryOperator::LessOrEqual => Ok(Proposition::IntegerMathLessOrEqual(left, right)),
+            BinaryOperator::Greater => Ok(Proposition::IntegerMathLessThan(right, left)),
+            BinaryOperator::GreaterOrEqual => Ok(Proposition::IntegerMathLessOrEqual(right, left)),
+            BinaryOperator::NotEqual => canonical::clauses(
+                vec![
+                    Proposition::IntegerMathLessThan(left.clone(), right.clone()),
+                    Proposition::IntegerMathLessThan(right, left),
+                ],
+                Repeated::Refuse,
+                id,
+            )
+            .map(Proposition::Disjunction),
+            _ => unserved("comparison"),
+        }
+    }
+
+    /// One side of a comparison between mathematical integers: `embed` of a
+    /// term this reader serves, an anonymous integer, or `+`, `-` and `*` of
+    /// those.
+    ///
+    /// contracts.md, "Mathematical values and quantification": "Runtime
+    /// integer/address values enter mathematical integer arithmetic through
+    /// the total `embed` projection, retaining exact carrier range."
+    /// mathematical_values.md, "Integer terms": "These terms denote
+    /// unbounded mathematical integers and cannot overflow." So nothing here
+    /// computes in a carrier and no term owes a formation condition, which is
+    /// what tells this from carrier arithmetic in a clause (`term`).
+    ///
+    /// What `embed` is applied to is read by `term`, so it is whatever a
+    /// clause of this kind may name: a formal, a field of a record formal in
+    /// an entry `requires`, `result` in an `ensures`, a bound value
+    /// parameter or a typed literal. The embedding keeps that term's carrier
+    /// (`IntegerMathTerm::embed`).
+    ///
+    /// Refused by name: `/` and `%`, whose mathematical meaning is rational
+    /// division or a named quotient and remainder (contracts.md: "Its result
+    /// is always `Rat`"); shifts and bitwise operators; a suffixed operator;
+    /// a call other than `embed`; a cast; and a runtime value or typed
+    /// literal that is not embedded, since no promotion of one into the
+    /// mathematical integers is implied.
+    fn mathematical_term(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<IntegerMathTerm> {
+        let typed = self.typed;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        if !expression.is_valid() {
+            return unserved("missing term");
+        }
+        match typed.expression_table.expression(expression) {
+            ExpressionNode::Call(call) if self.embeds(call) => {
+                let [argument] = typed.expression_table.expression_handles(call.arguments) else {
+                    return unserved("embed of other than one value");
+                };
+                let (term, _) = self.term(id, scope, *argument, None)?;
+                match IntegerMathTerm::embed(term) {
+                    Some(embedded) => Ok(embedded),
+                    None => unserved("embed of a value that is not an integer"),
+                }
+            }
+            ExpressionNode::Call(_) => unserved("call in a mathematical term"),
+            ExpressionNode::Integer(literal) if literal.landing().is_none() => {
+                let magnitude = if literal.is_negative() {
+                    literal.value_i64().map(i64::unsigned_abs)
+                } else {
+                    literal.value_u64()
+                };
+                let literal = magnitude
+                    .and_then(|magnitude| mathematical_literal(literal.is_negative(), magnitude));
+                match literal {
+                    Some(literal) => Ok(IntegerMathTerm::IntegerLiteral(literal)),
+                    None => unserved("mathematical literal beyond 64 bits"),
+                }
+            }
+            ExpressionNode::Integer(_) => {
+                unserved("typed literal in a mathematical term without embed")
+            }
+            // numeric_values.md: wholly anonymous arithmetic is exact, and
+            // contracts.md: "An anonymous integral final value can land in
+            // mathematical `Int` or `Nat` without fractional-history
+            // acknowledgment". So `(7 / 2) * 2` is the integer 7 here, where
+            // a carrier landing would need an `as`.
+            ExpressionNode::Binary(_) if self.wholly_anonymous(expression) => {
+                let evaluated = closed_numeric::evaluate_anonymous_value::<true>(
+                    typed,
+                    expression,
+                    &[],
+                    &mut |expression| {
+                        closed_numeric::has_anonymous_operator_meaning(typed, expression)
+                    },
+                );
+                let Some(evaluated) = evaluated else {
+                    return unserved("anonymous operation without an exact meaning");
+                };
+                let Some(value) = evaluated.value.to_integer_exact() else {
+                    return unserved("fractional anonymous value in a mathematical term");
+                };
+                let literal = match (value.to_u64(), value.to_i64()) {
+                    (Some(magnitude), _) => mathematical_literal(false, magnitude),
+                    (None, Some(negative)) => mathematical_literal(true, negative.unsigned_abs()),
+                    (None, None) => None,
+                };
+                match literal {
+                    Some(literal) => Ok(IntegerMathTerm::IntegerLiteral(literal)),
+                    None => unserved("mathematical literal beyond 64 bits"),
+                }
+            }
+            ExpressionNode::Binary(binary) => {
+                if binary.policy != numerics::arithmetic::ArithmeticDomain::Exact {
+                    return unserved("policy operator in a mathematical term");
+                }
+                let operation: fn(Box<IntegerMathTerm>, Box<IntegerMathTerm>) -> IntegerMathTerm =
+                    match binary.operator {
+                        BinaryOperator::Add => IntegerMathTerm::Add,
+                        BinaryOperator::Subtract => IntegerMathTerm::Subtract,
+                        BinaryOperator::Multiply => IntegerMathTerm::Multiply,
+                        BinaryOperator::Divide | BinaryOperator::Modulo => {
+                            return unserved("mathematical division in a clause");
+                        }
+                        _ => {
+                            return unserved(
+                                "mathematical operator other than add, subtract and multiply",
+                            );
+                        }
+                    };
+                let left = self.mathematical_term(id, scope, binary.left)?;
+                let right = self.mathematical_term(id, scope, binary.right)?;
+                Ok(operation(Box::new(left), Box::new(right)))
+            }
+            ExpressionNode::Cast(_) => unserved("cast in a mathematical term"),
+            ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+                unserved("runtime value in a mathematical term without embed")
+            }
+            _ => unserved("mathematical term other than embed, a literal and arithmetic"),
         }
     }
 
@@ -509,7 +784,8 @@ impl Program<'_> {
         };
         match value_type {
             ValueType::Rigid(_) => unserved("field of a rigid type in a clause"),
-            ValueType::Scalar(ScalarType::Integer(scalar_type)) => Ok((
+            ValueType::Scalar(ScalarType::Integer(scalar_type))
+            | ValueType::Qualified(ScalarType::Integer(scalar_type), _) => Ok((
                 ScalarTerm::IntegerField {
                     root,
                     path,
@@ -521,7 +797,14 @@ impl Program<'_> {
                 Ok((ScalarTerm::BooleanField { root, path }, ScalarType::Boolean))
             }
             ValueType::Scalar(ScalarType::IeeeFloat(_)) => unserved("float field in a clause"),
-            ValueType::Scalar(ScalarType::Callable(_)) => unserved("callable field in a clause"),
+            ValueType::Scalar(ScalarType::Callable(_))
+            | ValueType::Qualified(ScalarType::Callable(_), _) => {
+                unserved("callable field in a clause")
+            }
+            // A policy is carried by an integer only (`qualified_type`).
+            ValueType::Qualified(ScalarType::Boolean | ScalarType::IeeeFloat(_), _) => {
+                unserved("policy-qualified field that is not an integer")
+            }
             ValueType::Record(_) => unserved("data value compared whole in a clause"),
         }
     }

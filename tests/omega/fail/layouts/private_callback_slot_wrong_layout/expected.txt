@@ -1,1 +1,0 @@
-for a different exact fixed-layout implementation application

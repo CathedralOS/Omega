@@ -1,2 +1,0 @@
-cannot prove automatic cleanup requires
-drop_receipt clause `receipt.code == 7`

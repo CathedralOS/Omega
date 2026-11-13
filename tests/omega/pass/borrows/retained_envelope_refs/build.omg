@@ -1,5 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "retained_envelope_refs");
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-}

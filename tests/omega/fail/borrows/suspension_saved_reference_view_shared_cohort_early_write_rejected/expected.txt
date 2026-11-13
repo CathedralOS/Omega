@@ -1,2 +1,0 @@
-mutates `parent[0]`
-while local borrow `sibling` is still active

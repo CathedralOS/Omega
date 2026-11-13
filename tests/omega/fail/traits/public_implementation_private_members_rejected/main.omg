@@ -1,9 +1,0 @@
-use support::main;
-machine invoke<machine Reader>(value: u64) -> u64
-requires machine Reader satisfies Reading<1u64>::read;
-{ Reader(value) }
-machine main() -> u64 {
-    let private_implementation: u64 = invoke<Hidden::read>(20u64);
-    let private_callee: u64 = private_helper(30u64);
-    private_implementation ^ private_callee
-}

@@ -1,2 +1,0 @@
-reading `packet.<whole value>` crosses an open default-domain invariant window before data `Packet` is established
-the zeroed representation is not yet a `Packet`

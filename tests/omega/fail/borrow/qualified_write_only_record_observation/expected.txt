@@ -1,2 +1,0 @@
-reads field `value` from write-only parameter `cell`
-write-only projection never grants observation

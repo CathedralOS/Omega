@@ -1,5 +1,0 @@
-// An issued required-output path survives ordinary byte-view transport, so Build seals that exact reserved member and selects the product from its observed bytes.
-// Place: match_join
-// Expected exit: 0
-machine main() {}
-machine wrong_entry() crashes Trap { crash Trap; }

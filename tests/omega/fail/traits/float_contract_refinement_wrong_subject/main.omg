@@ -1,3 +1,0 @@
-trait Fraction { machine get(value: f64) -> f64 requires value >= 0.25 ensures result >= 0.0; }
-Quarter satisfies Fraction { machine get(value: f64) -> f64 requires value >= 0.25 ensures value >= 0.25 { 0.25 } }
-machine main() { let selected: dyn Fraction = Quarter as dyn Fraction; let observed: f64 = Fraction::get(selected, 0.25); }

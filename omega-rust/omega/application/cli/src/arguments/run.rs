@@ -9,6 +9,7 @@ use crate::execution::ExecutionSelection;
 
 pub(crate) struct RunArguments {
     pub(crate) selection: ExecutionSelection, // Native unless --engine terminal or --both was named.
+    pub(crate) build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
     pub(crate) psi_work_budget: Option<std::num::NonZeroU64>,
     pub(crate) private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub(crate) keep: bool,
@@ -19,11 +20,12 @@ pub(crate) struct RunArguments {
     pub(crate) main_path: std::path::PathBuf,
 }
 
-pub(super) const USAGE: &str = "usage: omega run [--engine <native|terminal> | --both] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>";
+pub(super) const USAGE: &str = "usage: omega run [--engine <native|terminal> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>";
 
 pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Result<Option<RunArguments>, String> {
+    let mut build_inputs = Vec::new();
     let mut both = false;
     let mut engine = None;
     let mut psi_work_budget = None;
@@ -37,6 +39,9 @@ pub(super) fn parse_arguments(
     let mut main_path = None;
     while let Some(argument) = arguments.next() {
         match argument.to_str() {
+            Some(flag @ ("--build-input" | "--optional-build-input")) => {
+                build_inputs.push(super::parse_build_input(&mut arguments, flag)?);
+            }
             Some("--help" | "-h") => super::set_flag(&mut help, &argument.to_string_lossy())?,
             Some("--offline") => return Err("omega run does not support --offline".into()),
             Some("--both") => super::set_flag(&mut both, "--both")?,
@@ -196,7 +201,15 @@ pub(super) fn parse_arguments(
         return Ok(None);
     }
     let main_path = main_path.ok_or_else(|| "missing root Omega source path".to_owned())?;
+    let build_inputs = if build_inputs.is_empty() {
+        None
+    } else {
+        Some(package_compilation::BuildSourceCaptureRequest::new(
+            build_inputs,
+        )?)
+    };
     Ok(Some(RunArguments {
+        build_inputs,
         private_entry_ram,
         selection,
         psi_work_budget,
@@ -217,6 +230,62 @@ mod tests {
     fn parse(arguments: &[&str]) -> Result<super::RunArguments, String> {
         parse_arguments(arguments.iter().map(std::ffi::OsString::from))?
             .ok_or_else(|| "unexpected --help".to_owned())
+    }
+
+    #[test]
+    fn every_execution_route_retains_the_same_caller_source_inventory() {
+        use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
+        for route in [
+            vec!["--engine", "native"],
+            vec!["--engine", "terminal"],
+            vec!["--both"],
+            vec!["--both", "--input", "case.stdin", "--outputs", "out"],
+        ] {
+            let mut arguments = route;
+            arguments.extend([
+                "--build-input",
+                "main.omg",
+                "--build-input",
+                "build.omg",
+                "--optional-build-input",
+                "settings.txt",
+                "main.omg",
+            ]);
+            let parsed = parse(&arguments).unwrap();
+            let captured = parsed.build_inputs.unwrap();
+            assert_eq!(
+                captured.entries().collect::<Vec<_>>(),
+                [
+                    (b"build.omg".as_slice(), Required),
+                    (b"main.omg".as_slice(), Required),
+                    (b"settings.txt".as_slice(), Optional),
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn run_source_inventory_refuses_missing_duplicate_or_noncanonical_entries() {
+        for arguments in [
+            vec!["main.omg", "--build-input"],
+            vec!["--build-input", "../private.omg", "main.omg"],
+            vec![
+                "--build-input",
+                "main.omg",
+                "--build-input",
+                "main.omg",
+                "main.omg",
+            ],
+            vec![
+                "--build-input",
+                "src",
+                "--build-input",
+                "src/main.omg",
+                "main.omg",
+            ],
+        ] {
+            assert!(parse(&arguments).is_err(), "{arguments:?}");
+        }
     }
 
     #[test]

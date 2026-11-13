@@ -1,2 +1,0 @@
-cannot prove requires contract for call consume from widen_and_consume
-widen_u8_to_u16(value) <= 254

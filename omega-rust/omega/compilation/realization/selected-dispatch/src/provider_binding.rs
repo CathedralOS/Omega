@@ -272,3 +272,58 @@ pub fn prepare_selected_execution(
         resolved_semantic_bindings,
     })
 }
+
+#[cfg(test)]
+mod trust_custody_tests {
+    use super::*;
+
+    // This is the remaining legacy constructor, not an accepted route or a
+    // product factory. Its inventory alias must retain the same source owner.
+    #[test]
+    fn an_equal_program_cannot_supply_another_owners_trust_roster() {
+        let program = Arc::new(checked_trees::CheckedTrees::default());
+        let other = Arc::new(program.as_ref().clone());
+        let inventory = Arc::new(checked_trees::PreparedProviderInventory::new(other, &[]));
+        let declarations = PreparedBindingDeclarations::capture(&program, &inventory, &[]);
+        let errors = declarations.retained_trust_declarations().unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(
+            errors[0].message,
+            "selected provider inventory belongs to another checked program"
+        );
+    }
+
+    #[test]
+    fn selected_declarations_propagate_the_complete_unavailable_trust_error() {
+        let mut symbols = symbols::SymbolTableBuilder::new();
+        let symbol = symbols.insert_root(
+            symbols::SymbolKind::Machine,
+            symbols::SymbolNameRef::Static("Claim"),
+        );
+        let mut typed = checked_trees::typed_trees::TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        typed.push_machine(checked_trees::typed_trees::machine::Machine {
+            symbol,
+            name: "Claim".into(),
+            supply_mode: language_semantics::MachineSupplyMode::AdmissionClaim,
+            ..Default::default()
+        });
+        let program = Arc::new(checked_trees::CheckedTrees::with_roots(
+            typed,
+            checked_trees::CheckFacts::default(),
+        ));
+        let inventory = Arc::new(checked_trees::PreparedProviderInventory::new(
+            Arc::clone(&program),
+            &[],
+        ));
+        let expected = inventory.trust_declarations().unwrap_err();
+        let declarations = PreparedBindingDeclarations::capture(&program, &inventory, &[]);
+        let errors = declarations.retained_trust_declarations().unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].message, expected.message);
+        assert!(errors[0].message.contains("no product route yet"));
+        assert!(errors[0].message.ends_with("Claim"));
+    }
+}

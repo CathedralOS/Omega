@@ -15,7 +15,7 @@ use typed_trees::state::State;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::TypeReferenceNode;
 
-use super::contracts::{ClauseScope, ResultTerm};
+use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
 use super::{Program, Slot, crash_cause, span};
 use crate::body::{
     Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target, Termination,
@@ -410,7 +410,10 @@ impl<'t> Program<'t> {
         //
         // What stays refused is a data type that could give the machine
         // something after all: one applied at type arguments, or a generic
-        // one, whose parameters the body would be read under.
+        // one, whose parameters the body would be read under. Lifetime
+        // parameters of the data type give it nothing either: the machine
+        // is read under no lifetime binder, so a formal that names one of
+        // them is refused where its type is read (`lifetime_application`).
         if machine.attached_data_application.is_valid() {
             return unserved("attached data applied at type arguments");
         }
@@ -418,8 +421,7 @@ impl<'t> Program<'t> {
             let plain = self
                 .data_declaration(machine.attached_data_symbol)
                 .is_some_and(|data| {
-                    data.lifetime_parameters.is_empty()
-                        && data.type_parameters.is_empty()
+                    data.type_parameters.is_empty()
                         && data.generic_instance.is_none()
                         && data.conformance_bounds.is_empty()
                 });
@@ -912,7 +914,10 @@ impl<'t> Program<'t> {
             slots.push(Slot {
                 symbol: formal.symbol,
                 value_type,
-                assignable: false,
+                // What a clause reader needs to know of the binding mode: a
+                // guarantee or a crash route guard may not name a formal
+                // the body can replace (`ClauseScope::formal_fields`).
+                assignable: mutable_formal(formal, access),
                 homed: false,
                 erased: is_erased,
                 borrowed: access,
@@ -962,15 +967,20 @@ impl<'t> Program<'t> {
             result: ResultTerm::Absent("result in an entry clause"),
             subject: None,
             formal_fields: false,
+            mathematical: MathematicalTerms::Refused(
+                "mathematical comparison in a crash route guard",
+            ),
         };
         // Only an entry `requires` may project a record formal.
         let required = ClauseScope {
             formal_fields: true,
+            mathematical: MathematicalTerms::Served,
             ..entry
         };
         let exit = ClauseScope {
             result: match result {
-                Some(ValueType::Scalar(scalar_type)) => {
+                // A policy-qualified result is named as its stored value.
+                Some(ValueType::Scalar(scalar_type) | ValueType::Qualified(scalar_type, _)) => {
                     ResultTerm::Named(result_value, scalar_type)
                 }
                 // A clause over a record result projects it
@@ -980,6 +990,7 @@ impl<'t> Program<'t> {
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
+            mathematical: MathematicalTerms::Served,
             ..entry
         };
         let mut requires = Vec::new();
@@ -1241,9 +1252,15 @@ impl<'t> Program<'t> {
     /// with the reference beside it (`Borrowed`), for a builtin scalar or a
     /// plain record `T`. Stage 01 marks `x: &mut T` mutable for the
     /// reference's exclusivity; that is the reference's access, not a `mut`
-    /// binding. A `mut` formal that holds its own value, a `&write T`
-    /// formal, a reference with a named lifetime and a reference to
-    /// anything else stay refused.
+    /// binding. A `&write T` formal, a reference with a named lifetime and
+    /// a reference to anything else stay refused.
+    ///
+    /// A `mut` formal that holds its own value is read like any other: the
+    /// binding mode says only that the body may assign and store into its
+    /// own copy (`mutable_formal`), so it changes nothing a caller sees.
+    /// Two kinds stay refused by name: an `[erased]` one, which names a
+    /// term and has no storage to assign, and one of a type parameter,
+    /// whose replaced value no slice disposes of yet.
     fn formal(
         &mut self,
         id: MachineId,
@@ -1286,14 +1303,24 @@ impl<'t> Program<'t> {
             language_core::BindingRelevance::Erased => true,
         };
         let Some((referee, access, named_lifetime)) = reference else {
+            let value_type = self.value_type(id, formal.type_reference)?;
             if formal.is_mutable {
+                let unserved =
+                    |what| Err(refuse(id, Construct::Machine, Unserved::Parameter(what)));
+                if erased {
+                    return unserved("mutable erased parameter");
+                }
+                if matches!(value_type, ValueType::Rigid(_)) {
+                    return unserved("mutable parameter of a type parameter");
+                }
+            }
+            if erased && value_type.policy().is_some() {
                 return Err(refuse(
                     id,
                     Construct::Machine,
-                    Unserved::Parameter("mutable parameter"),
+                    Unserved::Parameter("erased parameter of a policy-qualified type"),
                 ));
             }
-            let value_type = self.value_type(id, formal.type_reference)?;
             if erased && value_type.scalar().is_none() {
                 return Err(refuse(
                     id,
@@ -1363,6 +1390,11 @@ impl<'t> Program<'t> {
         }
         let home = match value_type {
             ValueType::Rigid(_) => None,
+            // Its place would be declared with the identity of a primitive
+            // type the lowered form has no row for.
+            ValueType::Qualified(..) => {
+                return unserved("reference to a policy-qualified integer");
+            }
             ValueType::Record(_) => None,
             ValueType::Scalar(_) => Some(
                 Some(self.typed.normalized_type_identity_text(referee))
@@ -1450,22 +1482,35 @@ impl<'t> Program<'t> {
             .collect();
         let mut slots: Vec<Slot> = formals
             .iter()
-            .map(|formal| formal.symbol)
-            .chain(binders.iter().map(|binder| binder.symbol))
+            .map(|formal| (formal.symbol, formal.is_mutable))
+            .chain(binders.iter().map(|binder| (binder.symbol, false)))
             .zip(&signature.parameters)
             .enumerate()
-            .map(|(position, (symbol, value_type))| {
+            .map(|(position, ((symbol, is_mutable), value_type))| {
                 // A borrowed formal names the caller's storage: a scalar
                 // referent is read and stored in place like a home, a record
                 // referent like a record formal's root; `&mut` lets the body
                 // store into it, `&` does not.
+                //
+                // A `mut` formal that holds its own value is the callee's
+                // own storage, initialised from the argument, and is
+                // assigned and stored into as a `mut` local is: a scalar is
+                // rebound to the assigned value, so the formal's entry
+                // value keeps its identity and every entry fact stays a
+                // fact about that value only (fact_validity.md: "Current
+                // body values are not entry snapshots"); a record is stored
+                // into by field in its own parameter place, which holds the
+                // copy the call passed.
                 let borrowed = signature
                     .borrowed(position)
                     .map(|reference| reference.access);
                 Slot {
                     symbol,
                     value_type: *value_type,
-                    assignable: borrowed == Some(language_core::ReferenceAccess::Mutable),
+                    assignable: match borrowed {
+                        Some(access) => access == language_core::ReferenceAccess::Mutable,
+                        None => is_mutable,
+                    },
                     homed: borrowed.is_some() && value_type.scalar().is_some(),
                     erased: signature.is_erased(position),
                     borrowed,
@@ -1798,6 +1843,16 @@ mod input_symbol_uses {
     }
 }
 
+/// Whether a formal is a `mut` binding of its own value. Stage 01 also marks
+/// `x: &mut T` mutable, for the reference's exclusivity; that formal names
+/// the caller's storage and is not a binding the body may replace.
+fn mutable_formal(
+    formal: &StateParameter,
+    borrowed: Option<language_core::ReferenceAccess>,
+) -> bool {
+    formal.is_mutable && borrowed.is_none()
+}
+
 /// Every span of a value expression whose result a binder receives, with
 /// that binder (`MachineNames::bindings`): a whole-value binding receives
 /// its expression into the slot's name, and an arm's value is the return
@@ -1905,7 +1960,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         }
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
-        | ExpressionKind::Cast(operand) => {
+        | ExpressionKind::Cast(operand)
+        | ExpressionKind::Requalify(operand) => {
             spans(operand, binder, out);
         }
         ExpressionKind::Call { callee, arguments } => {
@@ -2043,7 +2099,8 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
-        | ExpressionKind::Cast(operand) => {
+        | ExpressionKind::Cast(operand)
+        | ExpressionKind::Requalify(operand) => {
             expression_slot_uses(operand, uses);
         }
         ExpressionKind::Call { callee, arguments } => {

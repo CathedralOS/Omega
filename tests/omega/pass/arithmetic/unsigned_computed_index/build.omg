@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "unsigned_computed_index");
-    builder.freestanding = true;
-}

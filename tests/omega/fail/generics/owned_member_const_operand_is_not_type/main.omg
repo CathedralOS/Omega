@@ -1,7 +1,0 @@
-// The enclosing map's const binder remains a value, not a type.
-trait Identity { machine keep(value: u64) -> u64; }
-machine identity<T>(value: u64) -> u64 { value }
-Captured<const Role: u64> satisfies Identity {
-    machine keep(value: u64) -> u64 { identity<Role>(value) }
-}
-machine main() { let value: u64 = Captured<1>::keep(37); }

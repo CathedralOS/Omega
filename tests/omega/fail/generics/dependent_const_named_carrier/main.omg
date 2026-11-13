@@ -1,3 +1,0 @@
-public const Upper: u32 = 4;
-public boundary trait Parent<Value, const Count: Value> { machine read() -> i32 reaches; }
-public boundary trait Child: Parent<u64, Upper> {}

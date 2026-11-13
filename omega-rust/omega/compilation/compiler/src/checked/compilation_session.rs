@@ -172,6 +172,48 @@ impl CompilationSession {
         TypedFrontierCheck::join(frontier, result)
     }
 
+    /// The frozen typed trees of a standalone source program, as the
+    /// lowered-form checker is shown them, without running the program's
+    /// Build and without Psi 05, validation's judgments or Psi 06.
+    ///
+    /// The machine named `entry` in `request.root_path` (`main`, when `entry`
+    /// is `None` and the source declares one) is bound to the request
+    /// target's `ProgramEntry`, as a Build's `Build::bind` would bind it;
+    /// nothing else a Build decides is present. Judge the result with
+    /// `lowered_discharge::judge_compilation`. This is the route's probe
+    /// (`checking::unbuilt_source`), not a way to compile: it yields no
+    /// product.
+    pub fn typed_frontier_without_build(
+        &mut self,
+        request: CheckedCompileRequest,
+        entry: Option<&str>,
+    ) -> Result<Box<super::checking::typed_frontier::TypedFrontier>, CompileFailure> {
+        run_on_compile_thread(|| {
+            let source = self.prepare_source(&request)?;
+            let target = request
+                .target_name
+                .as_deref()
+                .map(|name| target::TargetProfile::from_omega_target_name(Some(name)))
+                .transpose()
+                .map_err(|diagnostic| vec![diagnostic])?;
+            let inputs = request.package_inputs.as_ref();
+            let child = compilation_products::CheckedExecutionRequest {
+                selected_target_profile: target,
+                package_inputs: inputs,
+                build: request.build.resolve_compilation_defaults(inputs),
+                optimization_rollback: request.optimization_rollback,
+                settled_check_reuse: self.reuse(),
+            };
+            super::checking::unbuilt_source::typed_frontier_without_build(
+                &request.root_path,
+                entry,
+                source,
+                child,
+            )
+            .map(Box::new)
+        })
+    }
+
     fn select_completed_source(
         &mut self,
         source: SourceCompilation,
@@ -236,6 +278,7 @@ impl CompilationSession {
             &request.root_path,
             inputs,
             request.source_capture.as_ref(),
+            request.build.snapshot.as_ref(),
             request.collect_timings,
         )
     }
@@ -245,12 +288,20 @@ impl CompilationSession {
         root_path: &std::path::Path,
         inputs: Option<Arc<PackageCompilationSourceInputs>>,
         capture: Option<&package_compilation::CapturedLocalSource>,
+        snapshot: Option<&package_compilation::BuildSnapshotRequest>,
         collect_timings: bool,
     ) -> Result<PreparedCheckedSource, CompileFailure> {
         let acquired = if inputs.is_none() && capture.is_none() {
-            Some(package_compilation::capture_anonymous_compilation_source(
-                root_path,
-            )?)
+            Some(match snapshot.map(|snapshot| snapshot.capture()) {
+                Some(package_compilation::BuildSnapshotCapture::Scoped(selected)) => {
+                    package_compilation::capture_selected_anonymous_compilation_source(
+                        root_path, selected,
+                    )?
+                }
+                Some(package_compilation::BuildSnapshotCapture::PackageInventory) | None => {
+                    package_compilation::capture_anonymous_compilation_source(root_path)?
+                }
+            })
         } else {
             None
         };
@@ -297,6 +348,7 @@ impl CompilationSession {
             &shared.root_path,
             shared.package_sources.clone(),
             None,
+            target.build_snapshot(),
             shared.timings,
         )?;
         let mut execution = target.checked_execution(&shared.build_directory);

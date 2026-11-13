@@ -1,7 +1,8 @@
 # Chapter 14: Traits and runtime machine values
 
-A trait is a named set of machine signatures. An implementation supplies
-bodies for them, and generic code asks for an implementation by name.
+A trait declares named machine requirements and can also contain ordinary
+fields and constraints. An implementation is a record supplying those members;
+generic code can ask for one by name.
 
 ## A trait and an implementation
 
@@ -73,7 +74,10 @@ A row, `Trait::member = machine;`, uses a machine that already exists instead
 of wrapping it.
 
 Traits can also declare ordinary fields and `requires` constraints. You can
-construct, pass and return their records like other values.
+construct, pass and return their records like other values. An ordinary
+machine-typed field accepts a callable with a compatible contract, retaining
+any existing invocation route; unlike a named machine requirement, it does not
+require binding to a new route.
 
 Two names for the same typed record mean the same implementation. To keep
 policies distinct, put the difference in a schema argument or ordinary field.

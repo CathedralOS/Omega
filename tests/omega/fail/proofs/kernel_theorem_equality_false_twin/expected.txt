@@ -1,1 +1,0 @@
-cannot prove ensures contract proof fact `b == c` from the requires contract

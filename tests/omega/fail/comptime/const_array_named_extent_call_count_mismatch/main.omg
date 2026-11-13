@@ -1,7 +1,0 @@
-// The negative twin of `pass/comptime/runtime_const_array_named_extent_call_exit`:
-// the same named extent receives two call results, so the initializer does not
-// have the constant's declared type.
-const SIZE: u64 = 1;
-machine one() -> u64 { 3u64 }
-const CALLED: [u64; SIZE] = [one(), one()];
-machine main() {}

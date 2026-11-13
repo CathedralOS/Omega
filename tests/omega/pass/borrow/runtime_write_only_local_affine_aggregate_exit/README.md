@@ -1,1 +1,0 @@
-An affine replacement moves into a selected element of a local affine array through a write-only loan. Both engines must preserve the untouched element and install every replacement field. Neither the array nor its elements have copy permission.

@@ -1,4 +1,0 @@
-// An applied domain family keeps its declared carrier for every index.
-domain<const Bound: u16> u16::AtMost<Bound> requires self <= Bound;
-machine take(value: u8) -> u8 requires value in AtMost<10> { value }
-machine main() -> i32 { 0 }

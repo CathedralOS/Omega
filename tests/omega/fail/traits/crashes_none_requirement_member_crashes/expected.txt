@@ -1,1 +1,0 @@
-machine `Trapping::apply` satisfies `Step::apply`, which declares `crashes none`, but it publishes a crash route; a member of a `crashes none` requirement must be crash-free

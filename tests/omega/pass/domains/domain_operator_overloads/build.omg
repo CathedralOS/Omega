@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "domain_operator_overloads");
-    builder.freestanding = true;
-}

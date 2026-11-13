@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "trait_operator_token");
-    builder.freestanding = true;
-}

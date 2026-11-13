@@ -1,3 +1,0 @@
-cannot prove requires contract for call wrapping_greater
-cannot prove requires contract for call saturating_greater
-cannot prove requires contract for call at_least_one

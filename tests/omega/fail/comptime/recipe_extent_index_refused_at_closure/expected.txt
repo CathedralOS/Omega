@@ -1,1 +1,0 @@
-requires 8 < `slot_count`

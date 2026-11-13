@@ -110,6 +110,13 @@ pub(crate) struct Program<'t> {
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
     resolving: Vec<SymbolHandle>,
+    /// The data declaration whose members are being read, which is the
+    /// lexical owner of the lifetimes their types name. Invalid while a
+    /// machine is read: a machine that declares lifetime parameters is
+    /// refused before its formals are (`machine_shape`), so there a type
+    /// may name only lifetimes the typed trees retained an owner for
+    /// (`types`, `value_type`).
+    lifetime_owner: SymbolHandle,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,
     /// How many `StructuralCaseId`s the sums above hold.
@@ -188,6 +195,7 @@ impl<'t> Program<'t> {
             records: IdTable::default(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
+            lifetime_owner: SymbolHandle::invalid(),
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
@@ -236,7 +244,7 @@ fn symbol_kind(kind: SymbolKind) -> &'static str {
 }
 #[cfg(test)]
 mod tests {
-    use super::contracts::{ClauseScope, ResultTerm};
+    use super::contracts::{ClauseScope, MathematicalTerms, ResultTerm};
     use super::*;
     use crate::body::ExpressionKind;
     use language_core::ReferenceAccess;
@@ -470,6 +478,7 @@ mod tests {
         let exit = ClauseScope {
             subject: None,
             formal_fields: false,
+            mathematical: MathematicalTerms::Served,
             slots: &[],
             values: &[],
             bound: &[],
@@ -505,6 +514,67 @@ mod tests {
                 .unwrap_err()
                 .detail,
             "expression reserved result outside a contract term"
+        );
+    }
+
+    /// A `mut` formal that holds its own value may be named by an entry
+    /// `requires`, where it can only mean the argument. A guarantee or a
+    /// crash route guard that names it is refused: by then the name also
+    /// stands for whatever the body last assigned, and which of the two
+    /// the clause means is not settled. The same clause over a formal that
+    /// is not `mut` names its value.
+    #[test]
+    fn a_mut_formal_is_named_by_an_entry_requires_and_by_no_other_clause() {
+        use typed_trees::name::Identifier;
+        let mut typed = TypedTrees::default();
+        let formal = SymbolHandle::from_arena_index(3);
+        let mut members = arena::HandleSpan::empty();
+        typed
+            .expression_table
+            .push_name_path_member(&mut members, Identifier::generated("x"));
+        let named = typed
+            .expression_table
+            .insert(ExpressionNode::Name(TableNamePath {
+                members,
+                symbol: formal,
+                ..TableNamePath::default()
+            }));
+        let program = Program::new(&typed, false);
+        let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let value = ValueId::new(1).unwrap();
+        let slot = |assignable| Slot {
+            symbol: formal,
+            value_type: ValueType::Scalar(u32_type),
+            assignable,
+            homed: false,
+            erased: false,
+            borrowed: None,
+        };
+        let (mutable, immutable) = ([slot(true)], [slot(false)]);
+        let values = [Some(value)];
+        let scope = |slots, formal_fields| ClauseScope {
+            subject: None,
+            formal_fields,
+            mathematical: MathematicalTerms::Served,
+            slots,
+            values: &values,
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in an entry clause"),
+        };
+        let term = Ok((
+            ScalarTerm::Value {
+                id: value,
+                scalar_type: u32_type,
+            },
+            u32_type,
+        ));
+        let read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
+        assert_eq!(read(&scope(&mutable, true)), term);
+        assert_eq!(read(&scope(&immutable, false)), term);
+        assert_eq!(
+            read(&scope(&mutable, false)).unwrap_err().detail,
+            "contract clause that names a mutable parameter outside requires"
         );
     }
 
@@ -768,6 +838,7 @@ mod tests {
         let scope = ClauseScope {
             subject: None,
             formal_fields: false,
+            mathematical: MathematicalTerms::Served,
             slots: &slots,
             values: &values,
             bound: &[],
@@ -969,6 +1040,216 @@ mod tests {
         assert_eq!(
             program.result_type(machine(), TypeReferenceHandle::invalid()),
             Ok(None)
+        );
+    }
+
+    /// `requires embed(rest) + embed(count) * 10 <= 99` over two `u8`
+    /// formals compares mathematical integers: each `embed` keeps its
+    /// formal's carrier, the literals are unbounded integers, and no
+    /// operation is a carrier operation that could overflow. `>=` is the
+    /// same order from the other side and `==` holds its operands in the
+    /// vocabulary's order.
+    ///
+    /// What the slice does not serve is refused by name: the same sum
+    /// without `embed` (carrier arithmetic, which owes representability
+    /// first), mathematical division, a formal that is not embedded, a
+    /// machine a program spells `embed`, and the comparison in a clause
+    /// kind that cannot restate it yet.
+    #[test]
+    fn a_comparison_of_embedded_integers_is_a_mathematical_proposition() {
+        use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm, Proposition};
+        use symbols::{BuiltinFunction, builtin_function_symbols};
+        use typed_trees::expression::TableCallExpression;
+        use typed_trees::name::Identifier;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            builtin_type_symbols()
+                .into_iter()
+                .chain(builtin_function_symbols())
+                .chain([
+                    (SymbolKind::Parameter, SymbolNameRef::Static("rest")),
+                    (SymbolKind::Parameter, SymbolNameRef::Static("count")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("embed")),
+                ]),
+        );
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let builtin = typed
+            .symbols
+            .builtin_function_symbol(BuiltinFunction::IntegerEmbed)
+            .unwrap();
+        let declared = symbols::BUILTIN_TYPE_COUNT + BuiltinFunction::COUNT;
+        let rest = children.handles().nth(declared).unwrap();
+        let count = children.handles().nth(declared + 1).unwrap();
+        let impostor = children.handles().nth(declared + 2).unwrap();
+        let name = |typed: &mut TypedTrees, symbol, spelled| {
+            let mut members = arena::HandleSpan::empty();
+            typed
+                .expression_table
+                .push_name_path_member(&mut members, Identifier::generated(spelled));
+            typed
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    symbol,
+                    ..TableNamePath::default()
+                }))
+        };
+        let call = |typed: &mut TypedTrees, target_symbol, argument| {
+            let arguments = typed.expression_table.insert_expression_handles([argument]);
+            typed
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    authored_call_selection: None,
+                    authored_call_binding: None,
+                    build_selection: arena::Handle::invalid(),
+                    authored_machine_application: arena::Handle::invalid(),
+                    exact_coercion_target: TypeReferenceHandle::invalid(),
+                    requirement_application: TypeReferenceHandle::invalid(),
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol,
+                    static_machine_parameter: SymbolHandle::invalid(),
+                    target: Identifier::generated("embed"),
+                    static_requirement_dispatch: None,
+                    machine_arguments: Box::new([]),
+                    quotient_operation: None,
+                    private_layout_operation: None,
+                    installed_interrupt_operation: None,
+                    layout_query: None,
+                    native_code_layout: None,
+                    arguments,
+                    evidence_arguments: Box::new([]),
+                    operational_acknowledgement: Default::default(),
+                }))
+        };
+        let literal = |typed: &mut TypedTrees, value| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Integer(IntegerLiteral::from_value(value)))
+        };
+        let binary = |typed: &mut TypedTrees, left, operator, right| {
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left,
+                    operator,
+                    right,
+                }))
+        };
+        let (rest_name, count_name) = (
+            name(&mut typed, rest, "rest"),
+            name(&mut typed, count, "count"),
+        );
+        let embedded_rest = call(&mut typed, builtin, rest_name);
+        let embedded_count = call(&mut typed, builtin, count_name);
+        let (ten, limit) = (literal(&mut typed, 10), literal(&mut typed, 99));
+        let tens = binary(&mut typed, embedded_count, BinaryOperator::Multiply, ten);
+        let packed = binary(&mut typed, embedded_rest, BinaryOperator::Add, tens);
+        let within = binary(&mut typed, packed, BinaryOperator::LessOrEqual, limit);
+        let at_least = binary(&mut typed, limit, BinaryOperator::GreaterOrEqual, packed);
+        let exactly = binary(&mut typed, packed, BinaryOperator::Equal, limit);
+        // Outside the slice.
+        let carrier_tens = binary(&mut typed, count_name, BinaryOperator::Multiply, ten);
+        let carrier_sum = binary(&mut typed, rest_name, BinaryOperator::Add, carrier_tens);
+        let carrier = binary(&mut typed, carrier_sum, BinaryOperator::LessOrEqual, limit);
+        let halves = binary(&mut typed, embedded_rest, BinaryOperator::Divide, ten);
+        let divided = binary(&mut typed, halves, BinaryOperator::LessOrEqual, limit);
+        let mixed_sum = binary(&mut typed, embedded_rest, BinaryOperator::Add, count_name);
+        let mixed = binary(&mut typed, mixed_sum, BinaryOperator::LessOrEqual, limit);
+        let spelled = call(&mut typed, impostor, rest_name);
+        let spelled_embed = binary(&mut typed, spelled, BinaryOperator::LessOrEqual, limit);
+        let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let slot = |symbol| Slot {
+            symbol,
+            value_type: ValueType::Scalar(u8_type),
+            assignable: false,
+            homed: false,
+            erased: false,
+            borrowed: None,
+        };
+        let slots = [slot(rest), slot(count)];
+        let values = [ValueId::new(1), ValueId::new(2)];
+        let scope = |mathematical| ClauseScope {
+            subject: None,
+            formal_fields: true,
+            mathematical,
+            slots: &slots,
+            values: &values,
+            bound: &[],
+            owner: SymbolHandle::invalid(),
+            result: ResultTerm::Absent("result in an entry clause"),
+        };
+        let program = Program::new(&typed, false);
+        let served = scope(MathematicalTerms::Served);
+        let embedded = |value: u64| IntegerMathTerm::MathValue {
+            source_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            value: ValueId::new(value).unwrap(),
+        };
+        let integer = |value: u128| {
+            IntegerMathTerm::IntegerLiteral(IntegerMathLiteral::new(false, value).unwrap())
+        };
+        let sum = IntegerMathTerm::Add(
+            Box::new(embedded(1)),
+            Box::new(IntegerMathTerm::Multiply(
+                Box::new(embedded(2)),
+                Box::new(integer(10)),
+            )),
+        );
+        let bounded = Proposition::IntegerMathLessOrEqual(sum.clone(), integer(99));
+        assert_eq!(
+            program.clause(machine(), &served, within),
+            Ok(bounded.clone())
+        );
+        assert_eq!(program.clause(machine(), &served, at_least), Ok(bounded));
+        let equal = program.clause(machine(), &served, exactly).unwrap();
+        let Proposition::IntegerMathEqual(left, right) = &equal else {
+            panic!("an equality of mathematical integers: {equal:?}");
+        };
+        assert!(left <= right, "operands in the vocabulary's order");
+        assert!([left, right].contains(&&sum) && [left, right].contains(&&integer(99)));
+        terminal_codec::canonical_proposition_order_key(&equal).expect("an encodable clause");
+        // The authored clause, each formal left open for a call's argument.
+        assert_eq!(
+            program
+                .clause_text(&slots, within)
+                .render(&|position| ["a", "b"][position].to_owned()),
+            "embed(a) + embed(b) * 10 <= 99"
+        );
+        let detail = |scope: &ClauseScope<'_>, handle| {
+            let refusal = program.clause(machine(), scope, handle).unwrap_err();
+            assert_eq!(
+                refusal.reason,
+                terminal_check_tables::RefusalReason::Unsupported
+            );
+            refusal.detail
+        };
+        assert_eq!(
+            detail(&served, carrier),
+            "contract carrier arithmetic in a clause term"
+        );
+        assert_eq!(
+            detail(&served, divided),
+            "contract mathematical division in a clause"
+        );
+        assert_eq!(
+            detail(&served, mixed),
+            "contract runtime value in a mathematical term without embed"
+        );
+        assert_eq!(
+            detail(&served, spelled_embed),
+            "contract call in a clause term"
+        );
+        let guard = scope(MathematicalTerms::Refused(
+            "mathematical comparison in a crash route guard",
+        ));
+        assert_eq!(
+            detail(&guard, within),
+            "contract mathematical comparison in a crash route guard"
         );
     }
 }

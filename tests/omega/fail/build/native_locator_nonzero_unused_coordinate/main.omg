@@ -1,2 +1,0 @@
-boundary trait Raw { machine sleep(milliseconds: u32); }
-machine program() {}

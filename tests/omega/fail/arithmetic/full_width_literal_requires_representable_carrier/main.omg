@@ -1,3 +1,0 @@
-machine signed() -> i64 { 18446744073709551615i64 }
-machine narrow() -> u8 { 18446744073709551615u8 }
-machine beyond_unsigned() -> u64 { 18446744073709551616u64 }

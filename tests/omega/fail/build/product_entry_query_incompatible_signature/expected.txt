@@ -1,1 +1,0 @@
-product entry `launch` is incompatible with slot `windows_x86_64::ProgramEntry`

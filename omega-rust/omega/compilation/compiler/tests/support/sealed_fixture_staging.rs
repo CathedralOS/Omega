@@ -22,7 +22,7 @@
 //! Two properties of the staged layout are load-bearing:
 //!
 //! - A snapshot keeps the fixture's repository-relative path under one private
-//!   session root (`<session>/tests/omega/fail/build/<name>/`). Diagnostics
+//!   session root (`<session>/tests/fixtures/fail/build/<name>/`). Diagnostics
 //!   render positions with the path they were compiled from, and the corpus
 //!   record's sanitizer strips a known root prefix to stay checkout-portable;
 //!   mirroring the relative path means stripping the session root yields the

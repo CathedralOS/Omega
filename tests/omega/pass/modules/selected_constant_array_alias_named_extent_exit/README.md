@@ -1,1 +1,0 @@
-The named extent closes the selected array before alias materialization; the unchanged array element is observed as exit 7 in native and Terminal execution. This exercises the consuming execution path; the sibling unused-declaration fixture establishes declaration admission.

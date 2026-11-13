@@ -1,5 +1,5 @@
 // Selected provider source custody and instance projection for explicit
-// inspection and checked-interpreter execution. Equal-looking source from
+// inspection. Equal-looking source from
 // another checked owner is not interchangeable (`Arc::ptr_eq`), whereas derived
 // instance declaration cache state is. Preparing declarations neither reports
 // deferred failures nor admits the projected provider closure.

@@ -453,6 +453,30 @@ fn describe_kind(kind: ObligationKind) -> String {
 /// It takes elaboration's result as is, so an elaboration refused as
 /// `Unsupported` falls back like an undecided obligation does.
 pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
+    judge_owing(elaborated, AppliedContracts::Undecided)
+}
+
+/// Who decides the contract rows of the generic machines a generic check
+/// form applies (`Elaboration::applications`): `forward<T>` inside
+/// `relay<T>` is there as its contract with no body, so the form proves
+/// `forward`'s `requires` at the call and relies on its `ensures`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AppliedContracts {
+    /// Nobody this judgment knows of. Their rows keep the `Unsupported`
+    /// verdict the discharge gives every machine with no body, so the form
+    /// is undecided: a guarantee nothing proves is never read as held.
+    Undecided,
+    /// Each applied machine's own check form, judged in the same
+    /// compilation with its parameters rigid, so for every type the caller
+    /// can pass (`judge_generic_forms`). The rows are that form's
+    /// obligations and are not judged a second time here.
+    OwnCheckForms,
+}
+
+pub(crate) fn judge_owing(
+    elaborated: Checked<Elaboration>,
+    applied: AppliedContracts,
+) -> Checked<RouteVerdict> {
     let mut elaboration = match elaborated {
         Ok(elaboration) => elaboration,
         Err(refused) => return fall_back_or_defect(refused),
@@ -469,17 +493,67 @@ pub fn judge(elaborated: Checked<Elaboration>) -> Checked<RouteVerdict> {
             "machine generic parameters",
         )));
     }
-    if let Err(refused) = crate::ownership::verify_plain_affine_custody(&elaboration) {
-        return fall_back_or_defect(refused);
+    let mut affine_unestablished = Vec::new();
+    for machine in &elaboration.module.machines {
+        let plan = match terminal_semantics::plain_affine::verify(
+            machine,
+            &elaboration.module.structural_types,
+        ) {
+            Ok(plan) => plan,
+            Err(error) => {
+                let (reason, detail) = match error {
+                    terminal_semantics::plain_affine::Error::Unsupported(detail) => {
+                        (RefusalReason::Unsupported, detail)
+                    }
+                    terminal_semantics::plain_affine::Error::Malformed(detail) => {
+                        (RefusalReason::ForeignIdentity, detail)
+                    }
+                };
+                return fall_back_or_defect(refusal(
+                    reason,
+                    machine.id,
+                    Construct::Machine,
+                    detail,
+                ));
+            }
+        };
+        let sources = elaboration.sources.get(machine.id).ok_or_else(|| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                machine.id,
+                Construct::Machine,
+                "affine machine has no source correspondence",
+            )
+        })?;
+        for unavailable in plan.unavailable {
+            let at = match unavailable.site {
+                terminal_semantics::plain_affine::Site::Operation(operation) => {
+                    Construct::Operation(operation)
+                }
+                terminal_semantics::plain_affine::Site::Edge(edge) => Construct::Edge(edge),
+            };
+            affine_unestablished.push(UnestablishedUse {
+                machine: machine.id,
+                at,
+                site: Some(source_of(sources, machine.id, at)?),
+                detail: "owned storage is used after its value was transferred or consumed"
+                    .to_owned(),
+                declared: None,
+            });
+        }
     }
     let discharged = match discharge(&mut elaboration) {
         Ok(discharged) => discharged,
         Err(refused) => return fall_back_or_defect(refused),
     };
     let mut unproved = Vec::new();
-    let mut unestablished = Vec::new();
+    let mut unestablished = affine_unestablished;
     let mut conflicts = Vec::new();
     for (machine, result) in discharged.machines.iter() {
+        if applied == AppliedContracts::OwnCheckForms && elaboration.applications.contains(&machine)
+        {
+            continue;
+        }
         let tables = terminal_check_tables::row(
             &elaboration.tables.machines,
             machine,
@@ -724,106 +798,80 @@ pub fn judge_compilation(
         Err(refused) => (Err(refused), Vec::new()),
     };
     let mut verdicts = vec![judge(closure).map_err(CompilationRefusal::Elaboration)];
-    verdicts.extend(judge_generic_forms(typed, templates));
+    verdicts.extend(
+        judge_generic_forms(typed, templates)
+            .into_iter()
+            .map(|verdict| verdict.map_err(CompilationRefusal::Elaboration)),
+    );
     verdicts
 }
 
-/// Abstract applications cannot prove their own contract. Prepare the actual
-/// application closure once, then refuse every template on a direct or mutual
-/// cycle before its abstract guarantees can authorize acceptance. This also
-/// catches a recursive body with no ensures row to leave undecided (#2809).
+/// The verdicts on the check forms of `templates`, the subject's generic
+/// machines, and of every generic machine those forms apply, in the order
+/// they are met.
+///
+/// A generic body may call another generic machine at its own type
+/// parameters. That callee is in the caller's form as a contract with no
+/// body, and what makes its `ensures` true is the callee's own check form:
+/// generics.md, "Static type equality", "An unspecialized body checks every
+/// admitted alternative", so one form judged with the callee's parameters
+/// rigid proves the contract for every type a caller can name. The applied
+/// machine is therefore judged here whichever package declares it
+/// (validation_subjects.md: a passed check means "every declaration they
+/// depend on is valid"), and the caller's form leaves the callee's rows to
+/// it. When the callee's form is rejected or not served, that verdict is in
+/// the list and the compilation is rejected or undecided with it.
+///
+/// A machine that reaches itself through such calls is the exception. Each
+/// form on the cycle would take the next one's contract as given, and no
+/// form holds the cycle's bodies together, so nothing would judge the cycle:
+/// termination.md, "Calls and productive loops", asks that a runtime call
+/// cycle stand in tail position and that a `terminates` promise over it be
+/// ranked, and `structure_elaboration` judges both only for a cycle among
+/// bodies it read. Such a template is refused by name as not supported yet,
+/// whatever contract it states: one with no `ensures` has no applied row
+/// left undecided, and would otherwise be accepted unjudged.
 fn judge_generic_forms(
     typed: &typed_trees::TypedTrees,
     mut templates: Vec<symbols::SymbolHandle>,
-) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
-    let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
-    templates.sort_by_key(|symbol| key(*symbol));
-    templates.dedup();
-    let mut positions = templates
-        .iter()
-        .enumerate()
-        .map(|(ordinal, symbol)| (key(*symbol), ordinal))
-        .collect::<Vec<_>>();
+) -> Vec<Checked<RouteVerdict>> {
     let mut forms = Vec::new();
-    let mut applies = Vec::new();
+    // For each template, the positions in `templates` of what its forms
+    // apply; `None` when a form applies a machine with no symbol.
+    let mut applies: Vec<Option<Vec<usize>>> = Vec::new();
     let mut next = 0;
     while next < templates.len() {
-        let mut elaborated =
-            structure_elaboration::elaborate_generic_forms(typed, &[templates[next]]);
-        let discovered = match &elaborated {
-            Ok(alternatives) => (|| {
-                let mut symbols = Vec::new();
-                for form in alternatives {
-                    for application in &form.applications {
-                        let symbol = form.machines.get(*application).copied().ok_or_else(|| {
-                            refusal(
-                                RefusalReason::ForeignIdentity,
-                                *application,
-                                Construct::Machine,
-                                "generic application lost its exact source declaration",
-                            )
-                        })?;
-                        if !typed.symbols.symbols().nodes().is_valid(symbol)
-                            || typed.machine_by_symbol(symbol).is_none()
-                        {
-                            return Err(refusal(
-                                RefusalReason::ForeignIdentity,
-                                *application,
-                                Construct::Machine,
-                                "generic application names a stale or non-machine declaration",
-                            ));
-                        }
-                        symbols.push(symbol);
-                    }
-                }
-                Ok(symbols)
-            })(),
-            Err(_) => Ok(Vec::new()),
-        };
-        let mut called = Vec::new();
-        match discovered {
-            Err(refused) => elaborated = Err(refused),
-            Ok(symbols) => {
-                for symbol in symbols {
-                    let position =
-                        match positions.binary_search_by_key(&key(symbol), |(key, _)| *key) {
-                            Ok(position) => positions[position].1,
-                            Err(position) => {
-                                let ordinal = templates.len();
-                                templates.push(symbol);
-                                positions.insert(position, (key(symbol), ordinal));
-                                ordinal
-                            }
-                        };
-                    called.push(position);
+        let elaborated = structure_elaboration::elaborate_generic_forms(typed, &[templates[next]]);
+        let mut applied = Some(Vec::new());
+        for form in elaborated.iter().flatten() {
+            for application in &form.applications {
+                let Some(symbol) = form.machines.get(*application).copied() else {
+                    applied = None;
+                    continue;
+                };
+                let position = templates
+                    .iter()
+                    .position(|template| *template == symbol)
+                    .unwrap_or_else(|| {
+                        templates.push(symbol);
+                        templates.len() - 1
+                    });
+                if let Some(applied) = &mut applied {
+                    applied.push(position);
                 }
             }
         }
-        called.sort_unstable();
-        called.dedup();
-        applies.push(called);
+        applies.push(applied);
         forms.push(elaborated);
         next += 1;
     }
-    let mut results = Vec::new();
-    for (template, forms) in forms.into_iter().enumerate() {
-        let mut visited = vec![false; applies.len()];
-        let mut pending = applies[template].clone();
-        let mut cycle = false;
-        while let Some(next) = pending.pop() {
-            if next == template {
-                cycle = true;
-                break;
-            }
-            if !std::mem::replace(&mut visited[next], true) {
-                pending.extend(applies[next].iter().copied());
-            }
-        }
-        if cycle {
-            let context = MachineId::new(1).expect("1 is nonzero");
-            results.push(Ok(RouteVerdict::FallBack(refusal(
+    let mut verdicts = Vec::new();
+    for (template, elaborated) in forms.into_iter().enumerate() {
+        if reaches_itself(&applies, template) {
+            let first = MachineId::new(1).expect("1 is nonzero");
+            verdicts.push(Ok(RouteVerdict::FallBack(refusal(
                 RefusalReason::Unsupported,
-                context,
+                first,
                 Construct::Machine,
                 &format!(
                     "generic machine `{}` on a call cycle",
@@ -832,18 +880,40 @@ fn judge_generic_forms(
             ))));
             continue;
         }
-        match forms {
-            Ok(forms) => results.extend(
-                forms
-                    .into_iter()
-                    .map(|form| judge(Ok(form)).map_err(CompilationRefusal::Elaboration)),
-            ),
-            Err(refused) => {
-                results.push(judge(Err(refused)).map_err(CompilationRefusal::Elaboration))
+        match elaborated {
+            Ok(forms) => {
+                verdicts.extend(
+                    forms
+                        .into_iter()
+                        .map(|form| judge_owing(Ok(form), AppliedContracts::OwnCheckForms)),
+                );
+            }
+            Err(refused) => verdicts.push(judge(Err(refused))),
+        }
+    }
+    verdicts
+}
+
+/// Whether `template` applies itself, directly or through the machines it
+/// applies. A template whose applications could not all be named counts as
+/// doing so: what it reaches is then unknown.
+fn reaches_itself(applies: &[Option<Vec<usize>>], template: usize) -> bool {
+    let mut seen = vec![false; applies.len()];
+    let mut pending = vec![template];
+    while let Some(current) = pending.pop() {
+        let Some(applied) = applies.get(current).and_then(Option::as_ref) else {
+            return true;
+        };
+        for next in applied {
+            if *next == template {
+                return true;
+            }
+            if !std::mem::replace(&mut seen[*next], true) {
+                pending.push(*next);
             }
         }
     }
-    results
+    false
 }
 
 /// Where an operation, edge or block arises in the source, from

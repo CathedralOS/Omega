@@ -1086,6 +1086,11 @@ impl<'t> Program<'t> {
         // A scalar local that is an SSA value here gets a home for the loan;
         // its type's identity is the formal's referent identity, the same
         // scalar type.
+        // A reference formal's referent is never policy-qualified
+        // (`formal`), and the place a loan lends has the referent's type.
+        if place.result.and_then(ValueType::policy).is_some() {
+            return unserved("loan of a policy-qualified integer");
+        }
         let home = match (&place.kind, lender.value_type) {
             (ExpressionKind::Slot(_), ValueType::Scalar(_)) if !lender.homed => {
                 Some(formal.home.clone().ok_or_else(|| {
@@ -1169,6 +1174,7 @@ fn mentions(expression: &Expression, slots: &[usize]) -> bool {
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
+        | ExpressionKind::Requalify(operand)
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {

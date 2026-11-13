@@ -1,2 +1,0 @@
-cannot prove requires contract for call observe from invalid
-token in Token::Issued

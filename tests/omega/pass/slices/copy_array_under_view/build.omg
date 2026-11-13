@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "copy_array_under_view");
-    builder.freestanding = true;
-}

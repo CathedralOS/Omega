@@ -1,4 +1,0 @@
-Frozen before execution: every declared I8::from_f32 requirement returns i8
-(normal, Trapping, Saturating); a bool-returning implementation matches none.
-Reject after family lookup using the complete typed signature; successful
-namespace presence is insufficient.

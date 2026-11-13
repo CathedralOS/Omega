@@ -1,8 +1,0 @@
-// Equal source types do not equate their storage or declared result lifetimes.
-data Header { left: u64; right: u64; }
-data AliasHeader { first: u64; second: u64; }
-
-machine wrong<'first, 'second>(first: &'first Header, second: &'second Header) -> &'first AliasHeader {
-    let view: &AliasHeader = second as &AliasHeader;
-    view
-}

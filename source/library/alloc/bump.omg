@@ -1,5 +1,12 @@
-use omega::language::core::extent;
-use omega::language::core::content;
+module bump;
+
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::VacantExtentParts;
+use omega::language::core::split_vacant_extent;
+use omega::language::core::merge_vacant_extents;
+use omega::language::core::no_wrap;
 
 // Only the tail is allocatable. Original geometry is a reset obligation,
 // not authority: every byte belongs to the tail or an issued linear extent.

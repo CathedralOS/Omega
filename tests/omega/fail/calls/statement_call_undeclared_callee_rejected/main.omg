@@ -1,5 +1,0 @@
-// A statement call must name a callable declaration. An unresolved callee
-// rejects during checking rather than disappearing from executable control.
-machine main() {
-    no_such_leg();
-}

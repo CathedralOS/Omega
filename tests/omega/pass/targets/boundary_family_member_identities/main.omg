@@ -1,8 +1,0 @@
-// Terminal retains the portable head and both exact target members. They share
-// one source overload but must have distinct emitted callable identities.
-// An unused retained family still belongs to the canonical callable catalog;
-// no deployment needs permission to execute an opaque member here.
-macos_arm64 boundary machine emit();
-linux_x86_64 boundary machine emit();
-
-machine main() {}

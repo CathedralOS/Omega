@@ -1,3 +1,0 @@
-module reader;
-use values::settings::Holder;
-public const Holder::VALUE: u32 = 7u32;

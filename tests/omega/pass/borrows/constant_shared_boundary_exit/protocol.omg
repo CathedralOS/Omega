@@ -1,5 +1,0 @@
-module protocol;
-public data Guid [copy] { tag: u32; bytes: [u8; 2]; }
-public data Envelope [copy] { protocol: Guid; }
-public const VALUE: Guid = Guid { tag: 7, bytes: [1, 2] };
-public const ENVELOPE: Envelope = Envelope { protocol: VALUE };

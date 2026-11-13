@@ -1,5 +1,0 @@
-Linux x86-64/glibc `mallinfo2` returns an 80-byte record through the hidden result pointer. Three snapshots cross owned helper and state returns: before the program's own 64 MiB `malloc`, while that block is mapped, and after `free` unmaps it. Each must keep its own payload, which challenges indirect-result storage reuse with distinct contents.
-
-The oracle is what the program causes, not the host's heap history: the middle record shows exactly one more mapped block, at least 64 MiB larger, than both the first and the third, and the third returns to the first's mapped count. Every record must also satisfy relations glibc reports for any heap (`arena == allocated + available`, one or more ordinary blocks, zero unused bytes, freed and releasable bytes within available). It exits through the canonical `ProcessExit::exit_process`.
-
-Run `omega run --both tests/omega/pass/providers/foreign_indirect_record_distinct_exit/main.omg` after package review; expected exit 70 on both engines. No other-host qualification is claimed.

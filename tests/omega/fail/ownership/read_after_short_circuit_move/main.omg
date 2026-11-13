@@ -1,6 +1,0 @@
-// The final conjunct runs only on the same path that already consumed ticket.
-data Ticket { value: u64; }
-machine take(ticket: Ticket) -> bool { ticket.value == 7 }
-machine invalid(selected: bool, ticket: Ticket) -> bool {
-    selected && take(ticket) && ticket.value == 7
-}

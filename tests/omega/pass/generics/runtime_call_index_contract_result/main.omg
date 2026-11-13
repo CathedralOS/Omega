@@ -1,9 +1,0 @@
-// A call-computed result index names the callee's published result equation:
-// `bound` ensures `result == Count / 2`, so `choose<limit>()` is `Index<(limit/2)>`.
-data Index<Limit:u32> [copy] requires value<Limit {value:u32;}
-machine bound<Count:u32>()->u32 ensures result==Count/2 { transition Count {9 -> 4 _ -> (Count/2)} }
-machine choose<Created:u32>()->Index<(bound<Created>())> requires Created >= 18 { Index{value:8} }
-machine probe(limit: u32)->u32 requires limit >= 18 && limit <= 20 {
- let indexed:Index<(limit/2)> = choose<limit>();
- indexed.value
-}

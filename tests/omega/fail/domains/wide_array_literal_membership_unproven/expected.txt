@@ -1,1 +1,0 @@
-construction value is not proven in domain `[u16; N]::Wide` in literal_wide

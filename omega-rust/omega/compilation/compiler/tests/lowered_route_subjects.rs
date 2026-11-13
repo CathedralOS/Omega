@@ -50,55 +50,55 @@ enum Expected {
 /// includes the four that PR names.
 const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
     (
-        "tests/omega/fail/arithmetic/unformed_contradiction_cannot_hide_overflow",
+        "tests/fixtures/fail/arithmetic/unformed_contradiction_cannot_hide_overflow",
         Expected::Rejected,
     ),
     (
-        "tests/omega/fail/constants/target_layout_derived_ground_guarantee_reject",
+        "tests/fixtures/fail/constants/target_layout_derived_ground_guarantee_reject",
         Expected::Rejected,
     ),
     (
-        "tests/omega/fail/contracts/overwritten_requirement_cannot_rule_out_branch",
+        "tests/fixtures/fail/contracts/overwritten_requirement_cannot_rule_out_branch",
         Expected::Rejected,
     ),
     (
-        "tests/omega/fail/contracts/ruled_out_caller_does_not_bound_callee_body",
+        "tests/fixtures/fail/contracts/ruled_out_caller_does_not_bound_callee_body",
         Expected::Rejected,
     ),
     (
-        "tests/omega/fail/contracts/unproved_branch_is_not_contradiction",
+        "tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction",
         Expected::Rejected,
     ),
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_stale_capture",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_stale_capture",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/adapter_input_membership_is_not_result",
+        "tests/fixtures/fail/contracts/adapter_input_membership_is_not_result",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/ruled_out_branch_requires_resolved_names",
+        "tests/fixtures/fail/contracts/ruled_out_branch_requires_resolved_names",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/dyn_requirement_float_nonreflexive",
+        "tests/fixtures/fail/proofs/dyn_requirement_float_nonreflexive",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/normal_return_expression_statement_is_not_return",
+        "tests/fixtures/fail/proofs/normal_return_expression_statement_is_not_return",
         Expected::Incomplete,
     ),
     (
-        "tests/omega/fail/proofs/wrapping_zero_product_does_not_cancel_factor",
+        "tests/fixtures/fail/proofs/wrapping_zero_product_does_not_cancel_factor",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/computed_rank_no_decrease",
+        "tests/fixtures/fail/termination/computed_rank_no_decrease",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/native_layout_family_circular",
+        "tests/fixtures/fail/termination/native_layout_family_circular",
         Expected::FallsBack,
     ),
 ];
@@ -109,147 +109,147 @@ const UNCALLED_DEFECTS: &[(&str, Expected)] = &[
 /// whose entry is `machine main() {}`.
 const OTHER_SWEPT_DEFECTS: &[(&str, Expected)] = &[
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_exact_overflow",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_exact_overflow",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_saturation",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_saturation",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_signed_minimum",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_signed_minimum",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_wrapping",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_wrapping",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/arithmetic/integer_multiple_remainder_zero_divisor",
+        "tests/fixtures/fail/arithmetic/integer_multiple_remainder_zero_divisor",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/match_contract_partial_operand_rejected",
+        "tests/fixtures/fail/contracts/match_contract_partial_operand_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/match_contract_replaced_subject_rejected",
+        "tests/fixtures/fail/contracts/match_contract_replaced_subject_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/match_contract_unknown_arm_rejected",
+        "tests/fixtures/fail/contracts/match_contract_unknown_arm_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/match_contract_wrong_case_rejected",
+        "tests/fixtures/fail/contracts/match_contract_wrong_case_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/recursive_result_bound_changed_actual",
+        "tests/fixtures/fail/contracts/recursive_result_bound_changed_actual",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/ruled_out_arm_value_does_not_reach_join",
+        "tests/fixtures/fail/contracts/ruled_out_arm_value_does_not_reach_join",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/contracts/written_element_cannot_rule_out_branch",
+        "tests/fixtures/fail/contracts/written_element_cannot_rule_out_branch",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/core/content_projection_foreign_package",
+        "tests/fixtures/fail/core/content_projection_foreign_package",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/core/scoped_integer_call_wrapping_actual_requires_formation",
+        "tests/fixtures/fail/core/scoped_integer_call_wrapping_actual_requires_formation",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/applied_callable_unproven_law",
+        "tests/fixtures/fail/proofs/applied_callable_unproven_law",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/dyn_requirement_float_alias_inequality",
+        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_inequality",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/dyn_requirement_float_alias_negated",
+        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_negated",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/dyn_requirement_float_alias_strict",
+        "tests/fixtures/fail/proofs/dyn_requirement_float_alias_strict",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/mathematical_negated_custom_order",
+        "tests/fixtures/fail/proofs/mathematical_negated_custom_order",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/mathematical_negated_ieee_order",
+        "tests/fixtures/fail/proofs/mathematical_negated_ieee_order",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/quotient_runtime_affine_carrier",
+        "tests/fixtures/fail/proofs/quotient_runtime_affine_carrier",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/quotient_runtime_false_relation",
+        "tests/fixtures/fail/proofs/quotient_runtime_false_relation",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/quotient_runtime_false_result",
+        "tests/fixtures/fail/proofs/quotient_runtime_false_result",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/quotient_runtime_routed_carrier",
+        "tests/fixtures/fail/proofs/quotient_runtime_routed_carrier",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/quotient_theorem_private_crash_rejected",
+        "tests/fixtures/fail/proofs/quotient_theorem_private_crash_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/referenced_law_slot_ambiguous",
+        "tests/fixtures/fail/proofs/referenced_law_slot_ambiguous",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/result_index_authored_operator",
+        "tests/fixtures/fail/proofs/result_index_authored_operator",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/result_index_lexical_operator",
+        "tests/fixtures/fail/proofs/result_index_lexical_operator",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/result_index_shadowed_result",
+        "tests/fixtures/fail/proofs/result_index_shadowed_result",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/proofs/structural_application_premise_unknown_rejected",
+        "tests/fixtures/fail/proofs/structural_application_premise_unknown_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/targets/target_local_precondition_rejected",
+        "tests/fixtures/fail/targets/target_local_precondition_rejected",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/computed_rank_guard_write",
+        "tests/fixtures/fail/termination/computed_rank_guard_write",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/computed_rank_operand_write",
+        "tests/fixtures/fail/termination/computed_rank_operand_write",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/computed_rank_static_arity",
+        "tests/fixtures/fail/termination/computed_rank_static_arity",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/native_layout_family_missing_premise",
+        "tests/fixtures/fail/termination/native_layout_family_missing_premise",
         Expected::FallsBack,
     ),
     (
-        "tests/omega/fail/termination/native_layout_family_unpromised",
+        "tests/fixtures/fail/termination/native_layout_family_unpromised",
         Expected::FallsBack,
     ),
 ];
@@ -343,7 +343,7 @@ fn no_other_swept_program_with_an_uncalled_defect_is_accepted() {
 fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let frontier =
-        rejected_frontier("tests/omega/fail/contracts/unproved_branch_is_not_contradiction");
+        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
     let entry = *frontier.entries.first().expect("the Build binds an entry");
     let (machines, verdict) = route_verdict(&frontier);
     let machines = machines.expect("the whole program is inside the lowered subset");
@@ -390,42 +390,42 @@ fn an_uncalled_machine_is_lowered_and_judged_like_a_called_one() {
 /// --every-machine` judges it.
 const ANONYMOUS_TREES_WITHOUT_A_LANDING: &[(&str, &str, &str)] = &[
     (
-        "tests/omega/fail/arithmetic/fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/fractional_integer_landing",
         "value",
         "expression fractional anonymous value",
     ),
     (
-        "tests/omega/fail/arithmetic/fractional_integer_operand",
+        "tests/fixtures/fail/arithmetic/fractional_integer_operand",
         "value",
         "expression fractional anonymous value",
     ),
     (
-        "tests/omega/fail/arithmetic/anonymous_remainder_rejected",
+        "tests/fixtures/fail/arithmetic/anonymous_remainder_rejected",
         "run",
         "expression anonymous operation without an exact meaning",
     ),
     (
-        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "returned",
         "expression anonymous value with a fractional intermediate",
     ),
     (
-        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "local",
         "expression anonymous value with a fractional intermediate",
     ),
     (
-        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "field",
         "expression anonymous value with a fractional intermediate",
     ),
     (
-        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "argument",
         "expression anonymous value with a fractional intermediate",
     ),
     (
-        "tests/omega/fail/arithmetic/implicit_fractional_integer_landing",
+        "tests/fixtures/fail/arithmetic/implicit_fractional_integer_landing",
         "half",
         "expression anonymous value with a fractional intermediate",
     ),
@@ -482,7 +482,7 @@ fn another_package(frontier: &compiler::TypedFrontier) -> semantic_vocabulary::P
 fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let frontier =
-        rejected_frontier("tests/omega/fail/contracts/unproved_branch_is_not_contradiction");
+        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
     let another = another_package(&frontier);
     // Checked as a dependency of some other package, the fixture's machines
     // are judged only when an entry reaches them.
@@ -511,7 +511,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
 fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let frontier =
-        rejected_frontier("tests/omega/fail/contracts/unproved_branch_is_not_contradiction");
+        rejected_frontier("tests/fixtures/fail/contracts/unproved_branch_is_not_contradiction");
     let entry = *frontier.entries.first().expect("the Build binds an entry");
     let another = another_package(&frontier);
     let typed = &frontier.typed;
@@ -801,6 +801,39 @@ fn generic_application_cycles_are_refused_before_using_their_contracts() {
     }
 }
 
+/// A generic caller uses the callee's published contract in its own check
+/// form. Its justified bound passes; a tighter bound still refuses.
+#[test]
+fn a_generic_body_that_applies_another_generic_machine_is_judged() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let forward = "machine forward<T>(item: T, limit: u32) -> u32 \
+                   requires limit <= 10 ensures result <= 10 { limit }";
+    let relay = |bound: u32| {
+        format!(
+            "{forward}\nmachine relay<T>(item: T, limit: u32) -> u32 \
+             requires limit <= 10 ensures result <= {bound} {{ forward<T>(item, limit) + 1 }}"
+        )
+    };
+    // The closure (the empty entry), `forward`'s form, and `relay`'s form
+    // with `forward<T>` beside it.
+    assert_eq!(
+        judged_parts("generic_application", &relay(11)),
+        [
+            Verdict::Accepted(1),
+            Verdict::Accepted(1),
+            Verdict::Accepted(2)
+        ]
+    );
+    assert_eq!(
+        judged_parts("generic_application_exceeds_callee", &relay(10)),
+        [
+            Verdict::Accepted(1),
+            Verdict::Accepted(1),
+            Verdict::Rejected
+        ]
+    );
+}
+
 /// Every kind of unused subject declaration is in the check. What the route
 /// can judge it judges: a valid machine and plain data are accepted with the
 /// machine in the module, and a defective machine is rejected. Every kind it
@@ -850,7 +883,7 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
 fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let ruled_out = rejected_frontier(
-        "tests/omega/pending/contracts/requires_disequality_rules_out_crash_route_exit",
+        "tests/fixtures/pending/contracts/requires_disequality_rules_out_crash_route_exit",
     );
     let verdict = route_verdict(&ruled_out).1;
     assert!(
@@ -858,7 +891,7 @@ fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
         "every route is ruled out: {verdict:?}"
     );
     let left_open = rejected_frontier(
-        "tests/omega/fail/contracts/requires_disequality_leaves_crash_route_open",
+        "tests/fixtures/fail/contracts/requires_disequality_leaves_crash_route_open",
     );
     let verdict = route_verdict(&left_open).1;
     assert!(
@@ -877,7 +910,7 @@ fn a_requirement_rules_out_the_crash_routes_it_contradicts() {
 fn a_call_into_another_packages_private_machine_is_never_accepted() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let wrong = wrong_verdicts(&[(
-        "tests/omega/fail/build/executed_dependency_private_call",
+        "tests/fixtures/fail/build/executed_dependency_private_call",
         Expected::FallsBack,
     )]);
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
@@ -892,8 +925,333 @@ fn a_call_into_another_packages_private_machine_is_never_accepted() {
 fn a_statement_that_drops_its_value_is_never_accepted() {
     let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
     let wrong = wrong_verdicts(&[(
-        "tests/omega/fail/calls/non_unit_compound_expression_requires_use",
+        "tests/fixtures/fail/calls/non_unit_compound_expression_requires_use",
         Expected::FallsBack,
     )]);
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// One program per thing the route decides about a formal the body writes.
+/// Each is the declaration followed by `machine main() {}`.
+const WRITTEN_FORMALS: &[(&str, &str)] = &[
+    // The add after the assignment reads the assigned value, at most 11.
+    (
+        "mut_scalar_assigned",
+        "machine spare(mut value: u32) -> u32 requires value <= 10 {\n    \
+         value = value + 1;\n    value + 4294967284\n}",
+    ),
+    // `value <= 10` was true of the argument; `value` now holds `other`.
+    (
+        "mut_scalar_stale_fact",
+        "machine spare(mut value: u32, other: u32) -> u32 requires value <= 10 {\n    \
+         value = other;\n    value + 4294967285\n}",
+    ),
+    // The same add with no assignment before it.
+    (
+        "mut_scalar_entry_fact",
+        "machine spare(mut value: u32, other: u32) -> u32 requires value <= 10 {\n    \
+         value + 4294967285\n}",
+    ),
+    (
+        "immutable_scalar_assigned",
+        "machine spare(value: u32) -> u32 { value = 1; value }",
+    ),
+    // The read after the store is of 5.
+    (
+        "mut_record_stored",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair.a = 5;\n    pair.a + 4294967285\n}",
+    ),
+    // `pair.a <= 10` was true of what the field held before the store.
+    (
+        "mut_record_stale_fact",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair.a = 4294967295;\n    pair.a + 4294967285\n}",
+    ),
+    // A whole assignment replaces every field the entry fact spoke of.
+    (
+        "mut_record_replaced",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(mut pair: Pair) -> u32 requires pair.a <= 10 {\n    \
+         pair = Pair { a: 4294967295, b: 0 };\n    pair.a + 4294967285\n}",
+    ),
+    (
+        "immutable_record_stored",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine spare(pair: Pair) -> u32 { pair.a = 5; pair.a }",
+    ),
+    // The callee stores into its own copy, so the caller's field holds 1.
+    (
+        "mut_record_callers_argument",
+        "data Pair [copy] { a: u32; b: u32; }\n\
+         machine set(mut pair: Pair) { pair.a = 4294967295; }\n\
+         machine spare() -> u32 {\n    \
+         let q: Pair = Pair { a: 1, b: 2 };\n    set(q);\n    q.a + 4294967294\n}",
+    ),
+    // Lent exclusively, the formal holds whatever the callee stored.
+    (
+        "mut_scalar_lent",
+        "machine clear(value: &mut u32) { value = 0; }\n\
+         machine spare(mut value: u32) -> u32 requires value <= 10 {\n    \
+         clear(&mut value);\n    value + 4294967285\n}",
+    ),
+    (
+        "mut_named_in_ensures",
+        "machine spare(mut value: u32) -> u32 ensures result == value { value }",
+    ),
+    (
+        "mut_affine_data",
+        "data Token { value: u32; }\n\
+         machine spare(mut token: Token) -> u32 { token.value = 1; token.value }",
+    ),
+];
+
+/// A `mut` formal that holds its own value is the callee's own storage and
+/// is written as a `mut` local is; the route used to refuse every machine
+/// that declared one (`parameter mutable parameter`). A fact from `requires`
+/// is about the argument: it does not survive an assignment to a scalar
+/// formal, a store into that field of a record formal, a whole assignment or
+/// an exclusive loan, and each such program is rejected for the operation
+/// that needed it. A formal that is not `mut` is still not written, and the
+/// case the route does not serve is refused by name.
+#[test]
+fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        falls_back("statement assignment to an immutable binding"),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Rejected,
+        falls_back("statement store into an immutable binding"),
+        Verdict::Accepted(3),
+        Verdict::Rejected,
+        falls_back("contract clause that names a mutable parameter outside requires"),
+        // Plain data without `[copy]` is served since affine moves landed:
+        // the callee owns the value, stores into it and drops it.
+        Verdict::Accepted(2),
+    ];
+    assert_eq!(expected.len(), WRITTEN_FORMALS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in WRITTEN_FORMALS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// One program per thing the route decides about an integer whose type
+/// carries an arithmetic policy. Each is the declaration followed by
+/// `machine main() {}`.
+const POLICY_INTEGERS: &[(&str, &str)] = &[
+    // A Wrapping add is total: nothing is owed.
+    (
+        "wrapping_add",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping {\n    \
+         left + right\n}",
+    ),
+    // The literal lands in the carrier and the operator is still Wrapping's.
+    (
+        "wrapping_literal_operand",
+        "machine spare(left: u32 in Wrapping) -> u32 in Wrapping { left * 31 + 1 }",
+    ),
+    (
+        "saturating_add",
+        "machine spare(left: i32 in Saturating, right: i32 in Saturating) -> i32 in Saturating {\n    \
+         left + right\n}",
+    ),
+    // Stage 04 rewrites `+%` to the casts and the Wrapping add.
+    (
+        "suffixed_operator",
+        "machine spare(left: u32, right: u32) -> u32 { left +% right }",
+    ),
+    // A policy supplies no divisor.
+    (
+        "wrapping_divide_unproved",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping {\n    \
+         left / right\n}",
+    ),
+    (
+        "wrapping_divide_proved",
+        "machine spare(left: u32 in Wrapping, right: u32 in Wrapping) -> u32 in Wrapping\n\
+         requires right > 0\n{\n    left / right\n}",
+    ),
+    // A Wrapping operation beside it excuses no Exact one.
+    (
+        "exact_add_beside_a_wrapping_one",
+        "machine spare(left: u32, right: u32) -> u32 {\n    \
+         let wrapped: u32 = left +% right;\n    left + right\n}",
+    ),
+    (
+        "wrapping_field",
+        "data Counter [copy] { ticks: u32 in Wrapping; }\n\
+         machine spare(mut counter: Counter) -> u32 in Wrapping {\n    \
+         counter.ticks = counter.ticks + 1;\n    counter.ticks\n}",
+    ),
+    (
+        "wrapping_loop",
+        "machine spare(count: u32 in Wrapping, left: u32) -> u32 in Wrapping {\n    \
+         transition left > 0 {\n        true -> spare(count + 1, left - 1)\n        \
+         false -> count\n    }\n}",
+    ),
+    (
+        "wrapping_call",
+        "machine twice(value: u32 in Wrapping) -> u32 in Wrapping { value + value }\n\
+         machine spare(value: u32 in Wrapping) -> u32 in Wrapping { twice(twice(value)) }",
+    ),
+    // The literal lands in the carrier the cast names.
+    (
+        "wrapping_constant",
+        "machine spare() -> u32 in Wrapping { (5 as u32 in Wrapping) + 1 }",
+    ),
+    // A cast into a policy converts the carrier exactly first: no policy
+    // makes `as` truncate.
+    (
+        "narrowing_cast_into_wrapping",
+        "machine spare(value: u16) -> u8 in Wrapping { value as u8 in Wrapping }",
+    ),
+    (
+        "bounded_narrowing_cast_into_wrapping",
+        "machine spare(value: u16) -> u8 in Wrapping requires value <= 255 {\n    \
+         value as u8 in Wrapping\n}",
+    ),
+    (
+        "wrapping_and_plain_binding",
+        "machine spare(left: u32 in Wrapping, right: u32) -> u32 in Wrapping { left + right }",
+    ),
+    (
+        "two_policies",
+        "machine spare(left: u8 in Wrapping, right: u8 in Saturating) -> u8 in Wrapping {\n    \
+         left + right\n}",
+    ),
+    (
+        "wrapping_value_as_plain_result",
+        "machine spare(left: u32 in Wrapping) -> u32 { left }",
+    ),
+    (
+        "literal_into_wrapping_local",
+        "machine spare() -> u32 in Wrapping { let start: u32 in Wrapping = 5; start }",
+    ),
+    (
+        "trapping",
+        "machine spare(left: u32 in Trapping, right: u32 in Trapping) -> u32 in Trapping {\n    \
+         left + right\n}",
+    ),
+];
+
+/// An integer of type `T in Wrapping` or `T in Saturating` is judged with
+/// its policy's operations; the route used to refuse every machine that
+/// named such a type (`type constrained`) and every suffixed operator's
+/// rewrite. A policy operation owes what Terminal semantics says it owes: an
+/// add nothing, a divide its divisor. It is never read as the Exact
+/// operation: an Exact add beside a Wrapping one still owes its range. That
+/// a wrapped sum is not taken for the mathematical sum is pinned in
+/// `lowered-discharge` (`a_wrapped_sum_is_not_the_mathematical_sum`): its
+/// verdict is "no rule for this goal", which this table has no row for. A cast into a policy converts the carrier exactly and owes
+/// that the value fits. What the route does not serve is refused by name.
+#[test]
+fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let falls_back = |detail: &str| Verdict::FallsBack(detail.to_owned());
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Accepted(3),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(2),
+        falls_back(
+            "expression operator between a policy-qualified operand and a plain operand that is not a literal",
+        ),
+        falls_back("typing operands under two arithmetic policies"),
+        falls_back("typing arm value type"),
+        falls_back("typing local initializer without the arithmetic policy of its local"),
+        falls_back("type constrained by Trapping"),
+    ];
+    assert_eq!(expected.len(), POLICY_INTEGERS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in POLICY_INTEGERS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// One program per thing the route decides about data with no field and no
+/// case. Each is the declarations followed by `machine main() {}`.
+const EMPTY_RECORDS: &[(&str, &str)] = &[
+    (
+        "minted",
+        "data Token {}\nmachine spare() -> u32 { let token: Token = Token {}; 0 }",
+    ),
+    (
+        "declared",
+        "data Token {}\nmachine spare() -> u32 { let token: Token; 0 }",
+    ),
+    // Not `[copy]`: the second argument names a local whose value moved.
+    (
+        "affine_passed_twice",
+        "data Token {}\nmachine take(token: Token) -> u32 { 0 }\n\
+         machine spare(token: Token) -> u32 { take(token) + take(token) }",
+    ),
+    (
+        "copy_passed_twice",
+        "data Token [copy] {}\nmachine take(token: Token) -> u32 { 0 }\n\
+         machine spare(token: Token) -> u32 { take(token) + take(token) }",
+    ),
+    (
+        "lent",
+        "data Token {}\nmachine touch(token: &mut Token) {}\n\
+         machine spare() -> u32 {\n    let mut token: Token = Token {};\n    \
+         touch(&mut token);\n    0\n}",
+    ),
+    (
+        "field",
+        "data Token {}\ndata Holder { token: Token; count: u32; }\n\
+         machine spare() -> u32 {\n    \
+         let holder: Holder = Holder { token: Token {}, count: 3 };\n    holder.count\n}",
+    ),
+];
+
+/// Data with no field and no case is a record whose roster is empty; the
+/// route used to refuse every value of one (`type data without fields`). A
+/// value is minted, declared, lent and held in a field like any record, and
+/// one that is not `[copy]` still moves only once although it has no storage
+/// to find empty.
+#[test]
+fn an_empty_record_is_a_record_with_no_field() {
+    let _compilation = FIXTURE_COMPILATIONS.lock().unwrap();
+    let expected = [
+        Verdict::Accepted(2),
+        Verdict::Accepted(2),
+        Verdict::Rejected,
+        Verdict::Accepted(3),
+        Verdict::Accepted(3),
+        Verdict::Accepted(2),
+    ];
+    assert_eq!(expected.len(), EMPTY_RECORDS.len());
+    let mut wrong = Vec::new();
+    for ((name, declaration), expected) in EMPTY_RECORDS.iter().zip(expected) {
+        let found = verdict_on_unused(name, declaration);
+        if found != expected {
+            wrong.push(format!("{name}: expected {expected:?}, found {found:?}"));
+        }
+    }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }

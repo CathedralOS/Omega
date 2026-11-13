@@ -1,4 +1,0 @@
-machine invalid(value: u64) -> u64
-    ensures (value >> 64u64) <= 9223372036854775807
-{ value >> 64u64 }
-machine main() {}

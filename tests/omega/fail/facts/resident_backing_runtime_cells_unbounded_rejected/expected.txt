@@ -1,3 +1,0 @@
-cannot prove ensures contract for exit from exchange
-result.storage.base == storage.base
-result.storage.length == storage.length

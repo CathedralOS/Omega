@@ -35,6 +35,12 @@ the helpers it calls. Nothing is assumed around a call cycle: a summary enters
 a contract only once it is proved, so a machine never reads its own, and
 "assuming a proposed summary around a cycle is not a proof" cannot happen.
 
+Summaries run before input inference and once more after it
+(`discharge_with`). A helper that omits `requires` is first summarized under
+no input, and what it returns because of the input its callers establish is
+a further clause the second run adds; a clause already in the contract is
+not added again.
+
 Limits. Only a scalar result is summarized, and only by comparisons that name
 it: what it equals, what bounds it, how it relates to a scalar formal. A
 helper whose returns differ is summarized by what they share, never by one
@@ -64,12 +70,16 @@ use crate::{
 
 /// Adds a proved result summary to the contract of each machine in
 /// `Elaboration::local_results` that has one, callees first.
-pub(crate) fn infer(elaboration: &mut Elaboration, knowledge: Knowledge) -> Checked<()> {
+pub(crate) fn infer(
+    elaboration: &mut Elaboration,
+    knowledge: Knowledge,
+    unreached: &mut crate::Unreached,
+) -> Checked<()> {
     if elaboration.local_results.is_empty() {
         return Ok(());
     }
     for id in callees_first(elaboration)? {
-        summarize(elaboration, id, knowledge)?;
+        summarize(elaboration, id, knowledge, unreached)?;
     }
     Ok(())
 }
@@ -231,7 +241,12 @@ fn widest(
     }))
 }
 
-fn summarize(elaboration: &mut Elaboration, id: MachineId, knowledge: Knowledge) -> Checked<()> {
+fn summarize(
+    elaboration: &mut Elaboration,
+    id: MachineId,
+    knowledge: Knowledge,
+    unreached: &mut crate::Unreached,
+) -> Checked<()> {
     let module = &elaboration.module;
     let lowered = terminal_machine(&module.machines, id, id)?;
     let TerminalMachineResult::Scalar(declared) = &lowered.result else {
@@ -281,6 +296,7 @@ fn summarize(elaboration: &mut Elaboration, id: MachineId, knowledge: Knowledge)
         &prepared.types,
     )?;
     let relations = knowledge != Knowledge::LiteralIntervals;
+    let beyond = unreached.values(lowered, &scratch);
     let mut decided = (0..scratch.obligations.len())
         .map(|_| None)
         .collect::<Vec<_>>();
@@ -295,6 +311,7 @@ fn summarize(elaboration: &mut Elaboration, id: MachineId, knowledge: Knowledge)
             context: &prepared.context,
             relations,
             declared: &declared_joins,
+            unreached: &beyond,
         },
         &mut scratch,
         &mut decided,
@@ -344,6 +361,11 @@ fn summarize(elaboration: &mut Elaboration, id: MachineId, knowledge: Knowledge)
                 &scratch.values,
                 relations,
             );
+            // A caller's goal on this result then depends on an operation
+            // the integer rules do not reach, whatever is described of it.
+            if prover.value_beyond_rules(*value, &beyond) {
+                unreached.mark_result(id);
+            }
             let (lower, upper) = prover.literal_bounds(*value);
             lowest = widest(lowest, lower, integer, std::cmp::Ordering::Less);
             highest = widest(highest, upper, integer, std::cmp::Ordering::Greater);
@@ -395,6 +417,7 @@ fn summarize(elaboration: &mut Elaboration, id: MachineId, knowledge: Knowledge)
             ProgramPoint::Edge(*edge),
             goal,
             relations,
+            &beyond,
         )
         .is_err()
         {

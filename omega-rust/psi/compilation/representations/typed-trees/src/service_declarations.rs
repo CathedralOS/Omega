@@ -2881,6 +2881,58 @@ pub mod signatures {
                 });
             }
 
+            // A closed application the program names directly, as in
+            // `Owner<Arguments>::member(...)`, may be supplied by a native
+            // Build binding instead of a named implementation. It is then an
+            // application of this boundary that no conformance covers, and
+            // its declared policy must be evaluated for it all the same, so
+            // each such application is an instance too. An application some
+            // conformance already covers keeps that conformance's instance.
+            // These are the applied roots the service catalog also reads, so
+            // an application has an instance exactly when it has a surface.
+            let portable = |scope: &crate::trait_definition::AppliedTraitScope<'_>| {
+                scope
+                    .portable_application_identity(typed)
+                    .and_then(|identity| typed.type_identity_text(identity))
+            };
+            let mut covered = typed
+                .conformances()
+                .iter()
+                .filter(|conformance| conformance.trait_symbol == boundary.symbol)
+                .filter_map(|conformance| {
+                    crate::trait_definition::AppliedTraitScope::from_conformance(typed, conformance)
+                        .and_then(|scope| scope.declaring_scope(typed, boundary.symbol))
+                        .and_then(|scope| portable(&scope))
+                })
+                .collect::<Vec<_>>();
+            for root in typed.applied_trait_roots() {
+                root.visit(typed, &mut |scope| {
+                    // Only a use that applies the boundary by itself: its one
+                    // frame of substitutions is then the boundary's arguments.
+                    if scope.declaration.symbol != boundary.symbol
+                        || scope.substitution_scope_starts != [0]
+                        || scope.substitutions.len() != parameters.len()
+                    {
+                        return;
+                    }
+                    let Some(identity) = portable(scope) else {
+                        return;
+                    };
+                    if covered.contains(&identity) {
+                        return;
+                    }
+                    covered.push(identity);
+                    instances.push(BoundaryPolicyInstance {
+                        arguments: scope
+                            .substitutions
+                            .iter()
+                            .map(|(_, argument)| *argument)
+                            .collect(),
+                        argument_owner: scope.argument_owner,
+                    });
+                });
+            }
+
             Ok(instances)
         }
 

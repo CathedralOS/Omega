@@ -1,9 +1,0 @@
-data First {}
-data Slot { value: u64; }
-domain<P> Slot::Resident<P> established by initialize;
-data Storage<P> { resident: Slot in Resident<P>; }
-machine initialize<P>(value: u64) -> Slot in Resident<P> { Slot { value: value } }
-machine corrupt(storage: &mut Storage<First>) {
-    storage.resident = Slot { value: 99 };
-}
-machine main() {}

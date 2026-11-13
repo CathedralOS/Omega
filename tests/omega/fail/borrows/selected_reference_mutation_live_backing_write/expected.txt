@@ -1,1 +1,0 @@
-mutates `replacement.value` while local borrow `selected` is still active

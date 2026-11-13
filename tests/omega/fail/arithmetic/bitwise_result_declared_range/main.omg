@@ -1,6 +1,0 @@
-// Integer OR does not produce a Boolean interval.
-machine run(value: u8) -> u8
-    ensures result >= 0 && result <= 1
-{
-    value | 128u8
-}

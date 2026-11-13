@@ -1,1 +1,0 @@
-trailing `boundary host` and `boundary Name` contract clauses are retired

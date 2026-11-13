@@ -1251,6 +1251,15 @@ mod id_table {
             absent
         }
 
+        /// Adds every member of `other` using the existing dense bit storage.
+        pub fn union_with(&mut self, other: &Self) {
+            self.words
+                .resize(self.words.len().max(other.words.len()), 0);
+            for (word, incoming) in self.words.iter_mut().zip(&other.words) {
+                *word |= incoming;
+            }
+        }
+
         pub fn remove(&mut self, identity: Id) -> bool {
             let (word, mask) = Self::coordinate(identity);
             let Some(bits) = self.words.get_mut(word) else {
@@ -1278,6 +1287,21 @@ mod id_table {
 
         fn id(raw: u64) -> StructuralTypeId {
             StructuralTypeId::new(raw).unwrap()
+        }
+
+        #[test]
+        fn dense_set_union_preserves_both_sides_across_word_boundaries() {
+            let mut left = IdSet::new();
+            left.insert(id(2));
+            let mut right = IdSet::new();
+            right.insert(id(65));
+            left.union_with(&right);
+            assert!(left.contains(id(2)));
+            assert!(left.contains(id(65)));
+            assert!(!left.contains(id(64)));
+            assert!(!right.contains(id(2)));
+            left.union_with(&IdSet::new());
+            assert!(left.contains(id(65)));
         }
 
         #[test]

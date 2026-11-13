@@ -62,8 +62,8 @@ mod read;
 mod static_contracts;
 
 pub use body::{
-    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType,
-    Signature, Statement, Strict, Target, Termination, ValueType, self_place,
+    Body, Borrowed, CaseType, CrashCeiling, Expression, ExpressionKind, Policy, RecordField,
+    RecordType, Signature, Statement, Strict, Target, Termination, ValueType, self_place,
 };
 pub use callable_headers::{CallableCrashPolicy, CallableHeader};
 pub use external_providers::{ExternalProviderCandidate, ProviderContractHeader};
@@ -776,7 +776,7 @@ fn lower_program(
             )
         })?;
         let component = terminal_check_tables::row(&components, id, id, Construct::Machine)?;
-        let mut lowered = lower::machine(
+        let lowered = lower::machine(
             id,
             bodies,
             component,
@@ -787,13 +787,80 @@ fn lower_program(
             boundaries,
             requirements.contains(&id),
         )?;
-        lower::materialize_plain_affine_custody(&module.structural_types, &mut lowered)?;
         module.machines.push(lowered.machine);
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
         module.scalar_block_invariants.extend(lowered.invariants);
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
+    }
+    for machine in &mut module.machines {
+        let plan = terminal_semantics::plain_affine::plan(machine, &module.structural_types)
+            .map_err(|error| {
+                let (reason, detail) = match error {
+                    terminal_semantics::plain_affine::Error::Unsupported(detail) => {
+                        (terminal_check_tables::RefusalReason::Unsupported, detail)
+                    }
+                    terminal_semantics::plain_affine::Error::Malformed(detail) => (
+                        terminal_check_tables::RefusalReason::ForeignIdentity,
+                        detail,
+                    ),
+                };
+                terminal_check_tables::Refusal {
+                    reason,
+                    machine: machine.id,
+                    concerns: Construct::Machine,
+                    detail: detail.to_owned(),
+                }
+            })?;
+        // Planning records disposal; it does not establish ownership. The
+        // checker reconstructs unavailable uses and the complete edge schedule.
+        for block in &mut machine.blocks {
+            use terminal_psi::Terminator;
+            let append = |edge, actions: &mut Vec<terminal_psi::TerminalAffineCleanupAction>| {
+                actions.retain(|action| !plan.affine_roots.contains(action.place()));
+                if let Ok(position) = plan.cleanup.binary_search_by_key(&edge, |(edge, _)| *edge) {
+                    actions.extend(plan.cleanup[position].1.iter().cloned());
+                }
+            };
+            match &mut block.terminator {
+                Terminator::Jump {
+                    edge,
+                    cleanup_actions,
+                    ..
+                }
+                | Terminator::Return {
+                    edge,
+                    cleanup_actions,
+                    ..
+                }
+                | Terminator::ReturnStructural {
+                    edge,
+                    cleanup_actions,
+                    ..
+                }
+                | Terminator::ReturnUnit {
+                    edge,
+                    cleanup_actions,
+                } => append(*edge, cleanup_actions),
+                Terminator::Conditional {
+                    when_true,
+                    when_false,
+                    ..
+                } => {
+                    append(when_true.edge, &mut when_true.cleanup_actions);
+                    append(when_false.edge, &mut when_false.cleanup_actions);
+                }
+                Terminator::StructuralCase { cases, .. } => {
+                    for case in cases {
+                        append(case.edge, &mut case.cleanup_actions);
+                    }
+                }
+                Terminator::Crash { .. }
+                | Terminator::InvokeNoNormal { .. }
+                | Terminator::ExternalCompletion { .. } => {}
+            }
+        }
     }
     boundaries.publish(
         entry,

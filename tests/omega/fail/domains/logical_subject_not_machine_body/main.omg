@@ -1,2 +1,0 @@
-domain u64::Small requires self < 5;
-machine check() -> u64 { self }

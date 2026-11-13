@@ -128,6 +128,8 @@ public data TypeDiagnosticCode [copy] {
     case NotAPlace;
     case TerminalResultMismatch;
     case AnonymousFraction;
+    // An integral anonymous value whose fractional history needs explicit `as`.
+    case FractionalIntermediate;
     case UnsupportedExpression;
     case UninferredGenericArgument;
     // A machine's signature is not the requirement's it `satisfies`, under
@@ -187,6 +189,9 @@ requires
     // The denominator of an anonymous expression's exact rational value, in
     // lowest terms; zero (the absence state) or one is integral.
     denominators: [u64; 131072];
+    // First authored fractional expression, plus one; zero means none.
+    // Cancellation retains this origin until an explicit landing boundary.
+    fractional_origins: [u64; 131072];
     // A quoted literal's primitive byte predicates, replayed from its exact
     // octets (wiki/spec/terminal-psi/structural_access.md): bit 1 `valid_utf8`,
     // 2 `no_nul`, 4 `ascii_only`, 8 `non_empty`.
@@ -369,6 +374,31 @@ crashes Trap
     }
 }
 
+// A numeric root that typing completed as exact anonymous arithmetic before
+// landing. Runtime typed operations never acquire this annotation. Consumers
+// use its completed integral value rather than imposing runtime carrier rules
+// on its anonymous intermediates; destination qualification remains separate.
+public machine typing_landed_integer(typing: &Typing, handle: u64 in Trapping, expression: Expression) -> bool
+crashes Trap
+{
+    let selection: Selection = typing_selection(typing, handle);
+    transition selection {
+        Selection::None -> classified(typing, handle, expression)
+        _ -> no()
+    }
+    machine classified(typing: &Typing, handle: u64 in Trapping, expression: Expression) -> bool {
+        let adaptation: Adaptation = typing_adaptation(typing, handle);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+        let row: TypeRow = type_table_row(&typing.types, type_handle);
+        let numeric: bool = expression.kind == ExpressionKind::Integer
+            || expression.kind == ExpressionKind::Unary || expression.kind == ExpressionKind::Binary;
+        typing.accepted && adaptation == Adaptation::Landed && numeric
+            && row.kind == TypeKind::Builtin && is_carrier(row.builtin)
+            && typing_denominator(typing, handle) == 1
+    }
+    machine no() -> bool { false }
+}
+
 // An anonymous expression's exact rational: its value over its denominator.
 public machine rational(typing: &Typing, index: u64 in Trapping) -> Rational
 crashes Trap
@@ -445,17 +475,43 @@ crashes Trap
     }
 }
 
-public machine set_rational(typing: &mut Typing, index: u64 in Trapping, value: Rational)
+// Fractional history is independent of the simplified final denominator.
+public machine typing_fractional_origin(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition index < typing.expression_count {
-        true -> write(typing, index, value)
+        true -> read(typing, index)
+        _ -> invalid()
+    }
+    machine read(typing: &Typing, index: u64 in Trapping) -> u64 in Trapping {
+        typing.fractional_origins[index] as u64 in Trapping
+    }
+    machine invalid() -> u64 in Trapping { crash Trap; }
+}
+
+public machine set_rational(typing: &mut Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping)
+crashes Trap
+{
+    transition index < typing.expression_count {
+        true -> write(typing, index, value, origin)
         _ -> invalid()
     }
 
-    machine write(typing: &mut Typing, index: u64 in Trapping, value: Rational) {
+    machine write(typing: &mut Typing, index: u64 in Trapping, value: Rational, origin: u64 in Trapping) {
         typing.values[index] = value.numerator;
         typing.denominators[index] = value.denominator as u64;
+        transition origin > 0 || value.denominator <= 1 {
+            true -> inherited(typing, index, origin)
+            _ -> fractional(typing, index)
+        }
+    }
+
+    machine inherited(typing: &mut Typing, index: u64 in Trapping, origin: u64 in Trapping) {
+        typing.fractional_origins[index] = origin as u64;
+    }
+
+    machine fractional(typing: &mut Typing, index: u64 in Trapping) {
+        typing.fractional_origins[index] = (index + 1) as u64;
     }
 
     machine invalid() {
@@ -474,6 +530,7 @@ crashes Trap
     machine write(typing: &mut Typing, index: u64 in Trapping, value: ExactInteger) {
         typing.values[index] = value;
         typing.denominators[index] = 0;
+        typing.fractional_origins[index] = 0;
     }
 
     machine invalid() {
@@ -872,4 +929,31 @@ public machine carrier_width(row: TypeRow) -> u64 in Trapping {
     machine width(bytes: u64 in Trapping) -> u64 in Trapping {
         bytes
     }
+}
+
+// Reference casts keep the same backing. Each loan query traces their authored
+// operand chain to name the original borrow or reference value,
+// including a cast applied to another cast. Syntax children precede parents;
+// an impossible nondecreasing edge fails rather than erasing a loan.
+public machine reference_cast_source(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> next(syntax, typing, handle) }
+    machine next(syntax: &SyntaxTrees, typing: &Typing, handle: u64 in Trapping) -> u64 in Trapping {
+        let expression: Expression = syntax_trees_expression(syntax, handle);
+        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
+        let row: TypeRow = type_table_row(&typing.types, type_handle);
+        transition expression.kind == ExpressionKind::Cast && row.kind == TypeKind::Reference {
+            true -> child(syntax, typing, handle, expression.left)
+            _ -> result(handle)
+        }
+    }
+    machine child(syntax: &SyntaxTrees, typing: &Typing, parent: u64 in Trapping, operand: u64 in Trapping) -> u64 in Trapping {
+        transition operand < parent {
+            true -> next(syntax, typing, operand)
+            _ -> invalid()
+        }
+    }
+    machine result(handle: u64 in Trapping) -> u64 in Trapping { handle }
+    machine invalid() -> u64 in Trapping { crash Trap; }
 }

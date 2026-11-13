@@ -1,2 +1,0 @@
-// The caller's imports cannot supply this source's own vocabulary.
-public data B { value: A; }

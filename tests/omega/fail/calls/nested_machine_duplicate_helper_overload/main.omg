@@ -1,8 +1,0 @@
-// Two nested helpers of one machine with the same name and parameter
-// signature are duplicate overloads; the refusal names the helper as written.
-machine outer(value: u64) -> u64 {
-    helper(value)
-    machine helper(item: u64) -> u64 { item }
-    machine helper(item: u64) -> u64 { item }
-}
-machine main() { let value: u64 = outer(42); }

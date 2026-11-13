@@ -1,1 +1,0 @@
-boundary machine write(value: &write i32);

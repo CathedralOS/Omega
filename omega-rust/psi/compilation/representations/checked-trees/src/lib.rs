@@ -793,7 +793,7 @@ impl AsRef<typed_trees::TypedTrees> for CheckedTrees {
 pub use facts::ConstantPredicateObligation;
 pub use facts::{CheckedScalarReturnOrigin, CheckedScalarReturnQualification};
 pub use facts::{IntegerRangeModel, IntegerRangeObligation, IntegerRangeRecipe};
-// Compatibility while Product consumers retain only immutable typed metadata.
+// Legacy checked-source metadata shares the immutable typed declaration cache.
 pub type PreparedProviderInventory =
     typed_trees::provider_declarations::PreparedProviderInventory<CheckedTrees>;
 

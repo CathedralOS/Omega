@@ -1,6 +1,0 @@
-// A `mut` record parameter may be rewritten in the body, so it has no entry place whose field an erased record argument can name; the call is refused at the argument.
-data Witness { value: i32; }
-machine keep(runtime: i32, record [erased]: &Witness) -> i32
-requires record.value == 7 { runtime }
-machine relay(mut record: Witness) -> i32 { record.value = 7; keep(41, &record) }
-machine main() { let result: i32 = relay(Witness { value: 8 }); }

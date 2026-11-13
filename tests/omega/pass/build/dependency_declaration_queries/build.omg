@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "query_consumer");
-    let dependency_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "dependency" }));
-}

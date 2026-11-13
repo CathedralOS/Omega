@@ -1,2 +1,0 @@
-call from `read_seven` to `forward`
-uncovered Trap crash route

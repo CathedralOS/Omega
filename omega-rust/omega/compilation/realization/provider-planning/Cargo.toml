@@ -30,7 +30,7 @@ terminal-psi = { path = "../../../../psi/compilation/representations/terminal-ps
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
 psi-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
-terminal-installation = { path = "../../../../psi/compilation/validation/terminal-installation" }
+terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 flow-effects = { path = "../../../../psi/foundation/flow-effects" }

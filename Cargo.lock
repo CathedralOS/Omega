@@ -19,7 +19,6 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
- "checked-trees-to-lowered-psi",
  "lowered-discharge",
  "optimization",
  "optimization-core",
@@ -38,7 +37,6 @@ dependencies = [
  "terminal-psi-to-abstract-operations",
  "terminal-semantics",
  "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
  "typed-trees-to-typed-trees",
  "verified-optimization-input",
 ]
@@ -241,11 +239,11 @@ dependencies = [
  "access-plans",
  "arena",
  "build-time-values",
- "checked-interpreter",
  "checked-trees",
  "compiler-storage",
  "diagnostics",
  "evaluation-accounting",
+ "filesystem-authority",
  "flow-effects",
  "language-core",
  "language-semantics",
@@ -355,27 +353,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "checked-interpreter"
-version = "0.1.0"
-dependencies = [
- "arena",
- "build-time-values",
- "checked-trees",
- "compiler-storage",
- "evaluation-accounting",
- "filesystem-authority",
- "language-core",
- "language-semantics",
- "layout-plans",
- "numerics",
- "semantic-vocabulary",
- "source",
- "symbols",
- "typed-trees",
- "validation",
-]
-
-[[package]]
 name = "checked-trees"
 version = "0.1.0"
 dependencies = [
@@ -395,30 +372,6 @@ dependencies = [
  "source-audit",
  "symbols",
  "typed-trees",
-]
-
-[[package]]
-name = "checked-trees-to-lowered-psi"
-version = "0.1.0"
-dependencies = [
- "arena",
- "checked-trees",
- "diagnostics",
- "facts",
- "language-core",
- "language-semantics",
- "lowered-psi",
- "numerics",
- "optimization",
- "proof-admission",
- "semantic-vocabulary",
- "source",
- "symbols",
- "terminal-codec",
- "terminal-psi",
- "terminal-semantics",
- "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -845,8 +798,6 @@ dependencies = [
  "arena",
  "boundary-applications",
  "calling-conventions",
- "checked-trees",
- "checked-trees-to-lowered-psi",
  "compiler",
  "diagnostics",
  "executable-installation",
@@ -889,7 +840,6 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "tokens-to-syntax-trees",
- "typed-trees-to-checked-trees",
  "verified-optimization-input",
  "x86-encoding",
 ]
@@ -1725,6 +1675,7 @@ dependencies = [
  "cap-primitives",
  "cap-std",
  "compiler-storage",
+ "filesystem-authority",
  "nix",
  "optimization-core",
  "platform-custody",
@@ -1978,11 +1929,9 @@ name = "psi-terminal-production"
 version = "0.1.0"
 dependencies = [
  "checked-trees",
- "checked-trees-to-lowered-psi",
  "compiler-storage",
  "diagnostics",
  "language-semantics",
- "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
  "optimization",
@@ -1992,7 +1941,6 @@ dependencies = [
  "terminal-codec",
  "terminal-psi",
  "typed-trees",
- "validation",
 ]
 
 [[package]]
@@ -2381,6 +2329,15 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
+]
+
+[[package]]
+name = "serde_spanned"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c187e0a369471c550af028cba56d4f4fa2a489ad28151ae95a4d340a2a8b782"
+dependencies = [
+ "serde_core",
 ]
 
 [[package]]
@@ -2838,6 +2795,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml"
+version = "0.9.12+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf92845e79fc2e2def6a5d828f0801e29a2f8acc037becc5ab08595c7d5e9863"
+dependencies = [
+ "serde_core",
+ "serde_spanned",
+ "toml_datetime",
+ "toml_parser",
+ "winnow 0.7.15",
+]
+
+[[package]]
+name = "toml_datetime"
+version = "0.7.5+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92e1cfed4a3038bc5a127e35a2d360f145e1f4b971b551a2ba5fd7aedf7e1347"
+dependencies = [
+ "serde_core",
+]
+
+[[package]]
+name = "toml_parser"
+version = "1.1.5+spec-1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baa693a8032d7e1cada7d0041e96126df243179ff061456783ac7f12bda4744c"
+dependencies = [
+ "winnow 1.0.5",
+]
+
+[[package]]
 name = "trust-model"
 version = "0.1.0"
 dependencies = [
@@ -3184,6 +3172,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
+name = "winnow"
+version = "0.7.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
+
+[[package]]
+name = "winnow"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c3b93199df0ab874cdf0c6a94f0a0dc3423fe41f1cafb62b8bd7b1deb277aef"
+
+[[package]]
 name = "winx"
 version = "0.36.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3201,9 +3201,11 @@ version = "0.1.0"
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "bounded-process",
  "serde",
  "serde_json",
  "shlex",
+ "toml",
 ]
 
 [[package]]

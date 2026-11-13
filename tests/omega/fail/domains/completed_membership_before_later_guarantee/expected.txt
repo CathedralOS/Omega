@@ -1,5 +1,0 @@
-construction of `Pair` field `amount` is not proven in domain `Amount::Positive` in direct
-construction of `Pair` field `amount` is not proven in domain `Amount::Positive` in local
-construction of `Pair` field `amount` is not proven in domain `Amount::Positive` in field
-construction of `Pair` field `amount` is not proven in domain `Amount::Positive` in returned
-construction of `Selection` field `amount` is not proven in domain `Amount::Positive` in selected

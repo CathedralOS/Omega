@@ -34,9 +34,11 @@ pub(crate) use optimization::codec_bytes;
 
 mod filesystem;
 mod filesystem_sponsor;
+mod source_capture;
 
 pub use filesystem::*;
 pub use filesystem_sponsor::*;
+pub use source_capture::*;
 
 pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 20;
 

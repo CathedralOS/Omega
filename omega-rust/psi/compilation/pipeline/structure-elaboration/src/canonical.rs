@@ -172,11 +172,20 @@ pub(crate) fn substitute(
             }
             conjunction(substituted, id)
         }
+        // A machine's `requires` may compare mathematical integers, and a
+        // member of a call cycle has its `requires` restated here as its
+        // head's invariant. Restating one needs each formal's block
+        // parameter embedded where the formal was, and the checker's
+        // arrival goals to be stated the same way; neither is built.
+        Proposition::IntegerMathEqual(..)
+        | Proposition::IntegerMathLessThan(..)
+        | Proposition::IntegerMathLessOrEqual(..) => Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Contract("mathematical comparison required on a call cycle"),
+        )),
         // The reader builds route guards only from the forms above.
         Proposition::Atom(_)
-        | Proposition::IntegerMathEqual(..)
-        | Proposition::IntegerMathLessThan(..)
-        | Proposition::IntegerMathLessOrEqual(..)
         | Proposition::IeeeFloatComparison { .. }
         | Proposition::ScalarIeeeFloatComparison { .. }
         | Proposition::ByteSequenceEqual { .. }

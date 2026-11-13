@@ -1,8 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "raw_boundary_trait_ambiguous_whole_supply");
-    let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: "../../../../../source/library/std" }));
-    Build::accept_boundary<RawStamp>(builder);
-    Build::select_provider<RawStamp, FirstStampProvider>(builder, linux_x86_64);
-    Build::select_provider<RawStamp, SecondStampProvider>(builder, linux_x86_64);
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
-}

@@ -1,5 +1,0 @@
-data Cell [copy] { value: u64; }
-machine replace(cell: &write Cell) { cell.value = 7; }
-machine select(cells: &write [Cell; 3], position: u64) {
-    replace(&write cells[position]);
-}

@@ -1,8 +1,0 @@
-// Expected exit: 0
-// A written ceiling is an upper bound: `relay` and `main` may name `Unused`,
-// which nothing they call reaches, and must name `Mark`, which `marked` publishes.
-public boundary trait Mark {}
-public boundary trait Unused {}
-public machine marked() reaches Mark {}
-machine relay() reaches Mark + Unused { marked(); }
-machine main() reaches Mark + Unused { relay(); }

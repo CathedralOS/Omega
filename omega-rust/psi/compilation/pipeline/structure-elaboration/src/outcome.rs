@@ -234,7 +234,8 @@ impl Walk<'_> {
             | ExpressionKind::Slot(_) => Ok(true),
             ExpressionKind::Not(operand)
             | ExpressionKind::BitwiseNot(operand)
-            | ExpressionKind::Cast(operand) => self.expression(machine, operand),
+            | ExpressionKind::Cast(operand)
+            | ExpressionKind::Requalify(operand) => self.expression(machine, operand),
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }
             | ExpressionKind::IsCase { subject: base, .. }

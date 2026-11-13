@@ -1,2 +1,0 @@
-use omega::language::core::F64::from_i32;
-machine main() -> i32 { transition { _ -> F64::from_i32(1) } }

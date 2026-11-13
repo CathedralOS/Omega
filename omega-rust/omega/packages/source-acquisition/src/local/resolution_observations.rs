@@ -18,9 +18,14 @@ pub struct CapturedLocalSource {
     pub(crate) requested_root: PathBuf,
     pub(crate) normalized: ResolvedSourceTree,
     pub(crate) tree: Arc<source::CapturedSourceTree>,
+    pub(crate) selection_identity: [u8; 32], // Caller inventory commitment, independent of physical root lineage.
 }
 
 impl CapturedLocalSource {
+    pub const fn selection_identity(&self) -> &[u8; 32] {
+        &self.selection_identity
+    }
+
     pub fn requested_root(&self) -> &Path {
         &self.requested_root
     }

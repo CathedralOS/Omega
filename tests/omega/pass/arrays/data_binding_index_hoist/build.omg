@@ -1,4 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::application(builder, "data_binding_index_hoist");
-    builder.freestanding = true;
-}

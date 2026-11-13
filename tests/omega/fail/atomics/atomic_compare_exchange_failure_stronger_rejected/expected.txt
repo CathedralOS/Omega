@@ -1,1 +1,0 @@
-failure ordering `GlobalOrder` is invalid for success ordering `Receive`

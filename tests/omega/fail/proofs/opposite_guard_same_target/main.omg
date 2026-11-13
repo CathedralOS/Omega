@@ -1,4 +1,0 @@
-machine main() {
-    transition 1u64 < 0u64 { true -> impossible() false -> impossible() }
-    machine impossible() requires 1u64 == 0u64 { }
-}

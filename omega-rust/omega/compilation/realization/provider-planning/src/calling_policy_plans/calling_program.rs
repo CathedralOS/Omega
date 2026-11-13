@@ -45,6 +45,15 @@ impl PartialEq for CallingProgram {
 impl Eq for CallingProgram {}
 
 impl CallingProgram {
+    /// Whether this boundary trait declares a `Calling<Policy>` relationship,
+    /// whatever applications of it were evaluated.
+    pub(crate) fn declares_calling(&self, boundary: symbols::SymbolHandle) -> bool {
+        self.source_preparation
+            .requests
+            .iter()
+            .any(|request| request.boundary == boundary)
+    }
+
     pub(crate) fn require_owner(
         &self,
         source_owner: &std::sync::Weak<crate::PublishedProviderSource>,

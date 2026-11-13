@@ -1,3 +1,0 @@
-machine build(builder: &mut Build) {
-    Build::package(builder, "cross_package_private_slot_support");
-}

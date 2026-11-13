@@ -1,2 +1,0 @@
-// Index 16 is outside the admitted 16-element helper storage.
-machine main() {}

@@ -1,3 +1,0 @@
-use leaf::values;
-
-machine value(window: &leaf::values::Window<u64>) -> u64 { window[..] }

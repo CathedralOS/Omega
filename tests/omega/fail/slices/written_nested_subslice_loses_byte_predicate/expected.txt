@@ -1,3 +1,0 @@
-cannot prove requires contract for call inspect from replace
-inner in [u8]::Ascii
-invalidated by prior mutation of inner
