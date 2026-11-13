@@ -93,6 +93,8 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **ORDINARY-LIBRARY-PACKAGES.** Remove mandatory/pinned `std` and hidden entry coupling ([acceptance](wiki/drafts/designs/validation_subjects.md#ordinary-library-migration)); preserve primitive custody and release integrity. Independent of validation delivery.
 
+- **LIBRARY-RESPONSIBILITY-NAMES.** Rename `std` to `system` and `alloc` to `allocation` under the [responsibility boundaries](wiki/spec/build/declarations.md#library-responsibilities-and-names), including declarations, paths, imports, Build registrations, exact sealed references, fixtures, samples and docs. Preserve contracts, owner/provenance checks and narrow primitive custody; migrate known hosted, UEFI handoff and explicit-storage allocation customers without weakening their oracles. Renamed lookalikes gain no privilege. No required collections extraction, container rename or generic element support; independent compiler-decoupling acceptance stays with ORDINARY-LIBRARY-PACKAGES.
+
 - **PROVIDER-SELECTION-AFTER-TERMINAL.** (covers **OPERATOR-BOUNDARY-CALLS**, **TARGET-SEMANTIC-APPLICATIONS**) Settle providers over Terminal Psi in `execution_settlement.rs`.
   - Move `execution_settlement.rs`, `provider_binding.rs`, `operators.rs`, opaque/const/review paths, float/FMA/GUI calls, and target capsules to Terminal Psi.
   Acceptance: `FIREWALL_ALLOWANCES` in `tools/xtask/src/boundary.rs` has no `provider-planning` or `selected-dispatch` rows, and `mbx xtask check-boundary` passes.
