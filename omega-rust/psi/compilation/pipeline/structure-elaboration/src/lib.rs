@@ -166,6 +166,10 @@ pub struct Elaboration {
     /// README, "Findings".
     pub tables: CheckTables,
     pub sources: IdTable<MachineId, MachineSources>,
+    /// Source-issued Build requests, joined to the exact operations and
+    /// boundaries structural lowering emits. Publication binds these rows
+    /// to the accepted artifact; the rows themselves grant no host authority.
+    pub build_requests: Vec<language_semantics::build_requests::TerminalBuildRequestCall>,
     /// What diagnostics call each machine's constructs, read from the typed
     /// trees (`names`). Empty for bodies lowered without typed trees
     /// (`lower_bodies`): a message then names identities only.
@@ -775,6 +779,7 @@ pub fn lower_generic(
         module,
         tables,
         sources,
+        build_requests: Vec::new(),
         names: IdTable::default(),
         machines: IdTable::default(),
         private_inputs: Vec::new(),
