@@ -1130,6 +1130,28 @@ impl Analysis<'_> {
                     path,
                 )
             })
+            .or_else(|| {
+                // A byte field's descriptor is inline storage of its record,
+                // so its region is the carrier's path and the field. The
+                // static projection stops there because a view's bytes lie
+                // outside the record; the descriptor does not.
+                let (StructuralPathSegment::Field(_), carrier) = path.split_last()? else {
+                    return None;
+                };
+                let field = crate::runtime_structural_field(
+                    self.types.iter(),
+                    declaration.structural_type,
+                    path,
+                )?;
+                field.field_type.byte_sequence_carrier()?;
+                let (mut canonical, _) = crate::canonical_static_projection(
+                    self.types.iter(),
+                    declaration.structural_type,
+                    carrier,
+                )?;
+                canonical.push(Segment::Field(field.id));
+                Some(canonical)
+            })
             .ok_or(Error::Unsupported(
                 "affine projection outside the static structural vocabulary",
             ))

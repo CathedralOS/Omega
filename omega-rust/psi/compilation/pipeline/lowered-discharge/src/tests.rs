@@ -40,6 +40,7 @@ mod ranges;
 mod reach;
 mod references;
 mod result_summaries;
+mod stored_views;
 mod type_parameters;
 mod value_parameters;
 
