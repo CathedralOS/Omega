@@ -1272,6 +1272,1075 @@ pub mod operator {
             )
         }
     }
+    pub(crate) mod source_contract_calls {
+        use crate::TypedTrees;
+        use crate::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+        use crate::signature::StateParameter;
+        use crate::types::TypeReferenceHandle;
+        use symbols::{JoinedPath, SymbolHandle, SymbolKind};
+
+        #[derive(Clone, Copy, Default)]
+        struct Memo {
+            owner: SymbolHandle,
+            generation: u32,
+            value_type: TypeReferenceHandle,
+        }
+
+        /// Source contracts can contain closed calls whose namespace has no
+        /// value symbol. Resolve their complete declared operand signatures
+        /// before freezing the typed trees; no proof or inferred value fact is
+        /// an input. Unknown operands and open applications remain unresolved.
+        pub struct SourceContractCalls<'program> {
+            program: &'program TypedTrees,
+            types: Vec<Memo>,
+            selected: Vec<(ExpressionHandle, SymbolHandle)>,
+            sources: Option<Vec<(source::SourceId, [u8; 32])>>,
+        }
+
+        impl<'program> SourceContractCalls<'program> {
+            pub fn new(program: &'program TypedTrees) -> Self {
+                Self {
+                    program,
+                    types: vec![Memo::default(); program.expression_table.expression_count() + 1],
+                    selected: Vec::new(),
+                    sources: source::source_identity::toolchain_source_identities(
+                        program.symbols.source_files(),
+                    )
+                    .ok(),
+                }
+            }
+
+            pub fn read(
+                &mut self,
+                owner: SymbolHandle,
+                parameters: &[StateParameter],
+                result_type: TypeReferenceHandle,
+                expression: ExpressionHandle,
+            ) {
+                if !owner.is_valid() {
+                    return;
+                }
+                let mut pending = vec![(expression, false)];
+                while let Some((expression, ready)) = pending.pop() {
+                    if !self
+                        .program
+                        .expression_table
+                        .expression_is_valid(expression)
+                    {
+                        continue;
+                    }
+                    let index = expression.arena_index() as usize;
+                    if self.types.len() <= index {
+                        self.types.resize(index + 1, Memo::default());
+                    }
+                    if ready {
+                        let inferred = self
+                            .value_type(owner, parameters, result_type, expression)
+                            .filter(|reference| self.program.contains_type_reference(*reference));
+                        self.types[index].value_type = inferred.unwrap_or_default();
+                        continue;
+                    }
+                    let previous = self.types[index];
+                    if previous.owner == owner && previous.generation == expression.generation() {
+                        continue;
+                    }
+                    // The invalid result also marks an active node. A cycle has
+                    // no complete operand type and cannot select a declaration.
+                    self.types[index] = Memo {
+                        owner,
+                        generation: expression.generation(),
+                        ..Memo::default()
+                    };
+                    pending.push((expression, true));
+                    let mut children = Vec::new();
+                    self.program.subtree_children(
+                        self.program.expression_table.expression(expression),
+                        Default::default(),
+                        |child| {
+                            children.push(child);
+                            false
+                        },
+                    );
+                    pending.extend(children.into_iter().rev().map(|child| (child, false)));
+                }
+            }
+
+            pub fn into_selections(self) -> Vec<(ExpressionHandle, SymbolHandle)> {
+                self.selected
+            }
+
+            fn value_type(
+                &mut self,
+                owner: SymbolHandle,
+                parameters: &[StateParameter],
+                result_type: TypeReferenceHandle,
+                expression: ExpressionHandle,
+            ) -> Option<TypeReferenceHandle> {
+                let program = self.program;
+                // Constant expansion retains its original source selection and
+                // declaration type even when the replacement literal has no
+                // application row. Use that correspondence rather than inventing
+                // a nominal type from a displayed constructor name.
+                if !matches!(
+                    program.expression_table.expression(expression),
+                    ExpressionNode::Call(_)
+                ) {
+                    if let Some(constant) = program.expression_const_declaration(expression) {
+                        return Some(constant.declared_type);
+                    }
+                    let constructed = program
+                        .expression_table
+                        .constructed_value_type_reference(expression);
+                    if constructed.is_valid() {
+                        return Some(constructed);
+                    }
+                }
+                match program.expression_table.expression(expression) {
+                    ExpressionNode::Name(path)
+                        if path.reserved_result_of == owner
+                            && !path.symbol.is_valid()
+                            && !path.head_symbol.is_valid()
+                            && program
+                                .expression_table
+                                .name_path_members(path.members)
+                                .len()
+                                == 1 =>
+                    {
+                        Some(result_type)
+                    }
+                    ExpressionNode::Name(path)
+                        if path.symbol.is_valid()
+                            && path.head_symbol == path.symbol
+                            && program
+                                .expression_table
+                                .name_path_members(path.members)
+                                .len()
+                                == 1 =>
+                    {
+                        parameters
+                            .iter()
+                            .find(|parameter| parameter.symbol == path.symbol)
+                            .map(|parameter| parameter.type_reference)
+                            .or_else(|| {
+                                program
+                                    .const_declaration_by_symbol(path.symbol)
+                                    .map(|constant| constant.declared_type)
+                            })
+                    }
+                    ExpressionNode::Cast(cast) => Some(cast.target_type),
+                    ExpressionNode::StructLiteral(literal)
+                        if literal.type_symbol.is_valid()
+                            && program.contains_type_reference(literal.application_type)
+                            && program.type_reference_symbol(literal.application_type)
+                                == literal.type_symbol =>
+                    {
+                        Some(literal.application_type)
+                    }
+                    ExpressionNode::Call(call) => {
+                        if call.target_symbol.is_valid() {
+                            closed_return(program, call.target_symbol, call)
+                        } else {
+                            let actual = program
+                                .expression_table
+                                .expression_handles(call.arguments)
+                                .iter()
+                                .map(|argument| {
+                                    let memo = self.types.get(argument.arena_index() as usize)?;
+                                    (memo.owner == owner
+                                        && memo.generation == argument.generation()
+                                        && memo.value_type.is_valid())
+                                    .then_some(memo.value_type)
+                                })
+                                .collect::<Option<Vec<_>>>()?;
+                            let selected = select(
+                                program,
+                                expression,
+                                call,
+                                &actual,
+                                self.sources.as_deref()?,
+                            )?;
+                            let result = closed_return(program, selected, call)?;
+                            self.selected.push((expression, selected));
+                            Some(result)
+                        }
+                    }
+                    _ => None,
+                }
+            }
+        }
+
+        fn closed_return(
+            program: &TypedTrees,
+            target: SymbolHandle,
+            call: &TableCallExpression,
+        ) -> Option<TypeReferenceHandle> {
+            if !call.machine_arguments.is_empty() {
+                return None;
+            }
+            if let Some(operator) = program.operator_definition_by_symbol(target) {
+                return (program.operator_type_parameters(operator).is_empty()
+                    && operator.lifetime_parameters.is_empty())
+                .then_some(operator.return_type);
+            }
+            let machine = program
+                .machine_holding_state(target)
+                .or_else(|| program.machine_by_symbol(target))?;
+            if !program.machine_type_parameters(machine).is_empty()
+                || !machine.lifetime_parameters.is_empty()
+            {
+                return None;
+            }
+            let state = if machine.symbol == target {
+                program.machine_states(machine).first()?
+            } else {
+                program.state_in_machine(machine, target)?
+            };
+            Some(state.return_type)
+        }
+
+        fn select(
+            program: &TypedTrees,
+            expression: ExpressionHandle,
+            call: &TableCallExpression,
+            actual: &[TypeReferenceHandle],
+            sources: &[(source::SourceId, [u8; 32])],
+        ) -> Option<SymbolHandle> {
+            if call.authored_call_binding.is_some()
+                || call.authored_call_selection.is_none()
+                || !call.machine_arguments.is_empty()
+                || call.authored_machine_application.is_valid()
+                || actual.len() != call.arguments.len()
+            {
+                return None;
+            }
+            let receiver = program.expression_table.name_path_node(call.receiver)?;
+            if receiver.reserved_result_of.is_valid()
+                || receiver.symbol.is_valid()
+                || receiver.head_symbol.is_valid()
+            {
+                return None;
+            }
+            let members = program.expression_table.name_path_members(receiver.members);
+            if members.is_empty() {
+                return None;
+            }
+            let reference = program.expression_table.source_span(expression);
+            if reference.span.start == reference.span.end
+                || program.symbols.source_file(reference).is_none()
+            {
+                return None;
+            }
+            let path = format!("{}::{}", members.joined_path(), call.target.as_str());
+            let family = program.symbols.top_level_candidates_from_source(
+                &path,
+                &[SymbolKind::Operator, SymbolKind::Machine],
+                reference,
+            );
+            let exact_type = |reference| {
+                program.contains_type_reference(reference)
+                    && crate::domain::index_argument_is_closed(program, reference)
+                    && program
+                        .exact_owner_type_identity(
+                            crate::type_identity::ExactOwnerTypeIdentityRequest {
+                                type_reference: reference,
+                                binders: &[],
+                                substitutions: &[],
+                                exact_toolchain_sources: sources,
+                            },
+                        )
+                        .is_some()
+            };
+            if !actual.iter().copied().all(exact_type) {
+                return None;
+            }
+            let mut matched = None;
+            for symbol in family {
+                if !program
+                    .symbols
+                    .source_reference_may_select_symbol(reference, symbol)
+                {
+                    continue;
+                }
+                let declaration = program.symbols.symbol_provenance_source_span(symbol)?;
+                let same_package = program.symbols.same_source_package(reference, declaration);
+                // An unavailable family member cannot be silently omitted from
+                // the selectable overload family. Loaded but unexposed source
+                // is outside that family; open applications keep their existing
+                // generic preparation path.
+                let (target, parameters, result) =
+                    if let Some(operator) = program.operator_definition_by_symbol(symbol) {
+                        if !operator.is_public && !same_package {
+                            continue;
+                        }
+                        if !program.operator_type_parameters(operator).is_empty()
+                            || !operator.lifetime_parameters.is_empty()
+                        {
+                            return None;
+                        }
+                        (
+                            symbol,
+                            program.operator_parameters(operator),
+                            operator.return_type,
+                        )
+                    } else {
+                        let machine = program.machine_by_symbol(symbol)?;
+                        if !machine.is_public && !same_package {
+                            continue;
+                        }
+                        if !program.machine_type_parameters(machine).is_empty()
+                            || !machine.lifetime_parameters.is_empty()
+                            || program
+                                .executable_application_template(symbol)
+                                .ok()?
+                                .is_some()
+                        {
+                            return None;
+                        }
+                        let state = program.machine_states(machine).first()?;
+                        (
+                            state.symbol,
+                            program.state_parameters(state),
+                            state.return_type,
+                        )
+                    };
+                if !exact_type(result)
+                    || parameters
+                        .iter()
+                        .any(|parameter| !exact_type(parameter.type_reference))
+                {
+                    return None;
+                }
+                if super::spellings::closed_signature_operand_types_match(
+                    program, parameters, actual,
+                ) {
+                    // This bounded query has no expected-result context. The
+                    // ordinary source rule then selects only empty dispatch;
+                    // result-directed choices stay with existing preparation.
+                    if !program.normalized_result_dispatch_set(result).is_empty() {
+                        continue;
+                    }
+                    if matched.replace(target).is_some() {
+                        return None;
+                    }
+                }
+            }
+            matched
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+            use crate::expression::{CallExpression, Expression, NamePath};
+            use crate::name::Identifier;
+            use crate::operator::OperatorDefinition;
+            use crate::types::TypeReferenceNode;
+            use language_semantics::declaration_selection::{
+                AuthoredDeclarationSelectionKind as Kind,
+                AuthoredDeclarationSelectionLateBinding as Binding,
+            };
+            use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+            use std::{path::PathBuf, sync::Arc};
+            use symbols::{SymbolNameRef, SymbolTableBuilder};
+
+            struct Fixture {
+                program: TypedTrees,
+                reference: SourceSpan,
+                foreign_reference: SourceSpan,
+                unimported_reference: SourceSpan,
+                owner: SymbolHandle,
+                formal: SymbolHandle,
+                selected: SymbolHandle,
+                wide: SymbolHandle,
+                foreign: SymbolHandle,
+                foreign_declaration: SymbolHandle,
+                scalar: TypeReferenceHandle,
+                wide_scalar: TypeReferenceHandle,
+                wrong_scalar: TypeReferenceHandle,
+                foreign_namespace: SymbolHandle,
+                constant: SymbolHandle,
+                nominal: TypeReferenceHandle,
+                foreign_nominal: TypeReferenceHandle,
+                open_type: TypeReferenceHandle,
+            }
+
+            impl Fixture {
+                fn new(ambiguous: bool) -> Self {
+                    Self::with_kind(ambiguous, false)
+                }
+
+                fn with_kind(ambiguous: bool, machine: bool) -> Self {
+                    Self::with_binding(ambiguous, machine, false)
+                }
+
+                fn with_binding(ambiguous: bool, machine: bool, imported: bool) -> Self {
+                    let mut sources = SourceMap::default();
+                    let text = "Ns::project Ns value Payload T";
+                    let source = sources
+                        .add_with_metadata(
+                            PathBuf::from("local.omg"),
+                            text.into(),
+                            PathBuf::from("local"),
+                            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
+                            SourceOrigin::User,
+                        )
+                        .source_id;
+                    let foreign_source = sources
+                        .add_with_metadata(
+                            PathBuf::from("foreign.omg"),
+                            text.into(),
+                            PathBuf::from("foreign"),
+                            semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]),
+                            SourceOrigin::User,
+                        )
+                        .source_id;
+                    let unimported_source = sources
+                        .add_with_metadata(
+                            PathBuf::from("unimported.omg"),
+                            text.into(),
+                            PathBuf::from("unimported"),
+                            semantic_vocabulary::PackageKeyIdentity::from_digest([3; 32]),
+                            SourceOrigin::User,
+                        )
+                        .source_id;
+                    let importer_source = sources
+                        .add_with_metadata(
+                            PathBuf::from("importer.omg"),
+                            text.into(),
+                            PathBuf::from("importer"),
+                            semantic_vocabulary::PackageKeyIdentity::from_digest([4; 32]),
+                            SourceOrigin::User,
+                        )
+                        .source_id;
+                    let reference = SourceSpan::new(
+                        if imported { importer_source } else { source },
+                        Span::new(12, 14),
+                    );
+                    let foreign_reference = SourceSpan::new(foreign_source, Span::new(12, 14));
+                    let unimported_reference =
+                        SourceSpan::new(unimported_source, Span::new(12, 14));
+                    let bindings = if imported {
+                        vec![symbols::SourceScopedTopLevelBinding::module_import(
+                            reference.source_id,
+                            foreign_source,
+                            "Ns::project",
+                            0,
+                        )]
+                    } else {
+                        vec![]
+                    };
+                    let mut symbols = SymbolTableBuilder::with_sources_and_top_level_bindings(
+                        Some(Arc::new(sources)),
+                        bindings,
+                    );
+                    let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                    let callable = if machine {
+                        SymbolKind::Machine
+                    } else {
+                        SymbolKind::Operator
+                    };
+                    let mut declarations = vec![
+                        (SymbolKind::BuiltinType, SymbolNameRef::Static("f32")),
+                        (SymbolKind::BuiltinType, SymbolNameRef::Static("f64")),
+                        (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
+                        (SymbolKind::State, SymbolNameRef::Static("owner")),
+                        (SymbolKind::Parameter, SymbolNameRef::Static("value")),
+                        (
+                            callable,
+                            SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, 11))),
+                        ),
+                        (
+                            callable,
+                            SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, 11))),
+                        ),
+                        (
+                            callable,
+                            SymbolNameRef::Source(SourceSpan::new(
+                                foreign_source,
+                                Span::new(0, 11),
+                            )),
+                        ),
+                        (SymbolKind::Data, SymbolNameRef::Source(foreign_reference)),
+                        (
+                            SymbolKind::Const,
+                            SymbolNameRef::Source(SourceSpan::new(source, Span::new(15, 20))),
+                        ),
+                        (
+                            SymbolKind::Data,
+                            SymbolNameRef::Source(SourceSpan::new(source, Span::new(21, 28))),
+                        ),
+                        (
+                            SymbolKind::Data,
+                            SymbolNameRef::Source(SourceSpan::new(
+                                foreign_source,
+                                Span::new(21, 28),
+                            )),
+                        ),
+                        (
+                            SymbolKind::TypeParameter,
+                            SymbolNameRef::Source(SourceSpan::new(source, Span::new(29, 30))),
+                        ),
+                    ];
+                    if ambiguous {
+                        declarations.push((
+                            callable,
+                            SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, 11))),
+                        ));
+                    }
+                    let handles = symbols
+                        .insert_children(root, declarations)
+                        .handles()
+                        .collect::<Vec<_>>();
+                    let entries = if machine {
+                        [handles[5], handles[6], handles[7]].map(|symbol| {
+                            symbols
+                                .insert_children(
+                                    symbol,
+                                    [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+                                )
+                                .handles()
+                                .next()
+                                .unwrap()
+                        })
+                    } else {
+                        [handles[5], handles[6], handles[7]]
+                    };
+                    let mut program = TypedTrees {
+                        symbols: symbols.finish(),
+                        ..Default::default()
+                    };
+                    let mut ty = |symbol, name| {
+                        program
+                            .type_reference_table
+                            .insert(TypeReferenceNode::Named {
+                                symbol,
+                                name: Identifier::from(name),
+                            })
+                    };
+                    let scalar = ty(handles[0], "f32");
+                    let wide_scalar = ty(handles[1], "f64");
+                    let wrong_scalar = ty(handles[2], "u64");
+                    let nominal = ty(handles[10], "Payload");
+                    let foreign_nominal = ty(handles[11], "Payload");
+                    let open_type = ty(handles[12], "T");
+                    let mut rows = vec![
+                        (handles[5], scalar, entries[0]),
+                        (handles[6], wide_scalar, entries[1]),
+                        (handles[7], scalar, entries[2]),
+                    ];
+                    if ambiguous {
+                        rows.push((handles[13], scalar, handles[13]));
+                    }
+                    for (symbol, value_type, entry) in rows {
+                        if machine {
+                            let mut declaration = crate::machine::Machine {
+                                symbol,
+                                name: Identifier::from("Ns::project"),
+                                ..Default::default()
+                            };
+                            let mut state = crate::state::State {
+                                symbol: entry,
+                                return_type: scalar,
+                                ..Default::default()
+                            };
+                            program.push_state_parameter(
+                                &mut state,
+                                StateParameter {
+                                    type_reference: value_type,
+                                    ..Default::default()
+                                },
+                            );
+                            program.push_machine_state(&mut declaration, state);
+                            program.push_machine(declaration);
+                            continue;
+                        }
+                        let mut operator = OperatorDefinition {
+                            symbol,
+                            return_type: scalar,
+                            ..Default::default()
+                        };
+                        program.push_operator_path_member(&mut operator, Identifier::from("Ns"));
+                        program
+                            .push_operator_path_member(&mut operator, Identifier::from("project"));
+                        program.push_operator_parameter(
+                            &mut operator,
+                            StateParameter {
+                                type_reference: value_type,
+                                ..Default::default()
+                            },
+                        );
+                        program.push_operator(operator);
+                    }
+                    program.push_const_declaration(crate::constant::ConstDeclaration {
+                        symbol: handles[9],
+                        declared_type: wrong_scalar,
+                        ..Default::default()
+                    });
+                    Self {
+                        program,
+                        reference,
+                        foreign_reference,
+                        unimported_reference,
+                        owner: handles[3],
+                        formal: handles[4],
+                        selected: entries[0],
+                        wide: entries[1],
+                        foreign: entries[2],
+                        foreign_declaration: handles[7],
+                        scalar,
+                        wide_scalar,
+                        wrong_scalar,
+                        foreign_namespace: handles[8],
+                        constant: handles[9],
+                        nominal,
+                        foreign_nominal,
+                        open_type,
+                    }
+                }
+
+                fn call(
+                    &mut self,
+                    input: Expression,
+                    receiver: NamePath,
+                    foreign: bool,
+                ) -> ExpressionHandle {
+                    let reference = if foreign {
+                        self.foreign_reference
+                    } else {
+                        self.reference
+                    };
+                    self.call_at(input, receiver, reference)
+                }
+
+                fn call_at(
+                    &mut self,
+                    input: Expression,
+                    receiver: NamePath,
+                    reference: SourceSpan,
+                ) -> ExpressionHandle {
+                    let occurrence = self
+                        .program
+                        .record_late_bound_authored_declaration_selection(
+                            reference,
+                            Default::default(),
+                            Kind::Call,
+                            Binding::CheckedCall,
+                        )
+                        .unwrap();
+                    let call =
+                        self.program
+                            .expression_table
+                            .insert_tree(&Expression::Call(Box::new(CallExpression {
+                                authored_call_selection: Some(occurrence),
+                                authored_call_binding: None,
+                                exact_coercion_target: Default::default(),
+                                requirement_application: Default::default(),
+                                receiver: Some(Box::new(Expression::Name(receiver))),
+                                target_symbol: SymbolHandle::invalid(),
+                                target: Identifier::from("project"),
+                                arguments: vec![input].into(),
+                                evidence_arguments: Arc::from([]),
+                                operational_acknowledgement: Default::default(),
+                            })));
+                    self.program
+                        .expression_table
+                        .set_source_span(call, reference);
+                    call
+                }
+
+                fn input(&self) -> Expression {
+                    Expression::Name(NamePath::resolved(
+                        vec![Identifier::from("value")],
+                        self.formal,
+                        self.formal,
+                    ))
+                }
+
+                fn select(
+                    &self,
+                    call: ExpressionHandle,
+                    value_type: TypeReferenceHandle,
+                ) -> Vec<(ExpressionHandle, SymbolHandle)> {
+                    let parameters = [StateParameter {
+                        symbol: self.formal,
+                        type_reference: value_type,
+                        ..Default::default()
+                    }];
+                    let mut calls = SourceContractCalls::new(&self.program);
+                    calls.read(self.owner, &parameters, self.scalar, call);
+                    calls.into_selections()
+                }
+            }
+
+            fn namespace() -> NamePath {
+                NamePath::unresolved(vec![Identifier::from("Ns")])
+            }
+
+            #[test]
+            fn closed_contract_calls_use_complete_operand_types_and_exact_source_owner() {
+                let mut fixture = Fixture::new(false);
+                let call = fixture.call(fixture.input(), namespace(), false);
+                assert_eq!(
+                    fixture.select(call, fixture.scalar),
+                    [(call, fixture.selected)]
+                );
+                assert_eq!(
+                    fixture.select(call, fixture.wide_scalar),
+                    [(call, fixture.wide)]
+                );
+                assert!(fixture.select(call, fixture.wrong_scalar).is_empty());
+                fixture
+                    .program
+                    .expression_table
+                    .set_constructed_value_type_reference(call, fixture.scalar);
+                assert_eq!(
+                    fixture.select(call, fixture.scalar),
+                    [(call, fixture.selected)],
+                    "a retained result type does not replace target selection"
+                );
+                assert!(fixture.select(call, fixture.wrong_scalar).is_empty());
+                let foreign = fixture.call(fixture.input(), namespace(), true);
+                assert_eq!(
+                    fixture.select(foreign, fixture.scalar),
+                    [(foreign, fixture.foreign)]
+                );
+                assert!(
+                    fixture.select(foreign, fixture.wide_scalar).is_empty(),
+                    "another package's same-path overload is not a candidate"
+                );
+                let mut ambiguous = Fixture::new(true);
+                let call = ambiguous.call(ambiguous.input(), namespace(), false);
+                assert!(ambiguous.select(call, ambiguous.scalar).is_empty());
+                let mut machine = Fixture::with_kind(false, true);
+                let call = machine.call(machine.input(), namespace(), false);
+                assert_eq!(
+                    machine.select(call, machine.scalar),
+                    [(call, machine.selected)]
+                );
+                assert_eq!(
+                    machine.select(call, machine.wide_scalar),
+                    [(call, machine.wide)]
+                );
+            }
+
+            #[test]
+            fn same_spelled_nominal_types_keep_their_declaring_symbols() {
+                let mut fixture = Fixture::new(false);
+                let exact = |reference| {
+                    fixture
+                        .program
+                        .exact_owner_type_identity(
+                            crate::type_identity::ExactOwnerTypeIdentityRequest {
+                                type_reference: reference,
+                                binders: &[],
+                                substitutions: &[],
+                                exact_toolchain_sources: &[],
+                            },
+                        )
+                        .expect("both nominal types retain their real package owners")
+                };
+                assert_ne!(exact(fixture.nominal), exact(fixture.foreign_nominal));
+                let parameter = fixture.program.operators()[0].parameters.start();
+                fixture
+                    .program
+                    .state_parameters
+                    .get_mut(parameter)
+                    .type_reference = fixture.nominal;
+                let call = fixture.call(fixture.input(), namespace(), false);
+                assert_eq!(
+                    fixture.select(call, fixture.nominal),
+                    [(call, fixture.selected)]
+                );
+                assert!(fixture.select(call, fixture.foreign_nominal).is_empty());
+                let unresolved =
+                    fixture
+                        .program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Named {
+                            symbol: SymbolHandle::invalid(),
+                            name: Identifier::from("Payload"),
+                        });
+                assert!(fixture.select(call, unresolved).is_empty());
+                fixture
+                    .program
+                    .exact_owner_type_identity(
+                        crate::type_identity::ExactOwnerTypeIdentityRequest {
+                            type_reference: fixture.open_type,
+                            binders: &[],
+                            substitutions: &[],
+                            exact_toolchain_sources: &[],
+                        },
+                    )
+                    .expect("the open parameter has a real source owner");
+                fixture
+                    .program
+                    .state_parameters
+                    .get_mut(parameter)
+                    .type_reference = fixture.open_type;
+                assert!(
+                    fixture.select(call, fixture.open_type).is_empty(),
+                    "equal owned generic parameters are still not closed operand types"
+                );
+            }
+
+            #[test]
+            fn selectable_imports_and_private_package_visibility_define_the_family() {
+                let mut local = Fixture::new(false);
+                assert!(!local.program.operators()[0].is_public);
+                assert!(
+                    local
+                        .program
+                        .symbols
+                        .source_reference_may_select_symbol(local.reference, local.selected)
+                );
+                assert!(
+                    local.program.symbols.source_reference_can_see_symbol(
+                        local.reference,
+                        local.foreign_declaration
+                    )
+                );
+                assert!(!local.program.symbols.source_reference_may_select_symbol(
+                    local.reference,
+                    local.foreign_declaration
+                ));
+                // Keep the loaded foreign symbol but remove its typed signature.
+                // It is not in this call's selectable family and cannot block it.
+                local.program.roots.operators =
+                    arena::HandleSpan::from_parts(local.program.roots.operators.start(), 2);
+                assert!(
+                    local
+                        .program
+                        .operator_definition_by_symbol(local.foreign_declaration)
+                        .is_none()
+                );
+                let call = local.call(local.input(), namespace(), false);
+                assert_eq!(local.select(call, local.scalar), [(call, local.selected)]);
+
+                for machine in [false, true] {
+                    let mut imported = Fixture::with_binding(false, machine, true);
+                    assert_eq!(
+                        imported.program.symbols.top_level_candidates_from_source(
+                            "Ns::project",
+                            &[SymbolKind::Operator, SymbolKind::Machine],
+                            imported.reference
+                        ),
+                        [imported.foreign_declaration]
+                    );
+                    assert!(imported.program.symbols.source_reference_may_select_symbol(
+                        imported.reference,
+                        imported.foreign_declaration
+                    ));
+                    let declared = imported
+                        .program
+                        .symbols
+                        .symbol_provenance_source_span(imported.foreign_declaration)
+                        .unwrap();
+                    assert!(
+                        !imported
+                            .program
+                            .symbols
+                            .same_source_package(imported.reference, declared)
+                    );
+                    let call = imported.call(imported.input(), namespace(), false);
+                    assert!(
+                        imported.select(call, imported.scalar).is_empty(),
+                        "an imported private foreign declaration is unavailable despite a complete matching signature"
+                    );
+                    if machine {
+                        imported.program.machines_mut()[2].is_public = true;
+                    } else {
+                        let row = imported.program.roots.operators.handle_at(2);
+                        imported.program.tables.operators.get_mut(row).is_public = true;
+                    }
+                    assert_eq!(
+                        imported.select(call, imported.scalar),
+                        [(call, imported.foreign)],
+                        "changing only publication admits the authorized exact import"
+                    );
+                    assert!(imported.program.symbols.source_reference_can_see_symbol(
+                        imported.unimported_reference,
+                        imported.foreign_declaration
+                    ));
+                    assert!(
+                        !imported.program.symbols.source_reference_may_select_symbol(
+                            imported.unimported_reference,
+                            imported.foreign_declaration
+                        )
+                    );
+                    let unimported = imported.call_at(
+                        imported.input(),
+                        namespace(),
+                        imported.unimported_reference,
+                    );
+                    assert!(
+                        imported.select(unimported, imported.scalar).is_empty(),
+                        "public loaded source still requires an authored selection in this source's scope"
+                    );
+                }
+            }
+
+            #[test]
+            fn nested_calls_keep_exact_result_owners_without_a_depth_cutoff() {
+                let mut fixture = Fixture::with_kind(false, true);
+                let owned_result = fixture.call(
+                    Expression::Name(
+                        NamePath::unresolved(vec![Identifier::from("result")])
+                            .denoting_reserved_result_of(fixture.owner),
+                    ),
+                    namespace(),
+                    false,
+                );
+                assert_eq!(
+                    fixture.select(owned_result, fixture.scalar),
+                    [(owned_result, fixture.selected)]
+                );
+                let foreign_result = fixture.call(
+                    Expression::Name(
+                        NamePath::unresolved(vec![Identifier::from("result")])
+                            .denoting_reserved_result_of(fixture.wide),
+                    ),
+                    namespace(),
+                    false,
+                );
+                assert!(fixture.select(foreign_result, fixture.scalar).is_empty());
+                let mut root = fixture.call(fixture.input(), namespace(), false);
+                for _ in 1..160 {
+                    let outer = fixture.call(fixture.input(), namespace(), false);
+                    let arguments = fixture
+                        .program
+                        .expression_table
+                        .call_node(outer)
+                        .unwrap()
+                        .arguments;
+                    fixture
+                        .program
+                        .expression_table
+                        .set_expression_handle_at_offset(arguments, 0, root);
+                    root = outer;
+                }
+                assert_eq!(fixture.select(root, fixture.scalar).len(), 160);
+                let cyclic = fixture.call(fixture.input(), namespace(), false);
+                let arguments = fixture
+                    .program
+                    .expression_table
+                    .call_node(cyclic)
+                    .unwrap()
+                    .arguments;
+                fixture
+                    .program
+                    .expression_table
+                    .set_expression_handle_at_offset(arguments, 0, cyclic);
+                assert!(fixture.select(cyclic, fixture.scalar).is_empty());
+            }
+
+            #[test]
+            fn expanded_constant_uses_its_retained_source_declaration_type() {
+                let mut fixture = Fixture::new(false);
+                let parameter = fixture.program.operators()[0].parameters.start();
+                fixture
+                    .program
+                    .state_parameters
+                    .get_mut(parameter)
+                    .type_reference = fixture.wrong_scalar;
+                let call = fixture.call(
+                    Expression::Integer(numerics::literals::IntegerLiteral::from_value(7)),
+                    namespace(),
+                    false,
+                );
+                let argument = fixture.program.expression_table.expression_handles(
+                    fixture
+                        .program
+                        .expression_table
+                        .call_node(call)
+                        .unwrap()
+                        .arguments,
+                )[0];
+                let occurrence = fixture
+                    .program
+                    .record_resolved_authored_declaration_selection_once(
+                        fixture.reference,
+                        Default::default(),
+                        Kind::StaticPathSegment,
+                        fixture.constant,
+                    )
+                    .unwrap();
+                fixture
+                    .program
+                    .expression_table
+                    .set_source_span(argument, fixture.reference);
+                fixture
+                    .program
+                    .expression_table
+                    .attach_authored_selection_occurrences(argument, [occurrence]);
+                assert_eq!(
+                    fixture.select(call, fixture.scalar),
+                    [(call, fixture.selected)]
+                );
+            }
+
+            #[test]
+            fn incomplete_inputs_value_receivers_and_selected_calls_are_preserved() {
+                let mut fixture = Fixture::new(false);
+                let missing = fixture.call(
+                    Expression::Name(NamePath::unresolved(vec![Identifier::from("value")])),
+                    namespace(),
+                    false,
+                );
+                assert!(fixture.select(missing, fixture.scalar).is_empty());
+                let literal = fixture.call(
+                    Expression::Integer(numerics::literals::IntegerLiteral::from_value(7)),
+                    namespace(),
+                    false,
+                );
+                assert!(fixture.select(literal, fixture.scalar).is_empty());
+                let shadow = fixture.call(
+                    fixture.input(),
+                    NamePath::resolved(
+                        vec![Identifier::from("Ns")],
+                        fixture.formal,
+                        fixture.formal,
+                    ),
+                    false,
+                );
+                assert!(fixture.select(shadow, fixture.scalar).is_empty());
+                let foreign_namespace = fixture.call(
+                    fixture.input(),
+                    NamePath::resolved(
+                        vec![Identifier::from("Ns")],
+                        fixture.foreign_namespace,
+                        fixture.foreign_namespace,
+                    ),
+                    false,
+                );
+                assert!(fixture.select(foreign_namespace, fixture.scalar).is_empty());
+                let selected = fixture.call(fixture.input(), namespace(), false);
+                if let ExpressionNode::Call(call) =
+                    fixture.program.expression_table.expression_mut(selected)
+                {
+                    call.target_symbol = fixture.selected;
+                    call.authored_call_binding = Some(
+                        language_semantics::declaration_selection::ResolvedAuthoredCallBinding {
+                            selected: fixture.selected,
+                            original: fixture.selected,
+                        },
+                    );
+                }
+                assert!(fixture.select(selected, fixture.scalar).is_empty());
+                let static_call = fixture.call(fixture.input(), namespace(), false);
+                if let ExpressionNode::Call(call) =
+                    fixture.program.expression_table.expression_mut(static_call)
+                {
+                    call.machine_arguments = vec![Default::default()].into();
+                }
+                assert!(fixture.select(static_call, fixture.scalar).is_empty());
+                let no_source = fixture.call(fixture.input(), namespace(), false);
+                fixture
+                    .program
+                    .expression_table
+                    .set_source_span(no_source, Default::default());
+                assert!(fixture.select(no_source, fixture.scalar).is_empty());
+            }
+        }
+    }
     pub(crate) mod operand_signatures {
         use crate::TypedTrees;
         use crate::declarations::operator::OperatorDefinition;
@@ -1793,7 +2862,9 @@ pub mod operator {
     pub(crate) mod spellings {
         use crate::TypedTrees;
         use crate::declarations::operator::operand_signatures::normalized_operand_parameters;
-        use crate::declarations::operator::type_matching::type_reference_matches;
+        use crate::declarations::operator::type_matching::{
+            type_reference_matches, type_reference_matches_with_policy,
+        };
         use crate::declarations::operator::{
             OperatorConstBinding, OperatorDefinition, SpelledOperator,
             selected_trait_operator_meaning_exists, trait_scope_operator_meaning_exists,
@@ -2089,10 +3160,43 @@ pub mod operator {
             indexed_collection: bool,
         ) -> Option<OperatorOperandBindings> {
             let parameters = program.operator_parameters(operator);
+            let type_parameters = program.operator_type_parameters(operator);
+            signature_operand_bindings(
+                program,
+                parameters,
+                type_parameters,
+                operand_types,
+                indexed_collection,
+                true,
+            )
+        }
+
+        /// Closed source call selection uses the same operand compatibility
+        /// policy as operator applications, with every actual type present.
+        pub fn closed_signature_operand_types_match(
+            program: &TypedTrees,
+            parameters: &[crate::signature::StateParameter],
+            actual: &[TypeReferenceHandle],
+        ) -> bool {
+            let operands = actual
+                .iter()
+                .copied()
+                .map(OperandType::Reference)
+                .collect::<Vec<_>>();
+            signature_operand_bindings(program, parameters, &[], &operands, false, false).is_some()
+        }
+
+        fn signature_operand_bindings(
+            program: &TypedTrees,
+            parameters: &[crate::signature::StateParameter],
+            type_parameters: &[crate::data::TypeParameter],
+            operand_types: &[OperandType],
+            indexed_collection: bool,
+            allow_name_fallback: bool,
+        ) -> Option<OperatorOperandBindings> {
             if parameters.len() != operand_types.len() {
                 return None;
             }
-            let type_parameters = program.operator_type_parameters(operator);
             let mut bindings = Vec::new();
             let mut const_bindings = Vec::new();
             let matches = operand_types
@@ -2124,7 +3228,7 @@ pub mod operator {
                             expected.type_reference,
                         )
                     };
-                    (type_reference_matches(
+                    (type_reference_matches_with_policy(
                         program,
                         matched_actual,
                         matched_expected,
@@ -2132,6 +3236,7 @@ pub mod operator {
                         type_parameters,
                         &mut bindings,
                         &mut const_bindings,
+                        allow_name_fallback,
                     ) || indexed_collection_borrow_matches(
                         program,
                         indexed_collection && position == 0,
@@ -3945,6 +5050,7 @@ pub mod operator {
         resolve_satisfied_checked_operator_for_conformance,
         resolve_specialized_checked_operator_application,
     };
+    pub use source_contract_calls::SourceContractCalls;
     pub use spellings::{
         OperandType, OperatorOperandBindings, arithmetic_operator_spelling,
         binary_operator_spelling, comparison_operator_spelling, declared_domain_constraints,

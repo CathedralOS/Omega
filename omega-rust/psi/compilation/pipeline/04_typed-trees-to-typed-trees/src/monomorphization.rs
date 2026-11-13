@@ -3749,6 +3749,9 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
 ) -> Result<DeclarationSelection, Vec<Diagnostic>> {
     let mut changed_owners = Vec::new();
     loop {
+        let source_owners = selection::bind_closed_contract_calls(program)?;
+        let source_changed = !source_owners.is_empty();
+        changed_owners.extend(source_owners);
         let named_owners = validation::resolve_named_result_overloads(program)?;
         let named_changed = !named_owners.is_empty();
         changed_owners.extend(named_owners);
@@ -3792,7 +3795,12 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let candidates = candidate::collect(program);
         let callee_states = candidate::callees(program, &candidates);
         if candidates.is_empty() {
-            if captures_changed || contextual_changed || named_changed || inferred_changed {
+            if source_changed
+                || captures_changed
+                || contextual_changed
+                || named_changed
+                || inferred_changed
+            {
                 continue;
             }
             if contextual_calls::prepare_installed_interrupts(program)? {
@@ -3833,6 +3841,7 @@ pub(crate) fn monomorphize_generic_machine_value_calls(
         let mut diagnostics = Vec::new();
         let mut applied_any =
             select_calls(program, &candidates, &mut selections, &mut changed_owners)?
+                || source_changed
                 || captures_changed
                 || contextual_changed
                 || named_changed

@@ -1533,6 +1533,319 @@ pub(crate) mod selection {
         ExplicitArgumentCapacity::WithinBounds
     }
 
+    /// Retain exact source targets for closed contract calls before any
+    /// consumer freezes these trees. A namespace contributes no value operand;
+    /// only the source-scoped, fully typed selection may erase its receiver.
+    pub(crate) fn bind_closed_contract_calls(
+        program: &mut typed_trees::TypedTrees,
+    ) -> Result<Vec<SymbolHandle>, Vec<diagnostics::Diagnostic>> {
+        use language_semantics::declaration_selection::{
+            AuthoredDeclarationSelectionLateBinding as Binding,
+            AuthoredDeclarationSelectionTarget as Target, ResolvedAuthoredCallBinding,
+        };
+        let updates = {
+            let scopes = contract_expression_scopes(program);
+            let mut calls = typed_trees::operator::SourceContractCalls::new(program);
+            for occurrences in scopes.chunk_by(|left, right| left.expression == right.expression) {
+                let [scope] = occurrences else {
+                    continue;
+                };
+                let Some(state) = scope.state else {
+                    continue;
+                };
+                calls.read(
+                    state.symbol,
+                    program.state_parameters(state),
+                    state.return_type,
+                    scope.expression,
+                );
+            }
+            calls
+                .into_selections()
+                .into_iter()
+                .filter_map(|(expression, selected)| {
+                    let first = scopes.partition_point(|scope| {
+                        scope.expression.arena_index() < expression.arena_index()
+                    });
+                    let mut occurrences = scopes[first..]
+                        .iter()
+                        .take_while(|scope| scope.expression == expression);
+                    let scope = occurrences.next()?;
+                    if occurrences.next().is_some() {
+                        return None;
+                    }
+                    Some((expression, selected, scope.machine.symbol))
+                })
+                .collect::<Vec<_>>()
+        };
+        if updates.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut authored = program.authored_declaration_selections().clone();
+        let mut changed = Vec::new();
+        for (expression, selected, owner) in updates {
+            let Some(call) = program.expression_table.call_node(expression) else {
+                continue;
+            };
+            if call.target_symbol.is_valid() || call.authored_call_binding.is_some() {
+                continue;
+            }
+            let Some(occurrence) = call.authored_call_selection else {
+                continue;
+            };
+            let Some(selection) = authored.get(occurrence) else {
+                continue;
+            };
+            match selection.target() {
+                Target::LateBound(Binding::CheckedCall) => authored
+                    .finalize_late_bound(occurrence, Binding::CheckedCall, selected)
+                    .map_err(|error| {
+                        vec![diagnostics::Diagnostic::error(format!(
+                            "source contract call lost its authored selection: {error:?}"
+                        ))]
+                    })?,
+                Target::Resolved(resolved) if resolved.selected_symbol() == selected => {}
+                _ => continue,
+            }
+            if let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression)
+            {
+                call.target_symbol = selected;
+                call.authored_call_binding = Some(ResolvedAuthoredCallBinding {
+                    selected,
+                    original: selected,
+                });
+                call.receiver = ExpressionHandle::invalid();
+                changed.push(owner);
+            }
+        }
+        program.retain_authored_declaration_selections(authored);
+        Ok(changed)
+    }
+
+    #[cfg(test)]
+    mod closed_contract_call_tests {
+        use super::bind_closed_contract_calls;
+        use language_semantics::declaration_selection::{
+            AuthoredDeclarationSelectionKind as Kind,
+            AuthoredDeclarationSelectionLateBinding as Binding,
+            AuthoredDeclarationSelectionTarget as Target,
+        };
+        use source::{SourceMap, SourceOrigin, SourceSpan, Span};
+        use std::{path::PathBuf, sync::Arc};
+        use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+        use typed_trees::{
+            TypedTrees,
+            domain::ProofFact,
+            expression::{CallExpression, Expression, ExpressionNode, NamePath},
+            machine::Machine,
+            name::Identifier,
+            operator::OperatorDefinition,
+            signature::{SignatureContract, SignatureContractKind, StateParameter},
+            state::State,
+            types::TypeReferenceNode,
+        };
+
+        #[test]
+        fn source_contract_stamper_finalizes_only_the_exact_closed_call() {
+            let mut sources = SourceMap::default();
+            let source = sources
+                .add_with_metadata(
+                    PathBuf::from("package/contract.omg"),
+                    "Ns::project Ns::project".into(),
+                    PathBuf::from("package"),
+                    None,
+                    SourceOrigin::Toolchain,
+                )
+                .source_id;
+            let reference = SourceSpan::new(source, Span::new(12, 23));
+            let mut symbols = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let symbols_row = symbols
+                .insert_children(
+                    root,
+                    [
+                        (SymbolKind::BuiltinType, SymbolNameRef::Static("f32")),
+                        (SymbolKind::Machine, SymbolNameRef::Static("Owner")),
+                        (
+                            SymbolKind::Operator,
+                            SymbolNameRef::Source(SourceSpan::new(source, Span::new(0, 11))),
+                        ),
+                    ],
+                )
+                .handles()
+                .collect::<Vec<_>>();
+            let entry = symbols
+                .insert_children(
+                    symbols_row[1],
+                    [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+                )
+                .handles()
+                .next()
+                .unwrap();
+            let formal = symbols
+                .insert_children(
+                    entry,
+                    [(SymbolKind::Parameter, SymbolNameRef::Static("value"))],
+                )
+                .handles()
+                .next()
+                .unwrap();
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let scalar = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: symbols_row[0],
+                    name: Identifier::from("f32"),
+                });
+            let mut operator = OperatorDefinition {
+                symbol: symbols_row[2],
+                return_type: scalar,
+                ..Default::default()
+            };
+            program.push_operator_path_member(&mut operator, Identifier::from("Ns"));
+            program.push_operator_path_member(&mut operator, Identifier::from("project"));
+            program.push_operator_parameter(
+                &mut operator,
+                StateParameter {
+                    type_reference: scalar,
+                    ..Default::default()
+                },
+            );
+            program.push_operator(operator);
+            let mut call = |receiver| {
+                let occurrence = program
+                    .record_late_bound_authored_declaration_selection(
+                        reference,
+                        Default::default(),
+                        Kind::Call,
+                        Binding::CheckedCall,
+                    )
+                    .unwrap();
+                let handle = program
+                    .expression_table
+                    .insert_tree(&Expression::Call(Box::new(CallExpression {
+                        authored_call_selection: Some(occurrence),
+                        authored_call_binding: None,
+                        exact_coercion_target: Default::default(),
+                        requirement_application: Default::default(),
+                        receiver: Some(Box::new(Expression::Name(receiver))),
+                        target_symbol: SymbolHandle::invalid(),
+                        target: Identifier::from("project"),
+                        arguments: vec![Expression::Name(NamePath::resolved(
+                            vec![Identifier::from("value")],
+                            formal,
+                            formal,
+                        ))]
+                        .into(),
+                        evidence_arguments: Arc::from([]),
+                        operational_acknowledgement: Default::default(),
+                    })));
+                program.expression_table.set_source_span(handle, reference);
+                (handle, occurrence)
+            };
+            let (positive, occurrence) = call(NamePath::unresolved(vec![Identifier::from("Ns")]));
+            let (wrong_head, _) = call(NamePath::resolved(
+                vec![Identifier::from("Ns")],
+                formal,
+                formal,
+            ));
+            let positive_before = program
+                .expression_table
+                .call_node(positive)
+                .unwrap()
+                .clone();
+            let wrong_before = program
+                .expression_table
+                .call_node(wrong_head)
+                .unwrap()
+                .clone();
+            let mut machine = Machine {
+                symbol: symbols_row[1],
+                name: Identifier::from("Owner"),
+                ..Default::default()
+            };
+            let mut state = State {
+                symbol: entry,
+                return_type: scalar,
+                ..Default::default()
+            };
+            program.push_state_parameter(
+                &mut state,
+                StateParameter {
+                    symbol: formal,
+                    type_reference: scalar,
+                    ..Default::default()
+                },
+            );
+            program.push_machine_state(&mut machine, state);
+            let facts = program.proof_facts.insert_many([
+                ProofFact::Expression(positive),
+                ProofFact::Expression(wrong_head),
+            ]);
+            program.push_machine_contract(
+                &mut machine,
+                SignatureContract {
+                    kind: SignatureContractKind::Ensures,
+                    facts,
+                    ..Default::default()
+                },
+            );
+            program.push_machine(machine);
+            assert!(matches!(
+                program
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .unwrap()
+                    .target(),
+                Target::LateBound(Binding::CheckedCall)
+            ));
+            assert_eq!(
+                bind_closed_contract_calls(&mut program).unwrap(),
+                [symbols_row[1]]
+            );
+            let bound = program
+                .expression_table
+                .call_node(positive)
+                .unwrap()
+                .clone();
+            assert_eq!(bound.target_symbol, symbols_row[2]);
+            assert_eq!(
+                bound.authored_call_binding.unwrap().original,
+                symbols_row[2]
+            );
+            assert_eq!(
+                bound.authored_call_binding.unwrap().selected,
+                symbols_row[2]
+            );
+            assert!(!bound.receiver.is_valid());
+            assert_eq!(bound.arguments, positive_before.arguments);
+            assert_eq!(
+                program
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .unwrap()
+                    .target()
+                    .as_resolved()
+                    .unwrap()
+                    .selected_symbol(),
+                symbols_row[2]
+            );
+            assert_eq!(
+                program.expression_table.call_node(wrong_head),
+                Some(&wrong_before)
+            );
+            assert!(bind_closed_contract_calls(&mut program).unwrap().is_empty());
+            assert_eq!(program.expression_table.call_node(positive), Some(&bound));
+            assert!(matches!(
+                program.expression_table.expression(positive),
+                ExpressionNode::Call(_)
+            ));
+        }
+    }
+
     pub(crate) fn collect_contract_call_selections(
         program: &dyn ::validation::CheckingInput,
         scopes: &[ContractExpressionScope<'_>],
